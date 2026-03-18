@@ -27,6 +27,9 @@ import (
 
 	"k8s.io/utils/clock"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -44,113 +47,229 @@ var localClock clock.Clock = clock.RealClock{}
 
 type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operation) error
 
+// Copied from uhc-clusters-service, because the
+// OCM SDK does not define this for some reason.
+type NodePoolStateValue string
+
+const (
+	NodePoolStateValidating       NodePoolStateValue = "validating"
+	NodePoolStatePending          NodePoolStateValue = "pending"
+	NodePoolStateInstalling       NodePoolStateValue = "installing"
+	NodePoolStateReady            NodePoolStateValue = "ready"
+	NodePoolStateUpdating         NodePoolStateValue = "updating"
+	NodePoolStateValidatingUpdate NodePoolStateValue = "validating_update"
+	NodePoolStatePendingUpdate    NodePoolStateValue = "pending_update"
+	NodePoolStateUninstalling     NodePoolStateValue = "uninstalling"
+	NodePoolStateRecoverableError NodePoolStateValue = "recoverable_error"
+	NodePoolStateError            NodePoolStateValue = "error"
+)
+
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
+// If the operation has an associated resource, both documents are updated
+// atomically using a transactional batch to prevent a window where the
+// operation shows a terminal status but the resource still reflects the
+// previous provisioning state.
+//
+// The resource update is skipped (but the operation is still updated) when:
+//   - the operation has no ExternalID (no associated resource)
+//   - the resource document was deleted (404 not found)
+//   - a different operation now owns the resource (ActiveOperationID mismatch)
+//   - the resource is already at the target non-terminal provisioning state
+//
+// In all of these cases the operation document is still persisted and ARM is
+// notified, so the operation reaches its terminal state and does not get stuck.
 func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 	if existingOperation == nil {
 		return nil
 	}
 
-	err := patchOperation(ctx, cosmosClient, existingOperation, newOperationStatus, newOperationError, postAsyncNotificationFn)
-	if err != nil {
+	if !needToPatchOperation(existingOperation, newOperationStatus, newOperationError) {
+		return nil
+	}
+
+	updatedOperation := existingOperation.DeepCopy()
+	updatedOperation.LastTransitionTime = localClock.Now()
+	updatedOperation.Status = newOperationStatus
+	if newOperationError != nil {
+		updatedOperation.Error = newOperationError
+	}
+
+	// Create a transaction to atomically update operation and resource documents.
+	// All documents in the transaction must share the same partition key. Both
+	// operation and resource documents are partitioned by subscription ID. If the
+	// partition key scheme changes the transaction creation here must be updated accordingly.
+	transaction := cosmosClient.NewTransaction(updatedOperation.OperationID.SubscriptionID)
+
+	// Add the operation document replace to the transaction.
+	if _, err := cosmosClient.Operations(updatedOperation.OperationID.SubscriptionID).AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {
 		return utils.TrackError(err)
 	}
 
-	// TODO make this an etag based replace to avoid conflict
+	// Conditionally add a resource document update to the transaction.
+	// The resource update is skipped in several edge cases
+	// but the operation document is always updated via the transaction below.
 	logger.Info("Updating external ID", "externalID", existingOperation.ExternalID)
 	switch {
 	case existingOperation.ExternalID == nil:
+		// No associated resource document to update.
 		logger.Info("No external ID, skipping update")
-		return nil
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName)
-		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+		updated, err := getClusterForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
-			return utils.TrackError(err)
+			return err
 		}
-		if existingOperation.OperationID == nil {
-			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		if updated != nil {
+			logger.Info("Updating resource", "activeOperationID", updated.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updated, nil); err != nil {
+				return utils.TrackError(err)
+			}
 		}
-		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
-		if !oldCosmosOperationMatches {
-			return utils.TrackError(fmt.Errorf("precondition failed"))
-		}
-		if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.ServiceProviderProperties.ProvisioningState, "newStatus", newOperationStatus)
-			return nil
-		}
-		curr.ServiceProviderProperties.ProvisioningState = newOperationStatus
-		if newOperationStatus.IsTerminal() {
-			curr.ServiceProviderProperties.ActiveOperationID = ""
-		}
-
-		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
-			return utils.TrackError(err)
-		}
-		return nil
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).NodePools(existingOperation.ExternalID.Parent.Name)
-		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+		updated, err := getNodePoolForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
-			return utils.TrackError(err)
+			return err
 		}
-		if existingOperation.OperationID == nil {
-			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		if updated != nil {
+			logger.Info("Updating resource", "activeOperationID", updated.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updated, nil); err != nil {
+				return utils.TrackError(err)
+			}
 		}
-		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
-		if !oldCosmosOperationMatches {
-			return utils.TrackError(fmt.Errorf("precondition failed"))
-		}
-		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
-			return nil
-		}
-		curr.Properties.ProvisioningState = newOperationStatus
-		if newOperationStatus.IsTerminal() {
-			curr.ServiceProviderProperties.ActiveOperationID = ""
-		}
-
-		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
-			return utils.TrackError(err)
-		}
-		return nil
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()):
 		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).ExternalAuth(existingOperation.ExternalID.Parent.Name)
-		curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+		updated, err := getExternalAuthForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
-			return utils.TrackError(err)
+			return err
 		}
-		if existingOperation.OperationID == nil {
-			return utils.TrackError(fmt.Errorf("missing operation ID"))
+		if updated != nil {
+			logger.Info("Updating resource", "activeOperationID", updated.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
+			if _, err := dbClient.AddReplaceToTransaction(ctx, transaction, updated, nil); err != nil {
+				return utils.TrackError(err)
+			}
 		}
-		oldCosmosOperationMatches := curr.ServiceProviderProperties.ActiveOperationID == existingOperation.OperationID.Name
-		if !oldCosmosOperationMatches {
-			return utils.TrackError(fmt.Errorf("precondition failed"))
-		}
-		if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
-			logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
-			return nil
-		}
-		curr.Properties.ProvisioningState = newOperationStatus
-		if newOperationStatus.IsTerminal() {
-			curr.ServiceProviderProperties.ActiveOperationID = ""
-		}
-
-		logger.Info("Updating resource", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "newStatus", newOperationStatus)
-		if _, err := dbClient.Replace(ctx, curr, nil); err != nil {
-			return utils.TrackError(err)
-		}
-		return nil
 
 	default:
 		return utils.TrackError(fmt.Errorf("unknown resource type: %s", existingOperation.ExternalID.ResourceType.String()))
 	}
 
+	// Execute the transaction atomically.
+
+	logger.Info("Updating operation status", "oldStatus", existingOperation.Status, "newStatus", newOperationStatus, "operationError", newOperationError)
+	if _, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{}); err != nil {
+		return utils.TrackError(err)
+	}
+
+	notifyOperationOwner(ctx, cosmosClient, updatedOperation, postAsyncNotificationFn)
+
+	return nil
+}
+
+// getClusterForUpdate returns a deep copy of the cluster with updated provisioning
+// state, or nil if the resource update should be skipped.
+func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient database.HCPClusterCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftCluster, error) {
+	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+		logger.Info("Resource not found, skipping resource update")
+		return nil, nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if existingOperation.OperationID == nil {
+		return nil, utils.TrackError(fmt.Errorf("missing operation ID"))
+	}
+	if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+		logger.Info("Resource has a different active operation, skipping resource update",
+			"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+			"thisOperationID", existingOperation.OperationID.Name)
+		return nil, nil
+	}
+	if curr.ServiceProviderProperties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.ServiceProviderProperties.ProvisioningState, "newStatus", newOperationStatus)
+		return nil, nil
+	}
+
+	updated := curr.DeepCopy()
+	updated.ServiceProviderProperties.ProvisioningState = newOperationStatus
+	if newOperationStatus.IsTerminal() {
+		updated.ServiceProviderProperties.ActiveOperationID = ""
+	}
+	return updated, nil
+}
+
+// getNodePoolForUpdate returns a deep copy of the node pool with updated provisioning
+// state, or nil if the resource update should be skipped.
+func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient database.NodePoolsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterNodePool, error) {
+	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+		logger.Info("Resource not found, skipping resource update")
+		return nil, nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if existingOperation.OperationID == nil {
+		return nil, utils.TrackError(fmt.Errorf("missing operation ID"))
+	}
+	if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+		logger.Info("Resource has a different active operation, skipping resource update",
+			"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+			"thisOperationID", existingOperation.OperationID.Name)
+		return nil, nil
+	}
+	if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
+		return nil, nil
+	}
+
+	updated := curr.DeepCopy()
+	updated.Properties.ProvisioningState = newOperationStatus
+	if newOperationStatus.IsTerminal() {
+		updated.ServiceProviderProperties.ActiveOperationID = ""
+	}
+	return updated, nil
+}
+
+// getExternalAuthForUpdate returns a deep copy of the external auth with updated
+// provisioning state, or nil if the resource update should be skipped.
+func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient database.ExternalAuthsCRUD, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState) (*api.HCPOpenShiftClusterExternalAuth, error) {
+	curr, err := dbClient.Get(ctx, existingOperation.ExternalID.Name)
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) && responseErr.StatusCode == http.StatusNotFound {
+		logger.Info("Resource not found, skipping resource update")
+		return nil, nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if existingOperation.OperationID == nil {
+		return nil, utils.TrackError(fmt.Errorf("missing operation ID"))
+	}
+	if curr.ServiceProviderProperties.ActiveOperationID != existingOperation.OperationID.Name {
+		logger.Info("Resource has a different active operation, skipping resource update",
+			"resourceActiveOperationID", curr.ServiceProviderProperties.ActiveOperationID,
+			"thisOperationID", existingOperation.OperationID.Name)
+		return nil, nil
+	}
+	if curr.Properties.ProvisioningState == newOperationStatus && !newOperationStatus.IsTerminal() {
+		logger.Info("No update needed", "activeOperationID", curr.ServiceProviderProperties.ActiveOperationID, "oldStatus", curr.Properties.ProvisioningState, "newStatus", newOperationStatus)
+		return nil, nil
+	}
+
+	updated := curr.DeepCopy()
+	updated.Properties.ProvisioningState = newOperationStatus
+	if newOperationStatus.IsTerminal() {
+		updated.ServiceProviderProperties.ActiveOperationID = ""
+	}
+	return updated, nil
 }
 
 func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody) bool {
@@ -189,10 +308,24 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 		return utils.TrackError(err)
 	}
 
-	message := fmt.Sprintf("Updated status to '%s'", newOperationStatus)
-	switch newOperationStatus {
+	notifyOperationOwner(ctx, dbClient, latestOperation, postAsyncNotificationFn)
+
+	return nil
+}
+
+// notifyOperationOwner logs the operation result and, if applicable, sends an async
+// notification to ARM and clears the notification URI.
+//
+// The notification URI is cleared in a separate write after the notification is
+// sent successfully. If the process crashes between sending the notification and
+// clearing the URI, the notification may be sent again on the next reconcile.
+func notifyOperationOwner(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
+	logger := utils.LoggerFromContext(ctx)
+
+	message := fmt.Sprintf("Updated status to '%s'", operation.Status)
+	switch operation.Status {
 	case arm.ProvisioningStateSucceeded:
-		switch latestOperation.Request {
+		switch operation.Request {
 		case database.OperationRequestCreate:
 			message = "Resource creation succeeded"
 		case database.OperationRequestUpdate:
@@ -205,7 +338,7 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 			message = "Credential revocation succeeded"
 		}
 	case arm.ProvisioningStateFailed:
-		switch latestOperation.Request {
+		switch operation.Request {
 		case database.OperationRequestCreate:
 			message = "Resource creation failed"
 		case database.OperationRequestUpdate:
@@ -218,35 +351,41 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 			message = "Credential revocation failed"
 		}
 	}
-	if newOperationError != nil {
+	if operation.Error != nil {
 		logger.WithValues(
 			utils.LogValues{}.
-				AddCloudErrorCode(newOperationError.Code).
-				AddCloudErrorMessage(newOperationError.Message)...).
+				AddCloudErrorCode(operation.Error.Code).
+				AddCloudErrorMessage(operation.Error.Message)...).
 			Error(nil, message)
 	} else {
 		logger.Info(message)
 	}
 
-	if postAsyncNotificationFn != nil && newOperationStatus.IsTerminal() && len(latestOperation.NotificationURI) > 0 {
-		err = postAsyncNotificationFn(ctx, latestOperation)
+	if postAsyncNotificationFn != nil && operation.Status.IsTerminal() && len(operation.NotificationURI) > 0 {
+		err := postAsyncNotificationFn(ctx, operation)
 		if err == nil {
 			logger.Info("Posted async notification")
 
 			// Remove the notification URI from the document
 			// so the ARM notification is only sent once.
-			operationWithoutNotificationURI := *latestOperation
-			operationWithoutNotificationURI.NotificationURI = ""
-			_, err = dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, &operationWithoutNotificationURI, nil)
+			// Re-read the operation to get the current ETag,
+			// since the in-memory copy may have a stale ETag
+			// from before a transactional batch commit.
+			operationsCRUD := cosmosClient.Operations(operation.OperationID.SubscriptionID)
+			currentOperation, err := operationsCRUD.Get(ctx, operation.OperationID.Name)
 			if err != nil {
-				logger.Error(err, "Failed to clear notification URI")
+				logger.Error(err, "Failed to re-read operation to clear notification URI")
+			} else {
+				currentOperation.NotificationURI = ""
+				_, err = operationsCRUD.Replace(ctx, currentOperation, nil)
+				if err != nil {
+					logger.Error(err, "Failed to clear notification URI")
+				}
 			}
 		} else {
 			logger.Error(err, "Failed to post async notification")
 		}
 	}
-
-	return nil
 }
 
 // PostAsyncNotification submits an POST request with status payload to the given URL.
@@ -339,6 +478,121 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 	}
 
 	return newOperationStatus, opError, err
+}
+
+// pollNodePoolStatus converts a node pool status from Cluster
+// Service to info for an Azure async operation status endpoint.
+func pollNodePoolStatus(
+	ctx context.Context,
+	cosmosClient database.DBClient,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
+	operation *api.Operation,
+	notificationClient *http.Client) error {
+	// XXX This is currently called by the operationNodePoolCreate and
+	//     operationNodePoolUpdate controllers because the logic flows
+	//     are identical. If the logic flows ever diverge, then this
+	//     function should be split up and the pieces moved back to
+	//     their respective controllers.
+
+	logger := utils.LoggerFromContext(ctx)
+
+	nodePoolStatus, err := clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	logger.Info("new status", "newStatus", newOperationStatus)
+
+	logger.Info("updating status")
+	err = UpdateOperationStatus(ctx, cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
+// convertNodePoolStatus attempts to translate a NodePoolStatus object
+// from Cluster Service into an ARM provisioning state and, if necessary,
+// a structured OData error.
+func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var newOperationStatus = operation.Status
+	var opError *arm.CloudErrorBody
+	var err error
+
+	switch state := NodePoolStateValue(nodePoolStatus.State().NodePoolStateValue()); state {
+	case NodePoolStateValidating, NodePoolStatePending, NodePoolStateValidatingUpdate, NodePoolStatePendingUpdate:
+		// These are valid node pool states for ARO-HCP but there are
+		// no unique ProvisioningState values for them. They should
+		// only occur when ProvisioningState is Accepted.
+		if operation.Status != arm.ProvisioningStateAccepted {
+			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, operation.Status, arm.ProvisioningStateAccepted)
+		}
+	case NodePoolStateInstalling:
+		newOperationStatus = arm.ProvisioningStateProvisioning
+	case NodePoolStateReady:
+		// Resource deletion is successful when fetching its state
+		// from Cluster Service returns a "404 Not Found" error. If
+		// we see the resource in a "Ready" state during a deletion
+		// operation, leave the current provisioning state as is.
+		if operation.Request != database.OperationRequestDelete {
+			newOperationStatus = arm.ProvisioningStateSucceeded
+		}
+	case NodePoolStateUpdating:
+		newOperationStatus = arm.ProvisioningStateUpdating
+	case NodePoolStateUninstalling:
+		newOperationStatus = arm.ProvisioningStateDeleting
+	case NodePoolStateRecoverableError, NodePoolStateError:
+		// XXX OCM SDK offers no error code or message for failed node pool
+		//     operations so "Internal Server Error" is all we can do for now.
+		//     https://issues.redhat.com/browse/ARO-14969
+		newOperationStatus = arm.ProvisioningStateFailed
+		opError = arm.NewInternalServerError().CloudErrorBody
+		if msg, ok := nodePoolStatus.GetMessage(); ok {
+			opError.Message = msg
+		}
+	default:
+		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
+	}
+
+	return newOperationStatus, opError, err
+}
+
+// pollExternalAuthStatus converts an external auth status from Cluster
+// Service to info for an Azure async operation status endpoint.
+func pollExternalAuthStatus(
+	ctx context.Context,
+	cosmosClient database.DBClient,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
+	operation *api.Operation,
+	notificationClient *http.Client) error {
+	// XXX This is currently called by the operationExternalAuthCreate and
+	//     operationExternalAuthUpdate controllers because the logic flows
+	//     are identical. If the logic flows ever diverge, then this
+	//     function should be split up and the pieces moved back to
+	//     their respective controllers.
+
+	logger := utils.LoggerFromContext(ctx)
+
+	_, err := clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	newOperationStatus := arm.ProvisioningStateSucceeded
+	logger.Info("new status", "newStatus", newOperationStatus)
+
+	logger.Info("updating status")
+	err = UpdateOperationStatus(ctx, cosmosClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
 }
 
 // convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them

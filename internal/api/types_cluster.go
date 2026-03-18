@@ -15,6 +15,7 @@
 package api
 
 import (
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -28,12 +29,20 @@ type HCPOpenShiftCluster struct {
 	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
+	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
+	// populated on DB read via the CosmosToInternalCluster() conversion function.
+	// We carry it across the API boundary between HCPCluster (the direct cosmos db type) and HCPOpenShiftCluster (this)
+	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
+	// This can be removed once we have inlined and serialized CosmosMetadata in
+	// HCPOpenShiftCluster.
+	CosmosETag azcore.ETag `json:"-"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
 
 func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
 	return &arm.CosmosMetadata{
+		CosmosETag:        o.CosmosETag,
 		ResourceID:        o.ID,
 		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
 	}
@@ -66,6 +75,15 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// ExperimentalFeatures captures experimental feature state evaluated from
 	// AFEC and per-resource tags. Stored in Cosmos but NOT exposed via ARM API.
 	ExperimentalFeatures ExperimentalFeatures `json:"experimentalFeatures,omitzero"`
+	// ManagedIdentitiesDataPlaneIdentityURL is the Managed Identities Data Plane
+	// Identity URL associated with the cluster. It is the URL that will be used
+	// to communicate with the Managed Identities Resource Provider (MI RP).
+	// When an ARO-HCP Cluster is created, ARM sends a HTTP header X-Ms-Identity-Url
+	// that contains the cluster's identity url. For ARO-HCP environments where
+	// the Managed Identities Dataplane service is not available the http header
+	// is set to a dummy value by our tools/testsuites/developers when
+	// creating ARO-HCP Clusters
+	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -192,7 +210,7 @@ type ClusterImageRegistryProfile struct {
 	// creation and cannot be changed after cluster creation. Enabled means the
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
-	State ClusterImageRegistryProfileState `json:"state,omitempty"`
+	State ClusterImageRegistryState `json:"state,omitempty"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
@@ -228,7 +246,7 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				},
 			},
 			ClusterImageRegistry: ClusterImageRegistryProfile{
-				State: ClusterImageRegistryProfileStateEnabled,
+				State: ClusterImageRegistryStateEnabled,
 			},
 		},
 	}

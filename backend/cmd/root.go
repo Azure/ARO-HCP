@@ -28,31 +28,34 @@ import (
 
 	"k8s.io/klog/v2"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
+	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
 
 type BackendRootCmdFlags struct {
-	Kubeconfig                                      string
-	K8sNamespace                                    string
-	AzureLocation                                   string
-	AzureCosmosDBName                               string
-	AzureCosmosDBURL                                string
-	ClustersServiceURL                              string
-	ClustersServiceTLSInsecure                      bool
-	MetricsServerListenAddress                      string
-	HealthzServerListenAddress                      string
-	AzureRuntimeConfigPath                          string
-	AzureFirstPartyApplicationCertificateBundlePath string
-	AzureFirstPartyApplicationClientID              string
-	LogVerbosity                                    int
-	MaestroSourceEnvironmentIdentifier              string
+	Kubeconfig                                                                                    string
+	K8sNamespace                                                                                  string
+	AzureLocation                                                                                 string
+	AzureCosmosDBName                                                                             string
+	AzureCosmosDBURL                                                                              string
+	ClustersServiceURL                                                                            string
+	ClustersServiceTLSInsecure                                                                    bool
+	MetricsServerListenAddress                                                                    string
+	HealthzServerListenAddress                                                                    string
+	AzureRuntimeConfigPath                                                                        string
+	AzureFirstPartyApplicationCertificateBundlePath                                               string
+	AzureFirstPartyApplicationClientID                                                            string
+	LogVerbosity                                                                                  int
+	MaestroSourceEnvironmentIdentifier                                                            string
+	InsecureAzureManagedIdentityMockCertificateBundlePath                                         string
+	InsecureAzureManagedIdentityMockClientID                                                      string
+	InsecureAzureManagedIdentityMockServicePrincipalID                                            string
+	InsecureAzureManagedIdentityMockTenantID                                                      string
+	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
+	ExitOnPanic                                                                                   bool
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -91,6 +94,62 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 			"therefore a must to first understand and plan the impact changing the value would have, including any potential migration plan before changing it.",
 	)
 
+	cmd.Flags().BoolVar(
+		&f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
+		"insecure-ignore-user-azure-managed-identities-that-need-managed-identities-dataplane-available-and-use-mock",
+		f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock,
+		"If set, the cluster-scoped user-provided Managed Identities that need the Managed Identities Dataplane service to be available are not used "+
+			"and the managed identity mock identity (MI Mock) will be used instead. The identities that need the Managed Identities Dataplane service are the "+
+			"Cluster's Control Plane Operators identities and the Cluster's Service Managed Identity. Even though when this is set there's no authentication "+
+			"as them against Azure, the backend still leverages them to perform some permissions validation checks",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockCertificateBundlePath,
+		"insecure-azure-managed-identity-mock-certificate-bundle-path",
+		"",
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the msi mock identity, which is "+
+			"a common Azure Service Principal identity. This flag should only be set in environments where "+
+			"Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-client-id' and "+
+			"'--insecure-azure-managed-identity-mock-principal-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockClientID,
+		"insecure-azure-managed-identity-mock-client-id",
+		"",
+		"The client id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path' and "+
+			"'--insecure-azure-managed-identity-mock-principal-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockServicePrincipalID,
+		"insecure-azure-managed-identity-mock-principal-id",
+		"",
+		"The principal id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path' and "+
+			"'--azure-mi-mock-principal-client-id' and '--insecure-azure-managed-identity-mock-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureManagedIdentityMockTenantID,
+		"insecure-azure-managed-identity-mock-tenant-id",
+		"",
+		"The tenant id of the ARO-HCP Clusters Managed Identities (MI) mock identity, which is a common Azure Service Principal identity. "+
+			"This flag should only be set in environments where Microsoft's MI Dataplane service is not available. "+
+			"When set, it must be set in combination with the '--insecure-azure-managed-identity-mock-certificate-bundle-path', "+
+			"'--insecure-azure-managed-identity-mock-client-id' and '--insecure-azure-managed-identity-mock-principal-id' flags.",
+	)
+
+	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
+		"If set, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
+	)
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -119,16 +178,48 @@ func (f *BackendRootCmdFlags) validate() error {
 		return utils.TrackError(fmt.Errorf("--log-verbosity must be a value >= 0"))
 	}
 
+	if len(f.MaestroSourceEnvironmentIdentifier) == 0 {
+		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier is required"))
+	}
+	if len(f.MaestroSourceEnvironmentIdentifier) > 10 {
+		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier must be less than 10 characters"))
+	}
+
+	// If InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock is set,
+	// we need to ensure that all the azure managed identity mock identity related flags are
+	if f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
+		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockClientID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-client-id must be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockServicePrincipalID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-principal-id must be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockTenantID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-tenant-id must be set"))
+		}
+	} else { // Otherwise we also validate that none of the azure managed identity mock identity related flags are set in that case.
+		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must not be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockClientID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-client-id must not be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockServicePrincipalID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-principal-id must not be set"))
+		}
+		if len(f.InsecureAzureManagedIdentityMockTenantID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-tenant-id must not be set"))
+		}
+	}
+
 	return nil
 }
 
 func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.Command) (*app.BackendOptions, error) {
 	logger := utils.LoggerFromContext(ctx)
-
-	err := f.validate()
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to validate flags: %w", err))
-	}
 
 	kubeconfig, err := app.NewKubeconfig(f.Kubeconfig)
 	if err != nil {
@@ -156,13 +247,40 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("could not initialize opentelemetry sdk: %w", err))
 	}
 
+	otelTracerProvider := otel.GetTracerProvider()
+	azureConfig, err := app.NewAzureConfig(ctx, f.AzureRuntimeConfigPath, otelTracerProvider)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create Azure configuration: %w", err))
+	}
+
+	fpaTokenCredRetriever, err := app.NewFirstPartyApplicationTokenCredentialRetriever(ctx, f.AzureFirstPartyApplicationCertificateBundlePath, f.AzureFirstPartyApplicationClientID, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create FPA token credential retriever: %w", err))
+	}
+
+	fpaClientBuilder, err := app.NewFirstPartyApplicationClientBuilder(fpaTokenCredRetriever, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
+	}
+
+	backendIdentityAzureClients, err := app.NewBackendIdentityAzureClients(ctx, azureConfig)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
+	}
+
+	fpaMIDataplaneClientBuilder, err := app.NewFirstPartyApplicationManagedIdentitiesDataplaneClientBuilder(
+		fpaTokenCredRetriever,
+		f.InsecureAzureManagedIdentityMockCertificateBundlePath, f.InsecureAzureManagedIdentityMockClientID, f.InsecureAzureManagedIdentityMockServicePrincipalID, f.InsecureAzureManagedIdentityMockTenantID,
+		azureConfig,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("error getting FPA MI dataplane client builder: %w", err))
+	}
+	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
+
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
 	)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create cosmos db client: %w", err))
@@ -184,6 +302,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,
 		TracerProviderShutdownFunc:         otelShutdown,
 		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
+		FPAClientBuilder:                   fpaClientBuilder,
+		BackendIdentityAzureClients:        backendIdentityAzureClients,
+		ExitOnPanic:                        f.ExitOnPanic,
+		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
+		SMIClientBuilder:                   smiClientBuilder,
 	}
 
 	return backendOptions, nil
@@ -205,6 +328,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		AzureFirstPartyApplicationClientID:              "",
 		LogVerbosity:                                    0,
 		MaestroSourceEnvironmentIdentifier:              "",
+		ExitOnPanic:                                     true,
 	}
 
 	return flags
@@ -252,6 +376,11 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
 	}
+
+	// Setup signal context allowing for both graceful and forceful shutdown
+	// through linux signals (SIGINT and SIGTERM).
+	ctx := signal.SetupSignalContext()
+
 	// Create a logr.Logger and add it to context for use throughout the application.
 	// We use slog.Level(flags.LogVerbosity * -1) to convert the verbosity level to a slog.Level.
 	// A value of 0 is equivalent to INFO. Higher values mean more verbose output.
@@ -259,10 +388,6 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	// Temporary hardcode the log level to -4 to see increased klog logging
 	// verbosity.
 	handlerOptions.Level = slog.Level(-4)
-
-	// TODO move signal-aware context creation from backend/pkg/app/backend.go here,
-	// and redo context handling similar to frontend/cmd/cmd.go.
-	ctx := context.Background()
 	slogJSONHandler := slog.NewJSONHandler(os.Stdout, handlerOptions)
 	logger := logr.FromSlogHandler(slogJSONHandler)
 	ctx = utils.ContextWithLogger(ctx, logger)

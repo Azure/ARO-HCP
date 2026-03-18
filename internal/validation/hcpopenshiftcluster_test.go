@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/operation"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -37,6 +39,7 @@ func TestClusterRequired(t *testing.T) {
 		name         string
 		resource     *api.HCPOpenShiftCluster
 		tweaks       *api.HCPOpenShiftCluster
+		opOptions    []string
 		expectErrors []expectedError
 	}{
 		{
@@ -49,6 +52,10 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
+					fieldPath: "trackedResource.resource.systemData",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "trackedResource.location",
 				},
 				{
@@ -56,16 +63,44 @@ func TestClusterRequired(t *testing.T) {
 					fieldPath: "customerProperties.version.channelGroup",
 				},
 				{
+					message:   "Unsupported value",
+					fieldPath: "customerProperties.version.channelGroup",
+				},
+				{
 					message:   "Required value",
 					fieldPath: "customerProperties.version.id",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.networkType",
 				},
 				{
 					message:   "Unsupported value",
 					fieldPath: "customerProperties.network.networkType",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.podCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.serviceCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.machineCidr",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.network.hostPrefix",
+				},
+				{
 					message:   "must be greater than or equal to 23",
 					fieldPath: "customerProperties.network.hostPrefix",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.api.visiblity",
 				},
 				{
 					message:   "Unsupported value",
@@ -73,7 +108,15 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "customerProperties.platform.subnetId",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.platform.outboundType",
 				},
 				{
 					message:   "Unsupported value",
@@ -84,20 +127,44 @@ func TestClusterRequired(t *testing.T) {
 					fieldPath: "customerProperties.platform.networkSecurityGroupId",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
-				},
-				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.clusterImageRegistry.state",
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
 				},
 				{
 					message:   "Invalid value: 0: must be greater than or equal to 1",
 					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
 				},
 				{
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+				},
+				{
 					message:   "Invalid value: 0: must be greater than or equal to 1",
 					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.autoscaling.podPriorityThreshold",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					message:   "Unsupported value",
+					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.clusterImageRegistry.state",
+				},
+				{
+					message:   "Unsupported value",
+					fieldPath: "customerProperties.clusterImageRegistry.state",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
 			},
 		},
@@ -110,11 +177,27 @@ func TestClusterRequired(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
+					fieldPath: "trackedResource.resource.systemData",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.version.id",
+				},
+				{
+					message:   "Required value",
 					fieldPath: "customerProperties.platform.subnetId",
 				},
 				{
 					message:   "Required value",
 					fieldPath: "customerProperties.platform.networkSecurityGroupId",
+				},
+				{
+					message:   "Required value",
+					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
 			},
 		},
@@ -155,7 +238,8 @@ func TestClusterRequired(t *testing.T) {
 				resource = api.ClusterTestCase(t, tt.tweaks)
 			}
 
-			actualErrors := ValidateClusterCreate(context.TODO(), resource, nil)
+			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
+			actualErrors := ValidateCluster(context.TODO(), op, resource, nil, nil)
 			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
@@ -168,6 +252,7 @@ func TestClusterValidate(t *testing.T) {
 		name         string
 		resource     *api.HCPOpenShiftCluster
 		tweaks       *api.HCPOpenShiftCluster
+		opOptions    []string
 		expectErrors []expectedError
 	}{
 		{
@@ -224,17 +309,156 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad required_unless",
+			name: "Version ID is required",
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = ""
-				r.CustomerProperties.Version.ChannelGroup = "fast"
 				return r
 			}(),
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
 					fieldPath: "customerProperties.version.id",
+				},
+			},
+		},
+		{
+			name: "Version ID with micro version is rejected without experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.19.3"
+				return r
+			}(),
+			expectErrors: []expectedError{
+				{
+					message:   "must be specified as MAJOR.MINOR",
+					fieldPath: "customerProperties.version.id",
+				},
+			},
+		},
+		{
+			name: "Version ID with micro version is allowed with experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.19.3"
+				return r
+			}(),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "ChannelGroup candidate is rejected without experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "candidate"
+				return r
+			}(),
+			expectErrors: []expectedError{
+				{
+					message:   "supported values: \"fast\", \"stable\"",
+					fieldPath: "customerProperties.version.channelGroup",
+				},
+			},
+		},
+		{
+			name: "ChannelGroup candidate is allowed with experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "candidate"
+				return r
+			}(),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "Version ID with prerelease is rejected without experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.20.0-rc.1"
+				return r
+			}(),
+			expectErrors: []expectedError{
+				{
+					message:   "must be specified as MAJOR.MINOR",
+					fieldPath: "customerProperties.version.id",
+				},
+			},
+		},
+		{
+			name: "Version ID with prerelease is allowed with experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.20.0-rc.1"
+				return r
+			}(),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "Version ID with nightly format is allowed with experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "nightly"
+				r.CustomerProperties.Version.ID = "4.20.0-0.nightly-2024-01-15-123456"
+				return r
+			}(),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "ChannelGroup fast is allowed without experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "fast"
+				return r
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "Version must be at least 4.19 - version 4.20 accepted",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.20"
+				return r
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "ChannelGroup nightly is rejected without experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "nightly"
+				return r
+			}(),
+			expectErrors: []expectedError{
+				{
+					message:   "supported values: \"fast\", \"stable\"",
+					fieldPath: "customerProperties.version.channelGroup",
+				},
+			},
+		},
+		{
+			name: "ChannelGroup nightly is allowed with experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "nightly"
+				return r
+			}(),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "ChannelGroup blah is rejected even with experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ChannelGroup = "blah"
+				return r
+			}(),
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{
+				{
+					message:   "supported values: \"candidate\", \"fast\", \"nightly\", \"stable\"",
+					fieldPath: "customerProperties.version.channelGroup",
 				},
 			},
 		},
@@ -273,7 +497,7 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
-						State: api.ClusterImageRegistryProfileState("not enabled"),
+						State: api.ClusterImageRegistryState("not enabled"),
 					},
 				},
 			},
@@ -704,6 +928,80 @@ func TestClusterValidate(t *testing.T) {
 				},
 			},
 		},
+		// Managed resource group name validation
+		{
+			name: "Managed resource group name is missing",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Platform.ManagedResourceGroup = ""
+				return r
+			}(),
+			expectErrors: []expectedError{
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Managed resource group name ends with period",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ManagedResourceGroup: "invalid-name.",
+					},
+				},
+			},
+			expectErrors: []expectedError{
+				{
+					message:   "max 90 characters",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Managed resource group name with invalid characters",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ManagedResourceGroup: "invalid$name",
+					},
+				},
+			},
+			expectErrors: []expectedError{
+				{
+					message:   "max 90 characters",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Managed resource group name too long",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ManagedResourceGroup: "a123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890",
+					},
+				},
+			},
+			expectErrors: []expectedError{
+				{
+					message:   "max 90 characters",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
+				},
+			},
+		},
+		{
+			name: "Valid managed resource group name with periods and parentheses",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ManagedResourceGroup: "valid.name(test)",
+					},
+				},
+			},
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -713,7 +1011,8 @@ func TestClusterValidate(t *testing.T) {
 				resource = api.ClusterTestCase(t, tt.tweaks)
 			}
 
-			actualErrors := ValidateClusterCreate(context.TODO(), resource, nil)
+			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
+			actualErrors := ValidateCluster(context.TODO(), op, resource, nil, nil)
 			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}

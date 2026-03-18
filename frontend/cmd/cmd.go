@@ -26,6 +26,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
@@ -39,11 +40,11 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/frontend/pkg/signal"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -65,10 +66,12 @@ type FrontendOpts struct {
 
 	cosmosName string
 	cosmosURL  string
+
+	exitOnPanic bool
 }
 
 func NewRootCmd() *cobra.Command {
-	opts := &FrontendOpts{}
+	opts := NewFrontendOpts()
 	rootCmd := &cobra.Command{
 		Use:     "aro-hcp-frontend",
 		Version: version.CommitSHA,
@@ -102,9 +105,18 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
 
+	rootCmd.Flags().BoolVar(&opts.exitOnPanic, "exit-on-panic", opts.exitOnPanic,
+		"If set, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
+	)
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
 	return rootCmd
+}
+
+func NewFrontendOpts() *FrontendOpts {
+	return &FrontendOpts{
+		exitOnPanic: true,
+	}
 }
 
 type PolicyFunc func(*policy.Request) (*http.Response, error)
@@ -135,6 +147,11 @@ func (opts *FrontendOpts) Run() error {
 	defer cancel(fmt.Errorf("function returned"))
 
 	logger := utils.DefaultLogger()
+	ctx = utils.ContextWithLogger(ctx, logger)
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(collectors.NewGoCollector())
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	if len(opts.location) == 0 {
 		return errors.New("location is required")
@@ -148,18 +165,19 @@ func (opts *FrontendOpts) Run() error {
 
 	// Create an slog logger for external dependencies that require it
 	slogLogger := slog.New(logr.ToSlogHandler(logger))
+
+	// Create audit log client.
 	auditClient, err := audit.NewOtelAuditClient(
+		ctx,
 		audit.CreateConn(opts.auditConnectSocket),
+		registry,
 		base.WithLogger(slogLogger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
-		}))
+		}),
+	)
 	if err != nil {
-		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
-	}
-
-	if opts.auditConnectSocket {
-		logger.Info("audit logging to default_fluent.socket")
+		return fmt.Errorf("failed to create audit client: %w", err)
 	}
 
 	// Initialize the global OpenTelemetry tracer.
@@ -214,7 +232,7 @@ func (opts *FrontendOpts) Run() error {
 		URL(opts.clustersServiceURL).
 		Insecure(opts.insecure).
 		MetricsSubsystem("frontend_clusters_service_client").
-		MetricsRegisterer(prometheus.DefaultRegisterer).
+		MetricsRegisterer(registry).
 		Build()
 	if err != nil {
 		return err
@@ -225,9 +243,12 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard, opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision)
+	f := frontend.NewFrontend(
+		logger, listener, metricsListener, registry, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
+		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
+	)
 
-	runErrCh := make(chan error)
+	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- f.Run(ctx)
 		cancel(fmt.Errorf("frontend exited"))

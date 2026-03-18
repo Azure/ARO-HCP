@@ -19,14 +19,11 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/operation"
-	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 // MutateCluster sets internal cluster state derived from subscription features
@@ -102,34 +99,8 @@ func lookupTag(tags map[string]string, key string) string {
 // AdmitClusterOnCreate performs non-static checks of cluster. Checks that
 // require more information than is contained inside of the cluster instance itself.
 func AdmitClusterOnCreate(ctx context.Context, newVersion *api.HCPOpenShiftCluster, subscription *arm.Subscription) field.ErrorList {
-	op := operation.Operation{Type: operation.Create}
-	errs := admitVersionProfileOnCreate(ctx, &newVersion.CustomerProperties.Version, op, subscription)
-
-	return errs
-}
-
-// admitVersionProfile performs non-static check for a versionProfil of a cluster. This check requires subscription
-func admitVersionProfileOnCreate(ctx context.Context, newVersion *api.VersionProfile, op operation.Operation, subscription *arm.Subscription) field.ErrorList {
+	// to be filled in
 	errs := field.ErrorList{}
-
-	fldPath := field.NewPath("properties", "version")
-	// Check if AllowDevNonStableChannels feature is enabled
-	allowNonStableChannels := subscription != nil && subscription.HasRegisteredFeature(api.FeatureAllowDevNonStableChannels)
-
-	// Version format validation depends on channel group and feature flag
-	if allowNonStableChannels && newVersion.ChannelGroup != "stable" {
-		// For non-stable channels with feature flag: allow full semver format (X.Y.Z-prerelease)
-		errs = append(errs, validation.OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newVersion.ID, nil)...)
-	} else {
-		// For stable or without feature flag: only MAJOR.MINOR format
-		errs = append(errs, validation.OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newVersion.ID, nil)...)
-	}
-
-	// Channel group validation based on subscription feature flags
-	if !allowNonStableChannels {
-		// Without feature flag: only "stable" is allowed (empty would have failed static validation)
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newVersion.ChannelGroup, nil, sets.New("stable"))...)
-	}
 
 	return errs
 }

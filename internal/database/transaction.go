@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -90,7 +91,7 @@ func (t *cosmosDBTransaction) OnSuccess(callback DBTransactionCallback) {
 
 func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.TransactionalBatchOptions) (DBTransactionResult, error) {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Executing transaction", "transaction", t)
+	logger.Info("Executing transaction", "transaction", t.ToJSONStructRendering())
 
 	result := newCosmosDBTransactionResult()
 
@@ -146,22 +147,27 @@ type CosmosDBTransactionDetails struct {
 }
 
 type CosmosDBTransactionStepDetails struct {
-	ActionType string `json:"actionType"`
-	CosmosID   string `json:"cosmosID"`
-	ResourceID string `json:"resourceID"`
-	GoType     string `json:"goType"`
+	ActionType string      `json:"actionType"`
+	CosmosID   string      `json:"cosmosID"`
+	ResourceID string      `json:"resourceID"`
+	GoType     string      `json:"goType"`
+	Etag       azcore.ETag `json:"etag"`
 }
 
 func (t *cosmosDBTransaction) String() string {
-	details := CosmosDBTransactionDetails{
-		PartitionKey: t.pk,
-		Steps:        t.stepsDetails,
-	}
-	ret, err := json.Marshal(details)
+	ret, err := json.Marshal(t.ToJSONStructRendering())
 	if err != nil {
 		return "failed to marshal transaction details: " + err.Error()
 	}
 	return string(ret)
+}
+
+// ToJSONStructRendering is useful for logging.
+func (t *cosmosDBTransaction) ToJSONStructRendering() CosmosDBTransactionDetails {
+	return CosmosDBTransactionDetails{
+		PartitionKey: t.pk,
+		Steps:        t.stepsDetails,
+	}
 }
 
 var _ DBTransactionResult = &cosmosDBTransactionResult{}

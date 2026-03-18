@@ -17,10 +17,11 @@ package databasemutationhelpers
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -29,6 +30,7 @@ type HTTPTestAccessor interface {
 	Get(ctx context.Context, resourceIDString string) (any, error)
 	List(ctx context.Context, parentResourceIDString string) ([]any, error)
 	CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error
+	Post(ctx context.Context, resourceIDString string, content []byte) error
 	Patch(ctx context.Context, resourceIDString string, content []byte) error
 	Delete(ctx context.Context, resourceIDString string) error
 }
@@ -57,6 +59,11 @@ func (a *httpHTTPTestAccessor) List(ctx context.Context, parentResourceIDString 
 
 func (a *httpHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceIDString string, content []byte) error {
 	_, err := a.doRequest(ctx, http.MethodPut, resourceIDString, content)
+	return err
+}
+
+func (a *httpHTTPTestAccessor) Post(ctx context.Context, resourceIDString string, content []byte) error {
+	_, err := a.doRequest(ctx, http.MethodPost, resourceIDString, content)
 	return err
 }
 
@@ -97,13 +104,13 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 		}
 	}()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, utils.TrackError(fmt.Errorf("HTTP %d", resp.StatusCode))
-	}
-
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, utils.TrackError(err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
 	}
 
 	if len(bodyBytes) == 0 {
@@ -111,7 +118,9 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+
+	// handles both JSON and YAML
+	if err := yaml.Unmarshal(bodyBytes, &result); err != nil {
 		return nil, utils.TrackError(err)
 	}
 

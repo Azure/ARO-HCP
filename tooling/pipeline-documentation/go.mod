@@ -1,9 +1,9 @@
 module github.com/Azure/ARO-HCP/tooling/pipeline-documentation
 
-go 1.25.0
+go 1.25.5
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20260210222404-30605e5b1ccc
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260309172949-8176eed3f66a
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/spf13/cobra v1.10.2
@@ -12,9 +12,7 @@ require (
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	k8s.io/apimachinery v0.34.3 // indirect
 )

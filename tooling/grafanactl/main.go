@@ -25,9 +25,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/clean"
-	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/list"
-	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/sync"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/clean"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/list"
+	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/sync"
 )
 
 const (

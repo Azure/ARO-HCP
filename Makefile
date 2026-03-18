@@ -10,6 +10,7 @@ LINT_GOTAGS?='E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
+export AZURE_TOKEN_CREDENTIALS ?= dev
 
 .DEFAULT_GOAL := all
 
@@ -90,13 +91,21 @@ yamlfmt: $(YAMLFMT) $(YAMLWRAP)
 	$(YAMLWRAP) unwrap --dir .
 .PHONY: yamlfmt
 
-tidy: $(MODULES:/...=.tidy)
+work-sync:
+	go work sync
+.PHONY: work-sync
+
+tidy: $(MODULES:/...=.tidy) work-sync
 
 %.tidy:
 	cd $(basename $@) && go mod tidy
 
+bump-aro-tools: $(MODULES:/...=.bump-aro-tools) tidy
+
+%.bump-aro-tools:
+	cd $(basename $@) && go mod edit -json | jq --raw-output '.Require[] | select(.Path | contains("github.com/Azure/ARO-Tools") ) | .Path' | xargs -I{} go get {}@main
+
 all-tidy: tidy fmt licenses
-	go work sync
 
 frontend-grant-ingress:
 	make -C dev-infrastructure frontend-grant-ingress
@@ -142,7 +151,7 @@ CONTAINER_RUNTIME ?= docker
 
 mega-lint:
 	$(CONTAINER_RUNTIME) run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
+		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
 		docker.io/oxsecurity/megalinter-ci_light:v9
@@ -215,6 +224,10 @@ infra.clean:
 infra.tracing:
 	cd observability/tracing && KUBECONFIG="$$(cd ../../dev-infrastructure && make -s svc.aks.kubeconfigfile)" make
 .PHONY: infra.tracing
+
+infra.cosmos.access:
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make cosmos.access
+.PHONY: infra.cosmos.access
 
 #
 # Services
@@ -320,7 +333,7 @@ generate-kiota:
 # One-Step Personal Dev Environment
 #
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
-personal-dev-env: install-tools entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing
+personal-dev-env: install-tools entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
 else
 personal-dev-env:
 	$(error personal-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
@@ -379,6 +392,7 @@ DRY_RUN ?= "false"
 PERSIST ?= "false"
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
+CONFIG_OUTPUT ?= _artifacts/config.yaml
 
 local-run: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint run --config-file "${CONFIG_FILE}" \
@@ -390,7 +404,8 @@ local-run: $(TEMPLATIZE)
 	                                 --dry-run=$(DRY_RUN) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT) \
-	                                 --junit-output=$(ENTRYPOINT_JUNIT_OUTPUT)
+	                                 --junit-output=$(ENTRYPOINT_JUNIT_OUTPUT) \
+	                                 --config-output=$(CONFIG_OUTPUT)
 
 
 ifeq ($(wildcard $(YQ)),$(YQ))
@@ -442,7 +457,7 @@ cleanup: $(TEMPLATIZE)
 								     --dev-environment $(DEPLOY_ENV) \
 								     $(WHAT) \
 								     --dry-run=$(CLEANUP_DRY_RUN) \
-									 --ignore=global --ignore=kusto \
+								     --only-regional \
 								     --wait=$(CLEANUP_WAIT) \
 								     --verbosity=$(LOG_LEVEL)
 

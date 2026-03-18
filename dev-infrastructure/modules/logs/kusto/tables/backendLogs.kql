@@ -25,7 +25,6 @@
   cluster_id: string,
   cloud_error_code: string,
   cloud_error_message: string,
-  subscription_id: string,
   tag: string
 )
 
@@ -59,6 +58,5 @@
   {"column":"cluster_id","Properties":{"path":"$.log.cluster_id"}},
   {"column":"cloud_error_code","Properties":{"path":"$.log.cloud_error_code"}},
   {"column":"cloud_error_message","Properties":{"path":"$.log.cloud_error_message"}},
-  {"column":"subscription_id","Properties":{"path":"$.log.subscription_id"}}
 ]
 ```

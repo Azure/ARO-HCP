@@ -47,20 +47,15 @@ func NewTimeBasedCooldownChecker(cooldownDuration time.Duration) *TimeBasedCoold
 }
 
 func (c *TimeBasedCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("checking cooldown")
-
 	now := c.clock.Now()
 
 	nextExecTime, ok := c.nextExecTime.Get(key)
 	if !ok || now.After(nextExecTime.(time.Time)) {
 		nextTime := now.Add(c.cooldownDuration)
 		c.nextExecTime.Add(key, nextTime)
-		logger.Info("setting cooldown, return true", "nextExecTime", nextTime)
 		return true
 	}
 
-	logger.Info("returning false", "nextExecTime", nextExecTime)
 	return false
 }
 
@@ -87,7 +82,6 @@ func NewActiveOperationPrioritizingCooldown(activeOperationLister listers.Active
 
 func (c *ActiveOperationBasedChecker) CanSync(ctx context.Context, key any) bool {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("checking cooldown")
 
 	var activeOperations []*api.Operation
 	var err error
@@ -96,23 +90,19 @@ func (c *ActiveOperationBasedChecker) CanSync(ctx context.Context, key any) bool
 		activeOperations, err = c.activeOperationLister.ListActiveOperationsForCluster(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName)
 	case OperationKey:
 		ret := c.activeOperationTimer.CanSync(ctx, key)
-		logger.Info("returning active operation cooldown", "canSync", ret)
 		return ret
 	}
 
 	if err != nil {
 		logger.Error(err, "failed to list active operations")
 		ret := c.activeOperationTimer.CanSync(ctx, key)
-		logger.Info("returning active operation cooldown", "canSync", ret)
 		return ret
 	}
 	if len(activeOperations) == 0 {
 		ret := c.inactiveOperationTimer.CanSync(ctx, key)
-		logger.Info("returning inactive operation cooldown", "canSync", ret)
 		return ret
 	}
 
 	ret := c.activeOperationTimer.CanSync(ctx, key)
-	logger.Info("returning active operation cooldown", "canSync", ret)
 	return ret
 }

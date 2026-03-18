@@ -49,6 +49,7 @@ type perBinaryInvocationTestContext struct {
 	location                 string
 	pullSecretPath           string
 	frontendAddress          string
+	adminAPIAddress          string
 	skipCertVerification     bool
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
@@ -90,6 +91,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			location:                 location(),
 			pullSecretPath:           pullSecretPath(),
 			frontendAddress:          frontendAddress(),
+			adminAPIAddress:          adminAPIAddress(),
 			skipCertVerification:     skipCertVerification(),
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
@@ -129,7 +131,7 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	// if we find a desire to use the zero-dep e2e testing everywhere, we can extend this credential creation to include
 	// other options for non-Azure endpoints.  It's worth remembering that the value-add using the same library isn't in the
 	// ten lines of creation, it's in using a common credential library for golang compatibility.
-	azureCredentials, err := azidentity.NewDefaultAzureCredential(nil)
+	azureCredentials, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed building environment credential: %w", err)
 	}
@@ -364,6 +366,15 @@ func frontendAddress() string {
 	address := os.Getenv("FRONTEND_ADDRESS")
 	if address == "" {
 		return "http://localhost:8443"
+	}
+	return address
+}
+
+// adminAPIAddress returns the value of ADMIN_API_ADDRESS environment variable
+func adminAPIAddress() string {
+	address := os.Getenv("ADMIN_API_ADDRESS")
+	if address == "" {
+		return "http://localhost:8444"
 	}
 	return address
 }

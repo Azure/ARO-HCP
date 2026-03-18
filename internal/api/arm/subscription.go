@@ -67,6 +67,15 @@ type SubscriptionProperties struct {
 	AdditionalProperties any                  `json:"additionalProperties,omitempty"`
 }
 
+// GetRegisteredFeatures safely returns the RegisteredFeatures from the subscription,
+// returning an empty slice if Properties or RegisteredFeatures is nil.
+func (s *Subscription) GetRegisteredFeatures() []Feature {
+	if s == nil || s.Properties == nil || s.Properties.RegisteredFeatures == nil {
+		return []Feature{}
+	}
+	return *s.Properties.RegisteredFeatures
+}
+
 type Feature struct {
 	Name  *string `json:"name,omitempty"`
 	State *string `json:"state,omitempty"`
@@ -128,7 +137,7 @@ func (s *Subscription) HasRegisteredFeature(featureName string) bool {
 	}
 
 	for _, feature := range *s.Properties.RegisteredFeatures {
-		if feature.Name != nil && *feature.Name == featureName {
+		if feature.Name != nil && strings.EqualFold(*feature.Name, featureName) {
 			if feature.State != nil && *feature.State == "Registered" {
 				return true
 			}

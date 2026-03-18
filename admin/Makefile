@@ -1,10 +1,12 @@
 ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 -include ../setup-templatize-env.mk
 -include ../tooling/hcpctl/Variables.mk
 -include ../.bingo/Variables.mk
 
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
+ARO_HCP_COMMIT_TIME := $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ADMIN_API_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 ADMIN_API_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${ADMIN_API_IMAGE_REPOSITORY} ../generate-repo.sh)
@@ -53,7 +55,8 @@ run-with-sc-integration: $(BINARY)
 					--cosmos-name ${COSMOS_DB_NAME} \
 					--kusto-endpoint $${KUSTO_ENDPOINT} \
 					--fpa-client-id ${FPA_CLIENT_ID} \
-					--fpa-cert-bundle-path $${CRT_BUNDLE}
+					--fpa-cert-bundle-path $${CRT_BUNDLE} \
+					--sessiongate-namespace ${SESSIONGATE_NAMESPACE}
 .PHONY: run-with-sc-integration
 
 clean:
@@ -63,15 +66,16 @@ clean:
 image: Dockerfile $(ADMIN_API_SOURCES) Makefile
 	@rm -f $(BINARY)
 	cd $(ADMIN_DIR)/.. && \
-	docker build . --file admin/Dockerfile \
+	$(CONTAINER_ENGINE) build . --file admin/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
+		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
 		--build-arg ARO_HCP_IMAGE_TAG=${ADMIN_API_IMAGE_TAG} \
 		--tag ${ADMIN_API_TAGGED_IMAGE}
 
 build-and-push: image $(ORAS)
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ADMIN_API_TAGGED_IMAGE}
+	$(CONTAINER_ENGINE) push ${ADMIN_API_TAGGED_IMAGE}
 .PHONY: build-and-push
 
 OVERRIDE_CONFIG_FILE ?= /tmp/amin-api-override-config-$(date +%s).yaml

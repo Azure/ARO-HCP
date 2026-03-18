@@ -20,9 +20,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/topology"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
+	"github.com/Azure/ARO-Tools/pipelines/types"
 )
 
 func FindHelmTestFiles(pathToSearch string) ([]string, error) {
@@ -43,7 +43,7 @@ func FindHelmTestFiles(pathToSearch string) ([]string, error) {
 }
 
 func FindHelmSteps(topologyDir, configPath string) ([]HelmStepWithPath, error) {
-	cfg, err := loadConfig(configPath)
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error loading config: %v", err)
 	}
@@ -69,15 +69,36 @@ func recursiveLoadPipelineReturnHelmSteps(topologyDir string, service topology.S
 	if err != nil {
 		return nil, fmt.Errorf("error loading pipeline: %v", err)
 	}
+
+	// Collect all ImageMirrorSteps keyed by (resourceGroup, stepName)
+	type stepKey struct {
+		resourceGroup string
+		step          string
+	}
+	mirrorSteps := make(map[stepKey]*types.ImageMirrorStep)
+	for _, rg := range pipeline.ResourceGroups {
+		for _, step := range rg.Steps {
+			if mirrorStep, ok := step.(*types.ImageMirrorStep); ok {
+				mirrorSteps[stepKey{resourceGroup: rg.Name, step: mirrorStep.Name}] = mirrorStep
+			}
+		}
+	}
+
 	allSteps := make([]HelmStepWithPath, 0)
-	for _, resourceGroups := range pipeline.ResourceGroups {
-		for _, step := range resourceGroups.Steps {
+	for _, rg := range pipeline.ResourceGroups {
+		for _, step := range rg.Steps {
 			if helmStep, ok := step.(*types.HelmStep); ok {
-				allSteps = append(allSteps, HelmStepWithPath{
+				hsWithPath := HelmStepWithPath{
 					HelmStep:     helmStep,
 					PipelinePath: service.PipelinePath,
 					AKSCluster:   helmStep.AKSCluster,
-				})
+				}
+				for _, dep := range helmStep.DependsOn {
+					if mirrorStep, ok := mirrorSteps[stepKey{resourceGroup: dep.ResourceGroup, step: dep.Step}]; ok {
+						hsWithPath.MirrorImageSteps = append(hsWithPath.MirrorImageSteps, mirrorStep)
+					}
+				}
+				allSteps = append(allSteps, hsWithPath)
 			}
 		}
 	}

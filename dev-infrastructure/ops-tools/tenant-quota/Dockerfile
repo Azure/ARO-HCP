@@ -1,7 +1,7 @@
 ARG PLATFORM
 
 # Builder image
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-fips-azurelinux3.0 AS builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY dev-infrastructure/ops-tools/tenant-quota/go.mod dev-infrastructure/ops-tools/tenant-quota/go.sum dev-infrastructure/ops-tools/tenant-quota/
 RUN cd dev-infrastructure/ops-tools/tenant-quota && go mod download
@@ -10,7 +10,9 @@ COPY dev-infrastructure/ops-tools/tenant-quota/ dev-infrastructure/ops-tools/ten
 COPY internal/ internal/
 ARG TAG
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
-ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
+# NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
+# non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
+ENV CGO_ENABLED=1 GOFIPS140=latest
 
 RUN cd dev-infrastructure/ops-tools/tenant-quota && \
     go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${TAG}" -o tenant-quota-collector .

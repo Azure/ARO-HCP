@@ -28,8 +28,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
-
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
@@ -44,7 +42,7 @@ type LegacyNormalizedLogLine struct {
 }
 
 func newQueryCommandLegacy() (*cobra.Command, error) {
-	opts := DefaultMustGatherOptions()
+	opts := DefaultQueryOptions()
 
 	cmd := &cobra.Command{
 		Use:              "legacy-query",
@@ -58,13 +56,13 @@ func newQueryCommandLegacy() (*cobra.Command, error) {
 			return opts.Run(cmd.Context(), true)
 		},
 	}
-	if err := BindMustGatherOptions(opts, cmd); err != nil {
+	if err := BindQueryOptions(opts, cmd); err != nil {
 		return nil, err
 	}
 	return cmd, nil
 }
 
-func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
+func (opts *CompletedQueryOptions) RunLegacy(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	clusterIds, err := executeClusterIdQuery(ctx, opts, GetKubeSystemClusterIdQuery(opts))
 	if err != nil {
@@ -112,21 +110,21 @@ func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 	return nil
 }
 
-func executeKubeSystemQueries(ctx context.Context, opts *MustGatherOptions, queryOpts mustgather.QueryOptions) error {
+func executeKubeSystemQueries(ctx context.Context, opts *CompletedQueryOptions, queryOpts mustgather.QueryOptions) error {
 	query := GetKubeSystemQuery(opts, queryOpts.ClusterIds)
 	return castQueryAndWriteToFile(ctx, opts, ServicesLogDirectory, []*kusto.ConfigurableQuery{query})
 }
 
-func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions) error {
+func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *CompletedQueryOptions) error {
 	query := GetKubeSystemHostedControlPlaneLogsQuery(opts)
 	return castQueryAndWriteToFile(ctx, opts, HostedControlPlaneLogDirectory, query)
 }
 
-func castQueryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, queries []*kusto.ConfigurableQuery) error {
-	castFunction := func(input azkquery.Row) (*LegacyNormalizedLogLine, error) {
+func castQueryAndWriteToFile(ctx context.Context, opts *CompletedQueryOptions, targetDirectory string, queries []*kusto.ConfigurableQuery) error {
+	castFunction := func(input kusto.TaggedRow) (*LegacyNormalizedLogLine, error) {
 		// can directly cast, cause the row is already normalized
 		legacyLogLine := &KubesystemLogsRow{}
-		if err := input.ToStruct(legacyLogLine); err != nil {
+		if err := input.Row.ToStruct(legacyLogLine); err != nil {
 			return nil, fmt.Errorf("failed to convert row to struct: %w", err)
 		}
 		err := processKubesystemLogsRow(legacyLogLine)
@@ -153,15 +151,15 @@ type KubesystemLogsRow struct {
 	Kubernetes    string `kusto:"kubernetes"`
 }
 
-func GetKubeSystemClusterIdQuery(opts *MustGatherOptions) *kusto.ConfigurableQuery {
+func GetKubeSystemClusterIdQuery(opts *CompletedQueryOptions) *kusto.ConfigurableQuery {
 	return kusto.NewLegacyClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 }
 
-func GetKubeSystemQuery(opts *MustGatherOptions, clusterIds []string) *kusto.ConfigurableQuery {
+func GetKubeSystemQuery(opts *CompletedQueryOptions, clusterIds []string) *kusto.ConfigurableQuery {
 	return kusto.NewKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, clusterIds, opts.TimestampMin, opts.TimestampMax, opts.Limit)
 }
 
-func GetKubeSystemHostedControlPlaneLogsQuery(opts *MustGatherOptions) []*kusto.ConfigurableQuery {
+func GetKubeSystemHostedControlPlaneLogsQuery(opts *CompletedQueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, clusterId := range opts.QueryOptions.ClusterIds {
 		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.TimestampMin, opts.TimestampMax, opts.Limit)
@@ -170,9 +168,8 @@ func GetKubeSystemHostedControlPlaneLogsQuery(opts *MustGatherOptions) []*kusto.
 	return queries
 }
 
-func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDirectory string, castFunction func(input azkquery.Row) (*LegacyNormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
-	// logger := logr.FromContextOrDiscard(ctx)
-	queryOutputChannel := make(chan azkquery.Row)
+func queryAndWriteToFile(ctx context.Context, opts *CompletedQueryOptions, targetDirectory string, castFunction func(input kusto.TaggedRow) (*LegacyNormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
+	queryOutputChannel := make(chan kusto.TaggedRow)
 
 	queryGroup := new(errgroup.Group)
 	queryGroup.Go(func() error {
@@ -194,11 +191,11 @@ func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, targetDir
 	return nil
 }
 
-func writeNormalizedLogsToFile(outputChannel chan azkquery.Row, castFunction func(input azkquery.Row) (*LegacyNormalizedLogLine, error), outputPath string, directory string) error {
+func writeNormalizedLogsToFile(outputChannel chan kusto.TaggedRow, castFunction func(input kusto.TaggedRow) (*LegacyNormalizedLogLine, error), outputPath string, directory string) error {
 	openedFiles := make(map[string]*os.File)
 	var allErrors error
-	for row := range outputChannel {
-		normalizedRow, err := castFunction(row)
+	for tagged := range outputChannel {
+		normalizedRow, err := castFunction(tagged)
 		if err != nil {
 			return fmt.Errorf("failed to cast row: %w", err)
 		}
@@ -219,15 +216,15 @@ func writeNormalizedLogsToFile(outputChannel chan azkquery.Row, castFunction fun
 	return allErrors
 }
 
-func executeClusterIdQuery(ctx context.Context, opts *MustGatherOptions, query *kusto.ConfigurableQuery) ([]string, error) {
-	outputChannel := make(chan azkquery.Row)
+func executeClusterIdQuery(ctx context.Context, opts *CompletedQueryOptions, query *kusto.ConfigurableQuery) ([]string, error) {
+	outputChannel := make(chan kusto.TaggedRow)
 	allClusterIds := make([]string, 0)
 
 	g := new(errgroup.Group)
 	g.Go(func() error {
 		for row := range outputChannel {
 			cidRow := &mustgather.ClusterIdRow{}
-			if err := row.ToStruct(cidRow); err != nil {
+			if err := row.Row.ToStruct(cidRow); err != nil {
 				return fmt.Errorf("failed to convert row to struct: %w", err)
 			}
 			if cidRow.ClusterId != "" {

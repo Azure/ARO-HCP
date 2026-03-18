@@ -17,9 +17,13 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -143,4 +147,93 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			equalSpanAttributes(t, span, tt.wantSpanAttrs)
 		})
 	}
+}
+
+func TestMiddlewareLoggingLogsMethodAndPathKeys(t *testing.T) {
+	var (
+		writer = httptest.NewRecorder()
+		buf    bytes.Buffer
+		logger = logr.FromSlogHandler(slog.NewJSONHandler(&buf, nil))
+	)
+
+	ctx := utils.ContextWithLogger(context.Background(), logger)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://example.com/My/Path", nil)
+	require.NoError(t, err)
+
+	MiddlewareLogging(writer, req, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+	require.GreaterOrEqual(t, len(lines), 1)
+
+	requestLog := map[string]any{}
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &requestLog))
+
+	assert.Equal(t, "post", requestLog["method"])
+	assert.Equal(t, "/my/path", requestLog["path"])
+	_, hasRequestMethod := requestLog["request_method"]
+	_, hasRequestPath := requestLog["request_path"]
+	assert.False(t, hasRequestMethod)
+	assert.False(t, hasRequestPath)
+}
+
+func TestFrontendLogsKustoMappingContract(t *testing.T) {
+	kqlFilePath := filepath.Join(
+		repoRootFromCurrentTest(t),
+		"dev-infrastructure",
+		"modules",
+		"logs",
+		"kusto",
+		"tables",
+		"frontendLogs.kql",
+	)
+
+	kqlContent, err := os.ReadFile(kqlFilePath)
+	require.NoError(t, err)
+
+	mappings := parseFrontendKustoMappings(t, string(kqlContent))
+	columnToPath := map[string]string{}
+	for _, mapping := range mappings {
+		columnToPath[mapping.Column] = mapping.Properties.Path
+	}
+
+	assert.Equal(t, "$.log.method", columnToPath["request_method"])
+	assert.Equal(t, "$.log.path", columnToPath["request_path"])
+
+	assert.Equal(t, "$.log.request_id", columnToPath["request_id"])
+	assert.Equal(t, "$.log.client_request_id", columnToPath["client_request_id"])
+	assert.Equal(t, "$.log.correlation_request_id", columnToPath["correlation_request_id"])
+	assert.Equal(t, "$.log.resource_id", columnToPath["resource_id"])
+	assert.Equal(t, "$.log.resource_name", columnToPath["resource_name"])
+}
+
+type frontendKustoMapping struct {
+	Column     string `json:"column"`
+	Properties struct {
+		Path string `json:"path"`
+	} `json:"Properties"`
+}
+
+func parseFrontendKustoMappings(t *testing.T, kqlContent string) []frontendKustoMapping {
+	t.Helper()
+
+	start := strings.Index(kqlContent, "[")
+	end := strings.LastIndex(kqlContent, "]")
+	require.NotEqual(t, -1, start)
+	require.NotEqual(t, -1, end)
+	require.Greater(t, end, start)
+
+	var mappings []frontendKustoMapping
+	require.NoError(t, json.Unmarshal([]byte(kqlContent[start:end+1]), &mappings))
+	return mappings
+}
+
+func repoRootFromCurrentTest(t *testing.T) string {
+	t.Helper()
+
+	_, currentTestFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+
+	return filepath.Clean(filepath.Join(filepath.Dir(currentTestFile), "..", "..", ".."))
 }

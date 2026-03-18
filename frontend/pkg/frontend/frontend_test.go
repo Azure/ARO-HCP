@@ -108,7 +108,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false,
+				"", false, false, true,
 			)
 
 			// ArmSubscriptionGet.
@@ -277,7 +277,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false,
+				"", false, false, true,
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -384,9 +384,14 @@ func TestDeploymentPreflight(t *testing.T) {
 				"type":       api.ClusterResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": api.TestAPIVersion,
+				"systemData": map[string]any{
+					"createdBy":     "test-user",
+					"createdByType": "User",
+					"createdAt":     "2025-01-01T00:00:00Z",
+				},
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "4.0",
+						"id":           "4.19",
 						"channelGroup": "stable",
 					},
 					"api": map[string]any{
@@ -407,6 +412,11 @@ func TestDeploymentPreflight(t *testing.T) {
 				"type":       api.ClusterResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": api.TestAPIVersion,
+				"systemData": map[string]any{
+					"createdBy":     "test-user",
+					"createdByType": "User",
+					"createdAt":     "2025-01-01T00:00:00Z",
+				},
 				"properties": map[string]any{
 					"version": map[string]any{
 						// missing ID
@@ -427,6 +437,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
 			expectErrors: []expectedPreflightError{
+				{message: "Required value", target: "properties.version.id"},
 				{message: "Invalid value: \"invalidCidr\": invalid CIDR address: invalidCidr", target: "properties.network.podCidr"},
 				{message: "Unsupported value: \"invisible\": supported values: \"Private\", \"Public\"", target: "properties.api.visiblity"},
 				{message: "Required value", target: "properties.platform.subnetId"},
@@ -440,6 +451,11 @@ func TestDeploymentPreflight(t *testing.T) {
 				"type":       api.NodePoolResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": api.TestAPIVersion,
+				"systemData": map[string]any{
+					"createdBy":     "test-user",
+					"createdByType": "User",
+					"createdAt":     "2025-01-01T00:00:00Z",
+				},
 				"properties": map[string]any{
 					"version": map[string]any{
 						"channelGroup": "stable",
@@ -458,6 +474,11 @@ func TestDeploymentPreflight(t *testing.T) {
 				"type":       api.NodePoolResourceType.String(),
 				"location":   "eastus",
 				"apiVersion": api.TestAPIVersion,
+				"systemData": map[string]any{
+					"createdBy":     "test-user",
+					"createdByType": "User",
+					"createdAt":     "2025-01-01T00:00:00Z",
+				},
 				"properties": map[string]any{
 					"version": map[string]any{
 						"channelGroup": "stable",
@@ -508,7 +529,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false,
+				"", false, false, true,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -655,7 +676,7 @@ func TestRequestAdminCredential(t *testing.T) {
 				mockCSClient,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false,
+				"", false, false, true,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware
@@ -831,7 +852,7 @@ func TestRevokeCredentials(t *testing.T) {
 				mockCSClient,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false,
+				"", false, false, true,
 			)
 
 			// MiddlewareValidateSubscriptionState and MetricsMiddleware

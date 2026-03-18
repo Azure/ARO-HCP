@@ -28,6 +28,7 @@ func TestRawUpdateOptions_Validate_ComponentFiltering(t *testing.T) {
 	tests := []struct {
 		name              string
 		components        string
+		groups            string
 		excludeComponents string
 		wantImages        []string
 		wantErr           bool
@@ -100,17 +101,57 @@ func TestRawUpdateOptions_Validate_ComponentFiltering(t *testing.T) {
 			wantErrMsg:        "excluded component \"nonexistent\" not found",
 		},
 		{
-			name:              "components takes precedence over exclude",
-			components:        "frontend",
-			excludeComponents: "backend,database",
+			name:              "components with non-overlapping exclude",
+			components:        "frontend,backend",
+			excludeComponents: "backend",
 			wantImages:        []string{"frontend"},
 			wantErr:           false,
 		},
 		{
-			name:              "components precedence - exclude is ignored",
-			components:        "frontend,backend",
-			excludeComponents: "frontend", // This should be ignored
-			wantImages:        []string{"frontend", "backend"},
+			name:              "components with exclude that does not match selected",
+			components:        "frontend",
+			excludeComponents: "backend", // backend is not in the selected set
+			wantErr:           true,
+			wantErrMsg:        "excluded component \"backend\" not found",
+		},
+		{
+			name:       "groups - filter single group",
+			groups:     "web",
+			wantImages: []string{"frontend", "backend"},
+			wantErr:    false,
+		},
+		{
+			name:       "groups - filter multiple groups",
+			groups:     "web,storage",
+			wantImages: []string{"frontend", "backend", "database", "cache"},
+			wantErr:    false,
+		},
+		{
+			name:       "groups - non-existent group",
+			groups:     "nonexistent",
+			wantErr:    true,
+			wantErrMsg: "group \"nonexistent\" not found",
+		},
+		{
+			name:       "groups combined with components (union)",
+			components: "database",
+			groups:     "web",
+			wantImages: []string{"frontend", "backend", "database"},
+			wantErr:    false,
+		},
+		{
+			name:              "groups with exclude-components",
+			groups:            "web",
+			excludeComponents: "frontend",
+			wantImages:        []string{"backend"},
+			wantErr:           false,
+		},
+		{
+			name:              "groups and components with exclude",
+			components:        "database",
+			groups:            "web",
+			excludeComponents: "backend",
+			wantImages:        []string{"frontend", "database"},
 			wantErr:           false,
 		},
 	}
@@ -126,6 +167,7 @@ func TestRawUpdateOptions_Validate_ComponentFiltering(t *testing.T) {
 				ConfigPath:        configPath,
 				DryRun:            true,
 				Components:        tt.components,
+				Groups:            tt.groups,
 				ExcludeComponents: tt.excludeComponents,
 			}
 
@@ -223,7 +265,7 @@ func TestValidateConfig(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrMsg: "source image is required",
+			wantErrMsg: "source image or githubLatestRelease is required",
 		},
 		{
 			name: "no targets configured",
@@ -400,6 +442,29 @@ func TestRawUpdateOptions_Validate_InvalidConfig(t *testing.T) {
 	})
 }
 
+// TestRealConfigValid_Regression ensures the in-repo config.yaml loads and validates successfully,
+// and that any githubLatestRelease entries use valid owner/repo format.
+func TestRealConfigValid_Regression(t *testing.T) {
+	configPath := filepath.Join("..", "..", "config.yaml")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Skip("in-repo config.yaml not found (run from tooling/image-updater or repo root)")
+	}
+	opts := &RawUpdateOptions{ConfigPath: configPath, DryRun: true}
+	validated, err := opts.Validate(context.Background())
+	if err != nil {
+		t.Fatalf("real config Validate() failed: %v", err)
+	}
+	for name, img := range validated.Config.Images {
+		if img.Source.GitHubLatestRelease == "" {
+			continue
+		}
+		parts := strings.SplitN(img.Source.GitHubLatestRelease, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			t.Errorf("image %q: githubLatestRelease %q is not valid owner/repo format", name, img.Source.GitHubLatestRelease)
+		}
+	}
+}
+
 func TestComplete_AuthenticationRequirements(t *testing.T) {
 	tests := []struct {
 		name                     string
@@ -414,6 +479,7 @@ func TestComplete_AuthenticationRequirements(t *testing.T) {
 				return `
 images:
   test:
+    group: test-group
     source:
       image: registry.azurecr.io/test/app
       useAuth: false
@@ -435,6 +501,7 @@ images:
 				return `
 images:
   test:
+    group: test-group
     source:
       image: registry.azurecr.io/test/app
       useAuth: true
@@ -456,6 +523,7 @@ images:
 				return `
 images:
   test:
+    group: test-group
     source:
       image: registry.azurecr.io/test/app
     targets:
@@ -476,6 +544,7 @@ images:
 				return `
 images:
   test1:
+    group: test-group
     source:
       image: registry.azurecr.io/test/app1
       useAuth: false
@@ -484,6 +553,7 @@ images:
         jsonPath: image.digest
         env: dev
   test2:
+    group: test-group
     source:
       image: registry.azurecr.io/test/app2
       useAuth: true
@@ -559,6 +629,7 @@ func createTestConfigFile(t *testing.T) string {
 	content := `
 images:
   frontend:
+    group: web
     source:
       image: quay.io/test/frontend
     targets:
@@ -569,6 +640,7 @@ images:
         jsonPath: image.digest
         env: int
   backend:
+    group: web
     source:
       image: quay.io/test/backend
     targets:
@@ -579,6 +651,7 @@ images:
         jsonPath: image.digest
         env: int
   database:
+    group: storage
     source:
       image: quay.io/test/database
     targets:
@@ -589,6 +662,7 @@ images:
         jsonPath: image.digest
         env: int
   cache:
+    group: storage
     source:
       image: quay.io/test/cache
     targets:
@@ -619,6 +693,7 @@ func TestKeyVaultDeduplication(t *testing.T) {
 			configContent: `
 images:
   test1:
+    group: test-group
     source:
       image: quay.io/test/app1
       useAuth: true
@@ -638,6 +713,7 @@ images:
 			configContent: `
 images:
   test1:
+    group: test-group
     source:
       image: quay.io/test/app1
       useAuth: true
@@ -649,6 +725,7 @@ images:
         jsonPath: image.digest
         env: dev
   test2:
+    group: test-group
     source:
       image: quay.io/test/app2
       useAuth: true
@@ -668,6 +745,7 @@ images:
 			configContent: `
 images:
   test1:
+    group: test-group
     source:
       image: quay.io/test/app1
       useAuth: true
@@ -679,6 +757,7 @@ images:
         jsonPath: image.digest
         env: dev
   test2:
+    group: test-group
     source:
       image: quay.io/test/app2
       useAuth: true
@@ -698,6 +777,7 @@ images:
 			configContent: `
 images:
   test1:
+    group: test-group
     source:
       image: quay.io/test/app1
       useAuth: true
@@ -709,6 +789,7 @@ images:
         jsonPath: image.digest
         env: dev
   test2:
+    group: test-group
     source:
       image: quay.io/test/app2
       useAuth: true
@@ -728,6 +809,7 @@ images:
 			configContent: `
 images:
   test1:
+    group: test-group
     source:
       image: quay.io/test/app1
       useAuth: true
@@ -739,6 +821,7 @@ images:
         jsonPath: image.digest
         env: dev
   test2:
+    group: test-group
     source:
       image: quay.io/test/app2
       useAuth: false
@@ -755,6 +838,7 @@ images:
 			configContent: `
 images:
   test1:
+    group: test-group
     source:
       image: quay.io/test/app1
     targets:

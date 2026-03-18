@@ -17,6 +17,7 @@ package validation
 import (
 	"context"
 	"testing"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -703,16 +704,29 @@ func createMinimalExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 	resourceID, _ := azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")
 	obj := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
 	obj.Properties.Claim.Mappings.Username.Claim = "sub"
+	// Add required systemData fields
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	obj.SystemData = &arm.SystemData{
+		CreatedBy:     "test-user",
+		CreatedByType: arm.CreatedByTypeUser,
+		CreatedAt:     &createdAt,
+	}
 	return obj
 }
 
 func createValidExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	return &api.HCPOpenShiftClusterExternalAuth{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")),
 				Name: "test-auth",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths",
+				SystemData: &arm.SystemData{
+					CreatedBy:     "test-user",
+					CreatedByType: arm.CreatedByTypeUser,
+					CreatedAt:     &createdAt,
+				},
 			},
 		},
 		Properties: api.HCPOpenShiftClusterExternalAuthProperties{

@@ -30,7 +30,7 @@ import (
 // The definitions in this file are meant for unit tests.
 
 func newNoopAuditClient(t *testing.T) *audit.AuditClient {
-	c, err := audit.NewOtelAuditClient(audit.CreateConn(false))
+	c, err := audit.NewOtelAuditClient(t.Context(), audit.CreateConn(false), nil)
 	require.NoError(t, err)
 	return c
 }
@@ -49,7 +49,7 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		nil,
 		newNoopAuditClient(t),
 		api.TestLocation,
-		"", false, false,
+		"", false, false, true,
 	)
 	return f
 }

@@ -483,6 +483,11 @@ spec:
               readOnly: true
             - name: kusto
               mountPath: /var/fluent-bit/kusto
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: "Equal"
+        value: "true"
       volumes:
         - name: kusto
           emptyDir: {}

@@ -28,6 +28,7 @@ param userAgentVMSize string
 param userAgentPoolZones array
 param userAgentPoolCount int
 param userZoneRedundantMode string
+param userSecondaryNicCount int = 0
 
 // User agentpool spec (Infra)
 param infraAgentPoolName string
@@ -499,6 +500,7 @@ module userAgentPools '../modules/aks/pool.bicep' = {
     poolCount: userAgentPoolCount
     poolRole: 'worker'
     enableSwiftV2: enableSwiftV2Nodepools
+    secondaryNicCount: userSecondaryNicCount
     minCount: userAgentMinCount
     maxCount: userAgentMaxCount
     vmSize: userAgentVMSize
@@ -519,6 +521,7 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     poolCount: infraAgentPoolCount
     poolRole: 'infra'
     enableSwiftV2: false
+    secondaryNicCount: 0
     minCount: infraAgentMinCount
     maxCount: infraAgentMaxCount
     vmSize: infraAgentVMSize

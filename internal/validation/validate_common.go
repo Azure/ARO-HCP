@@ -16,16 +16,36 @@ package validation
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
+
+// AFECsToValidationOptions converts the API logic into validation compatible options.
+// Feature names are normalized to lowercase for case-insensitive comparison.
+func AFECsToValidationOptions(features []arm.Feature) []string {
+	ret := []string{}
+
+	for _, curr := range features {
+		if curr.Name == nil || len(*curr.Name) == 0 {
+			continue
+		}
+		if ptr.Deref(curr.State, "") == "Registered" {
+			ret = append(ret, strings.ToLower(*curr.Name))
+		}
+	}
+
+	return ret
+}
 
 var (
 	toTrackedResourceResource = func(oldObj *arm.TrackedResource) *arm.Resource { return &oldObj.Resource }
@@ -76,18 +96,47 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 	}
 
 	//SystemData *SystemData `json:"systemData,omitempty"`
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
 	errs = append(errs, validateSystemData(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
 
 	return errs
 }
 
-// Version                 VersionProfile              `json:"version,omitempty"`
+var (
+	toSystemDataCreatedAt     = func(oldObj *arm.SystemData) *time.Time { return oldObj.CreatedAt }
+	toSystemDataCreatedBy     = func(oldObj *arm.SystemData) *string { return &oldObj.CreatedBy }
+	toSystemDataCreatedByType = func(oldObj *arm.SystemData) *arm.CreatedByType { return &oldObj.CreatedByType }
+)
+
 func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.SystemData) field.ErrorList {
+	if newObj == nil {
+		return nil
+	}
+
 	errs := field.ErrorList{}
 
 	//CreatedBy string `json:"createdBy,omitempty"`
-	//CreatedByType CreatedByType `json:"createdByType,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("createdBy"), &newObj.CreatedBy, safe.Field(oldObj, toSystemDataCreatedBy))...)
+	if oldObj != nil && len(oldObj.CreatedBy) > 0 {
+		// allow bad old data until we count records and get zero
+		errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("createdBy"), &newObj.CreatedBy, safe.Field(oldObj, toSystemDataCreatedBy))...)
+	}
+
 	//CreatedAt *time.Time `json:"createdAt,omitempty"`
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("createdAt"), newObj.CreatedAt, safe.Field(oldObj, toSystemDataCreatedAt))...)
+	if newObj.CreatedAt != nil {
+		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("createdAt"), newObj.CreatedAt, safe.Field(oldObj, toSystemDataCreatedAt))...)
+	}
+	if oldObj != nil && oldObj.CreatedAt != nil {
+		errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("createdAt"), newObj.CreatedAt, safe.Field(oldObj, toSystemDataCreatedAt))...)
+	}
+
+	//CreatedByType CreatedByType `json:"createdByType,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("createdByType"), &newObj.CreatedByType, safe.Field(oldObj, toSystemDataCreatedByType))...)
+	if oldObj != nil && len(oldObj.CreatedByType) > 0 {
+		errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("createdByType"), &newObj.CreatedByType, safe.Field(oldObj, toSystemDataCreatedByType))...)
+	}
+
 	//LastModifiedBy string `json:"lastModifiedBy,omitempty"`
 	//LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty"`
 	//LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`

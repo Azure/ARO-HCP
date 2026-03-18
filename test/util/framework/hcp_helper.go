@@ -48,6 +48,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -137,6 +138,45 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 	}
 
 	return ret, nil
+}
+
+func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during RevokeCredentialsAndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Collect revoke admin credentials for cluster", startTime, finishTime)
+	}()
+
+	poller, err := hcpClient.BeginRevokeCredentials(ctx, resourceGroupName, hcpClusterName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to start credential revocation for hcpCluster=%q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish revoking creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish revoking creds: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.HcpOpenShiftClustersClientRevokeCredentialsResponse:
+		return nil
+	default:
+		return fmt.Errorf("unknown type %T", m)
+	}
 }
 
 // DeleteHCPCluster deletes an hcp cluster and waits for the operation to complete
@@ -247,6 +287,7 @@ func DeleteAllHCPClusters(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteAllHCPClusters for resource group %s", timeout.Minutes(), resourceGroupName))
 	defer cancel()
 
+	var hcpClustersWithoutSizeTag []string
 	hcpClusterNames := []string{}
 	hcpClusterPager := hcpClient.NewListByResourceGroupPager(resourceGroupName, nil)
 	for hcpClusterPager.More() {
@@ -259,6 +300,9 @@ func DeleteAllHCPClusters(
 		}
 		for _, cluster := range page.Value {
 			hcpClusterNames = append(hcpClusterNames, *cluster.Name)
+			if value, set := cluster.Tags[api.TagClusterSizeOverride]; !set || value == nil || *value != string(api.MinimalControlPlanePodSizing) {
+				hcpClustersWithoutSizeTag = append(hcpClustersWithoutSizeTag, *cluster.Name)
+			}
 		}
 	}
 
@@ -280,7 +324,19 @@ func DeleteAllHCPClusters(
 		return fmt.Errorf("at least one hcp cluster failed to delete: %w", err)
 	}
 
+	if len(hcpClustersWithoutSizeTag) > 0 {
+		return &NonConformingClustersError{clusters: hcpClustersWithoutSizeTag}
+	}
+
 	return nil
+}
+
+type NonConformingClustersError struct {
+	clusters []string
+}
+
+func (e *NonConformingClustersError) Error() string {
+	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", api.TagClusterSizeOverride, api.MinimalControlPlanePodSizing, e.clusters)
 }
 
 // DeleteNodePool deletes a nodepool and waits for the operation to complete
@@ -677,7 +733,7 @@ func BuildHCPClusterFromParams(
 				AuthorizedCIDRs: parameters.AuthorizedCIDRs,
 			},
 			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
-				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryProfileState(parameters.ImageRegistryState)),
+				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryState(parameters.ImageRegistryState)),
 			},
 			Etcd: &hcpsdk20240610preview.EtcdProfile{
 				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
@@ -984,4 +1040,37 @@ func ValidateNodePoolDiskStorageAccountType(
 	}
 
 	return nil
+}
+
+func HasNodeLabel(nodes []corev1.Node, key, value string, expectedCount ...int) bool {
+	count := 0
+	for _, node := range nodes {
+		if node.Labels[key] == value {
+			count++
+		}
+	}
+
+	if len(expectedCount) == 0 {
+		return count > 0
+	}
+
+	return count == expectedCount[0]
+}
+
+func HasNodeTaint(nodes []corev1.Node, key, value string, effect corev1.TaintEffect, expectedCount ...int) bool {
+	count := 0
+	for _, node := range nodes {
+		for _, taint := range node.Spec.Taints {
+			if taint.Key == key && taint.Value == value && taint.Effect == effect {
+				count++
+				break
+			}
+		}
+	}
+
+	if len(expectedCount) == 0 {
+		return count > 0
+	}
+
+	return count == expectedCount[0]
 }

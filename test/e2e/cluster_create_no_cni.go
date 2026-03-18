@@ -114,8 +114,8 @@ var _ = Describe("Customer", func() {
 				customerNodePoolName,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(nodePool.Properties).ToNot(BeNil())
-			Expect(nodePool.Properties.ProvisioningState).ToNot(BeNil())
+			Expect(nodePool.Properties).ToNot(BeNil(), "nodepool Properties was nil")
+			Expect(nodePool.Properties.ProvisioningState).ToNot(BeNil(), "nodepool Properties.ProvisioningState was nil")
 			Expect(*nodePool.Properties.ProvisioningState).To(Equal(hcpsdk.ProvisioningStateProvisioning))
 
 			By("expecting that on a cluster without CNI plugin, nodes are in NotReady state")

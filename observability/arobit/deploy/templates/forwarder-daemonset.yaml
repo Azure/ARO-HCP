@@ -275,6 +275,11 @@ spec:
               readOnly: true
         {{- end }}
         {{- end }}
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: "Equal"
+        value: "true"
       volumes:
         - name: kusto
           emptyDir: {}

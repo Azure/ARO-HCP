@@ -130,6 +130,8 @@ type DBClient interface {
 	GlobalListers() GlobalListers
 
 	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD
+
+	ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) ManagementClusterContentCRUD
 }
 
 var _ DBClient = &cosmosDBClient{}
@@ -293,6 +295,12 @@ func (d *cosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupN
 	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+}
+
+func (d *cosmosDBClient) ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) ManagementClusterContentCRUD {
+	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	return NewCosmosResourceCRUD[api.ManagementClusterContent, GenericDocument[api.ManagementClusterContent]](
+		d.resources, clusterResourceID, api.ManagementClusterContentResourceType)
 }
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

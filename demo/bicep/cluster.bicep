@@ -16,6 +16,9 @@ param subnetName string
 @description('The KeyVault name that contains the encryption key')
 param keyVaultName string
 
+@description('Tags that should be added to the ARO HCP cluster')
+param tags object = {}
+
 var etcdEncryptionKeyName = 'etcd-data-kms-encryption-key'
 var randomSuffix = toLower(uniqueString(clusterName))
 
@@ -507,6 +510,7 @@ resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAs
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' = {
   name: clusterName
   location: resourceGroup().location
+  tags: tags
   properties: {
     dns: {}
     network: {

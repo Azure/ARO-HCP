@@ -1,0 +1,22 @@
+{
+	"_etag": "\"00000000-0000-0000-0000-000000000002\"",
+	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|create-with-tags|nodepools|basic-node-pool|serviceprovidernodepools|default",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool/serviceProviderNodePools/default",
+	"properties": {
+		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool/serviceProviderNodePools/default",
+		"spec": {
+			"nodePoolVersion": {
+				"desiredVersion": "4.20.0"
+			}
+		},
+		"status": {
+			"nodePoolVersion": {
+				"activeVersions": [
+					{"version": "4.20.0"}
+				]
+			}
+		}
+	}
+}

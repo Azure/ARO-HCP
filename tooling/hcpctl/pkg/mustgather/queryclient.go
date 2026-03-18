@@ -16,23 +16,20 @@ package mustgather
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
-
-	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 // QueryClientInterface defines the interface for querying data
 type QueryClientInterface interface {
-	ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) error
+	ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) error
 	Close() error
-	ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error)
 }
 
 type QueryClient struct {
@@ -62,49 +59,34 @@ func NewQueryClientWithFileWriter(client kusto.KustoClient, queryTimeout time.Du
 	}
 }
 
-func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) error {
+func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	wg := sync.WaitGroup{}
-	wg.Add(len(queries))
 
-	errorCh := make(chan error, len(queries))
-
-	for i, query := range queries {
-		go func(query *kusto.ConfigurableQuery, queryIndex int) {
-			defer wg.Done()
-			result, err := q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel)
+	queryGroup, queryCtx := errgroup.WithContext(ctx)
+	for _, query := range queries {
+		queryGroup.Go(func() error {
+			result, err := q.Client.ExecutePreconfiguredQuery(queryCtx, query, outputChannel)
 			if err != nil {
 				logger.Error(err, "Query failed", "name", query.Name)
-				errorCh <- fmt.Errorf("failed to execute query: %w", err)
-				return
+				return fmt.Errorf("failed to execute query: %w", err)
 			}
 			if q.FileWriter != nil {
 				err = q.FileWriter.WriteFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
 				if err != nil {
-					errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
+					return fmt.Errorf("failed to write query result to file: %w", err)
 				}
 			}
-		}(query, i)
+			return nil
+		})
 	}
 
-	wg.Wait()
-	close(errorCh)
-
-	var allErrors error
-	for err := range errorCh {
-		allErrors = errors.Join(allErrors, err)
-	}
-	if allErrors != nil {
-		return fmt.Errorf("failed to execute queries: %w", allErrors)
-	}
-
-	return nil
+	return queryGroup.Wait()
 }
 
 func (q *QueryClient) Close() error {
 	return q.Client.Close()
 }
 
-func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error) {
+func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error) {
 	return q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel)
 }

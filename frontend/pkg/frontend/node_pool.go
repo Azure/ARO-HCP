@@ -22,6 +22,7 @@ import (
 	"maps"
 	"net/http"
 	"strings"
+	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -183,7 +184,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalNodePool.ID, oldInternalNodePool.Properties.ProvisioningState); err != nil {
 			return utils.TrackError(err)
 		}
-
 		switch request.Method {
 		case http.MethodPut:
 			return f.updateNodePool(writer, request, oldInternalNodePool)
@@ -221,6 +221,10 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// If for some reason systemData.CreatedAt is not set, we set it to the current time in UTC.
+	if systemData.CreatedAt == nil {
+		systemData.CreatedAt = ptr.To(time.Now().UTC())
+	}
 
 	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
@@ -242,7 +246,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
-	newInternalNodePool.SystemData = systemData
+	newInternalNodePool.SystemData = ensureSystemData(systemData, nil)
 
 	return newInternalNodePool, nil
 }
@@ -278,7 +282,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, nil, cluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -425,7 +429,7 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
-	newInternalNodePool.SystemData = systemData
+	newInternalNodePool.SystemData = ensureSystemData(systemData, oldInternalNodePool.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
 	// If the Tags map is nil, that means it was omitted from the request body,
@@ -488,7 +492,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	}
 
 	conversion.CopyReadOnlyNodePoolValues(newInternalNodePool, oldInternalNodePool)
-	newInternalNodePool.SystemData = systemData
+	newInternalNodePool.SystemData = ensureSystemData(systemData, oldInternalNodePool.SystemData)
 
 	// Here the difference between a nil map and an empty map is significant.
 	// If the Tags map is nil, that means it was omitted from the request body,
@@ -539,9 +543,22 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
+	// Get ServiceProviderCluster and ServiceProviderNodePool for version validation
+	clusterID := oldInternalNodePool.ID.Parent
+	spCluster, err := database.GetOrCreateServiceProviderCluster(ctx, f.dbClient, clusterID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, f.dbClient, oldInternalNodePool.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	validationErrs := validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, cluster)...)
+	// AdmitNodePoolUpdate includes AdmitNodePool checks plus version upgrade validation
+	validationErrs = append(validationErrs, admission.AdmitNodePoolUpdate(newInternalNodePool, oldInternalNodePool, cluster, spNodePool, spCluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -557,8 +574,17 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
+	// The cosmos representation the new desired version
+	// The controllers will take care of handle the upgrade
+
 	transaction := f.dbClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
+	// Always create an operation, even for version-only changes. This provides consistent
+	// ARM API behavior and avoids the complexity of detecting what changed.
+	// For version-only updates, CS receives a no-op PATCH
+	// (version is excluded in BuildCSNodePool for updates) and stays ready, so the
+	// operation resolves on the next poll cycle (~10s). The actual version upgrade is
+	// handled transparently by backend controllers using the desired version stored above.
 	nodePoolUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,

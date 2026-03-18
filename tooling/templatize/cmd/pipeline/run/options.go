@@ -21,7 +21,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/ARO-Tools/pipelines/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/options"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"

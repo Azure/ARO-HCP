@@ -21,6 +21,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -40,13 +42,16 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
-				customerClusterName  = "np-autoscale-cluster"
-				customerNodePoolName = "autoscale-np"
+				customerClusterName = "np-autoscale-cluster"
 
-				// Autoscaling configuration
-				autoscalingMin   int32 = 1
-				autoscalingMax   int32 = 500
+				azNodePoolName         = "autoscale-az"
+				azAutoscalingMin int32 = 1
+				azAutoscalingMax int32 = 500
 				availabilityZone       = "1"
+
+				noAZNodePoolName         = "autoscale-noaz"
+				noAZAutoscalingMin int32 = 1
+				noAZAutoscalingMax int32 = 200
 			)
 			tc := framework.NewTestContext()
 
@@ -54,6 +59,10 @@ var _ = Describe("Customer", func() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
 				Expect(err).NotTo(HaveOccurred())
 			}
+
+			By("checking if the region supports availability zones")
+			hasAZ, err := tc.LocationHasAvailabilityZones(ctx, "Standard_D8s_v3")
+			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "np-autoscaling", tc.Location())
@@ -83,24 +92,45 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating nodepool parameters with autoscaling enabled")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePoolParams.ClusterName = customerClusterName
-			nodePoolParams.NodePoolName = customerNodePoolName
-			// Enable autoscaling instead of fixed replicas
-			nodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
-				Min: autoscalingMin,
-				Max: autoscalingMax,
+			By("creating nodepool parameters")
+			noAZNodePoolParams := framework.NewDefaultNodePoolParams()
+			noAZNodePoolParams.ClusterName = customerClusterName
+			noAZNodePoolParams.NodePoolName = noAZNodePoolName
+			noAZNodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
+				Min: noAZAutoscalingMin,
+				Max: noAZAutoscalingMax,
 			}
-			nodePoolParams.AvailabilityZone = availabilityZone
 
-			By("creating the autoscaling nodepool")
-			err = tc.CreateNodePoolFromParam(ctx,
-				*resourceGroup.Name,
-				customerClusterName,
-				nodePoolParams,
-				45*time.Minute,
-			)
+			nodePoolParamsList := []framework.NodePoolParams{noAZNodePoolParams}
+
+			if hasAZ {
+				azNodePoolParams := framework.NewDefaultNodePoolParams()
+				azNodePoolParams.ClusterName = customerClusterName
+				azNodePoolParams.NodePoolName = azNodePoolName
+				azNodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
+					Min: azAutoscalingMin,
+					Max: azAutoscalingMax,
+				}
+				azNodePoolParams.AvailabilityZone = availabilityZone
+				nodePoolParamsList = append(nodePoolParamsList, azNodePoolParams)
+			} else {
+				By("skipping AZ nodepool creation: region does not support availability zones")
+			}
+
+			By("creating the autoscaling nodepools in parallel")
+			group, groupCtx := errgroup.WithContext(ctx)
+			for _, nodePoolParams := range nodePoolParamsList {
+				group.Go(func() error {
+					return tc.CreateNodePoolFromParam(
+						groupCtx,
+						*resourceGroup.Name,
+						customerClusterName,
+						nodePoolParams,
+						45*time.Minute,
+					)
+				})
+			}
+			err = group.Wait()
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying the cluster has default autoscaling parameters")
@@ -110,26 +140,38 @@ var _ = Describe("Customer", func() {
 				customerClusterName)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Verify cluster autoscaling defaults are applied
-			Expect(clusterResp.Properties).NotTo(BeNil())
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster response Properties was nil")
 			Expect(clusterResp.Properties.Autoscaling).NotTo(BeNil(), "Expected cluster to have default autoscaling configuration")
 			Expect(clusterResp.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(int32(900))), "Expected default MaxNodeProvisionTimeSeconds to be 900 seconds")
 			Expect(clusterResp.Properties.Autoscaling.MaxPodGracePeriodSeconds).To(Equal(to.Ptr(int32(600))), "Expected default MaxPodGracePeriodSeconds to be 600 seconds")
 			Expect(clusterResp.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(int32(-10))), "Expected default PodPriorityThreshold to be -10")
-			// MaxNodesTotal should be nil (no maximum limit) when not explicitly set
 			Expect(clusterResp.Properties.Autoscaling.MaxNodesTotal).To(BeNil(), "Expected MaxNodesTotal to be nil when not explicitly set")
 
-			By("verifying the nodepool has the correct number of minReplicas and maxReplicas for autoscaling")
-			nodePoolResp, err := framework.GetNodePool(ctx,
+			By("verifying the no-AZ nodepool has the correct autoscaling configuration")
+			noAZNodePoolResp, err := framework.GetNodePool(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				customerNodePoolName)
+				noAZNodePoolName)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(nodePoolResp.Properties).NotTo(BeNil())
-			Expect(nodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
-			Expect(nodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(autoscalingMin)))
-			Expect(nodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(autoscalingMax)))
+			Expect(noAZNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
+			Expect(noAZNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
+			Expect(noAZNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(noAZAutoscalingMin)))
+			Expect(noAZNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(noAZAutoscalingMax)))
+
+			if hasAZ {
+				By("verifying the AZ nodepool has the correct autoscaling configuration")
+				azNodePoolResp, err := framework.GetNodePool(ctx,
+					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+					*resourceGroup.Name,
+					customerClusterName,
+					azNodePoolName)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(azNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
+				Expect(azNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
+				Expect(azNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(azAutoscalingMin)))
+				Expect(azNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(azAutoscalingMax)))
+			}
 
 		})
 

@@ -1,0 +1,90 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Test.Infra
+rolloutName: Test  Rollout
+resourceGroups:
+- name: global
+  resourceGroup: rg
+  subscription: foo-bar
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      value: testacr
+    sourceRegistry:
+      value: quay.io
+    repository:
+      value: test/image
+    digest:
+      value: sha256:abc123
+    pullSecretKeyVault:
+      value: testkeyvault
+    pullSecretName:
+      value: testsecret
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: mirror-image-2
+    action: ImageMirror
+    targetACR:
+      value: testacr
+    sourceRegistry:
+      value: quay.io
+    repository:
+      value: test/image2
+    digest:
+      value: sha256:def456
+    pullSecretKeyVault:
+      value: testkeyvault
+    pullSecretName:
+      value: testsecret
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+- name: kusto
+  resourceGroup: rg
+  subscription: foo-bar
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: test
+  resourceGroup: rg
+  subscription: foo-bar
+  steps:
+  - name: test
+    aksCluster: foo-bar
+    action: Helm
+    releaseName: testing
+    releaseNamespace: namespace
+    namespaceFiles:
+    - foo-bar.yaml
+    chartDir: ./deploy
+    valuesFile: ./values-testing-foo.yaml
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: testDatabase
+    kustoTable: testTable
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
+    - resourceGroup: global
+      step: mirror-image-2

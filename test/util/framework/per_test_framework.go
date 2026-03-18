@@ -428,9 +428,14 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		return err
 	}
 
+	var nonConformantErr error
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
 	if err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
-		return fmt.Errorf("failed to cleanup resource group: %w", err)
+		if errors.Is(err, &NonConformingClustersError{}) {
+			nonConformantErr = err
+		} else {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
 	}
 
 	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
@@ -449,7 +454,8 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	return nil
+	// we want non-conformant clusters to be visible at the end, without impeding our ability to clean up the resource group
+	return nonConformantErr
 }
 
 // cleanupResourceGroupNoRP performs cleanup when the resource provider is not available.
@@ -875,6 +881,45 @@ func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context
 	// Randomly select a VM size from the matches to avoid bias towards the first or last size in the list.
 	selected := matches[rand.Intn(len(matches))]
 	return selected, nil
+}
+
+// LocationHasAvailabilityZones checks if the given VM SKU has availability zones
+// in the current test location by querying the Azure Resource SKUs API.
+func (tc *perItOrDescribeTestContext) LocationHasAvailabilityZones(ctx context.Context, vmSize string) (bool, error) {
+	clientFactory, err := tc.GetARMComputeClientFactory(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get ARM compute client factory: %w", err)
+	}
+
+	location := tc.Location()
+	skuClient := clientFactory.NewResourceSKUsClient()
+	filter := fmt.Sprintf("location eq '%s'", location)
+	pager := skuClient.NewListPager(&armcompute.ResourceSKUsClientListOptions{
+		Filter: &filter,
+	})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return false, fmt.Errorf("failed to list resource SKUs in %s: %w", location, err)
+		}
+		for _, sku := range page.Value {
+			if sku.Name == nil || *sku.Name != vmSize {
+				continue
+			}
+			if sku.ResourceType == nil || *sku.ResourceType != "virtualMachines" {
+				continue
+			}
+			for _, locationInfo := range sku.LocationInfo {
+				if locationInfo.Location == nil || !strings.EqualFold(*locationInfo.Location, location) {
+					continue
+				}
+				if len(locationInfo.Zones) > 0 {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {

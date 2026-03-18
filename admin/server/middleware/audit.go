@@ -31,17 +31,13 @@ const (
 
 type middlewareAudit struct {
 	auditClient audit.Client
-	next        http.Handler
 }
 
-func WithAudit(auditClient audit.Client, next http.Handler) http.Handler {
-	return &middlewareAudit{
-		auditClient: auditClient,
-		next:        next,
-	}
+func NewMiddlewareAudit(auditClient audit.Client) *middlewareAudit {
+	return &middlewareAudit{auditClient: auditClient}
 }
 
-func (m *middlewareAudit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (m *middlewareAudit) HandleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := utils.LoggerFromContext(ctx)
 
@@ -50,7 +46,7 @@ func (m *middlewareAudit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	auditWriter := audit.NewResponseWriter(w)
 
-	m.next.ServeHTTP(auditWriter, r)
+	next(auditWriter, r)
 
 	if auditWriter.StatusCode() >= http.StatusBadRequest {
 		msg.Record.OperationResult = msgs.Failure
@@ -64,8 +60,8 @@ func (m *middlewareAudit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // extractCallerIdentities returns the caller identity from the request header.
 // Reads directly from the X-Ms-Client-Principal-Name header rather than from
-// context, since audit middleware runs before WithClientPrincipal because we want
-// 401s in audit as well.
+// context, since audit middleware runs before MiddlewareClientPrincipal because
+// we want 401s in audit as well.
 // Returns an empty map when the header is missing.
 func extractCallerIdentities(request *http.Request) map[msgs.CallerIdentityType][]msgs.CallerIdentityEntry {
 	clientPrincipalName := request.Header.Get(ClientPrincipalNameHeader)

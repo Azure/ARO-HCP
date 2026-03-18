@@ -60,6 +60,7 @@ This tool exposes metrics via HTTP that can be scraped by Prometheus.`,
 	// Add serve command
 	serveCmd, err := cmd.NewServeCommand()
 	if err != nil {
+		logger.Error(err, "failed to create serve command")
 		os.Exit(1)
 	}
 	rootCmd.AddCommand(serveCmd)

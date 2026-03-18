@@ -60,3 +60,10 @@ fpa:
   keyVaultName: "{{ .serviceKeyVault.name }}"
   certName: "{{ .firstPartyAppCertificate.name }}"
   clientId: "{{ .firstPartyAppClientId }}"
+sessiongate:
+  namespace: "{{ .sessiongate.k8s.namespace }}"
+  servicePort: 8080
+  mise:
+    policyLabel: "{{ .mise.sessiongate.policyLabel }}"
+  minSessionTTL: 1m
+  maxSessionTTL: 24h

@@ -107,6 +107,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: backend
+    - name: sessiongateMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: sessiongate
     dependsOn:
     - resourceGroup: management
       step: infra
@@ -224,6 +229,20 @@ resourceGroups:
       - "DeploymentScriptExceededMaxAllowedTime"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+  # - name: delete-non-swift-user-nodepools
+  #   aksCluster: '{{ .mgmt.aks.name }}'
+  #   action: Shell
+  #   command: ./scripts/delete-user-nodepools.sh
+  #   variables:
+  #   - name: CLUSTER_NAME
+  #     configRef: mgmt.aks.name
+  #   - name: RESOURCE_GROUP
+  #     configRef: mgmt.rg
+  #   - name: POOL_NAME_PATTERN
+  #     value: 'user[0-9]+'
+  #   dependsOn:
+  #   - resourceGroup: management
+  #     step: cluster
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -252,6 +271,17 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster
+  - name: exporter-permissions
+    action: ARM
+    template: templates/exporter-permissions.bicep
+    parameters: configurations/exporter-permissions.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: exporterPrincipalId
+      input:
+        resourceGroup: service
+        step: output
+        name: exporterPrincipalId
   - name: kusto-grant-ingest
     action: ARM
     template: templates/kusto-grant-ingest.bicep
@@ -317,7 +347,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: acrpull
@@ -344,7 +373,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: storageclass
@@ -371,7 +399,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mitigations
@@ -400,7 +427,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kubelet-ds
@@ -427,7 +453,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: arobit-output
@@ -476,7 +501,6 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -503,6 +527,5 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m

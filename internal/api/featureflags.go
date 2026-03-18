@@ -14,17 +14,19 @@
 
 package api
 
+// ARM handles feature names as case insensitive. Normalize the names using lowercase
 const (
+	// TOMBSTONE - intent replaced by FeatureExperimentalReleaseFeatures
 	// Feature flag FeatureAllowDevNonStableChannels is the feature in the subscription that
 	// allows the usage of non stable channels (i.e. candidate, nightly) for creation
 	// of new OpenShift clusters.
-	FeatureAllowDevNonStableChannels = "Microsoft.RedHatOpenShift/AllowDevNonStableChannels"
+	//FeatureAllowDevNonStableChannels = "Microsoft.RedHatOpenShift/AllowDevNonStableChannels"
 
 	// FeatureExperimentalReleaseFeatures is the subscription-level AFEC that gates all
 	// tag-based experimental features. When registered, per-resource tags in the
 	// "aro-hcp.experimental.*" namespace are honored. Without this AFEC, experimental
 	// tags are ignored.
-	FeatureExperimentalReleaseFeatures = "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures"
+	FeatureExperimentalReleaseFeatures = "microsoft.redhatopenshift/experimentalreleasefeatures"
 
 	// ExperimentalClusterTagPrefix is the prefix for all experimental cluster
 	// tags. Tags with this prefix are only honored when the

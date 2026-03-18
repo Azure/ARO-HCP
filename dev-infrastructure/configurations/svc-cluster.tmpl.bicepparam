@@ -55,6 +55,12 @@ param backendMIName = '{{ .backend.managedIdentityName }}'
 param backendNamespace = '{{ .backend.k8s.namespace }}'
 param backendServiceAccountName = '{{ .backend.k8s.serviceAccountName }}'
 
+param sessiongateMIName = '{{ .sessiongate.managedIdentityName }}'
+param sessiongateNamespace = '{{ .sessiongate.k8s.namespace }}'
+param sessiongateServiceAccountName = '{{ .sessiongate.k8s.serviceAccountName }}'
+param sessiongateIngressCertName = '{{ .sessiongate.cert.name }}'
+param sessiongateIngressCertIssuer = '{{ .sessiongate.cert.issuer }}'
+
 param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
 param maestroServiceAccountName = '{{ .maestro.server.k8s.serviceAccountName }}'
@@ -164,3 +170,8 @@ param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .kusto.auditLogsEventHub.name }}'
 param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'
+
+// Exporter
+param exporterMIName = '{{ .customExporter.managedIdentityName }}'
+param exporterNamespace = '{{ .customExporter.k8s.namespace }}'
+param exporterServiceAccountName = '{{ .customExporter.k8s.serviceAccountName }}'

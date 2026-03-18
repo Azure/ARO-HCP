@@ -25,25 +25,40 @@ import (
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/conn"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
 	Unknown = "Unknown"
+
+	MetricAuditLogRecordsTotal       = "otel_audit_log_records_total"
+	MetricAuditLogSendErrorsTotal    = "otel_audit_log_send_errors_total"
+	MetricAuditLogConnectionDegraded = "otel_audit_log_connection_degraded"
 )
 
 type Client interface {
 	Send(ctx context.Context, msg msgs.Msg, options ...base.SendOption) error
 }
 
+var _ Client = (*AuditClient)(nil)
+
 type AuditClient struct {
-	client Client
+	client     Client
+	totalSend  prometheus.Counter
+	sendErrors prometheus.Counter
 }
 
 func (c *AuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.SendOption) error {
 	ensureDefaults(&msg.Record)
-	return c.client.Send(ctx, msg)
+	c.totalSend.Inc()
+	err := c.client.Send(ctx, msg, options...)
+	if err != nil {
+		c.sendErrors.Inc()
+	}
+	return err
 }
 
 func CreateConn(connectSocket bool) (createConn audit.CreateConn) {
@@ -59,13 +74,45 @@ func CreateConn(connectSocket bool) (createConn audit.CreateConn) {
 	return createConn
 }
 
-func NewOtelAuditClient(createConn audit.CreateConn, options ...base.Option) (*AuditClient, error) {
-	client, err := audit.New(createConn, audit.WithAuditOptions(options...))
-	if err != nil {
-		return nil, err
+// NewOtelAuditClient creates an audit client that wraps the given connection
+// factory with best-effort fallback. If the connection fails, it falls back to
+// a no-op connection and sets the degraded gauge. Non-connection errors from
+// the underlying audit library are returned to the caller.
+func NewOtelAuditClient(ctx context.Context, createConn audit.CreateConn, registerer prometheus.Registerer, options ...base.Option) (*AuditClient, error) {
+	degradedGauge := promauto.With(registerer).NewGauge(prometheus.GaugeOpts{
+		Name: MetricAuditLogConnectionDegraded,
+		Help: "State of the audit logs forwarding: 1 for degraded when the intended connection to the audit server failed, 0 otherwise",
+	})
+
+	logger := utils.LoggerFromContext(ctx)
+
+	bestEffortConn := func() (conn.Audit, error) {
+		c, err := createConn()
+		if err != nil {
+			logger.Error(err, "audit socket unavailable, falling back to noop")
+			degradedGauge.Set(1)
+			return conn.NewNoOP(), nil
+		}
+		degradedGauge.Set(0)
+		return c, nil
 	}
 
-	return &AuditClient{client: client}, nil
+	client, err := audit.New(bestEffortConn, audit.WithAuditOptions(options...))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create audit client: %w", err)
+	}
+
+	return &AuditClient{
+		client: client,
+		totalSend: promauto.With(registerer).NewCounter(prometheus.CounterOpts{
+			Name: MetricAuditLogRecordsTotal,
+			Help: "Total number of audit records attempted to be sent.",
+		}),
+		sendErrors: promauto.With(registerer).NewCounter(prometheus.CounterOpts{
+			Name: MetricAuditLogSendErrorsTotal,
+			Help: "Total number of audit records that failed to send.",
+		}),
+	}, nil
 }
 
 func GetOperationType(method string) msgs.OperationType {

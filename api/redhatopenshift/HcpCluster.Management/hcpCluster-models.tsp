@@ -1,4 +1,5 @@
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@typespec/http";
 import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
@@ -6,6 +7,7 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -59,7 +61,8 @@ model HcpOpenShiftClusterProperties {
 
   /** Version of the control plane components */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  version?: VersionProfile;
+  @madeRequired(Versions.v2025_12_23_preview)
+  version: VersionProfile;
 
   /** Cluster DNS configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
@@ -88,6 +91,15 @@ model HcpOpenShiftClusterProperties {
   /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   etcd?: EtcdProfile;
+
+  /** imageDigestMirrors is a set of rules to allow pulling images from a
+   * mirrored registry by using digest specifications.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @added(Versions.v2025_12_23_preview)
+  @identifiers(#["source"])
+  @maxItems(240)
+  imageDigestMirrors?: ImageDigestMirror[];
 
   /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
    * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
@@ -146,7 +158,15 @@ union ExternalAuthProvisioningState {
 model VersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  id?: string;
+  @removed(Versions.v2025_12_23_preview)
+  @renamedFrom(Versions.v2025_12_23_preview, "id")
+  idNoUpdate?: string;
+
+  /** ID is the desired X.Y version of the cluster control plane. */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @madeRequired(Versions.v2025_12_23_preview)
+  id: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
    *  Each version belongs to only a single set.
@@ -274,6 +294,15 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
 
+  /** The Azure resource ID of a subnet that enables direct,
+   * private network connectivity between the hosted control plane
+   * and your cluster's nodes. This subnet must be dedicated to ARO HCP
+   * and cannot be shared with the cluster subnet or any node pool subnets.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @added(Versions.v2025_12_23_preview)
+  vnetIntegrationSubnetId: SubnetResourceId;
+
   /** The core outgoing configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   outboundType?: OutboundType = OutboundType.LoadBalancer;
@@ -326,7 +355,7 @@ model ClusterAutoscalingProfile {
   @minValue(0)
   maxNodeProvisionTimeSeconds?: int32;
 
-  /** podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions,
+  /** podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions,
    * but only run when there are spare resources available. The default is -10.
    * See the following for more details:
    * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
@@ -339,6 +368,25 @@ model ClusterAutoscalingProfile {
   podPriorityThreshold?: int32;
 }
 
+/** ImageDigestMirror specifies a set of mirror registries to redirect image
+ * pulls targeting the specified source registries.
+ */
+model ImageDigestMirror {
+  /** Source is the image repository that users refer to, e.g. in image pull specifications. */
+  source: ImageRepository;
+
+  /** Mirrors are one or more image repositories that may also contain the same images. */
+  @minItems(1)
+  @maxItems(255)
+  mirrors: ImageRepository[];
+}
+
+/** ImageRepository describes a repository for container images.
+ * @example quay.io/openshift-release-dev/ocp-release
+ */
+@maxLength(255)
+scalar ImageRepository extends string;
+
 /** OpenShift cluster image registry */
 model ClusterImageRegistryProfile {
   /** state indicates the desired ImageStream-backed cluster image registry installation mode.
@@ -347,7 +395,18 @@ model ClusterImageRegistryProfile {
    * the cluster. Disabled means the ImageStream-backed image registry will not be present in
    * the cluster. The default is Enabled. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  state?: "Enabled" | "Disabled" | string = "Enabled";
+  state?: ClusterImageRegistryState = ClusterImageRegistryState.Enabled;
+}
+
+/** The desired state of the ImageStream-backed cluster image registry */
+union ClusterImageRegistryState {
+  string,
+
+  /** The ImageStream-backed image registry will be run as pods on worker nodes */
+  Enabled: "Enabled",
+
+  /** The ImageStream-backed image registry will not be present in the cluster */
+  Disabled: "Disabled",
 }
 
 scalar SubnetResourceId
@@ -414,6 +473,7 @@ model KmsKey {
   /** vaultName is the name of the keyvault that contains the secret. */
   @maxLength(255)
   @minLength(1)
+  @removed(Versions.v2025_12_23_preview)
   vaultName: string;
 
   /** name is the name of the keyvault key used for encryption/decryption. */
@@ -425,6 +485,17 @@ model KmsKey {
   @maxLength(255)
   @minLength(1)
   version: string;
+}
+
+/** The internet visibility of a keyvault resource */
+union KeyVaultVisibility {
+  string,
+
+  /** The keyvault is visible from the internet. */
+  Public: "Public",
+
+  /** The keyvault is not visible from the internet. */
+  Private: "Private",
 }
 
 /** The ETCD settings and configuration options. */
@@ -472,6 +543,18 @@ model CustomerManagedEncryptionProfile {
  * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`
  */
 model KmsEncryptionProfile {
+  /** vaultName is the name of the keyvault that contains the secret. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(255)
+  @minLength(1)
+  @added(Versions.v2025_12_23_preview)
+  vaultName: string;
+
+  /** visibility of the keyvault that contains the secret. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @added(Versions.v2025_12_23_preview)
+  visibility: KeyVaultVisibility;
+
   /** The details of the active key. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   activeKey: KmsKey;
@@ -546,12 +629,12 @@ model NodePoolProperties {
    * create nodes in the Nodepool, existing node labels remain unchanged.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
+  @identifiers(#["key", "value"])
   labels?: Label[];
 
   /** Taints for the nodes */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
+  @identifiers(#["key", "value", "effect"])
   taints?: Taint[];
 
   /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
@@ -587,6 +670,7 @@ model Taint {
   /** The key of the taint
    * @example node-role.kubernetes.io/master
    */
+  #suppress "@azure-tools/typespec-azure-resource-manager/secret-prop" "This is a Kubernetes taint key, not a secret"
   @minLength(1)
   @maxLength(316)
   key: string;
@@ -608,6 +692,7 @@ model Label {
   /** The key of the label
    * @example node-role.kubernetes.io/master
    */
+  #suppress "@azure-tools/typespec-azure-resource-manager/secret-prop" "This is a Kubernetes label key, not a secret"
   key: string;
 
   /** The value of the label */
@@ -618,7 +703,8 @@ model Label {
 model NodePoolVersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  id?: string;
+  @madeRequired(Versions.v2025_12_23_preview)
+  id: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
    *  Each version belongs to only a single set.
@@ -677,7 +763,7 @@ model OsDiskProfile {
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
+  diskStorageAccountType?: DiskStorageAccountType = DiskStorageAccountType.Premium_LRS;
 
   /** The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.
    * This needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.
@@ -689,6 +775,32 @@ model OsDiskProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   encryptionSetId?: DiskEncryptionSetResourceId;
+
+  /** The type of the OS disk.
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+   */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  diskType?: OsDiskType = OsDiskType.Managed;
+}
+
+/** The type of the OS disk
+ * - https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+ */
+@added(Versions.v2025_12_23_preview)
+union OsDiskType {
+  string,
+
+  /** Managed OS disk - stored as an Azure managed disk (network-attached).
+   * Default behavior for VMs without sufficient cache.
+   */
+  Managed: "Managed",
+
+  /** Ephemeral OS disk - stored on local VM cache/temporary storage.
+   * Provides lower latency and faster node operations.
+   * Requires VM with sufficient cache size.
+   */
+  Ephemeral: "Ephemeral",
 }
 
 /** Supported Azure storage account types
@@ -790,10 +902,7 @@ model ExternalAuthProperties {
    * There must not be more than 20 entries and entries must have unique namespace/name pairs.
    */
   @maxItems(20)
-  @OpenAPI.extension(
-    "x-ms-identifiers",
-    #["component", "clientId", "extraScopes"]
-  )
+  @identifiers(#["component", "clientId", "extraScopes"])
   clients?: ExternalAuthClientProfile[];
 
   /** External Auth claim
@@ -959,7 +1068,7 @@ model ExternalAuthClaimProfile {
   mappings: TokenClaimMappingsProfile;
 
   /** The claim validation rules */
-  @OpenAPI.extension("x-ms-identifiers", #["type", "requiredClaim"])
+  @identifiers(#["type", "requiredClaim"])
   validationRules?: TokenClaimValidationRule[];
 }
 

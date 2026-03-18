@@ -217,6 +217,7 @@ func (c *deleteOrphanedCosmosResources) processNextWorkItem(ctx context.Context)
 	logger = logger.WithValues(utils.LogValues{}.AddSubscriptionID(ref)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		c.queue.Forget(ref)

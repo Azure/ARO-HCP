@@ -5,11 +5,12 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"time"
+	"slices"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
 
 // CachingCollector is an interface for collectors that cache metrics
@@ -26,19 +27,23 @@ type CachingCollector interface {
 	CollectMetricValues(ctx context.Context)
 }
 
-// CreateEnabledCollectors creates a list of enabled collectors
-// It iterates over the enabled collectors and creates the corresponding collector
-func CreateEnabledCollectors(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, cacheTTL time.Duration, enabledCollectors []string) ([]CachingCollector, error) {
-	var collectors []CachingCollector
-	for _, collector := range enabledCollectors {
-		switch collector {
-		case ServiceTagUsageCollectorName:
-			publicIPCollector, err := NewServiceTagUsageCollector(subscriptionID, creds, cacheTTL)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create public IP collector: %w", err)
+func getSubscriptionIDs(ctx context.Context, creds azcore.TokenCredential, subscriptionNames []string) ([]string, error) {
+	subscriptionClient, err := armsubscriptions.NewClient(creds, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subscription client: %w", err)
+	}
+	subscriptionIDs := make([]string, 0)
+	pager := subscriptionClient.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, sub := range page.Value {
+			if slices.Contains(subscriptionNames, *sub.DisplayName) {
+				subscriptionIDs = append(subscriptionIDs, *sub.SubscriptionID)
 			}
-			collectors = append(collectors, publicIPCollector)
 		}
 	}
-	return collectors, nil
+	return subscriptionIDs, nil
 }

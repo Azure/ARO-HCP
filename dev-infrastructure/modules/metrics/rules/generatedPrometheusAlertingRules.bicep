@@ -4,9 +4,12 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
+#disable-next-line no-unused-params
+param location string = resourceGroup().location
+
 resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'prometheus-wip-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -159,7 +162,7 @@ Please check the health and performance of the remote storage endpoint, network 
 
 resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'prometheus-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -307,7 +310,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
 
 resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'prometheus-operator-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -374,7 +377,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
 
 resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'mise'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -414,7 +417,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
 
 resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'frontend'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -472,6 +475,60 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         for: 'PT5M'
         severity: 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendHighAuditLogErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendHighAuditLogErrorRate/{{ $labels.cluster }}'
+          description: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          info: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'TBD'
+          summary: 'High Frontend audit log error rate.'
+          title: 'High Frontend audit log error rate.'
+        }
+        expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h])) ) > 0.05'
+        for: 'PT5M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendAuditLogConnectionDegraded'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendAuditLogConnectionDegraded/{{ $labels.cluster }}'
+          description: 'The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          info: 'The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          runbook_url: 'TBD'
+          summary: 'Frontend audit log connection is degraded.'
+          title: 'Frontend audit log connection is degraded.'
+        }
+        expression: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"} == 1'
+        for: 'PT5M'
+        severity: 4
+      }
     ]
     scopes: [
       azureMonitoring
@@ -481,7 +538,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
 
 resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'backend'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -519,9 +576,76 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   }
 }
 
+resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'admin-api'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AdminHighAuditLogErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'AdminHighAuditLogErrorRate/{{ $labels.cluster }}'
+          description: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          info: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'TBD'
+          summary: 'High Admin API audit log error rate.'
+          title: 'High Admin API audit log error rate.'
+        }
+        expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h])) ) > 0.05'
+        for: 'PT5M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AdminAuditLogConnectionDegraded'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'AdminAuditLogConnectionDegraded/{{ $labels.cluster }}'
+          description: 'The admin API failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          info: 'The admin API failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          runbook_url: 'TBD'
+          summary: 'Admin API audit log connection is degraded.'
+          title: 'Admin API audit log connection is degraded.'
+        }
+        expression: 'otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"} == 1'
+        for: 'PT5M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arobit-rules'
-  location: resourceGroup().location
+  location: location
   properties: {
     interval: 'PT1M'
     rules: [
@@ -557,6 +681,309 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
         expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
         for: 'PT15M'
         severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'service-tag-capacity-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpNonprodInboundCustomerapiCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpNonprodInboundCustomerapiCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-customerapi"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpNonprodInboundSvcCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpNonprodInboundSvcCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-svc"} / 18 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpNonprodOutboundCxCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpNonprodOutboundCxCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-cx"} / 8 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpNonprodOutboundSvcCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpNonprodOutboundSvcCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-svc"} / 18 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdInboundCustomerapiCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdInboundCustomerapiCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region!="uswest2"} / 64 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdInboundCustomerapiUswest2Capacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdInboundCustomerapiUswest2Capacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region="uswest2"} / 128 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdInboundCxCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdInboundCxCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-cx"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdInboundSvcCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdInboundSvcCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-svc"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdOutboundCxCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdOutboundCxCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-cx"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'AroHcpProdOutboundSvcCapacity'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'AroHcpProdOutboundSvcCapacity/{{ $labels.cluster }}'
+          description: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          info: 'Service Tag IP Usage {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its capacity. Current count exceeds warning threshold of 80%.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
+          summary: 'Service Tag IP Usage is reaching 80%'
+          title: 'Service Tag IP Usage is reaching 80%'
+        }
+        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-svc"} / 32 > 0.8'
+        for: 'PT15M'
+        severity: 4
       }
     ]
     scopes: [

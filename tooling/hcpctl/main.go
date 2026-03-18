@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	datadumptogit "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/datadump-to-git"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/hcp"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/kubelogin"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/mc"
@@ -41,6 +42,13 @@ const (
 
 func main() {
 	logger := createLogger(0)
+
+	if os.Getenv("AZURE_TOKEN_CREDENTIALS") == "" {
+		if err := os.Setenv("AZURE_TOKEN_CREDENTIALS", "dev"); err != nil {
+			logger.Error(err, "failed to set default AZURE_TOKEN_CREDENTIALS")
+			os.Exit(1)
+		}
+	}
 
 	// Create a root context with the logger and signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -85,6 +93,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 		sc.NewCommand,
 		hcp.NewCommand,
 		mustgather.NewCommand,
+		datadumptogit.NewCommand,
 	}
 	for _, newCmd := range mainCommands {
 		c, err := newCmd(mainGroupID)

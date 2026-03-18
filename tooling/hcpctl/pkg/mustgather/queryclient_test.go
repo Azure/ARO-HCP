@@ -36,7 +36,7 @@ type MockKustoClient struct {
 	mock.Mock
 }
 
-func (m *MockKustoClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- azkquery.Row) (*kusto.QueryResult, error) {
+func (m *MockKustoClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error) {
 	args := m.Called(ctx, query, outputChannel)
 	return args.Get(0).(*kusto.QueryResult), args.Error(1)
 }
@@ -119,7 +119,7 @@ func TestQueryClient_ConcurrentQueries_Success(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	// Create test queries
@@ -138,8 +138,8 @@ func TestQueryClient_ConcurrentQueries_Success(t *testing.T) {
 	}
 
 	// Set up mock expectations
-	mockClient.On("ExecutePreconfiguredQuery", ctx, query1, mock.Anything).Return(result1, nil)
-	mockClient.On("ExecutePreconfiguredQuery", ctx, query2, mock.Anything).Return(result2, nil)
+	mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query1, mock.Anything).Return(result1, nil)
+	mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query2, mock.Anything).Return(result2, nil)
 
 	mockFileWriter.On("WriteFile", "/test/output", "query1.json", result1).Return(nil)
 	mockFileWriter.On("WriteFile", "/test/output", "query2.json", result2).Return(nil)
@@ -162,14 +162,14 @@ func TestQueryClient_ConcurrentQueries_QueryExecutionError(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	query := &kusto.ConfigurableQuery{Name: "failing_query"}
 	queries := []*kusto.ConfigurableQuery{query}
 
 	expectedError := errors.New("query execution failed")
-	mockClient.On("ExecutePreconfiguredQuery", ctx, query, mock.Anything).Return((*kusto.QueryResult)(nil), expectedError)
+	mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query, mock.Anything).Return((*kusto.QueryResult)(nil), expectedError)
 
 	queryClient := &QueryClient{
 		Client:     mockClient,
@@ -180,7 +180,7 @@ func TestQueryClient_ConcurrentQueries_QueryExecutionError(t *testing.T) {
 	err := queryClient.ConcurrentQueries(ctx, queries, outputChannel)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to execute queries")
+	assert.Contains(t, err.Error(), "failed to execute query")
 	mockClient.AssertExpectations(t)
 	mockFileWriter.AssertExpectations(t)
 }
@@ -190,7 +190,7 @@ func TestQueryClient_ConcurrentQueries_FileWriteError(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	query := &kusto.ConfigurableQuery{Name: "query_with_write_error"}
@@ -202,7 +202,7 @@ func TestQueryClient_ConcurrentQueries_FileWriteError(t *testing.T) {
 	}
 
 	expectedWriteError := errors.New("file write failed")
-	mockClient.On("ExecutePreconfiguredQuery", ctx, query, mock.Anything).Return(result, nil)
+	mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query, mock.Anything).Return(result, nil)
 	mockFileWriter.On("WriteFile", "/test/output", "query_with_write_error.json", result).Return(expectedWriteError)
 
 	queryClient := &QueryClient{
@@ -214,7 +214,7 @@ func TestQueryClient_ConcurrentQueries_FileWriteError(t *testing.T) {
 	err := queryClient.ConcurrentQueries(ctx, queries, outputChannel)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to execute queries")
+	assert.Contains(t, err.Error(), "failed to write query result to file")
 	mockClient.AssertExpectations(t)
 	mockFileWriter.AssertExpectations(t)
 }
@@ -224,7 +224,7 @@ func TestQueryClient_ConcurrentQueries_EmptyQueries(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	queries := []*kusto.ConfigurableQuery{}
@@ -247,7 +247,7 @@ func TestQueryClient_ConcurrentQueries_Concurrency(t *testing.T) {
 	mockFileWriter := &MockFileWriter{}
 
 	ctx := context.Background()
-	outputChannel := make(chan azkquery.Row, 10)
+	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
 	// Create multiple test queries
@@ -271,7 +271,7 @@ func TestQueryClient_ConcurrentQueries_Concurrency(t *testing.T) {
 		query := queries[i]
 		result := results[i]
 
-		mockClient.On("ExecutePreconfiguredQuery", ctx, query, mock.Anything).Run(func(args mock.Arguments) {
+		mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query, mock.Anything).Run(func(args mock.Arguments) {
 			mu.Lock()
 			executionTimes[query.Name] = time.Now()
 			mu.Unlock()

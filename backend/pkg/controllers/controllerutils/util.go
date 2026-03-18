@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"slices"
 
 	"github.com/go-logr/logr"
@@ -102,6 +103,37 @@ func (k *HCPClusterKey) InitialController(controllerName string) *api.Controller
 	}
 }
 
+// HCPNodePoolKey is for driving workqueus keyed for nodepools
+type HCPNodePoolKey struct {
+	SubscriptionID    string `json:"subscriptionID"`
+	ResourceGroupName string `json:"resourceGroupName"`
+	HCPClusterName    string `json:"hcpClusterName"`
+	HCPNodePoolName   string `json:"hcpNodePoolName"`
+}
+
+func (k *HCPNodePoolKey) GetResourceID() *azcorearm.ResourceID {
+	return api.Must(api.ToNodePoolResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPNodePoolName))
+}
+
+func (k *HCPNodePoolKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(
+		utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
+}
+
+func (k *HCPNodePoolKey) InitialController(controllerName string) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
+		ResourceID: resourceID,
+		ExternalID: k.GetResourceID(),
+		Status: api.ControllerStatus{
+			Conditions: []api.Condition{},
+		},
+	}
+}
+
 // clock is used by helper functions for setting last transition time.  It is injectable for unit testing.
 var clock utilsclock.Clock = utilsclock.RealClock{}
 
@@ -132,6 +164,17 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 }
 
 type initialControllerFunc func(controllerName string) *api.Controller
+
+func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn initialControllerFunc) func(interface{}) {
+	return func(panicVal interface{}) {
+		stack := debug.Stack()
+		err := WriteController(ctx, controllerCRUD, controllerName, initialControllerFn, ReportSyncError(fmt.Errorf("panic caught:\n%v\n\n%s", panicVal, stack)))
+		if err != nil {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Error(err, "failed to write controller after panic")
+		}
+	}
+}
 
 // WriteController will read the existing value, call the mutations in order, then write the result.  It only tries *once*.
 // If it fails, then the an error is returned.  This detail is important, it doesn't even retry conflicts.  This is so that
@@ -193,15 +236,25 @@ func SetCondition(conditions *[]api.Condition, toSet api.Condition) {
 		return
 	}
 
-	if existingCondition.Status != toSet.Status {
-		existingCondition.LastTransitionTime = clock.Now()
+	newCondition := existingCondition.DeepCopy()
+	if newCondition.Status != toSet.Status {
+		newCondition.LastTransitionTime = clock.Now()
 	}
-	existingCondition.Status = toSet.Status
-	existingCondition.Reason = toSet.Reason
-	existingCondition.Message = toSet.Message
+	newCondition.Status = toSet.Status
+	newCondition.Reason = toSet.Reason
+	newCondition.Message = toSet.Message
+
+	for i := range *conditions {
+		if (*conditions)[i].Type == toSet.Type {
+			(*conditions)[i] = *newCondition
+			return
+		}
+	}
 }
 
-// GetCondition returns the condition with the given type from the list of conditions.
+// GetCondition returns a copy to the condition with the given type from the list of conditions.
+// It returns a pointer for a clear indication of "not found", it doesn't return a reference intended for mutation
+// of the original list.
 // If the list of conditions is nil, returns nil.
 // If the condition with condition type conditionType is not found, returns nil.
 // If there are multiple conditions with condition type conditionType the first
@@ -215,7 +268,6 @@ func GetCondition(conditions []api.Condition, conditionType string) *api.Conditi
 			return &currentCondition
 		}
 	}
-
 	return nil
 }
 

@@ -95,13 +95,13 @@ var _ = Describe("Customer", func() {
 			<-customerRes1DoneCh
 			Expect(err1).NotTo(HaveOccurred())
 
-			By("creating HCP cluster")
+			By("seeding HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams1,
-				45*time.Minute,
+				0,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -138,6 +138,5 @@ var _ = Describe("Customer", func() {
 			Expect(err).To(HaveOccurred())
 			GinkgoLogr.Error(err, "cluster deployment error")
 			Expect(err.Error()).To(MatchRegexp("Network Security Group .* is already in use by another cluster"))
-
 		})
 })

@@ -50,7 +50,7 @@ type ClusterAutoscalingProfile struct {
 	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxPodGracePeriodSeconds *int32
 
-	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
+	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -65,7 +65,7 @@ type ClusterImageRegistryProfile struct {
 	// creation and cannot be changed after cluster creation. Enabled means the
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
-	State *ClusterImageRegistryProfileState
+	State *ClusterImageRegistryState
 }
 
 // ConsoleProfile - Configuration of the cluster web console
@@ -326,6 +326,9 @@ type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
+	// REQUIRED; Version of the control plane components
+	Version *VersionProfile
+
 	// Shows the cluster API server profile
 	API *APIProfile
 
@@ -341,6 +344,9 @@ type HcpOpenShiftClusterProperties struct {
 	// Configure ETCD.
 	Etcd *EtcdProfile
 
+	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
+	ImageDigestMirrors []*ImageDigestMirror
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
@@ -354,9 +360,6 @@ type HcpOpenShiftClusterProperties struct {
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
-	// Version of the control plane components
-	Version *VersionProfile
-
 	// READ-ONLY; Shows the cluster web console information
 	Console *ConsoleProfile
 
@@ -368,6 +371,9 @@ type HcpOpenShiftClusterProperties struct {
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
+
+	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
+	ImageDigestMirrors []*ImageDigestMirror
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
 	// any node draining operation. After this grace period, any workloads
@@ -383,7 +389,7 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	Platform *PlatformProfileUpdate
 
 	// Version of the control plane components
-	Version *VersionProfile
+	Version *VersionProfileUpdate
 }
 
 // HcpOpenShiftClusterUpdate - HCP cluster resource
@@ -486,21 +492,33 @@ type HcpOperatorIdentityRoleSetProperties struct {
 	DataPlaneOperators []*OperatorIdentityRoles
 }
 
+// ImageDigestMirror specifies a set of mirror registries to redirect image pulls targeting the specified source registries.
+type ImageDigestMirror struct {
+	// REQUIRED; Mirrors are one or more image repositories that may also contain the same images.
+	Mirrors []*string
+
+	// REQUIRED; Source is the image repository that users refer to, e.g. in image pull specifications.
+	Source *string
+}
+
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
 // to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
 // set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
 type KmsEncryptionProfile struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey
+
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
+	VaultName *string
+
+	// REQUIRED; visibility of the keyvault that contains the secret.
+	Visibility *KeyVaultVisibility
 }
 
 // KmsKey - A representation of a KeyVault Secret.
 type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
-
-	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
-	VaultName *string
 
 	// REQUIRED; version contains the version of the key to use.
 	Version *string
@@ -692,7 +710,7 @@ type NodePoolPropertiesUpdate struct {
 	Taints []*Taint
 
 	// OpenShift version for the nodepool
-	Version *NodePoolVersionProfile
+	Version *NodePoolVersionProfileUpdate
 }
 
 // NodePoolUpdate - Concrete tracked resource types can be created by aliasing this type using a specific property type.
@@ -721,6 +739,19 @@ type NodePoolUpdate struct {
 
 // NodePoolVersionProfile - Versions represents an OpenShift version.
 type NodePoolVersionProfile struct {
+	// REQUIRED; ID is the unique identifier of the version.
+	ID *string
+
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	ChannelGroup *string
+}
+
+// NodePoolVersionProfileUpdate - Versions represents an OpenShift version.
+type NodePoolVersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -813,6 +844,10 @@ type OsDiskProfile struct {
 	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *DiskStorageAccountType
 
+	// The type of the OS disk.
+	// * https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+	DiskType *OsDiskType
+
 	// The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs. This needs to exist in the same subscription
 	// id listed in the Hosted Cluster,
 	// HostedCluster.Spec.Platform.Azure.SubscriptionID. DiskEncryptionSetID should also exist in a resource group under the same
@@ -836,6 +871,11 @@ type PlatformProfile struct {
 
 	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
+
+	// REQUIRED; The Azure resource ID of a subnet that enables direct, private network connectivity between the hosted control
+	// plane and your cluster's nodes. This subnet must be dedicated to ARO HCP and cannot be
+	// shared with the cluster subnet or any node pool subnets.
+	VnetIntegrationSubnetID *string
 
 	// Resource group name to put cluster resources
 	// If not specified then a unique name is generated from the following pattern
@@ -1066,6 +1106,19 @@ type UsernameClaimProfileUpdate struct {
 
 // VersionProfile - Versions represents an OpenShift version.
 type VersionProfile struct {
+	// REQUIRED; ID is the desired X.Y version of the cluster control plane.
+	ID *string
+
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	ChannelGroup *string
+}
+
+// VersionProfileUpdate - Versions represents an OpenShift version.
+type VersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -1073,6 +1126,6 @@ type VersionProfile struct {
 	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
-	// ID is the unique identifier of the version.
+	// ID is the desired X.Y version of the cluster control plane.
 	ID *string
 }

@@ -7,7 +7,7 @@ param disableLocalAuth bool = true
 param location string
 param zoneRedundant bool
 param userAssignedMIs array
-param readOnlyUserAssignedMIs array
+param readOnlyUserAssignedMIs array = []
 param private bool
 
 param resourceContainerMaxScale int

@@ -49,6 +49,10 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ExistingCosmosUID = ""
 			// ExperimentalFeatures does not roundtrip through the external type because it is purely an internal detail
 			j.ExperimentalFeatures = api.ExperimentalFeatures{}
+			// ManagedIdentitiesDataPlaneIdentityURL does not roundtrip through the external type because
+			// the information is not provided in the request body. That information is provided via
+			// the http header 'X-Ms-Identity-Url' and we set it after the call to conversion to internal.
+			j.ManagedIdentitiesDataPlaneIdentityURL = ""
 		},
 		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -80,18 +84,24 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
+		// CosmosETag does not roundtrip through the external type because it is purely a database concern
+		original.CosmosETag = ""
 		roundTripHCPCluster(t, original)
 	}
 
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftClusterNodePool{}
 		fuzzer.Fill(original)
+		// CosmosETag does not roundtrip through the external type because it is purely a database concern
+		original.CosmosETag = ""
 		roundTripNodePool(t, original)
 	}
 
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftClusterExternalAuth{}
 		fuzzer.Fill(original)
+		// CosmosETag does not roundtrip through the external type because it is purely a database concern
+		original.CosmosETag = ""
 		roundTripExternalAuth(t, original)
 	}
 }

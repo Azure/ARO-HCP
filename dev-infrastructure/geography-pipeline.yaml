@@ -1,0 +1,39 @@
+$schema: pipeline.schema.v1
+rolloutName: Geography Rollout
+serviceGroup: Microsoft.Azure.ARO.HCP.Geography
+resourceGroups:
+- name: kusto-infra
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - int
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
+    - stg
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
+    - prod
+    regions:
+    - australiaeast
+    - brazilsouth
+    - canadacentral
+    - centralindia
+    - eastus2
+    - westeurope
+    - switzerlandnorth
+    - uksouth
+  steps:
+  - name: deploy
+    action: ARM
+    template: templates/kusto.bicep
+    parameters: configurations/kusto.tmpl.bicepparam
+    deploymentLevel: ResourceGroup

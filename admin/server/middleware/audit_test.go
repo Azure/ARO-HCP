@@ -95,12 +95,12 @@ func TestWithAudit(t *testing.T) {
 			request.Header = tc.headers
 			request = request.WithContext(ctx)
 
-			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next := func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tc.statusCode)
-			})
+			}
 
-			handler := WithAudit(client, next)
-			handler.ServeHTTP(writer, request)
+			m := NewMiddlewareAudit(client)
+			m.HandleRequest(writer, request, next)
 
 			assert.Equal(t, tc.statusCode, writer.Result().StatusCode)
 			require.Len(t, client.messages, 1)

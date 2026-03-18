@@ -1,0 +1,23 @@
+image:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  repository: "{{ .customExporter.image.repository }}"
+  digest: "{{ .customExporter.image.digest }}"
+serviceAccount:
+  create: true
+  name: "aro-hcp-exporter"
+  msiClientId: "__msiClientId__"
+service:
+  name: "aro-hcp-exporter"
+deployment:
+  name: "aro-hcp-exporter"
+subscriptionNames:
+- "{{ .svc.subscription.key }}"
+- "{{ .mgmt.subscription.key }}"
+listenAddress: ":8080"
+cacheTTL: "60m"
+collectionInterval: "2m"
+enabledCollectors:
+- service-tag-usage
+clusterNames: "{{ .svc.aks.name }},{{ .mgmt.aks.name }}"
+kustRegion: "__kustoRegion__"
+kustoCluster: "{{ .kusto.kustoName }}"

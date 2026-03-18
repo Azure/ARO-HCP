@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -27,6 +28,19 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
+
+// testFeatureOptions creates validation options from feature names,
+// matching production behavior by normalizing to lowercase.
+func testFeatureOptions(names ...string) []string {
+	features := make([]arm.Feature, len(names))
+	for i, name := range names {
+		features[i] = arm.Feature{
+			Name:  ptr.To(name),
+			State: ptr.To("Registered"),
+		}
+	}
+	return AFECsToValidationOptions(features)
+}
 
 // Comprehensive tests for ValidateClusterCreate
 // using a subscription without AllowNonStableChannel flags
@@ -36,6 +50,7 @@ func TestValidateClusterCreate(t *testing.T) {
 	tests := []struct {
 		name         string
 		cluster      *api.HCPOpenShiftCluster
+		opOptions    []string
 		expectErrors []expectedError
 	}{
 		{
@@ -892,11 +907,144 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{},
 		},
+		// Managed resource group name validation tests
+		{
+			name: "invalid cluster - managed resource group name is missing",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = ""
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "valid managed resource group name - alphanumeric",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "myResourceGroup123"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid managed resource group name - with hyphens and underscores",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource_group"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid managed resource group name - with parentheses",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group(test)"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid managed resource group name - with periods in middle",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my.resource.group"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "invalid managed resource group name - ends with period",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group."
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "invalid managed resource group name - too long (91 chars)",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "a123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "invalid managed resource group name - invalid characters",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group$invalid"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "valid managed resource group name - exactly 90 chars",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "a12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid managed resource group name - unicode letters",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "myRésourceGröup"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterCreate(ctx, tt.cluster, nil)
+			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
+			errs := ValidateCluster(ctx, op, tt.cluster, nil, nil)
+			verifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+// TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption tests that
+// when ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption is set, the field becomes optional
+func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		cluster      *api.HCPOpenShiftCluster
+		expectErrors []expectedError
+	}{
+		{
+			name: "empty ManagedIdentitiesDataPlaneIdentityURL with option set - valid",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := operation.Operation{
+				Type:    operation.Create,
+				Options: []string{ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
+			}
+			errs := ValidateCluster(ctx, op, tt.cluster, nil, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -910,6 +1058,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 		name         string
 		newCluster   *api.HCPOpenShiftCluster
 		oldCluster   *api.HCPOpenShiftCluster
+		opOptions    []string
 		expectErrors []expectedError
 	}{
 		{
@@ -922,15 +1071,25 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - systemData",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
+				createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+				now := time.Now()
 				c.SystemData = &arm.SystemData{
-					LastModifiedAt: ptr.To(time.Now()),
+					CreatedBy:      "test-user",
+					CreatedByType:  arm.CreatedByTypeUser,
+					CreatedAt:      &createdAt,
+					LastModifiedAt: &now,
 				}
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
+				createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+				earlier := time.Now().Add(-1 * time.Hour)
 				c.SystemData = &arm.SystemData{
-					LastModifiedAt: ptr.To(time.Now().Add(-1 * time.Hour)),
+					CreatedBy:      "test-user",
+					CreatedByType:  arm.CreatedByTypeUser,
+					CreatedAt:      &createdAt,
+					LastModifiedAt: &earlier,
 				}
 				return c
 			}(),
@@ -1060,23 +1219,22 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "immutable version ID - update",
+			name: "version ID can be changed - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15"
+				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.16"
+				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
-			},
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
 		},
 		{
-			name: "immutable version ChannelGroup - update",
+			name: "version ChannelGroup can be changed - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Version.ChannelGroup = "fast"
@@ -1087,9 +1245,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
-			},
+			expectErrors: []expectedError{},
 		},
 		{
 			name: "immutable base domain - update",
@@ -1230,12 +1386,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable cluster image registry profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateDisabled
+				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryStateDisabled
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
+				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryStateEnabled
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -1520,32 +1676,167 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "multiple immutable field changes - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.16"
+				c.CustomerProperties.Version.ID = "4.20"
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "newprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = "https://newhost.identity.azure.net"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15"
+				c.CustomerProperties.Version.ID = "4.19"
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "oldprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = "https://oldhost.identity.azure.net"
 				return c
 			}(),
+			// channelGroup is mutable, but version.id, dns.baseDomainPrefix and api.visibility are immutable without experimental flag
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
-				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
 				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
+				{message: "field is immutable", fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL"},
 			},
+		},
+		// Test cases for version.id requirement validation on update
+		// The new validation rules for version.id are:
+		// - On create (oldObj == nil): version.id is always required
+		// - On update with oldObj.ID set: version.id is required (cannot be cleared)
+		// - On update with oldObj.ID empty: version.id is NOT required (legacy migration support)
+		{
+			name: "update: version.id can be empty when old cluster had no version.id (legacy migration)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "update: version.id cannot be cleared when old cluster had version.id",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			name: "update: version.id can be added when old cluster had no version.id",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "update: version may not decrease from 4.20 to 4.19",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.20"
+				return c
+			}(),
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{
+				{message: "may not decrease", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			name: "update: version can increase from 4.19 to 4.20 using a case insensitive AFEC",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.20"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			opOptions:    testFeatureOptions("Microsoft.Redhatopenshift/ExperimentalReleaseFeatures"),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "update: version can stay the same",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "update: version must still be at least 4.19 even if old cluster had lower version",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.18"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.18"
+				return c
+			}(),
+			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{
+				{message: "must be at least 4.19", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			// This test is to ensure that the ManagedIdentitiesDataPlaneIdentityURL is not required when the old value is
+			// empty, which could happen if a previously existing cluster is being updated and the old value has not
+			// been migrated yet.
+			name: "not required ManagedIdentitiesDataPlaneIdentityURL when old value is empty",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
+				return c
+			}(),
+			expectErrors: []expectedError{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterUpdate(ctx, tt.newCluster, tt.oldCluster, nil)
+			op := operation.Operation{Type: operation.Update, Options: tt.opOptions}
+			errs := ValidateCluster(ctx, op, tt.newCluster, tt.oldCluster, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -1570,7 +1861,7 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 
 	// Set required fields that are not in the default
 	cluster.Location = "eastus"                    // Required for TrackedResource validation
-	cluster.CustomerProperties.Version.ID = "4.15" // Use MAJOR.MINOR format
+	cluster.CustomerProperties.Version.ID = "4.19" // Use MAJOR.MINOR format, must be at least 4.19
 	cluster.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
 	// Use different resource group for subnet to ensure same subscription validation
 	cluster.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
@@ -1590,6 +1881,16 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 			identityID: {},
 		},
 	}
+
+	// Add required systemData fields
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	cluster.SystemData = &arm.SystemData{
+		CreatedBy:     "test-user",
+		CreatedByType: arm.CreatedByTypeUser,
+		CreatedAt:     &createdAt,
+	}
+
+	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = api.TestManagedIdentitiesDataPlaneIdentityURL
 
 	return cluster
 }

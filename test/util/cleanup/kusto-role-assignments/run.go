@@ -28,7 +28,7 @@ import (
 
 const (
 	resourceGroupName              = "hcp-kusto-us"
-	clusterName                    = "hcp-dev-us"
+	clusterName                    = "hcp-dev-us-2"
 	servicesDatabase               = "ServiceLogs"
 	hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
 	invalidPrincipalName           = "AAD app id failed to be resolved"

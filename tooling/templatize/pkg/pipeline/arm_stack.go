@@ -22,9 +22,9 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )

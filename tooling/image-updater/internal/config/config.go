@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -37,20 +38,22 @@ type Config struct {
 
 // ImageConfig defines a single image's source and target configuration
 type ImageConfig struct {
+	Group   string   `yaml:"group"`
 	Source  Source   `yaml:"source"`
 	Targets []Target `yaml:"targets"`
 }
 
-// Source defines where to fetch the latest image digest from
+// Source defines where to fetch the latest image digest (or version string) from
 type Source struct {
-	Image        string          `yaml:"image"`
-	Tag          string          `yaml:"tag,omitempty"`          // Exact tag to use (mutually exclusive with TagPattern)
-	TagPattern   string          `yaml:"tagPattern,omitempty"`   // Regex pattern to filter tags (mutually exclusive with Tag)
-	VersionLabel string          `yaml:"versionLabel,omitempty"` // Container label to fetch for human-friendly version (defaults to "org.opencontainers.image.revision" when tag is used, empty when tagPattern is used)
-	Architecture string          `yaml:"architecture,omitempty"` // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
-	MultiArch    bool            `yaml:"multiArch,omitempty"`    // If true, fetch the multi-arch manifest list digest instead of a specific architecture
-	UseAuth      *bool           `yaml:"useAuth,omitempty"`      // true = use auth, nil/false = anonymous (default)
-	KeyVault     *KeyVaultConfig `yaml:"keyVault,omitempty"`     // Optional: Azure Key Vault config for fetching pull secrets
+	Image               string          `yaml:"image"`
+	GitHubLatestRelease string          `yaml:"githubLatestRelease,omitempty"` // If set, fetch latest release tag from GitHub (e.g. "istio/istio"); used for version-only targets, ignores Image for fetch
+	Tag                 string          `yaml:"tag,omitempty"`                 // Exact tag to use (mutually exclusive with TagPattern)
+	TagPattern          string          `yaml:"tagPattern,omitempty"`          // Regex pattern to filter tags (mutually exclusive with Tag)
+	VersionLabel        string          `yaml:"versionLabel,omitempty"`        // Container label to fetch for human-friendly version (defaults to "org.opencontainers.image.revision" when tag is used, empty when tagPattern is used)
+	Architecture        string          `yaml:"architecture,omitempty"`        // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
+	MultiArch           bool            `yaml:"multiArch,omitempty"`           // If true, fetch the multi-arch manifest list digest instead of a specific architecture
+	UseAuth             *bool           `yaml:"useAuth,omitempty"`             // true = use auth, nil/false = anonymous (default)
+	KeyVault            *KeyVaultConfig `yaml:"keyVault,omitempty"`            // Optional: Azure Key Vault config for fetching pull secrets
 }
 
 // KeyVaultConfig holds Azure Key Vault configuration for fetching pull secrets
@@ -67,16 +70,37 @@ type Target struct {
 
 // Validate checks if the Source configuration is valid
 func (s *Source) Validate() error {
-	// Tag and TagPattern are mutually exclusive
+	if s.GitHubLatestRelease != "" {
+		// GitHub latest release: require "owner/repo" format with non-empty parts
+		parts := strings.SplitN(s.GitHubLatestRelease, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf("githubLatestRelease must be in format owner/repo (e.g. istio/istio)")
+		}
+		// Registry-specific fields are not allowed with githubLatestRelease
+		if s.Image != "" {
+			return fmt.Errorf("image must not be set when githubLatestRelease is used")
+		}
+		if s.Tag != "" || s.TagPattern != "" {
+			return fmt.Errorf("tag/tagPattern must not be set when githubLatestRelease is used")
+		}
+		if s.Architecture != "" || s.MultiArch {
+			return fmt.Errorf("architecture/multiArch must not be set when githubLatestRelease is used")
+		}
+		if s.UseAuth != nil || s.KeyVault != nil || s.VersionLabel != "" {
+			return fmt.Errorf("useAuth/keyVault/versionLabel must not be set when githubLatestRelease is used")
+		}
+		return nil
+	}
+
+	if s.Image == "" {
+		return fmt.Errorf("image is required when githubLatestRelease is not set")
+	}
 	if s.Tag != "" && s.TagPattern != "" {
 		return fmt.Errorf("tag and tagPattern are mutually exclusive, only one can be specified")
 	}
-
-	// Architecture and MultiArch are mutually exclusive
 	if s.Architecture != "" && s.MultiArch {
 		return fmt.Errorf("architecture and multiArch are mutually exclusive")
 	}
-
 	return nil
 }
 
@@ -105,6 +129,22 @@ func (s *Source) GetEffectiveVersionLabel() string {
 		return DefaultVersionLabel
 	}
 	return ""
+}
+
+// SourceDescription returns a short, opaque description of the source for logging (image ref or GitHub repo).
+func (s *Source) SourceDescription() string {
+	if s.GitHubLatestRelease != "" {
+		return "github.com/" + s.GitHubLatestRelease
+	}
+	return s.Image
+}
+
+// TagInfo returns the tag or tag pattern for logging (exact tag or tagPattern).
+func (s *Source) TagInfo() string {
+	if s.Tag != "" {
+		return s.Tag
+	}
+	return s.TagPattern
 }
 
 // ParseImageReference splits an image reference into registry and repository parts
@@ -144,10 +184,20 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
 	}
 
-	// Validate each image source configuration
+	// Validate each image configuration
 	for name, imageConfig := range cfg.Images {
+		if imageConfig.Group == "" {
+			return nil, fmt.Errorf("image %q: group is required", name)
+		}
 		if err := imageConfig.Source.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid configuration for image %q: %w", name, err)
+		}
+		if imageConfig.Source.GitHubLatestRelease != "" {
+			for _, target := range imageConfig.Targets {
+				if strings.HasSuffix(target.JsonPath, ".digest") || strings.HasSuffix(target.JsonPath, ".sha") {
+					return nil, fmt.Errorf("image %q: githubLatestRelease targets must not use .digest or .sha paths (got %q)", name, target.JsonPath)
+				}
+			}
 		}
 	}
 
@@ -190,6 +240,47 @@ func (c *Config) FilterByComponents(componentNames []string) (*Config, error) {
 	return &Config{
 		Images: filteredImages,
 	}, nil
+}
+
+// FilterByGroups returns a new Config containing only images matching the given groups
+func (c *Config) FilterByGroups(groupNames []string) (*Config, error) {
+	if len(groupNames) == 0 {
+		return c, nil
+	}
+
+	requestedGroups := sets.NewString(groupNames...)
+
+	filteredImages := make(map[string]ImageConfig)
+	matchedGroups := sets.NewString()
+	for name, imageConfig := range c.Images {
+		if requestedGroups.Has(imageConfig.Group) {
+			filteredImages[name] = imageConfig
+			matchedGroups.Insert(imageConfig.Group)
+		}
+	}
+
+	// Check that all requested groups matched at least one image
+	unmatchedGroups := requestedGroups.Difference(matchedGroups)
+	if unmatchedGroups.Len() > 0 {
+		return nil, fmt.Errorf("group %q not found in configuration", unmatchedGroups.List()[0])
+	}
+
+	return &Config{
+		Images: filteredImages,
+	}, nil
+}
+
+// Groups returns a sorted list of distinct group names from all images
+func (c *Config) Groups() []string {
+	groupSet := sets.NewString()
+	for _, imageConfig := range c.Images {
+		if imageConfig.Group != "" {
+			groupSet.Insert(imageConfig.Group)
+		}
+	}
+	groups := groupSet.List()
+	sort.Strings(groups)
+	return groups
 }
 
 // FilterExcludingComponents returns a new Config excluding the specified components

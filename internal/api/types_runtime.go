@@ -151,6 +151,38 @@ func (l *ServiceProviderClusterList) GetObjectKind() schema.ObjectKind {
 }
 
 var (
+	_ runtime.Object            = &ServiceProviderNodePool{}
+	_ metav1.ObjectMetaAccessor = &ServiceProviderNodePool{}
+)
+
+func (o *ServiceProviderNodePool) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ServiceProviderNodePool) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	return om
+}
+
+// ServiceProviderNodePoolList is a list of ServiceProviderNodePools
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceProviderNodePoolList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ServiceProviderNodePool `json:"items"`
+}
+
+var _ runtime.Object = &ServiceProviderNodePoolList{}
+
+func (l *ServiceProviderNodePoolList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
 	_ runtime.Object            = &Operation{}
 	_ metav1.ObjectMetaAccessor = &Operation{}
 )
@@ -161,8 +193,8 @@ func (o *Operation) GetObjectKind() schema.ObjectKind {
 
 func (o *Operation) GetObjectMeta() metav1.Object {
 	om := &metav1.ObjectMeta{}
-	if o.ResourceID != nil {
-		om.Name = strings.ToLower(o.ResourceID.String())
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
 	return om
 }
@@ -179,5 +211,64 @@ type OperationList struct {
 var _ runtime.Object = &OperationList{}
 
 func (l *OperationList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &Controller{}
+	_ metav1.ObjectMetaAccessor = &Controller{}
+)
+
+func (o *Controller) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *Controller) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	return om
+}
+
+// ControllerList is a list of Controller resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ControllerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Controller `json:"items"`
+}
+
+var _ runtime.Object = &ControllerList{}
+
+func (l *ControllerList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var _ runtime.Object = &ManagementClusterContent{}
+
+func (o *ManagementClusterContent) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ManagementClusterContent) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	return om
+}
+
+// ManagementClusterContentList is a list of ManagementClusterContent resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ManagementClusterContentList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ManagementClusterContent `json:"items"`
+}
+
+var _ runtime.Object = &ManagementClusterContentList{}
+
+func (l *ManagementClusterContentList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }

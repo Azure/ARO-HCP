@@ -34,6 +34,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "unknown_storage_failure"
+      - "unexpected EOF"
       - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
@@ -100,6 +101,10 @@ resourceGroups:
     dependsOn:
     - resourceGroup: global
       step: mirror-image
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.SessionGate
+      resourceGroup: service
+      step: deploy
     identityFrom:
       resourceGroup: global
       step: output
@@ -108,6 +113,5 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 1m

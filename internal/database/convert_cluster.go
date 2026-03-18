@@ -143,6 +143,10 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 		Location: cosmosObj.InternalState.InternalAPI.Location,
 		Tags:     resourceDoc.Tags,
 	}
+	// we carry over the CosmosETag from the cosmos object to the internal object into a
+	// temporary field until we have inlined and serialized CosmosMetadata in
+	// HCPOpenShiftCluster.
+	internalObj.CosmosETag = cosmosObj.CosmosETag
 	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)
@@ -150,12 +154,6 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.ServiceProviderProperties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
-
-	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
-	// This flow happens when reading both old and new data.  The old data should *always* have the internalID set
-	if len(internalObj.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		panic("Developer Error: InternalID is required")
-	}
 
 	return internalObj, nil
 }

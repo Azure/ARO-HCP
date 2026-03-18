@@ -34,6 +34,7 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "unknown_storage_failure"
+      - "unexpected EOF"
       - "unauthorized: authentication required"
       maximumRetryCount: 5
       durationBetweenRetries: 1m
@@ -113,6 +114,5 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "Internal error occurred"
-      - "context deadline exceeded"
       maximumRetryCount: 3
       durationBetweenRetries: 2m

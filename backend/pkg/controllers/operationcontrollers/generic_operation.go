@@ -93,15 +93,16 @@ func NewGenericOperationController(
 }
 
 func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("start sync")
-	defer logger.Info("end sync")
-
 	key := keyObj.(controllerutils.OperationKey)
+	parentResourceID := key.GetParentResourceID()
+	defer utilruntime.HandleCrash(controllerutils.DegradedControllerPanicHandler(
+		ctx,
+		c.cosmosClient.HCPClusters(key.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name),
+		c.name,
+		key.InitialController))
 
 	syncErr := c.synchronizer.SynchronizeOperation(ctx, key)
 
-	parentResourceID := key.GetParentResourceID()
 	controllerWriteErr := controllerutils.WriteController(
 		ctx,
 		c.cosmosClient.HCPClusters(key.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name),
@@ -151,6 +152,7 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 	logger = ref.AddLoggerValues(logger)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		c.queue.Forget(ref)

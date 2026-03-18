@@ -1,0 +1,89 @@
+// RP Frontend: this component serves customer requests as proxied from ARM, we should see requests come in and
+// be dispatched to the user without errors. Anomalous requests or errors in this log are a bug in the frontend,
+// if there are no anomalies here, check the backend logs for why our RP failed to correctly provision a cluster.
+database('ServiceLogs').table('frontendLogs')
+| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where resource_group == '{{.ResourceGroupName}}'
+| where msg == 'request received' or msg == 'response complete'
+| project timestamp, msg, request_method, request_path, request_query, response_status_code;
+
+// RP Backend: this component ensures the cluster is provisioned and running for the customer. Controllers
+// each enforce some subset of the state we care about - if any are having issues, they will post unhappy status
+// and should be investigated. Today, some of the provisioning for the clusters is done by clusters-service, so
+// if no controllers in the backend are having issues, check the clusters-service logs to see if there's an issue
+// at a deeper layer of the stack.
+database('ServiceLogs').table('backendLogs')
+| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where cluster == '{{.ClusterName}}'
+| where container_name == 'aro-hcp-backend'
+| where resource_id has '{{.ResourceGroupName}}'
+| where log.msg has 'dumping resourceID' and log.msg has 'hcpOpenShiftControllers'
+| extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(log.currentResourceID))
+| mv-expand condition = log.content.properties.status.conditions
+| project condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message;
+
+// Clusters-Service: this component provisions Azure infrastructure and creates the HyperShift HostedCluster
+// record, passes it using Maestro to the management cluster, and waits for Maestro to back-channel status.
+// Check to see that provision steps (for Azure infra) succeeded, and that the cluster has progressed to
+// 'installing' state. If steps fail or the cluster doesn't end up in 'installing', there's a clusters-service
+// bug. Clusters stuck in 'installing' could either be due to a bug in Maestro signalling, or HyperShift
+// reconciliation.
+let _cs_cluster_id = toscalar(
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+    | where resource_id has '{{.ResourceGroupName}}'
+    | where isnotempty(cid)
+    | distinct tostring(cid)
+    | limit 1
+);
+database('ServiceLogs').table('clustersServiceLogs')
+| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where cid == _cs_cluster_id
+| where log has 'state to' or log has 'now in' or log has 'provision step'
+| project timestamp, log.msg;
+
+// Maestro: this component uses a mqtt queue to send intended state from the service cluster to a management cluster and back.
+// TODO: we need a query here to confirm that the Maestro bundles are sent by the service cluster and received by the mgmt cluster,
+// and vice versa.
+
+// HyperShift: this component runs on the management cluster and turns a request for a cluster (a HostedCluster CR) into
+// the running OpenShift control plane. The logs in this query are dumped from the back-channel from Maestro, so if we see
+// anything here, we know that Maestro is shipping state & status back and forth. The query shows conditions on the HostedCluster,
+// which should pinpoint which part of cluster provisioning is having issues. In addition to this view, check the Kubernetes
+// events for the Pods that make up the HostedCluster.
+let _cs_cluster_id = toscalar(
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+    | where resource_id has '{{.ResourceGroupName}}'
+    | where isnotempty(cid)
+    | distinct tostring(cid)
+    | limit 1
+);
+database('ServiceLogs').table('clustersServiceLogs')
+| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where resource_id has '{{.ResourceGroupName}}'
+| where msg has 'ManifestWork for cluster'
+| extend manifest_work = parse_json(replace_string(tostring(msg), strcat("ManifestWork for cluster '",_cs_cluster_id, "': "), ""))
+| mv-expand manifest = manifest_work.status.resourceStatus.manifests
+| where manifest.resourceMeta.kind == 'HostedCluster'
+| mv-expand condition = manifest.statusFeedback.values
+| extend condition_name = extract(@"^([^-]+)", 1, tostring(condition.name))
+| extend condition_field = extract(@"([^-]+)$", 1, tostring(condition.name))
+| where condition_field in ("Reason", "Status", "Message")
+| project timestamp, condition_name, condition_field, condition_value = tostring(condition.fieldValue.['string'])
+| evaluate pivot(condition_field, any(condition_value));
+
+// Control Plane Events: these events expose what the management cluster is doing while running the Pods that make up the
+// control plane of the ARO HCP cluster.
+let _cs_cluster_id = toscalar(
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+    | where resource_id has '{{.ResourceGroupName}}'
+    | where isnotempty(cid)
+    | distinct tostring(cid)
+    | limit 1
+);
+database('ServiceLogs').table('kubernetesEvents')
+| where timestamp between (datetime("{{.StartTime}}") .. datetime("{{.EndTime}}"))
+| where eventNamespace has _cs_cluster_id
+| project timestamp, objectKind, objectName, reason, message, firstSeen, lastSeen;

@@ -48,7 +48,9 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 | Step type | Purpose |
 |-----------|---------|
 | `load` / `loadCosmos` | Load raw JSON documents directly into cosmos |
-| `loadClusterService` | Load mock cluster service state (files suffixed `-cluster.json`, `-nodepool.json`, `-externalauth.json`, `-autoscaler.json`) |
+| `loadClusterService` | Load mock cluster service state (files suffixed `-cluster.json`, `-nodepool.json`, `-externalauth.json`, `-autoscaler.json`, `-hypershiftdetails.json`, `-provisionshard.json`) |
+| `kubernetesLoad` | Create Kubernetes resources via fake clientsets |
+| `kubernetesApply` | Update existing K8s resources from JSON/YAML files. Can be partial files. |
 | `migrateCosmos` | Trigger database schema migrations |
 
 ### HTTP API steps (ARM REST calls)
@@ -58,6 +60,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 | `httpGet` | GET a single resource | Yes, via `ResourceInstanceEquals` |
 | `httpList` | LIST resources | Yes, each item compared |
 | `httpCreate` / `httpReplace` | PUT a resource | No (checks error only) |
+| `httpPost` | POST a resource | No (checks error only) |
 | `httpPatch` | PATCH a resource | No (checks error only) |
 | `httpDelete` | DELETE a resource | No (checks error only) |
 
@@ -88,6 +91,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 | Step type | Purpose |
 |-----------|---------|
 | `cosmosCompare` | Assert entire cosmos state matches expected JSON documents |
+| `kubernetesCompare` | Assert K8s resource state matches expected JSON files (uses `ResourceInstanceEquals`) |
 | `completeOperation` | Mark an async operation as succeeded |
 
 ## Step Directory Contents
@@ -122,6 +126,12 @@ Most steps contain:
   ]
 }
 ```
+
+**Kubernetes steps** (`kubernetesLoad`, `kubernetesApply`, `kubernetesCompare`):
+
+- No key file needed
+- Place standard Kubernetes resource JSON/YAML files directly in the step directory
+- Resources are identified by their `apiVersion`, `kind`, `metadata.name`, and optionally `metadata.namespace`
 
 ## Cosmos Document ID Format
 
@@ -171,6 +181,8 @@ Tests run against mock infrastructure by default. Set `FRONTEND_SIMULATION_TESTI
 
 - `utils/databasemutationhelpers/resource_crud_test_util.go` -- test orchestration, step discovery
 - `utils/databasemutationhelpers/per_resource_comparer.go` -- assertion/comparison logic
+- `utils/databasemutationhelpers/step_*.go` -- individual step implementations
 - `utils/integrationutils/utils.go` -- test infrastructure setup (mock cosmos, HTTP servers)
-- `internal/databasetesting/mock_dbclient.go` -- in-memory cosmos mock
+- `utils/integrationutils/kube_mock.go` -- fake Kubernetes clientsets with informer support
 - `utils/integrationutils/cluster_service_mock.go` -- OCM cluster service mock
+- `internal/databasetesting/mock_dbclient.go` -- in-memory cosmos mock

@@ -2,33 +2,37 @@
 
 see [Secret Syncronization](../../docs/secret-sync.md) for higher level information
 
-## encryption/decryption
+## Validating encrypted secrets
 
+The `test-decrypt` make target decrypts and validates all secrets in [`encryptedsecrets.yaml`](../../dev-infrastructure/data/encryptedsecrets.yaml) against the dev Key Vault.
 
-This tool is meant to encrypt data using RSA and the provided RSA key in this repo. It is meant to decrypt data using the keyvault key decrypt api and store the decrypted data in the same keyvault.
+### Prerequisites
 
-This tool acts on a single key/secret use scripts to loop over more than one secret/key.
+- `az login` to the dev tenant (the test uses `DefaultAzureCredential`)
+- `yq` installed (used by the Makefile to read rendered config)
 
-To encrypt a file using a specific key run:
-```
-echo "datasdmkiopjkoisdjfoisdjfiosdfa" | PUBLIC_KEY_FILE=publickey.pem \
-OUTPUT_FILE=test.enc \
-go run main.go encrypt
-```
+### Running the test
 
-To decrypt a file run:
-```
-INPUT_FILE=test.enc \
-ENCRYPTION_KEY=testing \
-SECRET_TO_SET=jboll-testing \
-VAULT_NAME=testingjboll \
-go run main.go decrypt
+```sh
+make test-decrypt
 ```
 
-## encrypt-all.sh
+### What it does
 
-Script that iterates over all keys in `data/keys` and encrypts the provided data.
+1. Reads encrypted secrets from `encryptedsecrets.yaml`
+2. Unwraps each secret's data encryption key using the Key Vault's RSA key (`secretSyncKey`) via RSA-OAEP-256
+3. Decrypts the secret data using AES-GCM
+4. Validates the decrypted content using secret-specific validators
 
-## decrypt-all.sh
+### Configurable environment variables
 
-Script that iterates over a folder in `data/encryptedsecrets` and decrypts it.
+| Variable | Default | Description |
+|---|---|---|
+| `ENCRYPTED_SECRETS_FILE` | `../../dev-infrastructure/data/encryptedsecrets.yaml` | Path to the encrypted secrets file |
+| `RENDERED_CONFIG` | `../../config/rendered/dev/dev/westus3.yaml` | Path to rendered config (used to derive Key Vault URI and key name) |
+| `KEY_VAULT_URI` | Derived from `RENDERED_CONFIG` | Key Vault URI override |
+| `KEY_ENCRYPTION_KEY_NAME` | Derived from `RENDERED_CONFIG` | Encryption key name override |
+
+### Adding new secrets
+
+If a new secret is added to `encryptedsecrets.yaml` without a corresponding validator in [`decrypt_integration_test.go`](decrypt_integration_test.go), the test will **fail**.

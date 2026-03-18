@@ -22,6 +22,8 @@ import (
 	"os"
 	"time"
 
+	. "github.com/onsi/ginkgo/v2"
+
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -36,6 +38,12 @@ type RBACScope string
 const (
 	RBACScopeResourceGroup RBACScope = "resourceGroup"
 	RBACScopeResource      RBACScope = "resource"
+
+	// Default OpenShift channel group, version, and node pool version for the E2E test
+	DefaultOCPChannelGroup         = "stable"
+	DefaultOCPVersionId            = "4.20"
+	DefaultOCPNodePoolVersionId    = "4.20.8"
+	DefaultOCPNodePoolChannelGroup = "stable"
 )
 
 type ClusterParams struct {
@@ -74,17 +82,37 @@ type NetworkConfig struct {
 func DefaultOpenshiftControlPlaneVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
 	if version == "" {
-		return "4.20"
+		version = DefaultOCPVersionId
 	}
+	GinkgoLogr.Info("Using OpenShift control plane version", "version", version)
 	return version
+}
+
+func DefaultOpenshiftChannelGroup() string {
+	channelGroup := os.Getenv("ARO_HCP_OPENSHIFT_CHANNEL_GROUP")
+	if channelGroup == "" {
+		channelGroup = DefaultOCPChannelGroup
+	}
+	GinkgoLogr.Info("Using OpenShift channel group", "channelGroup", channelGroup)
+	return channelGroup
 }
 
 func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if version == "" {
-		return "4.20.8"
+		version = DefaultOCPNodePoolVersionId
 	}
+	GinkgoLogr.Info("Using OpenShift node pool version", "version", version)
 	return version
+}
+
+func DefaultOpenshiftNodePoolChannelGroup() string {
+	channelGroup := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP")
+	if channelGroup == "" {
+		channelGroup = DefaultOCPNodePoolChannelGroup
+	}
+	GinkgoLogr.Info("Using OpenShift node pool channel group", "channelGroup", channelGroup)
+	return channelGroup
 }
 
 func NewDefaultClusterParams() ClusterParams {
@@ -101,7 +129,7 @@ func NewDefaultClusterParams() ClusterParams {
 		EncryptionType:              "KMS",
 		APIVisibility:               "Public",
 		ImageRegistryState:          "Enabled",
-		ChannelGroup:                "stable",
+		ChannelGroup:                DefaultOpenshiftChannelGroup(),
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for this tag to be honored.
 		Tags: map[string]*string{
@@ -137,7 +165,7 @@ func NewDefaultNodePoolParams() NodePoolParams {
 		VMSize:                 "Standard_D8s_v3",
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: "StandardSSD_LRS",
-		ChannelGroup:           "stable",
+		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
 	}
 }
 

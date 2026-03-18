@@ -21,6 +21,22 @@ The Velero CLI has a bug where it does not truncate init container names to be l
 5. The Job's main container applies a Kustomize overlay to add node scheduling.
 6. The Job's main container then runs `kubectl apply`.
 
+## Image Access
+
+The three Velero images are sourced from `registry.redhat.io`:
+
+| Config Key | Repository |
+|---|---|
+| `velero.server` | `oadp/oadp-velero-rhel9` |
+| `velero.azurePlugin` | `oadp/oadp-velero-plugin-for-microsoft-azure-rhel9` |
+| `velero.hypershiftPlugin` | `oadp/oadp-hypershift-velero-plugin-rhel9` |
+
+Image registries, repositories, and digests are defined in [`config/config.yaml`](../config/config.yaml).
+
+### Image mirroring
+
+The deployment pipeline mirrors each image from `registry.redhat.io` to the service ACR before the Helm deploy step. This is handled by `ImageMirror` steps in [`velero/pipeline.yaml`](pipeline.yaml). Authentication to the Red Hat registry uses the `component-sync-pull-secret` stored in the global Key Vault (referenced via `imageSync.ondemandSync.pullSecretName`). See [`docs/secret-sync.md`](../docs/secret-sync.md) for how the pull secret is managed and validated.
+
 ## OADP Partner Information
 
 See [OADP Partner Information](https://github.com/openshift/oadp-operator/blob/oadp-dev/PARTNERS.md) for version compatibility mappings between OpenShift, OADP, and Velero, including supported plugin versions and upgrade workflows.

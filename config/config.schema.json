@@ -416,6 +416,9 @@
         },
         "tagValue": {
           "type": "string"
+        },
+        "encryptionKeyName": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -454,6 +457,10 @@
         },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "secondaryNicCount": {
+          "type": "number",
+          "description": "Number of secondary NICs for Swift V2 networking."
         }
       },
       "additionalProperties": false,
@@ -752,19 +759,7 @@
               "additionalProperties": false,
               "properties": {
                 "image": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "registry": {
-                      "type": "string"
-                    },
-                    "repository": {
-                      "type": "string"
-                    },
-                    "tag": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/definitions/containerImageSha"
                 }
               }
             }
@@ -1308,6 +1303,9 @@
     "miMockPrincipalId": {
       "type": "string"
     },
+    "miMockTenantId": {
+      "type": "string"
+    },
     "miMockCertName": {
       "type": "string"
     },
@@ -1350,6 +1348,10 @@
         },
         "maestro": {
           "$ref": "#/definitions/backendMaestroConfig"
+        },
+        "exitOnPanic": {
+          "type": "boolean",
+          "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
         }
       },
       "additionalProperties": false,
@@ -1359,7 +1361,8 @@
         "k8s",
         "managedIdentityName",
         "azureRuntimeConfig",
-        "maestro"
+        "maestro",
+        "exitOnPanic"
       ]
     },
     "sessiongate": {
@@ -1374,13 +1377,32 @@
         "managedIdentityName": {
           "type": "string",
           "description": "The name of the MSI that will be used by the sessiongate to interact with Azure"
+        },
+        "cert": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 127,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "cert"
       ]
     },
     "adminApi": {
@@ -1499,6 +1521,10 @@
             "name",
             "issuer"
           ]
+        },
+        "exitOnPanic": {
+          "type": "boolean",
+          "description": "If true, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
         }
       },
       "additionalProperties": false,
@@ -1508,7 +1534,8 @@
         "cert",
         "tracing",
         "k8s",
-        "managedIdentityName"
+        "managedIdentityName",
+        "exitOnPanic"
       ]
     },
     "billing": {
@@ -1754,6 +1781,9 @@
           "additionalProperties": false,
           "required": [
             "serviceTag",
+            "targetRegion",
+            "endpointName",
+            "endpointUrl",
             "keyVault",
             "certificate",
             "allowedAcisExtensions",
@@ -1764,6 +1794,18 @@
             "serviceTag": {
               "type": "string",
               "description": "The Service Tag used by Geneva Actions for their egress traffic."
+            },
+            "targetRegion": {
+              "type": "string",
+              "description": "The targetRegion in the Geneva Actions xml config."
+            },
+            "endpointName": {
+              "type": "string",
+              "description": "The endpoint name in the Geneva Actions xml config."
+            },
+            "endpointUrl": {
+              "type": "string",
+              "description": "The endpoint URL in the Geneva Actions xml config."
             },
             "keyVault": {
               "$ref": "#/definitions/keyVault",
@@ -1984,6 +2026,28 @@
             "audienceFQDN"
           ]
         },
+        "sessiongate": {
+          "type": "object",
+          "properties": {
+            "policyLabel": {
+              "type": "string",
+              "description": "The label of the Session Gate policy."
+            },
+            "authorityFQDN": {
+              "type": "string",
+              "description": "The authority/issuer FQDN of the Session Gate applications auth tokens."
+            },
+            "audience": {
+              "type": "string",
+              "description": "The audience of the Session Gate applications auth tokens."
+            }
+          },
+          "required": [
+            "policyLabel",
+            "authorityFQDN",
+            "audience"
+          ]
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -1997,6 +2061,7 @@
         "image",
         "arm",
         "genevaActions",
+        "sessiongate",
         "tracing"
       ]
     },
@@ -2280,6 +2345,27 @@
           ]
         }
       }
+    },
+    "customExporter": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the exporter"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "managedIdentityName",
+        "k8s"
+      ]
     },
     "kubeEvents": {
       "type": "object",

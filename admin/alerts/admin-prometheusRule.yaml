@@ -1,0 +1,38 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: admin-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: admin-api
+    rules:
+    - alert: AdminHighAuditLogErrorRate
+      expr: |
+        (
+          sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h]))
+          /
+          sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h]))
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "High Admin API audit log error rate."
+        runbook_url: 'TBD'
+        description: "Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}."
+    - alert: AdminAuditLogConnectionDegraded
+      expr: |
+        otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"} == 1
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Admin API audit log connection is degraded."
+        runbook_url: 'TBD'
+        description: "The admin API failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent."

@@ -209,6 +209,7 @@ func (c *doNothingExample) processNextWorkItem(ctx context.Context) bool {
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	// Process the object reference.  This method will contains your "do stuff" logic
+	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
 	err := c.SyncOnce(ctx, ref)
 	if err == nil {
 		// if you had no error, tell the queue to stop tracking history for your

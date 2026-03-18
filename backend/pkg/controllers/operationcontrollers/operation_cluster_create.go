@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -34,6 +35,7 @@ import (
 )
 
 type operationClusterCreate struct {
+	clock                utilsclock.PassiveClock
 	azureLocation        string
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -48,6 +50,7 @@ func NewOperationClusterCreateSynchronizer(
 	notificationClient *http.Client,
 ) OperationSynchronizer {
 	c := &operationClusterCreate{
+		clock:                utilsclock.RealClock{},
 		azureLocation:        azureLocation,
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
@@ -106,11 +109,13 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 			return utils.TrackError(err)
 		}
 
-		logger.Info("creating billing, interestingly not based on now")
+		// we use fallback time when the createdAt time is missing.  it never overcharges, but it's not always accurate.
+		fallbackTime := c.clock.Now()
+		logger.Info("creating billing")
 		err = c.createBillingDocument(
 			ctx,
 			operation.ExternalID.ResourceGroupName,
-			ptr.Deref(cluster.SystemData.CreatedAt, time.Time{}),
+			ptr.Deref(cluster.SystemData.CreatedAt, fallbackTime),
 			operation)
 		if err != nil {
 			return utils.TrackError(err)

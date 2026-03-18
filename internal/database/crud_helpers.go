@@ -77,6 +77,8 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 }
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
+	logger := utils.LoggerFromContext(ctx)
+
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
 	newExactCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
@@ -96,6 +98,12 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 		return nil, utils.TrackError(err)
 	}
 	responseItem, err := containerClient.ReadItem(ctx, partitionKey, oldExactCosmosID, nil)
+	if IsResponseError(err, http.StatusBadRequest) && strings.Contains(err.Error(), "The request URL is invalid") {
+		// this happens when we're using the old key and the URL is too long.  This only seems to happen in some regions, but when it happens
+		// it is a record we'll never recover.  Every known case is for a controller status, so recreating them isn't a big deal.
+		logger.Error(err, "failed to get item", "oldExactCosmosID", oldExactCosmosID)
+		return nil, NewNotFoundError()
+	}
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -111,7 +119,6 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 		return nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", completeResourceID, err)
 	}
 
-	logger := utils.LoggerFromContext(ctx)
 	logger.Info("migrating item", "newCosmosID", newExactCosmosID, "oldCosmosID", originalCosmosID)
 	if _, err := containerClient.CreateItem(ctx, partitionKey, newBytes, nil); err != nil {
 		return nil, utils.TrackError(err)
@@ -263,8 +270,17 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
-func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	partitionKeyString := transaction.GetPartitionKey()
+
+	// do a get first to ensure the ID is migrated
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return "", fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
+	}
+	if _, err := get[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, cosmosPersistable.GetCosmosData().GetResourceID()); err != nil {
+		return "", utils.TrackError(err)
+	}
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
@@ -280,6 +296,7 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 		GoType:     fmt.Sprintf("%T", newObj),
 		CosmosID:   cosmosMetadata.GetCosmosUID(),
 		ResourceID: cosmosMetadata.ResourceID.String(),
+		Etag:       cosmosMetadata.CosmosETag,
 	}
 
 	if opts == nil {

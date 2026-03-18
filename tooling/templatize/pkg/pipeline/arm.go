@@ -26,10 +26,10 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/types"
+	configtypes "github.com/Azure/ARO-Tools/config/types"
+	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/types"
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -486,14 +486,24 @@ func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armreso
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
 	} else {
-		// Resource group exists - update its tags
+		// Resource group exists - only update tags if they changed
 		tags := computeResourceGroupTags(rg.Tags, persist)
-		patchResourceGroup := armresources.ResourceGroupPatchable{
-			Tags: tags,
-		}
-		_, err = resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
-		if err != nil {
-			return fmt.Errorf("failed to update resource group: %w", err)
+		if !maps.EqualFunc(rg.Tags, tags, func(a, b *string) bool {
+			if a == nil && b == nil {
+				return true
+			}
+			if a == nil || b == nil {
+				return false
+			}
+			return *a == *b
+		}) {
+			patchResourceGroup := armresources.ResourceGroupPatchable{
+				Tags: tags,
+			}
+			_, err = resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
+			if err != nil {
+				return fmt.Errorf("failed to update resource group: %w", err)
+			}
 		}
 	}
 	return nil
