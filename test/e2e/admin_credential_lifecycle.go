@@ -189,16 +189,18 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr.Info("successfully verified admin credential", "credentialNumber", i+1)
 			}
 
+			skipSuite := os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC))
+			skipInt := false
+
 			By("revoking all cluster admin credentials via ARO HCP RP API")
 			err = tc.RevokeCredentialsAndWait(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
-			if err != nil && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC)) {
+			if err != nil && skipSuite {
 				By("skipping in integration/parallel suite")
 			} else {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
 			By("validating all admin credentials now fail after revocation")
-			skipInt := false
 			for i, cred := range credentials {
 				By(fmt.Sprintf("verifying admin credential %d now fails", i+1))
 				// TODO(bvesel) remove once OCPBUGS-62177 is implemented
@@ -225,7 +227,7 @@ var _ = Describe("Customer", func() {
 					GinkgoLogr.Info("successfully verified admin credential fails after revocation", "credentialNumber", i+1)
 					return true, nil
 				})
-				if err != nil && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC)) {
+				if err != nil && skipSuite {
 					By("skipping in integration/parallel suite")
 					skipInt = true
 					break
@@ -248,10 +250,11 @@ var _ = Describe("Customer", func() {
 			Expect(newAdminRESTConfig).NotTo(BeNil(), "newAdminRESTConfig was nil after revocation")
 
 			By("verifying new admin credentials work after revocation")
-			if skipInt && os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC)) {
+			err = verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)
+			if (skipInt || err != nil) && skipSuite {
 				By("skipping in integration/parallel suite")
 			} else {
-				Expect(verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)).To(Succeed(), "New admin credentials should work after revocation")
+				Expect(err).NotTo(HaveOccurred(), "New admin credentials should work after revocation")
 			}
 		})
 })
