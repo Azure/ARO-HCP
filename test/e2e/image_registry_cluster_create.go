@@ -62,7 +62,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.ImageRegistryState = string(hcpsdk20240610preview.ClusterImageRegistryProfileStateDisabled)
+			clusterParams.ImageRegistryState = string(hcpsdk20240610preview.ClusterImageRegistryStateDisabled)
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
@@ -92,7 +92,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(actualHCPCluster.Properties.ClusterImageRegistry).NotTo(BeNil(), "cluster Properties.ClusterImageRegistry was nil")
 			Expect(actualHCPCluster.Properties.ClusterImageRegistry.State).NotTo(BeNil(), "cluster Properties.ClusterImageRegistry.State was nil")
-			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpsdk20240610preview.ClusterImageRegistryProfileStateDisabled))
+			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpsdk20240610preview.ClusterImageRegistryStateDisabled))
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(

@@ -187,16 +187,16 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 
 func convertClusterImageRegistryStateRPToCS(in api.ClusterImageRegistryProfile) (string, error) {
 	switch in.State {
-	case api.ClusterImageRegistryProfileStateDisabled:
+	case api.ClusterImageRegistryStateDisabled:
 		return csImageRegistryStateDisabled, nil
-	case api.ClusterImageRegistryProfileStateEnabled:
+	case api.ClusterImageRegistryStateEnabled:
 		return csImageRegistryStateEnabled, nil
 	default:
 		return "", conversionError[string](in)
 	}
 }
 
-func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegistryProfileState, error) {
+func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegistryState, error) {
 	switch state {
 	case "":
 		// We convert illegal values because zero-value is the state for an object and while the value may not be valid
@@ -205,11 +205,11 @@ func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegis
 		// in ocm-api-model is different than the expression of unset in canonical golang.
 		return "", nil
 	case csImageRegistryStateDisabled:
-		return api.ClusterImageRegistryProfileStateDisabled, nil
+		return api.ClusterImageRegistryStateDisabled, nil
 	case csImageRegistryStateEnabled:
-		return api.ClusterImageRegistryProfileStateEnabled, nil
+		return api.ClusterImageRegistryStateEnabled, nil
 	default:
-		return "", conversionError[api.ClusterImageRegistryProfileState](state)
+		return "", conversionError[api.ClusterImageRegistryState](state)
 	}
 }
 

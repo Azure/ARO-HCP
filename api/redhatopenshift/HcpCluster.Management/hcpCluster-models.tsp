@@ -395,7 +395,18 @@ model ClusterImageRegistryProfile {
    * the cluster. Disabled means the ImageStream-backed image registry will not be present in
    * the cluster. The default is Enabled. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  state?: "Enabled" | "Disabled" | string = "Enabled";
+  state?: ClusterImageRegistryState = ClusterImageRegistryState.Enabled;
+}
+
+/** The desired state of the ImageStream-backed cluster image registry */
+union ClusterImageRegistryState {
+  string,
+
+  /** The ImageStream-backed image registry will be run as pods on worker nodes */
+  Enabled: "Enabled",
+
+  /** The ImageStream-backed image registry will not be present in the cluster */
+  Disabled: "Disabled",
 }
 
 scalar SubnetResourceId
@@ -618,12 +629,12 @@ model NodePoolProperties {
    * create nodes in the Nodepool, existing node labels remain unchanged.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
+  @identifiers(#["key", "value"])
   labels?: Label[];
 
   /** Taints for the nodes */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
+  @identifiers(#["key", "value", "effect"])
   taints?: Taint[];
 
   /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
@@ -659,6 +670,7 @@ model Taint {
   /** The key of the taint
    * @example node-role.kubernetes.io/master
    */
+  #suppress "@azure-tools/typespec-azure-resource-manager/secret-prop" "This is a Kubernetes taint key, not a secret"
   @minLength(1)
   @maxLength(316)
   key: string;
@@ -680,6 +692,7 @@ model Label {
   /** The key of the label
    * @example node-role.kubernetes.io/master
    */
+  #suppress "@azure-tools/typespec-azure-resource-manager/secret-prop" "This is a Kubernetes label key, not a secret"
   key: string;
 
   /** The value of the label */
@@ -889,10 +902,7 @@ model ExternalAuthProperties {
    * There must not be more than 20 entries and entries must have unique namespace/name pairs.
    */
   @maxItems(20)
-  @OpenAPI.extension(
-    "x-ms-identifiers",
-    #["component", "clientId", "extraScopes"]
-  )
+  @identifiers(#["component", "clientId", "extraScopes"])
   clients?: ExternalAuthClientProfile[];
 
   /** External Auth claim
@@ -1058,7 +1068,7 @@ model ExternalAuthClaimProfile {
   mappings: TokenClaimMappingsProfile;
 
   /** The claim validation rules */
-  @OpenAPI.extension("x-ms-identifiers", #["type", "requiredClaim"])
+  @identifiers(#["type", "requiredClaim"])
   validationRules?: TokenClaimValidationRule[];
 }
 

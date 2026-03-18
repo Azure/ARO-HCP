@@ -167,7 +167,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
-						State: api.ClusterImageRegistryProfileStateDisabled,
+						State: api.ClusterImageRegistryStateDisabled,
 					},
 				},
 			},

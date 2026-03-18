@@ -1386,12 +1386,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable cluster image registry profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateDisabled
+				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryStateDisabled
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
+				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryStateEnabled
 				return c
 			}(),
 			expectErrors: []expectedError{
