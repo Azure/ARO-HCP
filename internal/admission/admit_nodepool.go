@@ -15,17 +15,19 @@
 package admission
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // AdmitNodePool performs non-static checks of nodepool.  Checks that require more information than is contained inside of
 // of the nodepool instance itself.
-func AdmitNodePool(nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) field.ErrorList {
+func AdmitNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, subscription *arm.Subscription) field.ErrorList {
 	errs := field.ErrorList{}
 
 	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {

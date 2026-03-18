@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -274,6 +275,11 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
+	if err != nil {
+		return err
+	}
+
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
@@ -281,9 +287,13 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
+	validationOp := operation.Operation{
+		Type:    operation.Create,
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	validationErrs := validation.ValidateNodePool(ctx, validationOp, newInternalNodePool, nil)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, newInternalNodePool, cluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -536,7 +546,14 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
+	if err != nil {
+		return err
+	}
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, oldInternalNodePool.ID.Parent)
@@ -544,9 +561,13 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	validationErrs := validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
+	validationOp := operation.Operation{
+		Type:    operation.Update,
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	validationErrs := validation.ValidateNodePool(ctx, validationOp, newInternalNodePool, oldInternalNodePool)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, newInternalNodePool, cluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
