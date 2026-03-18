@@ -48,6 +48,9 @@ type BackendRootCmdFlags struct {
 	AzureRuntimeConfigPath                                                                        string
 	AzureFirstPartyApplicationCertificateBundlePath                                               string
 	AzureFirstPartyApplicationClientID                                                            string
+	InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath                               string
+	InsecureAzureARMPermissionsManagerIdentityClientID                                            string
+	InsecureAzureARMPermissionsManagerIdentityTenantID                                            string
 	LogVerbosity                                                                                  int
 	MaestroSourceEnvironmentIdentifier                                                            string
 	InsecureAzureManagedIdentityMockCertificateBundlePath                                         string
@@ -148,6 +151,32 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
 		"If set, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath,
+		"insecure-azure-arm-permissions-manager-identity-certificate-bundle-path",
+		f.InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath,
+		"Path to a file containing an X.509 Certificate based client certificate, consisting of a private key and "+
+			"certificate chain, in a PEM or PKCS#12 format for authenticating clients with the ARM Permissions Manager identity. "+
+			"When set, it must be set in combination with the '--insecure-azure-arm-permissions-manager-identity-client-id' and "+
+			"'--insecure-azure-arm-permissions-manager-identity-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureARMPermissionsManagerIdentityClientID,
+		"insecure-azure-arm-permissions-manager-identity-client-id",
+		f.InsecureAzureARMPermissionsManagerIdentityClientID,
+		"The client id of the ARM Permissions Manager identity. When set, it must be set in combination with the '--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path' and "+
+			"'--insecure-azure-arm-permissions-manager-identity-tenant-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.InsecureAzureARMPermissionsManagerIdentityTenantID,
+		"insecure-azure-arm-permissions-manager-identity-tenant-id",
+		f.InsecureAzureARMPermissionsManagerIdentityTenantID,
+		"The tenant id of the ARM Permissions Manager identity. When set, it must be set in combination with the '--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path' and "+
+			"'--insecure-azure-arm-permissions-manager-identity-client-id' flags.",
 	)
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
