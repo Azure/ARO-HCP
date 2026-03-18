@@ -297,6 +297,13 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 			cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = MirrorSourcePolicyAllowContactingSource
 		}
 	}
+	// Default KMS Visibility to Public for clusters created via v2024_06_10_preview
+	// (which doesn't expose the visibility field and assumes public KeyVaults).
+	if cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
+		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
+		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
+		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = KeyVaultVisibilityPublic
+	}
 }
 
 func (o *HCPOpenShiftCluster) Validate() []arm.CloudErrorBody {
