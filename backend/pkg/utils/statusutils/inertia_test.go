@@ -74,7 +74,7 @@ func TestInertiaConfig_Inertia(t *testing.T) {
 			overrides: []InertiaController{
 				{ControllerNameMatcher: regexp.MustCompile(`Migration$`), Duration: 90 * time.Second},
 			},
-			controllerName:   "IdentityMigration",
+			controllerName:   "FooControllerName",
 			expectedDuration: 90 * time.Second,
 		},
 		{
