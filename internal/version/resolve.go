@@ -35,9 +35,6 @@ import (
 // It queries the Cincinnati update graph to find the latest Z-stream version in the
 // target minor that is also a gateway to the next minor version (when one exists).
 // If no suitable version is found, it falls back to X.Y.0.
-//
-// This duplicates the initial version selection logic from the backend upgrade controller's
-// desiredControlPlaneZVersion for use in the frontend creation flow.
 func ResolveInitialVersion(ctx context.Context, cincinnatiClient cincinatti.Client, channelGroup string, customerDesiredMinor string) (semver.Version, error) {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Resolving initial desired version", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
@@ -45,7 +42,7 @@ func ResolveInitialVersion(ctx context.Context, cincinnatiClient cincinatti.Clie
 	// ParseTolerant handles both "4.19" and "4.19.0" formats
 	customerDotZeroRelease := api.Must(semver.ParseTolerant(customerDesiredMinor))
 
-	initialDesiredVersion, err := findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease})
+	initialDesiredVersion, err := FindLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease})
 	if err != nil {
 		return semver.Version{}, fmt.Errorf("failed to resolve initial version: %w", err)
 	}
@@ -64,16 +61,33 @@ func ResolveInitialVersion(ctx context.Context, cincinnatiClient cincinatti.Clie
 	return *initialDesiredVersion, nil
 }
 
-// findLatestVersionInMinor queries Cincinnati and finds the latest version within the specified target minor.
+// FindLatestVersionInMinor queries Cincinnati and finds the latest version within the specified target minor.
 //
-// It implements the core version selection logic:
+// This method implements the core version selection logic for all upgrade scenarios (both Y-stream and Z-stream).
+// It prioritizes versions that have an upgrade path to the next minor version (gateway versions).
+//
+// Version selection algorithm:
 //  1. Query Cincinnati for all available updates from EACH active version in the target minor channel
 //  2. Filter candidates: only include versions within the target minor
 //  3. Intersect candidate sets: only keep versions reachable from ALL active versions
-//  4. Delegate to selectBestVersionFromCandidates for final selection
+//  4. Sort candidates by version (descending - latest first)
+//  5. Check if next minor (4.(y+1)) channel exists in Cincinnati
+//  6. If next minor doesn't exist: return the latest candidate
+//  7. If next minor exists: iterate through candidates to find a gateway version to the next minor
+//     - For each candidate, check if it has an upgrade path to the next minor
+//     - If yes: return this version (latest gateway found)
+//     - If no: continue checking older versions
+//  8. If no gateway found: return nil
+//
+// Examples:
+//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or latest 4.19.z
+//   - Y-stream (4.19.x → 4.20.z): Find latest 4.20.z with path to 4.21, or latest 4.20.z
+//
+// When multiple active versions are provided, this method ensures that the selected version
+// is reachable from ALL active versions by intersecting the upgrade paths.
 //
 // Returns nil if no suitable version is found.
-func findLatestVersionInMinor(
+func FindLatestVersionInMinor(
 	ctx context.Context,
 	cincinnatiClient cincinatti.Client,
 	channelGroup string,
@@ -120,11 +134,12 @@ func findLatestVersionInMinor(
 		}
 	}
 
-	return selectBestVersionFromCandidates(ctx, cincinnatiClient, channelGroup, targetMinorVersion, commonCandidates)
+	return SelectBestVersionFromCandidates(ctx, cincinnatiClient, channelGroup, targetMinorVersion, commonCandidates)
 }
 
-// selectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate versions.
-// It prioritizes versions that are gateways to the next minor version.
+// SelectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate versions.
+// It accepts a list of candidates (already filtered within the target minor) and prioritizes versions
+// that are gateways to the next minor version.
 //
 // Algorithm:
 //  1. Sort candidates by version (descending - latest first)
@@ -134,7 +149,7 @@ func findLatestVersionInMinor(
 //  5. If no gateway found: return nil
 //
 // Returns nil if no suitable version is found.
-func selectBestVersionFromCandidates(
+func SelectBestVersionFromCandidates(
 	ctx context.Context,
 	cincinnatiClient cincinatti.Client,
 	channelGroup string,
@@ -169,7 +184,7 @@ func selectBestVersionFromCandidates(
 	}
 
 	for _, candidate := range candidates {
-		isGateway, err := isGatewayToNextMinor(ctx, candidate, cincinnatiClient, channelGroup, nextMinor)
+		isGateway, err := IsGatewayToNextMinor(ctx, candidate, cincinnatiClient, channelGroup, nextMinor)
 		if err != nil {
 			return nil, err
 		}
@@ -182,8 +197,9 @@ func selectBestVersionFromCandidates(
 	return nil, nil
 }
 
-// isGatewayToNextMinor checks if a given version has an upgrade path to the next minor version.
-func isGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiClient cincinatti.Client, channelGroup string, nextMinor string) (bool, error) {
+// IsGatewayToNextMinor checks if a given version has an upgrade path to the next minor version.
+// Returns true if the version is a gateway, false otherwise. Returns an error if the check fails.
+func IsGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiClient cincinatti.Client, channelGroup string, nextMinor string) (bool, error) {
 	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
 	if err != nil {
 		return false, err
@@ -191,6 +207,8 @@ func isGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiCli
 
 	nextMinorCincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, nextMinor)
 
+	// Query Cincinnati for available updates
+	// ARO-HCP uses Multi architecture for all clusters
 	_, allNextMinorUpdates, _, err := cincinnatiClient.GetUpdates(
 		ctx,
 		cincinnatiURI,
@@ -206,6 +224,7 @@ func isGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiCli
 		return false, err
 	}
 
+	// Check if any release contains a version in the next minor
 	hasPath := slices.ContainsFunc(allNextMinorUpdates, func(release configv1.Release) bool {
 		return strings.Contains(release.Version, nextMinor+".")
 	})

@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"slices"
 	"sync"
 	"time"
 
@@ -36,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	versionpkg "github.com/Azure/ARO-HCP/internal/version"
 )
 
 // controlPlaneDesiredVersionSyncer is a Cluster syncer that manages control plane desired version.
@@ -209,28 +209,11 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(
 	}
 
 	if len(activeVersions) == 0 {
-		logger.Info("Resolving initial desired version", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
-
-		// ParseTolerant handles both "4.19" and "4.19.0" formats
-		customerDotZeroRelease := api.Must(semver.ParseTolerant(customerDesiredMinor))
-
-		initialDesiredVersion, err := c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease})
+		initialVersion, err := versionpkg.ResolveInitialVersion(ctx, cincinnatiClient, channelGroup, customerDesiredMinor)
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
-
-		// If no desired version found, fall back to customerDotZeroRelease
-		// This happens when either:
-		// - there is no latestVersion greater than customerDotZeroRelease
-		// - or there is a latestVersion greater than customerDotZeroRelease but it doesn't have an upgrade path to the next minor
-		// if the next minor existed
-		// In both cases, customerDotZeroRelease is guaranteed to exist (since we didn't get a VersionNotFound error back when querying
-		// for it from Cincinnati).  It is safe to use.
-		if initialDesiredVersion == nil {
-			return &customerDotZeroRelease, nil
-		}
-
-		return initialDesiredVersion, nil
+		return &initialVersion, nil
 	}
 
 	// Extract active versions and determine actual minor (if any)
@@ -278,7 +261,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(
 		logger.Info("Resolving next Y-stream upgrade", "actualMinor", actualMinorVersion.String(), "activeVersions", activeVersions, "channelGroup", channelGroup,
 			"targetMinor", desiredMinorVersion.String())
 
-		latestVersion, err := c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList)
+		latestVersion, err := versionpkg.FindLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList)
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
@@ -292,151 +275,6 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(
 		targetMinorVersion = actualMinorVersion
 	}
 
-	return c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, targetMinorVersion, activeVersionList)
+	return versionpkg.FindLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, targetMinorVersion, activeVersionList)
 }
 
-// findLatestVersionInMinor queries Cincinnati and finds the latest version within the specified target minor.
-//
-// This method implements the core version selection logic for all upgrade scenarios (both Y-stream and Z-stream).
-// It prioritizes versions that have an upgrade path to the next minor version (gateway versions).
-//
-// Version selection algorithm:
-//  1. Query Cincinnati for all available updates from EACH active version in the target minor channel
-//  2. Filter candidates: only include versions within the target minor
-//  3. Intersect candidate sets: only keep versions reachable from ALL active versions
-//  4. Sort candidates by version (descending - latest first)
-//  5. Check if next minor (4.(y+1)) channel exists in Cincinnati
-//  6. If next minor doesn't exist: return the latest candidate
-//  7. If next minor exists: iterate through candidates to find a gateway version to the next minor
-//     - For each candidate, check if it has an upgrade path to the next minor
-//     - If yes: return this version (latest gateway found)
-//     - If no: continue checking older versions
-//  8. If no gateway found: return nil
-//
-// Examples:
-//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or latest 4.19.z
-//   - Y-stream (4.19.x → 4.20.z): Find latest 4.20.z with path to 4.21, or latest 4.20.z
-//
-// When multiple active versions are provided, this method ensures that the selected version
-// is reachable from ALL active versions by intersecting the upgrade paths.
-//
-// Returns nil if no suitable version is found.
-func (c *controlPlaneDesiredVersionSyncer) findLatestVersionInMinor(
-	ctx context.Context,
-	cincinnatiClient cincinatti.Client,
-	channelGroup string,
-	targetMinorVersion semver.Version,
-	activeVersions []semver.Version,
-) (*semver.Version, error) {
-	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", channelGroup, err))
-	}
-
-	targetMinorString := fmt.Sprintf("%d.%d", targetMinorVersion.Major, targetMinorVersion.Minor)
-	cincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, targetMinorString)
-
-	// For active versions, intersect their upgrade candidates
-	candidatesByVersion := map[string]struct {
-		version semver.Version
-		count   int
-	}{}
-
-	for _, activeVersion := range activeVersions {
-		_, candidateReleases, _, err := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, activeVersion)
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-
-		for _, candidate := range candidateReleases {
-			candidateTargetVersion := semver.MustParse(candidate.Version)
-
-			// Filter: only include versions in target minor
-			if candidateTargetVersion.Major != targetMinorVersion.Major || candidateTargetVersion.Minor != targetMinorVersion.Minor {
-				continue
-			}
-
-			candidateEntry := candidatesByVersion[candidateTargetVersion.String()]
-			candidateEntry.version = candidateTargetVersion
-			candidateEntry.count++
-			candidatesByVersion[candidateTargetVersion.String()] = candidateEntry
-		}
-	}
-
-	// Extract only candidates that appeared for ALL active versions (intersection)
-	commonCandidates := []semver.Version{}
-	for _, candidateEntry := range candidatesByVersion {
-		if candidateEntry.count == len(activeVersions) {
-			commonCandidates = append(commonCandidates, candidateEntry.version)
-		}
-	}
-
-	// Use the most recent active version for additional validation logic
-	return c.selectBestVersionFromCandidates(ctx, cincinnatiClient, channelGroup, targetMinorVersion, commonCandidates)
-}
-
-// selectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate versions.
-// It accepts a list of candidates (already filtered within the target minor) and prioritizes versions
-// that are gateways to the next minor version.
-//
-// Algorithm:
-//  1. Sort candidates by version (descending - latest first)
-//  2. Check if the next minor channel exists in Cincinnati
-//  3. If next minor doesn't exist: return the latest candidate
-//  4. If next minor exists: iterate through candidates to find a gateway version to the next minor
-//  5. If no gateway found: return nil
-//
-// Returns nil if no suitable version is found.
-func (c *controlPlaneDesiredVersionSyncer) selectBestVersionFromCandidates(
-	ctx context.Context,
-	cincinnatiClient cincinatti.Client,
-	channelGroup string,
-	targetMinorVersion semver.Version,
-	candidates []semver.Version,
-) (*semver.Version, error) {
-	if len(candidates) == 0 {
-		return nil, nil
-	}
-
-	// Sort candidates by version (descending - latest first)
-	slices.SortFunc(candidates, func(a, b semver.Version) int {
-		return b.Compare(a)
-	})
-
-	// Check if next minor channel exists before checking for gateways
-	nextMinor := fmt.Sprintf("%d.%d", targetMinorVersion.Major, targetMinorVersion.Minor+1)
-	// Here we are sure that the latest candidate version is in the graph,
-	// we just want to check if next minor exists
-	// If we get VersionNotFound error, it means that the next minor doesn't exist
-	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get Cincinnati URI for channel %s: %w", channelGroup, err))
-	}
-
-	_, _, _, nextMinorExistsErr := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", fmt.Sprintf("%s-%s", channelGroup, nextMinor), candidates[0])
-
-	if nextMinorExistsErr != nil && !cincinatti.IsCincinnatiVersionNotFoundError(nextMinorExistsErr) {
-		return nil, utils.TrackError(nextMinorExistsErr)
-	}
-
-	nextMinorExists := nextMinorExistsErr == nil
-
-	if !nextMinorExists {
-		// If the next minor doesn't exist, return the latest version in the target minor
-		return &candidates[0], nil
-	}
-
-	// otherwise return the candidate that is a gateway t next minor
-	for _, candidate := range candidates {
-		isGateway, err := isGatewayToNextMinor(ctx, candidate, cincinnatiClient, channelGroup, nextMinor)
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-
-		if isGateway {
-			return &candidate, nil
-		}
-	}
-
-	return nil, nil
-}

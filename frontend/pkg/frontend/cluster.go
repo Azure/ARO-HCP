@@ -343,6 +343,8 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// TODO this is bad, see above TODOs. We want to validate what we store.
 	newInternalCluster.Identity.UserAssignedIdentities = nil
 
+	// For now, version resolution is done here in the frontend.  This will be moved to the backend in the future (ARO-24824)
+	// following the changes to move cluster service create calls to the backend (ARO-24384).
 	resolvedVersion, err := internalversion.ResolveInitialVersion(ctx, f.cincinnatiClient,
 		newInternalCluster.CustomerProperties.Version.ChannelGroup,
 		newInternalCluster.CustomerProperties.Version.ID)
