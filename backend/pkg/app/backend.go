@@ -35,6 +35,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
@@ -87,6 +88,7 @@ type BackendOptions struct {
 	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
 	CheckAccessV2ClientBuilder         azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig      *internalazure.ClusterScopedIdentitiesConfig
+	CloudEnvironment                   *azureconfig.AzureCloudEnvironment
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -603,6 +605,22 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+
+	controlPlaneIdentitiesPermissionValidationController := validationcontrollers.NewClusterValidationController(
+		validations.NewControlPlaneIdentitiesPermissionValidation(
+			b.options.SMIClientBuilder,
+			b.options.ClusterScopedIdentitiesConfig,
+			b.options.BackendIdentityAzureCachedReaders,
+			b.options.CheckAccessV2ClientBuilder,
+			b.options.FPAMIDataplaneClientBuilder,
+			b.options.CloudEnvironment,
+		),
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -683,6 +701,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
+				go controlPlaneIdentitiesPermissionValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go maestroCreateClusterScopedReadonlyBundlesController.Run(ctx, 20)
 				go maestroReadAndPersistClusterScopedReadonlyBundlesContentController.Run(ctx, 20)
