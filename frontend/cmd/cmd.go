@@ -248,6 +248,8 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
+	// TODO(ARO-24384): This Cincinnati client will be removed once cluster creation
+	// in Cluster Service is done asynchronously from the backend.
 	cincinnatiClient := cincinnati.NewClient(uuid.New(), http.DefaultTransport.(*http.Transport), "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
 
 	f := frontend.NewFrontend(

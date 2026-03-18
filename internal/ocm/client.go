@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -784,43 +785,14 @@ func NewOpenShiftVersionXY(v string) string {
 // NewOpenShiftVersionXYZ parses the given version and converts it to CS readable version
 // CS readable version "openshift-v<X.Y.Z>" or "openshift-v<X.Y.Z>-channel_group"
 func NewOpenShiftVersionXYZ(v, cg string) string {
-	var csVersion string
+	if len(v) == 0 {
+		return ""
+	}
 
-	if len(v) > 0 {
-		// Separate version from prerelease (e.g., "4.19.0" from "0.nightly-2025-01-01")
-		versionPart := v
-		prereleasePart := ""
-		if hyphenIndex := strings.Index(v, "-"); hyphenIndex != -1 {
-			versionPart = v[:hyphenIndex]
-			prereleasePart = v[hyphenIndex:] // includes the hyphen
-		}
+	csVersion := api.OpenShiftVersionPrefix + api.Must(semver.ParseTolerant(v)).String()
 
-		parts := strings.Split(versionPart, ".")
-		if len(parts) == 1 {
-			parts = append(parts, "0")
-		}
-
-		// If no patch version provided (X.Y format), default to .0.
-		// Callers that need a specific Z-stream should resolve via Cincinnati
-		// before calling this function and pass X.Y.Z directly.
-		if len(parts) == 2 {
-			parts = append(parts, "0")
-		}
-
-		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
-
-		// Only append channel group if it's not empty and not "stable"
-		// Versions will look as:
-		// stable: opensfhit-vX.Y.Z
-		// candidate: openshift-vX.Y.Z-candidate
-		// or candidate: openshift-vX.Y.Z[-prerelease]-candidate
-		// which can be <-rc.V> or <-ec.V>
-		// nightly: openshift-vX.Y.Z[-prerelease]-candidate
-		// [-prerelease] is in the format -0.nightly-<arch>-<timestamp>
-		// i.e. `-0.nightly-multi-2025-11-07-08293`
-		if len(cg) > 0 && cg != "stable" {
-			csVersion = csVersion + "-" + cg
-		}
+	if len(cg) > 0 && cg != "stable" {
+		csVersion = csVersion + "-" + cg
 	}
 
 	return csVersion
