@@ -15,11 +15,12 @@
 package hcp
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -28,6 +29,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
+)
+
+const (
+	maxBytes = 100 * 1024 * 1024 // 100MB
 )
 
 // HCPSerialConsoleHandler handles requests to retrieve VM serial console logs
@@ -113,30 +118,37 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 
 	// Retrieve boot diagnostics data containing serial console blob URI
 	managedResourceGroup := hcp.CustomerProperties.Platform.ManagedResourceGroup
+	sasTokenExpirationMinutes := int32(5)
+	options := &armcompute.VirtualMachinesClientRetrieveBootDiagnosticsDataOptions{
+		SasURIExpirationTimeInMinutes: &sasTokenExpirationMinutes,
+	}
 	result, err := computeClient.RetrieveBootDiagnosticsData(
 		request.Context(),
 		managedResourceGroup,
 		vmName,
-		nil,
+		options,
 	)
 	if err != nil {
-		// Azure returns 404 when VM or resource group doesn't exist
-		if database.IsResponseError(err, http.StatusNotFound) {
-			return arm.NewCloudError(
-				http.StatusNotFound,
-				arm.CloudErrorCodeNotFound,
-				"",
-				"VM %s not found in resource group %s", vmName, managedResourceGroup,
-			)
-		}
-		// Azure returns 409 when boot diagnostics is disabled
-		if database.IsResponseError(err, http.StatusConflict) {
-			return arm.NewCloudError(
-				http.StatusConflict,
-				arm.CloudErrorCodeConflict,
-				"",
-				"Diagnostics might be disabled for VM %s", vmName,
-			)
+		var azErr *azcore.ResponseError
+		if ok := errors.As(err, &azErr); ok && azErr != nil {
+			// Azure returns 404 when VM or resource group doesn't exist
+			if azErr.StatusCode == http.StatusNotFound {
+				return arm.NewCloudError(
+					http.StatusNotFound,
+					arm.CloudErrorCodeNotFound,
+					"",
+					"VM %s not found in resource group %s", vmName, managedResourceGroup,
+				)
+			}
+			// Azure returns 409 when boot diagnostics is disabled
+			if azErr.StatusCode == http.StatusConflict {
+				return arm.NewCloudError(
+					http.StatusConflict,
+					arm.CloudErrorCodeConflict,
+					"",
+					"Diagnostics might be disabled for VM %s", vmName,
+				)
+			}
 		}
 		return fmt.Errorf("failed to retrieve boot diagnostics data for VM %s: %w", vmName, err)
 	}
@@ -160,9 +172,7 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	}
 
 	// download blob content with timeout to avoid stuck handlers on slow blob endpoints
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	httpClient := &http.Client{}
 	blobResp, err := httpClient.Do(blobReq)
 	if err != nil {
 		return fmt.Errorf("failed to download serial console log: %w", err)
@@ -179,7 +189,8 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	writer.Header().Set("Pragma", "no-cache")
 	writer.Header().Set("Expires", "0")
 	writer.WriteHeader(http.StatusOK)
-	_, err = io.Copy(writer, blobResp.Body)
+	limitedReader := io.LimitReader(blobResp.Body, maxBytes)
+	_, err = io.Copy(writer, limitedReader)
 	if err != nil {
 		// After headers are sent, we cannot return an error response
 		// Log the error and return nil to avoid panic

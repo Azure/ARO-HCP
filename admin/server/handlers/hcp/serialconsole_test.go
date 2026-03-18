@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -288,7 +289,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 
 				// Check error message
 				if tt.expectedError != "" {
-					if !containsError(err, tt.expectedError) {
+					if !strings.Contains(err.Error(), tt.expectedError) {
 						t.Errorf("Expected error containing %q but got %q", tt.expectedError, err.Error())
 					}
 				}
@@ -335,21 +336,7 @@ func TestSerialConsoleHandler_InvalidResourceID(t *testing.T) {
 		t.Errorf("Expected status code %d but got %d", http.StatusBadRequest, cloudErr.StatusCode)
 	}
 
-	if !containsError(err, "invalid resource identifier") {
+	if !strings.Contains(err.Error(), "invalid resource identifier") {
 		t.Errorf("Expected error containing 'invalid resource identifier' but got %q", err.Error())
 	}
-}
-
-// containsError checks if an error message contains the expected substring
-func containsError(err error, expected string) bool {
-	if err == nil {
-		return expected == ""
-	}
-	errMsg := err.Error()
-	for i := 0; i <= len(errMsg)-len(expected); i++ {
-		if errMsg[i:i+len(expected)] == expected {
-			return true
-		}
-	}
-	return false
 }

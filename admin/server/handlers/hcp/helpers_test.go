@@ -17,6 +17,7 @@ package hcp
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
@@ -132,7 +133,7 @@ func TestClusterServiceError(t *testing.T) {
 				}
 
 				// Verify error message contains expected text
-				if !contains(result.Error(), tt.expectedMessage) {
+				if !strings.Contains(result.Error(), tt.expectedMessage) {
 					t.Errorf("Expected error to contain %q, got %q", tt.expectedMessage, result.Error())
 				}
 
@@ -143,14 +144,4 @@ func TestClusterServiceError(t *testing.T) {
 			}
 		})
 	}
-}
-
-// contains checks if a string contains a substring
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
