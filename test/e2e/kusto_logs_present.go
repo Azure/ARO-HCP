@@ -39,6 +39,7 @@ var _ = Describe("Engineering", func() {
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
+			Skip("Skipping due to kusto capacity issues")
 			const (
 				engineeringNetworkSecurityGroupName = "engineering-nsg-name"
 				engineeringVnetName                 = "engineering-vnet-name"
