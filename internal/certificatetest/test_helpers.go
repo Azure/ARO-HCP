@@ -14,7 +14,7 @@
 
 //go:build !release
 
-package fpa
+package certificatetest
 
 import (
 	"crypto/rand"
@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// generateTestCertificate generates a self-signed certificate for testing
-func generateTestCertificate(t *testing.T, serialNumber int64) (certPEM, keyPEM []byte, err error) {
+// GenerateTestCertificate generates a self-signed certificate for testing
+func GenerateTestCertificate(t *testing.T, serialNumber int64) (certPEM, keyPEM []byte, err error) {
 	t.Helper()
 
 	notBefore := time.Now().Add(-1 * time.Hour)
@@ -80,14 +80,14 @@ func generateTestCertificate(t *testing.T, serialNumber int64) (certPEM, keyPEM 
 	return certPEM, keyPEM, nil
 }
 
-// atomicUpdateCert simulates a configmap/secret/secretproviderclass rotation using the AtomicWriter pattern.
+// AtomicUpdateCert simulates a configmap/secret/secretproviderclass rotation using the AtomicWriter pattern.
 // Kubernetes CSI SecretProviderClass and Secrets/ConfigMaps use this pattern:
 // secrets are written into a new unique dir, a ..data_tmp symlink is created pointing to it,
 // and then rename(..data_tmp, ..data) atomically replaces the old ..data symlink.
-func atomicUpdateCert(t *testing.T, dir, filename string, serialNumber int64) {
+func AtomicUpdateCert(t *testing.T, dir, filename string, serialNumber int64) {
 	t.Helper()
 
-	certPEM, keyPEM, err := generateTestCertificate(t, serialNumber)
+	certPEM, keyPEM, err := GenerateTestCertificate(t, serialNumber)
 	require.NoError(t, err)
 	content := append(keyPEM, certPEM...)
 

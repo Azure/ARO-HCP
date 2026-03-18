@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fpa
+package certificate
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/ARO-HCP/internal/certificatetest"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -34,10 +35,12 @@ func TestWatchingFileCertificateReaderLoadsInitialCertificate(t *testing.T) {
 
 	// Create initial certificate
 	var serialNumber int64 = 20
-	atomicUpdateCert(t, dir, bundleFileName, serialNumber)
+	certificatetest.AtomicUpdateCert(t, dir, bundleFileName, serialNumber)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, certFile)
+	require.NoError(t, err)
+	err = reader.Run(ctx, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs, key, err := reader.ReadCertificate()
@@ -54,10 +57,12 @@ func TestWatchingFileCertificateReaderReloadsOnFileChange(t *testing.T) {
 	bundlePath := filepath.Join(dir, bundleFileName)
 
 	var serialNumber int64 = 20
-	atomicUpdateCert(t, dir, bundleFileName, serialNumber)
+	certificatetest.AtomicUpdateCert(t, dir, bundleFileName, serialNumber)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	reader, err := NewWatchingFileCertificateReader(ctx, bundlePath, 50*time.Millisecond)
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, bundlePath)
+	require.NoError(t, err)
+	err = reader.Run(ctx, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, _, err := reader.ReadCertificate()
@@ -65,7 +70,7 @@ func TestWatchingFileCertificateReaderReloadsOnFileChange(t *testing.T) {
 	assert.Equal(t, serialNumber, certs1[0].SerialNumber.Int64())
 
 	newSerialNumber := serialNumber + 1
-	atomicUpdateCert(t, dir, bundleFileName, newSerialNumber)
+	certificatetest.AtomicUpdateCert(t, dir, bundleFileName, newSerialNumber)
 
 	assert.Eventually(t, func() bool {
 		certs2, _, err := reader.ReadCertificate()
@@ -81,10 +86,12 @@ func TestWatchingFileCertificateReaderCachesCertificate(t *testing.T) {
 	bundleFileName := "bundle.crt"
 	certFile := filepath.Join(dir, bundleFileName)
 
-	atomicUpdateCert(t, dir, bundleFileName, 20)
+	certificatetest.AtomicUpdateCert(t, dir, bundleFileName, 20)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, certFile)
+	require.NoError(t, err)
+	err = reader.Run(ctx, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, key1, err1 := reader.ReadCertificate()
@@ -103,13 +110,15 @@ func TestWatchingFileCertificateReaderStopsWatchingOnContextCancel(t *testing.T)
 	certFile := filepath.Join(dir, bundleFileName)
 
 	var serialNumber int64 = 20
-	atomicUpdateCert(t, dir, bundleFileName, serialNumber)
+	certificatetest.AtomicUpdateCert(t, dir, bundleFileName, serialNumber)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-	reader, err := NewWatchingFileCertificateReader(ctx, certFile, 50*time.Millisecond)
+	reader, err := NewWatchingAzureIdentityFileReader(ctx, certFile)
+	require.NoError(t, err)
+	err = reader.Run(ctx, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	certs1, _, err := reader.ReadCertificate()
@@ -124,7 +133,7 @@ func TestWatchingFileCertificateReaderStopsWatchingOnContextCancel(t *testing.T)
 
 	// Update the certificate file
 	var newSerialNumber = serialNumber + 1
-	atomicUpdateCert(t, dir, bundleFileName, newSerialNumber)
+	certificatetest.AtomicUpdateCert(t, dir, bundleFileName, newSerialNumber)
 
 	// Wait longer than the check interval to ensure watcher would have detected the change if still running
 	time.Sleep(300 * time.Millisecond)
