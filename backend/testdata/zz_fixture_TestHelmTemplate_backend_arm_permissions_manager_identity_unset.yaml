@@ -123,7 +123,7 @@ spec:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
       annotations:
-        checksum/backendservicekeyvault: 'be82d8149e3a59cca672fb0538c4374a0458490a685122deba53e092240e32a5'
+        checksum/backendservicekeyvault: 'd76b8f7a5cfa15bb0951ea1e9fd6cac34015808f8c7816410ae96b0c19a9d375'
         checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
     spec:
       topologySpreadConstraints:
@@ -307,10 +307,6 @@ spec:
           objectName: 'msiMockCert2'
           objectType: secret
           objectAlias: mi-mock-cert-bundle
-        - |
-          objectName: 'armHelperCert2'
-          objectType: secret
-          objectAlias: arm-permissions-manager-identity-cert-bundle
     tenantId: '__tenantId__'
     usePodIdentity: "false"
   provider: azure

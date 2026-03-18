@@ -1318,6 +1318,9 @@
     "armHelperCertName": {
       "type": "string"
     },
+    "armHelperTenantId": {
+      "type": "string"
+    },
     "backend": {
       "type": "object",
       "properties": {

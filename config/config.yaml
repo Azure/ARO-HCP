@@ -868,6 +868,7 @@ defaults:
   miMockCertName: ""
   armHelperClientId: ""
   armHelperFPAPrincipalId: ""
+  armHelperTenantId: ""
   armHelperCertName: ""
   # OIDC
   oidc:
@@ -988,6 +989,7 @@ clouds:
       # ARM Helper
       armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
       armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
+      armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
       armHelperCertName: armHelperCert2
       # OIDC
       oidc:
