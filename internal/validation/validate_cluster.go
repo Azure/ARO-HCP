@@ -536,12 +536,14 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	//SubnetID                string                         `json:"subnetId,omitempty"`
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, nil, newObj.ManagedResourceGroup)...)
 
 	// VnetIntegrationSubnetID *azcorearm.ResourceID `json:"vnetIntegrationSubnetId,omitempty"`
 	// vnetIntegrationSubnetId was added in v2025_12_23_preview, so it's optional for backwards compatibility
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID))...)
 	if newObj.VnetIntegrationSubnetID != nil {
+		errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 		errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.ManagedResourceGroup)...)
 		// SameSubscription is validated in validateResourceIDsAgainstClusterID against cluster subscription
 	}
@@ -785,7 +787,7 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	// visibility was added in v2025_12_23_preview, so it's optional for backwards compatibility
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility))...)
 	// Only validate enum if visibility is not empty (allow empty for backwards compatibility)
-	if newObj.Visibility != "" {
+	if len(newObj.Visibility) != 0 {
 		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), api.ValidKeyVaultVisibility)...)
 	}
 
