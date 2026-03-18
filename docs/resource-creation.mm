@@ -105,7 +105,7 @@
 <node CREATED="1742324485000" ID="ID_1000085" MODIFIED="1742324485000" TEXT="Kubernetes-style controllers running on service cluster"/>
 <node CREATED="1742324486000" ID="ID_1000086" MODIFIED="1742324486000" TEXT="SharedInformers backed by CosmosDB via periodic relist (expiring watcher, not native change feed)"/>
 <node CREATED="1742324487000" ID="ID_1000087" MODIFIED="1742324487000" TEXT="rate-limited work queue with 10-second cooldown between syncs"/>
-<node CREATED="1742324488000" ID="ID_1000088" MODIFIED="1742324488000" TEXT="each controller has ShouldProcess filter (request type + resource type)"/>
+<node CREATED="1742324488000" ID="ID_1000088" MODIFIED="1742324488000" TEXT="operation controllers use ShouldProcess filter (request type + resource type)"/>
 </node>
 <node CREATED="1742324489000" ID="ID_1000089" MODIFIED="1742324489000" TEXT="operation controllers (poll Cluster Service status)">
 <node CREATED="1742324490000" ID="ID_1000090" MODIFIED="1742324490000" TEXT="Cluster Create - polls GetClusterStatus, creates billing doc on success"/>
@@ -185,7 +185,7 @@
 <node CREATED="1742324550000" ID="ID_1000150" MODIFIED="1742324550000" TEXT="backend delegates to Cluster Service instead of running install steps directly"/>
 <node CREATED="1742324551000" ID="ID_1000151" MODIFIED="1742324551000" TEXT="Cluster Service + Maestro orchestrate provisioning (not Hive/Podman)"/>
 <node CREATED="1742324552000" ID="ID_1000152" MODIFIED="1742324552000" TEXT="separate operation documents in CosmosDB (not just provisioning state on cluster)"/>
-<node CREATED="1742324553000" ID="ID_1000153" MODIFIED="1742324553000" TEXT="change feed triggers Kubernetes-style controllers (not lease-based dequeue)"/>
+<node CREATED="1742324553000" ID="ID_1000153" MODIFIED="1742324553000" TEXT="periodic relist via expiring watchers triggers Kubernetes-style controllers (not lease-based dequeue)"/>
 <node CREATED="1742324554000" ID="ID_1000154" MODIFIED="1742324554000" TEXT="NodePool and ExternalAuth are first-class ARM resources with own lifecycles"/>
 </node>
 </node>

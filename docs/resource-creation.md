@@ -1,6 +1,6 @@
 # ARO-HCP Resource Creation Flow
 
-This document describes how resources (HCPOpenShiftCluster, NodePool, ExternalAuth) are created in the ARO-HCP architecture, from API request through async completion.
+This document describes how resources are created in the ARO-HCP architecture, from API request through async completion. Detailed creation flow diagrams are provided for HCPOpenShiftCluster and NodePool. ExternalAuth follows the same general pattern (frontend validation, Cluster Service POST, CosmosDB transaction, backend polling).
 
 ## Overview
 
@@ -107,7 +107,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    PUT["PUT .../nodePool/{name}"] --> HANDLER["CreateOrUpdateNodePool<br/>(frontend/pkg/frontend/node_pool.go)"]
+    PUT["PUT .../hcpOpenShiftClusters/{clusterName}/nodePools/{name}"] --> HANDLER["CreateOrUpdateNodePool<br/>(frontend/pkg/frontend/node_pool.go)"]
 
     HANDLER --> CHECK{Resource exists<br/>in CosmosDB?}
     CHECK -->|No - Create| CREATE["createNodePool()"]
@@ -235,7 +235,7 @@ flowchart TD
 stateDiagram-v2
     [*] --> Accepted : Frontend creates operation doc
     Accepted --> Provisioning : CS begins installing
-    Accepted --> Failed : Validation fails
+    Accepted --> Failed : CS reports error
 
     Provisioning --> Succeeded : CS reports ready
     Provisioning --> Failed : CS reports error
@@ -257,6 +257,6 @@ stateDiagram-v2
 | Backend | Directly installs cluster (phases, bootstrap VM) | Delegates to Cluster Service, polls for status |
 | Install orchestration | RP backend runs install steps (Hive/Podman) | Cluster Service + Maestro + management cluster |
 | Database | CosmosDB (single document per cluster) | CosmosDB (separate operation + resource docs, transactions) |
-| Operation model | Provisioning state on cluster doc, polled via async op record | Dedicated operation documents, change feed triggers controllers |
+| Operation model | Provisioning state on cluster doc, polled via async op record | Dedicated operation documents, periodic relist via expiring watchers triggers controllers |
 | Node pools | Managed by machine-api operator after bootstrap | First-class ARM resource with own lifecycle |
 | Resource types | OpenShiftCluster only | HCPOpenShiftCluster, NodePool, ExternalAuth |
