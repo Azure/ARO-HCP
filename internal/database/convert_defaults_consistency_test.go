@@ -53,6 +53,13 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 			internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType)
 	}
 
+	// Verify DiskType against internal constructor
+	if ensuredDefault.Properties.Platform.OSDisk.DiskType != internalDefault.Properties.Platform.OSDisk.DiskType {
+		t.Errorf("ensured default DiskType = %q, internal constructor = %q",
+			ensuredDefault.Properties.Platform.OSDisk.DiskType,
+			internalDefault.Properties.Platform.OSDisk.DiskType)
+	}
+
 	// Verify against each versioned API's SetDefaultValues
 	t.Run("v20240610preview", func(t *testing.T) {
 		externalDefault := &v20240610preview.NodePool{}
@@ -63,6 +70,7 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 				ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType,
 				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, ""))
 		}
+		// DiskType not in v2024 — skip versioned check
 	})
 	t.Run("v20251223preview", func(t *testing.T) {
 		externalDefault := &v20251223preview.NodePool{}
@@ -72,6 +80,11 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 			t.Errorf("ensured default DiskStorageAccountType = %q, versioned default = %q",
 				ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType,
 				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, ""))
+		}
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, "")) {
+			t.Errorf("ensured default DiskType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, ""))
 		}
 	})
 }
@@ -253,7 +266,8 @@ func TestCSToRPDefaultsConsistencyNodePool(t *testing.T) {
 	csNodePool, err := arohcpv1alpha1.NewNodePool().
 		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-				StorageAccountType("Premium_LRS"))).
+				StorageAccountType("Premium_LRS").
+				Persistence("persistent"))).
 		Build()
 	if err != nil {
 		t.Fatalf("failed to build CS nodepool: %v", err)
@@ -271,6 +285,11 @@ func TestCSToRPDefaultsConsistencyNodePool(t *testing.T) {
 		t.Errorf("CS→RP default DiskStorageAccountType = %q, ensured default = %q",
 			rpNodePool.Properties.Platform.OSDisk.DiskStorageAccountType,
 			ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType)
+	}
+	if string(rpNodePool.Properties.Platform.OSDisk.DiskType) != string(ensuredDefault.Properties.Platform.OSDisk.DiskType) {
+		t.Errorf("CS→RP default DiskType = %q, ensured default = %q",
+			rpNodePool.Properties.Platform.OSDisk.DiskType,
+			ensuredDefault.Properties.Platform.OSDisk.DiskType)
 	}
 }
 
@@ -297,6 +316,32 @@ func TestCSToRPDefaultsEmptyDiskStorageAccountType(t *testing.T) {
 	if rpNodePool.Properties.Platform.OSDisk.DiskStorageAccountType != api.DiskStorageAccountTypePremium_LRS {
 		t.Errorf("CS→RP conversion must default empty StorageAccountType to Premium_LRS, got %q",
 			rpNodePool.Properties.Platform.OSDisk.DiskStorageAccountType)
+	}
+}
+
+func TestCSToRPDefaultsEmptyDiskType(t *testing.T) {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
+	))
+
+	// Simulate a pre-existing CS node pool that has no persistence set.
+	csNodePool, err := arohcpv1alpha1.NewNodePool().
+		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+				Persistence(""))).
+		Build()
+	if err != nil {
+		t.Fatalf("failed to build CS nodepool: %v", err)
+	}
+
+	rpNodePool, err := ocm.ConvertCStoNodePool(resourceID, "eastus", csNodePool)
+	if err != nil {
+		t.Fatalf("ConvertCStoNodePool failed: %v", err)
+	}
+
+	if rpNodePool.Properties.Platform.OSDisk.DiskType != api.OsDiskTypeManaged {
+		t.Errorf("CS→RP conversion must default empty Persistence to Managed, got %q",
+			rpNodePool.Properties.Platform.OSDisk.DiskType)
 	}
 }
 
@@ -403,6 +448,11 @@ func TestPreExistingDataNodePool(t *testing.T) {
 			internalNodePool.Properties.Platform.OSDisk.DiskStorageAccountType,
 			api.DiskStorageAccountTypePremium_LRS)
 	}
+	if internalNodePool.Properties.Platform.OSDisk.DiskType != api.OsDiskTypeManaged {
+		t.Errorf("got DiskType = %q, want %q",
+			internalNodePool.Properties.Platform.OSDisk.DiskType,
+			api.OsDiskTypeManaged)
+	}
 }
 
 // TestCanonicalDefaultsConsistencyCluster verifies that the internal constructor
@@ -477,6 +527,9 @@ func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
 	}
 	if internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType != api.DiskStorageAccountTypePremium_LRS {
 		t.Errorf("DiskStorageAccountType = %q, want %q", internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, api.DiskStorageAccountTypePremium_LRS)
+	}
+	if internalDefault.Properties.Platform.OSDisk.DiskType != api.OsDiskTypeManaged {
+		t.Errorf("DiskType = %q, want %q", internalDefault.Properties.Platform.OSDisk.DiskType, api.OsDiskTypeManaged)
 	}
 }
 

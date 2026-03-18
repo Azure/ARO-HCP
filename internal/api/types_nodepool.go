@@ -96,6 +96,7 @@ type OSDiskProfile struct {
 	SizeGiB                *int32                 `json:"sizeGiB,omitempty"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
 	EncryptionSetID        *azcorearm.ResourceID  `json:"encryptionSetId,omitempty"`
+	DiskType               OsDiskType             `json:"diskType,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
@@ -125,6 +126,7 @@ func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azu
 				OSDisk: OSDiskProfile{
 					SizeGiB:                ptr.To(DefaultNodePoolOSDiskSizeGiB),
 					DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
+					DiskType:               OsDiskTypeManaged,
 				},
 			},
 			AutoRepair: true,
@@ -143,6 +145,9 @@ func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azu
 func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
 	if len(np.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
 		np.Properties.Platform.OSDisk.DiskStorageAccountType = DiskStorageAccountTypePremium_LRS
+	}
+	if len(np.Properties.Platform.OSDisk.DiskType) == 0 {
+		np.Properties.Platform.OSDisk.DiskType = OsDiskTypeManaged
 	}
 }
 

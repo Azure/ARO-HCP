@@ -59,6 +59,9 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 	if obj.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
 		obj.Properties.Platform.OSDisk.DiskStorageAccountType = ptr.To(generated.DiskStorageAccountTypePremiumLRS)
 	}
+	if obj.Properties.Platform.OSDisk.DiskType == nil {
+		obj.Properties.Platform.OSDisk.DiskType = ptr.To(generated.OsDiskTypeManaged)
+	}
 	if obj.Properties.AutoRepair == nil {
 		obj.Properties.AutoRepair = ptr.To(true)
 	}
@@ -224,9 +227,7 @@ func normalizeOSDiskProfile(fldPath *field.Path, p *generated.OsDiskProfile, out
 	} else {
 		out.EncryptionSetID = nil
 	}
-	if p.DiskType != nil {
-		errs = append(errs, field.Invalid(fldPath.Child("diskType"), *p.DiskType, "diskType is not yet implemented"))
-	}
+	out.DiskType = api.OsDiskType(api.Deref(p.DiskType))
 	return errs
 }
 
@@ -274,6 +275,7 @@ func newOSDiskProfile(from *api.OSDiskProfile) generated.OsDiskProfile {
 		SizeGiB:                from.SizeGiB,
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
 		EncryptionSetID:        api.ResourceIDToStringPtr(from.EncryptionSetID),
+		DiskType:               api.Ptr(generated.OsDiskType(from.DiskType)),
 	}
 }
 

@@ -433,7 +433,7 @@ func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {
 }`, nodePoolName, subscriptionID))
 
 	case v2025:
-		// v2025 payload — includes all optional fields (osDisk.diskStorageAccountType, nodeDrainTimeoutMinutes)
+		// v2025 payload — includes all optional fields (osDisk.diskStorageAccountType, diskType, nodeDrainTimeoutMinutes)
 		return []byte(fmt.Sprintf(`{
   "name": "%s",
   "properties": {
@@ -454,7 +454,8 @@ func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {
       "availabilityZone": "1",
       "osDisk": {
         "sizeGiB": 128,
-        "diskStorageAccountType": "Premium_LRS"
+        "diskStorageAccountType": "Premium_LRS",
+        "diskType": "Managed"
       },
       "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
     },
