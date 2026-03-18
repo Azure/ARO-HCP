@@ -17,7 +17,9 @@ package clusterprovisioningcontrollers
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -29,7 +31,10 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 )
 
 // managedResourceGroupProvisioningSyncer is a Cluster syncer that ensures that the
@@ -40,6 +45,8 @@ type managedResourceGroupProvisioningSyncer struct {
 	cosmosClient database.DBClient
 
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
+
+	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
 var _ controllerutils.ClusterSyncer = (*managedResourceGroupProvisioningSyncer)(nil)
@@ -49,11 +56,13 @@ func NewManagedResourceGroupProvisioningController(
 	cosmosClient database.DBClient,
 	informers informers.BackendInformers,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
 ) controllerutils.Controller {
 	syncer := &managedResourceGroupProvisioningSyncer{
 		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:          cosmosClient,
 		azureFPAClientBuilder: azureFPAClientBuilder,
+		clusterServiceClient:  clusterServiceClient,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -67,6 +76,7 @@ func NewManagedResourceGroupProvisioningController(
 }
 
 func (c *managedResourceGroupProvisioningSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
 	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		return nil // cluster doesn't exist, no work to do
@@ -91,6 +101,9 @@ func (c *managedResourceGroupProvisioningSyncer) SyncOnce(ctx context.Context, k
 	// cluster or other resource when deciding if we should process?
 	// TODO what should be the criteria of shouldProcess? the answer to this is
 	// dependent on the answers to the questions above.
+	// TODO this controller covers the provisioning but not the deprovisioning of the MRG. The deprovisionig of the MRG
+	// can only happen when the cluster is being deleted and only after a set of other steps have been taken. How would
+	// we coordinate this with CS but also with this controller and other controllers in the RP?
 	shouldProcess := c.shouldProcess()
 	if !shouldProcess {
 		return nil // no work to do
@@ -126,6 +139,36 @@ func (c *managedResourceGroupProvisioningSyncer) SyncOnce(ctx context.Context, k
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 		}
 	}
+
+	existingCSCluster, err := c.clusterServiceClient.GetCluster(ctx, existingCluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+	}
+
+	// We defined a property in CS that indicates whether the MRG was provisioned by the RP.
+	// CS interprets it in the following way:
+	// - If the property does not exist, it means that the MRG provisioning responsibility is not yet transferred to the RP.
+	// - If the property exists and is true, it means that the MRG provisioning responsibility has been transferred to the RP and that it's been provisioned
+	// - If the property exists and is false, it means that the MRG provisioning responsibility has been transferred to the RP but it's not been provisioned yet
+	//   and therefore CS should wait for the RP to provision it.
+	existingCSClusterProperties := existingCSCluster.Properties()
+	if existingCSClusterProperties["rp-owned-cluster-mrg-provisioned"] == strconv.FormatBool(existingServiceProviderCluster.Status.ManagedResourceGroupExists) {
+		return nil
+	}
+
+	desiredCSClusterProperties := maps.Clone(existingCSClusterProperties)
+	desiredCSClusterProperties["rp-owned-cluster-mrg-provisioned"] = strconv.FormatBool(existingServiceProviderCluster.Status.ManagedResourceGroupExists)
+	desiredCSCluster := arohcpv1alpha1.NewCluster().Copy(existingCSCluster)
+	desiredCSCluster.Properties(desiredCSClusterProperties)
+
+	// TODO Is there danger of a race condition where CS cluster properties are lost if inbetween retrieval of CS cluster properties
+	// and updating it some other controller modifies the cs cluster properties?
+	logger.Info("updating Cluster Service Cluster", "desiredCSCluster", desiredCSCluster)
+	_, err = c.clusterServiceClient.UpdateCluster(ctx, existingCluster.ServiceProviderProperties.ClusterServiceID, desiredCSCluster)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to update Cluster: %w", err))
+	}
+	logger.Info("Cluster Service Cluster updated")
 
 	return nil
 }
