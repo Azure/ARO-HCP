@@ -96,7 +96,7 @@ spec:
         - name: OPERAND_IMAGE_HYPERSHIFT_CLI
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-cli-rhel9@sha256:35329c6be2d22858a95766361b6644c5567292c8cda7f6b296d712e0fd8a7bec'
         - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:5f30bedca1e9f8fc397cd555f866dc242e1f37f62e8bfac6d261986063e05901'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:f856bb6a7d423a23b1b8c7fda484fb29a82471f1732453a021dee662bb5e4dc3'
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:2ee1032bad5c94e067cac39a2f2562d11e86a8f7e6e61401482358eda8235b74'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
@@ -106,7 +106,7 @@ spec:
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managed-serviceaccount-rhel9@sha256:a3439a02d7868038eb3d70c8c92462157126e86eb94ea25429875d165bbf0d73'
         - name: OPERAND_IMAGE_MULTICLOUD_MANAGER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/multicloud-manager-rhel9@sha256:0de9a9ed40d41bb6320b2c0608aa2f627bbdc685ab8282c67411d1d58ea4052a'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/multicloud-manager-rhel9@sha256:84739a10145abd4c6cf8ed40c36939cfd4e24397c88287085903337e55cbdf63'
         - name: OPERAND_IMAGE_PROVIDER_CREDENTIAL_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/provider-credential-controller-rhel9@sha256:a900bf61c45c91766ff961eac811b0890603c887962b677310da4cf07a6032ce'
         - name: OPERAND_IMAGE_PLACEMENT
