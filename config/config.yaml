@@ -1025,6 +1025,10 @@ clouds:
       backend:
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
+        # TODO in sdp-pipelines we will need to set roleSetName and set it to the value "public". We cannot mark the config.schema with the required
+        # validation until we set it there.
+        operatorsManagedIdentitiesConfig:
+          roleSetName: dev
       # Image Sync
       imageSync:
         ocMirror:

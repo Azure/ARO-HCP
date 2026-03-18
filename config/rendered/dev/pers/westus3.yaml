@@ -88,6 +88,8 @@ backend:
   maestro:
     sourceEnvironmentIdentifier: arohcppers
   managedIdentityName: backend
+  operatorsManagedIdentitiesConfig:
+    roleSetName: dev
   tracing:
     address: http://ingest.observability:4318
     exporter: otlp
