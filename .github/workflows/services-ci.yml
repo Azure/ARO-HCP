@@ -43,7 +43,7 @@ jobs:
         include:
         - name: aro-hcp-exporter
           dir: tooling/aro-hcp-exporter
-          setup_go: false
+          setup_go: true
           acr_image: arohcpmetrics
         - name: frontend
           dir: frontend
