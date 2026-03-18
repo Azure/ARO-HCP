@@ -195,16 +195,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a pod that authenticates to Azure using federated workload identity credentials")
-			tenantID := tc.TenantID()
-			tokenPath := "/var/run/secrets/azure/tokens/azure-identity-token"
 			pod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wi-test-pod",
 					Namespace: testNamespace,
-					// TODO(CNTRLPLANE-2910): uncomment once the workload identity webhook is available
-					// Labels: map[string]string{
-					// 	"azure.workload.identity/use": "true",
-					// },
+					Labels: map[string]string{
+						"azure.workload.identity/use": "true",
+					},
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: testServiceAccount,
@@ -214,24 +211,6 @@ var _ = Describe("Customer", func() {
 					DNSPolicy: corev1.DNSNone,
 					DNSConfig: &corev1.PodDNSConfig{
 						Nameservers: []string{"8.8.8.8", "1.1.1.1"},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "azure-identity-token",
-							VolumeSource: corev1.VolumeSource{
-								Projected: &corev1.ProjectedVolumeSource{
-									Sources: []corev1.VolumeProjection{
-										{
-											ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
-												Audience:          "api://AzureADTokenExchange",
-												ExpirationSeconds: to.Ptr(int64(3600)),
-												Path:              "azure-identity-token",
-											},
-										},
-									},
-								},
-							},
-						},
 					},
 					Containers: []corev1.Container{
 						{
@@ -254,28 +233,6 @@ var _ = Describe("Customer", func() {
 									-t "$AZURE_TENANT_ID" \
 									--allow-no-subscriptions
 							`},
-							// TODO(CNTRLPLANE-2910): remove explicit env vars and volume mount once the workload identity webhook injects them
-							Env: []corev1.EnvVar{
-								{
-									Name:  "AZURE_CLIENT_ID",
-									Value: clientID,
-								},
-								{
-									Name:  "AZURE_TENANT_ID",
-									Value: tenantID,
-								},
-								{
-									Name:  "AZURE_FEDERATED_TOKEN_FILE",
-									Value: tokenPath,
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "azure-identity-token",
-									MountPath: "/var/run/secrets/azure/tokens",
-									ReadOnly:  true,
-								},
-							},
 						},
 					},
 				},
