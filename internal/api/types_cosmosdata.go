@@ -25,8 +25,20 @@ import (
 
 type CosmosMetadata = arm.CosmosMetadata
 
-func ToResourceGroupResourceIDString(subscriptionName, resourcGroupName string) string {
-	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourcGroupName))
+func ToSubscriptionResourceIDString(subscriptionID string) string {
+	return strings.ToLower(path.Join("/subscriptions", subscriptionID))
+}
+
+func ToSubscriptionResourceID(subscriptionID string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToSubscriptionResourceIDString(subscriptionID))
+}
+
+func ToResourceGroupResourceIDString(subscriptionName, resourceGroupName string) string {
+	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourceGroupName))
+}
+
+func ToResourceGroupResourceID(subscriptionID, resourceGroupName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToResourceGroupResourceIDString(subscriptionID, resourceGroupName))
 }
 
 func ToClusterResourceID(subscriptionName, resourceGroupName, clusterName string) (*azcorearm.ResourceID, error) {
@@ -80,6 +92,22 @@ func ToOperationResourceIDString(subscriptionName, operationName string) string 
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,
 		"providers", OperationStatusResourceType.String(), operationName,
+	))
+}
+
+// ToManagementClusterResourceID constructs a Cosmos resource ID for a management cluster
+// using the subscription, resource group, and name from the AKS resource ID.
+func ToManagementClusterResourceID(subscriptionID, resourceGroupName, clusterName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToManagementClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
+}
+
+// ToManagementClusterResourceIDString returns the lowercased resource ID string
+// for a management cluster derived from the AKS cluster's subscription, resource group, and name.
+func ToManagementClusterResourceIDString(subscriptionID, resourceGroupName, clusterName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionID,
+		"resourceGroups", resourceGroupName,
+		"providers", ManagementClusterResourceType.String(), clusterName,
 	))
 }
 

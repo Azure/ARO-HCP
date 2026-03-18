@@ -30,6 +30,7 @@ const (
 	externalAuthKey          = "external_auth_config/external_auths"
 	breakGlassCredentialKey  = "break_glass_credentials"
 	clusterProvisionShardKey = "provision_shard"
+	provisionShardKey        = "provision_shards"
 )
 
 var (
@@ -44,6 +45,7 @@ var (
 	aroHcpV1Alpha1NodePoolPattern              = path.Join(aroHcpV1Alpha1ClusterPattern, nodePoolKey, "*")
 	aroHcpV1Alpha1ExternalAuthPattern          = path.Join(aroHcpV1Alpha1ClusterPattern, externalAuthKey, "*")
 	aroHcpV1Alpha1ClusterProvisionShardPattern = path.Join(aroHcpV1Alpha1ClusterPattern, clusterProvisionShardKey) + "$"
+	aroHcpV1Alpha1ProvisionShardPattern        = path.Join(aroHcpV1Alpha1Pattern, provisionShardKey, "*")
 )
 
 // InternalID represents a Cluster Service resource.
@@ -101,6 +103,11 @@ func (id *InternalID) validate() error {
 		return nil
 	}
 
+	if match, _ = path.Match(aroHcpV1Alpha1ProvisionShardPattern, id.path); match {
+		id.kind = arohcpv1alpha1.ProvisionShardKind
+		return nil
+	}
+
 	return fmt.Errorf("invalid InternalID: %q", id.path)
 }
 
@@ -139,6 +146,7 @@ func (id *InternalID) ID() string {
 	return path.Base(id.path)
 }
 
+// Path returns the full API path of the resource.
 func (id *InternalID) Path() string {
 	return id.path
 }

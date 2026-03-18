@@ -721,6 +721,20 @@ func newMockManagementClusterContentCRUD(client *MockDBClient, parentResourceID 
 
 var _ database.ManagementClusterContentCRUD = &mockManagementClusterContentCRUD{}
 
+// mockManagementClusterCRUD implements database.ResourceCRUD[api.ManagementCluster].
+type mockManagementClusterCRUD struct {
+	*mockResourceCRUD[api.ManagementCluster, database.GenericDocument[api.ManagementCluster]]
+}
+
+func newMockManagementClusterCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockManagementClusterCRUD {
+	return &mockManagementClusterCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.ManagementCluster, database.GenericDocument[api.ManagementCluster]](
+			client, parentResourceID, api.ManagementClusterResourceType),
+	}
+}
+
+var _ database.ResourceCRUD[api.ManagementCluster] = &mockManagementClusterCRUD{}
+
 // mockUntypedCRUD implements database.UntypedResourceCRUD.
 type mockUntypedCRUD struct {
 	client           *MockDBClient

@@ -61,6 +61,7 @@ const (
 	AllOperationsRelistDuration            = 30 * time.Second
 	ActiveOperationsRelistDuration         = 10 * time.Second
 	BillingRelistDuration                  = 30 * time.Second
+	ManagementClusterRelistDuration        = 30 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -597,6 +598,54 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 	)
 }
 
+// NewManagementClusterInformer creates an unstarted SharedIndexInformer for management clusters
+// with the default relist duration.
+func NewManagementClusterInformer(lister database.GlobalLister[api.ManagementCluster]) cache.SharedIndexInformer {
+	return NewManagementClusterInformerWithRelistDuration(lister, ManagementClusterRelistDuration)
+}
+
+// NewManagementClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for management clusters
+// with a configurable relist duration.
+func NewManagementClusterInformerWithRelistDuration(lister database.GlobalLister[api.ManagementCluster], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing management clusters")
+			defer logger.Info("finished listing management clusters")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.ManagementClusterList{}
+			list.ResourceVersion = "0"
+			for _, mc := range iter.Items(ctx) {
+				list.Items = append(list.Items, *mc)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&api.ManagementCluster{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByCSProvisionShard: managementClusterClusterServiceProvisionShardIDIndexFunc,
+			},
+		},
+	)
+}
+
 func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
 	case arm.CosmosMetadataAccessor:
@@ -714,4 +763,15 @@ func billingDocSubscriptionIndexFunc(obj interface{}) ([]string, error) {
 		return nil, nil
 	}
 	return []string{strings.ToLower(doc.SubscriptionID)}, nil
+}
+
+func managementClusterClusterServiceProvisionShardIDIndexFunc(obj interface{}) ([]string, error) {
+	mc, ok := obj.(*api.ManagementCluster)
+	if !ok {
+		return nil, utils.TrackError(fmt.Errorf("expected *api.ManagementCluster, got %T", obj))
+	}
+	if len(mc.Status.CSProvisionShardID.ID()) == 0 {
+		return nil, nil
+	}
+	return []string{mc.Status.CSProvisionShardID.ID()}, nil
 }

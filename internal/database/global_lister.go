@@ -50,6 +50,7 @@ type GlobalListers interface {
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
 	BillingDocs() GlobalLister[BillingDocument]
+	ManagementClusters() GlobalLister[api.ManagementCluster]
 }
 
 // cosmosGlobalListers implements GlobalListers using a Cosmos DB container client.
@@ -134,6 +135,13 @@ func (g *cosmosGlobalListers) Operations() GlobalLister[api.Operation] {
 	return &cosmosGlobalLister[api.Operation, GenericDocument[api.Operation]]{
 		containerClient: g.resources,
 		resourceType:    api.OperationStatusResourceType,
+	}
+}
+
+func (g *cosmosGlobalListers) ManagementClusters() GlobalLister[api.ManagementCluster] {
+	return &cosmosGlobalLister[api.ManagementCluster, GenericDocument[api.ManagementCluster]]{
+		containerClient: g.resources,
+		resourceType:    api.ManagementClusterResourceType,
 	}
 }
 

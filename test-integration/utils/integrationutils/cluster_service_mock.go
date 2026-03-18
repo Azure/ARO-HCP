@@ -255,6 +255,17 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		}
 		return ret, nil
 	}).AnyTimes()
+	s.MockClusterServiceClient.EXPECT().ListProvisionShards().DoAndReturn(func() ocm.ProvisionShardListIterator {
+		allObjs := []*csarhcpv1alpha1.ProvisionShard{}
+		for _, key := range sets.StringKeySet(internalIDToProvisionShard).List() {
+			obj, err := mergeClusterServiceInstance[csarhcpv1alpha1.ProvisionShard](internalIDToProvisionShard[key])
+			if err != nil {
+				panic(fmt.Errorf("failed to merge provision shard id %q: %w", key, err))
+			}
+			allObjs = append(allObjs, obj)
+		}
+		return ocm.NewSimpleProvisionShardListIterator(allObjs, nil)
+	}).AnyTimes()
 	s.MockClusterServiceClient.EXPECT().GetClusterHypershiftDetails(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*cmv1.HypershiftConfig, error) {
 		ret, err := mergeClusterServiceInstance[cmv1.HypershiftConfig](internalIDToHypershiftDetails[id.String()])
 		if err != nil {

@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthpropertiescontroller"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/managementclustercontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metricscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepoolpropertiescontroller"
@@ -290,6 +291,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
+	_, managementClusterLister := backendInformers.ManagementClusters()
 
 	operationPhaseMetricsController := metricscontrollers.NewController(
 		"OperationPhaseMetrics", backendInformers.AllOperations(), metricscontrollers.NewOperationPhaseMetricsHandler(b.options.metricsRegisterer()))
@@ -479,18 +481,28 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.CosmosDBClient,
 		backendInformers,
 	)
-
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
 	)
-
 	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
+		backendInformers,
+	)
+	managementClusterSyncController := managementclustercontrollers.NewManagementClusterSyncController(
+		b.options.ClustersServiceClient,
+		b.options.CosmosDBClient,
+		managementClusterLister,
+	)
+	placementSyncController := managementclustercontrollers.NewManagementClusterPlacementSyncController(
+		b.options.CosmosDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		managementClusterLister,
 		backendInformers,
 	)
 
@@ -573,6 +585,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
 				go externalAuthMetricsController.Run(ctx, 1)
+				go managementClusterSyncController.Run(ctx, 1)
+				go placementSyncController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

@@ -77,6 +77,7 @@ const (
 	RequestAdminCredentialActionTypeName     = "requestadmincredential"
 	RevokeAdminCredentialsActionTypeName     = "revokecredentials"
 	ManagementClusterContentResourceTypeName = "managementClusterContents"
+	ManagementClusterResourceTypeName        = "hcpManagementClusters"
 	ResourceTypeDisplay                      = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
@@ -94,6 +95,7 @@ var (
 	ExternalAuthControllerResourceType  = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
 	RequestAdminCredentialActionType    = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RequestAdminCredentialActionTypeName))
 	RevokeAdminCredentialsActionType    = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RevokeAdminCredentialsActionTypeName))
+	ManagementClusterResourceType       = azcorearm.NewResourceType(ProviderNamespace, ManagementClusterResourceTypeName)
 	// ClusterScopedManagementClusterContentResourceType is managementClusterContents nested directly under a Cluster
 	ClusterScopedManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ManagementClusterContentResourceTypeName))
 	// NodePoolScopedManagementClusterContentResourceType is managementClusterContents nested under a Node Pool

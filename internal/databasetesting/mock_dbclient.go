@@ -148,6 +148,13 @@ func (m *MockDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupNam
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
+// ManagementClusters returns a CRUD interface for management cluster resources
+// scoped to the given subscription and resource group.
+func (m *MockDBClient) ManagementClusters(subscriptionID, resourceGroupName string) database.ManagementClusterCRUD {
+	parentResourceID := api.Must(api.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+	return newMockManagementClusterCRUD(m, parentResourceID)
+}
+
 // LoadFromDirectory loads cosmos-record context data from a directory.
 // It reads all JSON files that match the pattern for "load" directories.
 func (m *MockDBClient) LoadFromDirectory(dirPath string) error {

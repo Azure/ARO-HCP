@@ -40,6 +40,7 @@ type BackendInformers interface {
 	// to different resource types.
 	ManagementClusterContents() (cache.SharedIndexInformer, listers.ManagementClusterContentLister)
 	BillingDocs() (cache.SharedIndexInformer, listers.BillingLister)
+	ManagementClusters() (cache.SharedIndexInformer, listers.ManagementClusterLister)
 
 	RunWithContext(ctx context.Context)
 }
@@ -68,13 +69,17 @@ type backendInformers struct {
 	serviceProviderNodePoolInformer cache.SharedIndexInformer
 	serviceProviderNodePoolLister   listers.ServiceProviderNodePoolLister
 
-	controllerInformer               cache.SharedIndexInformer
-	controllerLister                 listers.ControllerLister
+	controllerInformer cache.SharedIndexInformer
+	controllerLister   listers.ControllerLister
+
 	managementClusterContentInformer cache.SharedIndexInformer
 	managementClusterContentLister   listers.ManagementClusterContentLister
 
 	billingInformer cache.SharedIndexInformer
 	billingLister   listers.BillingLister
+
+	managementClusterInformer cache.SharedIndexInformer
+	managementClusterLister   listers.ManagementClusterLister
 }
 
 func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister) {
@@ -121,6 +126,10 @@ func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, listers.Bil
 	return b.billingInformer, b.billingLister
 }
 
+func (b *backendInformers) ManagementClusters() (cache.SharedIndexInformer, listers.ManagementClusterLister) {
+	return b.managementClusterInformer, b.managementClusterLister
+}
+
 func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
 	return NewBackendInformersWithRelistDuration(ctx, globalListers, nil)
 }
@@ -137,6 +146,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	allOperationsRelistDuration := AllOperationsRelistDuration
 	activeOperationsRelistDuration := ActiveOperationsRelistDuration
 	billingRelistDuration := BillingRelistDuration
+	managementClusterRelistDuration := ManagementClusterRelistDuration
 	if relistDuration != nil {
 		subscriptionRelistDuration = *relistDuration
 		clusterRelistDuration = *relistDuration
@@ -149,6 +159,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 		allOperationsRelistDuration = *relistDuration
 		activeOperationsRelistDuration = *relistDuration
 		billingRelistDuration = *relistDuration
+		managementClusterRelistDuration = *relistDuration
 	}
 
 	ret := &backendInformers{}
@@ -163,7 +174,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.controllerInformer = NewControllerInformerWithRelistDuration(globalListers.Controllers(), controllerRelistDuration)
 	ret.managementClusterContentInformer = NewManagementClusterContentInformerWithRelistDuration(globalListers.ManagementClusterContents(), managementClusterContentRelistDuration)
 	ret.billingInformer = NewBillingInformerWithRelistDuration(globalListers.BillingDocs(), billingRelistDuration)
-
+	ret.managementClusterInformer = NewManagementClusterInformerWithRelistDuration(globalListers.ManagementClusters(), managementClusterRelistDuration)
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
 	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
 	ret.clusterLister = listers.NewClusterLister(ret.clusterInformer.GetIndexer())
@@ -174,6 +185,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.controllerLister = listers.NewControllerLister(ret.controllerInformer.GetIndexer())
 	ret.managementClusterContentLister = listers.NewManagementClusterContentLister(ret.managementClusterContentInformer.GetIndexer())
 	ret.billingLister = listers.NewBillingLister(ret.billingInformer.GetIndexer())
+	ret.managementClusterLister = listers.NewManagementClusterLister(ret.managementClusterInformer.GetIndexer())
 
 	return ret
 }
@@ -239,6 +251,11 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		b.billingInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.managementClusterInformer.RunWithContext(ctx)
 	}()
 
 	<-ctx.Done()
