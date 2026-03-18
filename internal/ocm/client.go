@@ -32,7 +32,8 @@ import (
 // The patch version is managed by Red Hat.
 const (
 	OpenShift419Patch = "7"
-	OpenShift420Patch = "15"
+	OpenShift420Patch = "16"
+	OpenShift421Patch = "5"
 )
 
 // CS cluster property keys and values used in the Cluster Service API.
@@ -816,6 +817,8 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 				parts = append(parts, OpenShift419Patch)
 			case "4.20":
 				parts = append(parts, OpenShift420Patch)
+			case "4.21":
+				parts = append(parts, OpenShift421Patch)
 			default:
 				parts = append(parts, "0")
 			}
