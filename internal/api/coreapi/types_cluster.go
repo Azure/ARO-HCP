@@ -36,7 +36,7 @@ type HCPOpenShiftCluster struct {
 	CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`
 	// Written by: Frontend PUT/PATCH/DELETE Cluster, all Operation*Cluster controllers, ClusterPropertiesSync, ClusterClusterServiceCreate, ClusterDeletion* controllers, CreateBillingDoc
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	// Written by: Frontend PUT/PATCH Cluster (Create/Update), IdentityMigration
+	// Written by: Frontend PUT/PATCH Cluster (Create/Update), ClusterIdentitySync
 	Identity *ManagedServiceIdentity `json:"identity,omitempty"`
 	// Written by: ClusterDegradedAggregator, ClusterRequirementsValidAggregator
 	Status HCPOpenShiftClusterStatus `json:"status"`
