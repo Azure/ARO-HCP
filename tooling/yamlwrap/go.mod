@@ -13,8 +13,7 @@ require (
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260309172949-8176eed3f66a // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
