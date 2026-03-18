@@ -22,8 +22,6 @@ import (
 	"os"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -84,7 +82,6 @@ func DefaultOpenshiftControlPlaneVersionId() string {
 	if version == "" {
 		version = DefaultOCPVersionId
 	}
-	GinkgoLogr.Info("Using OpenShift control plane version", "version", version)
 	return version
 }
 
@@ -93,7 +90,6 @@ func DefaultOpenshiftChannelGroup() string {
 	if channelGroup == "" {
 		channelGroup = DefaultOCPChannelGroup
 	}
-	GinkgoLogr.Info("Using OpenShift channel group", "channelGroup", channelGroup)
 	return channelGroup
 }
 
@@ -102,7 +98,6 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	if version == "" {
 		version = DefaultOCPNodePoolVersionId
 	}
-	GinkgoLogr.Info("Using OpenShift node pool version", "version", version)
 	return version
 }
 
@@ -111,7 +106,6 @@ func DefaultOpenshiftNodePoolChannelGroup() string {
 	if channelGroup == "" {
 		channelGroup = DefaultOCPNodePoolChannelGroup
 	}
-	GinkgoLogr.Info("Using OpenShift node pool channel group", "channelGroup", channelGroup)
 	return channelGroup
 }
 

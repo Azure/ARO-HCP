@@ -51,6 +51,7 @@ var (
 	// ARM templates) to communicate with ARO HCP RP, so that it can run
 	// against either ARO HCP RP or ARM endpoint.
 	AroRpApiCompatible = ginkgo.Label("ARO-HCP-RP-API-Compatible")
+	Nightly            = ginkgo.Label("Nightly")
 )
 
 // Environments this test can be used in.

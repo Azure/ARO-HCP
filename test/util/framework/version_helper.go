@@ -16,7 +16,9 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -75,6 +77,56 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 	}
 
 	return pickInstallVersionWithNextMinorPreference(ctx, client, cincinnatiURI, channelGroup, configuredVersion, candidates)
+}
+
+// GetInstallVersionForNightlyUpgrade returns the latest accepted nightly tag for the given minor version
+// (for example "4.19" -> "4.19.0-0.nightly-multi-YYYY-MM-DD-HHMMSS").
+func GetInstallVersionForNightlyUpgrade(ctx context.Context, version string) (string, error) {
+	releaseStream := fmt.Sprintf("%s.0-0.nightly-multi", version)
+	releaseTagsURL := fmt.Sprintf("https://multi.ocp.releases.ci.openshift.org/api/v1/releasestream/%s/tags?phase=Accepted", url.PathEscape(releaseStream))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, releaseTagsURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("create nightly tags request for %s: %w", releaseStream, err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("query nightly tags for %s: %w", releaseStream, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("query nightly tags for %s returned %s: %s", releaseStream, resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Tags []struct {
+			Name string `json:"name"`
+		} `json:"tags"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", fmt.Errorf("decode nightly tags response for %s: %w", releaseStream, err)
+	}
+	if len(payload.Tags) == 0 {
+		return "", fmt.Errorf("no accepted nightly tags found for %s", releaseStream)
+	}
+
+	latestTagName := payload.Tags[0].Name
+	latestTagVersion, latestTagErr := semver.ParseTolerant(latestTagName)
+
+	for _, tag := range payload.Tags[1:] {
+		candidateVersion, candidateErr := semver.ParseTolerant(tag.Name)
+		if latestTagErr != nil || (candidateErr == nil && candidateVersion.GT(latestTagVersion)) {
+			latestTagName = tag.Name
+			latestTagVersion = candidateVersion
+			latestTagErr = candidateErr
+		}
+	}
+
+	return latestTagName, nil
 }
 
 // pickInstallVersionWithNextMinorPreference chooses an install version from versionsInSameMinor (sorted descending, latest first).

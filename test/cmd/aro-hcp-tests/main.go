@@ -44,6 +44,10 @@ func slowTestsOnly(query string) string {
 	return fmt.Sprintf("%s && labels.exists(l, l==\"%s\")", query, labels.Slow[0])
 }
 
+func nightlyChannelOnly(query string) string {
+	return fmt.Sprintf("%s && labels.exists(l, l==\"%s\")", query, labels.Nightly[0])
+}
+
 func setupCli() *cobra.Command {
 	// Extension registry
 	registry := e.NewRegistry()
@@ -56,6 +60,7 @@ func setupCli() *cobra.Command {
 	// The tests that a suite is composed of can be filtered by CEL expressions. By
 	// default, the qualifiers only apply to tests from this extension.
 	integrationQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.DevelopmentOnly[0])
+
 	ext.AddSuite(e.Suite{
 		Name: "integration/parallel",
 		Qualifiers: []string{
@@ -75,6 +80,13 @@ func setupCli() *cobra.Command {
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
 		// LEASED_MSI_CONTAINERS=20
+		Parallelism: 24,
+	})
+	ext.AddSuite(e.Suite{
+		Name: "integration/ocp-nightly/parallel",
+		Qualifiers: []string{
+			nightlyChannelOnly(integrationQuery),
+		},
 		Parallelism: 24,
 	})
 
@@ -99,6 +111,13 @@ func setupCli() *cobra.Command {
 		// LEASED_MSI_CONTAINERS=30
 		Parallelism: 34,
 	})
+	ext.AddSuite(e.Suite{
+		Name: "stage/ocp-nightly/parallel",
+		Qualifiers: []string{
+			nightlyChannelOnly(stageQuery),
+		},
+		Parallelism: 34,
+	})
 
 	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0])
 	ext.AddSuite(e.Suite{
@@ -119,6 +138,13 @@ func setupCli() *cobra.Command {
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
 		// LEASED_MSI_CONTAINERS=15
+		Parallelism: 19,
+	})
+	ext.AddSuite(e.Suite{
+		Name: "prod/ocp-nightly/parallel",
+		Qualifiers: []string{
+			nightlyChannelOnly(prodQuery),
+		},
 		Parallelism: 19,
 	})
 
