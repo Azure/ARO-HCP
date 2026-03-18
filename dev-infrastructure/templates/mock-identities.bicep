@@ -75,7 +75,6 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.Network/virtualNetworks/subnets/serviceAssociationLinks/validate/action'
           'Microsoft.Resources/subscriptions/resourceGroups/read'
           'Microsoft.Resources/subscriptions/resourceGroups/write'
-          'Microsoft.Authorization/*/action'
         ]
         notActions: []
       }
