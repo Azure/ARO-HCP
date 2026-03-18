@@ -1247,6 +1247,10 @@ func (in *HCPOpenShiftClusterServiceProviderProperties) DeepCopyInto(out *HCPOpe
 		in, out := &in.DeleteOperationCompletionDeadline, &out.DeleteOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
+	if in.MSIIdentitiesEarliestRecheckTime != nil {
+		in, out := &in.MSIIdentitiesEarliestRecheckTime, &out.MSIIdentitiesEarliestRecheckTime
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 

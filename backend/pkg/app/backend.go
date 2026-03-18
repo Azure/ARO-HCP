@@ -36,6 +36,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billing"
 	clustercreation "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/creation"
 	credentialsoperations "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/credentials/operations"
@@ -893,6 +894,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	fetchMSIIdentitiesInfoController := controllers.NewFetchMSIIdentitiesInfoController(
+		b.clock,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		b.options.FPAMIDataplaneClientBuilder,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -990,6 +998,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
+				go fetchMSIIdentitiesInfoController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
