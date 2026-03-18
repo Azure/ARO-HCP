@@ -15,7 +15,6 @@
 package v20240610preview
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -36,16 +35,6 @@ var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth] = &Ext
 
 func (h *ExternalAuth) NewExternal() any {
 	return &ExternalAuth{}
-}
-
-func (h *ExternalAuth) SetDefaultValues(uncast any) error {
-	obj, ok := uncast.(*ExternalAuth)
-	if !ok {
-		return fmt.Errorf("unexpected type %T", uncast)
-	}
-
-	SetDefaultValuesExternalAuth(obj)
-	return nil
 }
 
 func SetDefaultValuesExternalAuth(obj *ExternalAuth) {
@@ -70,7 +59,7 @@ func (h *ExternalAuth) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *ExternalAuth) ConvertToInternal() (*api.HCPOpenShiftClusterExternalAuth, error) {
+func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
 	out := &api.HCPOpenShiftClusterExternalAuth{}
 
 	if h.ID != nil {
@@ -129,7 +118,17 @@ func (h *ExternalAuth) ConvertToInternal() (*api.HCPOpenShiftClusterExternalAuth
 		}
 	}
 
+	if existing != nil {
+		preserveUnknownExternalAuthFields(existing, out)
+	}
+
 	return out, nil
+}
+
+// preserveUnknownExternalAuthFields copies customer-facing fields from existing that
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
+func preserveUnknownExternalAuthFields(from, to *api.HCPOpenShiftClusterExternalAuth) {
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
@@ -142,7 +141,7 @@ func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, 
 	}
 	out.ExtraScopes = make([]string, len(p.ExtraScopes))
 	for i := range p.ExtraScopes {
-		if p.ExtraScopes != nil {
+		if p.ExtraScopes[i] != nil {
 			out.ExtraScopes[i] = *p.ExtraScopes[i]
 		}
 	}

@@ -225,18 +225,17 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 		systemData.CreatedAt = ptr.To(time.Now().UTC())
 	}
 
-	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(&api.HCPOpenShiftClusterExternalAuth{})
+	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	if err := externalExternalAuthFromRequest.SetDefaultValues(externalExternalAuthFromRequest); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal()
+	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal(nil)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// Backstop for fields unknown to this API version's SetDefaultValues*.
+	// See docs/api-version-defaults-and-storage.md.
+	newInternalExternalAuth.EnsureDefaults()
 	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalExternalAuth.Name)
 	}
@@ -391,17 +390,12 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 	// Initialize versionedRequestExternalAuth to include both
 	// non-zero default values and current read-only values.
 	// Exact user request
-	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(&api.HCPOpenShiftClusterExternalAuth{})
+	externalExternalAuthFromRequest := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	// Default values
-	if err := externalExternalAuthFromRequest.SetDefaultValues(externalExternalAuthFromRequest); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal()
+	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal(oldInternalExternalAuth)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -457,7 +451,7 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalExternalAuth, err := newExternalExternalAuth.ConvertToInternal()
+	newInternalExternalAuth, err := newExternalExternalAuth.ConvertToInternal(oldInternalExternalAuth)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

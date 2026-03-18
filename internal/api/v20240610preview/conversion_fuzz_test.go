@@ -72,7 +72,10 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
-			// we cannot properly roundtrip a zero value here, so nil when that happens
+			// A zero-value KmsEncryptionProfile cannot roundtrip because
+			// PtrOrNil collapses the all-zero KmsKey to nil on the external
+			// type, causing normalizeCustomerManaged to skip Kms entirely
+			// (its p.Kms.ActiveKey != nil guard is false).
 			zeroValueKMS := api.KmsEncryptionProfile{}
 			if j.Kms != nil && *j.Kms == zeroValueKMS {
 				j.Kms = nil
@@ -120,7 +123,7 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
@@ -138,7 +141,7 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
@@ -156,7 +159,7 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected

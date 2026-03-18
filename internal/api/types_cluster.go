@@ -219,14 +219,14 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
 			Version: VersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: DefaultClusterVersionChannelGroup,
 			},
 			Network: NetworkProfile{
 				NetworkType: NetworkTypeOVNKubernetes,
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-				HostPrefix:  23,
+				PodCIDR:     DefaultClusterNetworkPodCIDR,
+				ServiceCIDR: DefaultClusterNetworkServiceCIDR,
+				MachineCIDR: DefaultClusterNetworkMachineCIDR,
+				HostPrefix:  DefaultClusterNetworkHostPrefix,
 			},
 			API: CustomerAPIProfile{
 				Visibility: VisibilityPublic,
@@ -235,9 +235,9 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				OutboundType: OutboundTypeLoadBalancer,
 			},
 			Autoscaling: ClusterAutoscalingProfile{
-				MaxPodGracePeriodSeconds:    600,
-				MaxNodeProvisionTimeSeconds: 900,
-				PodPriorityThreshold:        -10,
+				MaxPodGracePeriodSeconds:    DefaultClusterMaxPodGracePeriodSeconds,
+				MaxNodeProvisionTimeSeconds: DefaultClusterMaxNodeProvisionTimeSeconds,
+				PodPriorityThreshold:        DefaultClusterPodPriorityThreshold,
 			},
 			//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
 			Etcd: EtcdProfile{
@@ -249,6 +249,32 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				State: ClusterImageRegistryStateEnabled,
 			},
 		},
+	}
+}
+
+// EnsureDefaults fills in default values for fields that may be absent in
+// Cosmos documents created before the field was introduced, or on the create
+// and preflight paths where the internal type is constructed from external input.
+// Only fields where the zero value is never valid user input are safe to default
+// here (string enums). See the DDR at docs/api-version-defaults-and-storage.md.
+//
+// This method should be treated as append-only. Avoid removing defaulting
+// rules until all Cosmos documents have been verified to contain the field.
+func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
+	if len(cluster.CustomerProperties.Network.NetworkType) == 0 {
+		cluster.CustomerProperties.Network.NetworkType = NetworkTypeOVNKubernetes
+	}
+	if len(cluster.CustomerProperties.API.Visibility) == 0 {
+		cluster.CustomerProperties.API.Visibility = VisibilityPublic
+	}
+	if len(cluster.CustomerProperties.Platform.OutboundType) == 0 {
+		cluster.CustomerProperties.Platform.OutboundType = OutboundTypeLoadBalancer
+	}
+	if len(cluster.CustomerProperties.ClusterImageRegistry.State) == 0 {
+		cluster.CustomerProperties.ClusterImageRegistry.State = ClusterImageRegistryStateEnabled
+	}
+	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
+		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 	}
 }
 

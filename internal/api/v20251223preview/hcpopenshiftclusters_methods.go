@@ -15,7 +15,6 @@
 package v20251223preview
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -40,16 +39,6 @@ func (h *HcpOpenShiftCluster) NewExternal() any {
 	return &HcpOpenShiftCluster{}
 }
 
-func (h *HcpOpenShiftCluster) SetDefaultValues(uncast any) error {
-	obj, ok := uncast.(*HcpOpenShiftCluster)
-	if !ok {
-		return fmt.Errorf("unexpected type %T", uncast)
-	}
-
-	SetDefaultValuesCluster(obj)
-	return nil
-}
-
 func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties == nil {
 		obj.Properties = &generated.HcpOpenShiftClusterProperties{}
@@ -58,7 +47,7 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Version = &generated.VersionProfile{}
 	}
 	if obj.Properties.Version.ChannelGroup == nil {
-		obj.Properties.Version.ChannelGroup = ptr.To("stable")
+		obj.Properties.Version.ChannelGroup = ptr.To(api.DefaultClusterVersionChannelGroup)
 	}
 	if obj.Properties.Network == nil {
 		obj.Properties.Network = &generated.NetworkProfile{}
@@ -67,16 +56,16 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Network.NetworkType = ptr.To(generated.NetworkTypeOVNKubernetes)
 	}
 	if obj.Properties.Network.PodCIDR == nil {
-		obj.Properties.Network.PodCIDR = ptr.To("10.128.0.0/14")
+		obj.Properties.Network.PodCIDR = ptr.To(api.DefaultClusterNetworkPodCIDR)
 	}
 	if obj.Properties.Network.ServiceCIDR == nil {
-		obj.Properties.Network.ServiceCIDR = ptr.To("172.30.0.0/16")
+		obj.Properties.Network.ServiceCIDR = ptr.To(api.DefaultClusterNetworkServiceCIDR)
 	}
 	if obj.Properties.Network.MachineCIDR == nil {
-		obj.Properties.Network.MachineCIDR = ptr.To("10.0.0.0/16")
+		obj.Properties.Network.MachineCIDR = ptr.To(api.DefaultClusterNetworkMachineCIDR)
 	}
 	if obj.Properties.Network.HostPrefix == nil {
-		obj.Properties.Network.HostPrefix = ptr.To(int32(23))
+		obj.Properties.Network.HostPrefix = ptr.To(api.DefaultClusterNetworkHostPrefix)
 	}
 	if obj.Properties.API == nil {
 		obj.Properties.API = &generated.APIProfile{}
@@ -101,13 +90,13 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 		obj.Properties.Autoscaling = &generated.ClusterAutoscalingProfile{}
 	}
 	if obj.Properties.Autoscaling.MaxPodGracePeriodSeconds == nil {
-		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(int32(600))
+		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(api.DefaultClusterMaxPodGracePeriodSeconds)
 	}
 	if obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds == nil {
-		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(int32(900))
+		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(api.DefaultClusterMaxNodeProvisionTimeSeconds)
 	}
 	if obj.Properties.Autoscaling.PodPriorityThreshold == nil {
-		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(int32(-10))
+		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(api.DefaultClusterPodPriorityThreshold)
 	}
 	//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
 	// TODO cannot change the default value for this version, but why keep it in our new version?
@@ -157,7 +146,8 @@ func newNetworkProfile(from *api.NetworkProfile) generated.NetworkProfile {
 		PodCIDR:     api.PtrOrNil(from.PodCIDR),
 		ServiceCIDR: api.PtrOrNil(from.ServiceCIDR),
 		MachineCIDR: api.PtrOrNil(from.MachineCIDR),
-		HostPrefix:  api.PtrOrNil(from.HostPrefix),
+		// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
+		HostPrefix: api.Ptr(from.HostPrefix),
 	}
 }
 
@@ -200,10 +190,12 @@ func newClusterAutoscalingProfile(from *api.ClusterAutoscalingProfile) generated
 		return generated.ClusterAutoscalingProfile{}
 	}
 	return generated.ClusterAutoscalingProfile{
-		MaxNodeProvisionTimeSeconds: api.PtrOrNil(from.MaxNodeProvisionTimeSeconds),
+		// Use Ptr (not PtrOrNil) for int32 fields where zero is a valid user value,
+		// ensuring explicit zeros are preserved in JSON responses.
+		MaxNodeProvisionTimeSeconds: api.Ptr(from.MaxNodeProvisionTimeSeconds),
 		MaxNodesTotal:               api.PtrOrNil(from.MaxNodesTotal),
-		MaxPodGracePeriodSeconds:    api.PtrOrNil(from.MaxPodGracePeriodSeconds),
-		PodPriorityThreshold:        api.PtrOrNil(from.PodPriorityThreshold),
+		MaxPodGracePeriodSeconds:    api.Ptr(from.MaxPodGracePeriodSeconds),
+		PodPriorityThreshold:        api.Ptr(from.PodPriorityThreshold),
 	}
 }
 
@@ -307,6 +299,9 @@ func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) *generated.Mana
 	}
 }
 
+// NewHCPOpenShiftCluster converts an internal representation to this API version.
+// If from is nil, returns a defaulted external object for use on the write path
+// where defaults are applied before unmarshaling the request body.
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
 		ret := &HcpOpenShiftCluster{}
@@ -328,15 +323,16 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			Location:   api.PtrOrNil(from.Location),
 			Tags:       api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.HcpOpenShiftClusterProperties{
-				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.ServiceProviderProperties.ProvisioningState)),
-				Version:                 api.PtrOrNil(newVersionProfile(&from.CustomerProperties.Version)),
-				DNS:                     api.PtrOrNil(newDNSProfile(&from.CustomerProperties.DNS, &from.ServiceProviderProperties.DNS)),
-				Network:                 api.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
-				Console:                 api.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
-				API:                     api.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
-				Platform:                api.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
-				Autoscaling:             api.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
-				NodeDrainTimeoutMinutes: api.PtrOrNil(from.CustomerProperties.NodeDrainTimeoutMinutes),
+				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.ServiceProviderProperties.ProvisioningState)),
+				Version:           api.PtrOrNil(newVersionProfile(&from.CustomerProperties.Version)),
+				DNS:               api.PtrOrNil(newDNSProfile(&from.CustomerProperties.DNS, &from.ServiceProviderProperties.DNS)),
+				Network:           api.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
+				Console:           api.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
+				API:               api.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
+				Platform:          api.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
+				Autoscaling:       api.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
+				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
+				NodeDrainTimeoutMinutes: api.Ptr(from.CustomerProperties.NodeDrainTimeoutMinutes),
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 			},
@@ -351,9 +347,30 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, error) {
+func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
 	out := &api.HCPOpenShiftCluster{}
 	errs := field.ErrorList{}
+
+	// Reject null on required fields. On the PATCH path, JSON merge-patch
+	// converts explicit null to a nil pointer. On the PUT path, defaults
+	// are applied before the request body so nil here means the user
+	// explicitly sent null (mergo does not override with nil).
+	if c.Properties != nil {
+		if c.Properties.Network != nil && c.Properties.Network.HostPrefix == nil {
+			errs = append(errs, field.Required(field.NewPath("properties", "network", "hostPrefix"), "field cannot be null"))
+		}
+		if c.Properties.Autoscaling != nil {
+			if c.Properties.Autoscaling.MaxPodGracePeriodSeconds == nil {
+				errs = append(errs, field.Required(field.NewPath("properties", "autoscaling", "maxPodGracePeriodSeconds"), "field cannot be null"))
+			}
+			if c.Properties.Autoscaling.MaxNodeProvisionTimeSeconds == nil {
+				errs = append(errs, field.Required(field.NewPath("properties", "autoscaling", "maxNodeProvisionTimeSeconds"), "field cannot be null"))
+			}
+			if c.Properties.Autoscaling.PodPriorityThreshold == nil {
+				errs = append(errs, field.Required(field.NewPath("properties", "autoscaling", "podPriorityThreshold"), "field cannot be null"))
+			}
+		}
+	}
 
 	if c.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
@@ -397,41 +414,47 @@ func (c *HcpOpenShiftCluster) ConvertToInternal() (*api.HCPOpenShiftCluster, err
 		if c.Properties.ProvisioningState != nil {
 			out.ServiceProviderProperties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
 		}
-		if c.Properties != nil {
-			if c.Properties.Version != nil {
-				normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
-			}
-			if c.Properties.DNS != nil {
-				normalizeDNS(c.Properties.DNS, &out.CustomerProperties.DNS, &out.ServiceProviderProperties.DNS)
-			}
-			if c.Properties.Network != nil {
-				normalizeNetwork(c.Properties.Network, &out.CustomerProperties.Network)
-			}
-			if c.Properties.Console != nil {
-				normalizeConsole(c.Properties.Console, &out.ServiceProviderProperties.Console)
-			}
-			if c.Properties.API != nil {
-				normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
-			}
-			if c.Properties.Platform != nil {
-				errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
-			}
-			if c.Properties.Autoscaling != nil {
-				normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
-			}
-			if c.Properties.NodeDrainTimeoutMinutes != nil {
-				out.CustomerProperties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
-			}
-			if c.Properties.ClusterImageRegistry != nil {
-				normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
-			}
-			if c.Properties.Etcd != nil {
-				normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
-			}
+		if c.Properties.Version != nil {
+			normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
+		}
+		if c.Properties.DNS != nil {
+			normalizeDNS(c.Properties.DNS, &out.CustomerProperties.DNS, &out.ServiceProviderProperties.DNS)
+		}
+		if c.Properties.Network != nil {
+			normalizeNetwork(c.Properties.Network, &out.CustomerProperties.Network)
+		}
+		if c.Properties.Console != nil {
+			normalizeConsole(c.Properties.Console, &out.ServiceProviderProperties.Console)
+		}
+		if c.Properties.API != nil {
+			normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
+		}
+		if c.Properties.Platform != nil {
+			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
+		}
+		if c.Properties.Autoscaling != nil {
+			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
+		}
+		out.CustomerProperties.NodeDrainTimeoutMinutes = api.Deref(c.Properties.NodeDrainTimeoutMinutes)
+		if c.Properties.ClusterImageRegistry != nil {
+			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
+		}
+		if c.Properties.Etcd != nil {
+			normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
 		}
 	}
 
+	if existing != nil {
+		preserveUnknownClusterFields(existing, out)
+	}
+
 	return out, arm.CloudErrorFromFieldErrors(errs)
+}
+
+// preserveUnknownClusterFields copies customer-facing fields from existing that
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
+func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
@@ -457,108 +480,78 @@ func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.M
 }
 
 func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
-	if p.ID != nil {
-		out.ID = *p.ID
-	}
-	if p.ChannelGroup != nil {
-		out.ChannelGroup = *p.ChannelGroup
-	}
+	out.ID = api.Deref(p.ID)
+	out.ChannelGroup = api.Deref(p.ChannelGroup)
 }
 
 func normalizeDNS(p *generated.DNSProfile, out *api.CustomerDNSProfile, out2 *api.ServiceProviderDNSProfile) {
-	if p.BaseDomain != nil {
-		out2.BaseDomain = *p.BaseDomain
-	}
-	if p.BaseDomainPrefix != nil {
-		out.BaseDomainPrefix = *p.BaseDomainPrefix
-	}
+	out2.BaseDomain = api.Deref(p.BaseDomain)
+	out.BaseDomainPrefix = api.Deref(p.BaseDomainPrefix)
 }
 
 func normalizeNetwork(p *generated.NetworkProfile, out *api.NetworkProfile) {
-	if p.NetworkType != nil {
-		out.NetworkType = api.NetworkType(*p.NetworkType)
-	}
-	if p.PodCIDR != nil {
-		out.PodCIDR = *p.PodCIDR
-	}
-	if p.ServiceCIDR != nil {
-		out.ServiceCIDR = *p.ServiceCIDR
-	}
-	if p.MachineCIDR != nil {
-		out.MachineCIDR = *p.MachineCIDR
-	}
-	if p.HostPrefix != nil {
-		out.HostPrefix = *p.HostPrefix
-	}
+	out.NetworkType = api.NetworkType(api.Deref(p.NetworkType))
+	out.PodCIDR = api.Deref(p.PodCIDR)
+	out.ServiceCIDR = api.Deref(p.ServiceCIDR)
+	out.MachineCIDR = api.Deref(p.MachineCIDR)
+	out.HostPrefix = api.Deref(p.HostPrefix)
 }
 
 func normalizeConsole(p *generated.ConsoleProfile, out *api.ServiceProviderConsoleProfile) {
-	if p.URL != nil {
-		out.URL = *p.URL
-	}
+	out.URL = api.Deref(p.URL)
 }
 
 func normalizeAPI(p *generated.APIProfile, out *api.CustomerAPIProfile, out2 *api.ServiceProviderAPIProfile) {
-	if p.URL != nil {
-		out2.URL = *p.URL
-	}
-	if p.Visibility != nil {
-		out.Visibility = api.Visibility(*p.Visibility)
-	}
+	out2.URL = api.Deref(p.URL)
+	out.Visibility = api.Visibility(api.Deref(p.Visibility))
 	out.AuthorizedCIDRs = api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
 }
 
 func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	if p.ManagedResourceGroup != nil {
-		out.ManagedResourceGroup = *p.ManagedResourceGroup
-	}
+	out.ManagedResourceGroup = api.Deref(p.ManagedResourceGroup)
 	if p.SubnetID != nil && len(*p.SubnetID) > 0 {
 		if resourceID, err := azcorearm.ParseResourceID(*p.SubnetID); err != nil {
 			errs = append(errs, field.Invalid(fldPath.Child("subnetID"), *p.SubnetID, err.Error()))
 		} else {
 			out.SubnetID = resourceID
 		}
+	} else {
+		out.SubnetID = nil
 	}
-	if p.OutboundType != nil {
-		out.OutboundType = api.OutboundType(*p.OutboundType)
-	}
+	out.OutboundType = api.OutboundType(api.Deref(p.OutboundType))
 	if p.NetworkSecurityGroupID != nil && len(*p.NetworkSecurityGroupID) > 0 {
 		if resourceID, err := azcorearm.ParseResourceID(*p.NetworkSecurityGroupID); err != nil {
 			errs = append(errs, field.Invalid(fldPath.Child("networkSecurityGroupID"), *p.NetworkSecurityGroupID, err.Error()))
 		} else {
 			out.NetworkSecurityGroupID = resourceID
 		}
+	} else {
+		out.NetworkSecurityGroupID = nil
 	}
 	if p.OperatorsAuthentication != nil {
 		errs = append(errs, normalizeOperatorsAuthentication(fldPath.Child("operatorsAuthentication"), p.OperatorsAuthentication, &out.OperatorsAuthentication)...)
+	} else {
+		out.OperatorsAuthentication = api.OperatorsAuthenticationProfile{}
 	}
-	if p.IssuerURL != nil {
-		out2.IssuerURL = *p.IssuerURL
-	}
+	out2.IssuerURL = api.Deref(p.IssuerURL)
 
 	return errs
 }
 
 func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.ClusterAutoscalingProfile) {
-	if p.MaxNodeProvisionTimeSeconds != nil {
-		out.MaxNodeProvisionTimeSeconds = *p.MaxNodeProvisionTimeSeconds
-	}
-	if p.MaxNodesTotal != nil {
-		out.MaxNodesTotal = *p.MaxNodesTotal
-	}
-	if p.MaxPodGracePeriodSeconds != nil {
-		out.MaxPodGracePeriodSeconds = *p.MaxPodGracePeriodSeconds
-	}
-	if p.PodPriorityThreshold != nil {
-		out.PodPriorityThreshold = *p.PodPriorityThreshold
-	}
+	out.MaxNodeProvisionTimeSeconds = api.Deref(p.MaxNodeProvisionTimeSeconds)
+	out.MaxNodesTotal = api.Deref(p.MaxNodesTotal)
+	out.MaxPodGracePeriodSeconds = api.Deref(p.MaxPodGracePeriodSeconds)
+	out.PodPriorityThreshold = api.Deref(p.PodPriorityThreshold)
 }
 
 func normalizeEtcd(p *generated.EtcdProfile, out *api.EtcdProfile) {
 	if p.DataEncryption != nil {
 		normalizeEtcdDataEncryptionProfile(p.DataEncryption, &out.DataEncryption)
+	} else {
+		out.DataEncryption = api.EtcdDataEncryptionProfile{}
 	}
 }
 
@@ -568,42 +561,32 @@ func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, 
 			out.CustomerManaged = &api.CustomerManagedEncryptionProfile{}
 		}
 		normalizeCustomerManaged(p.CustomerManaged, out.CustomerManaged)
+	} else {
+		out.CustomerManaged = nil
 	}
-	if p.KeyManagementMode != nil {
-		out.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeType(*p.KeyManagementMode)
-	}
+	out.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeType(api.Deref(p.KeyManagementMode))
 }
 
 func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *api.CustomerManagedEncryptionProfile) {
-	if p.EncryptionType != nil {
-		out.EncryptionType = api.CustomerManagedEncryptionType(*p.EncryptionType)
-	}
-	if p.Kms != nil {
+	out.EncryptionType = api.CustomerManagedEncryptionType(api.Deref(p.EncryptionType))
+	if p.Kms != nil && p.Kms.ActiveKey != nil && (p.Kms.ActiveKey.Name != nil || p.Kms.ActiveKey.Version != nil) {
 		if out.Kms == nil {
 			out.Kms = &api.KmsEncryptionProfile{}
 		}
-		if p.Kms.ActiveKey != nil {
-			normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
-		}
-		if p.Kms.VaultName != nil {
-			out.Kms.ActiveKey.VaultName = *p.Kms.VaultName
-		}
+		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
+		out.Kms.ActiveKey.VaultName = api.Deref(p.Kms.VaultName)
+	} else {
+		out.Kms = nil
 	}
 }
 
 func normalizeActiveKey(p *generated.KmsKey, out *api.KmsKey) {
-	if p.Name != nil {
-		out.Name = *p.Name
-	}
-	if p.Version != nil {
-		out.Version = *p.Version
-	}
+	out.Name = api.Deref(p.Name)
+	out.Version = api.Deref(p.Version)
 }
 
 func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out *api.ClusterImageRegistryProfile) {
-	if p.State != nil {
-		out.State = api.ClusterImageRegistryState(*p.State)
-	}
+	out.State = api.ClusterImageRegistryState(api.Deref(p.State))
 }
 
 func normalizeOperatorsAuthentication(fldPath *field.Path, p *generated.OperatorsAuthenticationProfile, out *api.OperatorsAuthenticationProfile) field.ErrorList {
