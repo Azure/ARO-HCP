@@ -329,6 +329,14 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	}
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
+	checkAccessV2ClientBuilder, err := app.NewCheckAccessV2ClientBuilder(
+		ctx, fpaTokenCredRetriever, f.InsecureAzureARMPermissionsManagerIdentityTenantID, f.InsecureAzureARMPermissionsManagerIdentityClientID,
+		f.InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath, azureConfig, f.AzureLocation,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create check access v2 client builder: %w", err))
+	}
+
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
 		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
@@ -358,6 +366,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,
+		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
 	}
 
 	return backendOptions, nil
