@@ -219,6 +219,12 @@ type ClusterImageRegistryProfile struct {
 type ImageDigestMirror struct {
 	Source  string   `json:"source,omitempty"`
 	Mirrors []string `json:"mirrors,omitempty"`
+
+	// MirrorSourcePolicy is not exposed in the customer-facing API as of
+	// v20251223preview, but is still recorded in CosmosDB so that, if we
+	// ever do expose this field, existing cluster documents in CosmosDB
+	// will not need to be migrated.
+	MirrorSourcePolicy MirrorSourcePolicy `json:"mirrorSourcePolicy,omitempty"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
@@ -283,6 +289,11 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
 		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+	}
+	for i := range cluster.CustomerProperties.ImageDigestMirrors {
+		if len(cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy) == 0 {
+			cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = MirrorSourcePolicyAllowContactingSource
+		}
 	}
 }
 

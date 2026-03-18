@@ -612,6 +612,7 @@ func normalizeImageDigestMirror(p *generated.ImageDigestMirror, out *api.ImageDi
 		out.Source = *p.Source
 	}
 	out.Mirrors = api.StringPtrSliceToStringSlice(p.Mirrors)
+	out.MirrorSourcePolicy = api.MirrorSourcePolicyAllowContactingSource
 }
 
 func normalizeImageDigestMirrors(p []*generated.ImageDigestMirror, out *[]api.ImageDigestMirror) {
