@@ -105,8 +105,10 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("ensuring the cluster is viable")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+			By("ensuring the cluster is viable and installed with the correct version")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.VerifyClusterInstalledVersion(clusterParams.OpenshiftVersionId, clusterParams.ChannelGroup),
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the node pool")
