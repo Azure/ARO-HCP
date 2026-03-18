@@ -435,6 +435,18 @@ func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 		to.CustomerProperties.ImageDigestMirrors = append(
 			to.CustomerProperties.ImageDigestMirrors, *idmFrom.DeepCopy())
 	}
+	// VnetIntegrationSubnetID was added in v2025_12_23_preview.
+	to.CustomerProperties.Platform.VnetIntegrationSubnetID = from.CustomerProperties.Platform.VnetIntegrationSubnetID
+	// Visibility was added in v2025_12_23_preview.
+	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{}
+		}
+		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms == nil {
+			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &api.KmsEncryptionProfile{}
+		}
+		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility
+	}
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
