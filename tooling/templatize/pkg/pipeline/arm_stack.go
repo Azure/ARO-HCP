@@ -180,10 +180,8 @@ func runArmStackStep(
 	}
 
 	var output armdeploymentstacks.DeploymentStack
-	var details DetailsProducer
 	switch step.DeploymentLevel {
 	case "Subscription":
-		details = DetermineOperationsForSubscriptionDeployment(operationsClient, deploymentStackName)
 		stack.Location = ptr.To(executionTarget.GetRegion())
 		poller, err := stackClient.BeginCreateOrUpdateAtSubscription(ctx, deploymentStackName, stack, nil)
 		if err != nil {
@@ -191,22 +189,34 @@ func runArmStackStep(
 		}
 		result, err := poller.PollUntilDone(ctx, nil)
 		if err != nil {
-			return nil, details, fmt.Errorf("failed to wait for deployment stack at subscription scope: %w", err)
+			return nil, nil, fmt.Errorf("failed to wait for deployment stack at subscription scope: %w", err)
 		}
 		output = result.DeploymentStack
 	case "ResourceGroup":
-		details = DetermineOperationsForResourceGroupDeployment(operationsClient, executionTarget.GetResourceGroup(), deploymentStackName)
 		poller, err := stackClient.BeginCreateOrUpdateAtResourceGroup(ctx, executionTarget.GetResourceGroup(), deploymentStackName, stack, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create or update deployment stack at resource group scope: %w", err)
 		}
 		result, err := poller.PollUntilDone(ctx, nil)
 		if err != nil {
-			return nil, details, fmt.Errorf("failed to wait for deployment stack at subscription scope: %w", err)
+			return nil, nil, fmt.Errorf("failed to wait for deployment stack at resource group scope: %w", err)
 		}
 		output = result.DeploymentStack
 	default:
 		return nil, nil, fmt.Errorf("invalid deployment level: %s", step.DeploymentLevel)
+	}
+
+	// The deployment stack creates an underlying deployment whose name differs from the stack name.
+	// Extract the actual deployment name from the stack response to fetch operation details.
+	var details DetailsProducer
+	if output.Properties != nil && output.Properties.DeploymentID != nil {
+		underlyingDeploymentName := (*output.Properties.DeploymentID)[strings.LastIndex(*output.Properties.DeploymentID, "/")+1:]
+		switch step.DeploymentLevel {
+		case "Subscription":
+			details = DetermineOperationsForSubscriptionDeployment(operationsClient, underlyingDeploymentName)
+		case "ResourceGroup":
+			details = DetermineOperationsForResourceGroupDeployment(operationsClient, executionTarget.GetResourceGroup(), underlyingDeploymentName)
+		}
 	}
 
 	if output.Properties.Outputs != nil {
