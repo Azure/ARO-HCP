@@ -25,7 +25,7 @@ package api
 // String enum defaults (NetworkTypeOVNKubernetes, VisibilityPublic,
 // OutboundTypeLoadBalancer, DiskStorageAccountTypePremium_LRS,
 // EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
-// ClusterImageRegistryProfileStateEnabled) already exist as typed
+// ClusterImageRegistryStateEnabled) already exist as typed
 // constants in enums.go and are used directly by canonical defaults
 // (EnsureDefaults methods in types_*.go). No new constants are needed
 // for those.

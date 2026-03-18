@@ -346,7 +346,7 @@ func TestPreExistingDataCluster(t *testing.T) {
 		{"NetworkType", string(internalCluster.CustomerProperties.Network.NetworkType), string(api.NetworkTypeOVNKubernetes)},
 		{"Visibility", string(internalCluster.CustomerProperties.API.Visibility), string(api.VisibilityPublic)},
 		{"OutboundType", string(internalCluster.CustomerProperties.Platform.OutboundType), string(api.OutboundTypeLoadBalancer)},
-		{"ClusterImageRegistry.State", string(internalCluster.CustomerProperties.ClusterImageRegistry.State), string(api.ClusterImageRegistryProfileStateEnabled)},
+		{"ClusterImageRegistry.State", string(internalCluster.CustomerProperties.ClusterImageRegistry.State), string(api.ClusterImageRegistryStateEnabled)},
 		{"Etcd.DataEncryption.KeyManagementMode", string(internalCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode), string(api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)},
 	}
 	for _, c := range checks {
@@ -453,8 +453,8 @@ func TestCanonicalDefaultsConsistencyCluster(t *testing.T) {
 	if internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged {
 		t.Errorf("KeyManagementMode = %q, want %q", internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode, api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)
 	}
-	if internalDefault.CustomerProperties.ClusterImageRegistry.State != api.ClusterImageRegistryProfileStateEnabled {
-		t.Errorf("ClusterImageRegistryState = %q, want %q", internalDefault.CustomerProperties.ClusterImageRegistry.State, api.ClusterImageRegistryProfileStateEnabled)
+	if internalDefault.CustomerProperties.ClusterImageRegistry.State != api.ClusterImageRegistryStateEnabled {
+		t.Errorf("ClusterImageRegistryState = %q, want %q", internalDefault.CustomerProperties.ClusterImageRegistry.State, api.ClusterImageRegistryStateEnabled)
 	}
 }
 

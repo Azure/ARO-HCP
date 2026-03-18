@@ -335,7 +335,7 @@ func newBaselineInternalCluster() *api.HCPOpenShiftCluster {
 				},
 			},
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
-				State: api.ClusterImageRegistryProfileStateEnabled,
+				State: api.ClusterImageRegistryStateEnabled,
 			},
 		},
 	}

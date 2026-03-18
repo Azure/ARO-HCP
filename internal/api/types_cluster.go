@@ -271,7 +271,7 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 		cluster.CustomerProperties.Platform.OutboundType = OutboundTypeLoadBalancer
 	}
 	if len(cluster.CustomerProperties.ClusterImageRegistry.State) == 0 {
-		cluster.CustomerProperties.ClusterImageRegistry.State = ClusterImageRegistryProfileStateEnabled
+		cluster.CustomerProperties.ClusterImageRegistry.State = ClusterImageRegistryStateEnabled
 	}
 	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
 		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged

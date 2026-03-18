@@ -87,7 +87,7 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 				j.CustomerProperties.Platform.OutboundType = api.OutboundTypeLoadBalancer
 			}
 			if len(j.CustomerProperties.ClusterImageRegistry.State) == 0 {
-				j.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
+				j.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryStateEnabled
 			}
 			if len(j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
 				j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
@@ -187,12 +187,12 @@ func TestClusterEnsureDefaults(t *testing.T) {
 		networkType        api.NetworkType
 		visibility         api.Visibility
 		outboundType       api.OutboundType
-		imageRegistryState api.ClusterImageRegistryProfileState
+		imageRegistryState api.ClusterImageRegistryState
 		keyManagementMode  api.EtcdDataEncryptionKeyManagementModeType
 		wantNetworkType    api.NetworkType
 		wantVisibility     api.Visibility
 		wantOutboundType   api.OutboundType
-		wantImageRegState  api.ClusterImageRegistryProfileState
+		wantImageRegState  api.ClusterImageRegistryState
 		wantKeyMgmtMode    api.EtcdDataEncryptionKeyManagementModeType
 	}{
 		{
@@ -200,7 +200,7 @@ func TestClusterEnsureDefaults(t *testing.T) {
 			wantNetworkType:   api.NetworkTypeOVNKubernetes,
 			wantVisibility:    api.VisibilityPublic,
 			wantOutboundType:  api.OutboundTypeLoadBalancer,
-			wantImageRegState: api.ClusterImageRegistryProfileStateEnabled,
+			wantImageRegState: api.ClusterImageRegistryStateEnabled,
 			wantKeyMgmtMode:   api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 		},
 		{
@@ -208,12 +208,12 @@ func TestClusterEnsureDefaults(t *testing.T) {
 			networkType:        api.NetworkTypeOVNKubernetes,
 			visibility:         api.VisibilityPrivate,
 			outboundType:       api.OutboundTypeLoadBalancer,
-			imageRegistryState: api.ClusterImageRegistryProfileStateDisabled,
+			imageRegistryState: api.ClusterImageRegistryStateDisabled,
 			keyManagementMode:  api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
 			wantNetworkType:    api.NetworkTypeOVNKubernetes,
 			wantVisibility:     api.VisibilityPrivate,
 			wantOutboundType:   api.OutboundTypeLoadBalancer,
-			wantImageRegState:  api.ClusterImageRegistryProfileStateDisabled,
+			wantImageRegState:  api.ClusterImageRegistryStateDisabled,
 			wantKeyMgmtMode:    api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
 		},
 	}

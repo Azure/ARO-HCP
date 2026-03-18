@@ -73,7 +73,7 @@ func TestTypeSpecDefaultsConsistency(t *testing.T) {
 		{"OutboundType", "PlatformProfile", "outboundType", string(OutboundTypeLoadBalancer)},
 		{"DiskStorageAccountType", "OsDiskProfile", "diskStorageAccountType", string(DiskStorageAccountTypePremium_LRS)},
 		{"EtcdKeyManagementMode", "EtcdDataEncryptionProfile", "keyManagementMode", string(EtcdDataEncryptionKeyManagementModeTypePlatformManaged)},
-		{"ClusterImageRegistryState", "ClusterImageRegistryProfile", "state", string(ClusterImageRegistryProfileStateEnabled)},
+		{"ClusterImageRegistryState", "ClusterImageRegistryProfile", "state", string(ClusterImageRegistryStateEnabled)},
 		// Numeric defaults
 		{"HostPrefix", "NetworkProfile", "hostPrefix", DefaultClusterNetworkHostPrefix},
 		{"OSDiskSizeGiB", "OsDiskProfile", "sizeGiB", DefaultNodePoolOSDiskSizeGiB},
