@@ -89,6 +89,9 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - How to bump service component image digests in RH and MSFT environments
 - [High Level HCP Creation Flow](ops/hcp-cluster-creation-flow.md)
   - Walkthrough of an HCP cluster creation process through all the service layers of ARO HCP
+- [Resource Creation Diagram](resource-creation.md)
+  - Detailed diagram of the resource creation flow (frontend, backend, Cluster Service, Maestro)
+  - Covers HCPOpenShiftCluster, NodePool, and ExternalAuth resource types
 - [Postgres Breakglass](ops/postgres-breakglass.md)
   - How to access the Postgres database
 
