@@ -27,7 +27,7 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	It("should be able to create a HCP cluster without CNI",
+	It("should be able to create a HCP cluster and use Cilium CNI plugin",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
