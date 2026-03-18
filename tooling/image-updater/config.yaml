@@ -320,3 +320,13 @@ images:
       filePath: ../../config/config.yaml
     - jsonPath: defaults.mgmt.prometheus.admissionWebhook.patch.image.sha
       filePath: ../../config/config.yaml
+  # Istio istioctl version from GitHub latest release (istio/istio).
+  # istioctl is backward-compatible with older control planes and is only used
+  # for `istioctl tag set` in the deployment pipeline.
+  istio-istioctl:
+    group: istio
+    source:
+      githubLatestRelease: "istio/istio"
+    targets:
+    - jsonPath: defaults.svc.istio.istioctlVersion
+      filePath: ../../config/config.yaml

@@ -120,7 +120,7 @@ func TestUpdater_UpdateImages(t *testing.T) {
 			registryDigest:  "sha256:newdigest",
 			dryRun:          true,
 			wantErr:         false,
-			wantUpdateNames: []string{"test-image"}, // Changed: dry-run now tracks updates for reporting
+			wantUpdateNames: []string{"test-image"},
 		},
 		{
 			name: "registry fetch error",
@@ -142,7 +142,7 @@ func TestUpdater_UpdateImages(t *testing.T) {
 			registryDigest: "",
 			registryError:  fmt.Errorf("registry unavailable"),
 			wantErr:        true,
-			wantErrMsg:     "failed to fetch latest digest",
+			wantErrMsg:     "failed to fetch latest value",
 		},
 		{
 			name: "no update when digest is same",
@@ -428,7 +428,7 @@ image:
 				OutputFormat:    "table",
 			}
 
-			_, err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target)
+			err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target, config.Source{Image: "quay.io/test/app"})
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ProcessImageUpdates() error = %v, wantErr %v", err, tt.wantErr)
@@ -439,6 +439,64 @@ image:
 				if !strings.Contains(err.Error(), tt.wantErrMsg) {
 					t.Errorf("ProcessImageUpdates() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
 				}
+			}
+		})
+	}
+}
+
+func TestUpdater_ProcessImageUpdates_GitHubReleaseRejectsDigestAndSHA(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonPath   string
+		wantErrMsg string
+	}{
+		{
+			name:       "githubLatestRelease with .digest target",
+			jsonPath:   "image.digest",
+			wantErrMsg: "must not use .digest or .sha paths",
+		},
+		{
+			name:       "githubLatestRelease with .sha target",
+			jsonPath:   "image.sha",
+			wantErrMsg: "must not use .digest or .sha paths",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := logr.NewContext(context.Background(), testLogger())
+
+			tmpDir := t.TempDir()
+			yamlPath := filepath.Join(tmpDir, "test.yaml")
+			field := "digest"
+			if strings.HasSuffix(tt.jsonPath, ".sha") {
+				field = "sha"
+			}
+			yamlContent := fmt.Sprintf("image:\n  %s: oldvalue\n", field)
+			if err := os.WriteFile(yamlPath, []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("failed to create temp yaml: %v", err)
+			}
+
+			editor, err := yaml.NewEditor(yamlPath)
+			if err != nil {
+				t.Fatalf("failed to create yaml editor: %v", err)
+			}
+
+			u := &Updater{
+				Config:       &config.Config{},
+				YAMLEditors:  map[string]yaml.EditorInterface{yamlPath: editor},
+				Updates:      make(map[string][]yaml.Update),
+				OutputFormat: "table",
+			}
+
+			source := config.Source{GitHubLatestRelease: "istio/istio"}
+			target := config.Target{FilePath: yamlPath, JsonPath: tt.jsonPath}
+			err = u.ProcessImageUpdates(ctx, "test", &clients.Tag{Name: "1.28.3", Version: "1.28.3"}, target, source)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrMsg) {
+				t.Errorf("error %q should contain %q", err.Error(), tt.wantErrMsg)
 			}
 		})
 	}
@@ -572,7 +630,7 @@ image:
 			}
 
 			// Process update
-			_, err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target)
+			err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target, config.Source{Image: "quay.io/test/app"})
 			if err != nil {
 				t.Fatalf("ProcessImageUpdates() failed: %v", err)
 			}
