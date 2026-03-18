@@ -18,9 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sort"
-	"strings"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
@@ -38,88 +36,152 @@ import (
 // caller can install and optionally skip upgrade assertions.
 func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
 	configuredVersion := api.Must(semver.ParseTolerant(configuredVersionID))
+	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, configuredVersionID)
+	if err != nil {
+		return "", false, err
+	}
+	if len(candidates) == 1 {
+		return configuredVersion.String(), false, nil
+	}
+
+	nextMinorStr := fmt.Sprintf("%d.%d", configuredVersion.Major, configuredVersion.Minor+1)
+	latestInNextMinor, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
+	if err != nil {
+		if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+			return candidates[0].String(), false, nil
+		}
+		return "", false, err
+	}
+
+	for i := 0; i < len(candidates)-1; i++ {
+		upgradeTargets, err := GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx, channelGroup, latestInNextMinor, candidates[i].String())
+		if err != nil {
+			return "", false, err
+		}
+		if len(upgradeTargets) > 0 {
+			return candidates[i+1].String(), true, nil
+		}
+	}
+	return candidates[0].String(), false, nil
+}
+
+// GetAllVersionsInMinorStartingWith returns all OpenShift versions in the same major.minor as the given version,
+// including that version, from Cincinnati for the given channelGroup. The version string is parse-tolerant
+// (e.g. "4.20", "4.20.0", "4.20.1"). Results are sorted descending (latest first).
+func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string, version string) ([]semver.Version, error) {
+	fromVersion, err := semver.ParseTolerant(version)
+	if err != nil {
+		return nil, fmt.Errorf("parse version %q: %w", version, err)
+	}
 
 	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
 	if err != nil {
-		return "", false, fmt.Errorf("get Cincinnati URI: %w", err)
+		return nil, fmt.Errorf("get Cincinnati URI: %w", err)
 	}
-
 	transport, _ := http.DefaultTransport.(*http.Transport)
 	if transport == nil {
 		transport = &http.Transport{}
 	}
 	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
-	channel := fmt.Sprintf("%s-%d.%d", channelGroup, configuredVersion.Major, configuredVersion.Minor)
+	channel := fmt.Sprintf("%s-%d.%d", channelGroup, fromVersion.Major, fromVersion.Minor)
 
-	_, possibleUpgradeCandidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, configuredVersion)
+	_, possibleUpgradeCandidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVersion)
 	if err != nil {
-		return "", false, fmt.Errorf("get Cincinnati updates for %s in %s: %w", configuredVersion.String(), channel, err)
+		return nil, err
 	}
 
-	// Restrict to versions in the same major.minor (z-stream only).
-	candidates := []semver.Version{configuredVersion}
+	candidates := []semver.Version{fromVersion}
 	for _, release := range possibleUpgradeCandidates {
 		candidateVersion := api.Must(semver.ParseTolerant(release.Version))
-		if candidateVersion.Major != configuredVersion.Major || candidateVersion.Minor != configuredVersion.Minor {
+		if candidateVersion.Major != fromVersion.Major || candidateVersion.Minor != fromVersion.Minor {
 			continue
 		}
 		candidates = append(candidates, candidateVersion)
 	}
-
 	sort.Slice(candidates, func(i, j int) bool {
 		return candidates[j].LT(candidates[i])
 	})
-
-	if len(candidates) == 1 {
-		return configuredVersion.String(), false, nil
-	}
-
-	return pickInstallVersionWithNextMinorPreference(ctx, client, cincinnatiURI, channelGroup, configuredVersion, candidates)
+	return candidates, nil
 }
 
-// pickInstallVersionWithNextMinorPreference chooses an install version from versionsInSameMinor (sorted descending, latest first).
-// When the next minor exists, it prefers a version whose upgrade target has an upgrade path to the next minor; otherwise it returns the version just before latest.
-// The second return value is true only when an install version with an upgrade path was found.
-func pickInstallVersionWithNextMinorPreference(ctx context.Context, client cincinatti.Client, cincinnatiURI *url.URL, channelGroup string, configuredVersion semver.Version, versionsInSameMinor []semver.Version) (string, bool, error) {
-	installTarget := versionsInSameMinor[1] // latest is first, so second is the default install (upgrade to latest)
-	nextMinorStr := fmt.Sprintf("%d.%d", configuredVersion.Major, configuredVersion.Minor+1)
-	nextMinorChannel := fmt.Sprintf("%s-%s", channelGroup, nextMinorStr)
-	_, _, _, nextMinorErr := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", nextMinorChannel, installTarget)
-	if nextMinorErr != nil && !cincinatti.IsCincinnatiVersionNotFoundError(nextMinorErr) {
-		return "", false, fmt.Errorf("checking next minor %s: %w", nextMinorStr, nextMinorErr)
+// GetLatestVersionInMinor returns the latest OpenShift version for the given major.minor (e.g. "4.20")
+// from Cincinnati for the given channelGroup (e.g. "candidate", "stable").
+func GetLatestVersionInMinor(ctx context.Context, channelGroup string, minorVersion string) (string, error) {
+	versions, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, minorVersion)
+	if err != nil {
+		return "", err
 	}
-	if nextMinorErr != nil {
-		// Next minor not available; use default (version just before latest). Upgrade path exists (z-stream to latest).
-		return installTarget.String(), true, nil
+	if len(versions) == 0 {
+		return "", &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no versions found for minor %s", minorVersion)}
 	}
-	// Find the latest upgrade target that has path to next minor; install is the version next to it (one step older).
-	for i := 0; i < len(versionsInSameMinor)-1; i++ {
-		hasPath, err := hasUpgradePathToNextMinor(ctx, client, cincinnatiURI, nextMinorChannel, nextMinorStr, versionsInSameMinor[i])
+	return versions[0].String(), nil
+}
+
+// GetLatestVersionInMinorWithUpgradePathTo returns the latest OpenShift version for fromMinor (e.g. "4.20")
+// that has a Cincinnati upgrade path to toMinor (e.g. "4.21"), for the given channelGroup.
+// hasUpgradePath is false when no version in fromMinor has an upgrade path to toMinor.
+func GetLatestVersionInMinorWithUpgradePathTo(ctx context.Context, channelGroup string, fromMinor string, toMinor string) (version string, hasUpgradePath bool, err error) {
+	versionsInFromMinor, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, fromMinor)
+	if err != nil {
+		return "", false, err
+	}
+	maxInToMinor, err := GetLatestVersionInMinor(ctx, channelGroup, toMinor)
+	if err != nil {
+		return "", false, err
+	}
+	for _, v := range versionsInFromMinor {
+		candidates, err := GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx, channelGroup, maxInToMinor, v.String())
 		if err != nil {
 			return "", false, err
 		}
-		if hasPath {
-			return versionsInSameMinor[i+1].String(), true, nil
+		if len(candidates) > 0 {
+			return v.String(), true, nil
 		}
 	}
-	// No version has path to next minor; install the latest in same minor (no upgrade path to verify).
-	return versionsInSameMinor[0].String(), false, nil
+	return "", false, nil
 }
 
-// hasUpgradePathToNextMinor returns true if the given version has an upgrade path to the next minor.
-// nextMinorChannel is the Cincinnati channel for the next minor (e.g. "candidate-4.21"); nextMinor is the version prefix (e.g. "4.21").
-func hasUpgradePathToNextMinor(ctx context.Context, cincinnatiClient cincinatti.Client, uri *url.URL, nextMinorChannel, nextMinor string, ver semver.Version) (bool, error) {
-	_, updates, _, err := cincinnatiClient.GetUpdates(ctx, uri, "multi", "multi", nextMinorChannel, ver)
-	if err != nil && !cincinatti.IsCincinnatiVersionNotFoundError(err) {
-		return false, err
-	}
+// GetUpgradeCandidatesInMaxMinorFromCincinnati returns all versions in the same major.minor as maxVersion
+// that are <= maxVersion and have a Cincinnati upgrade path from fromVersion, for the given channelGroup.
+// Results are sorted from lowest to highest. Use for possible upgrade targets (e.g. node pool y-stream upgrade).
+func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGroup string, maxVersion string, fromVersion string) (candidates []semver.Version, err error) {
+	maxVer, err := semver.ParseTolerant(maxVersion)
 	if err != nil {
-		return false, nil
+		return nil, fmt.Errorf("parse maxVersion %q: %w", maxVersion, err)
 	}
-	for _, r := range updates {
-		if strings.Contains(r.Version, nextMinor+".") {
-			return true, nil
+	fromVer, err := semver.ParseTolerant(fromVersion)
+	if err != nil {
+		return nil, fmt.Errorf("parse fromVersion %q: %w", fromVersion, err)
+	}
+	channel := fmt.Sprintf("%s-%d.%d", channelGroup, maxVer.Major, maxVer.Minor)
+
+	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
+	if err != nil {
+		return nil, fmt.Errorf("get Cincinnati URI: %w", err)
+	}
+	transport, _ := http.DefaultTransport.(*http.Transport)
+	if transport == nil {
+		transport = &http.Transport{}
+	}
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
+
+	_, possibleCandidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVer)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []semver.Version
+	for _, release := range possibleCandidates {
+		candidateVersion := api.Must(semver.ParseTolerant(release.Version))
+		if candidateVersion.Major != maxVer.Major || candidateVersion.Minor != maxVer.Minor {
+			continue
+		}
+		if !candidateVersion.GT(maxVer) {
+			out = append(out, candidateVersion)
 		}
 	}
-	return false, nil
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].LT(out[j])
+	})
+	return out, nil
 }
