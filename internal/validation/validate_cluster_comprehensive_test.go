@@ -1523,6 +1523,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "customerProperties.platform"},
+				{message: "field is immutable", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
