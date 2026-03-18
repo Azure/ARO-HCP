@@ -144,7 +144,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				clusterParams.ClusterName,
 				nodePoolParamsInvalidInstance,
-				45*time.Minute,
+				5*time.Minute,
 			)
 			checkExpectedError(&errs, "node pool creation with invalid instance type", err, "machine type not supported")
 
@@ -153,7 +153,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				clusterParams.ClusterName,
 				nodePoolParamsInvalidQuota,
-				45*time.Minute,
+				5*time.Minute,
 			)
 			checkExpectedError(&errs, "node pool creation with invalid quota", err, "invalid value must be less than or equal to")
 
@@ -249,7 +249,7 @@ var _ = Describe("Customer", func() {
 
 })
 
-func checkExpectedError(errs *[]error, operation string, err error, expectedKeywords string) {
+func checkExpectedError(errs *[]error, operation string, err error, expectedErrorKeywords string) {
 	GinkgoLogr.Error(err, operation)
 
 	if err == nil {
@@ -257,10 +257,10 @@ func checkExpectedError(errs *[]error, operation string, err error, expectedKeyw
 		return
 	}
 
-	pattern := ".*" + strings.ReplaceAll(strings.ToLower(expectedKeywords), " ", ".*") + ".*"
+	pattern := ".*" + strings.ReplaceAll(strings.ToLower(expectedErrorKeywords), " ", ".*") + ".*"
 	lowerError := strings.ToLower(err.Error())
 
 	if matched, _ := regexp.MatchString(pattern, lowerError); !matched {
-		*errs = append(*errs, fmt.Errorf("%s: expected error containing keywords '%s', got: %s", operation, expectedKeywords, err.Error()))
+		*errs = append(*errs, fmt.Errorf("%s: expected error containing keywords '%s', got: %s", operation, expectedErrorKeywords, err.Error()))
 	}
 }
