@@ -698,6 +698,28 @@ func newMockManagementClusterContentCRUD(client *MockDBClient, parentResourceID 
 
 var _ database.ManagementClusterContentCRUD = &mockManagementClusterContentCRUD{}
 
+// mockManagementClusterCRUD implements database.ResourceCRUD[api.ManagementCluster].
+type mockManagementClusterCRUD struct {
+	*mockResourceCRUD[api.ManagementCluster, database.GenericDocument[api.ManagementCluster]]
+}
+
+func newMockManagementClusterCRUD(client *MockDBClient) *mockManagementClusterCRUD {
+	base := newMockResourceCRUD[api.ManagementCluster, database.GenericDocument[api.ManagementCluster]](
+		client, nil, api.ManagementClusterResourceType)
+
+	// Override for provider-level resources (no subscription or resource group)
+	base.makeResourceIDPath = func(resourceName string) (*azcorearm.ResourceID, error) {
+		return api.ToManagementClusterResourceID(resourceName)
+	}
+	base.getListPrefix = func() (string, error) {
+		return fmt.Sprintf("/providers/%s/", api.ManagementClusterResourceType.String()), nil
+	}
+
+	return &mockManagementClusterCRUD{mockResourceCRUD: base}
+}
+
+var _ database.ResourceCRUD[api.ManagementCluster] = &mockManagementClusterCRUD{}
+
 // mockUntypedCRUD implements database.UntypedResourceCRUD.
 type mockUntypedCRUD struct {
 	client           *MockDBClient

@@ -260,6 +260,57 @@ func TestSliceSubscriptionLister(t *testing.T) {
 	})
 }
 
+func TestSliceManagementClusterLister(t *testing.T) {
+	mc1 := newTestManagementCluster("mc-1", "11111111-1111-1111-1111-111111111111")
+	mc2 := newTestManagementCluster("mc-2", "22222222-2222-2222-2222-222222222222")
+
+	lister := &SliceManagementClusterLister{
+		ManagementClusters: []*api.ManagementCluster{mc1, mc2},
+	}
+
+	ctx := context.Background()
+
+	t.Run("List returns all management clusters", func(t *testing.T) {
+		result, err := lister.List(ctx)
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("Get returns matching management cluster", func(t *testing.T) {
+		result, err := lister.Get(ctx, "mc-1")
+		require.NoError(t, err)
+		assert.Equal(t, "mc-1", result.ResourceID.Name)
+	})
+
+	t.Run("Get returns not found for non-existent management cluster", func(t *testing.T) {
+		_, err := lister.Get(ctx, "non-existent")
+		require.Error(t, err)
+		assert.True(t, database.IsResponseError(err, http.StatusNotFound))
+	})
+
+	t.Run("GetByCSProvisionShardID returns matching management cluster", func(t *testing.T) {
+		result, err := lister.GetByCSProvisionShardID(ctx, "11111111-1111-1111-1111-111111111111")
+		require.NoError(t, err)
+		assert.Equal(t, "mc-1", result.ResourceID.Name)
+	})
+
+	t.Run("GetByCSProvisionShardID returns not found for non-existent shard", func(t *testing.T) {
+		_, err := lister.GetByCSProvisionShardID(ctx, "99999999-9999-9999-9999-999999999999")
+		require.Error(t, err)
+		assert.True(t, database.IsResponseError(err, http.StatusNotFound))
+	})
+
+	t.Run("GetByCSProvisionShardID returns error for duplicate shards", func(t *testing.T) {
+		mc3 := newTestManagementCluster("mc-3", "11111111-1111-1111-1111-111111111111")
+		dupLister := &SliceManagementClusterLister{
+			ManagementClusters: []*api.ManagementCluster{mc1, mc3},
+		}
+		_, err := dupLister.GetByCSProvisionShardID(ctx, "11111111-1111-1111-1111-111111111111")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expected at most 1")
+	})
+}
+
 func TestSliceClusterListerWithEmptySlice(t *testing.T) {
 	lister := &SliceClusterLister{
 		Clusters: []*api.HCPOpenShiftCluster{},
@@ -445,6 +496,19 @@ func newTestExternalAuthController(subscriptionID, resourceGroupName, clusterNam
 			ResourceID: resourceID,
 		},
 		ResourceID: resourceID,
+	}
+}
+
+func newTestManagementCluster(name, shardID string) *api.ManagementCluster {
+	resourceID := api.Must(api.ToManagementClusterResourceID(name))
+	return &api.ManagementCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: resourceID,
+		},
+		ResourceID: resourceID,
+		Status: api.ManagementClusterStatus{
+			CSProvisionShardID: shardID,
+		},
 	}
 }
 

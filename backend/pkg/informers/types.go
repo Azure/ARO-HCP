@@ -36,6 +36,7 @@ type BackendInformers interface {
 	ServiceProviderNodePools() (cache.SharedIndexInformer, listers.ServiceProviderNodePoolLister)
 	Controllers() (cache.SharedIndexInformer, listers.ControllerLister)
 	ManagementClusterContents() (cache.SharedIndexInformer, listers.ManagementClusterContentLister)
+	ManagementClusters() (cache.SharedIndexInformer, listers.ManagementClusterLister)
 
 	RunWithContext(ctx context.Context)
 }
@@ -62,10 +63,14 @@ type backendInformers struct {
 	serviceProviderNodePoolInformer cache.SharedIndexInformer
 	serviceProviderNodePoolLister   listers.ServiceProviderNodePoolLister
 
-	controllerInformer               cache.SharedIndexInformer
-	controllerLister                 listers.ControllerLister
+	controllerInformer cache.SharedIndexInformer
+	controllerLister   listers.ControllerLister
+
 	managementClusterContentInformer cache.SharedIndexInformer
 	managementClusterContentLister   listers.ManagementClusterContentLister
+
+	managementClusterInformer cache.SharedIndexInformer
+	managementClusterLister   listers.ManagementClusterLister
 }
 
 func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister) {
@@ -104,6 +109,10 @@ func (b *backendInformers) ManagementClusterContents() (cache.SharedIndexInforme
 	return b.managementClusterContentInformer, b.managementClusterContentLister
 }
 
+func (b *backendInformers) ManagementClusters() (cache.SharedIndexInformer, listers.ManagementClusterLister) {
+	return b.managementClusterInformer, b.managementClusterLister
+}
+
 func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
 	return NewBackendInformersWithRelistDuration(ctx, globalListers, nil)
 }
@@ -118,6 +127,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	controllerRelistDuration := ControllerRelistDuration
 	managementClusterContentRelistDuration := ManagementClusterContentRelistDuration
 	activeOperationsRelistDuration := ActiveOperationsRelistDuration
+	managementClusterRelistDuration := ManagementClusterRelistDuration
 	if relistDuration != nil {
 		subscriptionRelistDuration = *relistDuration
 		clusterRelistDuration = *relistDuration
@@ -128,6 +138,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 		controllerRelistDuration = *relistDuration
 		managementClusterContentRelistDuration = *relistDuration
 		activeOperationsRelistDuration = *relistDuration
+		managementClusterRelistDuration = *relistDuration
 	}
 
 	ret := &backendInformers{}
@@ -140,7 +151,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.serviceProviderNodePoolInformer = NewServiceProviderNodePoolInformerWithRelistDuration(globalListers.ServiceProviderNodePools(), serviceProviderNodePoolRelistDuration)
 	ret.controllerInformer = NewControllerInformerWithRelistDuration(globalListers.Controllers(), controllerRelistDuration)
 	ret.managementClusterContentInformer = NewManagementClusterContentInformerWithRelistDuration(globalListers.ManagementClusterContents(), managementClusterContentRelistDuration)
-
+	ret.managementClusterInformer = NewManagementClusterInformerWithRelistDuration(globalListers.ManagementClusters(), managementClusterRelistDuration)
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
 	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
 	ret.clusterLister = listers.NewClusterLister(ret.clusterInformer.GetIndexer())
@@ -150,6 +161,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.serviceProviderNodePoolLister = listers.NewServiceProviderNodePoolLister(ret.serviceProviderNodePoolInformer.GetIndexer())
 	ret.controllerLister = listers.NewControllerLister(ret.controllerInformer.GetIndexer())
 	ret.managementClusterContentLister = listers.NewManagementClusterContentLister(ret.managementClusterContentInformer.GetIndexer())
+	ret.managementClusterLister = listers.NewManagementClusterLister(ret.managementClusterInformer.GetIndexer())
 
 	return ret
 }
@@ -205,6 +217,11 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		b.managementClusterContentInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.managementClusterInformer.RunWithContext(ctx)
 	}()
 
 	<-ctx.Done()

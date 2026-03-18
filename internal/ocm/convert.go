@@ -66,21 +66,24 @@ const (
 
 	// The OCM SDK does not provide these constants.
 
-	csCustomerManagedEncryptionTypeKms  string = "kms"
-	csEncryptionAtHostStateDisabled     string = "disabled"
-	csEncryptionAtHostStateEnabled      string = "enabled"
-	csImageRegistryStateDisabled        string = "disabled"
-	csImageRegistryStateEnabled         string = "enabled"
-	csKeyManagementModeCustomerManaged  string = "customer_managed"
-	csKeyManagementModePlatformManaged  string = "platform_managed"
-	csNodeDrainGracePeriodUnit          string = "minutes"
-	csOutboundType                      string = "load_balancer"
-	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
-	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
-	csOsDiskPersistencePersistent       string = "persistent"
-	csOsDiskPersistenceEphemeral        string = "ephemeral"
+	csCustomerManagedEncryptionTypeKms   string = "kms"
+	csEncryptionAtHostStateDisabled      string = "disabled"
+	csEncryptionAtHostStateEnabled       string = "enabled"
+	csImageRegistryStateDisabled         string = "disabled"
+	csImageRegistryStateEnabled          string = "enabled"
+	csKeyManagementModeCustomerManaged   string = "customer_managed"
+	csKeyManagementModePlatformManaged   string = "platform_managed"
+	csNodeDrainGracePeriodUnit           string = "minutes"
+	csOutboundType                       string = "load_balancer"
+	csUsernameClaimPrefixPolicyNoPrefix  string = "NoPrefix"
+	csUsernameClaimPrefixPolicyPrefix    string = "Prefix"
+	csCIDRBlockAllowAccessModeAllowAll   string = "allow_all"
+	csCIDRBlockAllowAccessModeAllowList  string = "allow_list"
+	csOsDiskPersistencePersistent        string = "persistent"
+	csOsDiskPersistenceEphemeral         string = "ephemeral"
+	csProvisioningShardStatusActive      string = "active"
+	csProvisioningShardStatusMaintenance string = "maintenance"
+	csProvisioningShardStatusOffline     string = "offline"
 )
 
 // Sentinel error for use with errors.Is
@@ -1283,4 +1286,106 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 	}
 
 	return arm.NewInternalServerError()
+}
+
+// ConvertCSManagementClusterToInternal converts a Cluster Service ProvisionShard
+// to the internal ManagementCluster representation.
+func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard) (*api.ManagementCluster, error) {
+	if csShard == nil {
+		return nil, fmt.Errorf("provision shard is nil")
+	}
+
+	shardID := csShard.ID()
+	if shardID == "" {
+		return nil, fmt.Errorf("provision shard has empty ID")
+	}
+
+	azureShard := csShard.AzureShard()
+	if azureShard == nil {
+		return nil, fmt.Errorf("provision shard %q has no azure shard", shardID)
+	}
+
+	managementClusterAKSResourceID, err := azcorearm.ParseResourceID(azureShard.AksManagementClusterResourceId())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse management cluster AKS resource ID %q: %w", azureShard.AksManagementClusterResourceId(), err)
+	}
+
+	publicDNSZoneResourceID, err := azcorearm.ParseResourceID(azureShard.PublicDnsZoneResourceId())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public DNS zone resource ID %q: %w", azureShard.PublicDnsZoneResourceId(), err)
+	}
+
+	maestroConfig := csShard.MaestroConfig()
+	if maestroConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro config", shardID)
+	}
+	restConfig := maestroConfig.RestApiConfig()
+	if restConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro REST API config", shardID)
+	}
+	grpcConfig := maestroConfig.GrpcApiConfig()
+	if grpcConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro GRPC API config", shardID)
+	}
+
+	cxSecretsKeyVaultURL := azureShard.CxSecretsKeyVaultUrl()
+	cxManagedIdentitiesKeyVaultURL := azureShard.CxManagedIdentitiesKeyVaultUrl()
+	cxSecretsKeyVaultManagedIdentityClientID := azureShard.CxSecretsKeyVaultManagedIdentityClientId()
+
+	readyCondition := api.Condition{
+		Type:               string(api.ManagementClusterConditionReady),
+		LastTransitionTime: time.Now(),
+	}
+	switch csShard.Status() {
+	case csProvisioningShardStatusActive:
+		readyCondition.Status = api.ConditionTrue
+		readyCondition.Reason = string(api.ManagementClusterConditionReasonProvisionShardActive)
+	case csProvisioningShardStatusMaintenance:
+		readyCondition.Status = api.ConditionFalse
+		readyCondition.Reason = string(api.ManagementClusterConditionReasonProvisionShardMaintenance)
+		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
+	case csProvisioningShardStatusOffline:
+		readyCondition.Status = api.ConditionFalse
+		readyCondition.Reason = string(api.ManagementClusterConditionReasonProvisionShardOffline)
+		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
+	default:
+		readyCondition.Status = api.ConditionUnknown
+		readyCondition.Reason = string(api.ManagementClusterConditionReasonProvisionShardStatusUnknown)
+		readyCondition.Message = fmt.Sprintf("provision shard has unrecognized status %q", csShard.Status())
+	}
+
+	mc := &api.ManagementCluster{
+		Spec: api.ManagementClusterSpec{
+			SchedulingPolicy: convertShardStatusToSchedulingPolicy(csShard.Status()),
+		},
+		Status: api.ManagementClusterStatus{
+			AKSResourceID:                            managementClusterAKSResourceID,
+			PublicDNSZoneResourceID:                  publicDNSZoneResourceID,
+			CXSecretsKeyVaultURL:                     cxSecretsKeyVaultURL,
+			CXManagedIdentitiesKeyVaultURL:           cxManagedIdentitiesKeyVaultURL,
+			CXSecretsKeyVaultManagedIdentityClientID: cxSecretsKeyVaultManagedIdentityClientID,
+			CSProvisionShardID:                       shardID,
+			MaestroConfig: api.MaestroConfig{
+				ConsumerName: maestroConfig.ConsumerName(),
+				RESTAPIConfig: api.MaestroRESTAPIConfig{
+					URL: restConfig.Url(),
+				},
+				GRPCAPIConfig: api.MaestroGRPCAPIConfig{
+					URL: grpcConfig.Url(),
+				},
+			},
+			Conditions: []api.Condition{readyCondition},
+		},
+	}
+
+	return mc, nil
+}
+
+// convertShardStatusToSchedulingPolicy maps a Cluster Service provision shard
+// status to a ManagementClusterSchedulingPolicy.
+func convertShardStatusToSchedulingPolicy(status string) api.ManagementClusterSchedulingPolicy {
+	if status == csProvisioningShardStatusActive {
+		return api.ManagementClusterSchedulingPolicySchedulable
+	}
+	return api.ManagementClusterSchedulingPolicyUnschedulable
 }

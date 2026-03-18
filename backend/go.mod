@@ -15,6 +15,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/go-logr/logr v1.4.3
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
+	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/openshift-online/maestro v0.0.0-20260213014104-081c1f6df17b
 	github.com/openshift-online/ocm-sdk-go v0.1.498
@@ -77,7 +78,6 @@ require (
 	github.com/golang/glog v1.2.5 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
