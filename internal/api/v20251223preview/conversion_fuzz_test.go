@@ -83,6 +83,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			if j.Kms != nil && j.Kms.ActiveKey.Name == "" && j.Kms.ActiveKey.Version == "" {
 				j.Kms = nil
 			}
+			// Visibility is required in v20251223preview when Kms is present.
+			// Ensure it has a valid value for roundtrip testing.
+			if j.Kms != nil && j.Kms.Visibility == "" {
+				j.Kms.Visibility = api.KeyVaultVisibilityPublic
+			}
 		},
 	}, rand.NewSource(seed))
 

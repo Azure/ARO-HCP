@@ -472,7 +472,7 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
 
 			// Add KeyVault visibility if specified
-			if in.DataEncryption.CustomerManaged.Kms.Visibility != "" {
+			if len(in.DataEncryption.CustomerManaged.Kms.Visibility) != 0 {
 				visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
 				if err != nil {
 					return nil, err
