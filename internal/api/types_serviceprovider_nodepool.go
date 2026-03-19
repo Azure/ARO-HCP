@@ -98,3 +98,18 @@ type HCPNodePoolActiveVersion struct {
 	// Version is the full version in x.y.z format (e.g., "4.19.2")
 	Version *semver.Version `json:"version,omitempty"`
 }
+
+// FindNodePoolVersionBounds returns the lowest and highest versions from the node pool active versions.
+// ActiveVersions can be in any order, so we iterate to find the actual minimum and maximum.
+func FindNodePoolVersionBounds(activeVersions []HCPNodePoolActiveVersion) (*semver.Version, *semver.Version) {
+	var lowest, highest *semver.Version
+	for _, av := range activeVersions {
+		if lowest == nil || av.Version.LT(*lowest) {
+			lowest = av.Version
+		}
+		if highest == nil || av.Version.GT(*highest) {
+			highest = av.Version
+		}
+	}
+	return lowest, highest
+}
