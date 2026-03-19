@@ -66,8 +66,8 @@
 					"clusterServiceID": "",
 					"console": {},
 					"dns": {},
-					"platform": {},
-					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
+					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
+					"platform": {}
 				}
 			}
 		},
@@ -83,6 +83,6 @@
 			"one": "apple"
 		}
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

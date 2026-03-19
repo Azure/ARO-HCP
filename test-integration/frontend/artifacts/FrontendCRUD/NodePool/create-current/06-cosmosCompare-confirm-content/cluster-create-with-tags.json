@@ -5,7 +5,6 @@
 	"_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecDAAAAAAAAAA==/",
 	"_ts": 1766174370,
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
-	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"properties": {
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
@@ -55,7 +54,8 @@
 										"name": "encryptionKeyName",
 										"vaultName": "keyVaultName",
 										"version": "2024-12-01-preview"
-									}
+									},
+									"visibility": "Public"
 								}
 							},
 							"keyManagementMode": "CustomerManaged"
@@ -88,8 +88,8 @@
 					"clusterServiceID": "",
 					"console": {},
 					"dns": {},
-					"platform": {},
-					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
+					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
+					"platform": {}
 				}
 			}
 		},
@@ -105,5 +105,6 @@
 			"one": "apple"
 		}
 	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }
