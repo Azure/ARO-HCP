@@ -23,14 +23,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
+	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
 // ImageDigestMirrorExpectation describes an expected source-to-mirrors mapping
 // that should exist in the cluster's ImageDigestMirrorSet objects.
 type ImageDigestMirrorExpectation struct {
-	Source  string
-	Mirrors []string
+	Source             string
+	Mirrors            []configv1.ImageMirror
+	MirrorSourcePolicy configv1.MirrorSourcePolicy
 	// AbsentSources lists sources that must NOT exist in any IDMS object on the cluster.
 	AbsentSources []string
 }
@@ -59,12 +61,10 @@ func (v verifyImageDigestMirrorSets) Verify(ctx context.Context, adminRESTConfig
 	}
 
 	// Collect all source→mirrors mappings from all IDMS objects
-	foundMirrors := map[string][]string{}
+	foundMirrors := map[string]configv1.ImageDigestMirrors{}
 	for _, item := range idmsList.Items {
 		for _, entry := range item.Spec.ImageDigestMirrors {
-			for _, m := range entry.Mirrors {
-				foundMirrors[entry.Source] = append(foundMirrors[entry.Source], string(m))
-			}
+			foundMirrors[entry.Source] = entry
 		}
 	}
 
@@ -77,9 +77,12 @@ func (v verifyImageDigestMirrorSets) Verify(ctx context.Context, adminRESTConfig
 			continue
 		}
 		for _, expectedMirror := range expected.Mirrors {
-			if !slices.Contains(actualMirrors, expectedMirror) {
-				failures = append(failures, fmt.Sprintf("mirror %q not found for source %q (found: %v)", expectedMirror, expected.Source, actualMirrors))
+			if !slices.Contains(actualMirrors.Mirrors, expectedMirror) {
+				failures = append(failures, fmt.Sprintf("mirror %q not found for source %q (found: %v)", expectedMirror, expected.Source, actualMirrors.Mirrors))
 			}
+		}
+		if actualMirrors.MirrorSourcePolicy != expected.MirrorSourcePolicy {
+			failures = append(failures, fmt.Sprintf("expected mirror source policy %q for source %q (found: %v)", expected.MirrorSourcePolicy, expected.Source, actualMirrors.MirrorSourcePolicy))
 		}
 	}
 

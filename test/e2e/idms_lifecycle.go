@@ -28,6 +28,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	configv1 "github.com/openshift/api/config/v1"
+
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -142,8 +144,9 @@ var _ = Describe("Customer", func() {
 			By("verifying customer-specified mirrors are present in the cluster ImageDigestMirrorSet")
 			expectedMirrors := []verifiers.ImageDigestMirrorExpectation{
 				{
-					Source:  idmsSource,
-					Mirrors: []string{idmsMirror},
+					Source:             idmsSource,
+					Mirrors:            []configv1.ImageMirror{idmsMirror},
+					MirrorSourcePolicy: configv1.AllowContactingSource,
 				},
 			}
 			verifier := verifiers.VerifyImageDigestMirrorSets(expectedMirrors)
@@ -193,12 +196,14 @@ var _ = Describe("Customer", func() {
 			By("verifying both mirror sets are present in the cluster ImageDigestMirrorSet")
 			expectedMirrorsAfterAdd := []verifiers.ImageDigestMirrorExpectation{
 				{
-					Source:  idmsSource,
-					Mirrors: []string{idmsMirror},
+					Source:             idmsSource,
+					Mirrors:            []configv1.ImageMirror{idmsMirror},
+					MirrorSourcePolicy: configv1.AllowContactingSource,
 				},
 				{
-					Source:  idmsSource2,
-					Mirrors: []string{idmsMirror2},
+					Source:             idmsSource2,
+					Mirrors:            []configv1.ImageMirror{idmsMirror2},
+					MirrorSourcePolicy: configv1.AllowContactingSource,
 				},
 			}
 			verifierAfterAdd := verifiers.VerifyImageDigestMirrorSets(expectedMirrorsAfterAdd)
@@ -246,9 +251,10 @@ var _ = Describe("Customer", func() {
 			By("verifying only the original mirror set remains in the cluster ImageDigestMirrorSet")
 			expectedMirrorsAfterRemove := []verifiers.ImageDigestMirrorExpectation{
 				{
-					Source:        idmsSource,
-					Mirrors:       []string{idmsMirror},
-					AbsentSources: []string{idmsSource2},
+					Source:             idmsSource,
+					Mirrors:            []configv1.ImageMirror{idmsMirror},
+					MirrorSourcePolicy: configv1.AllowContactingSource,
+					AbsentSources:      []string{idmsSource2},
 				},
 			}
 			verifierAfterRemove := verifiers.VerifyImageDigestMirrorSets(expectedMirrorsAfterRemove)
