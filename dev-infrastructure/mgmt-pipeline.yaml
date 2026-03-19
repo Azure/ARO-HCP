@@ -233,6 +233,7 @@ resourceGroups:
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: ./scripts/delete-user-nodepools.sh
+    workingDir: .
     variables:
     - name: CLUSTER_NAME
       configRef: mgmt.aks.name
