@@ -30,17 +30,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type backfillBillingDocID struct {
+type backfillClusterUID struct {
 	clock           utilsclock.PassiveClock
 	cooldownChecker controllerutils.CooldownChecker
 	cosmosClient    database.DBClient
 }
 
-// NewBackfillBillingDocIDController creates a controller that populates BillingDocID
+// NewBackfillClusterUIDController creates a controller that populates ClusterUID
 // for existing clusters that don't have it set. This is a temporary controller that
 // will be removed once all legacy clusters have been migrated.
-func NewBackfillBillingDocIDController(clock utilsclock.PassiveClock, cosmosClient database.DBClient) controllerutils.ClusterSyncer {
-	c := &backfillBillingDocID{
+func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, cosmosClient database.DBClient) controllerutils.ClusterSyncer {
+	c := &backfillClusterUID{
 		clock:           clock,
 		cooldownChecker: controllerutils.NewTimeBasedCooldownChecker(60 * time.Minute), // Run once per hour max per cluster
 		cosmosClient:    cosmosClient,
@@ -49,7 +49,7 @@ func NewBackfillBillingDocIDController(clock utilsclock.PassiveClock, cosmosClie
 	return c
 }
 
-func (c *backfillBillingDocID) synchronizeCluster(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *backfillClusterUID) synchronizeCluster(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	cluster, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
@@ -60,12 +60,12 @@ func (c *backfillBillingDocID) synchronizeCluster(ctx context.Context, keyObj co
 		return utils.TrackError(err)
 	}
 
-	// Check if BillingDocID is already set
-	if cluster.ServiceProviderProperties.BillingDocID != "" {
-		return nil // already has a BillingDocID, nothing to do
+	// Check if ClusterUID is already set
+	if cluster.ServiceProviderProperties.ClusterUID != "" {
+		return nil // already has a ClusterUID, nothing to do
 	}
 
-	logger.Info("backfilling BillingDocID for cluster",
+	logger.Info("backfilling ClusterUID for cluster",
 		"clusterResourceID", cluster.ID,
 		"clusterServiceID", cluster.ServiceProviderProperties.ClusterServiceID,
 	)
@@ -76,24 +76,24 @@ func (c *backfillBillingDocID) synchronizeCluster(ctx context.Context, keyObj co
 		return utils.TrackError(err)
 	}
 
-	var billingDocID string
+	var clusterUID string
 	if billingDoc == nil {
 		// No billing document found matching creation time, generate a new UUID
-		logger.Info("no existing billing document found matching creation time, generating new BillingDocID",
+		logger.Info("no existing billing document found matching creation time, generating new ClusterUID",
 			"clusterCreationTime", cluster.SystemData.CreatedAt,
 		)
-		billingDocID = uuid.New().String()
+		clusterUID = uuid.New().String()
 	} else {
 		// Billing document found, use its ID
-		billingDocID = billingDoc.ID
+		clusterUID = billingDoc.ID
 		logger.Info("found billing document matching creation time, using its ID",
-			"billingDocID", billingDocID,
+			"clusterUID", clusterUID,
 			"billingCreationTime", billingDoc.CreationTime,
 		)
 	}
 
-	// Update the cluster with the BillingDocID
-	cluster.ServiceProviderProperties.BillingDocID = billingDocID
+	// Update the cluster with the ClusterUID
+	cluster.ServiceProviderProperties.ClusterUID = clusterUID
 
 	// Update the cluster in Cosmos
 	transaction := c.cosmosClient.NewTransaction(cluster.ID.SubscriptionID)
@@ -107,9 +107,9 @@ func (c *backfillBillingDocID) synchronizeCluster(ctx context.Context, keyObj co
 		return utils.TrackError(err)
 	}
 
-	logger.Info("successfully backfilled BillingDocID for cluster",
+	logger.Info("successfully backfilled ClusterUID for cluster",
 		"clusterResourceID", cluster.ID,
-		"billingDocID", cluster.ServiceProviderProperties.BillingDocID,
+		"clusterUID", cluster.ServiceProviderProperties.ClusterUID,
 	)
 
 	return nil
@@ -117,18 +117,18 @@ func (c *backfillBillingDocID) synchronizeCluster(ctx context.Context, keyObj co
 
 // getBillingDocumentForClusterByCreationTime queries the billing container for a billing document
 // matching the given cluster resource ID and creation time (without a deletion timestamp).
-func (c *backfillBillingDocID) getBillingDocumentForClusterByCreationTime(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) (*database.BillingDocument, error) {
+func (c *backfillClusterUID) getBillingDocumentForClusterByCreationTime(ctx context.Context, resourceID *azcorearm.ResourceID, creationTime *time.Time) (*database.BillingDocument, error) {
 	if creationTime == nil {
 		return nil, nil
 	}
 	return c.cosmosClient.GetBillingDocForClusterByCreationTime(ctx, resourceID, *creationTime)
 }
 
-func (c *backfillBillingDocID) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	syncErr := c.synchronizeCluster(ctx, keyObj)
 	return utils.TrackError(syncErr)
 }
 
-func (c *backfillBillingDocID) CooldownChecker() controllerutils.CooldownChecker {
+func (c *backfillClusterUID) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

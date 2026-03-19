@@ -39,11 +39,11 @@ type createBillingDoc struct {
 }
 
 // NewCreateBillingDocController creates a controller that ensures a billing document
-// exists for clusters that have a BillingDocID and are in the Succeeded provisioning state.
+// exists for clusters that have a ClusterUID and are in the Succeeded provisioning state.
 func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, cosmosClient database.DBClient) controllerutils.ClusterSyncer {
 	return &createBillingDoc{
 		clock:           clock,
-		cooldownChecker: controllerutils.NewTimeBasedCooldownChecker(60 * time.Minute),
+		cooldownChecker: controllerutils.NewTimeBasedCooldownChecker(60 * time.Second), // Run at most once per minute per cluster
 		azureLocation:   azureLocation,
 		cosmosClient:    cosmosClient,
 	}
@@ -60,8 +60,8 @@ func (c *createBillingDoc) synchronizeCluster(ctx context.Context, keyObj contro
 		return utils.TrackError(err)
 	}
 
-	// Skip if the cluster doesn't have a BillingDocID yet (backfill controller's responsibility)
-	if cluster.ServiceProviderProperties.BillingDocID == "" {
+	// Skip if the cluster doesn't have a ClusterUID yet (backfill controller's responsibility)
+	if cluster.ServiceProviderProperties.ClusterUID == "" {
 		return nil
 	}
 
@@ -72,7 +72,7 @@ func (c *createBillingDoc) synchronizeCluster(ctx context.Context, keyObj contro
 
 	logger.Info("ensuring billing document exists",
 		"clusterResourceID", cluster.ID,
-		"billingDocID", cluster.ServiceProviderProperties.BillingDocID,
+		"clusterUID", cluster.ServiceProviderProperties.ClusterUID,
 	)
 
 	subscription, err := c.cosmosClient.Subscriptions().Get(ctx, cluster.ID.SubscriptionID)
@@ -87,7 +87,7 @@ func (c *createBillingDoc) synchronizeCluster(ctx context.Context, keyObj contro
 		return fmt.Errorf("cluster creation time is zero")
 	}
 
-	doc := database.NewBillingDocument(cluster.ServiceProviderProperties.BillingDocID, cluster.ID)
+	doc := database.NewBillingDocument(cluster.ServiceProviderProperties.ClusterUID, cluster.ID)
 	doc.CreationTime = creationTime
 	doc.Location = c.azureLocation
 	doc.TenantID = ptr.Deref(subscription.Properties.TenantId, "")
@@ -102,7 +102,7 @@ func (c *createBillingDoc) synchronizeCluster(ctx context.Context, keyObj contro
 	if database.IsResponseError(err, http.StatusConflict) {
 		// Billing document already exists, nothing to do
 		logger.Info("billing document already exists",
-			"billingDocID", cluster.ServiceProviderProperties.BillingDocID,
+			"clusterUID", cluster.ServiceProviderProperties.ClusterUID,
 		)
 		return nil
 	}
@@ -112,7 +112,7 @@ func (c *createBillingDoc) synchronizeCluster(ctx context.Context, keyObj contro
 
 	logger.Info("created billing document for cluster",
 		"clusterResourceID", cluster.ID,
-		"billingDocID", cluster.ServiceProviderProperties.BillingDocID,
+		"clusterUID", cluster.ServiceProviderProperties.ClusterUID,
 	)
 	return nil
 }

@@ -84,7 +84,7 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// is set to a dummy value by our tools/testsuites/developers when
 	// creating ARO-HCP Clusters
 	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
-	BillingDocID                          string `json:"billingDocId,omitempty"`
+	ClusterUID                            string `json:"clusterUid,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

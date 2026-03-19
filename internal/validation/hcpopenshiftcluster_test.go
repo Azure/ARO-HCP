@@ -168,7 +168,7 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
-					fieldPath: "serviceProviderProperties.billingDocId",
+					fieldPath: "serviceProviderProperties.clusterUid",
 				},
 			},
 		},
@@ -205,7 +205,7 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
-					fieldPath: "serviceProviderProperties.billingDocId",
+					fieldPath: "serviceProviderProperties.clusterUid",
 				},
 			},
 		},

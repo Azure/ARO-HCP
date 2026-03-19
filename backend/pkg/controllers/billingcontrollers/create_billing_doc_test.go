@@ -39,7 +39,7 @@ const (
 	testSubscriptionID      = "00000000-0000-0000-0000-000000000000"
 	testResourceGroupName   = "test-rg"
 	testClusterName         = "test-cluster"
-	testBillingDocID        = "billing-doc-id-001"
+	testClusterUID          = "billing-doc-id-001"
 	testTenantID            = "11111111-1111-1111-1111-111111111111"
 	testAzureLocation       = "eastus"
 	testClusterServiceIDStr = "/api/clusters_mgmt/v1/clusters/abc123"
@@ -78,7 +78,7 @@ func newTestSubscription() *arm.Subscription {
 	}
 }
 
-func newTestCluster(t *testing.T, billingDocID string, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T, clusterUID string, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
 	t.Helper()
 	return &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
@@ -93,7 +93,7 @@ func newTestCluster(t *testing.T, billingDocID string, provisioningState arm.Pro
 		},
 		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 			ProvisioningState: provisioningState,
-			BillingDocID:      billingDocID,
+			ClusterUID:        clusterUID,
 			ClusterServiceID:  api.Must(api.NewInternalID(testClusterServiceIDStr)),
 		},
 	}
@@ -118,15 +118,15 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		verify      func(t *testing.T, db *databasetesting.MockDBClient)
 	}{
 		{
-			name:        "creates billing document for succeeded cluster with BillingDocID",
-			cluster:     newTestCluster(t, testBillingDocID, arm.ProvisioningStateSucceeded, &createdAt),
+			name:        "creates billing document for succeeded cluster with ClusterUID",
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt),
 			expectError: false,
 			verify: func(t *testing.T, db *databasetesting.MockDBClient) {
 				billingDocs := db.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
-				doc := billingDocs[testBillingDocID]
+				doc := billingDocs[testClusterUID]
 				require.NotNil(t, doc)
-				assert.Equal(t, testBillingDocID, doc.ID)
+				assert.Equal(t, testClusterUID, doc.ID)
 				assert.Equal(t, testTenantID, doc.TenantID)
 				assert.Equal(t, testAzureLocation, doc.Location)
 				assert.Equal(t, createdAt, doc.CreationTime)
@@ -134,28 +134,28 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		},
 		{
 			name:        "uses fallback time when CreatedAt is nil",
-			cluster:     newTestCluster(t, testBillingDocID, arm.ProvisioningStateSucceeded, nil),
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, nil),
 			expectError: false,
 			verify: func(t *testing.T, db *databasetesting.MockDBClient) {
 				billingDocs := db.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
-				doc := billingDocs[testBillingDocID]
+				doc := billingDocs[testClusterUID]
 				require.NotNil(t, doc)
 				assert.Equal(t, fixedTime, doc.CreationTime, "should use fallback time when CreatedAt is nil")
 			},
 		},
 		{
-			name:        "skips cluster without BillingDocID",
+			name:        "skips cluster without ClusterUID",
 			cluster:     newTestCluster(t, "", arm.ProvisioningStateSucceeded, &createdAt),
 			expectError: false,
 			verify: func(t *testing.T, db *databasetesting.MockDBClient) {
 				billingDocs := db.GetBillingDocuments()
-				assert.Empty(t, billingDocs, "no billing document should be created when BillingDocID is empty")
+				assert.Empty(t, billingDocs, "no billing document should be created when ClusterUID is empty")
 			},
 		},
 		{
 			name:        "skips cluster not in Succeeded state",
-			cluster:     newTestCluster(t, testBillingDocID, arm.ProvisioningStateProvisioning, &createdAt),
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateProvisioning, &createdAt),
 			expectError: false,
 			verify: func(t *testing.T, db *databasetesting.MockDBClient) {
 				billingDocs := db.GetBillingDocuments()
@@ -164,7 +164,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		},
 		{
 			name:        "idempotent when billing document already exists",
-			cluster:     newTestCluster(t, testBillingDocID, arm.ProvisioningStateSucceeded, &createdAt),
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt),
 			expectError: false,
 			verify:      nil, // covered by setup - billing doc pre-seeded, second sync should not error
 		},
@@ -209,7 +209,7 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 	ctx := context.Background()
 	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-	cluster := newTestCluster(t, testBillingDocID, arm.ProvisioningStateSucceeded, &createdAt)
+	cluster := newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt)
 	subscription := newTestSubscription()
 
 	mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, subscription})

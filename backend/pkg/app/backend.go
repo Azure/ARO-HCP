@@ -401,9 +401,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	deleteOrphanedCosmosResourcesController := mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
-	backfillBillingDocIDController := controllerutils.NewClusterWatchingController(
-		"BackfillBillingDocID", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
-		mismatchcontrollers.NewBackfillBillingDocIDController(utilsclock.RealClock{}, b.options.CosmosDBClient))
+	backfillClusterUIDController := controllerutils.NewClusterWatchingController(
+		"BackfillClusterUID", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
+		mismatchcontrollers.NewBackfillClusterUIDController(utilsclock.RealClock{}, b.options.CosmosDBClient))
 	orphanedBillingCleanupController := controllerutils.NewClusterWatchingController(
 		"OrphanedBillingCleanup", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
 		billingcontrollers.NewOrphanedBillingCleanupController(utilsclock.RealClock{}, b.options.CosmosDBClient))
@@ -522,7 +522,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go cosmosMatchingClusterController.Run(ctx, 20)
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
-				go backfillBillingDocIDController.Run(ctx, 20)
+				go backfillClusterUIDController.Run(ctx, 20)
 				go orphanedBillingCleanupController.Run(ctx, 20)
 				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)

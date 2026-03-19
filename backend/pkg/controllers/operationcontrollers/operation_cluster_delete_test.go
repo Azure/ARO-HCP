@@ -159,7 +159,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			operation := fixture.newOperation(database.OperationRequestDelete)
 
 			// Create billing document for deletion test
-			billingDoc := database.NewBillingDocument(cluster.ServiceProviderProperties.BillingDocID, fixture.clusterResourceID)
+			billingDoc := database.NewBillingDocument(cluster.ServiceProviderProperties.ClusterUID, fixture.clusterResourceID)
 			billingDoc.CreationTime = createdAt
 			billingDoc.Location = testAzureLocation
 			billingDoc.TenantID = testTenantID

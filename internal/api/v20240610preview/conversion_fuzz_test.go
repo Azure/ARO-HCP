@@ -53,8 +53,8 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// the information is not provided in the request body. That information is provided via
 			// the http header 'X-Ms-Identity-Url' and we set it after the call to conversion to internal.
 			j.ManagedIdentitiesDataPlaneIdentityURL = ""
-			// BillingDocID does not roundtrip through the external type because it is purely an internal detail
-			j.BillingDocID = ""
+			// ClusterUID does not roundtrip through the external type because it is purely an internal detail
+			j.ClusterUID = ""
 		},
 		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)

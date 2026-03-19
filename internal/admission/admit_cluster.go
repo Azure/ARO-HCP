@@ -101,9 +101,9 @@ func lookupTag(tags map[string]string, key string) string {
 // MutateClusterCreate sets fields that are generated on cluster creation.
 // Must be called after decoding and before validation on CREATE operations only.
 func MutateClusterCreate(cluster *api.HCPOpenShiftCluster) {
-	// Generate a unique billing document ID for this cluster
-	if cluster.ServiceProviderProperties.BillingDocID == "" {
-		cluster.ServiceProviderProperties.BillingDocID = uuid.New().String()
+	// Generate a unique cluster UID for this cluster
+	if cluster.ServiceProviderProperties.ClusterUID == "" {
+		cluster.ServiceProviderProperties.ClusterUID = uuid.New().String()
 	}
 }
 

@@ -87,7 +87,7 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 		CreatedByType: arm.CreatedByTypeUser,
 		CreatedAt:     &createdAt,
 	}
-	resource.ServiceProviderProperties.BillingDocID = "00000000-0000-0000-0000-000000000000"
+	resource.ServiceProviderProperties.ClusterUID = "00000000-0000-0000-0000-000000000000"
 	return resource
 }
 
