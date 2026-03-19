@@ -43,6 +43,19 @@ miMock:
   principalId: "{{ .miMockPrincipalId }}"
   # The Azure Tenant ID where the MI Mock Identity is registered.
   tenantId: "{{ .miMockTenantId }}"
+# ARM Permissions Manager Identity. It is a common Azure Service Principal identity.
+# It is used in the ARO-HCP environments where Microsoft's First Party Application (FPA) integration is not available.
+# In those environments, the ARM Permissions Manager Identity is used to perform some tasks that are related
+# to permissions management and verification.
+# Note: this identity is also referred to as ARM Helper identity in some other contexts.
+armPermissionsManagerIdentity:
+  # certName is the name of the certificate in Azure Key Vault. It can be used
+  # to reference the associated Certificate, Secret and Key objects associated
+  # to the certificate
+  certName: "{{ .armHelperCertName }}"
+  clientId: "{{ .armHelperClientId }}"
+  # The Azure Tenant ID where the ARM Permissions Manager Identity is registered.
+  tenantId: "{{ .armHelperTenantId }}"
 azure:
   cloudEnvironmentName: "{{ .cloudEnvironmentName }}"
   # The Azure Tenant ID where backend service is running. In values.yaml we
