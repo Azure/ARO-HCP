@@ -35,6 +35,18 @@ import (
 
 var labelNames = []string{"resource_id_hash", "resource_type", "operation_type", "phase"}
 
+// operationKey is a typed workqueue key that carries the resource ID and
+// provides a deterministic hash for use as a Prometheus label value.
+// Both setMetrics and deleteMetricsByKey use operationKey.hash() to derive
+// the resource_id_hash label, enforcing consistency.
+type operationKey struct {
+	resourceID string
+}
+
+func (k operationKey) hash() string {
+	return ResourceIDHash(k.resourceID)
+}
+
 // OperationPhaseMetricsController reacts to informer events and maintains
 // per-operation Prometheus gauge metrics using a level-driven approach.
 // On each sync it reads the current state of the operation and sets metrics
@@ -42,7 +54,7 @@ var labelNames = []string{"resource_id_hash", "resource_type", "operation_type",
 type OperationPhaseMetricsController struct {
 	name    string
 	indexer cache.Indexer
-	queue   workqueue.TypedRateLimitingInterface[string]
+	queue   workqueue.TypedRateLimitingInterface[operationKey]
 
 	phaseInfo          *prometheus.GaugeVec
 	startTime          *prometheus.GaugeVec
@@ -77,8 +89,8 @@ func NewOperationPhaseMetricsController(
 		startTime:          startTime,
 		lastTransitionTime: lastTransitionTime,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[string](),
-			workqueue.TypedRateLimitingQueueConfig[string]{
+			workqueue.DefaultTypedControllerRateLimiter[operationKey](),
+			workqueue.TypedRateLimitingQueueConfig[operationKey]{
 				Name: "OperationPhaseMetrics",
 			},
 		),
@@ -104,7 +116,7 @@ func (c *OperationPhaseMetricsController) enqueue(obj interface{}) {
 		logger.Error(err, "failed to compute key")
 		return
 	}
-	c.queue.Add(key)
+	c.queue.Add(operationKey{resourceID: key})
 }
 
 // Run starts the controller workers and blocks until ctx is cancelled.
@@ -145,7 +157,7 @@ func (c *OperationPhaseMetricsController) processNextWorkItem(ctx context.Contex
 		return true
 	}
 
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing operation phase metrics", "key", key)
+	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing operation phase metrics", "key", key.resourceID)
 	c.queue.AddRateLimited(key)
 	return true
 }
@@ -153,38 +165,38 @@ func (c *OperationPhaseMetricsController) processNextWorkItem(ctx context.Contex
 // syncOperation processes a single operation key: reads current state from the
 // informer cache and sets metrics accordingly (level-driven). If the operation
 // has been removed, all its metric series are deleted.
-func (c *OperationPhaseMetricsController) syncOperation(ctx context.Context, key string) error {
-	obj, exists, err := c.indexer.GetByKey(key)
+func (c *OperationPhaseMetricsController) syncOperation(ctx context.Context, key operationKey) error {
+	obj, exists, err := c.indexer.GetByKey(key.resourceID)
 	if err != nil {
 		return err
 	}
 
 	if !exists {
-		c.deleteMetricsByKey(key)
+		c.deleteMetrics(key)
 		return nil
 	}
 
 	op, ok := obj.(*api.Operation)
 	if !ok {
-		c.deleteMetricsByKey(key)
+		c.deleteMetrics(key)
 		return nil
 	}
 
 	if op.OperationID == nil || op.GetResourceID() == nil {
-		c.deleteMetricsByKey(key)
+		c.deleteMetrics(key)
 		return nil
 	}
 
-	c.setMetrics(ctx, op)
+	c.setMetrics(ctx, key, op)
 	return nil
 }
 
 // setMetrics is level-driven: it deletes any existing series for this operation
 // and sets new ones reflecting the current state. No in-memory tracking is needed.
-// The hash is derived from GetResourceID() (CosmosMetadata) to align with the
-// informer store key used by deleteMetricsByKey.
-func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, op *api.Operation) {
-	hash := ResourceIDHash(op.GetResourceID().String())
+// The hash is derived from the operationKey, which ensures alignment with
+// deleteMetrics.
+func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, key operationKey, op *api.Operation) {
+	hash := key.hash()
 	resourceType := ResourceTypeFromExternalID(op.ExternalID)
 	operationType := OperationTypeLabel(op.Request)
 	phase := PhaseLabel(op.Status)
@@ -221,11 +233,11 @@ func (c *OperationPhaseMetricsController) setMetrics(ctx context.Context, op *ap
 	logger.V(1).Info("Operation metrics synced", logValues...)
 }
 
-// deleteMetricsByKey removes all metric series for the operation identified by
-// the given store key. The store key is the lowercased ResourceID string,
-// which is the same value used to compute the hash in setMetrics.
-func (c *OperationPhaseMetricsController) deleteMetricsByKey(key string) {
-	hash := ResourceIDHash(key)
+// deleteMetrics removes all metric series for the operation identified by
+// the given operationKey. The hash is derived from the same operationKey
+// used by setMetrics, ensuring consistency.
+func (c *OperationPhaseMetricsController) deleteMetrics(key operationKey) {
+	hash := key.hash()
 	partialMatch := prometheus.Labels{"resource_id_hash": hash}
 	c.phaseInfo.DeletePartialMatch(partialMatch)
 	c.startTime.DeletePartialMatch(partialMatch)

@@ -171,7 +171,8 @@ func TestSetMetrics_SetsAllThreeMetrics(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), op)
+	key := operationKey{resourceID: op.GetResourceID().String()}
+	c.setMetrics(context.Background(), key, op)
 
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 	assert.Equal(t, 1, testutil.CollectAndCount(c.startTime))
@@ -192,10 +193,10 @@ func TestSyncOperation_SetsMetricsFromIndexer(t *testing.T) {
 	c := newTestController(t)
 	c.indexer = indexer
 
-	key, err := cache.MetaNamespaceKeyFunc(op)
+	storeKey, err := cache.MetaNamespaceKeyFunc(op)
 	require.NoError(t, err)
 
-	err = c.syncOperation(context.Background(), key)
+	err = c.syncOperation(context.Background(), operationKey{resourceID: storeKey})
 	assert.NoError(t, err)
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo), "expected 1 phase_info metric")
 	assert.Equal(t, 1, testutil.CollectAndCount(c.startTime), "expected 1 start_time metric")
@@ -216,8 +217,9 @@ func TestSyncOperation_DeletesMetricsWhenOperationRemoved(t *testing.T) {
 	c := newTestController(t)
 	c.indexer = indexer
 
-	key, err := cache.MetaNamespaceKeyFunc(op)
+	storeKey, err := cache.MetaNamespaceKeyFunc(op)
 	require.NoError(t, err)
+	key := operationKey{resourceID: storeKey}
 
 	// First sync: metrics are set.
 	err = c.syncOperation(context.Background(), key)
@@ -258,10 +260,10 @@ func TestSyncOperation_SkipsNilOperationID(t *testing.T) {
 	c := newTestController(t)
 	c.indexer = indexer
 
-	key, err := cache.MetaNamespaceKeyFunc(op)
+	storeKey, err := cache.MetaNamespaceKeyFunc(op)
 	require.NoError(t, err)
 
-	err = c.syncOperation(context.Background(), key)
+	err = c.syncOperation(context.Background(), operationKey{resourceID: storeKey})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, testutil.CollectAndCount(c.phaseInfo), "expected 0 metrics for operation with nil OperationID")
 }
@@ -274,7 +276,8 @@ func TestSetMetrics_SkipsZeroTimestamps(t *testing.T) {
 		time.Time{}, time.Time{})
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), op)
+	key := operationKey{resourceID: op.GetResourceID().String()}
+	c.setMetrics(context.Background(), key, op)
 
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo), "expected only phase_info metric when timestamps are zero")
 	assert.Equal(t, 0, testutil.CollectAndCount(c.startTime))
@@ -295,8 +298,8 @@ func TestSetMetrics_MultipleOperations(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), op1)
-	c.setMetrics(context.Background(), op2)
+	c.setMetrics(context.Background(), operationKey{resourceID: op1.GetResourceID().String()}, op1)
+	c.setMetrics(context.Background(), operationKey{resourceID: op2.GetResourceID().String()}, op2)
 
 	assert.Equal(t, 2, testutil.CollectAndCount(c.phaseInfo), "expected 2 phase_info metrics")
 	assert.Equal(t, 2, testutil.CollectAndCount(c.startTime), "expected 2 start_time metrics")
@@ -312,9 +315,10 @@ func TestSetMetrics_VerifiesLabelValues(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), op)
+	key := operationKey{resourceID: op.GetResourceID().String()}
+	c.setMetrics(context.Background(), key, op)
 
-	hash := ResourceIDHash(op.GetResourceID().String())
+	hash := key.hash()
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
 backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id_hash="%s",resource_type="cluster"} 1
@@ -333,9 +337,10 @@ func TestSetMetrics_NilExternalIDUsesUnknownResourceType(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), op)
+	key := operationKey{resourceID: op.GetResourceID().String()}
+	c.setMetrics(context.Background(), key, op)
 
-	hash := ResourceIDHash(op.GetResourceID().String())
+	hash := key.hash()
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
 backend_resource_operation_phase_info{operation_type="create",phase="accepted",resource_id_hash="%s",resource_type="unknown"} 1
@@ -354,19 +359,20 @@ func TestSetMetrics_PhaseTransitionDeletesOldSeries(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
+	key := operationKey{resourceID: op.GetResourceID().String()}
 
 	// Initial set with "accepted" phase.
-	c.setMetrics(context.Background(), op)
+	c.setMetrics(context.Background(), key, op)
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 
 	// Phase transition to "provisioning".
 	op.Status = arm.ProvisioningStateProvisioning
-	c.setMetrics(context.Background(), op)
+	c.setMetrics(context.Background(), key, op)
 
 	// Should still be exactly 1 metric (old "accepted" deleted via DeletePartialMatch, new "provisioning" set).
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 
-	hash := ResourceIDHash(op.GetResourceID().String())
+	hash := key.hash()
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
 backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id_hash="%s",resource_type="cluster"} 1
@@ -375,7 +381,7 @@ backend_resource_operation_phase_info{operation_type="create",phase="provisionin
 	require.NoError(t, err)
 }
 
-func TestDeleteMetricsByKey_CleansUpAllGauges(t *testing.T) {
+func TestDeleteMetrics_CleansUpAllGauges(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	op := newTestOperation(t, "op-1",
 		api.OperationRequestCreate,
@@ -384,11 +390,12 @@ func TestDeleteMetricsByKey_CleansUpAllGauges(t *testing.T) {
 		now, now)
 
 	c := newTestController(t)
-	c.setMetrics(context.Background(), op)
+	key := operationKey{resourceID: op.GetResourceID().String()}
+	c.setMetrics(context.Background(), key, op)
 	assert.Equal(t, 1, testutil.CollectAndCount(c.phaseInfo))
 
-	// The store key is the lowercased ResourceID (CosmosMetadata), same value used by setMetrics.
-	c.deleteMetricsByKey(strings.ToLower(op.GetResourceID().String()))
+	// Uses the same operationKey, ensuring hash consistency with setMetrics.
+	c.deleteMetrics(key)
 	assert.Equal(t, 0, testutil.CollectAndCount(c.phaseInfo))
 	assert.Equal(t, 0, testutil.CollectAndCount(c.startTime))
 	assert.Equal(t, 0, testutil.CollectAndCount(c.lastTransitionTime))
