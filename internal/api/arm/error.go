@@ -153,6 +153,9 @@ func NewCloudErrorBodyFromSlice(errors []CloudErrorBody, multipleErrorsMessage s
 }
 
 func (body *CloudErrorBody) String() string {
+	if body == nil {
+		return ""
+	}
 	out := fmt.Sprintf("%s: ", body.Code)
 	if len(body.Target) > 0 {
 		out += fmt.Sprintf("%s: ", body.Target)
