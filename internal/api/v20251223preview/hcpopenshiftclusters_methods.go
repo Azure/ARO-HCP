@@ -387,6 +387,14 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 				errs = append(errs, field.Required(field.NewPath("properties", "autoscaling", "podPriorityThreshold"), "field cannot be null"))
 			}
 		}
+		if c.Properties.Etcd != nil && c.Properties.Etcd.DataEncryption != nil && c.Properties.Etcd.DataEncryption.CustomerManaged != nil && c.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+			if c.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility == nil {
+				errs = append(errs, field.Required(field.NewPath("properties", "etcd", "dataEncryption", "customerManaged", "kms", "visibility"), "field cannot be null"))
+			}
+		}
+		if c.Properties.Platform != nil && c.Properties.Platform.VnetIntegrationSubnetID != nil && len(*c.Properties.Platform.VnetIntegrationSubnetID) == 0 {
+			errs = append(errs, field.Invalid(field.NewPath("properties", "platform", "vnetIntegrationSubnetId"), "", "field cannot be empty string"))
+		}
 	}
 
 	if c.ID != nil {
