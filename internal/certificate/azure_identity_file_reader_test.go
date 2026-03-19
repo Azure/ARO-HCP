@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fpa
+package certificate
 
 import (
 	"os"
@@ -21,6 +21,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/internal/certificatetest"
 )
 
 func TestFileCertificateReaderReadCertificate(t *testing.T) {
@@ -29,9 +31,9 @@ func TestFileCertificateReaderReadCertificate(t *testing.T) {
 	testFile := filepath.Join(dir, bundleFileName)
 
 	var serialNumber int64 = 20
-	atomicUpdateCert(t, dir, bundleFileName, serialNumber)
+	certificatetest.AtomicUpdateCert(t, dir, bundleFileName, serialNumber)
 
-	reader := NewFileCertificateReader(testFile)
+	reader := NewAzureIdentityFileReader(testFile)
 
 	certs, key, err := reader.ReadCertificate()
 	require.NoError(t, err)
@@ -42,7 +44,7 @@ func TestFileCertificateReaderReadCertificate(t *testing.T) {
 }
 
 func TestFileCertificateReaderReadMissingFile(t *testing.T) {
-	reader := NewFileCertificateReader("/nonexistent/path/file.pem")
+	reader := NewAzureIdentityFileReader("/nonexistent/path/file.pem")
 
 	_, _, err := reader.ReadCertificate()
 	require.Error(t, err)
@@ -56,7 +58,7 @@ func TestFileCertificateReaderParseError(t *testing.T) {
 	err := os.WriteFile(testFile, []byte("invalid certificate data"), 0644)
 	require.NoError(t, err)
 
-	reader := NewFileCertificateReader(testFile)
+	reader := NewAzureIdentityFileReader(testFile)
 
 	_, _, err = reader.ReadCertificate()
 	require.Error(t, err)

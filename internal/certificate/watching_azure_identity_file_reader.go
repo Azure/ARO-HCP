@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fpa
+package certificate
 
 import (
 	"context"
@@ -25,10 +25,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// WatchingFileCertificateReader wraps FileCertificateReader with caching and automatic reloading.
+// WatchingAzureIdentityFileReader wraps AzureIdentityFileReader with caching and automatic reloading.
 // It watches the certificate file and reloads when changes are detected.
-type WatchingFileCertificateReader struct {
-	reader   *FileCertificateReader
+type WatchingAzureIdentityFileReader struct {
+	reader   *AzureIdentityFileReader
 	filePath string
 
 	mu    sync.RWMutex
@@ -36,13 +36,13 @@ type WatchingFileCertificateReader struct {
 	key   crypto.PrivateKey
 }
 
-// NewWatchingFileCertificateReader creates a new watching certificate reader.
+// NewWatchingAzureIdentityFileReader creates a new watching certificate reader.
 // It loads the initial certificate and starts watching for changes.
 // The logger is obtained from the context using utils.LoggerFromContext.
-func NewWatchingFileCertificateReader(ctx context.Context, filePath string, checkInterval time.Duration) (*WatchingFileCertificateReader, error) {
-	reader := NewFileCertificateReader(filePath)
+func NewWatchingAzureIdentityFileReader(ctx context.Context, filePath string) (*WatchingAzureIdentityFileReader, error) {
+	reader := NewAzureIdentityFileReader(filePath)
 
-	w := &WatchingFileCertificateReader{
+	w := &WatchingAzureIdentityFileReader{
 		reader:   reader,
 		filePath: filePath,
 	}
@@ -52,18 +52,13 @@ func NewWatchingFileCertificateReader(ctx context.Context, filePath string, chec
 		return nil, fmt.Errorf("failed to load initial certificate: %w", err)
 	}
 
-	// Start watching for changes
-	if err := w.startWatching(ctx, checkInterval); err != nil {
-		return nil, fmt.Errorf("failed to start watching: %w", err)
-	}
-
 	return w, nil
 }
 
-// startWatching starts watching the certificate file for changes.
+// Run starts watching the certificate file for changes.
 // When changes are detected, the reload callback is invoked.
 // Watching continues until the context is canceled.
-func (w *WatchingFileCertificateReader) startWatching(ctx context.Context, checkInterval time.Duration) error {
+func (w *WatchingAzureIdentityFileReader) Run(ctx context.Context, checkInterval time.Duration) error {
 	watcher, err := utils.NewFSWatcher(w.filePath, checkInterval, w.reload)
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %w", err)
@@ -73,14 +68,14 @@ func (w *WatchingFileCertificateReader) startWatching(ctx context.Context, check
 }
 
 // ReadCertificate returns the cached certificate.
-func (w *WatchingFileCertificateReader) ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error) {
+func (w *WatchingAzureIdentityFileReader) ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	return w.certs, w.key, nil
 }
 
 // reload reads and caches the certificate from the underlying reader.
-func (w *WatchingFileCertificateReader) reload(ctx context.Context) error {
+func (w *WatchingAzureIdentityFileReader) reload(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	certs, key, err := w.reader.ReadCertificate()
