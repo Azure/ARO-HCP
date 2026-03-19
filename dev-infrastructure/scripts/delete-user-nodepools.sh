@@ -14,7 +14,7 @@ ALL_POOLS=$(az aks nodepool list \
   --query "[?mode=='User'].name" \
   --output tsv)
 
-POOLS=$(echo "${ALL_POOLS}" | grep -E "^${POOL_NAME_PATTERN}$" || true)
+POOLS=$(echo "${ALL_POOLS}" | { grep -E "^${POOL_NAME_PATTERN}$" || test $? -eq 1; })
 POOLS=$(echo "${POOLS}" | xargs)
 
 if [ -z "${POOLS}" ]; then
