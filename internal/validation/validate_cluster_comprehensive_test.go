@@ -389,14 +389,14 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "missing kms encryption visibility is allowed for backwards compatibility - create",
+			name: "missing kms encryption visibility fails validation - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
 					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
 					Kms: &api.KmsEncryptionProfile{
-						// Visibility is omitted (empty string) for backwards compatibility with older API versions
+						// Visibility is omitted (empty string) - EnsureDefaults will fill it in before validation
 						ActiveKey: api.KmsKey{
 							Name:      "test-key",
 							VaultName: "test-vault",
@@ -407,7 +407,14 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{
-				// No errors expected - visibility is optional for backwards compatibility
+				{
+				message:   "Required value",
+				fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+			},
+			{
+				message:   "supported values: \"Private\", \"Public\"",
+				fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+			},
 			},
 		},
 		{

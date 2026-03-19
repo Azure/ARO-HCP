@@ -704,6 +704,14 @@ func TestClusterValidate(t *testing.T) {
 					message:   "Required value",
 					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version",
 				},
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+				},
+				{
+					message:   "supported values: \"Private\", \"Public\"",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+				},
 			},
 		},
 
