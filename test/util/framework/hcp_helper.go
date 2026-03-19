@@ -1088,7 +1088,7 @@ func BuildHCPCluster20251223FromParams(
 				AuthorizedCIDRs: parameters.AuthorizedCIDRs,
 			},
 			ClusterImageRegistry: &hcpsdk20251223preview.ClusterImageRegistryProfile{
-				State: to.Ptr(hcpsdk20251223preview.ClusterImageRegistryProfileState(parameters.ImageRegistryState)),
+				State: to.Ptr(hcpsdk20251223preview.ClusterImageRegistryState(parameters.ImageRegistryState)),
 			},
 			Etcd: &hcpsdk20251223preview.EtcdProfile{
 				DataEncryption: &hcpsdk20251223preview.EtcdDataEncryptionProfile{
@@ -1096,10 +1096,10 @@ func BuildHCPCluster20251223FromParams(
 					CustomerManaged: &hcpsdk20251223preview.CustomerManagedEncryptionProfile{
 						EncryptionType: to.Ptr(hcpsdk20251223preview.CustomerManagedEncryptionType(parameters.EncryptionType)),
 						Kms: &hcpsdk20251223preview.KmsEncryptionProfile{
+							VaultName: to.Ptr(parameters.KeyVaultName),
 							ActiveKey: &hcpsdk20251223preview.KmsKey{
-								VaultName: to.Ptr(parameters.KeyVaultName),
-								Name:      to.Ptr(parameters.EtcdEncryptionKeyName),
-								Version:   to.Ptr(parameters.EtcdEncryptionKeyVersion),
+								Name:    to.Ptr(parameters.EtcdEncryptionKeyName),
+								Version: to.Ptr(parameters.EtcdEncryptionKeyVersion),
 							},
 						},
 					},
