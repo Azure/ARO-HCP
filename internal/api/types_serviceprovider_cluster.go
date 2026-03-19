@@ -111,6 +111,19 @@ type ServiceProviderClusterStatus struct {
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
 	// and the Maestro Bundle Name and ID at the Maestro API level.
 	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
+
+	// DataPlaneOperatorsManagedIdentities is a map of data plane operator managed identities.
+	// The key is the Azure Resource ID of the managed identity
+	// TODO do we want the key to be the operator name or the Azure Resource ID?
+	// TODO do we want to store both the operator name and the Azure Resource ID?
+	DataPlaneOperatorsManagedIdentities map[string]*ServiceProviderClusterDataPlaneOperatorManagedIdentity `json:"dataPlaneOperatorsManagedIdentities,omitempty"`
+}
+
+type ServiceProviderClusterDataPlaneOperatorManagedIdentity struct {
+	OperatorName string                `json:"operatorName"`
+	ResourceID   *azcorearm.ResourceID `json:"resourceID"`
+	ClientID     string                `json:"clientID"`
+	PrincipalID  string                `json:"principalID"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
