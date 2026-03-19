@@ -763,6 +763,12 @@ func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, intern
 	mergedOldClusterServiceNodePool.Properties.ProvisioningState = internalNodePool.Properties.ProvisioningState
 	mergedOldClusterServiceNodePool.ServiceProviderProperties = *internalNodePool.ServiceProviderProperties.DeepCopy()
 
+	// Properties.Version is the desired version; read it from Cosmos when set. Cluster Service reflects the
+	// actual node pool version and is updated when the upgrade completes.
+	if len(internalNodePool.Properties.Version.ID) > 0 {
+		mergedOldClusterServiceNodePool.Properties.Version = internalNodePool.Properties.Version
+	}
+
 	return mergedOldClusterServiceNodePool, nil
 }
 

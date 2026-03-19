@@ -176,7 +176,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			name: "converts stable version from CS to RP (X.Y.Z to X.Y)",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.7").
+					ID("openshift-v4.19.25").
 					ChannelGroup("stable")),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
@@ -309,7 +309,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.7").
+					ID("openshift-v4.19.25").
 					ChannelGroup("stable"))),
 		},
 		{
@@ -350,7 +350,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.7").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.25").ChannelGroup("stable"))),
 		},
 		{
 			name: "with version 4.20",
@@ -360,7 +360,17 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.15").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.16").ChannelGroup("stable"))),
+		},
+		{
+			name: "with version 4.21",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{ID: "4.21", ChannelGroup: "stable"},
+				},
+			},
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.5").ChannelGroup("stable"))),
 		},
 	}
 
@@ -465,7 +475,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.19.7").
+			ID("openshift-v4.19.25").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled))
@@ -562,7 +572,7 @@ func TestBuildCSNodePool(t *testing.T) {
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.7").
+					ID("openshift-v4.19.25").
 					ChannelGroup("stable")),
 		},
 		{
