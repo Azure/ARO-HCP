@@ -72,17 +72,17 @@ func (d *untypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID)
 	}
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
-	return get[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, resourceID)
+	return getWithMetrics[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, resourceID)
 }
 
 func (d *untypedCRUD) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
-	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, true)
+	return listWithMetrics[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, true)
 }
 
 func (d *untypedCRUD) ListRecursive(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
-	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, false)
+	return listWithMetrics[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, false)
 }
 
 func (d *untypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {
@@ -91,7 +91,7 @@ func (d *untypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.Resource
 	}
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
-	return deleteResource(ctx, d.containerClient, partitionKey, resourceID)
+	return deleteResourceWithMetrics(ctx, d.containerClient, partitionKey, resourceID)
 }
 
 func (d *untypedCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
