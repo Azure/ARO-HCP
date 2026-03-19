@@ -116,7 +116,7 @@ func TestSetProvisioningCondition_SameStateTwice(t *testing.T) {
 		"LastTransitionTime should not change when status doesn't change")
 }
 
-func TestSetProvisioningCondition_OnServiceProviderProperties(t *testing.T) {
+func TestSetProvisioningCondition_OnClusterStatus(t *testing.T) {
 	cluster := &HCPOpenShiftCluster{}
 
 	SetProvisioningCondition(&cluster.Status.Conditions, arm.ProvisioningStateProvisioning)

@@ -876,11 +876,7 @@ func legacyMergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalClu
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningState = internalCluster.ServiceProviderProperties.ProvisioningState
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ActiveOperationID = internalCluster.ServiceProviderProperties.ActiveOperationID
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ClusterServiceID = internalCluster.ServiceProviderProperties.ClusterServiceID
-	if internalCluster.Status.Conditions != nil {
-		conditions := make([]api.Condition, len(internalCluster.Status.Conditions))
-		copy(conditions, internalCluster.Status.Conditions)
-		clusterServiceBasedInternalCluster.Status.Conditions = conditions
-	}
+	clusterServiceBasedInternalCluster.Status = *internalCluster.Status.DeepCopy()
 	if clusterServiceBasedInternalCluster.Identity == nil {
 		clusterServiceBasedInternalCluster.Identity = &arm.ManagedServiceIdentity{}
 	}
