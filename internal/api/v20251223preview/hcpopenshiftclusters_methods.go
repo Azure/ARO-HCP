@@ -603,10 +603,7 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 
 		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
 		out.Kms.ActiveKey.VaultName = api.Deref(p.Kms.VaultName)
-
-		if p.Kms.Visibility != nil {
-			out.Kms.Visibility = api.KeyVaultVisibility(*p.Kms.Visibility)
-		}
+		out.Kms.Visibility = api.KeyVaultVisibility(api.Deref(p.Kms.Visibility))
 	} else {
 		out.Kms = nil
 	}

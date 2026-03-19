@@ -463,22 +463,25 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 
 		azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 			EncryptionType(encryptionType)
-		azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().
-			KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
-			KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
-			KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
-		azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
 
-		// Add KeyVault visibility if specified
-		if in.DataEncryption.CustomerManaged.Kms.Visibility != "" {
-			visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
-			if err != nil {
-				return nil, err
+		if in.DataEncryption.CustomerManaged.Kms != nil {
+			azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().
+				KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
+				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
+				KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
+			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
+
+			// Add KeyVault visibility if specified
+			if in.DataEncryption.CustomerManaged.Kms.Visibility != "" {
+				visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
+				if err != nil {
+					return nil, err
+				}
+				azureKmsEncryptionBuilder.Visibility(visibility)
 			}
-			azureKmsEncryptionBuilder.Visibility(visibility)
-		}
 
-		azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
+			azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
+		}
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
