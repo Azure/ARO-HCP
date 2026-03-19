@@ -1,0 +1,13 @@
+ClusterId: '''cid1'''
+ClusterIds: '''cid1'', ''cid2'''
+ClusterName: '''my-cluster'''
+ClusterNames: '''cluster-a'', ''cluster-b'''
+HCPNamespacePrefix: '''ocm-arohcp'''
+Limit: 100
+NoTruncation: false
+ProjectFields: ""
+ResourceGroupName: '''rg'''
+SubResourceGroupId: '''/subscriptions/sub/resourceGroups/rg'''
+Table: myTable
+TimestampMax: "0001-01-01T00:00:00Z"
+TimestampMin: "0001-01-01T00:00:00Z"

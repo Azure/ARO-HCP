@@ -392,424 +392,213 @@ func TestCliOutputFunc_SystemdLogs(t *testing.T) {
 	assert.Contains(t, string(content), "systemd log line")
 }
 
-func TestConvertRows_StringColumns(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	row := makeTestRow(t, []struct {
+func TestConvertRows(t *testing.T) {
+	type colDef struct {
 		name string
 		typ  types.Column
-	}{
+	}
+	baseCols := []colDef{
 		{"cluster", types.String},
 		{"namespace_name", types.String},
 		{"container_name", types.String},
 		{"timestamp", types.DateTime},
-		{"extra_field", types.String},
-	}, value.Values{
-		value.NewString("test-cluster"),
-		value.NewString("kube-system"),
-		value.NewString("apiserver"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewString("extra-value"),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	assert.Equal(t, "test-cluster", result.Cluster)
-	assert.Equal(t, "kube-system", result.Namespace)
-	assert.Equal(t, "apiserver", result.ContainerName)
-	assert.Equal(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), result.Timestamp)
-	require.NotNil(t, result.Log)
-	assert.Equal(t, "extra-value", result.Log["extra_field"])
-}
-
-func TestConvertRows_DynamicLogColumn(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	logJSON := `{"level":"info","msg":"hello world","ts":"2025-01-01T00:00:00Z"}`
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"log", types.Dynamic},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)),
-		value.NewDynamic([]byte(logJSON)),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	logMap := result.Log["log"]
-	require.NotNil(t, logMap)
-	// Dynamic JSON log is unmarshalled to map[string]any
-	asMap, ok := logMap.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "info", asMap["level"])
-	assert.Equal(t, "hello world", asMap["msg"])
-}
-
-func TestConvertRows_DynamicLogColumn_NonJSON(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	// Dynamic column with non-JSON content falls back to String()
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"log", types.Dynamic},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)),
-		value.NewDynamic([]byte("not valid json")),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	// Falls back to String() representation
-	logVal := result.Log["log"]
-	require.NotNil(t, logVal)
-	_, isString := logVal.(string)
-	assert.True(t, isString, "non-JSON dynamic should fall back to string")
-}
-
-func TestConvertRows_IntColumn(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"status_code", types.Int},
-	}, value.Values{
+	}
+	baseVals := value.Values{
 		value.NewString("cluster-1"),
 		value.NewString("ns-1"),
 		value.NewString("container-1"),
 		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewInt(200),
-	})
+	}
 
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	// Int columns are stored via String() since they're not "log" dynamic columns
-	assert.NotEmpty(t, result.Log["status_code"])
-}
-
-func TestConvertRows_LongColumn(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
+	tests := []struct {
+		name      string
+		cols      []colDef
+		vals      value.Values
+		assertFn  func(t *testing.T, result *NormalizedLogLine)
 	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"bytes_received", types.Long},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewLong(1234567890),
-	})
+		{
+			name: "string columns",
+			cols: append(append([]colDef{}, baseCols...), colDef{"extra_field", types.String}),
+			vals: append(append(value.Values{},
+				value.NewString("test-cluster"),
+				value.NewString("kube-system"),
+				value.NewString("apiserver"),
+				value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
+			), value.NewString("extra-value")),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				assert.Equal(t, "test-cluster", result.Cluster)
+				assert.Equal(t, "kube-system", result.Namespace)
+				assert.Equal(t, "apiserver", result.ContainerName)
+				assert.Equal(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), result.Timestamp)
+				require.NotNil(t, result.Log)
+				assert.Equal(t, "extra-value", result.Log["extra_field"])
+			},
+		},
+		{
+			name: "dynamic log column with JSON object",
+			cols: append(append([]colDef{}, baseCols...), colDef{"log", types.Dynamic}),
+			vals: append(append(value.Values{}, baseVals...),
+				value.NewDynamic([]byte(`{"level":"info","msg":"hello world","ts":"2025-01-01T00:00:00Z"}`))),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				asMap, ok := result.Log["log"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, "info", asMap["level"])
+				assert.Equal(t, "hello world", asMap["msg"])
+			},
+		},
+		{
+			name: "dynamic log column with non-JSON",
+			cols: append(append([]colDef{}, baseCols...), colDef{"log", types.Dynamic}),
+			vals: append(append(value.Values{}, baseVals...),
+				value.NewDynamic([]byte("not valid json"))),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				_, isString := result.Log["log"].(string)
+				assert.True(t, isString, "non-JSON dynamic should fall back to string")
+			},
+		},
+		{
+			name: "int column",
+			cols: append(append([]colDef{}, baseCols...), colDef{"status_code", types.Int}),
+			vals: append(append(value.Values{}, baseVals...), value.NewInt(200)),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				assert.NotEmpty(t, result.Log["status_code"])
+			},
+		},
+		{
+			name: "long column",
+			cols: append(append([]colDef{}, baseCols...), colDef{"bytes_received", types.Long}),
+			vals: append(append(value.Values{}, baseVals...), value.NewLong(1234567890)),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				assert.Contains(t, result.Log["bytes_received"], "1234567890")
+			},
+		},
+		{
+			name: "real column",
+			cols: append(append([]colDef{}, baseCols...), colDef{"cpu_usage", types.Real}),
+			vals: append(append(value.Values{}, baseVals...), value.NewReal(3.14159)),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				assert.Contains(t, result.Log["cpu_usage"], "3.14159")
+			},
+		},
+		{
+			name: "bool column",
+			cols: append(append([]colDef{}, baseCols...), colDef{"is_healthy", types.Bool}),
+			vals: append(append(value.Values{}, baseVals...), value.NewBool(true)),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				assert.Contains(t, result.Log["is_healthy"], "true")
+			},
+		},
+		{
+			name: "timespan column",
+			cols: append(append([]colDef{}, baseCols...), colDef{"duration", types.Timespan}),
+			vals: append(append(value.Values{}, baseVals...), value.NewTimespan(5*time.Minute)),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				assert.NotEmpty(t, result.Log["duration"])
+			},
+		},
+		{
+			name: "extra datetime column",
+			cols: append(append([]colDef{}, baseCols...), colDef{"created_at", types.DateTime}),
+			vals: append(append(value.Values{}, baseVals...),
+				value.NewDateTime(time.Date(2025, 3, 15, 10, 30, 0, 0, time.UTC))),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				assert.NotEmpty(t, result.Log["created_at"])
+			},
+		},
+		{
+			name: "multiple extra columns",
+			cols: append(append([]colDef{}, baseCols...),
+				colDef{"log", types.Dynamic},
+				colDef{"severity", types.String},
+				colDef{"count", types.Long},
+				colDef{"is_error", types.Bool},
+			),
+			vals: append(append(value.Values{}, baseVals...),
+				value.NewDynamic([]byte(`{"level":"error","msg":"something failed"}`)),
+				value.NewString("error"),
+				value.NewLong(42),
+				value.NewBool(true),
+			),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				logMap, ok := result.Log["log"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, "error", logMap["level"])
+				assert.Equal(t, "error", result.Log["severity"])
+				assert.Contains(t, result.Log["count"], "42")
+				assert.Contains(t, result.Log["is_error"], "true")
+			},
+		},
+		{
+			name: "no extra columns",
+			cols: baseCols,
+			vals: baseVals,
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				assert.Equal(t, "cluster-1", result.Cluster)
+				assert.Nil(t, result.Log)
+			},
+		},
+		{
+			name: "null dynamic",
+			cols: append(append([]colDef{}, baseCols...), colDef{"log", types.Dynamic}),
+			vals: append(append(value.Values{}, baseVals...), value.NewNullDynamic()),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				_, exists := result.Log["log"]
+				assert.True(t, exists)
+			},
+		},
+		{
+			name: "dynamic log array",
+			cols: append(append([]colDef{}, baseCols...), colDef{"log", types.Dynamic}),
+			vals: append(append(value.Values{}, baseVals...),
+				value.NewDynamic([]byte(`["a","b","c"]`))),
+			assertFn: func(t *testing.T, result *NormalizedLogLine) {
+				require.NotNil(t, result.Log)
+				_, isString := result.Log["log"].(string)
+				assert.True(t, isString, "JSON array should fall back to string representation")
+			},
+		},
+	}
 
-	rowChan <- row
-	close(rowChan)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := &Gatherer{}
+			rowChan := make(chan kusto.TaggedRow, 1)
+			outChan := make(chan *NormalizedLogLine, 1)
 
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
+			colDefs := make([]struct {
+				name string
+				typ  types.Column
+			}, len(tc.cols))
+			for i, c := range tc.cols {
+				colDefs[i] = struct {
+					name string
+					typ  types.Column
+				}{c.name, c.typ}
+			}
 
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	assert.Contains(t, result.Log["bytes_received"], "1234567890")
-}
+			row := makeTestRow(t, colDefs, tc.vals)
+			rowChan <- row
+			close(rowChan)
 
-func TestConvertRows_RealColumn(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
+			err := g.convertRows(t.Context(), rowChan, outChan)
+			require.NoError(t, err)
+			close(outChan)
 
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"cpu_usage", types.Real},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewReal(3.14159),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	assert.Contains(t, result.Log["cpu_usage"], "3.14159")
-}
-
-func TestConvertRows_BoolColumn(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"is_healthy", types.Bool},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewBool(true),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	assert.Contains(t, result.Log["is_healthy"], "true")
-}
-
-func TestConvertRows_TimespanColumn(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"duration", types.Timespan},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewTimespan(5 * time.Minute),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	assert.NotEmpty(t, result.Log["duration"])
-}
-
-func TestConvertRows_DateTimeExtraColumn(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	extraTime := time.Date(2025, 3, 15, 10, 30, 0, 0, time.UTC)
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"created_at", types.DateTime},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewDateTime(extraTime),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	// Extra datetime columns go through String()
-	assert.NotEmpty(t, result.Log["created_at"])
-}
-
-func TestConvertRows_MultipleExtraColumns(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	logJSON := `{"level":"error","msg":"something failed"}`
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"log", types.Dynamic},
-		{"severity", types.String},
-		{"count", types.Long},
-		{"is_error", types.Bool},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewDynamic([]byte(logJSON)),
-		value.NewString("error"),
-		value.NewLong(42),
-		value.NewBool(true),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-
-	// log column is unmarshalled as map
-	logMap, ok := result.Log["log"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "error", logMap["level"])
-
-	// Other extra columns are strings
-	assert.Equal(t, "error", result.Log["severity"])
-	assert.Contains(t, result.Log["count"], "42")
-	assert.Contains(t, result.Log["is_error"], "true")
-}
-
-func TestConvertRows_NoExtraColumns(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	// Only known columns, no extra
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	assert.Equal(t, "cluster-1", result.Cluster)
-	// No extra columns means Log map is nil (empty map is not set)
-	assert.Nil(t, result.Log)
+			result := <-outChan
+			require.NotNil(t, result)
+			tc.assertFn(t, result)
+		})
+	}
 }
 
 func TestConvertRows_MultipleRows(t *testing.T) {
@@ -862,83 +651,6 @@ func TestConvertRows_ContextCancellation(t *testing.T) {
 
 	err := g.convertRows(ctx, rowChan, outChan)
 	assert.ErrorIs(t, err, context.Canceled)
-}
-
-func TestConvertRows_NullDynamic(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"log", types.Dynamic},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewNullDynamic(),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	// Null dynamic falls through to String() representation
-	_, exists := result.Log["log"]
-	assert.True(t, exists)
-}
-
-func TestConvertRows_DynamicLogArray(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	// Dynamic column with JSON array (not object) falls back to String()
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"log", types.Dynamic},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewDynamic([]byte(`["a","b","c"]`)),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	// JSON array can't unmarshal to map[string]any, falls back to String()
-	logVal := result.Log["log"]
-	require.NotNil(t, logVal)
-	_, isString := logVal.(string)
-	assert.True(t, isString, "JSON array should fall back to string representation")
 }
 
 func TestCliOutputFunc_JSONLFormat(t *testing.T) {

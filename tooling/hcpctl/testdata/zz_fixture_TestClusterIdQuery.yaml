@@ -1,0 +1,7 @@
+database: ServiceLogs
+kql: |-
+  clustersServiceLogs
+  | where resource_id has '/subscriptions/test-sub/resourceGroups/test-rg'
+  | distinct cid
+name: clusterId
+unlimited: false

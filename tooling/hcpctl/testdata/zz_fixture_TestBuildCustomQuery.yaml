@@ -1,0 +1,14 @@
+database: ServiceLogs
+kql: |-
+  let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
+  let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
+  database('ServiceLogs').table('backendLogs')
+  | where timestamp between (_startTime .. _endTime)
+  | where cluster has_any ('test-cluster')
+  | where container_name == 'aro-hcp-backend'
+  | where log.msg has 'dumping resourceID' and log.msg has 'hcpOpenShiftControllers'
+  | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(log.currentResourceID))
+  | mv-expand condition = log.content.properties.status.conditions
+  | project timestamp, log, cluster, condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message
+name: backendControllerConditions
+unlimited: true

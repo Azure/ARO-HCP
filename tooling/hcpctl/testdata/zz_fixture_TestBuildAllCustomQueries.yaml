@@ -1,0 +1,268 @@
+- database: ServiceLogs
+  kql: |-
+    let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
+    let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
+    database('ServiceLogs').table('backendLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where cluster has_any ('test-cluster')
+    | where container_name == 'aro-hcp-backend'
+    | where log.msg has 'dumping resourceID' and log.msg has 'hcpOpenShiftControllers'
+    | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(log.currentResourceID))
+    | mv-expand condition = log.content.properties.status.conditions
+    | project timestamp, log, cluster, condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message
+  name: backendControllerConditions
+  unlimited: true
+- database: ServiceLogs
+  kql: |
+    let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
+    let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
+    database('ServiceLogs').table('containerLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where cluster == 'test-cluster'
+    | where container_name == 'clusters-service-server'
+    | where log has 'state to' or log has 'now in'
+    | project timestamp, cluster, log
+  name: clustersServicePhases
+  unlimited: true
+- database: ServiceLogs
+  kql: |-
+    // RP Frontend: this component serves customer requests as proxied from ARM, we should see requests come in and
+    // be dispatched to the user without errors. Anomalous requests or errors in this log are a bug in the frontend,
+    // if there are no anomalies here, check the backend logs for why our RP failed to correctly provision a cluster.
+    database('ServiceLogs').table('frontendLogs')
+    | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+    | where resource_group == 'test-rg'
+    | where msg == 'request received' or msg == 'response complete'
+    | project timestamp, msg, request_method, request_path, request_query, response_status_code
+  name: debugFrontendLogs
+  unlimited: true
+- database: ServiceLogs
+  kql: |-
+    // RP Backend: this component ensures the cluster is provisioned and running for the customer. Controllers
+    // each enforce some subset of the state we care about - if any are having issues, they will post unhappy status
+    // and should be investigated. Today, some of the provisioning for the clusters is done by clusters-service, so
+    // if no controllers in the backend are having issues, check the clusters-service logs to see if there's an issue
+    // at a deeper layer of the stack.
+    database('ServiceLogs').table('backendLogs')
+    | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+    | where cluster == 'test-cluster'
+    | where container_name == 'aro-hcp-backend'
+    | where resource_id has 'test-rg'
+    | where log.msg has 'dumping resourceID' and log.msg has 'hcpOpenShiftControllers'
+    | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(log.currentResourceID))
+    | mv-expand condition = log.content.properties.status.conditions
+    | project condition.lastTransitionTime, controller_name, condition.type, condition.status, condition.reason, condition.message
+  name: debugBackendConditions
+  unlimited: true
+- database: ServiceLogs
+  kql: |-
+    // Clusters-Service: this component provisions Azure infrastructure and creates the HyperShift HostedCluster
+    // record, passes it using Maestro to the management cluster, and waits for Maestro to back-channel status.
+    // Check to see that provision steps (for Azure infra) succeeded, and that the cluster has progressed to
+    // 'installing' state. If steps fail or the cluster doesn't end up in 'installing', there's a clusters-service
+    // bug. Clusters stuck in 'installing' could either be due to a bug in Maestro signalling, or HyperShift
+    // reconciliation.
+    let _cs_cluster_id = toscalar(
+        database('ServiceLogs').table('clustersServiceLogs')
+        | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+        | where resource_id has 'test-rg'
+        | where isnotempty(cid)
+        | distinct tostring(cid)
+        | limit 1
+    );
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+    | where cid == _cs_cluster_id
+    | where log has 'state to' or log has 'now in' or log has 'provision step'
+    | project timestamp, log.msg
+  name: debugCsPhases
+  unlimited: true
+- database: ServiceLogs
+  kql: |-
+    // HyperShift: this component runs on the management cluster and turns a request for a cluster (a HostedCluster CR) into
+    // the running OpenShift control plane. The logs in this query are dumped from the back-channel from Maestro, so if we see
+    // anything here, we know that Maestro is shipping state & status back and forth. The query shows conditions on the HostedCluster,
+    // which should pinpoint which part of cluster provisioning is having issues. In addition to this view, check the Kubernetes
+    // events for the Pods that make up the HostedCluster.
+    let _cs_cluster_id = toscalar(
+        database('ServiceLogs').table('clustersServiceLogs')
+        | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+        | where resource_id has 'test-rg'
+        | where isnotempty(cid)
+        | distinct tostring(cid)
+        | limit 1
+    );
+    database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+    | where resource_id has 'test-rg'
+    | where msg has 'ManifestWork for cluster'
+    | extend manifest_work = parse_json(replace_string(tostring(msg), strcat("ManifestWork for cluster '",_cs_cluster_id, "': "), ""))
+    | mv-expand manifest = manifest_work.status.resourceStatus.manifests
+    | where manifest.resourceMeta.kind == 'HostedCluster'
+    | mv-expand condition = manifest.statusFeedback.values
+    | extend condition_name = extract(@"^([^-]+)", 1, tostring(condition.name))
+    | extend condition_field = extract(@"([^-]+)$", 1, tostring(condition.name))
+    | where condition_field in ("Reason", "Status", "Message")
+    | project timestamp, condition_name, condition_field, condition_value = tostring(condition.fieldValue.['string'])
+    | evaluate pivot(condition_field, any(condition_value))
+  name: debugHypershiftConditions
+  unlimited: true
+- database: ServiceLogs
+  kql: |-
+    // Control Plane Events: these events expose what the management cluster is doing while running the Pods that make up the
+    // control plane of the ARO HCP cluster.
+    let _cs_cluster_id = toscalar(
+        database('ServiceLogs').table('clustersServiceLogs')
+        | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+        | where resource_id has 'test-rg'
+        | where isnotempty(cid)
+        | distinct tostring(cid)
+        | limit 1
+    );
+    database('ServiceLogs').table('kubernetesEvents')
+    | where timestamp between (datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+    | where eventNamespace has _cs_cluster_id
+    | project timestamp, objectKind, objectName, reason, message, firstSeen, lastSeen
+  name: debugControlPlaneEvents
+  unlimited: true
+- database: ServiceLogs
+  kql: |-
+    let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
+    let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
+    let _resource_group = 'test-rg';
+    // Extract cluster resource ID from frontend logs
+    let cluster_resource_id = (
+        database('ServiceLogs').table('frontendLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_group == _resource_group
+        | where msg has 'creating resource'
+        | extend resource_id = extract(@"creating resource ([A-Za-z0-9\-\.\/]+)", 1, tostring(log))
+        | distinct tostring(resource_id)
+        | limit 1
+    );
+    // API Layer Logs - Frontend and Backend services
+    union
+        (
+            // Frontend logs: ARO HCP frontend API operations for this resource group
+            database('ServiceLogs').table('frontendLogs')
+            | where timestamp between (_startTime .. _endTime)
+            | where resource_group == _resource_group
+            | project timestamp, container_name, msg, log
+        ),
+        (
+            // Backend logs: ARO HCP backend service operations for this cluster
+            database('ServiceLogs').table('backendLogs')
+            | where timestamp between (_startTime .. _endTime)
+            | where resource_id in (cluster_resource_id)
+            | project timestamp, container_name, msg, log
+        )
+    | order by timestamp asc
+  name: detailedApiLayerLogs
+  unlimited: true
+- database: ServiceLogs
+  kql: |-
+    let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
+    let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
+    let _resource_group = 'test-rg';
+    // Cluster Management Logs - Clusters Service and HostedCluster status
+    union
+        (
+            // Clusters Service logs: OCM cluster management operations for this resource group
+            database('ServiceLogs').table('clustersServiceLogs')
+            | where timestamp between (_startTime .. _endTime)
+            | where resource_id has _resource_group
+            | project timestamp, container_name, msg, log
+        ),
+        (
+            // HostedCluster conditions: Cluster status conditions as seen by Clusters Service
+            // Shows conditions like Available, Degraded, Progressing, ReconciliationSucceeded, etc.
+            database('ServiceLogs').table('clustersServiceLogs')
+            | where timestamp between (_startTime .. _endTime)
+            | where resource_id has _resource_group
+            | extend extracted=extract_all(@'{"name":"([A-Za-z0-9]+)-Message","fieldValue":{"type":"String","string":"([^"]+)"}}', dynamic([1,2]), tostring(msg))
+            | mv-expand matches = extracted to typeof(dynamic)
+            | extend status_name = tostring(matches[0])
+            | extend status_message = tostring(matches[1])
+            | where status_name != "" and status_message != ""
+            | summarize arg_min(timestamp, *) by status_name, status_message
+            | project timestamp, container_name = "clusters-service (status)", msg = strcat(status_name, ": ", status_message), log = bag_pack("status_name", status_name, "status_message", status_message)
+        )
+    | order by timestamp asc
+  name: detailedClusterMgmtLogs
+  unlimited: true
+- database: ServiceLogs
+  kql: |-
+    let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
+    let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
+    let _resource_group = 'test-rg';
+    // Extract cluster ID from CS logs using cid field
+    let cluster_id = toscalar(
+        database('ServiceLogs').table('clustersServiceLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where resource_id has _resource_group
+        | where isnotempty(log.cid)
+        | distinct tostring(log.cid)
+        | limit 1
+    );
+    // Find all Maestro resource IDs for this cluster
+    let maestro_resource_ids = (
+        database('ServiceLogs').table('containerLogs')
+        | where timestamp between (_startTime .. _endTime)
+        | where namespace_name has "maestro"
+        | extend logStr = tostring(log)
+        | where logStr has cluster_id
+        | extend resourceId = extract(@'resourceid[=:"]+([a-f0-9\-]+)', 1, logStr)
+        | where isnotempty(resourceId)
+        | distinct resourceId
+    );
+    // Infrastructure & Orchestration Logs - Maestro, Hypershift, and ACM Agent
+    union
+        (
+            // Maestro logs: Resource bundle operations for this cluster and its associated resources
+            // Includes: resource creation, updates, deletions, status events, gRPC communications
+            database('ServiceLogs').table('containerLogs')
+            | where timestamp between (_startTime .. _endTime)
+            | where namespace_name has "maestro"
+            | extend logStr = tostring(log)
+            | where logStr has cluster_id or logStr has_any (maestro_resource_ids)
+            | project timestamp, container_name, msg = logStr, log
+        ),
+        (
+            // Hypershift logs: Hypershift operator reconciliation of HostedCluster and NodePool CRs
+            // Includes the CR reconciliation logs
+            database('ServiceLogs').table('containerLogs')
+            | where timestamp between (_startTime .. _endTime)
+            | where namespace_name has "hypershift"
+            | extend logStr = tostring(log)
+            | where logStr has cluster_id
+            | project timestamp, container_name, msg = logStr, log
+        ),
+        (
+            // ACM Agent logs: ManifestWork reconciliation on the managed cluster
+            // Includes: work agent operations, manifest application, status feedback
+            database('ServiceLogs').table('containerLogs')
+            | where timestamp between (_startTime .. _endTime)
+            | where namespace_name has "open-cluster-management-agent"
+            | extend logStr = tostring(log)
+            | where logStr has cluster_id
+            | project timestamp, container_name, msg = logStr, log
+        )
+    | order by timestamp asc
+  name: detailedInfraOrchestrationLogs
+  unlimited: true
+- database: HostedControlPlaneLogs
+  kql: |
+    let _startTime = "datetime(2025-01-01T00:00:00.0000000Z)";
+    let _endTime = "datetime(2025-01-02T00:00:00.0000000Z)";
+    let _resource_group = 'test-rg';
+    let cid = (database('ServiceLogs').table('clustersServiceLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where resource_id has _resource_group
+    | where strlen( cid) > 0
+    | distinct cid);
+    database('HostedControlPlaneLogs').table('containerLogs')
+    | where timestamp between (_startTime .. _endTime)
+    | where namespace_name has_any (cid)
+    | project timestamp, log
+  name: hostedControlPlaneLogs
+  unlimited: true

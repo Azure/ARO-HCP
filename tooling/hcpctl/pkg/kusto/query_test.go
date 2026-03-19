@@ -20,7 +20,33 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/internal/testutil"
 )
+
+type queryFixture struct {
+	Name      string `json:"name"`
+	Database  string `json:"database"`
+	Unlimited bool   `json:"unlimited"`
+	KQL       string `json:"kql"`
+}
+
+func queryToFixture(q Query) queryFixture {
+	return queryFixture{
+		Name:      q.GetName(),
+		Database:  q.GetDatabase(),
+		Unlimited: q.IsUnlimited(),
+		KQL:       q.GetQuery().String(),
+	}
+}
+
+func queriesToFixtures(queries []Query) []queryFixture {
+	fixtures := make([]queryFixture, len(queries))
+	for i, q := range queries {
+		fixtures[i] = queryToFixture(q)
+	}
+	return fixtures
+}
 
 func baseOptions() QueryOptions {
 	return QueryOptions{
@@ -43,19 +69,7 @@ func TestInfraKubernetesEvents(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	q := queries[0]
-	assert.Equal(t, "kubernetesEvents", q.GetName())
-	assert.Equal(t, "ServiceLogs", q.GetDatabase())
-	assert.False(t, q.IsUnlimited())
-
-	kql := q.GetQuery().String()
-	assert.Contains(t, kql, "kubernetesEvents")
-	assert.Contains(t, kql, "| project timestamp, log, cluster")
-	assert.Contains(t, kql, "datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z)")
-	assert.Contains(t, kql, "== 'test-cluster'")
-	assert.Contains(t, kql, "| limit 100")
-	assert.Contains(t, kql, "| order by timestamp asc")
-	assert.NotContains(t, kql, "set notruncation")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestInfraKubernetesEvents_NoTruncation(t *testing.T) {
@@ -71,12 +85,7 @@ func TestInfraKubernetesEvents_NoTruncation(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	q := queries[0]
-	assert.True(t, q.IsUnlimited())
-
-	kql := q.GetQuery().String()
-	assert.Contains(t, kql, "set notruncation")
-	assert.NotContains(t, kql, "| limit")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestKubernetesEventsSvc(t *testing.T) {
@@ -89,9 +98,7 @@ func TestKubernetesEventsSvc(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	kql := queries[0].GetQuery().String()
-	assert.Contains(t, kql, "kubernetesEvents")
-	assert.Contains(t, kql, "== 'test-cluster'")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestKubernetesEventsMgmt(t *testing.T) {
@@ -110,9 +117,7 @@ func TestKubernetesEventsMgmt(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	kql := queries[0].GetQuery().String()
-	assert.Contains(t, kql, "!hasprefix 'ocm-arohcp'")
-	assert.Contains(t, kql, "has_any ('cid1', 'cid2')")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestInfraSystemdLogs(t *testing.T) {
@@ -125,13 +130,7 @@ func TestInfraSystemdLogs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	q := queries[0]
-	assert.Equal(t, "systemdLogs", q.GetName())
-
-	kql := q.GetQuery().String()
-	assert.Contains(t, kql, "systemdLogs")
-	assert.Contains(t, kql, "== 'test-cluster'")
-	assert.Contains(t, kql, "datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z)")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestInfraServiceLogs(t *testing.T) {
@@ -144,13 +143,7 @@ func TestInfraServiceLogs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	q := queries[0]
-	assert.Equal(t, "ServiceLogs", q.GetDatabase())
-
-	kql := q.GetQuery().String()
-	assert.Contains(t, kql, "containerLogs")
-	assert.Contains(t, kql, "| project timestamp, log, cluster, namespace_name, container_name")
-	assert.Contains(t, kql, "== 'test-cluster'")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestServiceLogs(t *testing.T) {
@@ -170,9 +163,7 @@ func TestServiceLogs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	kql := queries[0].GetQuery().String()
-	assert.Contains(t, kql, "has '/subscriptions/sub/resourceGroups/rg'")
-	assert.Contains(t, kql, "has_any ('cid1')")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestServiceLogs_NoClusterIds(t *testing.T) {
@@ -189,9 +180,7 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	kql := queries[0].GetQuery().String()
-	assert.Contains(t, kql, "has '/subscriptions/sub/resourceGroups/rg'")
-	assert.NotContains(t, kql, "has_any")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestHostedControlPlaneLogs(t *testing.T) {
@@ -204,13 +193,7 @@ func TestHostedControlPlaneLogs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	q := queries[0]
-	assert.Equal(t, "hostedControlPlaneLogs", q.GetName())
-	assert.Equal(t, "HostedControlPlaneLogs", q.GetDatabase())
-
-	kql := q.GetQuery().String()
-	assert.Contains(t, kql, "containerLogs")
-	assert.Contains(t, kql, "namespace_name has 'cid1'")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestClusterIdQuery(t *testing.T) {
@@ -223,14 +206,7 @@ func TestClusterIdQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	q := queries[0]
-	assert.Equal(t, "clusterId", q.GetName())
-	assert.Equal(t, "ServiceLogs", q.GetDatabase())
-
-	kql := q.GetQuery().String()
-	assert.Contains(t, kql, "clustersServiceLogs")
-	assert.Contains(t, kql, "resource_id has '/subscriptions/test-sub/resourceGroups/test-rg'")
-	assert.Contains(t, kql, "| distinct cid")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestClusterNamesQuery(t *testing.T) {
@@ -243,13 +219,7 @@ func TestClusterNamesQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	q := queries[0]
-	assert.Equal(t, "clusterNamesSvc", q.GetName())
-
-	kql := q.GetQuery().String()
-	assert.Contains(t, kql, "containerLogs")
-	assert.Contains(t, kql, "log has '/subscriptions/test-sub/resourceGroups/test-rg'")
-	assert.Contains(t, kql, "| distinct cluster")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestBuildMerged_SingleTemplate(t *testing.T) {
@@ -260,8 +230,8 @@ func TestBuildMerged_SingleTemplate(t *testing.T) {
 	require.NoError(t, err)
 	q, err := f.BuildMerged(*def, NewTemplateDataFromOptions(opts))
 	require.NoError(t, err)
-	assert.Equal(t, "kubernetesEvents", q.GetName())
-	assert.Contains(t, q.GetQuery().String(), "kubernetesEvents")
+
+	testutil.CompareWithFixture(t, queryToFixture(q))
 }
 
 func TestBuildMerged_MultipleChildren(t *testing.T) {
@@ -274,7 +244,6 @@ func TestBuildMerged_MultipleChildren(t *testing.T) {
 		Limit:             -1,
 	}
 
-	// Find the detailedServiceLogs custom query which has children
 	var detailedDef *QueryDefinition
 	for _, def := range f.CustomQueryDefinitions {
 		if def.Name == "detailedServiceLogs" {
@@ -287,12 +256,8 @@ func TestBuildMerged_MultipleChildren(t *testing.T) {
 
 	q, err := f.BuildMerged(*detailedDef, NewTemplateDataFromOptions(opts))
 	require.NoError(t, err)
-	assert.Equal(t, "detailedServiceLogs", q.GetName())
 
-	// Merged query should contain content from all children
-	kql := q.GetQuery().String()
-	assert.Contains(t, kql, "frontendLogs")
-	assert.Contains(t, kql, "backendLogs")
+	testutil.CompareWithFixture(t, queryToFixture(q))
 }
 
 func TestBuildCustomQuery(t *testing.T) {
@@ -310,9 +275,7 @@ func TestBuildCustomQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
-	kql := queries[0].GetQuery().String()
-	assert.Contains(t, kql, "database('ServiceLogs').table('backendLogs')")
-	assert.Contains(t, kql, "mv-expand condition")
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
 func TestBuildCustomQuery_NotFound(t *testing.T) {
@@ -334,18 +297,8 @@ func TestBuildCustomQuery_WithChildren(t *testing.T) {
 	}
 	queries, err := f.BuildCustomQuery("debugQueries", NewTemplateDataFromOptions(opts))
 	require.NoError(t, err)
-	require.Len(t, queries, 5)
 
-	// Each child query should have its own name
-	names := make(map[string]bool)
-	for _, q := range queries {
-		names[q.GetName()] = true
-	}
-	assert.True(t, names["debugFrontendLogs"])
-	assert.True(t, names["debugBackendConditions"])
-	assert.True(t, names["debugCsPhases"])
-	assert.True(t, names["debugHypershiftConditions"])
-	assert.True(t, names["debugControlPlaneEvents"])
+	testutil.CompareWithFixture(t, queriesToFixtures(queries))
 }
 
 func TestBuildAllCustomQueries(t *testing.T) {
@@ -362,8 +315,8 @@ func TestBuildAllCustomQueries(t *testing.T) {
 		WithClusterNames([]string{"test-cluster"}),
 	))
 	require.NoError(t, err)
-	// 1 (backendControllerConditions) + 1 (clustersServicePhases) + 5 (debugQueries children) + 3 (detailedServiceLogs children) = 10
-	assert.Len(t, queries, 11)
+
+	testutil.CompareWithFixture(t, queriesToFixtures(queries))
 }
 
 func TestTemplateDataOptions(t *testing.T) {
@@ -383,21 +336,14 @@ func TestTemplateDataOptions(t *testing.T) {
 		WithTable("myTable"),
 	)
 
-	assert.Equal(t, "'cid1'", td.ClusterId)
-	assert.Equal(t, "'cid1', 'cid2'", td.ClusterIds)
-	assert.Equal(t, "'ocm-arohcp'", td.HCPNamespacePrefix)
-	assert.Equal(t, "'my-cluster'", td.ClusterName)
-	assert.Equal(t, "'cluster-a', 'cluster-b'", td.ClusterNames)
-	assert.Equal(t, "myTable", td.Table)
-	assert.Equal(t, 100, td.Limit)
-	assert.False(t, td.NoTruncation)
+	testutil.CompareWithFixture(t, td)
 }
 
 func TestTemplateDataOptions_NoTruncation(t *testing.T) {
 	opts := QueryOptions{Limit: -1}
 	td := NewTemplateDataFromOptions(opts)
-	assert.True(t, td.NoTruncation)
-	assert.Equal(t, 0, td.Limit)
+
+	testutil.CompareWithFixture(t, td)
 }
 
 func TestQueryDefinitions_TemplatePathsExist(t *testing.T) {
