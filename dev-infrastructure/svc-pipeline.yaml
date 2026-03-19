@@ -44,6 +44,16 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: auditLogs
+  resourceGroup: '{{ .auditLogsEventHub.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-audit-logs-eventhub.bicep
+    parameters: configurations/output-audit-logs-eventhub.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -198,7 +208,7 @@ resourceGroups:
         name: azureFrontDoorResourceId
     - name: auditLogsEventHubAuthRuleId
       input:
-        resourceGroup: kusto
+        resourceGroup: auditLogs
         step: output
         name: auditLogsEventHubAuthRuleId
     dependsOn:
