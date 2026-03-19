@@ -16,6 +16,7 @@ package generate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -88,7 +89,7 @@ func (o *RawGenerationOptions) Validate(ctx context.Context) (*ValidatedGenerati
 		return nil, fmt.Errorf("validation failed for raw options: %w", err)
 	}
 
-	if _, err := os.Stat(o.Input); os.IsNotExist(err) {
+	if _, err := os.Stat(o.Input); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("input file %s does not exist", o.Input)
 	}
 

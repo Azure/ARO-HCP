@@ -13,10 +13,10 @@ param serviceLogsDatabase string
 @description('Name of the hosted control plane logs database.')
 param hostedControlPlaneLogsDatabase string
 
-@description('CSV seperated list of groups to assign admin in the Kusto cluster')
+@description('CSV separated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
 
-@description('CSV seperated list of groups to assign viewer in the Kusto cluster')
+@description('CSV separated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
 
 @description('Name of the Kusto cluster to create')

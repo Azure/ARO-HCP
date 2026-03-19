@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -121,7 +122,7 @@ func mergeDockerConfig(kvConfig map[string]interface{}) error {
 	var existingConfig map[string]interface{}
 	existingData, err := os.ReadFile(dockerConfigPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("failed to read Docker config: %w", err)
 		}
 		// Config doesn't exist, create a new one

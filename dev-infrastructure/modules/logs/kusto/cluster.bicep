@@ -11,10 +11,10 @@ param sku string = 'Standard_D12_v2'
 @description('Tier used')
 param tier string = 'Basic'
 
-@description('CSV seperated list of groups to assign admin in the Kusto cluster, format: "(tenantId/)groupId", if tenantId is not provided, the current tenant will be used')
+@description('CSV separated list of groups to assign admin in the Kusto cluster, format: "(tenantId/)groupId", if tenantId is not provided, the current tenant will be used')
 param adminGroups string
 
-@description('CSV seperated list of groups to assign viewer in the Kusto cluster, format: "(tenantId/)groupId", if tenantId is not provided, the current tenant will be used')
+@description('CSV separated list of groups to assign viewer in the Kusto cluster, format: "(tenantId/)groupId", if tenantId is not provided, the current tenant will be used')
 param viewerGroups string
 
 @description('Minimum number of nodes for autoscale')

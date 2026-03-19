@@ -15,6 +15,7 @@
 package overview
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -81,7 +82,7 @@ func (o *RawGenerationOptions) Validate() (*ValidatedGenerationOptions, error) {
 		return nil, fmt.Errorf("output markdown file is required")
 	}
 
-	if _, err := os.Stat(o.Input); os.IsNotExist(err) {
+	if _, err := os.Stat(o.Input); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("input file %s does not exist", o.Input)
 	}
 

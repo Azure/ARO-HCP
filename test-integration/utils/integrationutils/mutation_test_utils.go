@@ -17,10 +17,10 @@ package integrationutils
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"strings"
 	"testing"
 
@@ -38,19 +38,19 @@ func ReadGenericMutationTest(testDir fs.FS) (*GenericMutationTest, error) {
 	}
 
 	updateJSON, err := fs.ReadFile(testDir, "update.json")
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("failed to read update.json: %w", err)
 	}
 
 	patchJSON, err := fs.ReadFile(testDir, "patch.json")
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("failed to read patch.json: %w", err)
 	}
 
 	expectedErrors := []expectedFieldError{}
 	expectedJSON, err := fs.ReadFile(testDir, "expected.json")
 	switch {
-	case os.IsNotExist(err):
+	case errors.Is(err, fs.ErrNotExist):
 		expectedErrors, err = readExpectedErrors(testDir)
 		if err != nil {
 			return nil, err

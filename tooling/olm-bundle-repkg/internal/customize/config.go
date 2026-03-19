@@ -57,7 +57,7 @@ func LoadFromFile(configPath string) (*BundleConfig, error) {
 	}
 
 	// Check if file exists
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("configuration file does not exist: %s", configPath)
 	}
 

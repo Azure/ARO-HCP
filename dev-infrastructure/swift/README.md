@@ -1,10 +1,10 @@
 ### SWIFT V2 Setup
 
-Basic instructions to get swift working in our dev environment. For this you will need access to our mock 1P app. The `login_fpa.sh` script will collect the certificate and log you in as the 1P app, its used to create/delete the service assocciation link on the subnet created by the `demo/02-customer-infra.sh`.
+Basic instructions to get swift working in our dev environment. For this you will need access to our mock 1P app. The `login_fpa.sh` script will collect the certificate and log you in as the 1P app, it's used to create/delete the service association link on the subnet created by the `demo/02-customer-infra.sh`.
 
 The sal_env_vars script stores some basic configuration that is specific to the dev environment (subscription). This would need to be modified for other environments such as INT
 
-NOTE: Yes when you start creating the SAL, PotNetwork etc you will get logged in and out of Azure becuase we're switching between the mock 1p and the dev sub
+NOTE: Yes when you start creating the SAL, PotNetwork etc you will get logged in and out of Azure because we're switching between the mock 1p and the dev sub
 
 You need to create a cluster in dev with the correct vnet tag, instance types and agent pool flags. This can be done with the following; 
 
@@ -55,7 +55,7 @@ You need to create a cluster in dev with the correct vnet tag, instance types an
 
 `./06_validate_mtpnc.sh`
 
-Note: You cannot delete the the mtpnc or pni until all IP's have been released. This happens when the linked pods (kube-api server in this example) are deleted. This section needs to be extended.
+Note: You cannot delete the mtpnc or pni until all IPs have been released. This happens when the linked pods (kube-api server in this example) are deleted. This section needs to be extended.
 
 Only the 1P app can delete the subnet delegation, if the user tries to delete the subnet or resource group that it resides in it will fail.
 

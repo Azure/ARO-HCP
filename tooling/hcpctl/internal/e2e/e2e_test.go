@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,7 +28,7 @@ import (
 
 func TestMain(m *testing.M) {
 	// Check if binary exists, if not, try to build it
-	if _, err := os.Stat(HCPCTLBinary); os.IsNotExist(err) {
+	if _, err := os.Stat(HCPCTLBinary); errors.Is(err, os.ErrNotExist) {
 		fmt.Printf("hcpctl binary not found at %s. Building...\n", HCPCTLBinary)
 
 		// Run make build from the project root (two levels up from internal/e2e)
@@ -42,7 +43,7 @@ func TestMain(m *testing.M) {
 		}
 
 		// Verify the binary was created
-		if _, err := os.Stat(HCPCTLBinary); os.IsNotExist(err) {
+		if _, err := os.Stat(HCPCTLBinary); errors.Is(err, os.ErrNotExist) {
 			fmt.Printf("hcpctl binary still not found at %s after build\n", HCPCTLBinary)
 			os.Exit(1)
 		}
@@ -352,7 +353,7 @@ func TestMCBreakglass(t *testing.T) {
 				}
 
 				// Verify kubeconfig was created
-				if _, err := os.Stat(kubeconfigPath); os.IsNotExist(err) {
+				if _, err := os.Stat(kubeconfigPath); errors.Is(err, os.ErrNotExist) {
 					t.Fatal("kubeconfig file was not created")
 				}
 
@@ -469,7 +470,7 @@ func TestSCBreakglass(t *testing.T) {
 				}
 
 				// Verify kubeconfig was created
-				if _, err := os.Stat(kubeconfigPath); os.IsNotExist(err) {
+				if _, err := os.Stat(kubeconfigPath); errors.Is(err, os.ErrNotExist) {
 					t.Fatal("kubeconfig file was not created")
 				}
 

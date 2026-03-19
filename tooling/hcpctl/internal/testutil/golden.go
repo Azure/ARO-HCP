@@ -16,6 +16,7 @@ package testutil
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -136,7 +137,7 @@ func golden(t *testing.T, opts *options) (string, error) {
 	// Find the testdata directory by looking for it relative to the current working directory
 	// or going up directory levels until we find it
 	testdataPath := "testdata"
-	if _, err := os.Stat(testdataPath); os.IsNotExist(err) {
+	if _, err := os.Stat(testdataPath); errors.Is(err, os.ErrNotExist) {
 		// Look for testdata in parent directories
 		for i := 0; i < 5; i++ {
 			testdataPath = filepath.Join("..", testdataPath)
