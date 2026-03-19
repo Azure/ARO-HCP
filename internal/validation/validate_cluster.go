@@ -540,7 +540,9 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, nil, newObj.ManagedResourceGroup)...)
 
 	// VnetIntegrationSubnetID *azcorearm.ResourceID `json:"vnetIntegrationSubnetId,omitempty"`
-	// vnetIntegrationSubnetId was added in v2025_12_23_preview, so it's optional for backwards compatibility
+	// vnetIntegrationSubnetId was added in v20251223preview, so it's optional for backwards compatibility
+	// TODO: When we remove the v20240610preview API we should remove the nil check here and add validate.RequiredValue
+	// for vnetIntegrationSubnetId
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID))...)
 	if newObj.VnetIntegrationSubnetID != nil {
 		errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
@@ -784,12 +786,9 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	errs := field.ErrorList{}
 
 	// Visibility KeyVaultVisibility `json:"visibility,omitempty"`
-	// visibility was added in v2025_12_23_preview, so it's optional for backwards compatibility
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility))...)
-	// Only validate enum if visibility is not empty (allow empty for backwards compatibility)
-	if len(newObj.Visibility) != 0 {
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), api.ValidKeyVaultVisibility)...)
-	}
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), api.ValidKeyVaultVisibility)...)
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
