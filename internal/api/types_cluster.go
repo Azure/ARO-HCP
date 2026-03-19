@@ -64,14 +64,14 @@ type HCPOpenShiftClusterCustomerProperties struct {
 
 // HCPOpenShiftClusterServiceProviderProperties represents the internal property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
-	ExistingCosmosUID string                `json:"-"`
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"`
-	ClusterServiceID  InternalID            `json:"clusterServiceID,omitempty"`
-	ActiveOperationID      string                         `json:"activeOperationId,omitempty"`
-	DNS                    ServiceProviderDNSProfile      `json:"dns,omitempty"`
-	Console                ServiceProviderConsoleProfile  `json:"console,omitempty"`
-	API                    ServiceProviderAPIProfile      `json:"api,omitempty"`
-	Platform               ServiceProviderPlatformProfile `json:"platform,omitempty"`
+	ExistingCosmosUID string                         `json:"-"`
+	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
+	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
+	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
+	DNS               ServiceProviderDNSProfile      `json:"dns,omitempty"`
+	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"`
+	API               ServiceProviderAPIProfile      `json:"api,omitempty"`
+	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"`
 
 	// ExperimentalFeatures captures experimental feature state evaluated from
 	// AFEC and per-resource tags. Stored in Cosmos but NOT exposed via ARM API.
