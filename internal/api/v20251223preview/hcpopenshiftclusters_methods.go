@@ -608,6 +608,9 @@ func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out
 }
 
 func normalizeImageDigestMirror(p *generated.ImageDigestMirror, out *api.ImageDigestMirror) {
+	if p == nil {
+		return
+	}
 	if p.Source != nil {
 		out.Source = *p.Source
 	}

@@ -42,7 +42,9 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		},
 		func(j *api.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
-			// ImageDigestMirrors does not exist in this API version
+			// ImageDigestMirrors is a v20251223preview field that does not exist in v20240610preview.
+			// It cannot roundtrip through this version's external type.
+			// Cross-version preservation is handled by preserveUnknownClusterFields.
 			j.ImageDigestMirrors = nil
 		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {

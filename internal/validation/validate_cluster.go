@@ -860,6 +860,9 @@ func validateImageDigestMirror(ctx context.Context, op operation.Operation, fldP
 		},
 	)...)
 
+	//MirrorSourcePolicy MirrorSourcePolicy `json:"mirrorSourcePolicy,omitempty"`
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("mirrorSourcePolicy"), &newObj.MirrorSourcePolicy, nil, api.ValidMirrorSourcePolicies)...)
+
 	return errs
 }
 
