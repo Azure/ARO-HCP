@@ -92,14 +92,8 @@ var _ = Describe("Customer", func() {
 			Expect(clusterResp.Properties).NotTo(BeNil())
 			Expect(clusterResp.Properties.Platform).NotTo(BeNil())
 
-			issuerURLEmpty := clusterResp.Properties.Platform.IssuerURL == nil || *clusterResp.Properties.Platform.IssuerURL == ""
-			if issuerURLEmpty {
-				timebomb := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
-				if time.Now().Before(timebomb) {
-					Skip("OIDC issuer URL is not yet populated on the cluster response; skipping until it is available")
-				}
-				Fail("OIDC issuer URL is still not populated on the cluster response as of the April 1st 2026 deadline")
-			}
+			Expect(clusterResp.Properties.Platform.IssuerURL).NotTo(BeNil(), "OIDC issuer URL should be populated on the cluster response")
+			Expect(*clusterResp.Properties.Platform.IssuerURL).NotTo(BeEmpty(), "OIDC issuer URL should not be empty")
 
 			oidcIssuerURL := *clusterResp.Properties.Platform.IssuerURL
 			GinkgoWriter.Printf("Cluster OIDC issuer URL: %s\n", oidcIssuerURL)
