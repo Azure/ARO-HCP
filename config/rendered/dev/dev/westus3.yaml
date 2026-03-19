@@ -385,7 +385,7 @@ kusto:
     namespace: hcp-dev-us-eh
   autoScaleMax: 10
   autoScaleMin: 2
-  enableAutoScale: false
+  enableAutoScale: true
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us-2
   manageInstance: true
