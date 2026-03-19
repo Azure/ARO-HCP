@@ -35,14 +35,15 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// timeBombSkip skips the test if the v20251223preview API has not yet been
-// deployed to all regions. Once the deadline passes, the test fails instead
-// of skipping, signaling that the API deployment is overdue and needs attention.
-func timeBombSkip(deadline time.Time) {
-	if time.Now().Before(deadline) {
-		Skip(fmt.Sprintf("v20251223preview API not yet deployed to all regions; skipping until %s", deadline.Format(time.RFC3339)))
+// isAPINotDeployedError returns true if the error indicates the API version
+// has not been rolled out to this region yet.
+func isAPINotDeployedError(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
 	}
-	// After the deadline, do not skip — let the test run (and fail if the API still isn't deployed).
+	return respErr.StatusCode == http.StatusNotFound ||
+		strings.Contains(respErr.ErrorCode, "NoRegisteredProviderFound")
 }
 
 var _ = Describe("Nodepool Ephemeral OS Disk", func() {
@@ -61,8 +62,6 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 		labels.Slow,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
-			timeBombSkip(timeBombDeadline)
-
 			const (
 				customerClusterName  = "ephemeral-disk"
 				customerNodePoolName = "ephemeral-np"
@@ -123,13 +122,26 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				nodePool,
 				45*time.Minute,
 			)
+			if isAPINotDeployedError(err) {
+				if time.Now().Before(timeBombDeadline) {
+					Skip(fmt.Sprintf("v20251223preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+				}
+				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+			}
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying nodepool ARM resource has diskType=Ephemeral from LRO result")
 			Expect(created.Properties).ToNot(BeNil())
 			Expect(created.Properties.Platform).ToNot(BeNil())
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil())
-			Expect(created.Properties.Platform.OSDisk.DiskType).ToNot(BeNil())
+
+			diskTypeNotPresent := created.Properties.Platform.OSDisk.DiskType == nil
+			if diskTypeNotPresent {
+				if time.Now().Before(timeBombDeadline) {
+					Skip("v20251223preview deployed but DiskType field not present in nodepool response; skipping until rollout completes")
+				}
+				Fail(fmt.Sprintf("DiskType field still not present in v20251223preview nodepool response as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+			}
 			Expect(*created.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral))
 			Expect(created.Properties.AutoRepair).ToNot(BeNil())
 			Expect(*created.Properties.AutoRepair).To(BeTrue())
@@ -184,8 +196,6 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 		labels.Negative,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
-			timeBombSkip(timeBombDeadline)
-
 			// Validation is frontend-synchronous (returns 400 immediately), but
 			// a parent cluster must exist for the frontend to route the request.
 			tc := framework.NewTestContext()
@@ -239,6 +249,12 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				nodePool,
 				nil,
 			)
+			if isAPINotDeployedError(err) {
+				if time.Now().Before(timeBombDeadline) {
+					Skip(fmt.Sprintf("v20251223preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+				}
+				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+			}
 			Expect(err).To(HaveOccurred(), "expected ephemeral disk with autoRepair=false to be rejected")
 
 			var respErr *azcore.ResponseError
