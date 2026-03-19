@@ -1,0 +1,124 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package nodepoolpropertiescontroller
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/blang/semver/v4"
+
+	"k8s.io/apimachinery/pkg/api/equality"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+type nodePoolPropertiesSyncer struct {
+	cooldownChecker      controllerutils.CooldownChecker
+	cosmosClient         database.DBClient
+	clusterServiceClient ocm.ClusterServiceClientSpec
+}
+
+var _ controllerutils.NodePoolSyncer = (*nodePoolPropertiesSyncer)(nil)
+
+// NewNodePoolPropertiesSyncController creates a new controller that synchronizes
+// node pool properties from Cluster Service to Cosmos DB.
+func NewNodePoolPropertiesSyncController(
+	cosmosClient database.DBClient,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
+	activeOperationLister listers.ActiveOperationLister,
+	informers informers.BackendInformers,
+) controllerutils.Controller {
+	syncer := &nodePoolPropertiesSyncer{
+		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		cosmosClient:         cosmosClient,
+		clusterServiceClient: clusterServiceClient,
+	}
+
+	controller := controllerutils.NewNodePoolWatchingController(
+		"NodePoolPropertiesSync",
+		cosmosClient,
+		informers,
+		5*time.Minute,
+		syncer,
+	)
+
+	return controller
+}
+
+func (c *nodePoolPropertiesSyncer) CooldownChecker() controllerutils.CooldownChecker {
+	return c.cooldownChecker
+}
+
+// SyncOnce performs a single reconciliation of node pool properties from Cluster Service to Cosmos.
+func (c *nodePoolPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	nodePoolCRUD := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
+	existingNodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
+	}
+
+	if len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return nil
+	}
+
+	needsVersionID := false
+	if _, err := semver.Parse(existingNodePool.Properties.Version.ID); err != nil {
+		needsVersionID = true
+	}
+	needsChannelGroup := len(existingNodePool.Properties.Version.ChannelGroup) == 0
+
+	if !needsVersionID && !needsChannelGroup {
+		return nil
+	}
+
+	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, existingNodePool.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get node pool from Cluster Service: %w", err))
+	}
+
+	originalNodePool := existingNodePool.DeepCopy()
+
+	version := csNodePool.Version()
+	if needsVersionID {
+		existingNodePool.Properties.Version.ID = version.RawID()
+	}
+	if needsChannelGroup {
+		existingNodePool.Properties.Version.ChannelGroup = version.ChannelGroup()
+	}
+
+	if equality.Semantic.DeepEqual(originalNodePool, existingNodePool) {
+		return nil
+	}
+
+	if _, err := nodePoolCRUD.Replace(ctx, existingNodePool, nil); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace NodePool: %w", err))
+	}
+
+	logger.Info("synced node pool properties from Cluster Service")
+	return nil
+}
