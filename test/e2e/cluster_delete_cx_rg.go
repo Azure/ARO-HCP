@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -110,19 +111,28 @@ var _ = Describe("Customer", func() {
 			nodePoolParams2.NodePoolName = customerNodePool2Name
 			nodePoolParams2.Replicas = int32(1)
 
+			errCh := make(chan error, 2)
 			group, groupCtx := errgroup.WithContext(ctx)
 			for _, nodePoolParams := range []framework.NodePoolParams{nodePoolParams1, nodePoolParams2} {
 				group.Go(func() error {
-					return tc.CreateNodePoolFromParam(
+					createErr := tc.CreateNodePoolFromParam(
 						groupCtx,
 						*resourceGroup.Name,
 						customerClusterName,
 						nodePoolParams,
 						45*time.Minute,
 					)
+					if createErr != nil {
+						errCh <- fmt.Errorf("nodepool %s: %w", nodePoolParams.NodePoolName, createErr)
+					}
+					return createErr
 				})
 			}
 			err = group.Wait()
+			close(errCh)
+			for createErr := range errCh {
+				GinkgoLogr.Error(createErr, "nodepool creation failed")
+			}
 			Expect(err).NotTo(HaveOccurred())
 
 			By("deleting customer resource group to trigger cluster deletion")
