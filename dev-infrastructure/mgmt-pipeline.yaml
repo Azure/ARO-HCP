@@ -234,6 +234,11 @@ resourceGroups:
     action: Shell
     command: ./scripts/delete-user-nodepools.sh
     workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
     variables:
     - name: CLUSTER_NAME
       configRef: mgmt.aks.name
