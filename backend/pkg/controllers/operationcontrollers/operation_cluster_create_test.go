@@ -24,8 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	clocktesting "k8s.io/utils/clock/testing"
-
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -36,7 +34,6 @@ import (
 )
 
 func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
-	fixedTime := mustParseTime("2025-01-20T10:30:00Z")
 	createdAt := mustParseTime("2025-01-15T10:30:00Z")
 
 	tests := []struct {
@@ -47,61 +44,25 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		verify       func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
 	}{
 		{
-			name:         "succeeds with valid CreatedAt time",
+			name:         "successful create updates operation to succeeded",
 			clusterState: arohcpv1alpha1.ClusterStateReady,
 			createdAt:    &createdAt,
 			expectError:  false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
-				// Verify operation status
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
-
-				// Verify billing document was created
-				billingDocs := db.GetBillingDocuments()
-				require.Len(t, billingDocs, 1, "expected one billing document to be created")
-				for _, doc := range billingDocs {
-					assert.Equal(t, testTenantID, doc.TenantID)
-					assert.Equal(t, testAzureLocation, doc.Location)
-					assert.Equal(t, createdAt, doc.CreationTime)
-				}
 			},
 		},
 		{
-			name:         "succeeds with nil CreatedAt using fallback time",
-			clusterState: arohcpv1alpha1.ClusterStateReady,
-			createdAt:    nil,
-			expectError:  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
-				// Verify operation status
-				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
-				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
-
-				// Verify billing document was created with fallback time
-				billingDocs := db.GetBillingDocuments()
-				require.Len(t, billingDocs, 1, "expected one billing document to be created")
-				for _, doc := range billingDocs {
-					assert.Equal(t, testTenantID, doc.TenantID)
-					assert.Equal(t, testAzureLocation, doc.Location)
-					assert.Equal(t, fixedTime, doc.CreationTime, "should use fallback time when CreatedAt is nil")
-				}
-			},
-		},
-		{
-			name:         "non-terminal cluster state updates to provisioning without billing",
+			name:         "non-terminal cluster state updates to provisioning",
 			clusterState: arohcpv1alpha1.ClusterStateInstalling,
 			createdAt:    nil,
 			expectError:  false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
-				// Verify operation status
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
-
-				// Verify no billing document was created
-				billingDocs := db.GetBillingDocuments()
-				assert.Empty(t, billingDocs, "no billing document should be created for non-terminal state")
 			},
 		},
 	}
@@ -131,8 +92,6 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				Return(clusterStatus, nil)
 
 			controller := &operationClusterCreate{
-				clock:                clocktesting.NewFakePassiveClock(fixedTime),
-				azureLocation:        testAzureLocation,
 				cosmosClient:         mockDB,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,

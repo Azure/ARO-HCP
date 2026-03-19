@@ -266,7 +266,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationClusterCreateController := operationcontrollers.NewGenericOperationController(
 		"OperationClusterCreate",
 		operationcontrollers.NewOperationClusterCreateSynchronizer(
-			b.options.AzureLocation,
 			b.options.CosmosDBClient,
 			b.options.ClustersServiceClient,
 			http.DefaultClient,
@@ -408,6 +407,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	orphanedBillingCleanupController := controllerutils.NewClusterWatchingController(
 		"OrphanedBillingCleanup", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
 		billingcontrollers.NewOrphanedBillingCleanupController(utilsclock.RealClock{}, b.options.CosmosDBClient))
+	createBillingDocController := controllerutils.NewClusterWatchingController(
+		"CreateBillingDoc", b.options.CosmosDBClient, backendInformers, 60*time.Second,
+		billingcontrollers.NewCreateBillingDocController(utilsclock.RealClock{}, b.options.AzureLocation, b.options.CosmosDBClient))
 	controlPlaneActiveVersionController := upgradecontrollers.NewControlPlaneActiveVersionController(
 		b.options.CosmosDBClient,
 		activeOperationLister,
@@ -522,6 +524,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 				go backfillBillingDocIDController.Run(ctx, 20)
 				go orphanedBillingCleanupController.Run(ctx, 20)
+				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)

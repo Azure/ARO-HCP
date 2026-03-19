@@ -48,6 +48,7 @@ const (
 	testOperationName       = "test-operation-id"
 	testTenantID            = "11111111-1111-1111-1111-111111111111"
 	testAzureLocation       = "eastus"
+	testBillingDocID        = "00000000-0000-0000-0000-000000000000"
 )
 
 // clusterTestFixture contains common test objects for cluster operations
@@ -93,6 +94,7 @@ func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftC
 		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID:  f.clusterInternalID,
 			ActiveOperationID: testOperationName,
+			BillingDocID:      testBillingDocID,
 		},
 	}
 }
