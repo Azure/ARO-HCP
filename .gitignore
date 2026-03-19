@@ -15,6 +15,7 @@ env
 */archive.tar.gz
 tooling/bin
 **/venv
+**/.venv
 **/__pycache__
 **/charts/*.tgz
 /vendor/
