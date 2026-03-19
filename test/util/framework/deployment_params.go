@@ -42,7 +42,7 @@ const (
 	// Default OpenShift channel group, version, and node pool version for the E2E test
 	DefaultOCPChannelGroup         = "stable"
 	DefaultOCPVersionId            = "4.20"
-	DefaultOCPNodePoolVersionId    = "4.20.8"
+	DefaultOCPNodePoolVersionId    = "4.20.15"
 	DefaultOCPNodePoolChannelGroup = "stable"
 )
 
