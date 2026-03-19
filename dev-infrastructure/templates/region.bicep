@@ -39,12 +39,6 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
-@description('Maximum active time series limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
-param amwMaxActiveTimeSeries int = 2000000
-
-@description('Maximum events per minute limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
-param amwMaxEventsPerMinute int = 2000000
-
 import * as res from '../modules/resource.bicep'
 
 // Reader role
@@ -142,28 +136,4 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
     monitorName: hcpMonitorName
     purpose: 'hcps'
   }
-}
-
-// Configure ingestion limits for Azure Monitor Workspaces
-// 2M initial limit - bump per environment when hitting 50% utilization
-module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
-  name: 'svc-monitor-ingestion-limits'
-  params: {
-    azureMonitorWorkspaceName: svcMonitorName
-    location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
-  }
-  dependsOn: [svcMonitor]
-}
-
-module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
-  name: 'hcp-monitor-ingestion-limits'
-  params: {
-    azureMonitorWorkspaceName: hcpMonitorName
-    location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
-  }
-  dependsOn: [hcpMonitor]
 }
