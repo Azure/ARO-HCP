@@ -17,6 +17,10 @@ tooling/bin
 **/venv
 **/.venv
 **/__pycache__
+**/build/
+**/dist/
+**/*.egg-info/
+*.whl
 **/charts/*.tgz
 /vendor/
 **/*.sha256
