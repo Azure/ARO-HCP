@@ -104,7 +104,11 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"If set, the cluster-scoped user-provided Managed Identities that need the Managed Identities Dataplane service to be available are not used "+
 			"and the managed identity mock identity (MI Mock) will be used instead. The identities that need the Managed Identities Dataplane service are the "+
 			"Cluster's Control Plane Operators identities and the Cluster's Service Managed Identity. Even though when this is set there's no authentication "+
-			"as them against Azure, the backend still leverages them to perform some permissions validation checks",
+			"as them against Azure, the backend still leverages them to perform some permissions validation checks. Additionally, when it is set, the backend will also "+
+			"use the ARM Permissions Manager identity to perform some additional permissions management and validations. When set, the --insecure-azure-managed-identity-mock-certificate-bundle-path, "+
+			"--insecure-azure-managed-identity-mock-client-id, --insecure-azure-managed-identity-mock-principal-id, --insecure-azure-managed-identity-mock-tenant-id, "+
+			"--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path, --insecure-azure-arm-permissions-manager-identity-client-id, "+
+			"--insecure-azure-arm-permissions-manager-identity-tenant-id flags must also be set.",
 	)
 
 	cmd.Flags().StringVar(
@@ -215,7 +219,7 @@ func (f *BackendRootCmdFlags) validate() error {
 	}
 
 	// If InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock is set,
-	// we need to ensure that all the azure managed identity mock identity related flags are
+	// we need to ensure that all the azure managed identity mock identity related flags and all of the ARM Permissions Manager identity related flags are set.
 	if f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
 		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) == 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must be set"))
@@ -229,7 +233,16 @@ func (f *BackendRootCmdFlags) validate() error {
 		if len(f.InsecureAzureManagedIdentityMockTenantID) == 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-tenant-id must be set"))
 		}
-	} else { // Otherwise we also validate that none of the azure managed identity mock identity related flags are set in that case.
+		if len(f.InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path must be set"))
+		}
+		if len(f.InsecureAzureARMPermissionsManagerIdentityClientID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-client-id must be set"))
+		}
+		if len(f.InsecureAzureARMPermissionsManagerIdentityTenantID) == 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-tenant-id must be set"))
+		}
+	} else { // Otherwise we also validate that none of the azure managed identity mock identity nor the ARM Permissions Manager identity related flags are set in that case.
 		if len(f.InsecureAzureManagedIdentityMockCertificateBundlePath) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-certificate-bundle-path must not be set"))
 		}
@@ -241,6 +254,15 @@ func (f *BackendRootCmdFlags) validate() error {
 		}
 		if len(f.InsecureAzureManagedIdentityMockTenantID) != 0 {
 			return utils.TrackError(fmt.Errorf("--insecure-azure-managed-identity-mock-tenant-id must not be set"))
+		}
+		if len(f.InsecureAzureARMPermissionsManagerIdentityCertificateBundlePath) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path must not be set"))
+		}
+		if len(f.InsecureAzureARMPermissionsManagerIdentityClientID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-client-id must not be set"))
+		}
+		if len(f.InsecureAzureARMPermissionsManagerIdentityTenantID) != 0 {
+			return utils.TrackError(fmt.Errorf("--insecure-azure-arm-permissions-manager-identity-tenant-id must not be set"))
 		}
 	}
 
