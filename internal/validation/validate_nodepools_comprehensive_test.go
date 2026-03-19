@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -169,7 +170,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
+				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -516,7 +517,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
+				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
 				{message: "Required value", fieldPath: "properties.platform.vmSize"},
 				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
 				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
@@ -702,7 +703,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateNodePoolCreate(ctx, tt.nodePool)
+			op := operation.Operation{Type: operation.Create}
+			errs := ValidateNodePool(ctx, op, tt.nodePool, nil)
 
 			if len(tt.expectErrors) == 0 {
 				if len(errs) != 0 {
@@ -730,7 +732,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 	}
 }
 
-// Comprehensive tests for ValidateNodePoolUpdate
+// Comprehensive tests for ValidateNodePool update
 func TestValidateNodePoolUpdate(t *testing.T) {
 	ctx := context.Background()
 
@@ -1089,8 +1091,24 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			}(),
 			oldNodePool: createValidNodePool(),
 			expectErrors: []expectedError{
-				{message: "Short version cannot contain PreRelease/Build meta data", fieldPath: "properties.version.id"},
+				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
 			},
+		},
+		{
+			name: "update with same version skips validation - allows unrelated changes",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20" // Old X.Y format
+				np.Properties.Replicas = 5        // Unrelated change
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20" // Same version
+				np.Properties.Replicas = 3
+				return np
+			}(),
+			expectErrors: []expectedError{}, // No error because version validation is skipped
 		},
 		{
 			name: "multiple immutable field changes - update",
@@ -1250,7 +1268,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateNodePoolUpdate(ctx, tt.newNodePool, tt.oldNodePool)
+			op := operation.Operation{Type: operation.Update}
+			errs := ValidateNodePool(ctx, op, tt.newNodePool, tt.oldNodePool)
 
 			if len(tt.expectErrors) == 0 {
 				if len(errs) != 0 {
@@ -1278,6 +1297,19 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 	}
 }
 
+// testNodePoolFeatureOptions creates validation options from feature names,
+// matching production behavior by normalizing to lowercase.
+func testNodePoolFeatureOptions(names ...string) []string {
+	features := make([]arm.Feature, len(names))
+	for i, name := range names {
+		features[i] = arm.Feature{
+			Name:  ptr.To(name),
+			State: ptr.To("Registered"),
+		}
+	}
+	return AFECsToValidationOptions(features)
+}
+
 // Helper function to create a valid nodepool for testing
 func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 	nodePool := api.NewDefaultHCPOpenShiftClusterNodePool(
@@ -1287,7 +1319,7 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 
 	// Set required fields that are not in the default
 	nodePool.Location = "eastus" // Required for TrackedResource validation
-	nodePool.Properties.Version.ID = "4.15"
+	nodePool.Properties.Version.ID = "4.15.0"
 	nodePool.Properties.Version.ChannelGroup = "stable"
 	nodePool.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	nodePool.Properties.Platform.VMSize = "Standard_D2s_v3"
@@ -1302,4 +1334,117 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 	}
 
 	return nodePool
+}
+
+// TestValidateNodePoolVersionWithFeatureFlags tests version validation with feature flags
+func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
+	ctx := context.Background()
+
+	type expectedError struct {
+		message   string
+		fieldPath string
+	}
+
+	tests := []struct {
+		name         string
+		nodePool     *api.HCPOpenShiftClusterNodePool
+		opOptions    []string
+		expectErrors []expectedError
+	}{
+		{
+			name:         "valid node pool with X.Y.Z version - no feature flag",
+			nodePool:     createValidNodePool(),
+			opOptions:    nil,
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "X.Y format rejected for stable channel ",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.19"
+				np.Properties.Version.ChannelGroup = "stable"
+				return np
+			}(),
+			opOptions: testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{
+				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
+			},
+		},
+		{
+			name: "X.Y.Z.A format rejected for stable channel ",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.19.14.12"
+				np.Properties.Version.ChannelGroup = "stable"
+				return np
+			}(),
+			opOptions: testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{
+				{message: "Invalid character(s) found in patch number", fieldPath: "properties.version.id"},
+			},
+		},
+		{
+			name: "prerelease version allowed for non-stable channel with experimental flag",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.19.0-rc.1"
+				np.Properties.Version.ChannelGroup = "candidate"
+				return np
+			}(),
+			opOptions:    testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "nightly version allowed with experimental flag",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.0-0.nightly-2024-01-15-123456"
+				np.Properties.Version.ChannelGroup = "nightly"
+				return np
+			}(),
+			opOptions:    testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "malformed version rejected",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "invalid-version"
+				return np
+			}(),
+			opOptions: nil,
+			expectErrors: []expectedError{
+				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
+			errs := ValidateNodePool(ctx, op, tt.nodePool, nil)
+
+			if len(tt.expectErrors) == 0 {
+				if len(errs) != 0 {
+					t.Errorf("expected no errors, got %d: %v", len(errs), errs)
+				}
+				return
+			}
+
+			for _, expectedErr := range tt.expectErrors {
+				found := false
+				for _, err := range errs {
+					messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
+					fieldMatch := strings.Contains(err.Field, expectedErr.fieldPath)
+					if messageMatch && fieldMatch {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected error containing message '%s' at field '%s' but not found in: %v", expectedErr.message, expectedErr.fieldPath, errs)
+				}
+			}
+		})
+	}
 }

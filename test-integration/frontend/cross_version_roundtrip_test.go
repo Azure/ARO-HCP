@@ -426,7 +426,7 @@ func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {
     ],
     "version": {
       "channelGroup": "stable",
-      "id": "4.20"
+      "id": "4.20.0"
     }
   },
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
@@ -467,7 +467,7 @@ func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {
     ],
     "version": {
       "channelGroup": "stable",
-      "id": "4.20"
+      "id": "4.20.0"
     }
   },
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
