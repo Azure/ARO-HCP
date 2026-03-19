@@ -68,7 +68,6 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
       maximum: autoScaleMax
     }
     enableAutoStop: false
-    restrictOutboundNetworkAccess: !empty(allowedFqdnList) ? 'Enabled' : 'Disabled'
     allowedFqdnList: !empty(allowedFqdnList) ? csvToArray(allowedFqdnList) : []
   }
 
