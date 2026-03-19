@@ -116,6 +116,47 @@ func TestSetProvisioningCondition_SameStateTwice(t *testing.T) {
 		"LastTransitionTime should not change when status doesn't change")
 }
 
+func TestSeedProvisioningCondition_AddsInitialCondition(t *testing.T) {
+	var conditions []Condition
+	timestamp := time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)
+
+	SeedProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, timestamp)
+
+	require.Len(t, conditions, 1)
+	assert.Equal(t, string(arm.ProvisioningStateAccepted), conditions[0].Type)
+	assert.Equal(t, ConditionTrue, conditions[0].Status)
+	assert.Equal(t, timestamp, conditions[0].LastTransitionTime)
+}
+
+func TestSeedProvisioningCondition_IsIdempotent(t *testing.T) {
+	var conditions []Condition
+	firstTime := time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)
+	secondTime := time.Date(2024, 6, 15, 11, 0, 0, 0, time.UTC)
+
+	SeedProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, firstTime)
+	SeedProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, secondTime)
+
+	require.Len(t, conditions, 1, "should not duplicate conditions")
+	assert.Equal(t, firstTime, conditions[0].LastTransitionTime,
+		"timestamp should not change on second seed")
+}
+
+func TestSeedProvisioningCondition_DoesNotOverwriteExisting(t *testing.T) {
+	var conditions []Condition
+	seedTime := time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)
+
+	// SetProvisioningCondition creates the condition first
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted)
+	existingTime := conditions[0].LastTransitionTime
+
+	// Seed should not overwrite since condition already exists
+	SeedProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, seedTime)
+
+	require.Len(t, conditions, 1)
+	assert.Equal(t, existingTime, conditions[0].LastTransitionTime,
+		"seed should not overwrite existing condition timestamp")
+}
+
 func TestSetProvisioningCondition_OnClusterStatus(t *testing.T) {
 	cluster := &HCPOpenShiftCluster{}
 

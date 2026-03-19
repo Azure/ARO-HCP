@@ -120,10 +120,10 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "systemData", "lastModifiedAt")...)...)
 			}
 
-			// status.conditions are written by backend controllers and contain dynamic
-			// timestamps. Strip the entire field until golden fixtures are updated.
-			// TODO: update golden JSON fixtures to include expected conditions, then
-			// switch to stripping only lastTransitionTime.
+			// status is written by backend controllers and contains dynamic timestamps.
+			// Strip the entire status object until golden fixtures are updated.
+			// TODO: update golden JSON fixtures to include expected status.conditions,
+			// then switch to stripping only lastTransitionTime from each condition.
 			for _, nestedPossiblePrepend := range []string{"", "internalState", "intermediateResourceDoc"} {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status")...)...)
 			}
