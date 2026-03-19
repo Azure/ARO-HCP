@@ -34,6 +34,7 @@ import (
 
 type nodePoolPropertiesSyncer struct {
 	cooldownChecker      controllerutils.CooldownChecker
+	nodePoolLister       listers.NodePoolLister
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -48,8 +49,10 @@ func NewNodePoolPropertiesSyncController(
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
+	_, nodePoolLister := informers.NodePools()
 	syncer := &nodePoolPropertiesSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		nodePoolLister:       nodePoolLister,
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -58,7 +61,7 @@ func NewNodePoolPropertiesSyncController(
 		"NodePoolPropertiesSync",
 		cosmosClient,
 		informers,
-		5*time.Minute,
+		time.Hour,
 		syncer,
 	)
 
@@ -69,9 +72,31 @@ func (c *nodePoolPropertiesSyncer) CooldownChecker() controllerutils.CooldownChe
 	return c.cooldownChecker
 }
 
+// needsVersionIDSync returns true when versionID is empty or not valid semver (e.g. only x.y), so existing node pools are migrated from Cluster Service.
+func (c *nodePoolPropertiesSyncer) needsVersionIDSync(versionID string) bool {
+	_, err := semver.Parse(versionID)
+	return err != nil
+}
+
 // SyncOnce performs a single reconciliation of node pool properties from Cluster Service to Cosmos.
 func (c *nodePoolPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
+
+	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+	}
+	if len(cachedNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return nil
+	}
+	needsVersionSync := c.needsVersionIDSync(cachedNodePool.Properties.Version.ID)
+	needsChannelSync := len(cachedNodePool.Properties.Version.ChannelGroup) == 0
+	if !needsVersionSync && !needsChannelSync {
+		return nil
+	}
 
 	nodePoolCRUD := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	existingNodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
@@ -81,18 +106,12 @@ func (c *nodePoolPropertiesSyncer) SyncOnce(ctx context.Context, key controlleru
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
-
 	if len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return nil
 	}
-
-	needsVersionID := false
-	if _, err := semver.Parse(existingNodePool.Properties.Version.ID); err != nil {
-		needsVersionID = true
-	}
-	needsChannelGroup := len(existingNodePool.Properties.Version.ChannelGroup) == 0
-
-	if !needsVersionID && !needsChannelGroup {
+	needsVersionSync = c.needsVersionIDSync(existingNodePool.Properties.Version.ID)
+	needsChannelSync = len(existingNodePool.Properties.Version.ChannelGroup) == 0
+	if !needsVersionSync && !needsChannelSync {
 		return nil
 	}
 
@@ -104,10 +123,10 @@ func (c *nodePoolPropertiesSyncer) SyncOnce(ctx context.Context, key controlleru
 	originalNodePool := existingNodePool.DeepCopy()
 
 	version := csNodePool.Version()
-	if needsVersionID {
+	if needsVersionSync {
 		existingNodePool.Properties.Version.ID = version.RawID()
 	}
-	if needsChannelGroup {
+	if needsChannelSync {
 		existingNodePool.Properties.Version.ChannelGroup = version.ChannelGroup()
 	}
 

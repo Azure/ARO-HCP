@@ -19,6 +19,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -30,10 +31,12 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -56,6 +59,7 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 		name              string
 		existingNodePool  *api.HCPOpenShiftClusterNodePool
 		existingCluster   *api.HCPOpenShiftCluster
+		cacheNodePool     *api.HCPOpenShiftClusterNodePool // when set, lister uses this instead of existingNodePool (e.g. stale cache)
 		csNodePool        *arohcpv1alpha1.NodePool
 		expectGetNodePool bool
 		wantNodePool      *api.HCPOpenShiftClusterNodePool
@@ -139,12 +143,29 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 			wantErr:           true,
 			wantErrContain:    "failed to get node pool from Cluster Service",
 		},
+		{
+			name:            "when cache indicates needs work but Cosmos already has properties, skip Cluster Service",
+			existingCluster: newTestCluster(t),
+			// Cosmos has the node pool with version already set (no work needed).
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = "4.21.5"
+				np.Properties.Version.ChannelGroup = "stable"
+			}),
+			expectGetNodePool: false,
+			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = "4.21.5"
+				np.Properties.Version.ChannelGroup = "stable"
+			}),
+			// Stale cache (empty version); Cosmos is up to date so we skip Cluster Service.
+			cacheNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = ""
+			}),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
 
 			resources := []any{tc.existingCluster}
 			if tc.existingNodePool != nil {
@@ -164,8 +185,15 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 				}
 			}
 
+			nodePoolsForLister := []*api.HCPOpenShiftClusterNodePool{}
+			if tc.cacheNodePool != nil {
+				nodePoolsForLister = append(nodePoolsForLister, tc.cacheNodePool)
+			} else if tc.existingNodePool != nil {
+				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
+			}
 			syncer := &nodePoolPropertiesSyncer{
 				cooldownChecker:      &alwaysSyncCooldownChecker{},
+				nodePoolLister:       &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				cosmosClient:         mockDB,
 				clusterServiceClient: mockCSClient,
 			}
@@ -240,6 +268,7 @@ func newTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) 
 			Platform: api.NodePoolPlatformProfile{
 				OSDisk: api.OSDiskProfile{
 					DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+					DiskType:               api.OsDiskTypeManaged,
 				},
 			},
 		},
