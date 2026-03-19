@@ -348,7 +348,6 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		AzureLocation:              os.Getenv("LOCATION"),
 		AzureCosmosDBName:          os.Getenv("DB_NAME"),
 		AzureCosmosDBURL:           os.Getenv("DB_URL"),
-		ClustersServiceURL:         "https://api.openshift.com",
 		ClustersServiceTLSInsecure: false,
 		MetricsServerListenAddress: ":8081",
 		HealthzServerListenAddress: ":8083",
