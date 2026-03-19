@@ -24,19 +24,21 @@ import (
 )
 
 func TestGetServicesQueries(t *testing.T) {
-	factory := kusto.NewQueryFactory()
+	factory, err := kusto.NewQueryFactory()
+	require.NoError(t, err)
 	opts := kusto.QueryOptions{
 		SubscriptionId:    "test-sub",
 		ResourceGroupName: "test-rg",
 	}
 
-	queries, err := serviceLogs(factory, opts, []string{"cluster1"})
+	queries, err := serviceLogs(factory, "serviceLogs", opts, []string{"cluster1"})
 	require.NoError(t, err)
 	assert.Len(t, queries, 4)
 }
 
 func TestGetHostedControlPlaneLogsQuery(t *testing.T) {
-	factory := kusto.NewQueryFactory()
+	factory, err := kusto.NewQueryFactory()
+	require.NoError(t, err)
 	opts := kusto.QueryOptions{}
 
 	// With cluster IDs
@@ -51,7 +53,8 @@ func TestGetHostedControlPlaneLogsQuery(t *testing.T) {
 }
 
 func TestGetClusterIdQuery(t *testing.T) {
-	factory := kusto.NewQueryFactory()
+	factory, err := kusto.NewQueryFactory()
+	require.NoError(t, err)
 	opts := kusto.QueryOptions{
 		SubscriptionId:    "test-sub",
 		ResourceGroupName: "test-rg",

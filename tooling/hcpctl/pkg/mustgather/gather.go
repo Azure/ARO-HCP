@@ -297,9 +297,11 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, opt
 
 			file, ok := openedFiles[fileName]
 			if !ok {
-				newFile, err := os.Create(path.Join(outputPath, directory, fileName))
+				filePath := path.Join(outputPath, directory, fileName)
+				newFile, err := os.Create(filePath)
 				if err != nil {
-					return errors.Join(allErrors, fmt.Errorf("failed to create output file: %w", err))
+					allErrors = errors.Join(allErrors, fmt.Errorf("failed to create output file %s: %w", filePath, err))
+					continue
 				}
 				openedFiles[fileName] = newFile
 				file = newFile
@@ -307,8 +309,7 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, opt
 			thisLog, err := json.Marshal(logLine.Log)
 			if err != nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("failed to marshal log line: %w", err))
-			}
-			if _, err := fmt.Fprintf(file, "%s\n", string(thisLog)); err != nil {
+			} else if _, err := fmt.Fprintf(file, "%s\n", string(thisLog)); err != nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("failed to write to file %s: %w", fileName, err))
 			}
 		}
@@ -324,7 +325,10 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	var gatherErrors error
 
-	queryFactory := kusto.NewQueryFactory()
+	queryFactory, err := kusto.NewQueryFactory()
+	if err != nil {
+		return fmt.Errorf("failed to create query factory: %w", err)
+	}
 
 	logger.V(1).Info("Query options", "queryOptions", g.GetQueryOptions())
 
@@ -338,17 +342,17 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to build cluster id query: %w", err)
 	}
-	allClusterIds, err := g.executeQueryAndConvert(ctx, clusterIdQueries[0], ClusterIdRow{})
+	allClusterIds, err := executeQueryAndConvert[ClusterIdRow](ctx, g, clusterIdQueries[0])
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
 	for _, row := range allClusterIds {
-		clusterIds = append(clusterIds, row.(ClusterIdRow).ClusterId)
+		clusterIds = append(clusterIds, row.ClusterId)
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 
 	// Gather service logs
-	servicesQueries, err := serviceLogs(queryFactory, g.GetQueryOptions(), clusterIds)
+	servicesQueries, err := serviceLogs(queryFactory, "serviceLogs", g.GetQueryOptions(), clusterIds)
 	if err != nil {
 		return fmt.Errorf("failed to build services queries: %w", err)
 	}
@@ -372,18 +376,27 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	// Gather cluster names
 
-	clusterNamesQueries, err := clusterNamesQueries(queryFactory, g.GetQueryOptions())
-	if err != nil {
-		return fmt.Errorf("failed to build cluster names queries: %w", err)
+	// clusterNamesQueries, err := clusterNamesQueries(queryFactory, g.GetQueryOptions())
+	var clusterNamesQueries []kusto.Query
+	for _, queryName := range []string{"clusterNamesSvc", "clusterNamesHcp"} {
+		queryDef, err := queryFactory.GetBuiltinQueryDefinition(queryName)
+		if err != nil {
+			return fmt.Errorf("failed to get cluster names query definition: %w", err)
+		}
+		queries, err := queryFactory.Build(*queryDef, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
+		if err != nil {
+			return fmt.Errorf("failed to build cluster names query: %w", err)
+		}
+		clusterNamesQueries = append(clusterNamesQueries, queries...)
 	}
 	clusterNames := make([]string, 0)
 	for _, nameQuery := range clusterNamesQueries {
-		allClusterNames, err := g.executeQueryAndConvert(ctx, nameQuery, ClusterNameRow{})
+		allClusterNames, err := executeQueryAndConvert[ClusterNameRow](ctx, g, nameQuery)
 		if err != nil {
 			gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute cluster names query: %w", err))
 		}
 		for _, row := range allClusterNames {
-			clusterNames = append(clusterNames, row.(ClusterNameRow).ClusterName)
+			clusterNames = append(clusterNames, row.ClusterName)
 		}
 	}
 	logger.V(1).Info("Obtained following clusterNames", "clusterNames", strings.Join(clusterNames, ", "))
@@ -453,7 +466,10 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 }
 
 func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
-	queryFactory := kusto.NewQueryFactory()
+	queryFactory, err := kusto.NewQueryFactory()
+	if err != nil {
+		return fmt.Errorf("failed to create query factory: %w", err)
+	}
 
 	k8sEventsDef, err := queryFactory.GetBuiltinQueryDefinition("kubernetesEvents")
 	if err != nil {
@@ -479,11 +495,7 @@ func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
 		return fmt.Errorf("failed to execute systemd logs query: %w", err)
 	}
 
-	infraServiceLogsDef, err := queryFactory.GetBuiltinQueryDefinition("infraServiceLogs")
-	if err != nil {
-		return fmt.Errorf("failed to get infra service logs query definition: %w", err)
-	}
-	queries, err = queryFactory.Build(*infraServiceLogsDef, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
+	queries, err = serviceLogs(queryFactory, "infraServiceLogs", g.GetQueryOptions(), []string{})
 	if err != nil {
 		return fmt.Errorf("failed to build services queries: %w", err)
 	}
@@ -493,29 +505,18 @@ func (g *Gatherer) gatherInfraLogs(ctx context.Context) error {
 	return nil
 }
 
-func (g *Gatherer) executeQueryAndConvert(ctx context.Context, query kusto.Query, targetRow any) ([]any, error) {
+func executeQueryAndConvert[T any](ctx context.Context, g *Gatherer, query kusto.Query) ([]T, error) {
 	outputChannel := make(chan kusto.TaggedRow)
-	allRows := make([]any, 0)
+	var allRows []T
 
 	group := new(errgroup.Group)
 	group.Go(func() error {
 		for row := range outputChannel {
-			switch targetRow := targetRow.(type) {
-			case ClusterIdRow:
-				cidRow := targetRow
-				if err := row.Row.ToStruct(&cidRow); err != nil {
-					return fmt.Errorf("failed to convert row to struct: %w", err)
-				}
-				allRows = append(allRows, cidRow)
-			case ClusterNameRow:
-				clusterNameRow := targetRow
-				if err := row.Row.ToStruct(&clusterNameRow); err != nil {
-					return fmt.Errorf("failed to convert row to struct: %w", err)
-				}
-				allRows = append(allRows, clusterNameRow)
-			default:
-				return fmt.Errorf("unsupported target row type: %T", targetRow)
+			var target T
+			if err := row.Row.ToStruct(&target); err != nil {
+				return fmt.Errorf("failed to convert row to struct: %w", err)
 			}
+			allRows = append(allRows, target)
 		}
 		return nil
 	})
@@ -594,14 +595,9 @@ func (g *Gatherer) convertRows(ctx context.Context, rowChannel <-chan kusto.Tagg
 			values := tagged.Row.Values()
 			// the actual log line
 			log := make(map[string]any, len(columns))
-			// Iterate over the row colums
-			// The expected output is a map where the columns match the query columns, i.e.
-			// - log: the usual log line, as used in standard must-gather queries
-			// - fooBar: any other columns used by i.e. custom queries
-			// We try to deserialize the log line into a map[string]any, if that fails, we use the string representation
 			for i, col := range columns {
 				if _, ok := knownColumns[col.Name()]; !ok {
-					if col.Name() == "log" && values[i].GetType() == types.Dynamic {
+					if values[i].GetType() == types.Dynamic {
 						var logAsInterface = values[i].GetValue()
 						var logMap map[string]any
 						if logAsBytes, ok := logAsInterface.([]byte); ok {

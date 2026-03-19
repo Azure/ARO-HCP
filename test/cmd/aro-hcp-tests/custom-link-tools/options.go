@@ -358,7 +358,10 @@ func (o Options) Run(ctx context.Context) error {
 
 	for testName, timing := range timingInfo {
 		for _, rg := range timing.ResourceGroupNames {
-			testFactory := kusto.NewQueryFactory()
+			testFactory, err := kusto.NewQueryFactory()
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to create query factory: %w", err))
+			}
 			queryOpts := kusto.QueryOptions{
 				ResourceGroupName: rg,
 				TimestampMin:      timing.StartTime,
@@ -369,11 +372,7 @@ func (o Options) Run(ctx context.Context) error {
 
 			var links []LinkDetails
 
-			hcpDef, err := testFactory.GetBuiltinQueryDefinition("hostedControlPlaneLogs")
-			if err != nil {
-				return utils.TrackError(fmt.Errorf("failed to get hosted control plane query definition: %w", err))
-			}
-			hcpQ, err := testFactory.BuildMerged(hcpDef, templateData)
+			hcpQ, err := testFactory.BuildMergedCustomQuery("hostedControlPlaneLogs", templateData)
 			if err != nil {
 				return utils.TrackError(fmt.Errorf("failed to build hosted control plane query: %w", err))
 			}
@@ -687,7 +686,10 @@ func getPerTestMustGatherCommands(timingInfo map[string]TimingInfo, subscription
 func getServiceLogLinks(logger logr.Logger, tw TimeWindow, svcClusterName, mgmtClusterName string, kustoInfo KustoInfo) ([]LinkDetails, error) {
 	allLinks := []LinkDetails{}
 
-	factory := kusto.NewQueryFactory()
+	factory, err := kusto.NewQueryFactory()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create query factory: %w", err)
+	}
 	svcOpts := kusto.QueryOptions{
 		InfraClusterName: svcClusterName,
 		TimestampMin:     tw.Start,
@@ -703,7 +705,7 @@ func getServiceLogLinks(logger logr.Logger, tw TimeWindow, svcClusterName, mgmtC
 	serviceTables := []string{"containerLogs", "clustersServiceLogs", "frontendLogs", "backendLogs"}
 	for _, table := range serviceTables {
 		svcTemplateData := kusto.NewTemplateDataFromOptions(svcOpts, kusto.WithTable(table))
-		q, err := factory.BuildMerged(infraServiceLogsDef, svcTemplateData)
+		q, err := factory.BuildMerged(*infraServiceLogsDef, svcTemplateData)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build %s query: %w", table, err)
 		}
@@ -727,7 +729,7 @@ func getServiceLogLinks(logger logr.Logger, tw TimeWindow, svcClusterName, mgmtC
 		Limit:            -1,
 	}
 	mgmtTemplateData := kusto.NewTemplateDataFromOptions(mgmtOpts, kusto.WithTable("containerLogs"))
-	q, err := factory.BuildMerged(infraServiceLogsDef, mgmtTemplateData)
+	q, err := factory.BuildMerged(*infraServiceLogsDef, mgmtTemplateData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build mgmt container logs query: %w", err)
 	}

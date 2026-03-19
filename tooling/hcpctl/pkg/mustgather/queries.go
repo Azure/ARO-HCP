@@ -39,33 +39,14 @@ type ClusterNameRow struct {
 	ClusterName string `kusto:"cluster"`
 }
 
-func serviceLogs(f *kusto.QueryFactory, options kusto.QueryOptions, clusterIds []string) ([]kusto.Query, error) {
-	def, err := f.GetBuiltinQueryDefinition("serviceLogs")
+func serviceLogs(f *kusto.QueryFactory, tableDefinition string, options kusto.QueryOptions, clusterIds []string) ([]kusto.Query, error) {
+	def, err := f.GetBuiltinQueryDefinition(tableDefinition)
 	if err != nil {
 		return nil, err
 	}
 	queries := make([]kusto.Query, 0, len(ServicesTables))
 	for _, table := range ServicesTables {
 		q, err := f.Build(*def, kusto.NewTemplateDataFromOptions(options, kusto.WithTable(table), kusto.WithClusterIds(clusterIds)))
-		if err != nil {
-			return nil, err
-		}
-		queries = append(queries, q...)
-	}
-	return queries, nil
-}
-
-func clusterNamesQueries(f *kusto.QueryFactory, options kusto.QueryOptions) ([]kusto.Query, error) {
-	def, err := f.GetBuiltinQueryDefinition("clusterNames")
-	if err != nil {
-		return nil, err
-	}
-	databases := []string{"ServiceLogs", "HostedControlPlaneLogs"}
-	queries := make([]kusto.Query, 0, len(databases))
-	for _, db := range databases {
-		dbDef := def
-		dbDef.Database = db
-		q, err := f.Build(*dbDef, kusto.NewTemplateDataFromOptions(options))
 		if err != nil {
 			return nil, err
 		}

@@ -30,7 +30,11 @@
   queryType: must-gather-internal
   database: ServiceLogs
   templatePath: templates/builtin/discovery/cluster_id.kql.gotmpl
-- name: clusterNames
+- name: clusterNamesSvc
   queryType: must-gather-internal
   database: ServiceLogs
+  templatePath: templates/builtin/discovery/cluster_names.kql.gotmpl
+- name: clusterNamesHcp
+  queryType: must-gather-internal
+  database: HostedControlPlaneLogs
   templatePath: templates/builtin/discovery/cluster_names.kql.gotmpl

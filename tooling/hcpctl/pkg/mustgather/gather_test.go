@@ -941,46 +941,6 @@ func TestConvertRows_DynamicLogArray(t *testing.T) {
 	assert.True(t, isString, "JSON array should fall back to string representation")
 }
 
-func TestConvertRows_NonLogDynamicColumn(t *testing.T) {
-	g := &Gatherer{}
-	rowChan := make(chan kusto.TaggedRow, 1)
-	outChan := make(chan *NormalizedLogLine, 1)
-
-	// A dynamic column that is NOT named "log" should go through String() path
-	row := makeTestRow(t, []struct {
-		name string
-		typ  types.Column
-	}{
-		{"cluster", types.String},
-		{"namespace_name", types.String},
-		{"container_name", types.String},
-		{"timestamp", types.DateTime},
-		{"metadata", types.Dynamic},
-	}, value.Values{
-		value.NewString("cluster-1"),
-		value.NewString("ns-1"),
-		value.NewString("container-1"),
-		value.NewDateTime(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)),
-		value.NewDynamic([]byte(`{"key":"val"}`)),
-	})
-
-	rowChan <- row
-	close(rowChan)
-
-	err := g.convertRows(t.Context(), rowChan, outChan)
-	require.NoError(t, err)
-	close(outChan)
-
-	result := <-outChan
-	require.NotNil(t, result)
-	require.NotNil(t, result.Log)
-	// Non-"log" dynamic columns go through String(), not JSON unmarshal
-	metaVal := result.Log["metadata"]
-	require.NotNil(t, metaVal)
-	_, isString := metaVal.(string)
-	assert.True(t, isString, "non-log dynamic column should use String() representation")
-}
-
 func TestCliOutputFunc_JSONLFormat(t *testing.T) {
 	tempDir := t.TempDir()
 	err := os.MkdirAll(filepath.Join(tempDir, "services"), 0755)

@@ -154,12 +154,14 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 		Limit:              max(queryOptions.Limit, 0),
 		TimestampMin:       queryOptions.TimestampMin,
 		TimestampMax:       queryOptions.TimestampMax,
-		ClusterName:        kqlEscStr(queryOptions.InfraClusterName),
-		ClusterNames:       kqlEscStrList([]string{queryOptions.InfraClusterName}),
 		SubResourceGroupId: kqlEscStr(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", queryOptions.SubscriptionId, queryOptions.ResourceGroupName)),
 		ResourceGroupName:  kqlEscStr(queryOptions.ResourceGroupName),
 	}
-	for _, option := range options {
+	defaults := []TemplateDataOptions{
+		WithClusterName(queryOptions.InfraClusterName),
+		WithClusterNames([]string{queryOptions.InfraClusterName}),
+	}
+	for _, option := range append(defaults, options...) {
 		option(&templateData)
 	}
 	return templateData
@@ -174,19 +176,19 @@ type QueryFactory struct {
 }
 
 // NewQueryFactory creates a factory with all the shared query parameters.
-func NewQueryFactory() *QueryFactory {
+func NewQueryFactory() (*QueryFactory, error) {
 	builtinQueryDefinitions, err := LoadBuiltinQueryDefinitions()
 	if err != nil {
-		panic(fmt.Errorf("failed to load builtin query definitions: %w", err))
+		return nil, fmt.Errorf("failed to load builtin query definitions: %w", err)
 	}
 	customQueryDefinitions, err := LoadCustomQueryDefinitions()
 	if err != nil {
-		panic(fmt.Errorf("failed to load custom query definitions: %w", err))
+		return nil, fmt.Errorf("failed to load custom query definitions: %w", err)
 	}
 	return &QueryFactory{
 		BuiltinQueryDefinitions: builtinQueryDefinitions,
 		CustomQueryDefinitions:  customQueryDefinitions,
-	}
+	}, nil
 }
 
 // GetBuiltinQueryDefinition returns the builtin query definition with the given name.

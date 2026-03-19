@@ -34,7 +34,8 @@ func baseOptions() QueryOptions {
 }
 
 func TestInfraKubernetesEvents(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := baseOptions()
 	def, err := f.GetBuiltinQueryDefinition("kubernetesEvents")
 	require.NoError(t, err)
@@ -58,7 +59,8 @@ func TestInfraKubernetesEvents(t *testing.T) {
 }
 
 func TestInfraKubernetesEvents_NoTruncation(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{
 		InfraClusterName: "test-cluster",
 		Limit:            -1,
@@ -78,7 +80,8 @@ func TestInfraKubernetesEvents_NoTruncation(t *testing.T) {
 }
 
 func TestKubernetesEventsSvc(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := baseOptions()
 	def, err := f.GetBuiltinQueryDefinition("kubernetesEventsSvc")
 	require.NoError(t, err)
@@ -92,7 +95,8 @@ func TestKubernetesEventsSvc(t *testing.T) {
 }
 
 func TestKubernetesEventsMgmt(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{
 		InfraClusterName: "test-cluster",
 		Limit:            50,
@@ -112,7 +116,8 @@ func TestKubernetesEventsMgmt(t *testing.T) {
 }
 
 func TestInfraSystemdLogs(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := baseOptions()
 	def, err := f.GetBuiltinQueryDefinition("systemdLogs")
 	require.NoError(t, err)
@@ -130,7 +135,8 @@ func TestInfraSystemdLogs(t *testing.T) {
 }
 
 func TestInfraServiceLogs(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := baseOptions()
 	def, err := f.GetBuiltinQueryDefinition("infraServiceLogs")
 	require.NoError(t, err)
@@ -148,7 +154,8 @@ func TestInfraServiceLogs(t *testing.T) {
 }
 
 func TestServiceLogs(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{
 		SubscriptionId:    "sub",
 		ResourceGroupName: "rg",
@@ -169,7 +176,8 @@ func TestServiceLogs(t *testing.T) {
 }
 
 func TestServiceLogs_NoClusterIds(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{
 		SubscriptionId:    "sub",
 		ResourceGroupName: "rg",
@@ -187,7 +195,8 @@ func TestServiceLogs_NoClusterIds(t *testing.T) {
 }
 
 func TestHostedControlPlaneLogs(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{Limit: 100}
 	def, err := f.GetBuiltinQueryDefinition("hostedControlPlaneLogs")
 	require.NoError(t, err)
@@ -205,7 +214,8 @@ func TestHostedControlPlaneLogs(t *testing.T) {
 }
 
 func TestClusterIdQuery(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := baseOptions()
 	def, err := f.GetBuiltinQueryDefinition("clusterId")
 	require.NoError(t, err)
@@ -224,16 +234,17 @@ func TestClusterIdQuery(t *testing.T) {
 }
 
 func TestClusterNamesQuery(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := baseOptions()
-	def, err := f.GetBuiltinQueryDefinition("clusterNames")
+	def, err := f.GetBuiltinQueryDefinition("clusterNamesSvc")
 	require.NoError(t, err)
 	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts))
 	require.NoError(t, err)
 	require.Len(t, queries, 1)
 
 	q := queries[0]
-	assert.Equal(t, "clusterNames", q.GetName())
+	assert.Equal(t, "clusterNamesSvc", q.GetName())
 
 	kql := q.GetQuery().String()
 	assert.Contains(t, kql, "containerLogs")
@@ -242,7 +253,8 @@ func TestClusterNamesQuery(t *testing.T) {
 }
 
 func TestBuildMerged_SingleTemplate(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := baseOptions()
 	def, err := f.GetBuiltinQueryDefinition("kubernetesEvents")
 	require.NoError(t, err)
@@ -253,7 +265,8 @@ func TestBuildMerged_SingleTemplate(t *testing.T) {
 }
 
 func TestBuildMerged_MultipleChildren(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{
 		ResourceGroupName: "test-rg",
 		TimestampMin:      time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -283,7 +296,8 @@ func TestBuildMerged_MultipleChildren(t *testing.T) {
 }
 
 func TestBuildCustomQuery(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{
 		InfraClusterName: "test-cluster",
 		TimestampMin:     time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -302,14 +316,16 @@ func TestBuildCustomQuery(t *testing.T) {
 }
 
 func TestBuildCustomQuery_NotFound(t *testing.T) {
-	f := NewQueryFactory()
-	_, err := f.BuildCustomQuery("nonexistent", NewTemplateDataFromOptions(baseOptions()))
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	_, err = f.BuildCustomQuery("nonexistent", NewTemplateDataFromOptions(baseOptions()))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestBuildCustomQuery_WithChildren(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{
 		ResourceGroupName: "test-rg",
 		TimestampMin:      time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -333,7 +349,8 @@ func TestBuildCustomQuery_WithChildren(t *testing.T) {
 }
 
 func TestBuildAllCustomQueries(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	opts := QueryOptions{
 		InfraClusterName:  "test-cluster",
 		ResourceGroupName: "test-rg",
@@ -346,7 +363,7 @@ func TestBuildAllCustomQueries(t *testing.T) {
 	))
 	require.NoError(t, err)
 	// 1 (backendControllerConditions) + 1 (clustersServicePhases) + 5 (debugQueries children) + 3 (detailedServiceLogs children) = 10
-	assert.Len(t, queries, 10)
+	assert.Len(t, queries, 11)
 }
 
 func TestTemplateDataOptions(t *testing.T) {
@@ -384,7 +401,8 @@ func TestTemplateDataOptions_NoTruncation(t *testing.T) {
 }
 
 func TestQueryDefinitions_TemplatePathsExist(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	allDefs := make([]QueryDefinition, 0, len(f.BuiltinQueryDefinitions)+len(f.CustomQueryDefinitions))
 	allDefs = append(allDefs, f.BuiltinQueryDefinitions...)
 	allDefs = append(allDefs, f.CustomQueryDefinitions...)
@@ -410,7 +428,8 @@ func TestQueryDefinitions_TemplatePathsExist(t *testing.T) {
 }
 
 func TestQueryDefinitions_NoDanglingTemplates(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 	allTemplates, err := ListTemplatePaths()
 	require.NoError(t, err)
 
@@ -438,7 +457,8 @@ func TestQueryDefinitions_NoDanglingTemplates(t *testing.T) {
 }
 
 func TestQueryDefinitions_NoDuplicateTemplatePaths(t *testing.T) {
-	f := NewQueryFactory()
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
 
 	seen := make(map[string]bool)
 	for _, def := range f.BuiltinQueryDefinitions {
