@@ -53,6 +53,8 @@ func (c contextKey) String() string {
 		return "systemData"
 	case contextKeyPattern:
 		return "pattern"
+	case contextKeySubscription:
+		return "subscription"
 	}
 	return "<unknown>"
 }
@@ -67,6 +69,7 @@ const (
 	contextKeyCorrelationData
 	contextKeySystemData
 	contextKeyPattern
+	contextKeySubscription
 )
 
 func ContextWithOriginalPath(ctx context.Context, originalPath string) context.Context {
@@ -156,4 +159,20 @@ func ContextWithPattern(ctx context.Context, pattern *string) context.Context {
 func PatternFromContext(ctx context.Context) *string {
 	pattern, _ := ctx.Value(contextKeyPattern).(*string)
 	return pattern
+}
+
+func ContextWithSubscription(ctx context.Context, subscription *arm.Subscription) context.Context {
+	return context.WithValue(ctx, contextKeySubscription, subscription)
+}
+
+func SubscriptionFromContext(ctx context.Context) (*arm.Subscription, error) {
+	subscription, ok := ctx.Value(contextKeySubscription).(*arm.Subscription)
+	if !ok {
+		err := &ContextError{
+			got: subscription,
+			key: contextKeySubscription,
+		}
+		return subscription, err
+	}
+	return subscription, nil
 }
