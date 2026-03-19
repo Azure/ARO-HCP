@@ -264,15 +264,23 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 		return nil, fmt.Errorf("failed to marshal cosmos object: %w", err)
 	}
 
-	// Get cosmos ID and etag from the object
+	// Get cosmos ID and resource info from the converted cosmos object
+	typedDocAccessor, ok := any(cosmosObj).(database.TypedDocumentAccessor)
+	if !ok {
+		return nil, fmt.Errorf("type %T does not implement TypedDocumentAccessor", cosmosObj)
+	}
+	typedDoc := typedDocAccessor.GetTypedDocument()
+	newCosmosID := typedDoc.ID
+	resourceName := typedDoc.ResourceID.Name
+
+	// Get etag from the original object for conditional replace
 	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
+	expectedETag := cosmosPersistable.GetCosmosData().CosmosETag
 
-	cosmosData := cosmosPersistable.GetCosmosData()
-
-	oldObj, err := m.Get(ctx, cosmosPersistable.GetCosmosData().GetResourceID().Name)
+	oldObj, err := m.Get(ctx, resourceName)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -280,8 +288,8 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	existingCosmosID := any(oldObj).(arm.CosmosPersistable).GetCosmosData().GetCosmosUID()
 
 	// Check etag if one is provided
-	if len(cosmosData.CosmosETag) > 0 {
-		if storedETag != cosmosData.CosmosETag {
+	if len(expectedETag) > 0 {
+		if storedETag != expectedETag {
 			return nil, NewPreconditionFailedError()
 		}
 	}
@@ -291,14 +299,16 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to inject etag: %w", err)
 	}
-	dataWithETag, err = injectID(dataWithETag, any(oldObj).(arm.CosmosPersistable).GetCosmosData().GetCosmosUID())
+	dataWithETag, err = injectID(dataWithETag, existingCosmosID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inject ID: %w", err)
 	}
+	// Use the existing cosmosID to maintain consistency
+	_ = newCosmosID // newCosmosID should match existingCosmosID
 	m.client.StoreDocument(existingCosmosID, dataWithETag)
 
 	// Read back the stored object
-	return m.Get(ctx, cosmosPersistable.GetCosmosData().GetResourceID().Name)
+	return m.Get(ctx, resourceName)
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Context, resourceID string) error {
@@ -372,11 +382,17 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
 	}
 
+	// Get cosmos ID from the converted cosmos object
+	typedDocAccessor, ok := any(cosmosObj).(database.TypedDocumentAccessor)
+	if !ok {
+		return "", fmt.Errorf("type %T does not implement TypedDocumentAccessor", cosmosObj)
+	}
+	cosmosID := typedDocAccessor.GetTypedDocument().ID
+
 	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
 	}
-	cosmosID := cosmosPersistable.GetCosmosData().GetCosmosUID()
 	expectedETag := cosmosPersistable.GetCosmosData().CosmosETag
 
 	mockTx, ok := transaction.(*mockTransaction)

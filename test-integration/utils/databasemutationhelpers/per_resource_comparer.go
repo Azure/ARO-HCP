@@ -54,8 +54,10 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 		unstructured.RemoveNestedField(currMap, "endTime") // for arm.Operation
 		// etag is dynamically generated, so remove it from cosmosMetadata as well
 		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "etag")
+		unstructured.RemoveNestedField(currMap, "properties", "cosmosMetadata", "etag")
 		// temporary and not worth tracking
 		unstructured.RemoveNestedField(currMap, "cosmosMetadata", "existingCosmosUID")
+		unstructured.RemoveNestedField(currMap, "properties", "cosmosMetadata", "existingCosmosUID")
 		// createdAt varies on every run, so ignore it (but keep createdBy and createdByType for comparison)
 		unstructured.RemoveNestedField(currMap, "systemData", "createdAt")
 		// lastModifiedAt also varies on every run
