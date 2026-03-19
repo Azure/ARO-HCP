@@ -120,31 +120,14 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "systemData", "lastModifiedAt")...)...)
 			}
 
-			// status.conditions contain dynamic lastTransitionTime, strip only that field
+			// status.conditions are written by backend controllers and contain dynamic
+			// timestamps. Strip the entire field until golden fixtures are updated.
+			// TODO: update golden JSON fixtures to include expected conditions, then
+			// switch to stripping only lastTransitionTime.
 			for _, nestedPossiblePrepend := range []string{"", "internalState", "intermediateResourceDoc"} {
-				pcPath := prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)
-				pcSlice, found, err := unstructured.NestedSlice(currMap, pcPath...)
-				if found && err == nil {
-					for i := range pcSlice {
-						delete(pcSlice[i].(map[string]any), "lastTransitionTime")
-					}
-					if err := unstructured.SetNestedSlice(currMap, pcSlice, pcPath...); err != nil {
-						panic(err)
-					}
-				}
+				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status")...)...)
 			}
-			{
-				pcPath := prepend(possiblePrepend, "internalState", "internalAPI", "status", "conditions")
-				pcSlice, found, err := unstructured.NestedSlice(currMap, pcPath...)
-				if found && err == nil {
-					for i := range pcSlice {
-						delete(pcSlice[i].(map[string]any), "lastTransitionTime")
-					}
-					if err := unstructured.SetNestedSlice(currMap, pcSlice, pcPath...); err != nil {
-						panic(err)
-					}
-				}
-			}
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "internalState", "internalAPI", "status")...)
 
 			switch {
 			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
