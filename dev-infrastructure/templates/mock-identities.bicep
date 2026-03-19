@@ -28,6 +28,15 @@ param msiMockCertName string = 'msiMockCert2'
 @description('The DNS of the msi mock certificate, used for subject and DNS names.')
 param msiMockCertDns string = 'msimock.hcp.osadev.cloud'
 
+@description('Number of additional MSI mock identities to create for throttle distribution')
+param msiMockPoolSize int = 0
+
+@description('Base name for pooled MSI mock certificates')
+param msiMockPoolCertBaseName string = 'msiMockPoolCert'
+
+@description('Base DNS for pooled MSI mock certificates')
+param msiMockPoolCertBaseDns string = 'msimockpool.hcp.osadev.cloud'
+
 @description('The name of the arm helper mock certificate')
 param armHelperCertName string = 'armHelperCert2'
 
@@ -123,6 +132,30 @@ module msiRPMockIdentity '../modules/keyvault/key-vault-cert.bicep' = {
     validityInMonths: 120
   }
 }
+
+//
+// M S I   R P   M O C K   I D E N T I T Y   P O O L
+//
+// Additional MSI mock identities to distribute ARM read load across multiple
+// service principals, avoiding per-principal subscription-level throttling
+// during concurrent E2E test runs.
+
+module msiRPMockIdentityPool '../modules/keyvault/key-vault-cert.bicep' = [
+  for i in range(0, msiMockPoolSize): {
+    name: 'msi-mock-identity-pool-${i}'
+    dependsOn: [msiRPMockIdentity]
+    params: {
+      location: location
+      keyVaultManagedIdentityId: globalMSI.id
+      keyVaultName: keyVaultName
+      certName: '${msiMockPoolCertBaseName}-${i}'
+      subjectName: 'CN=${i}.${msiMockPoolCertBaseDns}'
+      dnsNames: ['${i}.${msiMockPoolCertBaseDns}']
+      issuerName: 'Self'
+      validityInMonths: 120
+    }
+  }
+]
 
 resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
   name: guid(subscription().id, msiMockRoleName)

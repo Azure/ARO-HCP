@@ -865,6 +865,8 @@ defaults:
   miMockPrincipalId: ""
   miMockTenantId: ""
   miMockCertName: ""
+  # Pool of MSI mock service principals for distributing ARM read load across concurrent E2E test runs.
+  miMockPool: {}
   armHelperClientId: ""
   armHelperFPAPrincipalId: ""
   armHelperCertName: ""
@@ -984,6 +986,89 @@ clouds:
       miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
       miMockTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
       miMockCertName: msiMockCert2
+      # BEGIN miMockPool
+      miMockPool:
+        aro-hcp-msi-mock-cs-sp-dev-0:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-0
+        aro-hcp-msi-mock-cs-sp-dev-1:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-1
+        aro-hcp-msi-mock-cs-sp-dev-2:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-2
+        aro-hcp-msi-mock-cs-sp-dev-3:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-3
+        aro-hcp-msi-mock-cs-sp-dev-4:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-4
+        aro-hcp-msi-mock-cs-sp-dev-5:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-5
+        aro-hcp-msi-mock-cs-sp-dev-6:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-6
+        aro-hcp-msi-mock-cs-sp-dev-7:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-7
+        aro-hcp-msi-mock-cs-sp-dev-8:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-8
+        aro-hcp-msi-mock-cs-sp-dev-9:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-9
+        aro-hcp-msi-mock-cs-sp-dev-10:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-10
+        aro-hcp-msi-mock-cs-sp-dev-11:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-11
+        aro-hcp-msi-mock-cs-sp-dev-12:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-12
+        aro-hcp-msi-mock-cs-sp-dev-13:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-13
+        aro-hcp-msi-mock-cs-sp-dev-14:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-14
+        aro-hcp-msi-mock-cs-sp-dev-15:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-15
+        aro-hcp-msi-mock-cs-sp-dev-16:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-16
+        aro-hcp-msi-mock-cs-sp-dev-17:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-17
+        aro-hcp-msi-mock-cs-sp-dev-18:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-18
+        aro-hcp-msi-mock-cs-sp-dev-19:
+          clientId: ""
+          principalId: ""
+          certName: msiMockPoolCert-19
+      # END miMockPool
       # ARM Helper
       armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
       armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4

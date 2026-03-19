@@ -339,6 +339,44 @@ For background on how leases work in OpenShift CI, see:
       - Listing role assignments for the RG and deleting only those whose scope starts with the RG's resource ID.
     - Persistent leaks typically indicate either Azure permission issues or unexpected resources created; in that case, investigate the identity container RG directly in Azure.
 
+## MSI Mock Service Principal Pool
+
+### Pooled MSI Mock SPs with Boskos
+
+A pool of 20 MSI mock service principals (15 needed for max concurrent
+`e2e-parallel` jobs — 300 MSI containers / 20 per job — plus 5 spare) is
+distributed across concurrent CI jobs via Boskos leasing. Each job leases
+one SP from the pool, so ARM read traffic is spread across different actors.
+
+Personal dev environments continue using the existing single
+`miMockClientId` / `miMockPrincipalId` / `miMockCertName` config unchanged.
+Note that all personal dev CS instances share this same SP, so they share
+an ARM throttle budget.
+
+### Infrastructure setup
+
+The pool can be provisioned separately from the rest of the mock identities
+(and re-run whenever SPs need change):
+
+```bash
+cd dev-infrastructure/
+
+# Create 20 certificates in Key Vault, app registrations and role assignments
+make create-msi-mock-pool
+
+# Grant the pool SPs access to the E2E test subscription
+make grant-msi-mock-pool-e2e-access E2E_TESTING_SUBSCRIPTION_ID=<sub-id>
+```
+
+After creation, populate `config/config.yaml` with the real client IDs and principal IDs:
+
+```bash
+# Queries Azure AD and writes IDs into config/config.yaml
+make populate-msi-mock-pool-config
+
+# Regenerate rendered configs
+make -C ../config materialize
+```
 ## EV2 Pipeline Integration
 
 The periodic E2E test jobs are integrated with EV2 (Express V2) deployment pipelines for Microsoft tenant environments (Int, Stage, and Prod). This integration enables automated testing as part of the deployment validation process.

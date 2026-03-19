@@ -33,6 +33,10 @@ E2E_TESTING_SUBSCRIPTION_ID = 974ebd46-8ad3-41e3-afef-7ef25fd5c371
 # Environments where automation accounts are deployed
 AUTOMATION_ACCOUNT_ENVS = dev stage int e2e
 
+# MSI mock pool size and prefix for boskos leasing in the E2E testing subscription
+MSI_MOCK_POOL_SIZE ?= 20
+MSI_MOCK_BOSKOS_PREFIX ?= aro-hcp-msi-mock-cs-sp-dev
+
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
@@ -137,6 +141,7 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 
 .PHONY: create-mock-identities
 
+
 create-mock-identities: configurations/mock-identities.bicepparam
 	az deployment group wait --created --name "aro-hcp-dev-mock-certificates" --resource-group $(GLOBAL_RESOURCEGROUP) --interval 10
 	az deployment group create \
@@ -179,7 +184,71 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
 		--only-show-errors
 
+	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
+		echo "Creating/updating MSI mock pool SP $$i ..."; \
+		APPLICATION_NAME=aro-dev-msi-mock-pool-$$i \
+		KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+		CERTIFICATE_NAME=msiMockPoolCert-$$i \
+		ROLE_DEFINITION_NAME=dev-msi-mock \
+		SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+		./scripts/create-sp-for-rbac.sh; \
+		az role assignment create \
+			--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
+			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
+			--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
+			--only-show-errors; \
+	done
+
 .PHONY: create-mock-identities
+
+create-msi-mock-pool: configurations/mock-identity-pool.bicepparam
+	az deployment group create \
+		--name "aro-hcp-dev-msi-mock-pool" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/mock-identity-pool.bicep $(PROMPT_TO_CONFIRM) \
+		--parameters configurations/mock-identity-pool.bicepparam \
+		--parameters msiMockPoolSize=$(MSI_MOCK_POOL_SIZE)
+
+	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
+		echo "Creating/updating MSI mock pool SP $$i ..."; \
+		APPLICATION_NAME=aro-dev-msi-mock-pool-$$i \
+		KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+		CERTIFICATE_NAME=msiMockPoolCert-$$i \
+		ROLE_DEFINITION_NAME=dev-msi-mock \
+		SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+		./scripts/create-sp-for-rbac.sh; \
+		az role assignment create \
+			--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
+			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
+			--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
+			--only-show-errors; \
+	done
+
+.PHONY: create-msi-mock-pool
+
+grant-msi-mock-pool-e2e-access:
+	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
+		echo "Granting E2E access to MSI mock pool SP $$i ..."; \
+		az role assignment create \
+			--role "dev-msi-mock" \
+			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
+			--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
+			--only-show-errors; \
+		az role assignment create \
+			--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
+			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
+			--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
+			--only-show-errors; \
+	done
+
+.PHONY: grant-msi-mock-pool-e2e-access
+
+populate-msi-mock-pool-config:
+	MSI_MOCK_POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \
+	MSI_MOCK_BOSKOS_PREFIX=$(MSI_MOCK_BOSKOS_PREFIX) \
+	./scripts/populate-msi-mock-pool-config.sh
+
+.PHONY: populate-msi-mock-pool-config
 
 grant-e2e-access:
 	az role assignment create \
@@ -211,6 +280,21 @@ grant-e2e-access:
 		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
 		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
 		--only-show-errors
+
+	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
+		echo "Granting E2E access to MSI mock pool SP $$i ..."; \
+		az role assignment create \
+			--role "dev-msi-mock" \
+			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
+			--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
+			--only-show-errors; \
+		az role assignment create \
+			--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
+			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
+			--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
+			--only-show-errors; \
+	done
+
 .PHONY: grant-e2e-access
 
 grant-int-e2e-access:
