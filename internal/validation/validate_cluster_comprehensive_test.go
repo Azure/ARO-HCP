@@ -408,13 +408,13 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{
-				message:   "Required value",
-				fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
-			},
-			{
-				message:   "supported values: \"Private\", \"Public\"",
-				fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
-			},
+					message:   "Required value",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+				},
+				{
+					message:   "supported values: \"Private\", \"Public\"",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+				},
 			},
 		},
 		{
