@@ -68,7 +68,9 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
       maximum: autoScaleMax
     }
     enableAutoStop: false
-    allowedFqdnList: !empty(allowedFqdnList) ? csvToArray(allowedFqdnList) : []
+    allowedFqdnList: !empty(trim(allowedFqdnList))
+      ? filter(map(csvToArray(allowedFqdnList), fqdn => trim(fqdn)), fqdn => !empty(fqdn))
+      : []
   }
 
   // Cluster level permissions
