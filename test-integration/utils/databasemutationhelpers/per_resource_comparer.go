@@ -120,24 +120,31 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "systemData", "lastModifiedAt")...)...)
 			}
 
-			// for controllers
-			for _, nestedPossiblePrepend := range []string{"", "internalState"} {
-				expectedConditions, found, err := unstructured.NestedSlice(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...)
+			// status.conditions contain dynamic lastTransitionTime, strip only that field
+			for _, nestedPossiblePrepend := range []string{"", "internalState", "intermediateResourceDoc"} {
+				pcPath := prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)
+				pcSlice, found, err := unstructured.NestedSlice(currMap, pcPath...)
 				if found && err == nil {
-					for i := range expectedConditions {
-						delete(expectedConditions[i].(map[string]any), "lastTransitionTime")
+					for i := range pcSlice {
+						delete(pcSlice[i].(map[string]any), "lastTransitionTime")
 					}
-					if err := unstructured.SetNestedSlice(currMap, expectedConditions, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...); err != nil {
+					if err := unstructured.SetNestedSlice(currMap, pcSlice, pcPath...); err != nil {
 						panic(err)
 					}
 				}
 			}
-
-			// provisioningConditions contain dynamic lastTransitionTime, remove at all nesting levels
-			for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {
-				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "serviceProviderProperties", "provisioningConditions")...)...)
+			{
+				pcPath := prepend(possiblePrepend, "internalState", "internalAPI", "status", "conditions")
+				pcSlice, found, err := unstructured.NestedSlice(currMap, pcPath...)
+				if found && err == nil {
+					for i := range pcSlice {
+						delete(pcSlice[i].(map[string]any), "lastTransitionTime")
+					}
+					if err := unstructured.SetNestedSlice(currMap, pcSlice, pcPath...); err != nil {
+						panic(err)
+					}
+				}
 			}
-			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "internalState", "internalAPI", "serviceProviderProperties", "provisioningConditions")...)
 
 			switch {
 			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):

@@ -30,6 +30,7 @@ type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Status                    HCPOpenShiftClusterExternalAuthStatus                    `json:"status,omitempty"`
 	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
 	// populated on DB read via the CosmosToInternalExternalAuth() conversion function.
 	// We carry it across the API boundary between ExternalAuth (the direct cosmos db type) and HCPOpenShiftClusterExternalAuth (this)
@@ -77,10 +78,11 @@ type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	ExistingCosmosUID string     `json:"-"`
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
+}
 
-	// ProvisioningConditions tracks provisioning state transitions using the
-	// Kubernetes conditions pattern. Stored in CosmosDB but NOT exposed via the ARM API.
-	ProvisioningConditions []ProvisioningCondition `json:"provisioningConditions,omitempty"`
+// HCPOpenShiftClusterExternalAuthStatus contains controller-written status for an external auth.
+type HCPOpenShiftClusterExternalAuthStatus struct {
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // Condition defines an observation of the external auth state.

@@ -321,7 +321,6 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalExternalAuth.ServiceProviderProperties.ActiveOperationID = createExternalAuthOperation.ResourceID.Name
 	newInternalExternalAuth.Properties.ProvisioningState = createExternalAuthOperation.Status
-	api.SetProvisioningCondition(&newInternalExternalAuth.ServiceProviderProperties.ProvisioningConditions, createExternalAuthOperation.Status, createExternalAuthOperation.CorrelationRequestID)
 
 	externalAuthCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
 	cosmosUID, err := externalAuthCosmosClient.AddCreateToTransaction(ctx, transaction, newInternalExternalAuth, nil)
@@ -528,7 +527,6 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalExternalAuth.ServiceProviderProperties.ActiveOperationID = externalAuthUpdateOperation.ResourceID.Name
 	newInternalExternalAuth.Properties.ProvisioningState = externalAuthUpdateOperation.Status
-	api.SetProvisioningCondition(&newInternalExternalAuth.ServiceProviderProperties.ProvisioningConditions, externalAuthUpdateOperation.Status, externalAuthUpdateOperation.CorrelationRequestID)
 
 	_, err = f.dbClient.HCPClusters(newInternalExternalAuth.ID.SubscriptionID, newInternalExternalAuth.ID.ResourceGroupName).
 		ExternalAuth(newInternalExternalAuth.ID.Parent.Name).
@@ -671,7 +669,6 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 
 	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	externalAuth.Properties.ProvisioningState = operationDoc.Status
-	api.SetProvisioningCondition(&externalAuth.ServiceProviderProperties.ProvisioningConditions, operationDoc.Status, operationDoc.CorrelationRequestID)
 	_, err = f.dbClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, externalAuth, nil)
 	if err != nil {

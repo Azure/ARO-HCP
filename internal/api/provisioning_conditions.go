@@ -20,14 +20,23 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-// ProvisioningCondition extends the Kubernetes Condition type with an
-// optional CorrelationRequestID for correlating state transitions with
-// originating API requests.
-type ProvisioningCondition struct {
-	Condition
-	// CorrelationRequestID is the optional ARM correlation request ID
-	// associated with the state transition, if provided by the caller.
-	CorrelationRequestID string `json:"correlationRequestId,omitempty"`
+// SeedProvisioningCondition adds an initial condition entry with a specific
+// timestamp. This is used by the backend to record the initial phase entry
+// time from the operation's StartTime, since the frontend does not write
+// conditions.
+func SeedProvisioningCondition(conditions *[]Condition, state arm.ProvisioningState, timestamp time.Time) {
+	stateStr := string(state)
+	for _, c := range *conditions {
+		if c.Type == stateStr {
+			return
+		}
+	}
+	*conditions = append(*conditions, Condition{
+		Type:               stateStr,
+		Status:             ConditionTrue,
+		LastTransitionTime: timestamp,
+		Reason:             stateStr,
+	})
 }
 
 // SetProvisioningCondition updates the provisioning conditions to reflect a
@@ -35,9 +44,8 @@ type ProvisioningCondition struct {
 // states are set to ConditionFalse. LastTransitionTime records when the
 // resource entered each phase and is preserved when the condition is set
 // to False, so duration calculations like provisioned_time - accepted_time
-// use the correct entry timestamps. The correlationRequestID, if provided
-// by the caller, is stored for correlation with the originating API request.
-func SetProvisioningCondition(conditions *[]ProvisioningCondition, state arm.ProvisioningState, correlationRequestID string) {
+// use the correct entry timestamps.
+func SetProvisioningCondition(conditions *[]Condition, state arm.ProvisioningState) {
 	now := time.Now().UTC()
 	stateStr := string(state)
 
@@ -50,20 +58,16 @@ func SetProvisioningCondition(conditions *[]ProvisioningCondition, state arm.Pro
 			}
 			(*conditions)[i].Status = ConditionTrue
 			(*conditions)[i].Reason = stateStr
-			(*conditions)[i].CorrelationRequestID = correlationRequestID
 			found = true
 			break
 		}
 	}
 	if !found {
-		*conditions = append(*conditions, ProvisioningCondition{
-			Condition: Condition{
-				Type:               stateStr,
-				Status:             ConditionTrue,
-				LastTransitionTime: now,
-				Reason:             stateStr,
-			},
-			CorrelationRequestID: correlationRequestID,
+		*conditions = append(*conditions, Condition{
+			Type:               stateStr,
+			Status:             ConditionTrue,
+			LastTransitionTime: now,
+			Reason:             stateStr,
 		})
 	}
 

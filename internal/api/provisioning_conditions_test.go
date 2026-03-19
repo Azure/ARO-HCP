@@ -25,29 +25,28 @@ import (
 )
 
 func TestSetProvisioningCondition_InitialState(t *testing.T) {
-	var conditions []ProvisioningCondition
+	var conditions []Condition
 
 	before := time.Now().UTC()
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, "corr-123")
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted)
 	after := time.Now().UTC()
 
 	require.Len(t, conditions, 1)
 	assert.Equal(t, string(arm.ProvisioningStateAccepted), conditions[0].Type)
 	assert.Equal(t, ConditionTrue, conditions[0].Status)
-	assert.Equal(t, "corr-123", conditions[0].CorrelationRequestID)
 	assert.False(t, conditions[0].LastTransitionTime.Before(before))
 	assert.False(t, conditions[0].LastTransitionTime.After(after))
 }
 
 func TestSetProvisioningCondition_Transition(t *testing.T) {
-	var conditions []ProvisioningCondition
+	var conditions []Condition
 
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, "corr-1")
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateProvisioning, "corr-2")
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted)
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateProvisioning)
 
 	require.Len(t, conditions, 2)
 
-	byType := make(map[string]ProvisioningCondition)
+	byType := make(map[string]Condition)
 	for _, c := range conditions {
 		byType[c.Type] = c
 	}
@@ -55,20 +54,18 @@ func TestSetProvisioningCondition_Transition(t *testing.T) {
 	accepted, ok := byType[string(arm.ProvisioningStateAccepted)]
 	require.True(t, ok, "expected Accepted condition")
 	assert.Equal(t, ConditionFalse, accepted.Status)
-	assert.Equal(t, "corr-1", accepted.CorrelationRequestID, "correlation ID should be preserved")
 
 	provisioning, ok := byType[string(arm.ProvisioningStateProvisioning)]
 	require.True(t, ok, "expected Provisioning condition")
 	assert.Equal(t, ConditionTrue, provisioning.Status)
-	assert.Equal(t, "corr-2", provisioning.CorrelationRequestID)
 }
 
 func TestSetProvisioningCondition_FullLifecycle(t *testing.T) {
-	var conditions []ProvisioningCondition
+	var conditions []Condition
 
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, "corr-1")
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateProvisioning, "corr-1")
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateSucceeded, "corr-1")
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted)
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateProvisioning)
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateSucceeded)
 
 	require.Len(t, conditions, 3)
 
@@ -82,12 +79,12 @@ func TestSetProvisioningCondition_FullLifecycle(t *testing.T) {
 }
 
 func TestSetProvisioningCondition_PreservesEntryTimes(t *testing.T) {
-	var conditions []ProvisioningCondition
+	var conditions []Condition
 
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, "corr-1")
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted)
 	acceptedTime := conditions[0].LastTransitionTime
 
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateProvisioning, "corr-1")
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateProvisioning)
 
 	var acceptedTimeAfter time.Time
 	var provisioningTime time.Time
@@ -107,27 +104,24 @@ func TestSetProvisioningCondition_PreservesEntryTimes(t *testing.T) {
 }
 
 func TestSetProvisioningCondition_SameStateTwice(t *testing.T) {
-	var conditions []ProvisioningCondition
+	var conditions []Condition
 
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, "corr-1")
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted)
 	firstTime := conditions[0].LastTransitionTime
 
-	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted, "corr-2")
+	SetProvisioningCondition(&conditions, arm.ProvisioningStateAccepted)
 
 	require.Len(t, conditions, 1, "should not duplicate conditions")
 	assert.Equal(t, firstTime, conditions[0].LastTransitionTime,
 		"LastTransitionTime should not change when status doesn't change")
-	assert.Equal(t, "corr-2", conditions[0].CorrelationRequestID,
-		"correlation ID should be updated to latest")
 }
 
 func TestSetProvisioningCondition_OnServiceProviderProperties(t *testing.T) {
-	cluster := &HCPOpenShiftClusterServiceProviderProperties{}
+	cluster := &HCPOpenShiftCluster{}
 
-	SetProvisioningCondition(&cluster.ProvisioningConditions, arm.ProvisioningStateProvisioning, "corr-abc")
+	SetProvisioningCondition(&cluster.Status.Conditions, arm.ProvisioningStateProvisioning)
 
-	require.Len(t, cluster.ProvisioningConditions, 1)
-	assert.Equal(t, string(arm.ProvisioningStateProvisioning), cluster.ProvisioningConditions[0].Type)
-	assert.Equal(t, ConditionTrue, cluster.ProvisioningConditions[0].Status)
-	assert.Equal(t, "corr-abc", cluster.ProvisioningConditions[0].CorrelationRequestID)
+	require.Len(t, cluster.Status.Conditions, 1)
+	assert.Equal(t, string(arm.ProvisioningStateProvisioning), cluster.Status.Conditions[0].Type)
+	assert.Equal(t, ConditionTrue, cluster.Status.Conditions[0].Status)
 }

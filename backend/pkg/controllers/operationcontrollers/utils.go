@@ -198,7 +198,10 @@ func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient datab
 
 	updated := curr.DeepCopy()
 	updated.ServiceProviderProperties.ProvisioningState = newOperationStatus
-	api.SetProvisioningCondition(&updated.ServiceProviderProperties.ProvisioningConditions, newOperationStatus, existingOperation.CorrelationRequestID)
+	// Seed the initial phase entry time from the operation's StartTime if
+	// conditions haven't been written yet (first backend reconcile).
+	api.SeedProvisioningCondition(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
+	api.SetProvisioningCondition(&updated.Status.Conditions, newOperationStatus)
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
@@ -233,7 +236,8 @@ func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient data
 
 	updated := curr.DeepCopy()
 	updated.Properties.ProvisioningState = newOperationStatus
-	api.SetProvisioningCondition(&updated.ServiceProviderProperties.ProvisioningConditions, newOperationStatus, existingOperation.CorrelationRequestID)
+	api.SeedProvisioningCondition(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
+	api.SetProvisioningCondition(&updated.Status.Conditions, newOperationStatus)
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
@@ -268,11 +272,22 @@ func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient 
 
 	updated := curr.DeepCopy()
 	updated.Properties.ProvisioningState = newOperationStatus
-	api.SetProvisioningCondition(&updated.ServiceProviderProperties.ProvisioningConditions, newOperationStatus, existingOperation.CorrelationRequestID)
+	api.SeedProvisioningCondition(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
+	api.SetProvisioningCondition(&updated.Status.Conditions, newOperationStatus)
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
 	return updated, nil
+}
+
+// initialProvisioningState returns the provisioning state that the operation
+// started in. Delete operations start in Deleting; all others start in Accepted.
+// This mirrors the logic in database.NewOperation.
+func initialProvisioningState(op *api.Operation) arm.ProvisioningState {
+	if op.Request == api.OperationRequestDelete {
+		return arm.ProvisioningStateDeleting
+	}
+	return arm.ProvisioningStateAccepted
 }
 
 func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody) bool {
