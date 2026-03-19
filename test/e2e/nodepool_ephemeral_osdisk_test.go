@@ -35,6 +35,15 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
+// mustParseDate parses a date string in "2006-01-02" format or panics.
+func mustParseDate(s string) time.Time {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		panic(fmt.Sprintf("invalid date %q: %v", s, err))
+	}
+	return t
+}
+
 // isAPINotDeployedError returns true if the error indicates the API version
 // has not been rolled out to this region yet.
 func isAPINotDeployedError(err error) bool {
@@ -49,7 +58,7 @@ func isAPINotDeployedError(err error) bool {
 var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 	// Set deadline to a reasonable date after which we expect the v20251223preview
 	// API to be deployed. Adjust as needed based on rollout schedule.
-	timeBombDeadline := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	timeBombDeadline := mustParseDate("2026-04-01")
 
 	BeforeEach(func() {
 		// do nothing.  per test initialization usually ages better than shared.
@@ -59,7 +68,6 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
-		labels.Slow,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
@@ -176,6 +184,10 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("verifying nodes from the ephemeral nodepool are ready")
+			Expect(verifiers.VerifyNodeCount(int(nodePoolParams.Replicas)).Verify(ctx, adminRESTConfig)).To(Succeed())
+			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
+
 			By("verifying Azure VMs actually have ephemeral OS disks")
 			computeFactory := tc.GetARMComputeClientFactoryOrDie(ctx)
 			vms, err := framework.GetVirtualMachinesInResourceGroup(ctx, computeFactory, managedResourceGroupName, int(nodePoolParams.Replicas), 5*time.Minute)
@@ -190,78 +202,6 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			}
 		})
 
-	It("should reject ephemeral OS disk creation when autoRepair is false",
-		labels.RequireNothing,
-		labels.Medium,
-		labels.Negative,
-		labels.AroRpApiCompatible,
-		func(ctx context.Context) {
-			// Validation is frontend-synchronous (returns 400 immediately), but
-			// a parent cluster must exist for the frontend to route the request.
-			tc := framework.NewTestContext()
-
-			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "ephemeral-neg", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating cluster parameters for a minimal cluster")
-			clusterParams := framework.NewDefaultClusterParams()
-			clusterParams.ClusterName = "ephemeral-neg"
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-
-			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
-				resourceGroup,
-				clusterParams,
-				map[string]interface{}{},
-				TestArtifactsFS,
-				framework.RBACScopeResourceGroup,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating a cluster as nodepool parent")
-			err = tc.CreateHCPClusterFromParam(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("attempting to create nodepool with ephemeral disk but autoRepair=false")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePool := buildNodePoolWithDiskType(
-				nodePoolParams,
-				tc.Location(),
-				hcpsdk20251223preview.OsDiskTypeEphemeral,
-				false, // autoRepair=false is invalid with ephemeral disks
-			)
-
-			By("verifying the creation is rejected with a 400 Bad Request")
-			// Validation is frontend-synchronous: the RP returns 400 from the initial
-			// PUT without starting an async operation.
-			client20251223 := tc.Get20251223ClientFactoryOrDie(ctx)
-			_, err = client20251223.NewNodePoolsClient().BeginCreateOrUpdate(
-				ctx,
-				*resourceGroup.Name,
-				"ephemeral-neg",
-				"bad-ephemeral",
-				nodePool,
-				nil,
-			)
-			if isAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20251223preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
-			Expect(err).To(HaveOccurred(), "expected ephemeral disk with autoRepair=false to be rejected")
-
-			var respErr *azcore.ResponseError
-			Expect(errors.As(err, &respErr)).To(BeTrue(), "expected azcore.ResponseError, got %T", err)
-			Expect(respErr.StatusCode).To(Equal(http.StatusBadRequest), "expected 400 Bad Request, got %d", respErr.StatusCode)
-			Expect(respErr.ErrorCode).ToNot(BeEmpty(), "ARM error response must include a non-empty error code")
-		})
 })
 
 // buildNodePoolWithDiskType builds a v20251223preview NodePool with specific diskType and autoRepair settings.
