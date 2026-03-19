@@ -26,6 +26,7 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Customer", func() {
@@ -104,44 +105,18 @@ var _ = Describe("Customer", func() {
 			Expect(clusterResp.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(int32(-10))), "Expected default PodPriorityThreshold to be -10")
 			Expect(clusterResp.Properties.Autoscaling.MaxNodesTotal).To(BeNil(), "Expected MaxNodesTotal to be nil when not explicitly set")
 
-			By("creating the no-AZ nodepool with 200 max replicas")
-			noAZNodePoolParams := framework.NewDefaultNodePoolParams()
-			noAZNodePoolParams.ClusterName = customerClusterName
-			noAZNodePoolParams.NodePoolName = noAZNodePoolName
-			noAZNodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
-				Min: noAZAutoscalingMin,
-				Max: noAZAutoscalingMax,
-			}
-
-			err = tc.CreateNodePoolFromParam(ctx,
+			By("getting admin credentials for the cluster")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				noAZNodePoolParams,
-				45*time.Minute,
+				10*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying the no-AZ nodepool has the correct autoscaling configuration")
-			noAZNodePoolResp, err := framework.GetNodePool(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-				*resourceGroup.Name,
-				customerClusterName,
-				noAZNodePoolName)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(noAZNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
-			Expect(noAZNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
-			Expect(noAZNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(noAZAutoscalingMin)))
-			Expect(noAZNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(noAZAutoscalingMax)))
-
-			By("deleting the no-AZ nodepool")
-			Expect(framework.DeleteNodePool(
-				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-				*resourceGroup.Name,
-				customerClusterName,
-				noAZNodePoolName,
-				25*time.Minute,
-			)).To(Succeed())
+			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			expectedNodeCount := 0
 
 			if !hasAZ {
 				By("skipping AZ nodepool creation: region does not support availability zones")
@@ -166,7 +141,7 @@ var _ = Describe("Customer", func() {
 
 				By("verifying the AZ nodepool has the correct autoscaling configuration")
 				azNodePoolResp, err := framework.GetNodePool(ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+					nodePoolsClient,
 					*resourceGroup.Name,
 					customerClusterName,
 					azNodePoolName)
@@ -175,7 +150,73 @@ var _ = Describe("Customer", func() {
 				Expect(azNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
 				Expect(azNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(azAutoscalingMin)))
 				Expect(azNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(azAutoscalingMax)))
+
+				expectedNodeCount += int(azAutoscalingMin)
+				By("verifying node count after AZ nodepool creation")
+				Expect(verifiers.VerifyNodeCount(expectedNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed())
+
+				By("updating the AZ nodepool max replicas from 500 to 2 before creating the next nodepool")
+				_, err = framework.UpdateNodePoolAndWait(ctx,
+					nodePoolsClient,
+					*resourceGroup.Name,
+					customerClusterName,
+					azNodePoolName,
+					hcpsdk20240610preview.NodePoolUpdate{
+						Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+							AutoScaling: &hcpsdk20240610preview.NodePoolAutoScaling{
+								Min: to.Ptr(azAutoscalingMin),
+								Max: to.Ptr(int32(2)),
+							},
+						},
+					},
+					25*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("verifying the AZ nodepool max replicas was updated to 2")
+				azNodePoolUpdatedResp, err := framework.GetNodePool(ctx,
+					nodePoolsClient,
+					*resourceGroup.Name,
+					customerClusterName,
+					azNodePoolName)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(azNodePoolUpdatedResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
+				Expect(azNodePoolUpdatedResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
+				Expect(azNodePoolUpdatedResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(int32(2))), "Expected AZ nodepool max replicas to be updated to 2")
 			}
+
+			By("creating the no-AZ nodepool with 200 max replicas")
+			noAZNodePoolParams := framework.NewDefaultNodePoolParams()
+			noAZNodePoolParams.ClusterName = customerClusterName
+			noAZNodePoolParams.NodePoolName = noAZNodePoolName
+			noAZNodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
+				Min: noAZAutoscalingMin,
+				Max: noAZAutoscalingMax,
+			}
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				noAZNodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying the no-AZ nodepool has the correct autoscaling configuration")
+			noAZNodePoolResp, err := framework.GetNodePool(ctx,
+				nodePoolsClient,
+				*resourceGroup.Name,
+				customerClusterName,
+				noAZNodePoolName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(noAZNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
+			Expect(noAZNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
+			Expect(noAZNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(noAZAutoscalingMin)))
+			Expect(noAZNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(noAZAutoscalingMax)))
+
+			expectedNodeCount += int(noAZAutoscalingMin)
+			By("verifying node count after no-AZ nodepool creation")
+			Expect(verifiers.VerifyNodeCount(expectedNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed())
 
 		})
 
