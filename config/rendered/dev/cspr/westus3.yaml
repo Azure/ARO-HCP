@@ -642,6 +642,8 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
+  maxActiveTimeSeries: 2000000
+  maxEventsPerMinute: 2000000
   svcWorkspaceName: services-cspr-usw3
 msiCredentialsRefresher:
   certificate:
