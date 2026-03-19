@@ -7,7 +7,6 @@ let cluster_resource_id = (
     | where timestamp between (_startTime .. _endTime)
     | where resource_group == _resource_group
     | where msg has 'creating resource'
-    | extend resource_id = extract(@"creating resource ([A-Za-z0-9\-\.\/]+)", 1, tostring(log)) 
     | distinct tostring(resource_id)
     | limit 1
 );
