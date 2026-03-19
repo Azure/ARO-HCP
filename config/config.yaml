@@ -937,7 +937,7 @@ clouds:
       kusto:
         kustoName: "hcp-dev-us-2"
         manageInstance: true
-        sku: "Standard_E2ads_v5"
+        sku: "Standard_E8ads_v5"
         tier: "Standard"
         enableAutoScale: false
         adminGroups: ""
