@@ -95,25 +95,32 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	// get HCP details
 	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get HCP from database: %w", err)
+		return utils.TrackError(fmt.Errorf("failed to get HCP from database: %w", err))
 	}
 
-	// get CS cluster data to retrieve tenant ID
-	csCluster, err := h.csClient.GetCluster(request.Context(), hcp.ServiceProviderProperties.ClusterServiceID)
+	subscription, err := h.dbClient.Subscriptions().Get(request.Context(), resourceID.SubscriptionID)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		return arm.NewCloudError(
+			http.StatusNotFound,
+			arm.CloudErrorCodeNotFound,
+			"",
+			"subscription %s not found", resourceID.SubscriptionID,
+		)
+	}
 	if err != nil {
-		return ClusterServiceError(err, "cluster data")
+		return utils.TrackError(err)
 	}
 
 	// get FPA credentials for customer tenant
-	tokenCredential, err := h.fpaCredentialRetriever.RetrieveCredential(csCluster.Azure().TenantID())
+	tokenCredential, err := h.fpaCredentialRetriever.RetrieveCredential(*subscription.Properties.TenantId)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve Azure credentials: %w", err)
+		return utils.TrackError(fmt.Errorf("failed to retrieve Azure credentials: %w", err))
 	}
 
 	// Create Azure Compute client for customer subscription
 	computeClient, err := armcompute.NewVirtualMachinesClient(hcp.ID.SubscriptionID, tokenCredential, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create Azure compute client: %w", err)
+		return utils.TrackError(fmt.Errorf("failed to create Azure compute client: %w", err))
 	}
 
 	// Retrieve boot diagnostics data containing serial console blob URI
@@ -150,7 +157,7 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 				)
 			}
 		}
-		return fmt.Errorf("failed to retrieve boot diagnostics data for VM %s: %w", vmName, err)
+		return utils.TrackError(fmt.Errorf("failed to retrieve boot diagnostics data for VM %s: %w", vmName, err))
 	}
 
 	// verify serial console log blob URI is available
@@ -168,19 +175,19 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	// The blob URI contains a SAS token for authentication, so we can use a simple HTTP GET
 	blobReq, err := http.NewRequestWithContext(request.Context(), http.MethodGet, *result.SerialConsoleLogBlobURI, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create blob request: %w", err)
+		return utils.TrackError(fmt.Errorf("failed to create blob request: %w", err))
 	}
 
 	// download blob content with timeout to avoid stuck handlers on slow blob endpoints
 	httpClient := &http.Client{}
 	blobResp, err := httpClient.Do(blobReq)
 	if err != nil {
-		return fmt.Errorf("failed to download serial console log: %w", err)
+		return utils.TrackError(fmt.Errorf("failed to download serial console log: %w", err))
 	}
 	defer blobResp.Body.Close()
 
 	if blobResp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download serial console log: unexpected status %d", blobResp.StatusCode)
+		return utils.TrackError(fmt.Errorf("failed to download serial console log: unexpected status %d", blobResp.StatusCode))
 	}
 
 	// stream response as text/plain and prevent caching of potentially sensitive console output
