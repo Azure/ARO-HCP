@@ -15,6 +15,7 @@
 package framework
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -1028,7 +1029,9 @@ func convertViaJSON[T any](src any) (*T, error) {
 		return nil, fmt.Errorf("failed to marshal for type conversion: %w", err)
 	}
 	var dst T
-	if err := json.Unmarshal(b, &dst); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(b))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&dst); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal for type conversion: %w", err)
 	}
 	return &dst, nil
