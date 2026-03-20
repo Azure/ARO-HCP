@@ -40,6 +40,13 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
+		func(j *api.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// ImageDigestMirrors is a v20251223preview field that does not exist in v20240610preview.
+			// It cannot roundtrip through this version's external type.
+			// Cross-version preservation is handled by preserveUnknownClusterFields.
+			j.ImageDigestMirrors = nil
+		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
