@@ -763,6 +763,9 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	}
 	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
 
+	clusterBuilder.RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+		ImageDigestMirrors(convertImageDigestMirrorsToCSBuilder(hcpCluster.CustomerProperties.ImageDigestMirrors)...))
+
 	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
 	if err != nil {
 		return nil, nil, err
