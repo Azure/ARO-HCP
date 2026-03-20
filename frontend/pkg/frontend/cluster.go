@@ -351,8 +351,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resolvedVersionID := ocm.NewOpenShiftVersionXYZ(resolvedVersion.String(),
-		newInternalCluster.CustomerProperties.Version.ChannelGroup)
+	resolvedVersionID := resolvedVersion.String()
 	logger.Info("Resolved initial cluster version", "customerVersion", newInternalCluster.CustomerProperties.Version.ID, "resolvedVersion", resolvedVersionID)
 
 	initialClusterProperties := map[string]string{}

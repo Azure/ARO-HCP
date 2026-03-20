@@ -1211,7 +1211,7 @@ func TestBuildCSCluster_WithResolvedVersion(t *testing.T) {
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
-	resolvedVersionID := "openshift-v4.19.15"
+	resolvedVersionID := "4.19.15"
 	actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, nil, nil, resolvedVersionID)
 	require.NoError(t, err)
 
@@ -1220,7 +1220,7 @@ func TestBuildCSCluster_WithResolvedVersion(t *testing.T) {
 
 	version, ok := actual.GetVersion()
 	require.True(t, ok)
-	assert.Equal(t, resolvedVersionID, version.ID())
+	assert.Equal(t, "openshift-v4.19.15", version.ID())
 	assert.Equal(t, "stable", version.ChannelGroup())
 }
 

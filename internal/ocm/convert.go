@@ -738,8 +738,8 @@ func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-// resolvedVersionID, when non-empty, is used directly as the CS version ID (in "openshift-vX.Y.Z"
-// format) instead of deriving it from the cluster's Version.ID via NewOpenShiftVersionXYZ.
+// resolvedVersionID, when non-empty, is the resolved X.Y.Z version string (e.g. "4.19.15")
+// used instead of the cluster's Version.ID. It is converted to CS format internally.
 func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, resolvedVersionID string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
 
@@ -845,11 +845,11 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 
 	versionID := resolvedVersionID
 	if len(versionID) == 0 {
-		versionID = NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, hcpCluster.CustomerProperties.Version.ChannelGroup)
+		versionID = hcpCluster.CustomerProperties.Version.ID
 	}
 	clusterBuilder.
 		Version(arohcpv1alpha1.NewVersion().
-			ID(versionID).
+			ID(NewOpenShiftVersionXYZ(versionID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
 			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).
