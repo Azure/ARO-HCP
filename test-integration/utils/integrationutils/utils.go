@@ -18,16 +18,19 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/goleak"
 
@@ -40,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	"github.com/Azure/ARO-HCP/internal/cincinatti"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -129,7 +133,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	}
 	fakeAuditClient := &FakeOTELClient{}
 	metricsRegistry := prometheus.NewRegistry()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, nil, fakeAuditClient, "fake-location", "", false, false, true)
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, &fakeCincinnatiClient{}, fakeAuditClient, "fake-location", "", false, false, true)
 
 	// admin api setup
 	adminListener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -197,6 +201,20 @@ func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg, options ...base
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Sending message", "msg", msg)
 	return nil
+}
+
+// fakeCincinnatiClient is a minimal Cincinnati client for integration tests.
+// It echoes back the queried version as the only candidate, causing version
+// resolution to fall back to X.Y.0 (no upgrades, no gateway to next minor).
+type fakeCincinnatiClient struct{}
+
+var _ cincinatti.Client = (*fakeCincinnatiClient)(nil)
+
+func (f *fakeCincinnatiClient) GetUpdates(_ context.Context, _ *url.URL, _, _, _ string, version semver.Version) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, error) {
+	return configv1.Release{Version: version.String()},
+		[]configv1.Release{{Version: version.String()}},
+		nil,
+		nil
 }
 
 // AllAPIVersions returns a sorted list of all registered API versions.
