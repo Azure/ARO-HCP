@@ -25,7 +25,25 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"sigs.k8s.io/yaml"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
+
+// summarizeHistory returns a log-safe string representation of ClusterVersion
+// history entries, avoiding nil pointer panics from *metav1.Time fields
+// (e.g. CompletionTime is nil when state is "Partial").
+func summarizeHistory(history []configv1.UpdateHistory) []string {
+	summaries := make([]string, 0, len(history))
+	for _, h := range history {
+		completion := "<nil>"
+		if h.CompletionTime != nil {
+			completion = h.CompletionTime.String()
+		}
+		summaries = append(summaries, fmt.Sprintf("%s %s (started=%s completed=%s)",
+			h.Version, h.State, h.StartedTime.String(), completion))
+	}
+	return summaries
+}
 
 func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interface, namespace string, resourceBytes []byte) (*unstructured.Unstructured, error) {
 	desiredObj := &unstructured.Unstructured{}

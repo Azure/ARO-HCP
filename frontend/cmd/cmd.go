@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/go-logr/logr"
+	"github.com/google/uuid"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -38,10 +39,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
+	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/cincinatti"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/signal"
@@ -243,8 +246,12 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
+	// TODO(ARO-24384): This Cincinnati client will be removed once cluster creation
+	// in Cluster Service is done asynchronously from the backend.
+	cincinnatiClient := cincinnati.NewClient(uuid.New(), http.DefaultTransport.(*http.Transport), "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
+
 	f := frontend.NewFrontend(
-		logger, listener, metricsListener, registry, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
+		logger, listener, metricsListener, registry, dbClient, csClient, cincinnatiClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
 		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
 	)
 
