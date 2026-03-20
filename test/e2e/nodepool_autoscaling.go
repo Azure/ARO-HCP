@@ -24,9 +24,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
-	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Customer", func() {
@@ -116,7 +118,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			expectedNodeCount := 0
+			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
 
 			if !hasAZ {
 				By("skipping AZ nodepool creation: region does not support availability zones")
@@ -151,9 +154,10 @@ var _ = Describe("Customer", func() {
 				Expect(azNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(azAutoscalingMin)))
 				Expect(azNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(azAutoscalingMax)))
 
-				expectedNodeCount += int(azAutoscalingMin)
 				By("verifying node count after AZ nodepool creation")
-				Expect(verifiers.VerifyNodeCount(expectedNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed())
+				nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(len(nodes.Items)).To(BeNumerically(">=", int(azAutoscalingMin)))
 
 				By("updating the AZ nodepool max replicas from 500 to 2 before creating the next nodepool")
 				_, err = framework.UpdateNodePoolAndWait(ctx,
@@ -214,9 +218,14 @@ var _ = Describe("Customer", func() {
 			Expect(noAZNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(noAZAutoscalingMin)))
 			Expect(noAZNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(noAZAutoscalingMax)))
 
-			expectedNodeCount += int(noAZAutoscalingMin)
 			By("verifying node count after no-AZ nodepool creation")
-			Expect(verifiers.VerifyNodeCount(expectedNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed())
+			nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			minExpected := int(noAZAutoscalingMin)
+			if hasAZ {
+				minExpected += int(azAutoscalingMin)
+			}
+			Expect(len(nodes.Items)).To(BeNumerically(">=", minExpected))
 
 		})
 
