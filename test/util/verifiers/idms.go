@@ -82,7 +82,12 @@ func (v verifyImageDigestMirrorSets) Verify(ctx context.Context, adminRESTConfig
 			}
 		}
 		if actualMirrors.MirrorSourcePolicy != expected.MirrorSourcePolicy {
-			failures = append(failures, fmt.Sprintf("expected mirror source policy %q for source %q (found: %v)", expected.MirrorSourcePolicy, expected.Source, actualMirrors.MirrorSourcePolicy))
+			if expected.MirrorSourcePolicy == configv1.AllowContactingSource && len(actualMirrors.MirrorSourcePolicy) == 0 {
+				// this is the current default of this empty string in OCP.
+				// while it is a configuration API in OCP, it's a workload API in HCP, so we need to find a way to guarantee it and then remove this block.
+			} else {
+				failures = append(failures, fmt.Sprintf("expected mirror source policy %q for source %q (found: %v)", expected.MirrorSourcePolicy, expected.Source, actualMirrors.MirrorSourcePolicy))
+			}
 		}
 	}
 
