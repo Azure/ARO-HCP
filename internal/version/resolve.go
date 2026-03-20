@@ -24,7 +24,6 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinatti"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,7 +39,10 @@ func ResolveInitialVersion(ctx context.Context, cincinnatiClient cincinatti.Clie
 	logger.Info("Resolving initial desired version", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
 
 	// ParseTolerant handles both "4.19" and "4.19.0" formats
-	customerDotZeroRelease := api.Must(semver.ParseTolerant(customerDesiredMinor))
+	customerDotZeroRelease, err := semver.ParseTolerant(customerDesiredMinor)
+	if err != nil {
+		return semver.Version{}, fmt.Errorf("failed to parse customer desired minor %q: %w", customerDesiredMinor, err)
+	}
 
 	if cincinnatiClient == nil {
 		logger.Info("No Cincinnati client available, falling back to X.Y.0", "version", customerDotZeroRelease.String())
@@ -119,7 +121,10 @@ func FindLatestVersionInMinor(
 		}
 
 		for _, candidate := range candidateReleases {
-			candidateTargetVersion := semver.MustParse(candidate.Version)
+			candidateTargetVersion, err := semver.Parse(candidate.Version)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse Cincinnati candidate version %q: %w", candidate.Version, err)
+			}
 
 			if candidateTargetVersion.Major != targetMinorVersion.Major || candidateTargetVersion.Minor != targetMinorVersion.Minor {
 				continue

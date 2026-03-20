@@ -25,8 +25,6 @@ import (
 	"k8s.io/client-go/rest"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type verifyClusterInstalledVersion struct {
@@ -65,7 +63,10 @@ func (v verifyClusterInstalledVersion) Verify(ctx context.Context, adminRESTConf
 		return fmt.Errorf("failed to parse installed version %q from history: %w", initialEntry.Version, err)
 	}
 
-	desiredMinor := api.Must(semver.ParseTolerant(v.customerDesiredMinor))
+	desiredMinor, err := semver.ParseTolerant(v.customerDesiredMinor)
+	if err != nil {
+		return fmt.Errorf("failed to parse customer desired minor %q: %w", v.customerDesiredMinor, err)
+	}
 
 	if installedVersion.Major != desiredMinor.Major || installedVersion.Minor != desiredMinor.Minor {
 		return fmt.Errorf("installed version %s has different major.minor than customer desired %s (expected %d.%d.x)",
