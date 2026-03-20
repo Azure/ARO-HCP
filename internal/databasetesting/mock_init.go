@@ -63,6 +63,8 @@ func (m *MockDBClient) addResource(ctx context.Context, resource any) error {
 		return m.addSubscription(ctx, r)
 	case *api.Controller:
 		return m.addController(ctx, r)
+	case *api.ManagementCluster:
+		return m.addManagementCluster(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type: %T", resource)
 	}
@@ -133,6 +135,16 @@ func (m *MockDBClient) addSubscription(ctx context.Context, subscription *arm.Su
 	}
 	subCRUD := m.Subscriptions()
 	_, err := subCRUD.Create(ctx, subscription, nil)
+	return err
+}
+
+func (m *MockDBClient) addManagementCluster(ctx context.Context, managementCluster *api.ManagementCluster) error {
+	resourceID := managementCluster.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("management cluster is missing resource ID")
+	}
+	managementClusterCRUD := m.ManagementClusters()
+	_, err := managementClusterCRUD.Create(ctx, managementCluster, nil)
 	return err
 }
 

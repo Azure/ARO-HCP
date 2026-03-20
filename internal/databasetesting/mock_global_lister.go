@@ -101,6 +101,13 @@ func (g *mockGlobalListers) ActiveOperations() database.GlobalLister[api.Operati
 	return &mockActiveOperationsGlobalLister{client: g.client}
 }
 
+func (g *mockGlobalListers) ManagementClusters() database.GlobalLister[api.ManagementCluster] {
+	return &mockTypedGlobalLister[api.ManagementCluster, database.GenericDocument[api.ManagementCluster]]{
+		client:       g.client,
+		resourceType: api.ManagementClusterResourceType,
+	}
+}
+
 // mockSubscriptionGlobalLister lists all subscriptions across all partitions.
 type mockSubscriptionGlobalLister struct {
 	client *MockDBClient

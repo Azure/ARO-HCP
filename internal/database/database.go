@@ -132,6 +132,9 @@ type DBClient interface {
 	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD
 
 	ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) ManagementClusterContentCRUD
+
+	// ManagementClusters retrieves a CRUD interface for managing management cluster resources.
+	ManagementClusters() ManagementClusterCRUD
 }
 
 var _ DBClient = &cosmosDBClient{}
@@ -301,6 +304,11 @@ func (d *cosmosDBClient) ManagementClusterContents(subscriptionID, resourceGroup
 	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	return NewCosmosResourceCRUD[api.ManagementClusterContent, GenericDocument[api.ManagementClusterContent]](
 		d.resources, clusterResourceID, api.ManagementClusterContentResourceType)
+}
+
+func (d *cosmosDBClient) ManagementClusters() ManagementClusterCRUD {
+	return NewCosmosResourceCRUD[api.ManagementCluster, GenericDocument[api.ManagementCluster]](
+		d.resources, nil, api.ManagementClusterResourceType)
 }
 
 func (d *cosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

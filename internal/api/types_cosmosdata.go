@@ -79,6 +79,22 @@ func ToOperationResourceIDString(subscriptionName, operationName string) string 
 	))
 }
 
+// ToManagementClusterResourceID constructs a Cosmos resource ID for a management cluster
+// using the management cluster name (which matches the AKS cluster name).
+// Example name: "pers-westus3-mgmt-1"
+func ToManagementClusterResourceID(name string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToManagementClusterResourceIDString(name))
+}
+
+// ToManagementClusterResourceIDString returns the lowercased resource ID string
+// for a management cluster identified by name.
+// Example: "/providers/microsoft.redhatopenshift/hcpopenshiftmanagementclusters/pers-westus3-mgmt-1"
+func ToManagementClusterResourceIDString(name string) string {
+	return strings.ToLower(path.Join(
+		"/providers", ManagementClusterResourceType.String(), name,
+	))
+}
+
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,

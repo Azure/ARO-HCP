@@ -272,3 +272,34 @@ var _ runtime.Object = &ManagementClusterContentList{}
 func (l *ManagementClusterContentList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
+
+var (
+	_ runtime.Object            = &ManagementCluster{}
+	_ metav1.ObjectMetaAccessor = &ManagementCluster{}
+)
+
+func (o *ManagementCluster) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ManagementCluster) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	return om
+}
+
+// ManagementClusterList is a list of ManagementCluster resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ManagementClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ManagementCluster `json:"items"`
+}
+
+var _ runtime.Object = &ManagementClusterList{}
+
+func (l *ManagementClusterList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}

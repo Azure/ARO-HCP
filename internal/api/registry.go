@@ -77,6 +77,7 @@ const (
 	RequestAdminCredentialActionTypeName     = "requestadmincredential"
 	RevokeAdminCredentialsActionTypeName     = "revokecredentials"
 	ManagementClusterContentResourceTypeName = "managementClusterContents"
+	ManagementClusterResourceTypeName        = "hcpOpenShiftManagementClusters"
 	ResourceTypeDisplay                      = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
@@ -95,6 +96,7 @@ var (
 	RequestAdminCredentialActionType     = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RequestAdminCredentialActionTypeName))
 	RevokeAdminCredentialsActionType     = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RevokeAdminCredentialsActionTypeName))
 	ManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ManagementClusterContentResourceTypeName))
+	ManagementClusterResourceType        = azcorearm.NewResourceType(ProviderNamespace, ManagementClusterResourceTypeName)
 )
 
 type VersionedResource interface {

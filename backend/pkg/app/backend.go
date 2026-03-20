@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/managementclustercontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
@@ -256,6 +257,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
+	_, managementClusterLister := backendInformers.ManagementClusters()
 
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
@@ -469,12 +471,16 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.CosmosDBClient,
 		backendInformers,
 	)
-
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+	)
+	managementClusterSyncController := managementclustercontrollers.NewManagementClusterSyncController(
+		b.options.ClustersServiceClient,
+		b.options.CosmosDBClient.ManagementClusters(),
+		managementClusterLister,
 	)
 
 	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
@@ -527,6 +533,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go maestroReadAndPersistReadonlyBundlesContentController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
+				go managementClusterSyncController.Run(ctx, 1)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
