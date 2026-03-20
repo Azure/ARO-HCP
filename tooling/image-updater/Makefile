@@ -1,5 +1,7 @@
 .PHONY: build update clean test test-verbose test-coverage help
 
+export AZURE_TOKEN_CREDENTIALS ?= dev
+
 BINARY_NAME := image-updater
 CONFIG_FILE := config.yaml
 COMPONENTS ?=
