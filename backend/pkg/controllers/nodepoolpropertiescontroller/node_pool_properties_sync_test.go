@@ -161,6 +161,43 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 				np.Properties.Version.ID = ""
 			}),
 		},
+		{
+			name:            "Cosmos version and channel correct; CS RawID behind desired (upgrade in progress) — do not overwrite",
+			existingCluster: newTestCluster(t),
+			// During upgrades, desired version in Cosmos can be ahead of Cluster Service's reported RawID until CS catches up; we must not pull CS and overwrite.
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = "4.21.6"
+				np.Properties.Version.ChannelGroup = "stable"
+			}),
+			csNodePool:        newCSNodePoolWithVersion(t, "4.21.5", "stable"),
+			expectGetNodePool: false,
+			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = "4.21.6"
+				np.Properties.Version.ChannelGroup = "stable"
+			}),
+			cacheNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = ""
+			}),
+		},
+		{
+			name:            "Cosmos version and channel correct; CS channel group differs — do not overwrite",
+			existingCluster: newTestCluster(t),
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = "4.21.5"
+				np.Properties.Version.ChannelGroup = "stable"
+			}),
+			csNodePool:        newCSNodePoolWithVersion(t, "4.21.5", "candidate"),
+			expectGetNodePool: false,
+			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = "4.21.5"
+				np.Properties.Version.ChannelGroup = "stable"
+			}),
+			// Stale cache: channel empty so we read Cosmos; Cosmos is authoritative once both fields are set.
+			cacheNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.Properties.Version.ID = "4.21.5"
+				np.Properties.Version.ChannelGroup = ""
+			}),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
