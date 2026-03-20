@@ -155,7 +155,7 @@ var _ = Describe("Customer", func() {
 
 				// Continue waiting
 				return false
-			}, framework.ClusterCreationTimeout, 30*time.Second).Should(BeTrue(), "Cluster should become ready within 45 minutes")
+			}, framework.ClusterCreationTimeout, 30*time.Second).Should(BeTrue(), fmt.Sprintf("Cluster should become ready within '%f' minutes", framework.ClusterCreationTimeout.Minutes()))
 
 			// Store all admin credentials for later validation
 			var credentials []*rest.Config
