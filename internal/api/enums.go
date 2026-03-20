@@ -93,6 +93,21 @@ var (
 	)
 )
 
+// KeyVaultVisibility represents the visibility of a KeyVault resource.
+type KeyVaultVisibility string
+
+const (
+	KeyVaultVisibilityPublic  KeyVaultVisibility = "Public"
+	KeyVaultVisibilityPrivate KeyVaultVisibility = "Private"
+)
+
+var (
+	ValidKeyVaultVisibility = sets.New[KeyVaultVisibility](
+		KeyVaultVisibilityPublic,
+		KeyVaultVisibilityPrivate,
+	)
+)
+
 type Effect string
 
 const (

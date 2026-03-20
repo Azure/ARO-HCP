@@ -1336,3 +1336,5 @@ func GetVirtualMachinesInResourceGroup(
 		}
 	}
 }
+
+// BuildHCPClusterFromParamsV20251223 builds a v20251223preview HCP cluster from ClusterParamsV20251223

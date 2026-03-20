@@ -84,6 +84,16 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ClusterServiceID = ocm.InternalID{}
 			j.ExistingCosmosUID = ""
 		},
+		func(j *api.CustomerPlatformProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// VnetIntegrationSubnetID was added in v2025_12_23_preview and does not exist in v2024_06_10_preview
+			j.VnetIntegrationSubnetID = nil
+		},
+		func(j *api.KmsEncryptionProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// Visibility was added in v2025_12_23_preview and does not exist in v2024_06_10_preview
+			j.Visibility = ""
+		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// A zero-value KmsEncryptionProfile cannot roundtrip because

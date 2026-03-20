@@ -443,3 +443,5 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 
 	return nil
 }
+
+// CreateHCPClusterFromParamV20251223 creates a v20251223preview HCP cluster from ClusterParamsV20251223

@@ -162,6 +162,7 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("customerProperties", "platform", "managedResourceGroup"), &newCluster.CustomerProperties.Platform.ManagedResourceGroup, nil, newCluster.ID.ResourceGroupName)...)
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.ID.SubscriptionID)...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"), newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID, nil, newCluster.ID.SubscriptionID)...)
 
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
@@ -515,6 +516,7 @@ func validateServiceProviderAPIProfile(ctx context.Context, op operation.Operati
 var (
 	toPlatformManagedResourceGroup    = func(oldObj *api.CustomerPlatformProfile) *string { return &oldObj.ManagedResourceGroup }
 	toPlatformSubnetID                = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.SubnetID }
+	toPlatformVnetIntegrationSubnetID = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.VnetIntegrationSubnetID }
 	toPlatformOutboundType            = func(oldObj *api.CustomerPlatformProfile) *api.OutboundType { return &oldObj.OutboundType }
 	toPlatformNetworkSecurityGroupID  = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.NetworkSecurityGroupID }
 	toPlatformOperatorsAuthentication = func(oldObj *api.CustomerPlatformProfile) *api.OperatorsAuthenticationProfile {
@@ -534,7 +536,19 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	//SubnetID                string                         `json:"subnetId,omitempty"`
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, nil, newObj.ManagedResourceGroup)...)
+
+	// VnetIntegrationSubnetID *azcorearm.ResourceID `json:"vnetIntegrationSubnetId,omitempty"`
+	// vnetIntegrationSubnetId was added in v20251223preview, so it's optional for backwards compatibility
+	// TODO: When we remove the v20240610preview API we should remove the nil check here and add validate.RequiredValue
+	// for vnetIntegrationSubnetId
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID))...)
+	if newObj.VnetIntegrationSubnetID != nil {
+		errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
+		errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.ManagedResourceGroup)...)
+		// SameSubscription is validated in validateResourceIDsAgainstClusterID against cluster subscription
+	}
 
 	//OutboundType            OutboundType                   `json:"outboundType,omitempty"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("outboundType"), &newObj.OutboundType, safe.Field(oldObj, toPlatformOutboundType))...)
@@ -760,7 +774,8 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 }
 
 var (
-	toKmsEncryptionProfileActiveKey = func(oldObj *api.KmsEncryptionProfile) *api.KmsKey { return &oldObj.ActiveKey }
+	toKmsEncryptionProfileVisibility = func(oldObj *api.KmsEncryptionProfile) *api.KeyVaultVisibility { return &oldObj.Visibility }
+	toKmsEncryptionProfileActiveKey  = func(oldObj *api.KmsEncryptionProfile) *api.KmsKey { return &oldObj.ActiveKey }
 )
 
 func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.KmsEncryptionProfile) field.ErrorList {
@@ -769,6 +784,11 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	}
 
 	errs := field.ErrorList{}
+
+	// Visibility KeyVaultVisibility `json:"visibility,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility))...)
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), api.ValidKeyVaultVisibility)...)
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)

@@ -35,20 +35,21 @@ import (
 // The definitions in this file are meant for unit tests.
 
 const (
-	TestLocation                 = "westus3"
-	TestAPIVersion               = "2024-06-10-preview"
-	TestTenantID                 = "00000000-0000-0000-0000-000000000000"
-	TestSubscriptionID           = "11111111-1111-1111-1111-111111111111"
-	TestAltSubscriptionID        = "22222222-2222-2222-2222-222222222222"
-	TestResourceGroupName        = "testResourceGroup"
-	TestClusterName              = "testCluster"
-	TestNodePoolName             = "testNodePool"
-	TestExternalAuthName         = "testExternalAuth"
-	TestDeploymentName           = "testDeployment"
-	TestManagedResourceGroupName = "testManagedResourceGroup"
-	TestNetworkSecurityGroupName = "testNetworkSecurityGroup"
-	TestVirtualNetworkName       = "testVirtualNetwork"
-	TestSubnetName               = "testSubnet"
+	TestLocation                  = "westus3"
+	TestAPIVersion                = "2024-06-10-preview"
+	TestTenantID                  = "00000000-0000-0000-0000-000000000000"
+	TestSubscriptionID            = "11111111-1111-1111-1111-111111111111"
+	TestAltSubscriptionID         = "22222222-2222-2222-2222-222222222222"
+	TestResourceGroupName         = "testResourceGroup"
+	TestClusterName               = "testCluster"
+	TestNodePoolName              = "testNodePool"
+	TestExternalAuthName          = "testExternalAuth"
+	TestDeploymentName            = "testDeployment"
+	TestManagedResourceGroupName  = "testManagedResourceGroup"
+	TestNetworkSecurityGroupName  = "testNetworkSecurityGroup"
+	TestVirtualNetworkName        = "testVirtualNetwork"
+	TestSubnetName                = "testSubnet"
+	TestVnetIntegrationSubnetName = "testVnetIntegrationSubnet"
 )
 
 var (
@@ -61,6 +62,7 @@ var (
 	TestNetworkSecurityGroupResourceID        = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", TestNetworkSecurityGroupName)
 	TestVirtualNetworkResourceID              = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName)
 	TestSubnetResourceID                      = path.Join(TestVirtualNetworkResourceID, "subnets", TestSubnetName)
+	TestVnetIntegrationSubnetResourceID       = path.Join(TestVirtualNetworkResourceID, "subnets", TestVnetIntegrationSubnetName)
 	TestManagedIdentitiesDataPlaneIdentityURL = "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
 )
 
@@ -78,6 +80,7 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
 	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
 	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))
+	resource.CustomerProperties.Platform.VnetIntegrationSubnetID = Must(azcorearm.ParseResourceID(TestVnetIntegrationSubnetResourceID))
 	resource.CustomerProperties.Platform.NetworkSecurityGroupID = Must(azcorearm.ParseResourceID(TestNetworkSecurityGroupResourceID))
 	resource.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = TestManagedIdentitiesDataPlaneIdentityURL
 	// Add required systemData fields
