@@ -73,6 +73,14 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
         name: 'customer-vnet-integration-subnet'
         properties: {
           addressPrefix: vnetIntegrationSubnetPrefix
+          delegations: [
+            {
+              name: 'aro-hcp-delegation'
+              properties: {
+                serviceName: 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters'
+              }
+            }
+          ]
         }
       }
     ]

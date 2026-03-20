@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -56,14 +57,14 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParamsV20251223()
+			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 			clusterParams.KeyVaultVisibility = "Private"
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResourcesV20251223(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -75,10 +76,24 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParamV20251223(ctx,
+			clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Set KeyVault visibility
+			if clusterResource.Properties != nil && clusterResource.Properties.Etcd != nil &&
+				clusterResource.Properties.Etcd.DataEncryption != nil &&
+				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged != nil &&
+				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
+			}
+
+			_, err = framework.CreateHCPCluster20251223AndWait(
+				ctx,
 				GinkgoLogr,
+				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
-				clusterParams,
+				customerClusterName,
+				clusterResource,
 				45*time.Minute,
 			)
 			if isAPINotDeployedError(err) {
