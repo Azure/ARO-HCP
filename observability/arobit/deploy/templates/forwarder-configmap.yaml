@@ -15,12 +15,9 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
 
-{{- if .Values.forwarder.mdsd.enabled }}
-    @INCLUDE /forwarder/etc/output-mdsd.conf
-    
-    {{- if .Values.forwarder.clusterType | eq "mgmt" }}
-    @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
-    {{- end }}
+{{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
+    @INCLUDE /forwarder/etc/filter-shoebox.conf
+    @INCLUDE /forwarder/etc/output-shoebox.conf
 {{- end }}
 {{- if .Values.forwarder.kusto.enabled }}
     @INCLUDE /forwarder/etc/output.conf
@@ -57,14 +54,14 @@ data:
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L%z
         Time_Keep   On
-    
+
     [PARSER]
         Name        containerlogs
         Format      json
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
-    
+
   input.conf: |
     [INPUT]
         Name              tail
@@ -144,7 +141,7 @@ data:
         Match  kubernetes.var.log.containers.*
         script /forwarder/etc/reassemble_cri.lua
         call   reassemble_cri
-    
+
     [FILTER]
         Name modify
         Match systemd.*
@@ -168,28 +165,6 @@ data:
         K8S-Logging.Exclude On
         Buffer_Size         64k
 
-{{- if .Values.forwarder.mdsd.enabled }}
-    [FILTER]
-        Name            rewrite_tag
-        Alias           filter.namespace_router
-        Match           kubernetes.var.log.containers.*
-        Rule            $kubernetes['namespace_name'] ^ocm-.* mdsd-ocm.logs true
-        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* mdsd-other.logs true
-        Emitter_Name    re_emitted_namespace_router_mdsd
-
-    [FILTER]
-        Name          nest
-        Match         mdsd-ocm.logs
-        Operation     lift
-        Nested_under  kubernetes
-
-    [FILTER]
-        Name          nest
-        Match         mdsd-other.logs
-        Operation     lift
-        Nested_under  kubernetes
-{{- end }}
-
     [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router
@@ -199,7 +174,6 @@ data:
         Emitter_Name    re_emitted_namespace_router
 
     [FILTER]
-        # Other logs are keept, because want to send them to mdsd as well
         Name            rewrite_tag
         Alias           filter.container_name_router
         Match           other.logs
@@ -217,6 +191,151 @@ data:
         Parser containerlogs
         Preserve_Key On
         Reserve_Data On
+{{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
+  filter-shoebox.conf: |
+    # Route control plane logs from OCM namespaces for Shoebox transformation
+    [FILTER]
+        Name            rewrite_tag
+        Alias           filter.shoebox_router
+        Match           ocm.logs
+        Rule            $kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller)$ shoeboxlogs true
+        Emitter_Name    re_emitted_shoebox
+
+    # Transform to Shoebox format using Lua script
+    [FILTER]
+        Name            lua
+        Alias           lua.transform_shoebox
+        Match           shoeboxlogs
+        script          /forwarder/etc/transform-shoebox.lua
+        call            transform_to_shoebox
+
+  output-shoebox.conf: |
+    # Forward to MDSD-clusterlogs sidecar (port 5002)
+    [OUTPUT]
+        Name            forward
+        Alias           forward.shoebox
+        Match           shoeboxlogs
+        Host            127.0.0.1
+        Port            5002
+        Tag             shoeboxlogs
+
+  transform-shoebox.lua: |
+    -- Lua script for transforming Kubernetes control plane logs to Shoebox format.
+    -- Supports all 9 log categories defined in the Shoebox manifest.
+
+    -- Cache for resourceId lookups (namespace -> resourceId)
+    -- ResourceIds are immutable per cluster, so we cache forever
+    local resourceid_cache = {}
+
+    -- Container name to category mapping
+    local container_category_map = {
+        ["audit-logs"] = "kube-audit",
+        ["kube-apiserver"] = "kube-apiserver",
+        ["kube-controller-manager"] = "kube-controller-manager",
+        ["kube-scheduler"] = "kube-scheduler",
+        ["cloud-controller-manager"] = "cloud-controller-manager",
+        ["snapshot-controller"] = "csi-snapshot-controller"
+    }
+
+    -- Get resourceId for a namespace by reading the corresponding file
+    local function get_resource_id(namespace)
+        local cached = resourceid_cache[namespace]
+        if cached then
+            return cached
+        end
+
+        local filepath = "/shoebox-config/" .. namespace
+        local file = io.open(filepath, "r")
+        if file then
+            local resourceId = file:read("*all")
+            file:close()
+            resourceId = resourceId:match("^%s*(.-)%s*$")
+            resourceId = string.upper(resourceId)
+            resourceid_cache[namespace] = resourceId
+            return resourceId
+        end
+
+        return nil
+    end
+
+    -- Determine category based on container name and pod name
+    local function get_category(container_name, pod_name, log_data)
+        if container_name == "audit-logs" then
+            local raw = log_data and log_data.raw
+            if raw and raw:match('"level"%s*:%s*"RequestResponse"') then
+                return "kube-audit-admin"
+            else
+                return "kube-audit"
+            end
+        end
+
+        if container_name == "csi-driver" then
+            if pod_name and pod_name:match("azure%-disk%-csi%-driver") then
+                return "csi-azuredisk-controller"
+            elseif pod_name and pod_name:match("azure%-file%-csi%-driver") then
+                return "csi-azurefile-controller"
+            end
+        end
+
+        return container_category_map[container_name] or "unknown"
+    end
+
+    -- Build operationName based on category
+    local function get_operation_name(category)
+        if category == "kube-audit" or category == "kube-audit-admin" then
+            return "Microsoft.RedHatOpenshift/hcpOpenShiftClusters/kube-apiserver/audit"
+        end
+        return "Microsoft.RedHatOpenshift/hcpOpenShiftClusters/" .. category
+    end
+
+    -- Transform Kubernetes control plane log to Shoebox format
+    function transform_to_shoebox(tag, timestamp, record)
+        local namespace = ""
+        local container_name = ""
+        local pod_name = ""
+
+        if record["kubernetes"] then
+            if record["kubernetes"]["namespace_name"] then
+                namespace = record["kubernetes"]["namespace_name"]
+            end
+            if record["kubernetes"]["container_name"] then
+                container_name = record["kubernetes"]["container_name"]
+            end
+            if record["kubernetes"]["pod_name"] then
+                pod_name = record["kubernetes"]["pod_name"]
+            end
+        end
+
+        local resourceId = get_resource_id(namespace)
+
+        if not resourceId or resourceId == "" then
+            return -1, 0, 0
+        end
+
+        local log_data = record["log"]
+        if type(log_data) ~= "table" then
+            log_data = { raw = tostring(log_data) }
+        end
+
+        local category = get_category(container_name, pod_name, log_data)
+
+        if category == "unknown" then
+            return -1, 0, 0
+        end
+
+        local shoebox = {
+            time = record["time"],
+            resourceId = resourceId,
+            location = record["region"],
+            operationName = get_operation_name(category),
+            category = category,
+            level = "Informational",
+            properties = log_data
+        }
+
+        return 1, timestamp, shoebox
+    end
+{{- end }}
   output.conf: |
     [OUTPUT]
         Name  prometheus_exporter
@@ -316,31 +435,6 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/fluent-bit/kusto
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
-    [OUTPUT]
-        Name  prometheus_exporter
-        Alias exporter.fluentbit
-        Match metrics.fluentbit
-        Host  0.0.0.0
-        Port  9090
-  output-mdsd-ocm.conf: |
-    # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.ocm
-        Match mdsd-ocm.logs
-        Host  127.0.0.1
-        Port  5002
-        Tag   akskubesystem
   reassemble_cri.lua: |
     local reassemble_state = {}
     function reassemble_cri(tag, timestamp, record)

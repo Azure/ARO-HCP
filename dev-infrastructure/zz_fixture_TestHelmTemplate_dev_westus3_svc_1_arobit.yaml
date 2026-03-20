@@ -60,14 +60,14 @@ data:
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L%z
         Time_Keep   On
-    
+
     [PARSER]
         Name        containerlogs
         Format      json
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
-    
+
   input.conf: |
     [INPUT]
         Name              tail
@@ -147,7 +147,7 @@ data:
         Match  kubernetes.var.log.containers.*
         script /forwarder/etc/reassemble_cri.lua
         call   reassemble_cri
-    
+
     [FILTER]
         Name modify
         Match systemd.*
@@ -180,7 +180,6 @@ data:
         Emitter_Name    re_emitted_namespace_router
 
     [FILTER]
-        # Other logs are keept, because want to send them to mdsd as well
         Name            rewrite_tag
         Alias           filter.container_name_router
         Match           other.logs
@@ -282,31 +281,6 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/fluent-bit/kusto
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
-    [OUTPUT]
-        Name  prometheus_exporter
-        Alias exporter.fluentbit
-        Match metrics.fluentbit
-        Host  0.0.0.0
-        Port  9090
-  output-mdsd-ocm.conf: |
-    # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.ocm
-        Match mdsd-ocm.logs
-        Host  127.0.0.1
-        Port  5002
-        Tag   akskubesystem
   reassemble_cri.lua: |
     local reassemble_state = {}
     function reassemble_cri(tag, timestamp, record)
@@ -416,7 +390,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 68599d89c7e2d6de6d9eee9cf0c5b138e704d6fe9aa0e326a0499ca65ebe2bda
+        checksum/configmap: 1f3a5f07ef09be4d3db7264cb3246b52535a2688b4930735d1bf0ccca7cc4a7e
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -460,7 +434,7 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
             successThreshold: 1
-          securityContext: 
+          securityContext:
             privileged: false
             allowPrivilegeEscalation: false
             runAsUser: 0
@@ -510,33 +484,10 @@ spec:
           hostPath:
             type: File
             path: /etc/ssl/certs/ca-certificates.crt
-        - name: mdsd-run
-          emptyDir: {}
         - name: flb-config
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
----
-# Source: arobit/templates/forwarder-secretprovider.yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: arobit-secretprovider
-  namespace: 'arobit'
-spec:
-  provider: azure
-  parameters:
-    clientID: '__msiClientId__'
-    cloudName: 'AzurePublicCloud'
-    keyvaultName: "aro-hcp-dev-svc-kv"
-    objects: |
-      array:
-        - |
-          objectName: "rplogs"
-          objectAlias: "gcscert.pem"
-          objectType: secret
-    tenantId: "__tenantId__"
-    usePodIdentity: "false"
 ---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
