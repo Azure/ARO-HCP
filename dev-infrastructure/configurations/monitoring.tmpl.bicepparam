@@ -1,6 +1,7 @@
 using '../templates/monitoring.bicep'
 
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
+param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
 
 param manageConnection = {{ .monitoring.icm.manageConnection }}
 param alertsEnabled = {{ .monitoring.alertsEnabled }}

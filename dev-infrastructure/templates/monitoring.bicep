@@ -1,6 +1,9 @@
 @description('ID of the Azure Monitor Workspace for services')
 param azureMonitoringWorkspaceId string
 
+@description('ID of the Azure Monitor Workspace for hosted control planes')
+param hcpAzureMonitoringWorkspaceId string
+
 @description('The ICM environment')
 param icmEnvironment string
 
@@ -86,7 +89,13 @@ module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   }
 }
 
-// HCP alerts moved to separate deployment stack in hcp-monitoring step
+module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
+  name: 'hcpAlerts'
+  params: {
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
+    actionGroups: sreActionGroups
+  }
+}
 
 module msftAlerts '../modules/metrics/msft-rules.bicep' = {
   name: 'msftAlerts'
@@ -95,5 +104,3 @@ module msftAlerts '../modules/metrics/msft-rules.bicep' = {
     actionGroups: msftActionGroups
   }
 }
-
-output sreActionGroups array = sreActionGroups
