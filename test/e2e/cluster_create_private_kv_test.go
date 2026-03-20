@@ -32,7 +32,7 @@ import (
 var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 	// Set deadline to a reasonable date after which we expect the private keyvault
 	// feature to be fully ready. Adjust as needed based on rollout schedule.
-	timeBombDeadline := mustParseDate("2026-05-01")
+	timeBombDeadline := mustParseDate("2026-04-01")
 
 	BeforeEach(func() {
 		// do nothing. per test initialization usually ages better than shared.
