@@ -29,7 +29,21 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	internalversion "github.com/Azure/ARO-HCP/internal/version"
 )
+
+// ResolveExpectedInstallVersion queries Cincinnati to determine what version the platform
+// would select for initial cluster creation given a customer-desired minor and channel group.
+// This is intended to be called before and after cluster creation so the caller can bracket
+// the expected install version even if Cincinnati data changes mid-creation.
+func ResolveExpectedInstallVersion(ctx context.Context, channelGroup string, customerDesiredMinor string) (semver.Version, error) {
+	transport, _ := http.DefaultTransport.(*http.Transport)
+	if transport == nil {
+		transport = &http.Transport{}
+	}
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
+	return internalversion.ResolveInitialVersion(ctx, client, channelGroup, customerDesiredMinor)
+}
 
 // GetInstallVersionForZStreamUpgrade returns the version to install the cluster with when testing
 // a z-stream upgrade, and whether that version has an available z-stream upgrade path. It uses

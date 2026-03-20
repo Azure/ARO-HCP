@@ -31,11 +31,13 @@ import (
 
 type verifyClusterInstalledVersion struct {
 	customerDesiredMinor string
-	channelGroup         string
+	preInstallResolved   semver.Version
+	postInstallResolved  semver.Version
 }
 
 func (v verifyClusterInstalledVersion) Name() string {
-	return fmt.Sprintf("VerifyClusterInstalledVersion(desiredMinor=%s, channelGroup=%s)", v.customerDesiredMinor, v.channelGroup)
+	return fmt.Sprintf("VerifyClusterInstalledVersion(desiredMinor=%s, expectedRange=[%s, %s])",
+		v.customerDesiredMinor, v.preInstallResolved, v.postInstallResolved)
 }
 
 func (v verifyClusterInstalledVersion) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
@@ -53,6 +55,8 @@ func (v verifyClusterInstalledVersion) Verify(ctx context.Context, adminRESTConf
 		return fmt.Errorf("clusterversion has no history entries")
 	}
 
+	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history", "history", summarizeHistory(clusterVersion.Status.History))
+
 	// The oldest entry in the history is the initial install version.
 	// History is ordered newest-first.
 	initialEntry := clusterVersion.Status.History[len(clusterVersion.Status.History)-1]
@@ -68,16 +72,34 @@ func (v verifyClusterInstalledVersion) Verify(ctx context.Context, adminRESTConf
 			installedVersion.String(), v.customerDesiredMinor, desiredMinor.Major, desiredMinor.Minor)
 	}
 
-	ginkgo.GinkgoLogr.Info("Installed version is within expected minor", "installed", installedVersion.String(), "desiredMinor", v.customerDesiredMinor)
+	lower := v.preInstallResolved
+	upper := v.postInstallResolved
+	if upper.LT(lower) {
+		lower, upper = upper, lower
+	}
+
+	if installedVersion.LT(lower) || installedVersion.GT(upper) {
+		return fmt.Errorf("installed version %s is outside expected range [%s, %s]",
+			installedVersion, lower, upper)
+	}
+
+	ginkgo.GinkgoLogr.Info("Installed version is within expected range",
+		"installed", installedVersion.String(),
+		"lower", lower.String(),
+		"upper", upper.String())
 
 	return nil
 }
 
 // VerifyClusterInstalledVersion returns a verifier that checks the cluster was installed
-// with a version in the correct minor stream (matching customerDesiredMinor).
-func VerifyClusterInstalledVersion(customerDesiredMinor, channelGroup string) HostedClusterVerifier {
+// with a version in the correct minor stream (matching customerDesiredMinor) and within
+// the range [min(preInstallResolved, postInstallResolved), max(preInstallResolved, postInstallResolved)].
+// Resolve both bounds from Cincinnati before and after cluster creation to account for
+// Cincinnati data changing during the long-running creation.
+func VerifyClusterInstalledVersion(customerDesiredMinor string, preInstallResolved, postInstallResolved semver.Version) HostedClusterVerifier {
 	return verifyClusterInstalledVersion{
 		customerDesiredMinor: customerDesiredMinor,
-		channelGroup:         channelGroup,
+		preInstallResolved:   preInstallResolved,
+		postInstallResolved:  postInstallResolved,
 	}
 }
