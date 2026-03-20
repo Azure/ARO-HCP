@@ -6,3 +6,12 @@ metadata:
   namespace: '{{ .Release.Namespace }}'
 spec:
   clusterSet: hypershift-management-clusters
+---
+# Makes the default clusterset available for arobit namespace-resourceid-mapping policy
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: default
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  clusterSet: default
