@@ -13,7 +13,7 @@
   `framework.RBACScopeResource` is used in at least one test case in E2E
   test suite.
 * **Nodepool creation:** To create a nodepool, utilize the `CreateNodePoolFromParam` method. Beforehand, the default nodepool parameters should be prepared using the `NewDefaultNodePoolParams` method. Both of these methods are located within the `framework` module. Like cluster parameters, custom configurations can be assigned to the nodepool parameter values.
-* **Timeout of deployment:** To keep the timeout consistent with other test cases, use 45 minutes.
+* **Timeout of deployment:** Timeouts should be defined as named constants in `test/util/framework/constants.go` to ensure reusability and consistency across the test suite. Use the appropriate constant (e.g. `framework.ClusterCreationTimeout`, `framework.NodePoolCreationTimeout`, `framework.ExternalAuthCreationTimeout`) rather than hardcoding duration values. When a new timeout category is needed, add a constant to that file first.
 
 ## Resource naming \- Independence and Isolation
 
