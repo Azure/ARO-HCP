@@ -1303,7 +1303,9 @@ func TestBuildCSCluster(t *testing.T) {
 				return c
 			}(),
 			expectedCSCluster: getBaseCSClusterBuilder(true),
-			name:              "CREATE - converts KMS encryption with Public visibility",
+		},
+		{
+			name: "CREATE - converts KMS encryption with Public visibility",
 			hcpCluster: func() *api.HCPOpenShiftCluster {
 				cluster := api.MinimumValidClusterTestCase()
 				cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
