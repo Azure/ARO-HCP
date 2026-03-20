@@ -1,6 +1,7 @@
 {{- if .NoTruncation}}set notruncation;
 {{end -}}
 systemdLogs
+| extend log=bag_pack_columns(systemd_unit,message)
 | project timestamp, log, cluster
 | where cluster == '{{.ClusterName}}'
 | where timestamp between({{ .TimestampMin }} .. {{ .TimestampMax }})
