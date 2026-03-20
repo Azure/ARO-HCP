@@ -351,8 +351,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	resolvedVersionID := resolvedVersion.String()
-	logger.Info("Resolved initial cluster version", "customerVersion", newInternalCluster.CustomerProperties.Version.ID, "resolvedVersion", resolvedVersionID)
+	logger.Info("Resolved initial cluster version", "customerVersion", newInternalCluster.CustomerProperties.Version.ID, "resolvedVersion", resolvedVersion)
 
 	initialClusterProperties := map[string]string{}
 	if len(f.clusterServiceProvisionShard) != 0 {
@@ -364,7 +363,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if f.clusterServiceNoopDeprovision {
 		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
 	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, request.Header, newInternalCluster, initialClusterProperties, nil, resolvedVersionID)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, request.Header, newInternalCluster, initialClusterProperties, nil, resolvedVersion.String())
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -639,7 +638,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, nil, oldClusterServiceCluster, "")
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, nil, oldClusterServiceCluster, oldClusterServiceCluster.Version().RawID())
 	if err != nil {
 		return utils.TrackError(err)
 	}

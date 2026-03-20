@@ -30,11 +30,12 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/microsoft/go-otel-audit/audit/base"
 	"github.com/microsoft/go-otel-audit/audit/msgs"
-	configv1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/goleak"
 
 	"k8s.io/utils/set"
+
+	configv1 "github.com/openshift/api/config/v1"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"

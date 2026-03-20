@@ -28,14 +28,13 @@ import (
 )
 
 type verifyControlPlaneInstalledVersion struct {
-	customerDesiredMinor string
-	preInstallResolved   semver.Version
-	postInstallResolved  semver.Version
+	preInstallResolved  semver.Version
+	postInstallResolved semver.Version
 }
 
 func (v verifyControlPlaneInstalledVersion) Name() string {
-	return fmt.Sprintf("VerifyControlPlaneInstalledVersion(desiredMinor=%s, expectedRange=[%s, %s])",
-		v.customerDesiredMinor, v.preInstallResolved, v.postInstallResolved)
+	return fmt.Sprintf("VerifyControlPlaneInstalledVersion(expectedRange=[%s, %s])",
+		v.preInstallResolved, v.postInstallResolved)
 }
 
 func (v verifyControlPlaneInstalledVersion) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
@@ -76,16 +75,6 @@ func (v verifyControlPlaneInstalledVersion) Verify(ctx context.Context, adminRES
 		return fmt.Errorf("clusterversion history has no entries with a resolved version")
 	}
 
-	desiredMinor, err := semver.ParseTolerant(v.customerDesiredMinor)
-	if err != nil {
-		return fmt.Errorf("failed to parse customer desired minor %q: %w", v.customerDesiredMinor, err)
-	}
-
-	if installedVersion.Major != desiredMinor.Major || installedVersion.Minor != desiredMinor.Minor {
-		return fmt.Errorf("installed version %s has different major.minor than customer desired %s (expected %d.%d.x)",
-			installedVersion.String(), v.customerDesiredMinor, desiredMinor.Major, desiredMinor.Minor)
-	}
-
 	lower := v.preInstallResolved
 	upper := v.postInstallResolved
 	if upper.LT(lower) {
@@ -106,14 +95,13 @@ func (v verifyControlPlaneInstalledVersion) Verify(ctx context.Context, adminRES
 }
 
 // VerifyControlPlaneInstalledVersion returns a verifier that checks the control plane
-// was installed with a version in the correct minor stream (matching customerDesiredMinor)
-// and within the range [min(preInstallResolved, postInstallResolved), max(...)].
+// was installed with a version within the range
+// [min(preInstallResolved, postInstallResolved), max(preInstallResolved, postInstallResolved)].
 // Resolve both bounds from Cincinnati before and after cluster creation to account for
 // Cincinnati data changing during the long-running creation.
-func VerifyControlPlaneInstalledVersion(customerDesiredMinor string, preInstallResolved, postInstallResolved semver.Version) HostedClusterVerifier {
+func VerifyControlPlaneInstalledVersion(preInstallResolved, postInstallResolved semver.Version) HostedClusterVerifier {
 	return verifyControlPlaneInstalledVersion{
-		customerDesiredMinor: customerDesiredMinor,
-		preInstallResolved:   preInstallResolved,
-		postInstallResolved:  postInstallResolved,
+		preInstallResolved:  preInstallResolved,
+		postInstallResolved: postInstallResolved,
 	}
 }

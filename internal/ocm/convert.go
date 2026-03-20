@@ -843,13 +843,9 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled))
 
-	versionID := resolvedVersionID
-	if len(versionID) == 0 {
-		versionID = hcpCluster.CustomerProperties.Version.ID
-	}
 	clusterBuilder.
 		Version(arohcpv1alpha1.NewVersion().
-			ID(NewOpenShiftVersionXYZ(versionID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
+			ID(NewOpenShiftVersionXYZ(resolvedVersionID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
 			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).
