@@ -35,8 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/provisioningconditions"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/provisioningconditions"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
