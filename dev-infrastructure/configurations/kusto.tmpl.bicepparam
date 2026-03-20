@@ -30,10 +30,6 @@ param auditLogsKustoConsumerGroupName = '{{ .kusto.auditLogsEventHub.kustoConsum
 
 param auditLogsDiagnosticSettingsRuleName = '{{ .kusto.auditLogsEventHub.authRuleName }}'
 
-param crossClusterServiceLogsScript = {{ if .kusto.crossClusterServiceLogsScript }}'''
-{{ .kusto.crossClusterServiceLogsScript }}'''
-{{ else }}''{{ end }}
+param crossClusterServiceLogsScript = {{ if .kusto.crossClusterServiceLogsScript }}'''{{ .kusto.crossClusterServiceLogsScript }}'''{{ else }}''{{ end }}
 
-param crossClusterHostedControlPlaneLogsScript = {{ if .kusto.crossClusterHostedControlPlaneLogsScript }}'''
-{{ .kusto.crossClusterHostedControlPlaneLogsScript }}'''
-{{ else }}''{{ end }}
+param crossClusterHostedControlPlaneLogsScript = {{ if .kusto.crossClusterHostedControlPlaneLogsScript }}'''{{ .kusto.crossClusterHostedControlPlaneLogsScript }}'''{{ else }}''{{ end }}
