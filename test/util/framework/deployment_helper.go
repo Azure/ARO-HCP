@@ -443,3 +443,43 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 
 	return nil
 }
+
+// CreateHCPClusterFromParamV20251223 creates a v20251223preview HCP cluster from ClusterParamsV20251223
+func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParamV20251223(
+	ctx context.Context,
+	logger logr.Logger,
+	resourceGroupName string,
+	parameters ClusterParamsV20251223,
+	timeout time.Duration,
+) error {
+	if timeout > 0*time.Second {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterFromParamV20251223 for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
+		defer cancel()
+	}
+	clusterName := parameters.ClusterName
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
+	}()
+
+	cluster := BuildHCPClusterFromParamsV20251223(parameters, tc.Location())
+
+	if _, err := CreateHCPClusterAndWaitV20251223(
+		ctx,
+		logger,
+		tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+		resourceGroupName,
+		clusterName,
+		cluster,
+		timeout,
+	); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+	}
+	return nil
+}
