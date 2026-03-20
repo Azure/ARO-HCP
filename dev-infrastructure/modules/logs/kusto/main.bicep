@@ -44,9 +44,11 @@ param auditLogsKustoConsumerGroupName string
 param auditLogsDiagnosticSettingsRuleName string
 
 @description('Optional cross-cluster ServiceLogs Kusto script content.')
+@secure()
 param crossClusterServiceLogsScript string = ''
 
 @description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
+@secure()
 param crossClusterHostedControlPlaneLogsScript string = ''
 
 var db = {
@@ -73,7 +75,8 @@ var allCustomerLogsTablesKQL = {
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
 
-var deployCrossClusterQueryScripts = !empty(crossClusterServiceLogsScript) && !empty(crossClusterHostedControlPlaneLogsScript)
+var deployCrossClusterServiceLogsScript = !empty(crossClusterServiceLogsScript)
+var deployCrossClusterHostedControlPlaneLogsScript = !empty(crossClusterHostedControlPlaneLogsScript)
 
 // 1. Cluster
 module cluster 'cluster.bicep' = {
@@ -186,8 +189,8 @@ resource kustoDataConnection 'Microsoft.Kusto/clusters/databases/dataConnections
   }
 }
 
-// 6. Prod-only cross-cluster query scripts
-module crossClusterServiceLogsQueryScript 'script.bicep' = if (deployCrossClusterQueryScripts) {
+// 6. Cross-cluster query scripts (executed when their script content is provided)
+module crossClusterServiceLogsQueryScript 'script.bicep' = if (deployCrossClusterServiceLogsScript) {
   name: 'crossClusterServiceLogsScript'
   params: {
     kustoName: kustoName
@@ -204,7 +207,7 @@ module crossClusterServiceLogsQueryScript 'script.bicep' = if (deployCrossCluste
   ]
 }
 
-module crossClusterHostedControlPlaneLogsQueryScript 'script.bicep' = if (deployCrossClusterQueryScripts) {
+module crossClusterHostedControlPlaneLogsQueryScript 'script.bicep' = if (deployCrossClusterHostedControlPlaneLogsScript) {
   name: 'crossClusterHostedControlPlaneLogsScript'
   params: {
     kustoName: kustoName

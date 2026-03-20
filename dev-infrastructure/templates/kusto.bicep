@@ -47,9 +47,11 @@ param auditLogsKustoConsumerGroupName string
 param auditLogsDiagnosticSettingsRuleName string
 
 @description('Optional cross-cluster ServiceLogs Kusto script content.')
+@secure()
 param crossClusterServiceLogsScript string = ''
 
 @description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
+@secure()
 param crossClusterHostedControlPlaneLogsScript string = ''
 
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
