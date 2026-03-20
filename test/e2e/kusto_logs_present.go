@@ -82,7 +82,7 @@ var _ = Describe("Engineering", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for kusto logs test")
 			subscriptionID, err := tc.SubscriptionID(ctx)
