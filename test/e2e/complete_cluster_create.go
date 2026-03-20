@@ -115,7 +115,7 @@ var _ = Describe("Customer", func() {
 
 			By("ensuring the cluster is viable and installed with the correct version")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
-				verifiers.VerifyClusterInstalledVersion(clusterParams.OpenshiftVersionId, preVersion, postVersion),
+				verifiers.VerifyControlPlaneInstalledVersion(clusterParams.OpenshiftVersionId, preVersion, postVersion),
 			)
 			Expect(err).NotTo(HaveOccurred())
 

@@ -27,18 +27,18 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
-type verifyClusterInstalledVersion struct {
+type verifyControlPlaneInstalledVersion struct {
 	customerDesiredMinor string
 	preInstallResolved   semver.Version
 	postInstallResolved  semver.Version
 }
 
-func (v verifyClusterInstalledVersion) Name() string {
-	return fmt.Sprintf("VerifyClusterInstalledVersion(desiredMinor=%s, expectedRange=[%s, %s])",
+func (v verifyControlPlaneInstalledVersion) Name() string {
+	return fmt.Sprintf("VerifyControlPlaneInstalledVersion(desiredMinor=%s, expectedRange=[%s, %s])",
 		v.customerDesiredMinor, v.preInstallResolved, v.postInstallResolved)
 }
 
-func (v verifyClusterInstalledVersion) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+func (v verifyControlPlaneInstalledVersion) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
 	configClient, err := configv1client.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create config client: %w", err)
@@ -105,13 +105,13 @@ func (v verifyClusterInstalledVersion) Verify(ctx context.Context, adminRESTConf
 	return nil
 }
 
-// VerifyClusterInstalledVersion returns a verifier that checks the cluster was installed
-// with a version in the correct minor stream (matching customerDesiredMinor) and within
-// the range [min(preInstallResolved, postInstallResolved), max(preInstallResolved, postInstallResolved)].
+// VerifyControlPlaneInstalledVersion returns a verifier that checks the control plane
+// was installed with a version in the correct minor stream (matching customerDesiredMinor)
+// and within the range [min(preInstallResolved, postInstallResolved), max(...)].
 // Resolve both bounds from Cincinnati before and after cluster creation to account for
 // Cincinnati data changing during the long-running creation.
-func VerifyClusterInstalledVersion(customerDesiredMinor string, preInstallResolved, postInstallResolved semver.Version) HostedClusterVerifier {
-	return verifyClusterInstalledVersion{
+func VerifyControlPlaneInstalledVersion(customerDesiredMinor string, preInstallResolved, postInstallResolved semver.Version) HostedClusterVerifier {
+	return verifyControlPlaneInstalledVersion{
 		customerDesiredMinor: customerDesiredMinor,
 		preInstallResolved:   preInstallResolved,
 		postInstallResolved:  postInstallResolved,
