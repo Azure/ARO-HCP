@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:354cad752ccfccc7df0d67a70183408e6043edd569cb3ff3d8569421d5e93abf
+      digest: sha256:551455d2f226fdecd71da0a85ac14eb40103a3c28fd20c622a5175e2cbfdf8f5
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:bcf2ece0a28ef1f967f2a1e6e3ee458b86f5d43faf431e92dfb10c264a78d21c
+    digest: sha256:694d55cfd19b9965053863c611aa6099a53e6245fc099da2199a9ce7bd3ddb88
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -79,7 +79,7 @@ backend:
     tlsCertificatesIssuer: Self
   exitOnPanic: true
   image:
-    digest: sha256:cc1b2626bed18a45e14e42eb412cb3715adb50f2460b906c30728832508fcd97
+    digest: sha256:b321c7837fcc8c67885a8b802ae41e0ad1792d65fc4a85c749afde7364dae804
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -138,7 +138,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpcspr
   image:
-    digest: sha256:a45b3a8202bc5b89a7a41ba4bc806340784e748a8bf85a6043b9c1942c5ed3bb
+    digest: sha256:fab580b3d2eff61477beee889f66b7ada8defc0b7f4db941e95349c64cd6570a
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -184,7 +184,7 @@ clustersService:
     exporter: ""
 customExporter:
   image:
-    digest: sha256:ce6a69783acc8195091d37c099bcec3e1be1e09eb5732597a8bf886f956a4fea
+    digest: sha256:694cfbd4a9b0dd9b51734ffb5327d26929fd6d1feca35136bc4e816994847c2d
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -240,7 +240,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:991593f3bdc927ba8cd39186fdc0b9a35c11a5165aa219d802a4ab486d2721a3
+    digest: sha256:8956bb3aed2d1b944db99bfe9d7ac5ec6f183dfa5268aa8d9e3f0192d3c7311e
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -349,7 +349,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:7c614f30e7456d0f4ef65b47956ed2c8d48e036774046b67fac1d1143b115f4a
+    digest: sha256:979b709053a78603346a407b15346dff452d38af9380446a7e55f32c07697418
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -360,7 +360,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:57bfd4a08e65b9e8f6e27d596493394e587eac4b0b2994af4d18009195f41b46
+      digest: sha256:1311b721ba3ac5cc900e228cb1e739ba150f353d6e9581ecfed3e1b2c6b0e71c
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -532,12 +532,12 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 9f029892d072c33a88f7120170c900a3f2e6b9758f16477c5dec60c3ae7504e6
+        sha: b7bd3a6bf3160b82af89c345c58b1fd3a936801c8c65fef7ed2111dc71c766a3
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: b53be343389b63fa880639565d6067ba933f3f009642cd2e2c02bcdc189a63de
+        sha: b7c83e5834c5e97ef17af96ddbcba9ed7062371a1db1a46171ff7ae1ae137aec
       version: ""
     prometheusSpec:
       image:
@@ -744,7 +744,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-cspr-usw3
   image:
-    digest: sha256:f0927a05cfd2511e24f35f9616735928169fb9feeed8746cd03f8a555f3646db
+    digest: sha256:92bf589d8d16616a22bf79c0d00e7f16487ea7e982df91cee440c6eab664a280
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
@@ -827,12 +827,12 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 9f029892d072c33a88f7120170c900a3f2e6b9758f16477c5dec60c3ae7504e6
+        sha: b7bd3a6bf3160b82af89c345c58b1fd3a936801c8c65fef7ed2111dc71c766a3
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: b53be343389b63fa880639565d6067ba933f3f009642cd2e2c02bcdc189a63de
+        sha: b7c83e5834c5e97ef17af96ddbcba9ed7062371a1db1a46171ff7ae1ae137aec
       version: ""
     prometheusSpec:
       image:
