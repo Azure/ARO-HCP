@@ -20,10 +20,12 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
   - name: monitoring
-    action: ARM
+    action: ARMStack
     template: templates/monitoring.bicep
     parameters: configurations/monitoring.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
     variables:
     - name: azureMonitoringWorkspaceId
       input:
