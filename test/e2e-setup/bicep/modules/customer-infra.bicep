@@ -16,6 +16,9 @@ param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
 @description('Cluster name used to ensure unique resource names within the resource group')
 param clusterName string = ''
 
+@description('If set to true, creates a private KeyVault with publicNetworkAccess disabled')
+param privateKeyVault bool = false
+
 //
 // Variables
 //
@@ -87,6 +90,7 @@ resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
     enableRbacAuthorization: true
     enableSoftDelete: false
     tenantId: subscription().tenantId
+    publicNetworkAccess: privateKeyVault ? 'Disabled' : 'Enabled'
     sku: {
       family: 'A'
       name: 'standard'
