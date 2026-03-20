@@ -42,6 +42,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.AroRpApiCompatible,
 		labels.CreateCluster,
 		func(ctx context.Context) {
 			const customerClusterName = "private-kv-cluster"
