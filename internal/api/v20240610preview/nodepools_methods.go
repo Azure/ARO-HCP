@@ -181,9 +181,10 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 }
 
 // preserveUnknownNodePoolFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20251223preview.
+// this API version (2024-06-10-preview) doesn't know about.
 func preserveUnknownNodePoolFields(from, to *api.HCPOpenShiftClusterNodePool) {
+	// DiskType was added in v20251223preview.
+	to.Properties.Platform.OSDisk.DiskType = from.Properties.Platform.OSDisk.DiskType
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {

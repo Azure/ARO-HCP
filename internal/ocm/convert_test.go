@@ -490,6 +490,7 @@ func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api
 					// in the real API flow. This ensures tests match production behavior where SizeGiB is never nil.
 					SizeGiB:                ptr.To(int32(64)),
 					DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+					DiskType:               api.OsDiskTypeManaged,
 				},
 			},
 		},
@@ -515,7 +516,8 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 				SizeGibibytes(64).
-				StorageAccountType(string(api.DiskStorageAccountTypePremium_LRS)),
+				StorageAccountType(string(api.DiskStorageAccountTypePremium_LRS)).
+				Persistence("persistent"),
 			),
 		).
 		Subnet("").
@@ -604,6 +606,28 @@ func TestBuildCSNodePool(t *testing.T) {
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly")),
+		},
+		{
+			name: "converts ephemeral disk type from RP to CS",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *api.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeEphemeral
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+					ResourceName("").
+					VMSize("").
+					EncryptionAtHost(
+						arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
+							State(csEncryptionAtHostStateDisabled),
+					).
+					OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+						SizeGibibytes(64).
+						StorageAccountType(string(api.DiskStorageAccountTypePremium_LRS)).
+						Persistence("ephemeral"),
+					),
+				),
 		},
 	}
 	for _, tc := range testCases {

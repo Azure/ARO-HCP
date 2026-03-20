@@ -50,6 +50,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 // checkOperationResult ensures the result model returned by a runtime.Poller
@@ -66,6 +67,7 @@ func checkOperationResult(expectModel, resultModel any) error {
 		cmpopts.IgnoreFields(hcpsdk20240610preview.HcpOpenShiftCluster{}, "SystemData"),
 		cmpopts.IgnoreFields(hcpsdk20240610preview.NodePool{}, "SystemData"),
 		cmpopts.IgnoreFields(hcpsdk20240610preview.ExternalAuth{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20251223preview.NodePool{}, "SystemData"),
 	)
 
 	if len(diff) > 0 {
@@ -1062,4 +1064,100 @@ func HasNodeTaint(nodes []corev1.Node, key, value string, effect corev1.TaintEff
 	}
 
 	return count == expectedCount[0]
+}
+
+// CreateNodePoolAndWait20251223 creates a nodepool using the v20251223preview API and waits for completion.
+func CreateNodePoolAndWait20251223(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20251223preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	nodePool hcpsdk20251223preview.NodePool,
+	timeout time.Duration,
+) (*hcpsdk20251223preview.NodePool, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolAndWait20251223 for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
+	defer cancel()
+	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for nodepool=%q for cluster %q in resourcegroup=%q to finish creating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	// Verify the LRO result body matches a fresh GET, per ARM LRO contract.
+	expect, err := GetNodePool20251223(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed to get nodepool, caused by: %w, error: %w", context.Cause(ctx), err)
+		}
+		return nil, err
+	}
+	if err := checkOperationResult(expect, &operationResult.NodePool); err != nil {
+		return nil, err
+	}
+
+	return &operationResult.NodePool, nil
+}
+
+// GetNodePool20251223 retrieves a nodepool using the v20251223preview API.
+func GetNodePool20251223(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20251223preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+) (*hcpsdk20251223preview.NodePool, error) {
+	resp, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &resp.NodePool, nil
+}
+
+// GetVirtualMachinesInResourceGroup lists all VMs in the given resource group
+// with a polling loop to handle ARM replication delays.
+func GetVirtualMachinesInResourceGroup(
+	ctx context.Context,
+	computeClientFactory *armcompute.ClientFactory,
+	resourceGroupName string,
+	expectedMinimumCount int,
+	timeout time.Duration,
+) ([]*armcompute.VirtualMachine, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout,
+		fmt.Errorf("timed out waiting for %d VMs in resource group %q", expectedMinimumCount, resourceGroupName))
+	defer cancel()
+
+	vmClient := computeClientFactory.NewVirtualMachinesClient()
+	const pollInterval = 10 * time.Second
+
+	for {
+		var vms []*armcompute.VirtualMachine
+		pager := vmClient.NewListPager(resourceGroupName, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					return nil, fmt.Errorf("caused by: %w, error: %w", context.Cause(ctx), err)
+				}
+				return nil, fmt.Errorf("failed to list VMs in resource group %q: %w", resourceGroupName, err)
+			}
+			vms = append(vms, page.Value...)
+		}
+
+		if len(vms) >= expectedMinimumCount {
+			return vms, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("caused by: %w, error: %w", context.Cause(ctx), ctx.Err())
+		case <-time.After(pollInterval):
+		}
+	}
 }
