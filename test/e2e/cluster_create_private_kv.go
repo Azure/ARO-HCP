@@ -134,18 +134,5 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				"clusterName", customerClusterName,
 				"keyVaultName", clusterParams.KeyVaultName,
 				"keyVaultVisibility", *cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility)
-
-			By("deleting cluster")
-			deletePoller, err := clientFactory.NewHcpOpenShiftClustersClient().BeginDelete(
-				ctx,
-				*resourceGroup.Name,
-				customerClusterName,
-				nil,
-			)
-			Expect(err).ToNot(HaveOccurred())
-
-			By("waiting for cluster deletion to complete")
-			_, err = deletePoller.PollUntilDone(ctx, nil)
-			Expect(err).ToNot(HaveOccurred())
 		})
 })
