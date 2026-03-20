@@ -43,6 +43,12 @@ param auditLogsKustoConsumerGroupName string
 @description('Diagnostic settings authorization rule name')
 param auditLogsDiagnosticSettingsRuleName string
 
+@description('Optional cross-cluster ServiceLogs Kusto script content.')
+param crossClusterServiceLogsScript string = ''
+
+@description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
+param crossClusterHostedControlPlaneLogsScript string = ''
+
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
@@ -66,6 +72,8 @@ var allCustomerLogsTablesKQL = {
   containerlogs: loadTextContent('tables/containerLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
+
+var deployCrossClusterQueryScripts = !empty(crossClusterServiceLogsScript) && !empty(crossClusterHostedControlPlaneLogsScript)
 
 // 1. Cluster
 module cluster 'cluster.bicep' = {
@@ -178,7 +186,42 @@ resource kustoDataConnection 'Microsoft.Kusto/clusters/databases/dataConnections
   }
 }
 
-// 6. Remove the caller principal
+// 6. Prod-only cross-cluster query scripts
+module crossClusterServiceLogsQueryScript 'script.bicep' = if (deployCrossClusterQueryScripts) {
+  name: 'crossClusterServiceLogsScript'
+  params: {
+    kustoName: kustoName
+    databaseName: db.serviceLogs
+    scriptName: 'crossClusterQueries'
+    scriptContent: crossClusterServiceLogsScript
+    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+    continueOnErrors: false
+  }
+  dependsOn: [
+    databaseUserScripts
+    serviceLogsTables
+    hostedControlPlaneLogsTables
+  ]
+}
+
+module crossClusterHostedControlPlaneLogsQueryScript 'script.bicep' = if (deployCrossClusterQueryScripts) {
+  name: 'crossClusterHostedControlPlaneLogsScript'
+  params: {
+    kustoName: kustoName
+    databaseName: db.hostedControlPlaneLogs
+    scriptName: 'crossClusterQueries'
+    scriptContent: crossClusterHostedControlPlaneLogsScript
+    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+    continueOnErrors: false
+  }
+  dependsOn: [
+    databaseUserScripts
+    serviceLogsTables
+    hostedControlPlaneLogsTables
+  ]
+}
+
+// 7. Remove the caller principal
 // THIS MUST BE THE LAST SCRIPT TO RUN
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
@@ -195,6 +238,8 @@ module removePermission 'script.bicep' = [
       databaseUserScripts
       serviceLogsTables
       hostedControlPlaneLogsTables
+      crossClusterServiceLogsQueryScript
+      crossClusterHostedControlPlaneLogsQueryScript
     ]
   }
 ]
