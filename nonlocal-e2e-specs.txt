@@ -11,5 +11,6 @@
   "creates a cluster and fails to update its name with a PATCH request",
   "creates and deletes vm type NC4asT4v3 in a single cluster",
   "should confirm the HCP cluster is deleted (not found)",
+  "should create a cluster with private keyvault using v20251223preview API",
   "should create an HCP cluster and validate TLS certificates"
 ]
