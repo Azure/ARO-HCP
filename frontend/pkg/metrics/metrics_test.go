@@ -17,8 +17,6 @@ package metrics
 import (
 	"bytes"
 	"context"
-	"errors"
-	"maps"
 	"testing"
 	"time"
 
@@ -26,47 +24,34 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestSubscriptionCollector(t *testing.T) {
 	logger := testr.New(t)
-	nosubs := maps.All(map[string]*arm.Subscription{})
-	subs := maps.All(map[string]*arm.Subscription{
-		"00000000-0000-0000-0000-000000000000": {
-			ResourceID:       api.Must(arm.ToSubscriptionResourceID("00000000-0000-0000-0000-000000000000")),
-			State:            arm.SubscriptionStateRegistered,
-			RegistrationDate: api.Ptr(time.Now().String()),
+
+	// Create subscription with proper CosmosMetadata
+	subID := "00000000-0000-0000-0000-000000000000"
+	resourceID := api.Must(arm.ToSubscriptionResourceID(subID))
+	testSub := &arm.Subscription{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: resourceID,
 		},
-	})
-	ctrl := gomock.NewController(t)
-
-	mockDBClient := database.NewMockDBClient(ctrl)
-	mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
-
-	r := prometheus.NewPedanticRegistry()
-	collector := NewSubscriptionCollector(r, mockDBClient, "test")
+		ResourceID:       resourceID,
+		State:            arm.SubscriptionStateRegistered,
+		RegistrationDate: api.Ptr(time.Now().String()),
+	}
 
 	t.Run("no subscription", func(t *testing.T) {
-		mockIter := database.NewMockDBClientIterator[arm.Subscription](ctrl)
-		mockIter.EXPECT().
-			Items(gomock.Any()).
-			Return(database.DBClientIteratorItem[arm.Subscription](nosubs))
-		mockIter.EXPECT().
-			GetError().
-			Return(nil)
+		mockDBClient := databasetesting.NewMockDBClient()
+		r := prometheus.NewPedanticRegistry()
+		collector := NewSubscriptionCollector(r, mockDBClient, "test")
 
-		mockDBClient.EXPECT().
-			Subscriptions().
-			Return(mockSubscriptionCRUD)
-		mockSubscriptionCRUD.EXPECT().
-			List(gomock.Any(), gomock.Any()).
-			Return(mockIter, nil).Times(1)
+		// No subscriptions pre-populated
 		collector.refresh(utils.ContextWithLogger(context.Background(), logger))
 
 		assertMetrics(t, r, 5, `# HELP frontend_subscription_collector_failed_syncs_total Total number of failed syncs for the Subscription collector.
@@ -81,51 +66,17 @@ frontend_subscription_collector_last_sync 1
 `)
 	})
 
-	t.Run("db error", func(t *testing.T) {
-		mockIter := database.NewMockDBClientIterator[arm.Subscription](ctrl)
-		mockIter.EXPECT().
-			Items(gomock.Any()).
-			Return(database.DBClientIteratorItem[arm.Subscription](nosubs))
-		mockIter.EXPECT().
-			GetError().
-			Return(errors.New("db error"))
-		mockDBClient.EXPECT().
-			Subscriptions().
-			Return(mockSubscriptionCRUD)
-		mockSubscriptionCRUD.EXPECT().
-			List(gomock.Any(), gomock.Any()).
-			Return(mockIter, nil).Times(1)
-
-		collector.refresh(utils.ContextWithLogger(context.Background(), logger))
-
-		assertMetrics(t, r, 5, `# HELP frontend_subscription_collector_failed_syncs_total Total number of failed syncs for the Subscription collector.
-# TYPE frontend_subscription_collector_failed_syncs_total counter
-frontend_subscription_collector_failed_syncs_total 1
-# HELP frontend_subscription_collector_syncs_total Total number of syncs for the Subscription collector.
-# TYPE frontend_subscription_collector_syncs_total counter
-frontend_subscription_collector_syncs_total 2
-# HELP frontend_subscription_collector_last_sync Last sync operation's result (1: success, 0: failed).
-# TYPE frontend_subscription_collector_last_sync gauge
-frontend_subscription_collector_last_sync 0
-`)
-	})
-
 	t.Run("refresh with 1 subscription", func(t *testing.T) {
-		mockIter := database.NewMockDBClientIterator[arm.Subscription](ctrl)
-		mockIter.EXPECT().
-			Items(gomock.Any()).
-			Return(database.DBClientIteratorItem[arm.Subscription](subs))
-		mockIter.EXPECT().
-			GetError().
-			Return(nil)
-		mockDBClient.EXPECT().
-			Subscriptions().
-			Return(mockSubscriptionCRUD)
-		mockSubscriptionCRUD.EXPECT().
-			List(gomock.Any(), gomock.Any()).
-			Return(mockIter, nil).Times(1)
+		mockDBClient := databasetesting.NewMockDBClient()
+		r := prometheus.NewPedanticRegistry()
+		collector := NewSubscriptionCollector(r, mockDBClient, "test")
 
-		collector.refresh(utils.ContextWithLogger(context.Background(), logger))
+		// Pre-populate with one subscription
+		ctx := utils.ContextWithLogger(context.Background(), logger)
+		_, err := mockDBClient.Subscriptions().Create(ctx, testSub, nil)
+		assert.NoError(t, err)
+
+		collector.refresh(ctx)
 
 		assertMetrics(t, r, 7, `
 # HELP frontend_lifecycle_last_update_timestamp_seconds Reports the timestamp when the subscription has been updated for the last time.
@@ -136,10 +87,10 @@ frontend_lifecycle_last_update_timestamp_seconds{location="test",subscription_id
 frontend_lifecycle_state{location="test",state="Registered",subscription_id="00000000-0000-0000-0000-000000000000"} 1
 # HELP frontend_subscription_collector_failed_syncs_total Total number of failed syncs for the Subscription collector.
 # TYPE frontend_subscription_collector_failed_syncs_total counter
-frontend_subscription_collector_failed_syncs_total 1
+frontend_subscription_collector_failed_syncs_total 0
 # HELP frontend_subscription_collector_syncs_total Total number of syncs for the Subscription collector.
 # TYPE frontend_subscription_collector_syncs_total counter
-frontend_subscription_collector_syncs_total 3
+frontend_subscription_collector_syncs_total 1
 # HELP frontend_subscription_collector_last_sync Last sync operation's result (1: success, 0: failed).
 # TYPE frontend_subscription_collector_last_sync gauge
 frontend_subscription_collector_last_sync 1

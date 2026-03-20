@@ -820,6 +820,10 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBCli
 
 func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {
 	curr, err := m.Get(ctx, resourceID)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		// Match real implementation: return success if resource doesn't exist
+		return nil
+	}
 	if err != nil {
 		return err
 	}
