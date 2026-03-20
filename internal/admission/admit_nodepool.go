@@ -87,7 +87,17 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 		return nil
 	}
 
-	newVersion := semver.MustParse(newNodePool.Properties.Version.ID)
+	errs := field.ErrorList{}
+	fldPath := field.NewPath("properties", "version", "id")
+
+	newVersion, err := semver.Parse(newNodePool.Properties.Version.ID)
+	if err != nil {
+		errs = append(errs, field.Invalid(
+			fldPath,
+			newNodePool.Properties.Version.ID,
+			fmt.Sprintf("invalid node pool version format: %s", err.Error()),
+		))
+	}
 	// Skip validation if the newVersion hasn't changed from the desired Version
 	if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
 		newVersion.EQ(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
@@ -101,8 +111,6 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 		return nil
 	}
 
-	errs := field.ErrorList{}
-	fldPath := field.NewPath("properties", "version", "id")
 	// Check if the newVersion <= control plane versions
 	// TODO: We may relax this constraint in the future
 	clusterActiveVersions := spCluster.Status.ControlPlaneVersion.ActiveVersions

@@ -750,7 +750,11 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 			newInternalNodePool.SystemData = ensureSystemData(newInternalNodePool.SystemData, nil)
 
-			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
+			op := operation.Operation{
+				Type:    operation.Create,
+				Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+			}
+			validationErrs := validation.ValidateNodePool(ctx, op, newInternalNodePool, nil)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.ExternalAuthResourceType.String()):

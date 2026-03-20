@@ -124,6 +124,28 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.18.0",
 		},
+		{
+			name:            "X.Y format without patch is rejected",
+			activeVersions:  []string{"4.17.0"},
+			newVersion:      "4.18",
+			clusterVersions: []string{"4.18.0"},
+			desiredVersion:  "4.17.0",
+			expectError:     "invalid node pool version format",
+		},
+		{
+			name:            "prerelease version upgrade is valid",
+			activeVersions:  []string{"4.17.0"},
+			newVersion:      "4.18.0-rc.1",
+			clusterVersions: []string{"4.18.0"},
+			desiredVersion:  "4.17.0",
+		},
+		{
+			name:            "nightly version upgrade is valid",
+			activeVersions:  []string{"4.17.0"},
+			newVersion:      "4.18.0-0.nightly-2024-01-15-123456",
+			clusterVersions: []string{"4.18.0"},
+			desiredVersion:  "4.17.0",
+		},
 	}
 
 	for _, tt := range tests {
