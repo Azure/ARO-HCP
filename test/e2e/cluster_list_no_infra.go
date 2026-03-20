@@ -25,20 +25,18 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 var _ = Describe("Customer", func() {
 
-	It("should be able to list HCP clusters without node pools at both subscription and resource group levels",
+	It("should be able to list HCP clusters without node pools at the resource group level",
 		labels.RequireNothing,
 		labels.Positive,
 		labels.Medium,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
-			Skip("Skipping due to orphaned resources in eastus2euap causing ARM fan-out failures")
 			tc := framework.NewTestContext()
 			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
 
@@ -86,30 +84,6 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 			}
-
-			By("testing subscription-level cluster listing")
-			listOptions := &hcpsdk20240610preview.HcpOpenShiftClustersClientListBySubscriptionOptions{}
-			pager := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(listOptions)
-
-			foundClusters := make(map[string]bool)
-			clusterCount := 0
-			for pager.More() {
-				clusterList, err := pager.NextPage(ctx)
-				Expect(err).To(BeNil())
-				clusterCount += len(clusterList.Value)
-				for _, val := range clusterList.Value {
-					Expect(*val.ID).ToNot(BeEmpty())
-					if val.Name != nil {
-						for _, expectedCluster := range clusterNames {
-							if *val.Name == expectedCluster {
-								foundClusters[expectedCluster] = true
-							}
-						}
-					}
-				}
-			}
-			Expect(clusterCount).To(BeNumerically(">", 0), "Expected at least one cluster to be listed")
-			Expect(len(foundClusters)).To(Equal(createClustersCount), "Expected to find all created clusters in subscription listing")
 
 			By("testing resource group-level cluster listing")
 			for i, resourceGroup := range resourceGroups {
