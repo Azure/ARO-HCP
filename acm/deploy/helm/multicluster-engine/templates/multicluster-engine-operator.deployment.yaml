@@ -68,9 +68,9 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_KUBEVIRT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-kubevirt-rhel9@sha256:5fb3ebcbfa0b13df06d9bfa922562ce0ec2429b50f66a3546a2c4bd661432ee2'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_BOOTSTRAP
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-bootstrap-rhel9@sha256:5a56a05541b6b6231d64aaa0707e2bb7a35b028bd5e5a20195fd4d2a2b7f90d8'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-bootstrap-rhel9@sha256:758b9be90b0754eec30d4f12bce584014431919cd4e2b2bf93ce89b8b9265809'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_CONTROL_PLANE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-control-plane-rhel9@sha256:f79c5ebe5800b6b359a6a1f3c2a16c726832754a5e59de5f2b590c6d1bf54d62'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-control-plane-rhel9@sha256:6fba0c74b610e5aec95009054a32d3c1cf69b9fb6bfb91e70aa4151a2f877342'
         - name: OPERAND_IMAGE_MCE_CAPI_WEBHOOK_CONFIG_RHEL9
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/mce-capi-webhook-config-rhel9@sha256:f6c509cf40ac600c88307da348535ecbed17669bafb1275e9d0e8bd67a049872'
         - name: OPERAND_IMAGE_CLUSTERCLAIMS_CONTROLLER
