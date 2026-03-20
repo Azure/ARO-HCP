@@ -40,14 +40,6 @@ func queryToFixture(q Query) queryFixture {
 	}
 }
 
-func queriesToFixtures(queries []Query) []queryFixture {
-	fixtures := make([]queryFixture, len(queries))
-	for i, q := range queries {
-		fixtures[i] = queryToFixture(q)
-	}
-	return fixtures
-}
-
 func baseOptions() QueryOptions {
 	return QueryOptions{
 		SubscriptionId:    "test-sub",
