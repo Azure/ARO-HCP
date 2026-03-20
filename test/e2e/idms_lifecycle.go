@@ -30,6 +30,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -110,7 +111,7 @@ var _ = Describe("Customer", func() {
 			// Development environments use port-forward (no ARM), so never skip there.
 			var respErr *azcore.ResponseError
 			if createErr != nil && errors.As(createErr, &respErr) && respErr.ErrorCode == "NoRegisteredProviderFound" {
-				if !framework.IsDevelopmentEnvironment() && time.Now().Before(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)) {
+				if !framework.IsDevelopmentEnvironment() && time.Now().Before(api.Must(time.Parse(time.DateOnly, "2026-04-01"))) {
 					Skip(fmt.Sprintf("v20251223preview API not available in ARM; skipping IDMS test: %v", createErr))
 				}
 				Fail(fmt.Sprintf("v20251223preview should be available but cluster creation failed: %v", createErr))
