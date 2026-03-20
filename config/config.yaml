@@ -306,11 +306,11 @@ defaults:
     server:
       registry: registry.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:8ee2114096549e96bce5974584d14018c85e69bb8748588a89b960fdf502f64b # 9754ecfb5283be5710bfc61e5f774310ad63e48e (2026-02-09 13:27)
+      digest: sha256:6f55dd26ea1d64b9469cdc88b392a285d6c2101e05a289e41e48096657e84e05 # 8f55b70dedb722617c50a54e3d6f4a2d57b603a0 (2026-02-23 14:41)
     azurePlugin:
       registry: registry.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:47a1a93a04208748c29073c17855aeca8f72ff2025d7f404b054abd375c8172e # 6e5848d1b60abf2d6ce2f95e43aa31d496e290b4 (2026-02-09 13:20)
+      digest: sha256:2984271cb214b7f3a1ada23921dc5e2c0e5ec7ed7bda0896314f57096a120d66 # 11823d6a3441de39a91d44abe94276e9c72f4abd (2026-02-23 14:30)
     hypershiftPlugin:
       registry: registry.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9

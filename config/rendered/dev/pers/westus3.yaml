@@ -887,7 +887,7 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:47a1a93a04208748c29073c17855aeca8f72ff2025d7f404b054abd375c8172e
+    digest: sha256:2984271cb214b7f3a1ada23921dc5e2c0e5ec7ed7bda0896314f57096a120d66
     registry: registry.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
@@ -895,6 +895,6 @@ velero:
     registry: registry.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:8ee2114096549e96bce5974584d14018c85e69bb8748588a89b960fdf502f64b
+    digest: sha256:6f55dd26ea1d64b9469cdc88b392a285d6c2101e05a289e41e48096657e84e05
     registry: registry.redhat.io
     repository: oadp/oadp-velero-rhel9
