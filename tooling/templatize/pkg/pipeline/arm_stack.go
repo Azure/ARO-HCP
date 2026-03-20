@@ -17,7 +17,7 @@ package pipeline
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
+	"encoding/base32"
 	"fmt"
 	"strings"
 
@@ -35,7 +35,9 @@ import (
 // generateDeploymentStackName creates a deployment stack name based on:
 // service group / resource group / step name / cloud / env / region / stamp
 // This ensures the name is stable over time while being unique across deployment contexts.
-// The full name is hashed to ensure it fits within Azure's 64-character limit for deployment names.
+// The name is always hashed using base32(sha224(inputs)) to guarantee it fits within Azure's
+// 64-character deployment name limit. The resulting name is 45 characters.
+// The original inputs should be stored as tags on the deployment stack for traceability.
 func generateDeploymentStackName(serviceGroup, resourceGroup, stepName, cloud, environment, region, stamp string) string {
 	parts := []string{
 		serviceGroup,
@@ -46,31 +48,9 @@ func generateDeploymentStackName(serviceGroup, resourceGroup, stepName, cloud, e
 		region,
 		stamp,
 	}
-
 	fullName := strings.Join(parts, "-")
-
-	// Azure deployment names have a 64-character limit (more restrictive than deployment stacks' 90)
-	// Deployment stacks create underlying deployments, so we must use the stricter 64-char limit
-	// If the full name exceeds this, use a readable prefix + hash for uniqueness
-	const maxLength = 64
-	const hashLength = 12
-
-	if len(fullName) <= maxLength {
-		return fullName
-	}
-
-	// Create a hash of the full name for uniqueness
-	hash := sha256.Sum256([]byte(fullName))
-	hashStr := hex.EncodeToString(hash[:])[:hashLength]
-
-	// Use as much of the full name as possible while leaving room for separator and hash
-	prefixLength := maxLength - hashLength - 1 // -1 for the separator dash
-	prefix := fullName
-	if len(fullName) > prefixLength {
-		prefix = fullName[:prefixLength]
-	}
-
-	return prefix + "-" + hashStr
+	hash := sha256.Sum224([]byte(fullName))
+	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:]))
 }
 
 // runArmStackStep transforms a .bicep + .bicepparam into an ARM deployment stack. The deployment stack name is
@@ -161,6 +141,15 @@ func runArmStackStep(
 			},
 			Parameters: adaptedParams,
 			Template:   template,
+		},
+		Tags: map[string]*string{
+			"serviceGroup":  ptr.To(id.ServiceGroup),
+			"resourceGroup": ptr.To(id.ResourceGroup),
+			"stepName":      ptr.To(step.StepName()),
+			"cloud":         ptr.To(options.Cloud),
+			"environment":   ptr.To(environment),
+			"region":        ptr.To(executionTarget.GetRegion()),
+			"stamp":         ptr.To(stamp),
 		},
 	}
 
