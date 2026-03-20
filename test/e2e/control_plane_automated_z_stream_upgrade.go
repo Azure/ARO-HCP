@@ -90,7 +90,7 @@ var _ = Describe("Control plane automated z-stream upgrade with candidate channe
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

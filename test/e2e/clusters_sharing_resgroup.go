@@ -151,7 +151,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("attempting to create a third cluster using the same managed resource group as the second cluster")
-			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, 45*time.Minute)
+			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, framework.ClusterCreationTimeout)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError(MatchRegexp("please provide a unique managed resource group name")))
 
