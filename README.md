@@ -3,6 +3,8 @@
 # Description
 The RP for the ARO-HCP project.
 
+> For more details on the architecture and service components, see the [Architecture Overview](./docs/high-level-architecture.md).
+
 The components for HCP are each encapsulated in a top-level directory and each directory contains it's own makefile.
 
 ## Development setup
@@ -58,4 +60,3 @@ colima start --cpu 4 --memory 8 --vz-rosetta --vm-type=vz
 ```
 
 Then, rebuild and connect to the dev container: `cmd + shift + P` => `dev containers: rebuild container`
-
