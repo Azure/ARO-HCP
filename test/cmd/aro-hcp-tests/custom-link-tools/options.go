@@ -27,6 +27,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -440,14 +441,21 @@ func (o Options) Run(ctx context.Context) error {
 
 	commands := getMustGatherCommands(tw, o.SvcClusterName, o.MgmtClusterName, o.SubscriptionID, o.Kusto)
 
+	var testCommands []TestCommandRow
+	if len(timingInfo) > 0 {
+		testCommands = getPerTestMustGatherCommands(timingInfo, o.SubscriptionID, o.Kusto)
+	}
+
 	err = renderTemplate(QueryTemplate{
 		TemplateName:   "custom-link-tools-commands",
 		TemplatePath:   "custom-link-tools-commands.html.tmpl",
 		OutputFileName: path.Join(o.OutputDir, "custom-link-tools-commands.html"),
 	}, struct {
-		Commands []CommandInfo
+		Commands     []CommandInfo
+		TestCommands []TestCommandRow
 	}{
-		Commands: commands,
+		Commands:     commands,
+		TestCommands: testCommands,
 	})
 	if err != nil {
 		return utils.TrackError(err)
@@ -641,24 +649,39 @@ func getMustGatherCommands(tw TimeWindow, svcClusterName, mgmtClusterName, subsc
 	startStr := tw.Start.Format(time.DateTime)
 	endStr := tw.End.Format(time.DateTime)
 
-	// TODO: do this better
-	// queryCmd := fmt.Sprintf(`hcpctl must-gather query --kusto %s --region %s --timestamp-min "%s" --timestamp-max "%s" --subscription-id %s`, kusto.KustoName, kusto.KustoRegion, startStr, endStr, subscriptionID)
-
 	return []CommandInfo{
 		{
 			Label:   "must-gather query-infra (SVC cluster)",
-			Command: fmt.Sprintf(`hcpctl must-gather query-infra --kusto %s --region %s --infra-cluster %s --timestamp-min "%s" --timestamp-max "%s"`, kusto.KustoName, kusto.KustoRegion, svcClusterName, startStr, endStr),
+			Command: fmt.Sprintf(`hcpctl must-gather query-infra --kusto %s --region %s --timestamp-min "%s" --timestamp-max "%s" --infra-cluster %s`, kusto.KustoName, kusto.KustoRegion, startStr, endStr, svcClusterName),
 		},
 		{
 			Label:   "must-gather query-infra (MGMT cluster)",
-			Command: fmt.Sprintf(`hcpctl must-gather query-infra --kusto %s --region %s --infra-cluster %s --timestamp-min "%s" --timestamp-max "%s"`, kusto.KustoName, kusto.KustoRegion, mgmtClusterName, startStr, endStr),
+			Command: fmt.Sprintf(`hcpctl must-gather query-infra --kusto %s --region %s --timestamp-min "%s" --timestamp-max "%s" --infra-cluster %s`, kusto.KustoName, kusto.KustoRegion, startStr, endStr, mgmtClusterName),
 		},
-		// TODO: do this better
-		// {
-		// 	Label:   "must-gather query (HCP logs)",
-		// 	Command: queryCmd,
-		// },
 	}
+}
+
+type TestCommandRow struct {
+	TestName string
+	Command  string
+}
+
+func getPerTestMustGatherCommands(timingInfo map[string]TimingInfo, subscriptionID string, kusto KustoInfo) []TestCommandRow {
+	rows := make([]TestCommandRow, 0, len(timingInfo))
+	for testName, ti := range timingInfo {
+		cmd := fmt.Sprintf(`hcpctl must-gather query --kusto %s --region %s --timestamp-min "%s" --timestamp-max "%s" --subscription-id %s`,
+			kusto.KustoName, kusto.KustoRegion,
+			ti.StartTime.Format(time.DateTime), ti.EndTime.Format(time.DateTime),
+			subscriptionID)
+		rows = append(rows, TestCommandRow{
+			TestName: testName,
+			Command:  cmd,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].TestName < rows[j].TestName
+	})
+	return rows
 }
 
 func getServiceLogLinks(logger logr.Logger, tw TimeWindow, svcClusterName, mgmtClusterName string,
