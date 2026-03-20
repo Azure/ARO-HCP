@@ -134,7 +134,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:ae7b8f0a7e2b4eb7e3297f116b1d3b79fe1492e6ec9c0d33cfbd86d3af364ba7 # 4680acd (2026-03-19 23:00)
+      digest: sha256:ce6a69783acc8195091d37c099bcec3e1be1e09eb5732597a8bf886f956a4fea # 69cd384 (2026-03-20 10:41)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -562,7 +562,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:fa43ac0bbab722e965133516f0eeb6e49486beaef0a2204ebf185ad86d17eae3 # 4680acd (2026-03-19 23:02)
+      digest: sha256:cc1b2626bed18a45e14e42eb412cb3715adb50f2460b906c30728832508fcd97 # 69cd384 (2026-03-20 10:43)
     tracing:
       address: ""
       exporter: ""
@@ -583,7 +583,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:379a482434acff7e9264a2b157a0127940fb0db88c123bf46707763521ac14a2 # 4680acd (2026-03-19 23:02)
+      digest: sha256:bcf2ece0a28ef1f967f2a1e6e3ee458b86f5d43faf431e92dfb10c264a78d21c # 69cd384 (2026-03-20 10:43)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -596,7 +596,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: sha256:1fc2bc934372205238f0710c9f1b8d13e4157871300581afe116248123a5d6de # 4680acd (2026-03-19 23:02)
+      digest: sha256:f0927a05cfd2511e24f35f9616735928169fb9feeed8746cd03f8a555f3646db # 69cd384 (2026-03-20 10:43)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
@@ -611,7 +611,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:799ed5efa6f064b898a331b5db5c16036ab06b57e7083f06cf8cd9d069a107ab # 4680acd (2026-03-19 23:02)
+      digest: sha256:991593f3bdc927ba8cd39186fdc0b9a35c11a5165aa219d802a4ab486d2721a3 # 69cd384 (2026-03-20 10:42)
     tracing:
       address: ""
       exporter: ""
@@ -794,7 +794,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:21477db7da8ef3e20bd41d675d48effb14cefe877135171f2c417c7f7c9b5748 # f1574c379b93964655353a86bc4679bc7e9abae4 (2026-03-19 18:02)
+      digest: sha256:a45b3a8202bc5b89a7a41ba4bc806340784e748a8bf85a6043b9c1942c5ed3bb # c7242db098ce8a296106c907a80afd7e70f70de5 (2026-03-20 11:46)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     # batch processes
@@ -860,7 +860,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:bfc92f98792ac8ace94dc412ba65932e3b7b4e144d3ee216cfa0591c850ef255 # 4680acd (2026-03-19 23:01)
+        digest: sha256:57bfd4a08e65b9e8f6e27d596493394e587eac4b0b2994af4d18009195f41b46 # 69cd384 (2026-03-20 10:42)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20"
   # Automation Account
