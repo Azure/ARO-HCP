@@ -259,7 +259,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 
 	operationPhaseMetricsController := controllerutils.NewOperationPhaseMetricsController(
-		prometheus.DefaultRegisterer, activeOperationInformer)
+		prometheus.DefaultRegisterer, backendInformers.AllOperations())
 
 	clusterInformer, _ := backendInformers.Clusters()
 	clusterMetricsController := controllerutils.NewResourceMetricsController(

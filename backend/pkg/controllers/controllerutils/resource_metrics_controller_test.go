@@ -61,19 +61,19 @@ func TestClusterMetricsHandler_SetsProvisionStateAndCreatedTime(t *testing.T) {
 	handler.Sync(context.Background(), cluster)
 
 	resourceID := strings.ToLower(cluster.ID.String())
-	hash := ResourceIDHash(resourceID)
+
 
 	expectedState := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
 # TYPE backend_cluster_provision_state gauge
-backend_cluster_provision_state{phase="provisioning",resource_id_hash="%s"} 1
-`, hash)
+backend_cluster_provision_state{phase="provisioning",resource_id="%s"} 1
+`, resourceID)
 	err := testutil.GatherAndCompare(reg, strings.NewReader(expectedState), "backend_cluster_provision_state")
 	require.NoError(t, err)
 
 	expectedTime := fmt.Sprintf(`# HELP backend_cluster_created_time_seconds Unix timestamp when the cluster was created.
 # TYPE backend_cluster_created_time_seconds gauge
-backend_cluster_created_time_seconds{resource_id_hash="%s"} %d
-`, hash, now.Unix())
+backend_cluster_created_time_seconds{resource_id="%s"} %d
+`, resourceID, now.Unix())
 	err = testutil.GatherAndCompare(reg, strings.NewReader(expectedTime), "backend_cluster_created_time_seconds")
 	require.NoError(t, err)
 }
@@ -90,11 +90,11 @@ func TestClusterMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing.T) {
 	handler.Sync(context.Background(), cluster)
 
 	resourceID := strings.ToLower(cluster.ID.String())
-	hash := ResourceIDHash(resourceID)
+
 	expected := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
 # TYPE backend_cluster_provision_state gauge
-backend_cluster_provision_state{phase="provisioning",resource_id_hash="%s"} 1
-`, hash)
+backend_cluster_provision_state{phase="provisioning",resource_id="%s"} 1
+`, resourceID)
 
 	err := testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_cluster_provision_state")
 	require.NoError(t, err)
@@ -108,13 +108,13 @@ func TestClusterMetricsHandler_NilCreatedAt(t *testing.T) {
 	handler.Sync(context.Background(), cluster)
 
 	resourceID := strings.ToLower(cluster.ID.String())
-	hash := ResourceIDHash(resourceID)
+
 
 	// provisionState should exist.
 	expectedState := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
 # TYPE backend_cluster_provision_state gauge
-backend_cluster_provision_state{phase="accepted",resource_id_hash="%s"} 1
-`, hash)
+backend_cluster_provision_state{phase="accepted",resource_id="%s"} 1
+`, resourceID)
 	err := testutil.GatherAndCompare(reg, strings.NewReader(expectedState), "backend_cluster_provision_state")
 	require.NoError(t, err)
 
@@ -158,18 +158,18 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 	handler.Sync(context.Background(), np)
 
 	resourceID := strings.ToLower(np.ID.String())
-	hash := ResourceIDHash(resourceID)
+
 	expected := fmt.Sprintf(`# HELP backend_nodepool_provision_state Current provisioning state of the node pool (value is always 1).
 # TYPE backend_nodepool_provision_state gauge
-backend_nodepool_provision_state{phase="succeeded",resource_id_hash="%s"} 1
-`, hash)
+backend_nodepool_provision_state{phase="succeeded",resource_id="%s"} 1
+`, resourceID)
 	err := testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_nodepool_provision_state")
 	require.NoError(t, err)
 
 	expectedTime := fmt.Sprintf(`# HELP backend_nodepool_created_time_seconds Unix timestamp when the node pool was created.
 # TYPE backend_nodepool_created_time_seconds gauge
-backend_nodepool_created_time_seconds{resource_id_hash="%s"} %d
-`, hash, now.Unix())
+backend_nodepool_created_time_seconds{resource_id="%s"} %d
+`, resourceID, now.Unix())
 	err = testutil.GatherAndCompare(reg, strings.NewReader(expectedTime), "backend_nodepool_created_time_seconds")
 	require.NoError(t, err)
 }
@@ -194,18 +194,18 @@ func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
 	handler.Sync(context.Background(), ea)
 
 	resourceID := strings.ToLower(ea.ID.String())
-	hash := ResourceIDHash(resourceID)
+
 	expected := fmt.Sprintf(`# HELP backend_externalauth_provision_state Current provisioning state of the external auth (value is always 1).
 # TYPE backend_externalauth_provision_state gauge
-backend_externalauth_provision_state{phase="accepted",resource_id_hash="%s"} 1
-`, hash)
+backend_externalauth_provision_state{phase="accepted",resource_id="%s"} 1
+`, resourceID)
 	err := testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_externalauth_provision_state")
 	require.NoError(t, err)
 
 	expectedTime := fmt.Sprintf(`# HELP backend_externalauth_created_time_seconds Unix timestamp when the external auth was created.
 # TYPE backend_externalauth_created_time_seconds gauge
-backend_externalauth_created_time_seconds{resource_id_hash="%s"} %d
-`, hash, now.Unix())
+backend_externalauth_created_time_seconds{resource_id="%s"} %d
+`, resourceID, now.Unix())
 	err = testutil.GatherAndCompare(reg, strings.NewReader(expectedTime), "backend_externalauth_created_time_seconds")
 	require.NoError(t, err)
 }
@@ -233,11 +233,11 @@ func TestSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	require.NoError(t, err)
 
 	resourceID := strings.ToLower(cluster.ID.String())
-	hash := ResourceIDHash(resourceID)
+
 	expected := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
 # TYPE backend_cluster_provision_state gauge
-backend_cluster_provision_state{phase="succeeded",resource_id_hash="%s"} 1
-`, hash)
+backend_cluster_provision_state{phase="succeeded",resource_id="%s"} 1
+`, resourceID)
 	err = testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_cluster_provision_state")
 	require.NoError(t, err)
 }

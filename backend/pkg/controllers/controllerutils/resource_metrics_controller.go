@@ -192,11 +192,11 @@ func NewClusterMetricsHandler(r prometheus.Registerer) ResourceMetricsHandler[*a
 		provisionState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_provision_state",
 			Help: "Current provisioning state of the cluster (value is always 1).",
-		}, []string{"resource_id_hash", "phase"}),
+		}, []string{"resource_id", "phase"}),
 		createdTime: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_created_time_seconds",
 			Help: "Unix timestamp when the cluster was created.",
-		}, []string{"resource_id_hash"}),
+		}, []string{"resource_id"}),
 		lastPhase: make(map[string]string),
 	}
 	r.MustRegister(h.provisionState, h.createdTime)
@@ -208,19 +208,18 @@ func (h *clusterMetricsHandler) Sync(ctx context.Context, cluster *api.HCPOpenSh
 		return
 	}
 	resourceID := strings.ToLower(cluster.ID.String())
-	hash := ResourceIDHash(resourceID)
 	phase := PhaseLabel(cluster.ServiceProviderProperties.ProvisioningState)
 
-	if oldPhase, ok := h.lastPhase[hash]; ok && oldPhase != phase {
-		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+	if oldPhase, ok := h.lastPhase[resourceID]; ok && oldPhase != phase {
+		h.provisionState.Delete(prometheus.Labels{"resource_id": resourceID, "phase": oldPhase})
 	}
 	h.provisionState.With(prometheus.Labels{
-		"resource_id_hash": hash,
-		"phase":            phase,
+		"resource_id": resourceID,
+		"phase":       phase,
 	}).Set(1.0)
-	h.lastPhase[hash] = phase
+	h.lastPhase[resourceID] = phase
 
-	createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
+	createdTimeLabels := prometheus.Labels{"resource_id": resourceID}
 	if cluster.SystemData != nil && cluster.SystemData.CreatedAt != nil && !cluster.SystemData.CreatedAt.IsZero() {
 		h.createdTime.With(createdTimeLabels).Set(float64(cluster.SystemData.CreatedAt.Unix()))
 	} else {
@@ -229,18 +228,18 @@ func (h *clusterMetricsHandler) Sync(ctx context.Context, cluster *api.HCPOpenSh
 
 	logger := utils.LoggerFromContext(ctx)
 	logValues := append(
-		utils.LogValues{"resource_id_hash", hash},
+		utils.LogValues{"resource_id", resourceID},
 		utils.LogValues{}.AddLogValuesForResourceID(cluster.ID)...)
 	logger.V(1).Info("Cluster metrics synced", logValues...)
 }
 
 func (h *clusterMetricsHandler) Delete(key string) {
-	hash := ResourceIDHash(key)
-	if oldPhase, ok := h.lastPhase[hash]; ok {
-		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
-		delete(h.lastPhase, hash)
+	resourceID := strings.ToLower(key)
+	if oldPhase, ok := h.lastPhase[resourceID]; ok {
+		h.provisionState.Delete(prometheus.Labels{"resource_id": resourceID, "phase": oldPhase})
+		delete(h.lastPhase, resourceID)
 	}
-	h.createdTime.Delete(prometheus.Labels{"resource_id_hash": hash})
+	h.createdTime.Delete(prometheus.Labels{"resource_id": resourceID})
 }
 
 // nodePoolMetricsHandler implements ResourceMetricsHandler for HCPOpenShiftClusterNodePool.
@@ -257,11 +256,11 @@ func NewNodePoolMetricsHandler(r prometheus.Registerer) ResourceMetricsHandler[*
 		provisionState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_nodepool_provision_state",
 			Help: "Current provisioning state of the node pool (value is always 1).",
-		}, []string{"resource_id_hash", "phase"}),
+		}, []string{"resource_id", "phase"}),
 		createdTime: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_nodepool_created_time_seconds",
 			Help: "Unix timestamp when the node pool was created.",
-		}, []string{"resource_id_hash"}),
+		}, []string{"resource_id"}),
 		lastPhase: make(map[string]string),
 	}
 	r.MustRegister(h.provisionState, h.createdTime)
@@ -273,19 +272,18 @@ func (h *nodePoolMetricsHandler) Sync(ctx context.Context, np *api.HCPOpenShiftC
 		return
 	}
 	resourceID := strings.ToLower(np.ID.String())
-	hash := ResourceIDHash(resourceID)
 	phase := PhaseLabel(np.Properties.ProvisioningState)
 
-	if oldPhase, ok := h.lastPhase[hash]; ok && oldPhase != phase {
-		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+	if oldPhase, ok := h.lastPhase[resourceID]; ok && oldPhase != phase {
+		h.provisionState.Delete(prometheus.Labels{"resource_id": resourceID, "phase": oldPhase})
 	}
 	h.provisionState.With(prometheus.Labels{
-		"resource_id_hash": hash,
-		"phase":            phase,
+		"resource_id": resourceID,
+		"phase":       phase,
 	}).Set(1.0)
-	h.lastPhase[hash] = phase
+	h.lastPhase[resourceID] = phase
 
-	createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
+	createdTimeLabels := prometheus.Labels{"resource_id": resourceID}
 	if np.SystemData != nil && np.SystemData.CreatedAt != nil && !np.SystemData.CreatedAt.IsZero() {
 		h.createdTime.With(createdTimeLabels).Set(float64(np.SystemData.CreatedAt.Unix()))
 	} else {
@@ -294,18 +292,18 @@ func (h *nodePoolMetricsHandler) Sync(ctx context.Context, np *api.HCPOpenShiftC
 
 	logger := utils.LoggerFromContext(ctx)
 	logValues := append(
-		utils.LogValues{"resource_id_hash", hash},
+		utils.LogValues{"resource_id", resourceID},
 		utils.LogValues{}.AddLogValuesForResourceID(np.ID)...)
 	logger.V(1).Info("NodePool metrics synced", logValues...)
 }
 
 func (h *nodePoolMetricsHandler) Delete(key string) {
-	hash := ResourceIDHash(key)
-	if oldPhase, ok := h.lastPhase[hash]; ok {
-		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
-		delete(h.lastPhase, hash)
+	resourceID := strings.ToLower(key)
+	if oldPhase, ok := h.lastPhase[resourceID]; ok {
+		h.provisionState.Delete(prometheus.Labels{"resource_id": resourceID, "phase": oldPhase})
+		delete(h.lastPhase, resourceID)
 	}
-	h.createdTime.Delete(prometheus.Labels{"resource_id_hash": hash})
+	h.createdTime.Delete(prometheus.Labels{"resource_id": resourceID})
 }
 
 // externalAuthMetricsHandler implements ResourceMetricsHandler for HCPOpenShiftClusterExternalAuth.
@@ -322,11 +320,11 @@ func NewExternalAuthMetricsHandler(r prometheus.Registerer) ResourceMetricsHandl
 		provisionState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_externalauth_provision_state",
 			Help: "Current provisioning state of the external auth (value is always 1).",
-		}, []string{"resource_id_hash", "phase"}),
+		}, []string{"resource_id", "phase"}),
 		createdTime: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_externalauth_created_time_seconds",
 			Help: "Unix timestamp when the external auth was created.",
-		}, []string{"resource_id_hash"}),
+		}, []string{"resource_id"}),
 		lastPhase: make(map[string]string),
 	}
 	r.MustRegister(h.provisionState, h.createdTime)
@@ -338,19 +336,18 @@ func (h *externalAuthMetricsHandler) Sync(ctx context.Context, ea *api.HCPOpenSh
 		return
 	}
 	resourceID := strings.ToLower(ea.ID.String())
-	hash := ResourceIDHash(resourceID)
 	phase := PhaseLabel(ea.Properties.ProvisioningState)
 
-	if oldPhase, ok := h.lastPhase[hash]; ok && oldPhase != phase {
-		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
+	if oldPhase, ok := h.lastPhase[resourceID]; ok && oldPhase != phase {
+		h.provisionState.Delete(prometheus.Labels{"resource_id": resourceID, "phase": oldPhase})
 	}
 	h.provisionState.With(prometheus.Labels{
-		"resource_id_hash": hash,
-		"phase":            phase,
+		"resource_id": resourceID,
+		"phase":       phase,
 	}).Set(1.0)
-	h.lastPhase[hash] = phase
+	h.lastPhase[resourceID] = phase
 
-	createdTimeLabels := prometheus.Labels{"resource_id_hash": hash}
+	createdTimeLabels := prometheus.Labels{"resource_id": resourceID}
 	if ea.SystemData != nil && ea.SystemData.CreatedAt != nil && !ea.SystemData.CreatedAt.IsZero() {
 		h.createdTime.With(createdTimeLabels).Set(float64(ea.SystemData.CreatedAt.Unix()))
 	} else {
@@ -359,16 +356,16 @@ func (h *externalAuthMetricsHandler) Sync(ctx context.Context, ea *api.HCPOpenSh
 
 	logger := utils.LoggerFromContext(ctx)
 	logValues := append(
-		utils.LogValues{"resource_id_hash", hash},
+		utils.LogValues{"resource_id", resourceID},
 		utils.LogValues{}.AddLogValuesForResourceID(ea.ID)...)
 	logger.V(1).Info("ExternalAuth metrics synced", logValues...)
 }
 
 func (h *externalAuthMetricsHandler) Delete(key string) {
-	hash := ResourceIDHash(key)
-	if oldPhase, ok := h.lastPhase[hash]; ok {
-		h.provisionState.Delete(prometheus.Labels{"resource_id_hash": hash, "phase": oldPhase})
-		delete(h.lastPhase, hash)
+	resourceID := strings.ToLower(key)
+	if oldPhase, ok := h.lastPhase[resourceID]; ok {
+		h.provisionState.Delete(prometheus.Labels{"resource_id": resourceID, "phase": oldPhase})
+		delete(h.lastPhase, resourceID)
 	}
-	h.createdTime.Delete(prometheus.Labels{"resource_id_hash": hash})
+	h.createdTime.Delete(prometheus.Labels{"resource_id": resourceID})
 }
