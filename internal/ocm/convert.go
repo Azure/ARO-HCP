@@ -844,7 +844,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled))
 
 	versionID := resolvedVersionID
-	if versionID == "" {
+	if len(versionID) == 0 {
 		versionID = NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, hcpCluster.CustomerProperties.Version.ChannelGroup)
 	}
 	clusterBuilder.

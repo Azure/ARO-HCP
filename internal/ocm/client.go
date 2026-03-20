@@ -792,7 +792,7 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 
 	csVersion := api.OpenShiftVersionPrefix + api.Must(semver.ParseTolerant(v)).String()
 
-	if len(cg) > 0 && cg != "stable" {
+	if cg != "stable" {
 		csVersion = csVersion + "-" + cg
 	}
 

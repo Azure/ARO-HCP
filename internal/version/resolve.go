@@ -44,11 +44,6 @@ func ResolveInitialVersion(ctx context.Context, cincinnatiClient cincinatti.Clie
 		return semver.Version{}, fmt.Errorf("failed to parse customer desired minor %q: %w", customerDesiredMinor, err)
 	}
 
-	if cincinnatiClient == nil {
-		logger.Info("No Cincinnati client available, falling back to X.Y.0", "version", customerDotZeroRelease.String())
-		return customerDotZeroRelease, nil
-	}
-
 	initialDesiredVersion, err := FindLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease})
 	if err != nil {
 		return semver.Version{}, fmt.Errorf("failed to resolve initial version: %w", err)

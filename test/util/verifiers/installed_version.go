@@ -55,12 +55,25 @@ func (v verifyClusterInstalledVersion) Verify(ctx context.Context, adminRESTConf
 
 	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history", "history", summarizeHistory(clusterVersion.Status.History))
 
-	// The oldest entry in the history is the initial install version.
-	// History is ordered newest-first.
-	initialEntry := clusterVersion.Status.History[len(clusterVersion.Status.History)-1]
-	installedVersion, err := semver.ParseTolerant(initialEntry.Version)
-	if err != nil {
-		return fmt.Errorf("failed to parse installed version %q from history: %w", initialEntry.Version, err)
+	// History is ordered newest-first, so scan from the end to find the
+	// oldest entry with a resolved version. An entry's .Version can be
+	// empty if an upgrade was initiated before the version was resolved.
+	var installedVersion semver.Version
+	found := false
+	for i := len(clusterVersion.Status.History) - 1; i >= 0; i-- {
+		entry := clusterVersion.Status.History[i]
+		if entry.Version == "" {
+			continue
+		}
+		installedVersion, err = semver.ParseTolerant(entry.Version)
+		if err != nil {
+			return fmt.Errorf("failed to parse installed version %q from history: %w", entry.Version, err)
+		}
+		found = true
+		break
+	}
+	if !found {
+		return fmt.Errorf("clusterversion history has no entries with a resolved version")
 	}
 
 	desiredMinor, err := semver.ParseTolerant(v.customerDesiredMinor)
