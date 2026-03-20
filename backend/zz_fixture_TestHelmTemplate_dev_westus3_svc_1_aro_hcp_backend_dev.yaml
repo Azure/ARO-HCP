@@ -176,6 +176,13 @@ spec:
         - "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96"
         - "--insecure-azure-managed-identity-mock-tenant-id"
         - "64dc69e4-d083-49fc-9569-ebece1dd1408"
+        # ARM Permissions Manager Identity flags. They should only be set in ARO-HCP environments where Microsoft's First Party Application (FPA) integration is not available.
+        - "--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path"
+        - "/secrets/backend-service-key-vault/arm-permissions-manager-identity-cert-bundle"
+        - "--insecure-azure-arm-permissions-manager-identity-client-id"
+        - "3331e670-0804-48e8-a086-6241671ddc93"
+        - "--insecure-azure-arm-permissions-manager-identity-tenant-id"
+        - "64dc69e4-d083-49fc-9569-ebece1dd1408"
         env:
         - name: DB_NAME
           valueFrom:
