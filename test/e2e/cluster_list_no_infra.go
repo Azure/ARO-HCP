@@ -38,6 +38,7 @@ var _ = Describe("Customer", func() {
 		labels.Medium,
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
+			Skip("Skipping due to orphaned resources in eastus2euap causing ARM fan-out failures")
 			tc := framework.NewTestContext()
 			openshiftControlPlaneVersionId := framework.DefaultOpenshiftControlPlaneVersionId()
 
