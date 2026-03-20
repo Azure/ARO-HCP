@@ -24,9 +24,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
-	configv1 "github.com/openshift/api/config/v1"
-
 	"sigs.k8s.io/yaml"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 // summarizeHistory returns a log-safe string representation of ClusterVersion

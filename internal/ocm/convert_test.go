@@ -309,8 +309,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-				ID("openshift-v4.19.0").
-				ChannelGroup("stable"))),
+					ID("openshift-v4.19.0").
+					ChannelGroup("stable"))),
 		},
 		{
 			name: "converts candidate version from RP to CS (preserves patch)",
@@ -567,8 +567,8 @@ func TestBuildCSNodePool(t *testing.T) {
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-				ID("openshift-v4.19.0").
-				ChannelGroup("stable")),
+					ID("openshift-v4.19.0").
+					ChannelGroup("stable")),
 		},
 		{
 			name: "converts candidate version from RP to CS (adds channel suffix)",
