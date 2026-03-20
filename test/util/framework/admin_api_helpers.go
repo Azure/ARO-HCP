@@ -372,25 +372,19 @@ func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Conte
 
 	By(fmt.Sprintf("disabling boot diagnostics for VM %s", vmName))
 
-	// Get current VM
-	vm, err := computeClient.Get(ctx, managedResourceGroupName, vmName, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get VM: %w", err)
-	}
-
-	// Disable boot diagnostics
-	if vm.Properties == nil {
-		vm.Properties = &armcompute.VirtualMachineProperties{}
-	}
-	if vm.Properties.DiagnosticsProfile == nil {
-		vm.Properties.DiagnosticsProfile = &armcompute.DiagnosticsProfile{}
-	}
-	vm.Properties.DiagnosticsProfile.BootDiagnostics = &armcompute.BootDiagnostics{
-		Enabled: to.Ptr(false),
+	// Create update payload with only the diagnostics profile
+	vmUpdate := armcompute.VirtualMachineUpdate{
+		Properties: &armcompute.VirtualMachineProperties{
+			DiagnosticsProfile: &armcompute.DiagnosticsProfile{
+				BootDiagnostics: &armcompute.BootDiagnostics{
+					Enabled: to.Ptr(false),
+				},
+			},
+		},
 	}
 
 	// Update VM
-	poller, err := computeClient.BeginCreateOrUpdate(ctx, managedResourceGroupName, vmName, vm.VirtualMachine, nil)
+	poller, err := computeClient.BeginUpdate(ctx, managedResourceGroupName, vmName, vmUpdate, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin VM update: %w", err)
 	}
@@ -432,14 +426,18 @@ func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
+		// Limit error response body to 1MB for test error messages
+		limitedReader := io.LimitReader(resp.Body, 1*1024*1024)
+		body, readErr := io.ReadAll(limitedReader)
 		if readErr != nil {
 			return "", fmt.Errorf("expected status 200 OK, got %d (failed to read body: %w)", resp.StatusCode, readErr)
 		}
 		return "", fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Limit response body to 10MB for serial console logs in tests
+	limitedReader := io.LimitReader(resp.Body, 10*1024*1024)
+	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
