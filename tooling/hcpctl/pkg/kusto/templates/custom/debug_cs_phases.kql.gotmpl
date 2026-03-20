@@ -6,14 +6,14 @@
 // reconciliation.
 let _cs_cluster_id = toscalar(
     database('ServiceLogs').table('clustersServiceLogs')
-    | where timestamp between ({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
-    | where resource_id has {{.ResourceGroupName}}
+    | where timestamp between ({{.TimestampMin }} .. {{.TimestampMax }})
+    | where resource_id has '{{.ResourceGroupName}}'
     | where isnotempty(cid)
     | distinct tostring(cid)
     | limit 1
 );
 database('ServiceLogs').table('clustersServiceLogs')
-| where timestamp between ({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
+| where timestamp between ({{.TimestampMin }} .. {{.TimestampMax }})
 | where cid == _cs_cluster_id
 | where log has 'state to' or log has 'now in' or log has 'provision step'
 | project timestamp, log.msg

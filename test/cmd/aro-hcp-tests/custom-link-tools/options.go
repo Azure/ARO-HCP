@@ -372,23 +372,35 @@ func (o Options) Run(ctx context.Context) error {
 
 			var links []LinkDetails
 
-			hcpQ, err := testFactory.BuildMergedCustomQuery("hostedControlPlaneLogs", templateData)
-			if err != nil {
-				return utils.TrackError(fmt.Errorf("failed to build hosted control plane query: %w", err))
+			customLinkQueries := []struct {
+				queryName       string
+				linkDisplayName string
+			}{
+				{
+					queryName:       "hostedControlPlaneLogs",
+					linkDisplayName: "Hosted Control Plane Logs",
+				},
+				{
+					queryName:       "detailedServiceLogs",
+					linkDisplayName: "Detailed Service Logs",
+				},
+				{
+					queryName:       "debugQueries",
+					linkDisplayName: "Debug Queries",
+				},
 			}
-			links = append(links, createLink("Hosted Control Plane Logs", hcpQ, o.Kusto))
 
-			detailedQ, err := testFactory.BuildMergedCustomQuery("detailedServiceLogs", templateData)
-			if err != nil {
-				return utils.TrackError(fmt.Errorf("failed to build detailed service logs query: %w", err))
+			for _, query := range customLinkQueries {
+				queryDef, err := testFactory.GetCustomQueryDefinition(query.queryName)
+				if err != nil {
+					return utils.TrackError(fmt.Errorf("failed to get %s query definition: %w", query.queryName, err))
+				}
+				q, err := testFactory.BuildMerged(*queryDef, templateData)
+				if err != nil {
+					return utils.TrackError(fmt.Errorf("failed to build %s query: %w", query.queryName, err))
+				}
+				links = append(links, createLink(query.linkDisplayName, q, o.Kusto))
 			}
-			links = append(links, createLink("Detailed Service Logs", detailedQ, o.Kusto))
-
-			debugQ, err := testFactory.BuildMergedCustomQuery("debugQueries", templateData)
-			if err != nil {
-				return utils.TrackError(fmt.Errorf("failed to build debug queries: %w", err))
-			}
-			links = append(links, createLink("Debug Queries", debugQ, o.Kusto))
 
 			allTestRows = append(allTestRows, TestRow{
 				TestName:          testName,
@@ -712,12 +724,18 @@ func getServiceLogLinks(logger logr.Logger, tw TimeWindow, svcClusterName, mgmtC
 		allLinks = append(allLinks, createLink(table, q, kustoInfo))
 	}
 
+	// Only include custom queries that are cluster-scoped (don't require ResourceGroupName)
 	svcTemplateData := kusto.NewTemplateDataFromOptions(svcOpts, kusto.WithClusterName(svcClusterName))
-	mergedCustomQueries, err := factory.BuildAllMergedCustomQueries(svcTemplateData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build custom queries: %w", err)
-	}
-	for _, q := range mergedCustomQueries {
+	clusterScopedCustomQueries := []string{"backendControllerConditions", "clustersServicePhases"}
+	for _, queryName := range clusterScopedCustomQueries {
+		def, err := factory.GetCustomQueryDefinition(queryName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get custom query definition %q: %w", queryName, err)
+		}
+		q, err := factory.BuildMerged(*def, svcTemplateData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build custom query %q: %w", queryName, err)
+		}
 		allLinks = append(allLinks, createLink(q.GetName(), q, kustoInfo))
 	}
 

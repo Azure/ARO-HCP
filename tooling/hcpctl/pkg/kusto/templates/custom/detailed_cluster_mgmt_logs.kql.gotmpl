@@ -1,13 +1,12 @@
-let _startTime = {{.TimestampMin | kqlDatetime}};
-let _endTime = {{.TimestampMax | kqlDatetime}};
-let _resource_group = {{.ResourceGroupName}};
+let _startTime = {{.TimestampMin }};
+let _endTime = {{.TimestampMax }};
 // Cluster Management Logs - Clusters Service and HostedCluster status
 union
     (
         // Clusters Service logs: OCM cluster management operations for this resource group
         database('ServiceLogs').table('clustersServiceLogs')
         | where timestamp between (_startTime .. _endTime)
-        | where resource_id has _resource_group
+        | where resource_id has '{{.ResourceGroupName}}'
         | project timestamp, container_name, msg, log
     ),
     (
@@ -15,7 +14,7 @@ union
         // Shows conditions like Available, Degraded, Progressing, ReconciliationSucceeded, etc.
         database('ServiceLogs').table('clustersServiceLogs')
         | where timestamp between (_startTime .. _endTime)
-        | where resource_id has _resource_group
+        | where resource_id has '{{.ResourceGroupName}}'
         | extend extracted=extract_all(@'{"name":"([A-Za-z0-9]+)-Message","fieldValue":{"type":"String","string":"([^"]+)"}}', dynamic([1,2]), tostring(msg))
         | mv-expand matches = extracted to typeof(dynamic)
         | extend status_name = tostring(matches[0])

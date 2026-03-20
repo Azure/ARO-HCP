@@ -245,7 +245,7 @@ func TestBuildMerged_MultipleChildren(t *testing.T) {
 	}
 
 	var detailedDef *QueryDefinition
-	for _, def := range f.CustomQueryDefinitions {
+	for _, def := range f.customQueryDefinitions {
 		if def.Name == "detailedServiceLogs" {
 			detailedDef = &def
 			break
@@ -258,65 +258,6 @@ func TestBuildMerged_MultipleChildren(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.CompareWithFixture(t, queryToFixture(q))
-}
-
-func TestBuildCustomQuery(t *testing.T) {
-	f, err := NewQueryFactory()
-	require.NoError(t, err)
-	opts := QueryOptions{
-		InfraClusterName: "test-cluster",
-		TimestampMin:     time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-		TimestampMax:     time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
-		Limit:            -1,
-	}
-	queries, err := f.BuildCustomQuery("backendControllerConditions", NewTemplateDataFromOptions(opts,
-		WithClusterNames([]string{"test-cluster"}),
-	))
-	require.NoError(t, err)
-	require.Len(t, queries, 1)
-
-	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
-}
-
-func TestBuildCustomQuery_NotFound(t *testing.T) {
-	f, err := NewQueryFactory()
-	require.NoError(t, err)
-	_, err = f.BuildCustomQuery("nonexistent", NewTemplateDataFromOptions(baseOptions()))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
-}
-
-func TestBuildCustomQuery_WithChildren(t *testing.T) {
-	f, err := NewQueryFactory()
-	require.NoError(t, err)
-	opts := QueryOptions{
-		ResourceGroupName: "test-rg",
-		TimestampMin:      time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-		TimestampMax:      time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
-		Limit:             -1,
-	}
-	queries, err := f.BuildCustomQuery("debugQueries", NewTemplateDataFromOptions(opts))
-	require.NoError(t, err)
-
-	testutil.CompareWithFixture(t, queriesToFixtures(queries))
-}
-
-func TestBuildAllCustomQueries(t *testing.T) {
-	f, err := NewQueryFactory()
-	require.NoError(t, err)
-	opts := QueryOptions{
-		InfraClusterName:  "test-cluster",
-		ResourceGroupName: "test-rg",
-		TimestampMin:      time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-		TimestampMax:      time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
-		Limit:             -1,
-	}
-	queries, err := f.BuildAllCustomQueries(NewTemplateDataFromOptions(opts,
-		WithClusterNames([]string{"test-cluster"}),
-	))
-	require.NoError(t, err)
-
-	testutil.CompareWithFixture(t, queriesToFixtures(queries))
 }
 
 func TestTemplateDataOptions(t *testing.T) {
@@ -349,9 +290,9 @@ func TestTemplateDataOptions_NoTruncation(t *testing.T) {
 func TestQueryDefinitions_TemplatePathsExist(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)
-	allDefs := make([]QueryDefinition, 0, len(f.BuiltinQueryDefinitions)+len(f.CustomQueryDefinitions))
-	allDefs = append(allDefs, f.BuiltinQueryDefinitions...)
-	allDefs = append(allDefs, f.CustomQueryDefinitions...)
+	allDefs := make([]QueryDefinition, 0, len(f.builtinQueryDefinitions)+len(f.customQueryDefinitions))
+	allDefs = append(allDefs, f.builtinQueryDefinitions...)
+	allDefs = append(allDefs, f.customQueryDefinitions...)
 
 	for _, def := range allDefs {
 		if def.TemplatePath != "" {
@@ -380,7 +321,7 @@ func TestQueryDefinitions_NoDanglingTemplates(t *testing.T) {
 	require.NoError(t, err)
 
 	referenced := make(map[string]bool)
-	for _, def := range f.BuiltinQueryDefinitions {
+	for _, def := range f.builtinQueryDefinitions {
 		if def.TemplatePath != "" {
 			referenced[def.TemplatePath] = true
 		}
@@ -388,7 +329,7 @@ func TestQueryDefinitions_NoDanglingTemplates(t *testing.T) {
 			referenced[child.TemplatePath] = true
 		}
 	}
-	for _, def := range f.CustomQueryDefinitions {
+	for _, def := range f.customQueryDefinitions {
 		if def.TemplatePath != "" {
 			referenced[def.TemplatePath] = true
 		}
@@ -407,7 +348,7 @@ func TestQueryDefinitions_NoDuplicateTemplatePaths(t *testing.T) {
 	require.NoError(t, err)
 
 	seen := make(map[string]bool)
-	for _, def := range f.BuiltinQueryDefinitions {
+	for _, def := range f.builtinQueryDefinitions {
 		if def.TemplatePath != "" {
 			if seen[def.TemplatePath] {
 				continue // multiple definitions may share a template
@@ -418,7 +359,7 @@ func TestQueryDefinitions_NoDuplicateTemplatePaths(t *testing.T) {
 			seen[child.TemplatePath] = true
 		}
 	}
-	for _, def := range f.CustomQueryDefinitions {
+	for _, def := range f.customQueryDefinitions {
 		if def.TemplatePath != "" {
 			seen[def.TemplatePath] = true
 		}

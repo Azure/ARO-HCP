@@ -2,8 +2,8 @@
 {{end -}}
 containerLogs
 | project timestamp, log, cluster, namespace_name, container_name
-| where timestamp between({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
-| where namespace_name has {{.ClusterId}}
+| where timestamp between({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where namespace_name has '{{.ClusterId}}'
 {{- if gt .Limit 0}}
 | limit {{.Limit}}
 {{- end}}

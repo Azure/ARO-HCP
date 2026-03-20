@@ -76,38 +76,36 @@ func (q *templateQuery) String() string {
 	return q.query.String()
 }
 
-// kqlEscStr escapes a string as a KQL string literal, wrapping it in single
-// quotes and doubling any internal single quotes.
-func kqlEscStr(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
-}
-
 // kqlEscStrList escapes each element of a string slice as a KQL string literal
 // and joins them with commas, suitable for use in has_any() or similar operators.
 func kqlEscStrList(items []string) string {
 	quoted := make([]string, len(items))
 	for i, item := range items {
-		quoted[i] = kqlEscStr(item)
+		quoted[i] = "'" + strings.ReplaceAll(item, "'", "''") + "'"
 	}
 	return strings.Join(quoted, ", ")
+}
+
+// kqlDatetime converts a time.Time to a KQL datetime string.
+func kqlDatetime(t time.Time) string {
+	return "datetime(" + t.UTC().Format("2006-01-02T15:04:05.0000000Z") + ")"
 }
 
 // TemplateData contains all values needed to render a KQL query template.
 // String values are pre-escaped as KQL literals (quoted with single quotes).
 type TemplateData struct {
-	Table              string    `kqlParameter:"table"`
-	NoTruncation       bool      `kqlParameter:"noTruncation"`
-	Limit              int       `kqlParameter:"limit"`
-	TimestampMin       time.Time `kqlParameter:"timestampMin"`
-	TimestampMax       time.Time `kqlParameter:"timestampMax"`
-	ClusterName        string    `kqlParameter:"clusterName"`
-	ClusterNames       string    `kqlParameter:"clusterNames"`
-	SubResourceGroupId string    `kqlParameter:"subResourceGroupId"`
-	ResourceGroupName  string    `kqlParameter:"resourceGroupName"`
-	ClusterId          string    `kqlParameter:"clusterId"`
-	ClusterIds         string    `kqlParameter:"clusterIds"`
-	HCPNamespacePrefix string    `kqlParameter:"hcpNamespacePrefix"`
-	ProjectFields      string    `kqlParameter:"projectFields"`
+	Table              string
+	NoTruncation       bool
+	Limit              int
+	TimestampMin       string
+	TimestampMax       string
+	ClusterName        string
+	ClusterNames       string
+	SubResourceGroupId string
+	ResourceGroupName  string
+	ClusterId          string
+	ClusterIds         string
+	HCPNamespacePrefix string
 }
 
 type TemplateDataOptions func(*TemplateData)
@@ -120,7 +118,7 @@ func WithTable(table string) TemplateDataOptions {
 
 func WithClusterId(clusterId string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.ClusterId = kqlEscStr(clusterId)
+		d.ClusterId = clusterId
 	}
 }
 
@@ -132,13 +130,13 @@ func WithClusterIds(clusterIds []string) TemplateDataOptions {
 
 func WithHCPNamespacePrefix(hcpNamespacePrefix string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.HCPNamespacePrefix = kqlEscStr(hcpNamespacePrefix)
+		d.HCPNamespacePrefix = hcpNamespacePrefix
 	}
 }
 
 func WithClusterName(clusterName string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.ClusterName = kqlEscStr(clusterName)
+		d.ClusterName = clusterName
 	}
 }
 
@@ -148,18 +146,30 @@ func WithClusterNames(clusterNames []string) TemplateDataOptions {
 	}
 }
 
+func WithTimestampMin(timestampMin time.Time) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.TimestampMin = kqlDatetime(timestampMin)
+	}
+}
+
+func WithTimestampMax(timestampMax time.Time) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.TimestampMax = kqlDatetime(timestampMax)
+	}
+}
+
 func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDataOptions) TemplateData {
 	templateData := TemplateData{
 		NoTruncation:       queryOptions.Limit < 0,
 		Limit:              max(queryOptions.Limit, 0),
-		TimestampMin:       queryOptions.TimestampMin,
-		TimestampMax:       queryOptions.TimestampMax,
-		SubResourceGroupId: kqlEscStr(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", queryOptions.SubscriptionId, queryOptions.ResourceGroupName)),
-		ResourceGroupName:  kqlEscStr(queryOptions.ResourceGroupName),
+		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", queryOptions.SubscriptionId, queryOptions.ResourceGroupName),
+		ResourceGroupName:  queryOptions.ResourceGroupName,
 	}
 	defaults := []TemplateDataOptions{
 		WithClusterName(queryOptions.InfraClusterName),
 		WithClusterNames([]string{queryOptions.InfraClusterName}),
+		WithTimestampMin(queryOptions.TimestampMin),
+		WithTimestampMax(queryOptions.TimestampMax),
 	}
 	for _, option := range append(defaults, options...) {
 		option(&templateData)
@@ -171,11 +181,11 @@ type TemplatingMode bool
 
 // QueryFactory creates Query instances from templates, binding parameters at creation time.
 type QueryFactory struct {
-	BuiltinQueryDefinitions []QueryDefinition
-	CustomQueryDefinitions  []QueryDefinition
+	builtinQueryDefinitions []QueryDefinition
+	customQueryDefinitions  []QueryDefinition
 }
 
-// NewQueryFactory creates a factory with all the shared query parameters.
+// NewQueryFactory creates a go templatized KQL query factory.
 func NewQueryFactory() (*QueryFactory, error) {
 	builtinQueryDefinitions, err := LoadBuiltinQueryDefinitions()
 	if err != nil {
@@ -186,14 +196,55 @@ func NewQueryFactory() (*QueryFactory, error) {
 		return nil, fmt.Errorf("failed to load custom query definitions: %w", err)
 	}
 	return &QueryFactory{
-		BuiltinQueryDefinitions: builtinQueryDefinitions,
-		CustomQueryDefinitions:  customQueryDefinitions,
+		builtinQueryDefinitions: builtinQueryDefinitions,
+		customQueryDefinitions:  customQueryDefinitions,
 	}, nil
+}
+
+func (f *QueryFactory) buildQuery(name, database, templateName string, queryType QueryType, data TemplateData, unlimited bool) (*templateQuery, error) {
+	templateString := GetTemplate(templateName)
+
+	builder := kql.New("")
+	var buf bytes.Buffer
+
+	tmplRegular, err := template.New("query-template").Parse(templateString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render template %q: %w", templateName, err)
+	}
+	err = tmplRegular.Execute(&buf, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render template %q: %w", templateName, err)
+	}
+
+	builder.AddUnsafe(buf.String())
+
+	return &templateQuery{
+		name:      name,
+		database:  database,
+		queryType: queryType,
+		query:     builder,
+		unlimited: unlimited,
+	}, nil
+}
+
+// GetAllCustomQueryDefinitions returns all custom query definitions.
+func (f *QueryFactory) GetAllCustomQueryDefinitions() []QueryDefinition {
+	return f.customQueryDefinitions
+}
+
+// GetCustomQueryDefinition returns the custom query definition with the given name.
+func (f *QueryFactory) GetCustomQueryDefinition(name string) (*QueryDefinition, error) {
+	for _, def := range f.customQueryDefinitions {
+		if def.Name == name {
+			return &def, nil
+		}
+	}
+	return nil, fmt.Errorf("custom query %q not found", name)
 }
 
 // GetBuiltinQueryDefinition returns the builtin query definition with the given name.
 func (f *QueryFactory) GetBuiltinQueryDefinition(name string) (*QueryDefinition, error) {
-	for _, def := range f.BuiltinQueryDefinitions {
+	for _, def := range f.builtinQueryDefinitions {
 		if def.Name == name {
 			return &def, nil
 		}
@@ -223,40 +274,6 @@ func (f *QueryFactory) Build(def QueryDefinition, templateData TemplateData) ([]
 	return []Query{q}, nil
 }
 
-// buildQuery builds a query from a template, binding parameters at creation time.
-// If unsafeTemplating is true, the Parameters are used as is, otherwise they are converted to KQL parameters to avoid injection.
-func (f *QueryFactory) buildQuery(name, database, templateName string, queryType QueryType, data TemplateData, unlimited bool) (*templateQuery, error) {
-	templateString := GetTemplate(templateName)
-
-	builder := kql.New("")
-	var buf bytes.Buffer
-
-	funcMap := template.FuncMap{
-		"kqlDatetime": func(t time.Time) string {
-			return "datetime(" + t.UTC().Format("2006-01-02T15:04:05.0000000Z") + ")"
-		},
-	}
-
-	tmplRegular, err := template.New("query-template").Funcs(funcMap).Parse(templateString)
-	if err != nil {
-		return nil, fmt.Errorf("failed to render template %q: %w", templateName, err)
-	}
-	err = tmplRegular.Execute(&buf, data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to render template %q: %w", templateName, err)
-	}
-
-	builder.AddUnsafe(buf.String())
-
-	return &templateQuery{
-		name:      name,
-		database:  database,
-		queryType: queryType,
-		query:     builder,
-		unlimited: unlimited,
-	}, nil
-}
-
 // BuildMerged constructs a single Query from a QueryDefinition by rendering all templates
 // and joining them with newlines. This is useful for generating a single Kusto deep-link
 // that contains multiple query statements.
@@ -280,52 +297,4 @@ func (f *QueryFactory) BuildMerged(def QueryDefinition, templateData TemplateDat
 		query:     merged,
 		unlimited: queries[0].IsUnlimited(),
 	}, nil
-}
-
-// BuildCustomQuery builds a single custom query by name, returning the built queries.
-func (f *QueryFactory) BuildCustomQuery(name string, templateData TemplateData) ([]Query, error) {
-	for _, def := range f.CustomQueryDefinitions {
-		if def.Name == name {
-			return f.Build(def, templateData)
-		}
-	}
-	return nil, fmt.Errorf("custom query %q not found", name)
-}
-
-// BuildAllCustomQueries loads all custom queries, returning a flat slice of built queries.
-func (f *QueryFactory) BuildAllCustomQueries(templateData TemplateData) ([]Query, error) {
-	var queries []Query
-	for _, def := range f.CustomQueryDefinitions {
-		qs, err := f.Build(def, templateData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build custom query %q: %w", def.Name, err)
-		}
-		queries = append(queries, qs...)
-	}
-	return queries, nil
-}
-
-// BuildMergedCustomQuery builds a single custom query by name and merges all its
-// templates into a single Query.
-func (f *QueryFactory) BuildMergedCustomQuery(name string, templateData TemplateData) (Query, error) {
-	for _, def := range f.CustomQueryDefinitions {
-		if def.Name == name {
-			return f.BuildMerged(def, templateData)
-		}
-	}
-	return nil, fmt.Errorf("custom query %q not found", name)
-}
-
-// BuildAllMergedCustomQueries builds all custom queries, merging each definition's templates
-// into a single Query per definition.
-func (f *QueryFactory) BuildAllMergedCustomQueries(templateData TemplateData) ([]Query, error) {
-	var queries []Query
-	for _, def := range f.CustomQueryDefinitions {
-		q, err := f.BuildMerged(def, templateData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build custom query %q: %w", def.Name, err)
-		}
-		queries = append(queries, q)
-	}
-	return queries, nil
 }

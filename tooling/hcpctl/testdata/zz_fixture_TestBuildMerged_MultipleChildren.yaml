@@ -2,12 +2,11 @@ database: ServiceLogs
 kql: |-
   let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
   let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
-  let _resource_group = 'test-rg';
   // Extract cluster resource ID from frontend logs
   let cluster_resource_id = (
       database('ServiceLogs').table('frontendLogs')
       | where timestamp between (_startTime .. _endTime)
-      | where resource_group == _resource_group
+      | where resource_group == 'test-rg'
       | where msg has 'creating resource'
       | extend resource_id = extract(@"creating resource ([A-Za-z0-9\-\.\/]+)", 1, tostring(log))
       | distinct tostring(resource_id)
@@ -19,7 +18,7 @@ kql: |-
           // Frontend logs: ARO HCP frontend API operations for this resource group
           database('ServiceLogs').table('frontendLogs')
           | where timestamp between (_startTime .. _endTime)
-          | where resource_group == _resource_group
+          | where resource_group == 'test-rg'
           | project timestamp, container_name, msg, log
       ),
       (
@@ -33,14 +32,13 @@ kql: |-
 
   let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
   let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
-  let _resource_group = 'test-rg';
   // Cluster Management Logs - Clusters Service and HostedCluster status
   union
       (
           // Clusters Service logs: OCM cluster management operations for this resource group
           database('ServiceLogs').table('clustersServiceLogs')
           | where timestamp between (_startTime .. _endTime)
-          | where resource_id has _resource_group
+          | where resource_id has 'test-rg'
           | project timestamp, container_name, msg, log
       ),
       (
@@ -48,7 +46,7 @@ kql: |-
           // Shows conditions like Available, Degraded, Progressing, ReconciliationSucceeded, etc.
           database('ServiceLogs').table('clustersServiceLogs')
           | where timestamp between (_startTime .. _endTime)
-          | where resource_id has _resource_group
+          | where resource_id has 'test-rg'
           | extend extracted=extract_all(@'{"name":"([A-Za-z0-9]+)-Message","fieldValue":{"type":"String","string":"([^"]+)"}}', dynamic([1,2]), tostring(msg))
           | mv-expand matches = extracted to typeof(dynamic)
           | extend status_name = tostring(matches[0])
@@ -61,12 +59,11 @@ kql: |-
 
   let _startTime = datetime(2025-01-01T00:00:00.0000000Z);
   let _endTime = datetime(2025-01-02T00:00:00.0000000Z);
-  let _resource_group = 'test-rg';
   // Extract cluster ID from CS logs using cid field
   let cluster_id = toscalar(
       database('ServiceLogs').table('clustersServiceLogs')
       | where timestamp between (_startTime .. _endTime)
-      | where resource_id has _resource_group
+      | where resource_id has 'test-rg'
       | where isnotempty(log.cid)
       | distinct tostring(log.cid)
       | limit 1

@@ -250,19 +250,3 @@
     | order by timestamp asc
   name: detailedInfraOrchestrationLogs
   unlimited: true
-- database: HostedControlPlaneLogs
-  kql: |
-    let _startTime = "datetime(2025-01-01T00:00:00.0000000Z)";
-    let _endTime = "datetime(2025-01-02T00:00:00.0000000Z)";
-    let _resource_group = 'test-rg';
-    let cid = (database('ServiceLogs').table('clustersServiceLogs')
-    | where timestamp between (_startTime .. _endTime)
-    | where resource_id has _resource_group
-    | where strlen( cid) > 0
-    | distinct cid);
-    database('HostedControlPlaneLogs').table('containerLogs')
-    | where timestamp between (_startTime .. _endTime)
-    | where namespace_name has_any (cid)
-    | project timestamp, log
-  name: hostedControlPlaneLogs
-  unlimited: true

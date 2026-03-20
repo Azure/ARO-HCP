@@ -1,5 +1,5 @@
-let _startTime = {{.TimestampMin | kqlDatetime}};
-let _endTime = {{.TimestampMax | kqlDatetime}};
+let _startTime = {{.TimestampMin }};
+let _endTime = {{.TimestampMax }};
 database('ServiceLogs').table('backendLogs')
 | where timestamp between (_startTime .. _endTime)
 | where cluster has_any ({{.ClusterNames}})

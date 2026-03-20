@@ -401,10 +401,18 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	}
 	logger.V(1).Info("Obtained following clusterNames", "clusterNames", strings.Join(clusterNames, ", "))
 
-	customQueries, err := queryFactory.BuildAllCustomQueries(kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterNames(clusterNames)))
-	if err != nil {
-		return fmt.Errorf("failed to build custom logs query: %w", err)
+	var customQueries []kusto.Query
+	customQueryDefinitions := queryFactory.GetAllCustomQueryDefinitions()
+	for _, def := range customQueryDefinitions {
+		if def.IncludeInMustGather {
+			q, err := queryFactory.Build(def, kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithClusterNames(clusterNames)))
+			if err != nil {
+				return fmt.Errorf("failed to build custom query %q: %w", def.Name, err)
+			}
+			customQueries = append(customQueries, q...)
+		}
 	}
+
 	if err := g.queryAndWriteToFile(ctx, customQueries); err != nil {
 		gatherErrors = errors.Join(gatherErrors, fmt.Errorf("failed to execute custom logs query: %w", err))
 	}

@@ -411,10 +411,10 @@ func TestConvertRows(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		cols      []colDef
-		vals      value.Values
-		assertFn  func(t *testing.T, result *NormalizedLogLine)
+		name     string
+		cols     []colDef
+		vals     value.Values
+		assertFn func(t *testing.T, result *NormalizedLogLine)
 	}{
 		{
 			name: "string columns",

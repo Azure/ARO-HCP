@@ -5,15 +5,15 @@
 // events for the Pods that make up the HostedCluster.
 let _cs_cluster_id = toscalar(
     database('ServiceLogs').table('clustersServiceLogs')
-    | where timestamp between ({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
-    | where resource_id has {{.ResourceGroupName}}
+    | where timestamp between ({{.TimestampMin }} .. {{.TimestampMax }})
+    | where resource_id has '{{.ResourceGroupName}}'
     | where isnotempty(cid)
     | distinct tostring(cid)
     | limit 1
 );
 database('ServiceLogs').table('clustersServiceLogs')
-| where timestamp between ({{.TimestampMin | kqlDatetime}} .. {{.TimestampMax | kqlDatetime}})
-| where resource_id has {{.ResourceGroupName}}
+| where timestamp between ({{.TimestampMin }} .. {{.TimestampMax }})
+| where resource_id has '{{.ResourceGroupName}}'
 | where msg has 'ManifestWork for cluster'
 | extend manifest_work = parse_json(replace_string(tostring(msg), strcat("ManifestWork for cluster '",_cs_cluster_id, "': "), ""))
 | mv-expand manifest = manifest_work.status.resourceStatus.manifests
