@@ -19,24 +19,15 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
-
-	utilsclock "k8s.io/utils/clock"
-	"k8s.io/utils/ptr"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationClusterCreate struct {
-	clock                utilsclock.PassiveClock
-	azureLocation        string
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
@@ -44,14 +35,11 @@ type operationClusterCreate struct {
 
 // NewOperationClusterCreateSynchronizer periodically lists all clusters and for each out when the cluster was created and its state.
 func NewOperationClusterCreateSynchronizer(
-	azureLocation string,
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 ) OperationSynchronizer {
 	c := &operationClusterCreate{
-		clock:                utilsclock.RealClock{},
-		azureLocation:        azureLocation,
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
@@ -99,63 +87,11 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 	logger.Info("new status", "newStatus", newOperationStatus)
 
-	// Create a Cosmos DB billing document if a Create operation is successful.
-	// Do this before calling updateOperationStatus so that in case of error the
-	// backend will retry by virtue of the operation document still having a non-
-	// terminal status.
-	if newOperationStatus == arm.ProvisioningStateSucceeded {
-		cluster, err := c.cosmosClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-
-		// we use fallback time when the createdAt time is missing.  it never overcharges, but it's not always accurate.
-		fallbackTime := c.clock.Now()
-		logger.Info("creating billing")
-		err = c.createBillingDocument(
-			ctx,
-			operation.ExternalID.ResourceGroupName,
-			ptr.Deref(cluster.SystemData.CreatedAt, fallbackTime),
-			operation)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-
-	}
-
 	logger.Info("updating status")
 	err = UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	return nil
-}
-
-// createBillingDocument creates a Cosmos DB document in the Billing
-// container for a newly-created cluster.
-func (c *operationClusterCreate) createBillingDocument(ctx context.Context, resourceGroupName string, clusterCreationTime time.Time, op *api.Operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	if clusterCreationTime.IsZero() {
-		return fmt.Errorf("cluster creation time is zero")
-	}
-
-	doc := database.NewBillingDocument(op.ExternalID)
-	doc.CreationTime = clusterCreationTime
-	doc.Location = c.azureLocation
-	doc.TenantID = op.TenantID
-	doc.ManagedResourceGroup = fmt.Sprintf(
-		"/%s/%s/%s/%s",
-		azcorearm.SubscriptionResourceType.Type,
-		doc.SubscriptionID,
-		azcorearm.ResourceGroupResourceType.Type,
-		resourceGroupName)
-
-	if err := c.cosmosClient.CreateBillingDoc(ctx, doc); err != nil {
-		return utils.TrackError(err)
-	}
-
-	logger.Info("Updated billing for cluster creation")
 	return nil
 }

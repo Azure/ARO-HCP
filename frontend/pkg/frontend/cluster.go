@@ -325,6 +325,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
+	admission.MutateClusterCreate(newInternalCluster)
 	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
