@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/provisioningconditions"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -198,10 +199,9 @@ func getClusterForUpdate(ctx context.Context, logger logr.Logger, dbClient datab
 
 	updated := curr.DeepCopy()
 	updated.ServiceProviderProperties.ProvisioningState = newOperationStatus
-	// Seed the initial phase entry time from the operation's StartTime if
-	// conditions haven't been written yet (first backend reconcile).
-	api.SeedProvisioningCondition(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
-	api.SetProvisioningCondition(&updated.Status.Conditions, newOperationStatus)
+	clearConditionsIfNewOperation(&updated.Status.Conditions, existingOperation)
+	provisioningconditions.Seed(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
+	provisioningconditions.Set(&updated.Status.Conditions, newOperationStatus, localClock.Now().UTC())
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
@@ -236,8 +236,9 @@ func getNodePoolForUpdate(ctx context.Context, logger logr.Logger, dbClient data
 
 	updated := curr.DeepCopy()
 	updated.Properties.ProvisioningState = newOperationStatus
-	api.SeedProvisioningCondition(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
-	api.SetProvisioningCondition(&updated.Status.Conditions, newOperationStatus)
+	clearConditionsIfNewOperation(&updated.Status.Conditions, existingOperation)
+	provisioningconditions.Seed(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
+	provisioningconditions.Set(&updated.Status.Conditions, newOperationStatus, localClock.Now().UTC())
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
@@ -272,12 +273,28 @@ func getExternalAuthForUpdate(ctx context.Context, logger logr.Logger, dbClient 
 
 	updated := curr.DeepCopy()
 	updated.Properties.ProvisioningState = newOperationStatus
-	api.SeedProvisioningCondition(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
-	api.SetProvisioningCondition(&updated.Status.Conditions, newOperationStatus)
+	clearConditionsIfNewOperation(&updated.Status.Conditions, existingOperation)
+	provisioningconditions.Seed(&updated.Status.Conditions, initialProvisioningState(existingOperation), existingOperation.StartTime)
+	provisioningconditions.Set(&updated.Status.Conditions, newOperationStatus, localClock.Now().UTC())
 	if newOperationStatus.IsTerminal() {
 		updated.ServiceProviderProperties.ActiveOperationID = ""
 	}
 	return updated, nil
+}
+
+// clearConditionsIfNewOperation clears status conditions when a new operation
+// takes ownership of the resource, so timestamps reflect the current operation's
+// lifecycle rather than a prior one. It detects a new operation by checking
+// whether the initial phase condition's timestamp matches the operation's
+// StartTime. If they match, this operation already seeded the conditions.
+func clearConditionsIfNewOperation(conditions *[]api.Condition, op *api.Operation) {
+	initialState := string(initialProvisioningState(op))
+	for _, c := range *conditions {
+		if c.Type == initialState && c.LastTransitionTime.Equal(op.StartTime) {
+			return
+		}
+	}
+	*conditions = nil
 }
 
 // initialProvisioningState returns the provisioning state that the operation

@@ -762,6 +762,7 @@ func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, intern
 	mergedOldClusterServiceNodePool.Tags = maps.Clone(internalNodePool.Tags)
 	mergedOldClusterServiceNodePool.Properties.ProvisioningState = internalNodePool.Properties.ProvisioningState
 	mergedOldClusterServiceNodePool.ServiceProviderProperties = *internalNodePool.ServiceProviderProperties.DeepCopy()
+	mergedOldClusterServiceNodePool.Status = *internalNodePool.Status.DeepCopy()
 
 	return mergedOldClusterServiceNodePool, nil
 }

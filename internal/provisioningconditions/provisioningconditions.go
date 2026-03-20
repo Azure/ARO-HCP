@@ -12,60 +12,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package api
+package provisioningconditions
 
 import (
 	"time"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-// SeedProvisioningCondition adds an initial condition entry with a specific
-// timestamp. This is used by the backend to record the initial phase entry
-// time from the operation's StartTime, since the frontend does not write
-// conditions.
-func SeedProvisioningCondition(conditions *[]Condition, state arm.ProvisioningState, timestamp time.Time) {
+// Seed adds an initial condition entry with a specific timestamp. This is
+// used by the backend to record the initial phase entry time from the
+// operation's StartTime, since the frontend does not write conditions.
+// If a condition with the given state already exists, it is not modified.
+func Seed(conditions *[]api.Condition, state arm.ProvisioningState, timestamp time.Time) {
 	stateStr := string(state)
 	for _, c := range *conditions {
 		if c.Type == stateStr {
 			return
 		}
 	}
-	*conditions = append(*conditions, Condition{
+	*conditions = append(*conditions, api.Condition{
 		Type:               stateStr,
-		Status:             ConditionTrue,
+		Status:             api.ConditionTrue,
 		LastTransitionTime: timestamp,
 		Reason:             stateStr,
 	})
 }
 
-// SetProvisioningCondition updates the provisioning conditions to reflect a
-// state transition. The new state is set to ConditionTrue, and all other
-// states are set to ConditionFalse. LastTransitionTime records when the
-// resource entered each phase and is preserved when the condition is set
-// to False, so duration calculations like provisioned_time - accepted_time
-// use the correct entry timestamps.
-func SetProvisioningCondition(conditions *[]Condition, state arm.ProvisioningState) {
-	now := time.Now().UTC()
+// Set updates the provisioning conditions to reflect a state transition.
+// The new state is set to ConditionTrue, and all other states are set to
+// ConditionFalse. LastTransitionTime records when the resource entered
+// each phase and is preserved when the condition is set to False, so
+// duration calculations like provisioned_time - accepted_time use the
+// correct entry timestamps.
+func Set(conditions *[]api.Condition, state arm.ProvisioningState, now time.Time) {
 	stateStr := string(state)
 
 	// Set the new state to True.
 	found := false
 	for i := range *conditions {
 		if (*conditions)[i].Type == stateStr {
-			if (*conditions)[i].Status != ConditionTrue {
+			if (*conditions)[i].Status != api.ConditionTrue {
 				(*conditions)[i].LastTransitionTime = now
 			}
-			(*conditions)[i].Status = ConditionTrue
+			(*conditions)[i].Status = api.ConditionTrue
 			(*conditions)[i].Reason = stateStr
 			found = true
 			break
 		}
 	}
 	if !found {
-		*conditions = append(*conditions, Condition{
+		*conditions = append(*conditions, api.Condition{
 			Type:               stateStr,
-			Status:             ConditionTrue,
+			Status:             api.ConditionTrue,
 			LastTransitionTime: now,
 			Reason:             stateStr,
 		})
@@ -75,7 +75,7 @@ func SetProvisioningCondition(conditions *[]Condition, state arm.ProvisioningSta
 	// LastTransitionTime so it records "when the resource entered this phase."
 	for i := range *conditions {
 		if (*conditions)[i].Type != stateStr {
-			(*conditions)[i].Status = ConditionFalse
+			(*conditions)[i].Status = api.ConditionFalse
 		}
 	}
 }
