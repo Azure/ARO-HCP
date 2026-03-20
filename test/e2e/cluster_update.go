@@ -79,7 +79,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					45*time.Minute,
+					framework.ClusterCreationTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-name test")
 
@@ -155,7 +155,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					45*time.Minute,
+					framework.ClusterCreationTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-tags test")
 
