@@ -93,5 +93,10 @@ var _ = Describe("Engineering", func() {
 				return verifiers.VerifyMustGatherLogs(subscriptionID, *resourceGroup.Name).Verify(ctx)
 			}, 10*time.Minute, 60*time.Second).Should(Succeed())
 
+			By("verifying must-gather CLI works")
+			Eventually(func() error {
+				return verifiers.VerifyMustGatherCLI(subscriptionID, *resourceGroup.Name).Verify(ctx)
+			}, 10*time.Minute, 60*time.Second).Should(Succeed())
+
 		})
 })
