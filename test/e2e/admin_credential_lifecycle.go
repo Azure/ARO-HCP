@@ -194,8 +194,7 @@ var _ = Describe("Customer", func() {
 			By("revoking all cluster admin credentials via ARO HCP RP API")
 			err = tc.RevokeCredentialsAndWait(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
 			if err != nil && skipSuite {
-				By("skipping revocation and remaining steps in integration/parallel suite")
-				return
+				Skip("skipping revocation and remaining steps in integration/parallel suite")
 			}
 			Expect(err).NotTo(HaveOccurred())
 
@@ -227,8 +226,7 @@ var _ = Describe("Customer", func() {
 					return true, nil
 				})
 				if err != nil && skipSuite {
-					By("skipping remaining steps in integration/parallel suite")
-					return
+					Skip("skipping remaining steps in integration/parallel suite")
 				}
 				Expect(err).NotTo(HaveOccurred(), "Admin credential %d should fail after revocation, last error: %v", i+1, lastError)
 			}
