@@ -76,6 +76,16 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 	return internalObj, nil
 }
 
+func getByItemIDWithMetrics[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, cosmosID string, resourceType string) (*InternalAPIType, error) {
+	DatabaseOperationTotal.WithLabelValues(operationLabelGet, resourceType).Inc()
+	result, err := getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, cosmosID)
+	if err != nil {
+		DatabaseErrorTotal.WithLabelValues(operationLabelGet, resourceType).Inc()
+		return nil, err
+	}
+	return result, nil
+}
+
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -128,6 +138,17 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	}
 
 	return getByItemID[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newExactCosmosID)
+}
+
+func getWithMetrics[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
+	resourceType := getResourceTypeFromResourceID(completeResourceID)
+	DatabaseOperationTotal.WithLabelValues(operationLabelGet, resourceType).Inc()
+	result, err := get[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, completeResourceID)
+	if err != nil {
+		DatabaseErrorTotal.WithLabelValues(operationLabelGet, resourceType).Inc()
+		return nil, err
+	}
+	return result, nil
 }
 
 func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive bool) (DBClientIterator[InternalAPIType], error) {
@@ -209,6 +230,20 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	}
 }
 
+func listWithMetrics[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions, untypedNonRecursive bool) (DBClientIterator[InternalAPIType], error) {
+	resourceTypeStr := "unknown"
+	if resourceType != nil {
+		resourceTypeStr = resourceType.String()
+	}
+	DatabaseOperationTotal.WithLabelValues(operationLabelList, resourceTypeStr).Inc()
+	result, err := list[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, resourceType, prefix, options, untypedNonRecursive)
+	if err != nil {
+		DatabaseErrorTotal.WithLabelValues(operationLabelList, resourceTypeStr).Inc()
+		return nil, err
+	}
+	return result, nil
+}
+
 // serializeItem will create a CosmosUID if it doesn't exist, otherwise uses what exists.  This makes it compatible with
 // create, replace, and create
 func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*arm.CosmosMetadata, []byte, error) {
@@ -240,6 +275,29 @@ func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) 
 	return cosmosData, data, nil
 }
 
+// getResourceTypeFromObj extracts the resource type string from an object that implements CosmosPersistable.
+// Returns "unknown" if the resource type cannot be determined.
+func getResourceTypeFromObj[InternalAPIType any](obj *InternalAPIType) string {
+	cosmosPersistable, ok := any(obj).(arm.CosmosPersistable)
+	if !ok {
+		return "unknown"
+	}
+	cosmosData := cosmosPersistable.GetCosmosData()
+	if cosmosData == nil || cosmosData.ResourceID == nil {
+		return "unknown"
+	}
+	return cosmosData.ResourceID.ResourceType.String()
+}
+
+// getResourceTypeFromResourceID extracts the resource type string from a ResourceID.
+// Returns "unknown" if the resource type cannot be determined.
+func getResourceTypeFromResourceID(resourceID *azcorearm.ResourceID) string {
+	if resourceID == nil {
+		return "unknown"
+	}
+	return resourceID.ResourceType.String()
+}
+
 func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	partitionKeyString := transaction.GetPartitionKey()
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
@@ -268,6 +326,17 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	)
 
 	return cosmosMetadata.GetCosmosUID(), nil
+}
+
+func addCreateToTransactionWithMetrics[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	resourceType := getResourceTypeFromObj(newObj)
+	DatabaseTransactionOperationTotal.WithLabelValues(operationLabelCreate, resourceType).Inc()
+	cosmosUID, err := addCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
+	if err != nil {
+		DatabaseErrorTotal.WithLabelValues(operationLabelCreate, resourceType).Inc()
+		return "", err
+	}
+	return cosmosUID, nil
 }
 
 func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
@@ -318,6 +387,17 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 	return cosmosMetadata.GetCosmosUID(), nil
 }
 
+func addReplaceToTransactionWithMetrics[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	resourceType := getResourceTypeFromObj(newObj)
+	DatabaseTransactionOperationTotal.WithLabelValues(operationLabelReplace, resourceType).Inc()
+	cosmosUID, err := addReplaceToTransaction[InternalAPIType, CosmosAPIType](ctx, containerClient, transaction, newObj, opts)
+	if err != nil {
+		DatabaseErrorTotal.WithLabelValues(operationLabelReplace, resourceType).Inc()
+		return "", err
+	}
+	return cosmosUID, nil
+}
+
 func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
@@ -350,6 +430,17 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 	}
 
 	return internalObj, nil
+}
+
+func createWithMetrics[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	resourceType := getResourceTypeFromObj(newObj)
+	DatabaseOperationTotal.WithLabelValues(operationLabelCreate, resourceType).Inc()
+	result, err := create[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newObj, opts)
+	if err != nil {
+		DatabaseErrorTotal.WithLabelValues(operationLabelCreate, resourceType).Inc()
+		return nil, err
+	}
+	return result, nil
 }
 
 func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
@@ -399,6 +490,17 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 	return internalObj, nil
 }
 
+func replaceWithMetrics[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	resourceType := getResourceTypeFromObj(newObj)
+	DatabaseOperationTotal.WithLabelValues(operationLabelReplace, resourceType).Inc()
+	result, err := replace[InternalAPIType, CosmosAPIType](ctx, containerClient, partitionKeyString, newObj, opts)
+	if err != nil {
+		DatabaseErrorTotal.WithLabelValues(operationLabelReplace, resourceType).Inc()
+		return nil, err
+	}
+	return result, nil
+}
+
 func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
 	typedObj, err := get[TypedDocument, TypedDocument](ctx, containerClient, partitionKeyString, resourceID)
 	if IsResponseError(err, http.StatusNotFound) {
@@ -411,6 +513,17 @@ func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClie
 	_, err = containerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKeyString), typedObj.ID, nil)
 	if err != nil {
 		return utils.TrackError(err)
+	}
+	return nil
+}
+
+func deleteResourceWithMetrics(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
+	resourceType := getResourceTypeFromResourceID(resourceID)
+	DatabaseOperationTotal.WithLabelValues(operationLabelDelete, resourceType).Inc()
+	err := deleteResource(ctx, containerClient, partitionKeyString, resourceID)
+	if err != nil {
+		DatabaseErrorTotal.WithLabelValues(operationLabelDelete, resourceType).Inc()
+		return err
 	}
 	return nil
 }
