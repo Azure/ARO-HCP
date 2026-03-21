@@ -925,6 +925,45 @@ func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context
 	return selected, nil
 }
 
+// LocationHasAvailabilityZones checks if the given VM SKU has availability zones
+// in the current test location by querying the Azure Resource SKUs API.
+func (tc *perItOrDescribeTestContext) LocationHasAvailabilityZones(ctx context.Context, vmSize string) (bool, error) {
+	clientFactory, err := tc.GetARMComputeClientFactory(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get ARM compute client factory: %w", err)
+	}
+
+	location := tc.Location()
+	skuClient := clientFactory.NewResourceSKUsClient()
+	filter := fmt.Sprintf("location eq '%s'", location)
+	pager := skuClient.NewListPager(&armcompute.ResourceSKUsClientListOptions{
+		Filter: &filter,
+	})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return false, fmt.Errorf("failed to list resource SKUs in %s: %w", location, err)
+		}
+		for _, sku := range page.Value {
+			if sku.Name == nil || *sku.Name != vmSize {
+				continue
+			}
+			if sku.ResourceType == nil || *sku.ResourceType != "virtualMachines" {
+				continue
+			}
+			for _, locationInfo := range sku.LocationInfo {
+				if locationInfo.Location == nil || !strings.EqualFold(*locationInfo.Location, location) {
+					continue
+				}
+				if len(locationInfo.Zones) > 0 {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
 func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {
 	tc.contextLock.Lock()
 	if len(tc.subscriptionID) > 0 {
