@@ -34,7 +34,6 @@ var customerKeyVaultName string = 'cust-kv-${randomSuffix}'
 
 var addressPrefix = '10.0.0.0/16'
 var subnetPrefix = '10.0.0.0/24'
-var vnetIntegrationSubnetPrefix = '10.0.1.0/24'
 
 resource customerNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
   name: customerNsgName
@@ -64,12 +63,6 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
           networkSecurityGroup: {
             id: customerNsg.id
           }
-        }
-      }
-      {
-        name: 'customer-vnet-integration-subnet'
-        properties: {
-          addressPrefix: vnetIntegrationSubnetPrefix
         }
       }
     ]
@@ -127,9 +120,6 @@ output nsgID string = customerNsg.id
 
 @description('Customer VNet Subnet Resource ID')
 output vnetSubnetID string = '${customerVnet.id}/subnets/${customerVnetSubnetName}'
-
-@description('Customer VNet Integration Subnet Resource ID')
-output vnetIntegrationSubnetID string = '${customerVnet.id}/subnets/customer-vnet-integration-subnet'
 
 @description('The version of the etcd encryption key')
 output etcdEncryptionKeyVersion string = last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))

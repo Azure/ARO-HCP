@@ -69,7 +69,7 @@ type ClusterAutoscalingProfile struct {
 	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxPodGracePeriodSeconds *int32
 
-	// podPriorityThreshold enables users to schedule "best-effort" pods, which shouldn't trigger autoscaler actions, but only
+	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -84,7 +84,7 @@ type ClusterImageRegistryProfile struct {
 	// creation and cannot be changed after cluster creation. Enabled means the
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
-	State *ClusterImageRegistryState
+	State *ClusterImageRegistryProfileState
 }
 
 // ConsoleProfile - Configuration of the cluster web console
@@ -547,34 +547,10 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 // ImageDigestMirror specifies a set of mirror registries to redirect image pulls targeting the specified source registries.
 type ImageDigestMirror struct {
-	// REQUIRED; mirrors is zero or more locations that may also contain the same images. No mirror will be configured if not
-	// specified. Images can be pulled from these mirrors only if they are referenced by their
-	// digests. The mirrored location is obtained by replacing the part of the input reference that matches source by the mirrors
-	// entry, e.g. for registry.redhat.io/product/repo reference, a (source, mirror)
-	// pair *.redhat.io, mirror.local/redhat causes a mirror.local/redhat/product/repo repository to be used.
-	// The order of mirrors in this list is treated as the user's desired priority, while source is by default considered lower
-	// priority than all mirrors.
-	// If no mirror is specified or all image pulls from the mirror list fail, the image will continue to be pulled from the repository
-	// in the pull spec.
-	// Other cluster configuration, including (but not limited to) other imageDigestMirrors objects, may impact the exact order
-	// mirrors are contacted in, or some mirrors may be contacted in parallel, so this
-	// should be considered a preference rather than a guarantee of ordering.
-	// mirrors uses one of the following formats:
-	// * host[:port]
-	// * host[:port]/namespace[/namespace…]
-	// * host[:port]/namespace[/namespace…]/repo
-	// for more information about the format, see: https://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table
+	// REQUIRED; Mirrors are one or more image repositories that may also contain the same images.
 	Mirrors []*string
 
-	// REQUIRED; source matches the repository that users refer to, e.g. in image pull specifications. Setting source to a registry
-	// hostname, e.g. docker.io, quay.io, or registry.redhat.io, will match the image pull
-	// specification of the corresponding registry.
-	// source uses one of the following formats:
-	// * host[:port]
-	// * host[:port]/namespace[/namespace…]
-	// * host[:port]/namespace[/namespace…]/repo
-	// * [*.]host
-	// for more information about the format, see: https://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table
+	// REQUIRED; Source is the image repository that users refer to, e.g. in image pull specifications.
 	Source *string
 }
 
@@ -585,9 +561,6 @@ type KmsEncryptionProfile struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey
 
-	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
-	VaultName *string
-
 	// REQUIRED; visibility of the keyvault that contains the secret.
 	Visibility *KeyVaultVisibility
 }
@@ -596,6 +569,9 @@ type KmsEncryptionProfile struct {
 type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
+
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
+	VaultName *string
 
 	// REQUIRED; version contains the version of the key to use.
 	Version *string

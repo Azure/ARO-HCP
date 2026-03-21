@@ -18,24 +18,22 @@ func PossibleActionTypeValues() []ActionType {
 	}
 }
 
-// ClusterImageRegistryState - state indicates the desired ImageStream-backed cluster image registry installation mode. This
-// can only be set during cluster creation and cannot be changed after cluster creation. Enabled means the
+// ClusterImageRegistryProfileState - state indicates the desired ImageStream-backed cluster image registry installation mode.
+// This can only be set during cluster creation and cannot be changed after cluster creation. Enabled means the
 // ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 // image registry will not be present in the cluster. The default is Enabled.
-type ClusterImageRegistryState string
+type ClusterImageRegistryProfileState string
 
 const (
-	// ClusterImageRegistryStateDisabled - The ImageStream-backed image registry will not be present in the cluster
-	ClusterImageRegistryStateDisabled ClusterImageRegistryState = "Disabled"
-	// ClusterImageRegistryStateEnabled - The ImageStream-backed image registry will be run as pods on worker nodes
-	ClusterImageRegistryStateEnabled ClusterImageRegistryState = "Enabled"
+	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
+	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
 )
 
-// PossibleClusterImageRegistryStateValues returns the possible values for the ClusterImageRegistryState const type.
-func PossibleClusterImageRegistryStateValues() []ClusterImageRegistryState {
-	return []ClusterImageRegistryState{
-		ClusterImageRegistryStateDisabled,
-		ClusterImageRegistryStateEnabled,
+// PossibleClusterImageRegistryProfileStateValues returns the possible values for the ClusterImageRegistryProfileState const type.
+func PossibleClusterImageRegistryProfileStateValues() []ClusterImageRegistryProfileState {
+	return []ClusterImageRegistryProfileState{
+		ClusterImageRegistryProfileStateDisabled,
+		ClusterImageRegistryProfileStateEnabled,
 	}
 }
 

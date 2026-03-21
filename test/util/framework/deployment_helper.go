@@ -29,8 +29,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func GetOutputValueString(deploymentInfo *armresources.DeploymentExtended, outputName string) (string, error) {
@@ -347,49 +345,6 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 		ctx,
 		logger,
 		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-		resourceGroupName,
-		clusterName,
-		cluster,
-		timeout,
-	); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
-		}
-		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
-	}
-	return nil
-}
-
-func (tc *perItOrDescribeTestContext) CreateHCPCluster20251223FromParam(
-	ctx context.Context,
-	logger logr.Logger,
-	resourceGroupName string,
-	parameters ClusterParams,
-	imageDigestMirrors []*hcpsdk20251223preview.ImageDigestMirror,
-	timeout time.Duration,
-) error {
-	if timeout > 0*time.Second {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20251223FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
-		defer cancel()
-	}
-	clusterName := parameters.ClusterName
-
-	startTime := time.Now()
-	defer func() {
-		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20251223preview)", resourceGroupName, clusterName), startTime, finishTime)
-	}()
-
-	cluster, err := BuildHCPCluster20251223FromParams(parameters, tc.Location(), imageDigestMirrors)
-	if err != nil {
-		return fmt.Errorf("failed to build HCP cluster %s: %w", clusterName, err)
-	}
-
-	if _, err := CreateHCPCluster20251223AndWait(
-		ctx,
-		logger,
-		tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 		resourceGroupName,
 		clusterName,
 		cluster,
