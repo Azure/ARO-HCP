@@ -42,7 +42,7 @@ forwarder:
       clusterLogsSecretName: "{{ .geneva.logs.cluster.secretName }}"
       clusterLogsSan: "{{ .geneva.logs.cluster.san }}"
       clusterLogsNamespace: "{{ .geneva.logs.cluster.namespace }}"
-      configVersion: 1
+      configVersion: "{{ .geneva.logs.rp.configVersion }}"
       environment: "{{ .geneva.logs.environment }}"
       region: "{{ .region }}"
     ## Specifies whether mdsd should enabled
