@@ -557,6 +557,12 @@ defaults:
             registry: arohcpsvcdev.azurecr.io
             repository: k8s-cache/ingress-nginx/kube-webhook-certgen
             sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd # v1.6.9 (2026-03-19 15:52)
+  # HCP Recovery
+  hcpRecovery:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: arohcprecovery
+      digest: ""
   # Backend
   backend:
     image:

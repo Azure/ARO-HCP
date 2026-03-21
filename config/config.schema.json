@@ -1321,6 +1321,18 @@
     "armHelperTenantId": {
       "type": "string"
     },
+    "hcpRecovery": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
     "backend": {
       "type": "object",
       "properties": {

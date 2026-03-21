@@ -1,0 +1,16 @@
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: hcp-recovery-pull-binding
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  acr:
+    environment: PublicCloud
+    server: '{{ .Values.image.registry }}'
+    scope: 'repository:{{ .Values.image.repository }}:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: {{ .Values.serviceAccount.name }}
+      clientID: '{{ .Values.pullBinding.workloadIdentityClientId }}'
+      tenantID: '{{ .Values.pullBinding.workloadIdentityTenantId }}'
+  serviceAccountName: {{ .Values.serviceAccount.name }}

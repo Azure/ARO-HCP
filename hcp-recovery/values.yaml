@@ -1,0 +1,21 @@
+image:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  repository: "{{ .hcpRecovery.image.repository }}"
+  digest: "{{ .hcpRecovery.image.digest }}"
+replicas: 1
+logLevel: "2"
+leaderElection:
+  leaseDuration: "15s"
+  renewDeadline: "10s"
+  retryPeriod: "2s"
+nodeSelector: {}
+tolerations: []
+affinity: {}
+pullBinding:
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+serviceAccount:
+  name: "hcp-recovery"
+service:
+  name: hcp-recovery
+  port: 8080

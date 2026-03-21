@@ -346,6 +346,11 @@ global:
         - name: AllowBringYourOwnPublicIpAddress
           poll: true
         poll: true
+hcpRecovery:
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: arohcprecovery
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:

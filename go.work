@@ -5,6 +5,7 @@ use (
 	./admin/server
 	./backend
 	./frontend
+	./hcp-recovery
 	./internal
 	./sessiongate
 	./test
