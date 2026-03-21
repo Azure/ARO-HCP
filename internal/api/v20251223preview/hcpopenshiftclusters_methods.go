@@ -304,9 +304,7 @@ func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) *generated.Mana
 // where defaults are applied before unmarshaling the request body.
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
-		ret := &HcpOpenShiftCluster{}
-		SetDefaultValuesCluster(ret)
-		return ret
+		return nil
 	}
 
 	idString := ""
