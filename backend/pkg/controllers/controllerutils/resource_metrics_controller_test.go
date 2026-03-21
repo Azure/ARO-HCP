@@ -62,7 +62,6 @@ func TestClusterMetricsHandler_SetsProvisionStateAndCreatedTime(t *testing.T) {
 
 	resourceID := strings.ToLower(cluster.ID.String())
 
-
 	expectedState := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
 # TYPE backend_cluster_provision_state gauge
 backend_cluster_provision_state{phase="provisioning",resource_id="%s"} 1
@@ -108,7 +107,6 @@ func TestClusterMetricsHandler_NilCreatedAt(t *testing.T) {
 	handler.Sync(context.Background(), cluster)
 
 	resourceID := strings.ToLower(cluster.ID.String())
-
 
 	// provisionState should exist.
 	expectedState := fmt.Sprintf(`# HELP backend_cluster_provision_state Current provisioning state of the cluster (value is always 1).
