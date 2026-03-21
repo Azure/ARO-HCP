@@ -339,6 +339,11 @@ global:
         poll: true
       Microsoft.Dashboard:
         poll: true
+      Microsoft.Insights:
+        features:
+        - name: testinproduction
+          poll: true
+        poll: true
       Microsoft.Kusto:
         poll: true
       Microsoft.Network:
@@ -574,6 +579,9 @@ mgmt:
           poll: true
         poll: true
       Microsoft.Insights:
+        features:
+        - name: testinproduction
+          poll: true
         poll: true
       Microsoft.Network:
         features:
