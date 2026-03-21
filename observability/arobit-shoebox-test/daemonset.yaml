@@ -1,0 +1,225 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: arobit-shoebox-forwarder
+  namespace: arobit-shoebox-test
+  labels:
+    app.kubernetes.io/name: arobit-shoebox-forwarder
+    app.kubernetes.io/component: shoebox-testing
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: arobit-shoebox-forwarder
+  namespace: arobit-shoebox-test
+  labels:
+    app.kubernetes.io/name: arobit-shoebox-forwarder
+    app.kubernetes.io/component: shoebox-testing
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: arobit-shoebox-forwarder
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: arobit-shoebox-forwarder
+        app.kubernetes.io/component: shoebox-testing
+    spec:
+      serviceAccountName: arobit-shoebox-forwarder
+      shareProcessNamespace: true
+      containers:
+        - name: fluentbit
+          image: mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:eca5fdd2a205c5e2a78155ca9d16b453334c5aefd6cafc48465c86ed9c016b64
+          imagePullPolicy: IfNotPresent
+          command:
+            - /fluent-bit/bin/fluent-bit
+          args:
+            - -c
+            - /forwarder/etc/fluent-bit.conf
+          ports:
+            - name: http
+              containerPort: 2020
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              drop: ['ALL']
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
+            - name: flb-storage
+              mountPath: /var/fluent-bit/flb-storage
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: flb-config
+              mountPath: /forwarder/etc
+              readOnly: true
+            - name: shoebox-mappings
+              mountPath: /shoebox-config
+              readOnly: true
+        - name: mdsd-clusterlogs
+          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:18d5476700adcd40e9ee2bc1cb62a1150ac1b5e696d7bad6adeea4da88c615db
+          imagePullPolicy: IfNotPresent
+          command:
+            - /start_mdsd.sh
+          env:
+            # UPDATE THESE VALUES FOR YOUR INT ENVIRONMENT
+            - name: MONITORING_GCS_AUTH_ID
+              value: 'UPDATE_WITH_CLUSTER_LOGS_SAN'
+            - name: MONITORING_GCS_AUTH_ID_TYPE
+              value: AuthKeyVault
+            - name: MDSD_AKV_CERTIFICATE_STORE_PATH
+              value: /geneva/geneva_auth
+            - name: MONITORING_CONFIG_VERSION
+              value: '1'
+            - name: MONITORING_GCS_ACCOUNT
+              value: 'UPDATE_WITH_CLUSTER_LOGS_ACCOUNT_NAME'
+            - name: MONITORING_GCS_ENVIRONMENT
+              value: 'UPDATE_WITH_GENEVA_ENVIRONMENT'
+            - name: MONITORING_GCS_NAMESPACE
+              value: 'UPDATE_WITH_CLUSTER_LOGS_NAMESPACE'
+            - name: MONITORING_GCS_REGION
+              value: 'UPDATE_WITH_REGION'
+            - name: DOCKER_LOGGING
+              value: 'true'
+            - name: FLUENTD_PORT
+              value: '5002'
+            - name: GCS_AUTOMATIC_CONFIGURATION
+              value: '1'
+            - name: GCS_AUTOMATIC_CONFIG_RUNTIME
+              value: '-A'
+            - name: MDSD_BACKPRESSURE_MONITOR_FREQ_SEC
+              value: '5'
+            - name: MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB
+              value: '1000'
+            - name: MDSD_COMPRESSION_ALGORITHM
+              value: 'lz4'
+            - name: MDSD_COMPRESSION_LEVEL
+              value: '4'
+            - name: MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED
+              value: 'true'
+            - name: MDSD_DEBUG_LOG_FLAGS
+              value: '-T 0x00'
+            - name: MDSD_LOG_OPTIONS
+              value: '-D'
+            - name: MDSD_MSGPACK_ARRAY_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_MAP_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_NESTING_LEVEL
+              value: '10'
+            - name: MDSD_MSGPACK_SEND_ACK
+              value: '0'
+            - name: MDSD_MSGPACK_SORT_COLUMNS
+              value: '1'
+            - name: MDSD_PORT
+              value: '0'
+            - name: MDSD_TCMALLOC_RELEASE_FREQ_SEC
+              value: '1'
+            - name: MDSD_USE_LOCAL_PERSISTENCY
+              value: 'false'
+            - name: MONITORING_MAX_EVENT_RATE
+              value: '100000'
+            - name: MONITORING_ROLE
+              value: 'UPDATE_WITH_ROLE'
+            - name: MONITORING_TENANT
+              value: 'UPDATE_WITH_REGION'
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - "/bin/sleep"
+                  - "60"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              add: []
+              drop: []
+          volumeMounts:
+            - name: mdsd-run-clusterlogs
+              mountPath: /var/run/mdsd/
+            - name: cacrt-host
+              mountPath: /etc/ssl/certs/ca-certificates.crt
+              readOnly: true
+            - name: geneva-certs-clusterlogs
+              mountPath: /geneva/geneva_auth/
+              readOnly: true
+      volumes:
+        - name: flb-storage
+          emptyDir: {}
+        - name: mdsd-run-clusterlogs
+          emptyDir: {}
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: cacrt-host
+          hostPath:
+            type: File
+            path: /etc/ssl/certs/ca-certificates.crt
+        - name: flb-config
+          configMap:
+            name: arobit-shoebox-forwarder
+            defaultMode: 0755
+        - name: shoebox-mappings
+          configMap:
+            name: shoebox-resourceid-mappings
+            optional: true
+        - name: geneva-certs-clusterlogs
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: arobit-shoebox-secretprovider
