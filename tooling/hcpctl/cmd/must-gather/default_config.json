@@ -24,6 +24,42 @@
         "replacementType": "Consistent",
         "target": "All",
         "type": "AzureResources"
+      },
+      {
+        "regex": "(?i)(subscription[sId]*[\"':\\s=/]+)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        "replacementType": "Static",
+        "target": "All",
+        "type": "Regex"
+      },
+      {
+        "regex": "(kubernetes\\.azure\\.com/network-subscription[\"':\\s=]+)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        "replacementType": "Consistent",
+        "target": "All",
+        "type": "Regex"
+      },
+      {
+        "regex": "(kubernetes\\.azure\\.com/podnetwork-subscription[\"':\\s=]+)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        "replacementType": "Consistent",
+        "target": "All",
+        "type": "Regex"
+      },
+      {
+        "regex": "(kubernetes\\.azure\\.com/nodenetwork-vnetguid[\"':\\s=]+)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        "replacementType": "Consistent",
+        "target": "All",
+        "type": "Regex"
+      },
+      {
+        "regex": "(kubernetes\\.azure\\.com/podnetwork-delegationguid[\"':\\s=]+)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        "replacementType": "Consistent",
+        "target": "All",
+        "type": "Regex"
+      },
+      {
+        "regex": "(kubernetes\\.azure\\.com/kubelet-identity-client-id[\"':\\s=]+)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        "replacementType": "Consistent",
+        "target": "All",
+        "type": "Regex"
       }
     ],
     "omit": [
