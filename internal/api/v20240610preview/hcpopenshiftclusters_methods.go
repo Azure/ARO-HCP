@@ -429,12 +429,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about.
+// this API version doesn't know about. Currently empty — no cross-version
+// customer fields exist yet between v20240610preview and v20251223preview.
 func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
-	for _, idmFrom := range from.CustomerProperties.ImageDigestMirrors {
-		to.CustomerProperties.ImageDigestMirrors = append(
-			to.CustomerProperties.ImageDigestMirrors, *idmFrom.DeepCopy())
-	}
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {

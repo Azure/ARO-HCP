@@ -2536,11 +2536,11 @@
       "properties": {
         "source": {
           "$ref": "#/definitions/ImageRepository",
-          "description": "source matches the repository that users refer to, e.g. in image pull specifications.\nSetting source to a registry hostname, e.g. docker.io, quay.io, or registry.redhat.io,\nwill match the image pull specification of the corresponding registry.\n\nsource uses one of the following formats:\n* host[:port]\n* host[:port]/namespace[/namespace...]\n* host[:port]/namespace[/namespace...]/repo\n* [*.]host\n\nfor more information about the format, see:\nhttps://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table"
+          "description": "Source is the image repository that users refer to, e.g. in image pull specifications."
         },
         "mirrors": {
           "type": "array",
-          "description": "mirrors is zero or more locations that may also contain the same images. No mirror will\nbe configured if not specified. Images can be pulled from these mirrors only if they are\nreferenced by their digests. The mirrored location is obtained by replacing the part of\nthe input reference that matches source by the mirrors entry, e.g. for\nregistry.redhat.io/product/repo reference, a (source, mirror) pair *.redhat.io,\nmirror.local/redhat causes a mirror.local/redhat/product/repo repository to be used.\n\nThe order of mirrors in this list is treated as the user's desired priority, while source\nis by default considered lower priority than all mirrors.\n\nIf no mirror is specified or all image pulls from the mirror list fail, the image will\ncontinue to be pulled from the repository in the pull spec.\n\nOther cluster configuration, including (but not limited to) other imageDigestMirrors\nobjects, may impact the exact order mirrors are contacted in, or some mirrors may be\ncontacted in parallel, so this should be considered a preference rather than a guarantee\nof ordering.\n\nmirrors uses one of the following formats:\n* host[:port]\n* host[:port]/namespace[/namespace...]\n* host[:port]/namespace[/namespace...]/repo\n\nfor more information about the format, see:\nhttps://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table",
+          "description": "Mirrors are one or more image repositories that may also contain the same images.",
           "minItems": 1,
           "maxItems": 255,
           "items": {

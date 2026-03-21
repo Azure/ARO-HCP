@@ -92,11 +92,6 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 			if len(j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
 				j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 			}
-			for i := range j.CustomerProperties.ImageDigestMirrors {
-				if len(j.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy) == 0 {
-					j.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = api.MirrorSourcePolicyAllowContactingSource
-				}
-			}
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)

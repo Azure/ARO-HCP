@@ -62,7 +62,6 @@ type ClusterParams struct {
 	EtcdEncryptionKeyVersion      string
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
-	VnetIntegrationSubnetID       string
 	Network                       NetworkConfig
 	APIVisibility                 string
 	ImageRegistryState            string
@@ -227,10 +226,6 @@ func PopulateClusterParamsFromCustomerInfraDeployment(
 	if err != nil {
 		return params, fmt.Errorf("failed to get vnetSubnetID from customer infra deployment: %w", err)
 	}
-	vnetIntegrationSubnetID, err := GetOutputValueString(customerInfraDeploymentResult, "vnetIntegrationSubnetID")
-	if err != nil {
-		return params, fmt.Errorf("failed to get vnetIntegrationSubnetID from customer infra deployment: %w", err)
-	}
 	vnetName, err := GetOutputValueString(customerInfraDeploymentResult, "vnetName")
 	if err != nil {
 		return params, fmt.Errorf("failed to get vnetName from customer infra deployment: %w", err)
@@ -248,7 +243,6 @@ func PopulateClusterParamsFromCustomerInfraDeployment(
 	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
 	params.NsgResourceID = nsgResourceID
 	params.SubnetResourceID = subnetResourceID
-	params.VnetIntegrationSubnetID = vnetIntegrationSubnetID
 	params.VnetName = vnetName
 	params.NsgName = nsgName
 	params.SubnetName = subnetName

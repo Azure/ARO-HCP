@@ -245,17 +245,3 @@ var (
 		UsernameClaimPrefixPolicyNone,
 	)
 )
-
-type MirrorSourcePolicy string
-
-const (
-	// MirrorSourcePolicyAllowContactingSource - allows falling back to the specified
-	// repository in the pull spec if the image pull from the mirror list fails
-	MirrorSourcePolicyAllowContactingSource MirrorSourcePolicy = "AllowContactingSource"
-)
-
-var (
-	ValidMirrorSourcePolicies = sets.New[MirrorSourcePolicy](
-		MirrorSourcePolicyAllowContactingSource,
-	)
-)
