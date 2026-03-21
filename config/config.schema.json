@@ -1975,6 +1975,10 @@
           "type": "boolean",
           "description": "Whether to deploy MISE. Be careful where to enable MISE as it can't be deployed in non-MSFT tenants."
         },
+        "applicationName": {
+          "type": "string",
+          "description": "MISE Entra application registration name"
+        },
         "arm": {
           "type": "object",
           "properties": {
@@ -2065,7 +2069,8 @@
         "arm",
         "genevaActions",
         "sessiongate",
-        "tracing"
+        "tracing",
+        "applicationName"
       ]
     },
     "msiRp": {
