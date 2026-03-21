@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,6 +34,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/cincinatti"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -40,19 +43,41 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	DescribeTable("should upgrade a nodepool from",
-		func(ctx context.Context, nodePoolMinor string, nextMinor string) {
-			const (
-				customerClusterName  = "np-minor-upgrade-cluster-"
-				customerNodePoolName = "npminorupgrade"
-			)
+	DescribeTable("should upgrade a nodepool",
+		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			// TODO: decide if we want to use candidate channel group instead of stable for the nodepool upgrade
 			channelGroup := framework.DefaultOCPChannelGroup
 
-			nodePoolInitialVersion, hasUpgradePath, err := framework.GetLatestVersionInMinorWithUpgradePathTo(ctx, channelGroup, nodePoolMinor, nextMinor)
-			Expect(err).NotTo(HaveOccurred())
-			if !hasUpgradePath {
-				Skip(fmt.Sprintf("no version in %s with upgrade path to %s", nodePoolMinor, nextMinor))
+			nodePoolMinorVersion := api.Must(semver.ParseTolerant(nodePoolMinor))
+			targetMinorVersion := api.Must(semver.ParseTolerant(targetMinor))
+
+			var (
+				nodePoolInitialVersion string
+				hasUpgradePath         bool
+				err                    error
+			)
+			if nodePoolMinorVersion.EQ(targetMinorVersion) {
+				// z-stream: same y.z line — older patch on node pool, cluster on latest patch.
+				nodePoolInitialVersion, hasUpgradePath, err = framework.GetInstallVersionForZStreamUpgrade(ctx, channelGroup, targetMinor)
+				if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+					Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s", targetMinor, channelGroup))
+				}
+				Expect(err).NotTo(HaveOccurred())
+				if !hasUpgradePath {
+					Skip(fmt.Sprintf("no z-stream upgrade path for minor %s on channel %s", targetMinor, channelGroup))
+				}
+			} else {
+				// y-stream: node pool on an older minor than the cluster (target minor).
+				Expect(nodePoolMinorVersion.LT(targetMinorVersion)).To(BeTrue(),
+					"when nodePoolMinor and targetMinor differ, node pool minor must be less than target minor (y-stream)")
+				nodePoolInitialVersion, hasUpgradePath, err = framework.GetLatestVersionInMinorWithUpgradePathTo(ctx, channelGroup, nodePoolMinor, targetMinor)
+				if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+					Skip(fmt.Sprintf("Cincinnati returned version not found for node pool minor %s on channel %s", nodePoolMinor, channelGroup))
+				}
+				Expect(err).NotTo(HaveOccurred())
+				if !hasUpgradePath {
+					Skip(fmt.Sprintf("no version in %s with upgrade path to target minor %s", nodePoolMinor, targetMinor))
+				}
 			}
 
 			tc := framework.NewTestContext()
@@ -63,34 +88,34 @@ var _ = Describe("Customer", func() {
 			}
 
 			suffix := rand.String(6)
-			clusterName := customerClusterName + suffix
+			clusterName := "np-version-upgrade-cluster-" + suffix
 
 			By("creating resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-np-minor-upgrade-"+suffix, tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-np-version-upgrade-"+suffix, tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = nextMinor
+			clusterParams.OpenshiftVersionId = targetMinor
 			clusterParams.ChannelGroup = channelGroup
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-minor-"+suffix, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-np-upgrade-"+suffix, "-managed", 64)
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
-					"customerNsgName":        "customer-nsg-minor-" + suffix,
-					"customerVnetName":       "customer-vnet-minor-" + suffix,
-					"customerVnetSubnetName": "customer-vnet-subnet-minor-" + suffix,
+					"customerNsgName":        "customer-nsg-np-upgrade-" + suffix,
+					"customerVnetName":       "customer-vnet-np-upgrade-" + suffix,
+					"customerVnetSubnetName": "customer-vnet-subnet-np-upgrade-" + suffix,
 				},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By(fmt.Sprintf("creating the HCP cluster with version %s", nextMinor))
+			By(fmt.Sprintf("creating the HCP cluster with version %s", targetMinor))
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
@@ -100,7 +125,9 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By(fmt.Sprintf("creating nodepool with version %s (latest in minor with upgrade path to control plane)", nodePoolInitialVersion))
+			By(fmt.Sprintf("creating nodepool with version %s (behind control plane; upgrade path validated via Cincinnati)", nodePoolInitialVersion))
+			// Node pool name must be a DNS label (no '.'); encode minor as e.g. 4.20 -> npupgrade-4-20.
+			customerNodePoolName := fmt.Sprintf("npupgrade-%s", strings.ReplaceAll(nodePoolMinor, ".", "-"))
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OpenshiftVersionId = nodePoolInitialVersion
@@ -126,10 +153,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			configClient, err := configv1client.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
-			cv, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+			clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			var parseableVersions []string
-			for _, h := range cv.Status.History {
+			for _, h := range clusterVersion.Status.History {
 				if _, err := semver.ParseTolerant(h.Version); err != nil {
 					continue
 				}
@@ -150,7 +177,7 @@ var _ = Describe("Customer", func() {
 				channelGroup, parseableVersions[0], nodePoolInitialVersion)
 			Expect(err).NotTo(HaveOccurred())
 			if len(candidates) == 0 {
-				Skip(fmt.Sprintf("skipping: no Cincinnati upgrade path from nodepool version %s to any version <= %s (lowest control plane version); cannot exercise minor nodepool upgrade", nodePoolInitialVersion, parseableVersions[0]))
+				Skip(fmt.Sprintf("skipping: no Cincinnati upgrade path from nodepool version %s to any version <= %s (lowest control plane version in history); cannot exercise nodepool upgrade", nodePoolInitialVersion, parseableVersions[0]))
 			}
 			nodePoolDesiredVersion := candidates[len(candidates)-1].String()
 
@@ -169,22 +196,36 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			updateResp, err := framework.UpdateNodePoolAndWait(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			updateResponse, err := framework.UpdateNodePoolAndWait(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying nodepool reports updated version")
-			Expect(updateResp.Properties).NotTo(BeNil())
-			Expect(updateResp.Properties.Version).NotTo(BeNil())
-			Expect(updateResp.Properties.Version.ID).NotTo(BeNil())
-			Expect(*updateResp.Properties.Version.ID).To(Equal(nodePoolDesiredVersion))
+			Expect(updateResponse.Properties).NotTo(BeNil())
+			Expect(updateResponse.Properties.Version).NotTo(BeNil())
+			Expect(updateResponse.Properties.Version.ID).NotTo(BeNil())
+			Expect(*updateResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion))
 
-			By("verifying nodes are ready, updated to expected minor, and release images differ from pre-upgrade")
+			By("verifying nodes are ready, updated to expected version, and release images differ from pre-upgrade")
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(nodePoolDesiredVersion, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
+			}, 30*time.Minute, 2*time.Minute).Should(Succeed())
+
+			By("verifying node pool GET still reflects the new version")
+			npGetResponse, err := framework.GetNodePool(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(npGetResponse.Properties).NotTo(BeNil())
+			Expect(npGetResponse.Properties.Version).NotTo(BeNil())
+			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil())
+			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion))
 		},
-		Entry("4.20 to 4.21",
+		Entry("from 4.20.z to 4.21.zLatest",
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20", "4.21"),
+		Entry("from 4.21.z to 4.21.zLatest",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"4.21", "4.21"),
+		Entry("from 4.20.z to 4.20.zLatest",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"4.20", "4.20"),
 	)
 })
