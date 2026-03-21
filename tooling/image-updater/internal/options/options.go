@@ -81,10 +81,6 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if err := validateConfig(cfg); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
-	}
-
 	// Set default output format if not specified
 	if o.OutputFormat == "" {
 		o.OutputFormat = "table"
@@ -159,6 +155,10 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 		if err != nil {
 			return nil, fmt.Errorf("failed to filter config excluding components: %w", err)
 		}
+	}
+
+	if err := validateConfig(cfg); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	return &ValidatedUpdateOptions{
