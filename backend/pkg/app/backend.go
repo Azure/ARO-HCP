@@ -258,6 +258,21 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 
+	operationPhaseMetricsController := controllerutils.NewOperationPhaseMetricsController(
+		prometheus.DefaultRegisterer, backendInformers.AllOperations())
+
+	clusterInformer, _ := backendInformers.Clusters()
+	clusterMetricsController := controllerutils.NewResourceMetricsController(
+		"ClusterMetrics", clusterInformer, controllerutils.NewClusterMetricsHandler(prometheus.DefaultRegisterer))
+
+	nodePoolInformer, _ := backendInformers.NodePools()
+	nodePoolMetricsController := controllerutils.NewResourceMetricsController(
+		"NodePoolMetrics", nodePoolInformer, controllerutils.NewNodePoolMetricsHandler(prometheus.DefaultRegisterer))
+
+	externalAuthInformer, _ := backendInformers.ExternalAuths()
+	externalAuthMetricsController := controllerutils.NewResourceMetricsController(
+		"ExternalAuthMetrics", externalAuthInformer, controllerutils.NewExternalAuthMetricsHandler(prometheus.DefaultRegisterer))
+
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
 	dataDumpController := controllerutils.NewClusterWatchingController(
@@ -536,6 +551,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolPropertiesSyncController.Run(ctx, 20)
+				go operationPhaseMetricsController.Run(ctx, 1)
+				go clusterMetricsController.Run(ctx, 1)
+				go nodePoolMetricsController.Run(ctx, 1)
+				go externalAuthMetricsController.Run(ctx, 1)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

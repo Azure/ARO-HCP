@@ -435,6 +435,53 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 	)
 }
 
+// NewOperationInformer creates an unstarted SharedIndexInformer for all
+// operations (including terminal) using the default relist duration. This is
+// used by the metrics controller so that completed operations remain visible
+// in Prometheus until the 7-day Cosmos TTL removes them.
+func NewOperationInformer(lister database.GlobalLister[api.Operation]) cache.SharedIndexInformer {
+	return NewOperationInformerWithRelistDuration(lister, ControllerRelistDuration)
+}
+
+// NewOperationInformerWithRelistDuration creates an unstarted SharedIndexInformer
+// for all operations (including terminal) with a configurable relist duration.
+func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing all operations")
+			defer logger.Info("finished listing all operations")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.OperationList{}
+			list.ResourceVersion = "0"
+			for _, op := range iter.Items(ctx) {
+				list.Items = append(list.Items, *op)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&api.Operation{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour,
+		},
+	)
+}
+
 // NewActiveOperationInformer creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // using the default relist duration.
