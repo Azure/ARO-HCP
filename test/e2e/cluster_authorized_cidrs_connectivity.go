@@ -28,6 +28,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -402,6 +403,16 @@ var _ = Describe("Authorized CIDRs", func() {
 				// Update the cluster's authorized CIDRs
 				currentCluster.Properties.API.AuthorizedCIDRs = []*string{
 					to.Ptr("192.0.2.0/24"), // Use TEST-NET-1 (reserved for documentation)
+				}
+
+				// corrupt the way I think we failed
+				if currentCluster.Identity != nil && currentCluster.Identity.UserAssignedIdentities != nil {
+					for k := range currentCluster.Identity.UserAssignedIdentities {
+						currentCluster.Identity.UserAssignedIdentities[k] = &hcpsdk20240610preview.UserAssignedIdentity{
+							ClientID:    ptr.To(""),
+							PrincipalID: ptr.To(""),
+						}
+					}
 				}
 
 				// Use CreateOrUpdate (PUT) to apply the change
