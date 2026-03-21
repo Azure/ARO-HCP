@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"reflect"
 	"time"
 
@@ -189,16 +188,9 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr.Info("successfully verified admin credential", "credentialNumber", i+1)
 			}
 
-			skipSuite := os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC))
-			skipInt := false
-
 			By("revoking all cluster admin credentials via ARO HCP RP API")
 			err = tc.RevokeCredentialsAndWait(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
-			if err != nil && skipSuite {
-				By("skipping in integration/parallel suite")
-			} else {
-				Expect(err).NotTo(HaveOccurred())
-			}
+			Expect(err).NotTo(HaveOccurred())
 
 			By("validating all admin credentials now fail after revocation")
 			for i, cred := range credentials {
@@ -227,13 +219,7 @@ var _ = Describe("Customer", func() {
 					GinkgoLogr.Info("successfully verified admin credential fails after revocation", "credentialNumber", i+1)
 					return true, nil
 				})
-				if err != nil && skipSuite {
-					By("skipping in integration/parallel suite")
-					skipInt = true
-					break
-				} else {
-					Expect(err).NotTo(HaveOccurred(), "Admin credential %d should fail after revocation, last error: %v", i+1, lastError)
-				}
+				Expect(err).NotTo(HaveOccurred(), "Admin credential %d should fail after revocation, last error: %v", i+1, lastError)
 			}
 
 			By("verifying new admin credentials can still be requested after revocation")
@@ -251,10 +237,6 @@ var _ = Describe("Customer", func() {
 
 			By("verifying new admin credentials work after revocation")
 			err = verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)
-			if (skipInt || err != nil) && skipSuite {
-				By("skipping in integration/parallel suite")
-			} else {
-				Expect(err).NotTo(HaveOccurred(), "New admin credentials should work after revocation")
-			}
+			Expect(err).NotTo(HaveOccurred(), "New admin credentials should work after revocation")
 		})
 })
