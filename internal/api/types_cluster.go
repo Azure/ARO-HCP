@@ -134,6 +134,7 @@ type ServiceProviderAPIProfile struct {
 type CustomerPlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
 	SubnetID                *azcorearm.ResourceID          `json:"subnetId,omitempty"`
+	VnetIntegrationSubnetID *azcorearm.ResourceID          `json:"vnetIntegrationSubnetId,omitempty"`
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"`
 	NetworkSecurityGroupID  *azcorearm.ResourceID          `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
@@ -178,7 +179,8 @@ type CustomerManagedEncryptionProfile struct {
 // customer-managed Key Management Service (KMS) keys.
 // Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
-	ActiveKey KmsKey `json:"activeKey,omitempty"`
+	Visibility KeyVaultVisibility `json:"visibility,omitempty"`
+	ActiveKey  KmsKey             `json:"activeKey,omitempty"`
 }
 
 // KmsKey represents an Azure KeyVault secret.
@@ -294,6 +296,13 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 		if len(cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy) == 0 {
 			cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = MirrorSourcePolicyAllowContactingSource
 		}
+	}
+	// Default KMS Visibility to Public for clusters created via v2024_06_10_preview
+	// (which doesn't expose the visibility field and assumes public KeyVaults).
+	if cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
+		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
+		len(cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
+		cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = KeyVaultVisibilityPublic
 	}
 }
 

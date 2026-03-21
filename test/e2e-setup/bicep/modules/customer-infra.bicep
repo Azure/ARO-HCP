@@ -16,6 +16,9 @@ param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
 @description('Cluster name used to ensure unique resource names within the resource group')
 param clusterName string = ''
 
+@description('If set to true, creates a private KeyVault with publicNetworkAccess disabled')
+param privateKeyVault bool = false
+
 //
 // Variables
 //
@@ -70,6 +73,14 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
         name: 'customer-vnet-integration-subnet'
         properties: {
           addressPrefix: vnetIntegrationSubnetPrefix
+          delegations: [
+            {
+              name: 'aro-hcp-delegation'
+              properties: {
+                serviceName: 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters'
+              }
+            }
+          ]
         }
       }
     ]
@@ -87,6 +98,7 @@ resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
     enableRbacAuthorization: true
     enableSoftDelete: false
     tenantId: subscription().tenantId
+    publicNetworkAccess: privateKeyVault ? 'Disabled' : 'Enabled'
     sku: {
       family: 'A'
       name: 'standard'
