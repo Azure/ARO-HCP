@@ -19,6 +19,9 @@ import (
 	"testing"
 
 	"github.com/blang/semver/v4"
+	"github.com/stretchr/testify/assert"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 )
@@ -204,19 +207,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 				},
 			}
 
-			// Build ServiceProviderCluster with active versions
-			var clusterActiveVersions []api.HCPClusterActiveVersion
-			for _, v := range tt.clusterVersions {
-				ver := semver.MustParse(v)
-				clusterActiveVersions = append(clusterActiveVersions, api.HCPClusterActiveVersion{Version: &ver})
-			}
-			spCluster := &api.ServiceProviderCluster{
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-						ActiveVersions: clusterActiveVersions,
-					},
-				},
-			}
+			spCluster := serviceProviderClusterWithVersions(t, tt.clusterVersions)
 
 			errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster)
 
@@ -289,14 +280,7 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 		},
 	}
 
-	clusterVer := semver.MustParse("4.18.0")
-	spCluster := &api.ServiceProviderCluster{
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{{Version: &clusterVer}},
-			},
-		},
-	}
+	spCluster := serviceProviderClusterWithVersions(t, []string{"4.18.0"})
 
 	errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster)
 
@@ -313,5 +297,290 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected channel group mismatch error, got %v", errs)
+	}
+}
+
+func serviceProviderClusterWithVersions(t *testing.T, versions []string) *api.ServiceProviderCluster {
+	t.Helper()
+	var active []api.HCPClusterActiveVersion
+	for _, s := range versions {
+		v := semver.MustParse(s)
+		active = append(active, api.HCPClusterActiveVersion{Version: &v})
+	}
+	return &api.ServiceProviderCluster{
+		Status: api.ServiceProviderClusterStatus{
+			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+				ActiveVersions: active,
+			},
+		},
+	}
+}
+
+func TestAdmitNodePoolCreate(t *testing.T) {
+	t.Parallel()
+	const (
+		clusterVNetSubnetARM = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/snet"
+		otherVNetSubnetARM   = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/other-vnet/subnets/snet"
+
+		nodePoolVersionNightly417 = "4.17.0-0.nightly-2024-06-01-abcdef"
+		nodePoolVersionRc417      = "4.17.0-rc.2"
+		nodePoolVersionRc417Low   = "4.17.0-rc.1"
+	)
+	clusterSubnetID := api.Must(azcorearm.ParseResourceID(clusterVNetSubnetARM))
+	otherSubnetID := api.Must(azcorearm.ParseResourceID(otherVNetSubnetARM))
+
+	cluster := func(versionID string) *api.HCPOpenShiftCluster {
+		return &api.HCPOpenShiftCluster{
+			CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+				Version: api.VersionProfile{
+					ID:           versionID,
+					ChannelGroup: "stable",
+				},
+				Platform: api.CustomerPlatformProfile{
+					SubnetID: clusterSubnetID,
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name             string
+		clusterVersionID string
+		versionID        string
+		channelGroup     string
+		nodePoolSubnetID *azcorearm.ResourceID
+		spCluster        *api.ServiceProviderCluster
+		wantErr          bool
+		errSubstring     string // required when wantErr is true
+	}{
+		{
+			name:             "channel group must match cluster",
+			clusterVersionID: "4.18",
+			versionID:        "4.17.0",
+			channelGroup:     "fast",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "must be the same as control plane channel group",
+		},
+		{
+			name:             "subnet must belong to cluster VNet",
+			clusterVersionID: "4.18",
+			versionID:        "4.17.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: otherSubnetID,
+			wantErr:          true,
+			errSubstring:     "same VNet",
+		},
+		{
+			name:             "valid within skew",
+			clusterVersionID: "4.18",
+			versionID:        "4.17.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "minor below skew",
+			clusterVersionID: "4.18",
+			versionID:        "4.15.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "node pool minor version 4.15 must be within [4.16, 4.18] for cluster minor version 4.18",
+		},
+		{
+			name:             "node pool greater than cluster version",
+			clusterVersionID: "4.18",
+			versionID:        "4.19.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "node pool minor version 4.19 must not exceed cluster minor version 4.18",
+		},
+		{
+			name:             "at cluster desired minor passes skew",
+			clusterVersionID: "4.18",
+			versionID:        "4.18.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "nightly node pool version within skew",
+			clusterVersionID: "4.18",
+			versionID:        nodePoolVersionNightly417,
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "release candidate node pool version within skew",
+			clusterVersionID: "4.18",
+			versionID:        nodePoolVersionRc417,
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "lowest active nightly with matching node pool nightly passes",
+			clusterVersionID: "4.18",
+			versionID:        nodePoolVersionNightly417,
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			spCluster:        serviceProviderClusterWithVersions(t, []string{"4.18.0", nodePoolVersionNightly417}),
+			wantErr:          false,
+		},
+		{
+			name:             "lowest active release candidate with matching node pool passes",
+			clusterVersionID: "4.18",
+			versionID:        nodePoolVersionRc417Low,
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			spCluster:        serviceProviderClusterWithVersions(t, []string{"4.18.0", nodePoolVersionRc417Low}),
+			wantErr:          false,
+		},
+		{
+			name:             "empty node pool version id skips skew validation",
+			clusterVersionID: "4.18",
+			versionID:        "",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "cross-major cluster 5.0 allows node pool 4.21",
+			clusterVersionID: "5.0",
+			versionID:        "4.21.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "cross-major cluster 5.0 allows node pool 4.22",
+			clusterVersionID: "5.0",
+			versionID:        "4.22.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "cross-major cluster 5.0 rejects node pool 4.20",
+			clusterVersionID: "5.0",
+			versionID:        "4.20.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "must be one of [4.21 4.22]",
+		},
+		{
+			name:             "cross-major cluster 5.1 allows node pool 4.23",
+			clusterVersionID: "5.1",
+			versionID:        "4.23.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "cross-major cluster 5.1 rejects node pool 4.24",
+			clusterVersionID: "5.1",
+			versionID:        "4.24.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "must be one of [4.21 4.22 4.23]",
+		},
+		{
+			name:             "cross-major cluster 5.2 allows node pool 4.23",
+			clusterVersionID: "5.2",
+			versionID:        "4.23.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "cross-major cluster 5.2 rejects node pool 4.22",
+			clusterVersionID: "5.2",
+			versionID:        "4.22.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "must be one of [4.23]",
+		},
+		{
+			name:             "lowest active rejects node pool newer than lowest patch",
+			clusterVersionID: "4.18",
+			versionID:        "4.18.5",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			spCluster:        serviceProviderClusterWithVersions(t, []string{"4.18.0", "4.19.0"}),
+			wantErr:          true,
+			errSubstring:     "invalid node pool version 4.18.5: cannot exceed control plane version 4.18.0",
+		},
+		{
+			name:             "lowest active allows node pool at lowest patch",
+			clusterVersionID: "4.18",
+			versionID:        "4.18.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			spCluster:        serviceProviderClusterWithVersions(t, []string{"4.18.0", "4.19.0"}),
+			wantErr:          false,
+		},
+		{
+			name:             "lowest active rejects node pool newer than lowest minor when desired is higher",
+			clusterVersionID: "4.18",
+			versionID:        "4.18.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			spCluster:        serviceProviderClusterWithVersions(t, []string{"4.17.0"}),
+			wantErr:          true,
+			errSubstring:     "invalid node pool version 4.18.0: cannot exceed control plane version 4.17.0",
+		},
+		{
+			name:             "no active control plane versions skips lowest-active validation",
+			clusterVersionID: "4.18",
+			versionID:        "4.17.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			spCluster:        serviceProviderClusterWithVersions(t, []string{}),
+			wantErr:          false,
+		},
+		{
+			// Cluster desired 5.2 allows 4.23; lowest active 5.0 still applies the 5.0 cross-major allowlist, which excludes 4.23.
+			name:             "lowest active cross-major skew stricter than cluster desired rejects node pool",
+			clusterVersionID: "5.2",
+			versionID:        "4.23.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			spCluster:        serviceProviderClusterWithVersions(t, []string{"5.0.0", "5.2.0"}),
+			wantErr:          true,
+			errSubstring:     "must be one of [4.21 4.22]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			c := cluster(tt.clusterVersionID)
+			nodePool := &api.HCPOpenShiftClusterNodePool{
+				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+					Version: api.NodePoolVersionProfile{ID: tt.versionID, ChannelGroup: tt.channelGroup},
+					Platform: api.NodePoolPlatformProfile{
+						SubnetID: tt.nodePoolSubnetID,
+					},
+				},
+			}
+			spCluster := tt.spCluster
+			if spCluster == nil {
+				spCluster = &api.ServiceProviderCluster{}
+			}
+			errs := AdmitNodePoolCreate(nodePool, c, spCluster)
+			if !tt.wantErr {
+				assert.Empty(t, errs)
+				return
+			}
+			assert.NotEmpty(t, errs)
+			assert.NotEmpty(t, tt.errSubstring, "errSubstring is required when wantErr is true")
+			assert.Contains(t, errs.ToAggregate().Error(), tt.errSubstring)
+		})
 	}
 }
