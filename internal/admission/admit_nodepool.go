@@ -26,9 +26,110 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-// AdmitNodePool performs non-static checks of nodepool.  Checks that require more information than is contained inside of
-// of the nodepool instance itself.
-func AdmitNodePool(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) field.ErrorList {
+// AdmitNodePoolCreate runs create-time admission that depends on the parent cluster and service-provider cluster data.
+func AdmitNodePoolCreate(np *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// Channel group matches cluster; node pool subnet is on the cluster VNet.
+	errs = append(errs, admitNodePool(np, nil, cluster)...)
+
+	if len(np.Properties.Version.ID) > 0 {
+		// Node pool and cluster version skew checks. These run against the cluster desired minor
+		// (properties.version.id) and, when present, the lowest active control plane version from the service provider.
+		fldPath := field.NewPath("properties", "version", "id")
+		errs = append(errs, validateNodePoolDesiredMinorSkew(np.Properties.Version.ID, cluster.CustomerProperties.Version.ID, fldPath)...)
+		if lowest := api.FindLowestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions); lowest != nil {
+			errs = append(errs, validateNodePoolVersionNotAfterLowestActive(np.Properties.Version.ID, lowest, fldPath)...)
+			errs = append(errs, validateNodePoolDesiredMinorSkew(np.Properties.Version.ID, lowest.String(), fldPath)...)
+		}
+	}
+	return errs
+}
+
+// validateNodePoolDesiredMinorSkew checks that the node pool OpenShift version fits the cluster version it is tied to:
+//   - Same major: node pool must not be newer than the cluster line; it may trail by at most two minor versions.
+//   - Cross-major (cluster → allowed node pool minor lines): 5.0 → 4.21 or 4.22; 5.1 → 4.21, 4.22, or 4.23; 5.2 → 4.23.
+//   - Any other cross-major combination is rejected (the allowlist may grow with product policy).
+func validateNodePoolDesiredMinorSkew(nodePoolVersionID, clusterVersionID string, fldPath *field.Path) field.ErrorList {
+	parsedNodePoolVersion := api.Must(semver.ParseTolerant(nodePoolVersionID))
+	parsedClusterVersion := api.Must(semver.ParseTolerant(clusterVersionID))
+
+	nodePoolMinorReleaseLine := fmt.Sprintf("%d.%d", parsedNodePoolVersion.Major, parsedNodePoolVersion.Minor)
+	clusterMinorReleaseLine := fmt.Sprintf("%d.%d", parsedClusterVersion.Major, parsedClusterVersion.Minor)
+	nodePoolMinorReleaseVersion := api.Must(semver.ParseTolerant(nodePoolMinorReleaseLine))
+	clusterMinorReleaseVersion := api.Must(semver.ParseTolerant(clusterMinorReleaseLine))
+
+	if nodePoolMinorReleaseVersion.EQ(clusterMinorReleaseVersion) {
+		return nil
+	}
+	if nodePoolMinorReleaseVersion.GT(clusterMinorReleaseVersion) {
+		return field.ErrorList{field.Invalid(
+			fldPath,
+			nodePoolVersionID,
+			fmt.Sprintf("node pool minor version %s must not exceed cluster minor version %s", nodePoolMinorReleaseLine, clusterMinorReleaseLine),
+		)}
+	}
+	if parsedNodePoolVersion.Major == parsedClusterVersion.Major {
+		// Minor skew: allow the node pool to trail the cluster reference by at most two minor versions
+		// (lower bound clamped to 0 in the error message when cluster minor is below 2).
+		if int64(parsedNodePoolVersion.Minor) >= int64(parsedClusterVersion.Minor)-2 {
+			return nil
+		}
+		return field.ErrorList{field.Invalid(
+			fldPath,
+			nodePoolVersionID,
+			fmt.Sprintf("node pool minor version %s must be within [%s, %s] for cluster minor version %s",
+				nodePoolMinorReleaseLine,
+				fmt.Sprintf("%d.%d", parsedClusterVersion.Major, uint64(max(int64(0), int64(parsedClusterVersion.Minor)-2))),
+				clusterMinorReleaseLine,
+				clusterMinorReleaseLine),
+		)}
+	}
+	// TODO: Confirm crossMajorAllowedSkews (5.x cluster → allowed 4.y node pool lines) with product /
+	// OpenShift release / support policy and keep this map aligned.
+	// Cross-major allowlist keyed by cluster minor release line (x.y); values are allowed node pool lines (x.y).
+	// TODO: Gate cross-major create-time skew behind the subscription AFEC once major-upgrade support lands
+	// (see https://github.com/Azure/ARO-HCP/pull/4479).
+	crossMajorAllowedSkews := map[string][]string{
+		"5.0": {"4.21", "4.22"},
+		"5.1": {"4.21", "4.22", "4.23"},
+		"5.2": {"4.23"},
+	}
+	allowed, ok := crossMajorAllowedSkews[clusterMinorReleaseLine]
+	if !ok {
+		return field.ErrorList{field.Invalid(
+			fldPath,
+			nodePoolVersionID,
+			fmt.Sprintf("node pool version %s is not compatible with cluster version %s", nodePoolVersionID, clusterVersionID),
+		)}
+	}
+	if slices.Contains(allowed, nodePoolMinorReleaseLine) {
+		return nil
+	}
+	return field.ErrorList{field.Invalid(
+		fldPath,
+		nodePoolVersionID,
+		fmt.Sprintf("node pool minor version %s must be one of %v for cluster minor version %s",
+			nodePoolMinorReleaseLine, allowed, clusterMinorReleaseLine),
+	)}
+}
+
+// validateNodePoolVersionNotAfterLowestActive rejects node pool versions strictly newer than the lowest active control plane semver.
+func validateNodePoolVersionNotAfterLowestActive(rawNodePoolVersion string, lowestActive *semver.Version, fldPath *field.Path) field.ErrorList {
+	parsed := api.Must(semver.ParseTolerant(rawNodePoolVersion))
+	if parsed.GT(*lowestActive) {
+		return field.ErrorList{field.Invalid(
+			fldPath,
+			rawNodePoolVersion,
+			fmt.Sprintf("invalid node pool version %s: cannot exceed control plane version %s",
+				rawNodePoolVersion, lowestActive.String()),
+		)}
+	}
+	return nil
+}
+
+// admitNodePool performs non-static checks of a node pool that need the parent cluster (channel group, subnet/VNet).
+func admitNodePool(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Check only if it is a creating nodepool or a change in the channelGroup
@@ -66,7 +167,7 @@ func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePo
 	errs := field.ErrorList{}
 
 	// Include all standard node pool admission checks
-	errs = append(errs, AdmitNodePool(newNodePool, oldNodePool, cluster)...)
+	errs = append(errs, admitNodePool(newNodePool, oldNodePool, cluster)...)
 
 	// Add update-specific version upgrade validation
 	errs = append(errs, validateNodePoolVersionUpgrade(newNodePool, oldNodePool, spNodePool, spCluster)...)
@@ -111,19 +212,14 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 		return nil
 	}
 
-	// Check if the newVersion <= control plane versions
+	// Check if the newVersion <= lowest active control plane version
 	// TODO: We may relax this constraint in the future
-	clusterActiveVersions := spCluster.Status.ControlPlaneVersion.ActiveVersions
-	if len(clusterActiveVersions) > 0 {
-		lowestControlPlane := api.FindLowestClusterVersion(clusterActiveVersions)
-		if lowestControlPlane != nil && newVersion.GT(*lowestControlPlane) {
-			errs = append(errs, field.Invalid(
-				fldPath,
-				newNodePool.Properties.Version.ID,
-				fmt.Sprintf("invalid node pool version %s: cannot exceed control plane version %s",
-					newVersion.String(), lowestControlPlane.String()),
-			))
-		}
+	lowestControlPlane := api.FindLowestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+	if lowestControlPlane != nil {
+		errs = append(errs, validateNodePoolVersionNotAfterLowestActive(
+			newNodePool.Properties.Version.ID,
+			lowestControlPlane,
+			fldPath)...)
 	}
 
 	if len(nodePoolActiveVersions) > 0 {

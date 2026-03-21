@@ -534,6 +534,7 @@ func TestBuildCSNodePool(t *testing.T) {
 	testCases := []struct {
 		name               string
 		hcpNodePool        *api.HCPOpenShiftClusterNodePool
+		versionID          string
 		expectedCSNodePool *arohcpv1alpha1.NodePoolBuilder
 	}{
 		{
@@ -629,13 +630,33 @@ func TestBuildCSNodePool(t *testing.T) {
 					),
 				),
 		},
+		{
+			name: "explicit versionID overrides Properties.Version.ID for CS Version",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *api.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Version = api.NodePoolVersionProfile{
+						ID:           "4.18.0",
+						ChannelGroup: "stable",
+					}
+				},
+			),
+			versionID: "4.19",
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.19.25").
+					ChannelGroup("stable")),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			expected, err := tc.expectedCSNodePool.Build()
 			require.NoError(t, err)
-			generatedCSNodePoolBuilder, err := BuildCSNodePool(ctx, tc.hcpNodePool, false)
+			versionID := tc.versionID
+			if versionID == "" {
+				versionID = tc.hcpNodePool.Properties.Version.ID
+			}
+			generatedCSNodePoolBuilder, err := BuildCSNodePool(ctx, tc.hcpNodePool, false, versionID)
 			require.NoError(t, err)
 			generatedCSNodePool, err := generatedCSNodePoolBuilder.Build()
 			require.NoError(t, err)
