@@ -274,6 +274,45 @@ func TestSetClusterServiceOnlyFieldsOnCluster(t *testing.T) {
 				assert.Empty(t, c.ServiceProviderProperties.Platform.IssuerURL)
 			},
 		},
+		{
+			name: "populates ImageDigestMirrors from CS",
+			csCluster: arohcpv1alpha1.NewCluster().
+				RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+					ImageDigestMirrors(
+						arohcpv1alpha1.NewImageMirror().
+							Source("source1.example.com").
+							Mirrors("mirror1a.example.com", "mirror1b.example.com"),
+						arohcpv1alpha1.NewImageMirror().
+							Source("source2.example.com").
+							Mirrors("mirror2a.example.com"),
+					)),
+			initialCluster: &api.HCPOpenShiftCluster{},
+			expectCluster: func(c *api.HCPOpenShiftCluster) {
+				expected := []api.ImageDigestMirror{
+					{
+						Source:             "source1.example.com",
+						Mirrors:            []string{"mirror1a.example.com", "mirror1b.example.com"},
+						MirrorSourcePolicy: api.MirrorSourcePolicyAllowContactingSource,
+					},
+					{
+						Source:             "source2.example.com",
+						Mirrors:            []string{"mirror2a.example.com"},
+						MirrorSourcePolicy: api.MirrorSourcePolicyAllowContactingSource,
+					},
+				}
+				assert.Equal(t, expected, c.CustomerProperties.ImageDigestMirrors)
+			},
+		},
+		{
+			name: "empty ImageDigestMirrors when not set in CS",
+			csCluster: arohcpv1alpha1.NewCluster().
+				RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+					ImageDigestMirrors()),
+			initialCluster: &api.HCPOpenShiftCluster{},
+			expectCluster: func(c *api.HCPOpenShiftCluster) {
+				assert.Nil(t, c.CustomerProperties.ImageDigestMirrors)
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

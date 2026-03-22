@@ -662,6 +662,11 @@ func SetClusterServiceOnlyFieldsOnCluster(internalCluster *api.HCPOpenShiftClust
 	internalCluster.ServiceProviderProperties.API.URL = clusterServiceCluster.API().URL()
 	internalCluster.ServiceProviderProperties.Platform.IssuerURL = clusterServiceCluster.Azure().OidcIssuerUrl()
 
+	// ImageDigestMirrors are stored in Cluster Service and need to be retrieved on GET
+	if clusterServiceCluster.RegistryConfig() != nil {
+		internalCluster.CustomerProperties.ImageDigestMirrors = convertImageDigestMirrorsCSToRP(clusterServiceCluster.RegistryConfig().ImageDigestMirrors())
+	}
+
 	// the clientID and principalID are currently only known to cluster-service. We'll need to determine them somewhere else.
 	if clusterServiceCluster.Azure().OperatorsAuthentication() != nil {
 		if mi, ok := clusterServiceCluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
@@ -716,6 +721,47 @@ func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv
 			arohcpv1alpha1.NewAutoscalerResourceLimits().
 				MaxNodesTotal(int(in.MaxNodesTotal)),
 		), nil
+}
+
+func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv1alpha1.ImageMirrorBuilder {
+	if in == nil {
+		return nil
+	}
+
+	builders := make([]*arohcpv1alpha1.ImageMirrorBuilder, 0)
+
+	for _, item := range in {
+		builders = append(builders, arohcpv1alpha1.NewImageMirror().
+			Source(item.Source).
+			Mirrors(item.Mirrors...))
+	}
+
+	return builders
+}
+
+func convertImageDigestMirrorsCSToRP(in []*arohcpv1alpha1.ImageMirror) []api.ImageDigestMirror {
+	if in == nil {
+		return nil
+	}
+
+	out := make([]api.ImageDigestMirror, 0, len(in))
+
+	for _, item := range in {
+		if item == nil {
+			continue
+		}
+		out = append(out, api.ImageDigestMirror{
+			Source:             item.Source(),
+			Mirrors:            item.Mirrors(),
+			MirrorSourcePolicy: api.MirrorSourcePolicyAllowContactingSource,
+		})
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
 }
 
 // BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
