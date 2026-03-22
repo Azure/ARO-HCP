@@ -718,6 +718,22 @@ func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv
 		), nil
 }
 
+func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv1alpha1.ImageMirrorBuilder {
+	if in == nil {
+		return nil
+	}
+
+	builders := make([]*arohcpv1alpha1.ImageMirrorBuilder, 0)
+
+	for _, item := range in {
+		builders = append(builders, arohcpv1alpha1.NewImageMirror().
+			Source(item.Source).
+			Mirrors(item.Mirrors...))
+	}
+
+	return builders
+}
+
 // BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
