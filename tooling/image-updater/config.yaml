@@ -273,7 +273,7 @@ images:
     group: velero
     source:
       image: registry.redhat.io/oadp/oadp-velero-rhel9
-      tag: "v1.5"
+      tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
       keyVault:
@@ -286,7 +286,7 @@ images:
     group: velero
     source:
       image: registry.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      tag: "v1.5"
+      tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
       keyVault:
@@ -299,7 +299,7 @@ images:
     group: velero
     source:
       image: registry.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
-      tag: "v1.5"
+      tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
       keyVault:

@@ -19,10 +19,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
@@ -58,9 +60,141 @@ type dockerRegistryTagsResponse struct {
 	Tags []string `json:"tags"`
 }
 
-// doRequestWithRetry performs an HTTP request with exponential backoff retry logic
-// It retries on temporary network errors and 5xx server errors
-// The operation can be cancelled via context (e.g., Ctrl+C)
+// addAuth adds authentication headers to the request using Docker credentials.
+// It follows the Docker Registry V2 authentication flow:
+// 1. Resolve credentials from the default keychain
+// 2. Discover the token endpoint via the WWW-Authenticate challenge from the registry
+// 3. Exchange credentials for a bearer token
+func (c *GenericRegistryClient) addAuth(req *http.Request, repository string) error {
+	ref, err := name.NewRepository(fmt.Sprintf("%s/%s", c.registryURL, repository))
+	if err != nil {
+		return fmt.Errorf("failed to parse repository: %w", err)
+	}
+
+	authenticator, err := authn.DefaultKeychain.Resolve(ref.Registry)
+	if err != nil {
+		return fmt.Errorf("failed to resolve authenticator: %w", err)
+	}
+
+	authConfig, err := authenticator.Authorization()
+	if err != nil {
+		return fmt.Errorf("failed to get authorization: %w", err)
+	}
+
+	token, err := c.getBearerToken(repository, *authConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get bearer token: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	return nil
+}
+
+// getBearerToken exchanges credentials for a bearer token following the Docker Registry V2 auth spec.
+// Unlike the QuayClient which hardcodes quay.io's token endpoint, this method dynamically discovers
+// the token endpoint by making an unauthenticated request to /v2/ and parsing the WWW-Authenticate
+// challenge header returned by the registry.
+func (c *GenericRegistryClient) getBearerToken(repository string, authConfig authn.AuthConfig) (string, error) {
+	// Make an unauthenticated request to discover the auth challenge
+	challengeURL := fmt.Sprintf("https://%s/v2/", c.registryURL)
+	challengeResp, err := c.httpClient.Get(challengeURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to request auth challenge from %s: %w", challengeURL, err)
+	}
+	defer challengeResp.Body.Close()
+
+	wwwAuth := challengeResp.Header.Get("WWW-Authenticate")
+	if wwwAuth == "" {
+		return "", fmt.Errorf("no WWW-Authenticate header in challenge response from %s", challengeURL)
+	}
+
+	realm, service, err := parseWwwAuthenticate(wwwAuth)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse WWW-Authenticate header: %w", err)
+	}
+
+	// Build the token request URL using the discovered realm and service
+	tokenURL := fmt.Sprintf("%s?service=%s&scope=repository:%s:pull", realm, service, repository)
+
+	tokenReq, err := http.NewRequest("GET", tokenURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	// Use basic auth to get the bearer token
+	if authConfig.Username != "" && authConfig.Password != "" {
+		tokenReq.SetBasicAuth(authConfig.Username, authConfig.Password)
+	} else if authConfig.Auth != "" {
+		// Auth is already base64 encoded username:password
+		tokenReq.Header.Set("Authorization", fmt.Sprintf("Basic %s", authConfig.Auth))
+	} else {
+		return "", fmt.Errorf("no credentials found in Docker config for %s", c.registryURL)
+	}
+
+	tokenResp, err := c.httpClient.Do(tokenReq)
+	if err != nil {
+		return "", fmt.Errorf("failed to request token: %w", err)
+	}
+	defer tokenResp.Body.Close()
+
+	if tokenResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("token request returned status %d", tokenResp.StatusCode)
+	}
+
+	var tokenData struct {
+		Token       string `json:"token"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(tokenResp.Body).Decode(&tokenData); err != nil {
+		return "", fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	// Return whichever field is populated
+	if tokenData.Token != "" {
+		return tokenData.Token, nil
+	}
+	if tokenData.AccessToken != "" {
+		return tokenData.AccessToken, nil
+	}
+
+	return "", fmt.Errorf("no token in response")
+}
+
+// parseWwwAuthenticate parses a WWW-Authenticate header value like:
+//
+//	Bearer realm="https://host/v2/auth",service="registry",scope="repository:repo:pull"
+//
+// and returns the realm and service values.
+func parseWwwAuthenticate(header string) (realm, service string, err error) {
+	if !strings.HasPrefix(header, "Bearer ") {
+		return "", "", fmt.Errorf("unsupported WWW-Authenticate scheme: %s", header)
+	}
+	params := header[len("Bearer "):]
+
+	for _, part := range strings.Split(params, ",") {
+		part = strings.TrimSpace(part)
+		k, v, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		v = strings.Trim(v, "\"")
+		switch k {
+		case "realm":
+			realm = v
+		case "service":
+			service = v
+		}
+	}
+
+	if realm == "" {
+		return "", "", fmt.Errorf("no realm found in WWW-Authenticate header: %s", header)
+	}
+	return realm, service, nil
+}
+
+// doRequestWithRetry performs an HTTP request with exponential backoff retry logic.
+// It retries on temporary network errors and 5xx server errors.
+// The operation can be cancelled via context (e.g., Ctrl+C).
 func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -161,12 +295,19 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
+
 	// Use Docker Registry HTTP API v2 for listing tags
 	url := fmt.Sprintf("https://%s/v2/%s/tags/list", c.registryURL, repository)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request (url: %s): %w", url, err)
+	}
+
+	if c.useAuth {
+		if err := c.addAuth(req, repository); err != nil {
+			return nil, fmt.Errorf("failed to add authentication: %w", err)
+		}
 	}
 
 	resp, err := c.doRequestWithRetry(ctx, req)
@@ -188,12 +329,10 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 
 	var allTags []Tag
 	for _, tagName := range tagsResp.Tags {
-		tag := Tag{
-			Name: tagName,
-			// We'll get digest and last modified from manifests later
+		allTags = append(allTags, Tag{
+			Name:         tagName,
 			LastModified: time.Time{},
-		}
-		allTags = append(allTags, tag)
+		})
 	}
 
 	return allTags, nil
