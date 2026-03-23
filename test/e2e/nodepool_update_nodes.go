@@ -120,13 +120,12 @@ var _ = Describe("Customer", func() {
 					return createErr
 				})
 			}
-			err = group.Wait()
+			_ = group.Wait()
 			close(errCh)
 			var creationErrors []error
 			for createErr := range errCh {
 				creationErrors = append(creationErrors, createErr)
 			}
-			Expect(err).NotTo(HaveOccurred())
 			Expect(creationErrors).To(BeEmpty(), "nodepool creation errors: %v", creationErrors)
 
 			By("verifying nodes count and status after initial creation")
