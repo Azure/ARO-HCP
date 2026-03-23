@@ -1,0 +1,18 @@
+{
+	"name": "ephemeral-pool",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"min": 1,
+			"max": 3
+		},
+		"platform": {
+			"vmSize": "large",
+			"osDisk": {
+				"diskStorageAccountType": "Premium_LRS",
+				"diskType": "Ephemeral"
+			}
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}
