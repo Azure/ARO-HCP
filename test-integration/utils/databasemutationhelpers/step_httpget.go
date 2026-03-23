@@ -26,10 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type ResourceKey struct {
-	ResourceID string `json:"resourceId"`
-}
-
 type httpGetStep struct {
 	stepID StepID
 	key    ResourceKey

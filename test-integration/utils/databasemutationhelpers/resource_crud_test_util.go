@@ -388,6 +388,19 @@ type StepInput struct {
 	KubeFakeClientSets     *integrationutils.KubernetesClientSets
 }
 
+// ResourceKey identifies an ARM resource for test step operations.
+// Used by HTTP step types (httpCreate, httpGet, httpPost, httpPatch, httpDelete, httpList)
+// and by completeOperation (which uses only ResourceID).
+type ResourceKey struct {
+	ResourceID string `json:"resourceId"`
+
+	// APIVersion specifies the ARM api-version query parameter for HTTP operations.
+	// Valid values are ARM API version strings (e.g., "2024-06-10-preview", "2025-12-23-preview").
+	// If empty, falls back to StepInput.APIVersion, then DefaultTestAPIVersion.
+	// Only used by HTTP step types; non-HTTP steps (e.g., completeOperation) ignore this field.
+	APIVersion string `json:"apiVersion,omitempty"`
+}
+
 func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {
 	if strings.HasPrefix(key.ResourceID, "/admin/") {
 		return newHTTPTestAccessor(s.AdminURL, map[string]string{
@@ -396,7 +409,10 @@ func (s StepInput) HTTPTestAccessor(key ResourceKey) HTTPTestAccessor {
 			"Content-Type":               "application/json",
 		})
 	}
-	apiVersion := s.APIVersion
+	apiVersion := key.APIVersion
+	if len(apiVersion) == 0 {
+		apiVersion = s.APIVersion
+	}
 	if len(apiVersion) == 0 {
 		apiVersion = DefaultTestAPIVersion
 	}
