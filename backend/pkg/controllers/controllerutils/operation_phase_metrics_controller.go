@@ -37,7 +37,7 @@ var labelNames = []string{"resource_id_hash", "resource_type", "operation_type",
 
 // operationKey is a typed workqueue key that carries the resource ID and
 // provides a deterministic hash for use as a Prometheus label value.
-// Both setMetrics and deleteMetricsByKey use operationKey.hash() to derive
+// Both setMetrics and deleteMetrics use operationKey.hash() to derive
 // the resource_id_hash label, enforcing consistency.
 type operationKey struct {
 	resourceID string
