@@ -1490,6 +1490,9 @@ clouds:
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            istio:
+              targetVersion: "asm-1-28"
+              versions: "asm-1-28"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               userAgentPool:
