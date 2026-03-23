@@ -33,10 +33,13 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
+const defaultCleanupParallelism = 8
+
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
 		RawOptions:   entrypointutils.DefaultOptions(),
 		OnlyRegional: true,
+		Parallelism:  defaultCleanupParallelism,
 	}
 }
 
@@ -49,6 +52,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "Print the resource groups that would be cleaned up without deleting them.")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "Wait for the resource groups to be fully cleaned up.")
+	cmd.Flags().IntVar(&opts.Parallelism, "parallelism", opts.Parallelism, "Maximum number of deletions to run in parallel per cleanup step.")
 
 	return nil
 }
@@ -60,6 +64,8 @@ type RawOptions struct {
 
 	DryRun bool
 	Wait   bool
+
+	Parallelism int
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -84,6 +90,8 @@ type completedOptions struct {
 
 	DryRun bool
 	Wait   bool
+
+	Parallelism int
 }
 
 type Options struct {
@@ -95,6 +103,9 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 	validated, err := o.RawOptions.Validate(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if o.Parallelism < 1 {
+		return nil, fmt.Errorf("--parallelism must be >= 1, got %d", o.Parallelism)
 	}
 
 	return &ValidatedOptions{
@@ -127,6 +138,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 			DryRun: o.DryRun,
 			Wait:   o.Wait,
+
+			Parallelism: o.Parallelism,
 		},
 	}, nil
 }
@@ -134,7 +147,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 func (o *Options) CleanUpResources(ctx context.Context) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get logger from context: %w", err)
 	}
 
 	var executionGraph *graph.Graph
@@ -149,7 +162,7 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 
 	var regionalRGs sets.Set[string]
 	if o.OnlyRegional {
-		regionalRGs = sets.New[string](entrypointutils.RegionalResourceGroupNames(o.Config)...)
+		regionalRGs = sets.New(entrypointutils.RegionalResourceGroupNames(o.Config)...)
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -180,14 +193,15 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 			resourceGroupName: resourceGroup.ResourceGroup,
 			subscriptionID:    subscriptionID,
 			credential:        o.AzureCredential,
-			logger:            rgLogger,
 			wait:              o.Wait,
 			dryRun:            o.DryRun,
+			parallelism:       o.Parallelism,
 		}
 
 		// Always execute in parallel via errgroup
+		rgCtx := logr.NewContext(groupCtx, rgLogger.WithValues("subscriptionID", subscriptionID))
 		group.Go(func() error {
-			return deleter.execute(groupCtx)
+			return deleter.execute(rgCtx)
 		})
 	}
 

@@ -10,6 +10,7 @@ use (
 	./test
 	./test-integration
 	./tooling/aro-hcp-exporter
+	./tooling/cleanup-sweeper
 	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest
