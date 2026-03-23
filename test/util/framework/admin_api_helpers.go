@@ -34,6 +34,8 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 )
 
 const (
@@ -264,12 +266,14 @@ func (tc *perItOrDescribeTestContext) GetCurrentAzureIdentityDetails(ctx context
 	return tc.perBinaryInvocationTestContext.GetCurrentAzureIdentityDetails(ctx)
 }
 
-func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
+// createAdminAPIHTTPClient creates an HTTP client configured for Admin API calls with
+// client principal authentication and TLS settings appropriate for the environment.
+func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Client {
 	tlsConfig := &tls.Config{}
 	if IsDevelopmentEnvironment() {
 		tlsConfig.InsecureSkipVerify = true
 	}
-	httpClient := &http.Client{
+	return &http.Client{
 		Transport: &clientPrincipalTransport{
 			base: &http.Transport{
 				TLSClientConfig: tlsConfig,
@@ -278,6 +282,10 @@ func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context
 		},
 		Timeout: adminAPIRequestTimeout,
 	}
+}
+
+func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
+	httpClient := createAdminAPIHTTPClient(identityDetails)
 
 	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
 
@@ -310,4 +318,129 @@ func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context
 		restConfig.Insecure = true
 	}
 	return restConfig, expiresAt, nil
+}
+
+// GetFirstVMFromManagedResourceGroup retrieves the name of the first VM found in the managed resource group.
+// Returns an error if no VMs are found or if the Azure API calls fail.
+func (tc *perItOrDescribeTestContext) GetFirstVMFromManagedResourceGroup(ctx context.Context, managedResourceGroupName string) (string, error) {
+	cred, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	computeClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create compute client: %w", err)
+	}
+
+	pager := computeClient.NewListPager(managedResourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to list VMs: %w", err)
+		}
+		if len(page.Value) > 0 {
+			if page.Value[0].Name != nil {
+				return *page.Value[0].Name, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no VMs found in managed resource group %s", managedResourceGroupName)
+}
+
+func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Context, managedResourceGroupName string, vmName string) error {
+	cred, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	subscriptionID, err := tc.SubscriptionID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	computeClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create compute client: %w", err)
+	}
+
+	By(fmt.Sprintf("disabling boot diagnostics for VM %s", vmName))
+
+	// Create update payload with only the diagnostics profile
+	vmUpdate := armcompute.VirtualMachineUpdate{
+		Properties: &armcompute.VirtualMachineProperties{
+			DiagnosticsProfile: &armcompute.DiagnosticsProfile{
+				BootDiagnostics: &armcompute.BootDiagnostics{
+					Enabled: to.Ptr(false),
+				},
+			},
+		},
+	}
+
+	// Update VM
+	poller, err := computeClient.BeginUpdate(ctx, managedResourceGroupName, vmName, vmUpdate, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin VM update: %w", err)
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to disable boot diagnostics: %w", err)
+	}
+
+	return nil
+}
+
+// GetSerialConsoleLogs retrieves serial console logs for a VM in an HCP cluster's managed resource group
+func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, resourceID string, vmName string, identityDetails *AzureIdentityDetails) (string, error) {
+	httpClient := createAdminAPIHTTPClient(identityDetails)
+
+	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
+
+	serialConsoleEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/serialconsole",
+		adminAPIEndpoint,
+		resourceID,
+	)
+
+	By(fmt.Sprintf("reaching out to the admin API to retrieve serial console logs for VM %s", vmName))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serialConsoleEndpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add query parameter with proper encoding
+	q := req.URL.Query()
+	q.Add("vmName", vmName)
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		// Limit error response body to 1MB for test error messages
+		limitedReader := io.LimitReader(resp.Body, 1*1024*1024)
+		body, readErr := io.ReadAll(limitedReader)
+		if readErr != nil {
+			return "", fmt.Errorf("expected status 200 OK, got %d (failed to read body: %w)", resp.StatusCode, readErr)
+		}
+		return "", fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Limit response body to 10MB for serial console logs in tests
+	limitedReader := io.LimitReader(resp.Body, 10*1024*1024)
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return string(body), nil
 }
