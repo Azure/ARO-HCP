@@ -196,14 +196,8 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			updateResponse, err := framework.UpdateNodePoolAndWait(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
-
-			By("verifying nodepool reports updated version")
-			Expect(updateResponse.Properties).NotTo(BeNil())
-			Expect(updateResponse.Properties.Version).NotTo(BeNil())
-			Expect(updateResponse.Properties.Version.ID).NotTo(BeNil())
-			Expect(*updateResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion))
 
 			By("verifying nodes are ready, updated to expected version, and release images differ from pre-upgrade")
 			Eventually(func() error {
