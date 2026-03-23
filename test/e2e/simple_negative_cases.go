@@ -167,30 +167,28 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// TEST CASE: ARO-23182
-			if false { // blocked by https://issues.redhat.com/browse/ARO-24542
-				By("attempting to update nodepool version to higher than cluster version")
-				clusterVersion := clusterParams.OpenshiftVersionId
-				parts := strings.Split(clusterVersion, ".")
-				minor, _ := strconv.Atoi(parts[1])
-				invalidNodePoolVersion := fmt.Sprintf("%s.%d.0", parts[0], minor+1) // +1 y-stream, z set to 0
-				versionUpdate := hcpsdk20240610preview.NodePoolUpdate{
-					Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-						Version: &hcpsdk20240610preview.NodePoolVersionProfile{
-							ID: &invalidNodePoolVersion,
-						},
+			By("attempting to update nodepool version to higher than cluster version")
+			clusterVersion := clusterParams.OpenshiftVersionId
+			parts := strings.Split(clusterVersion, ".")
+			minor, _ := strconv.Atoi(parts[1])
+			invalidNodePoolVersion := fmt.Sprintf("%s.%d.0", parts[0], minor+1) // +1 y-stream, z set to 0
+			versionUpdate := hcpsdk20240610preview.NodePoolUpdate{
+				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+						ID: &invalidNodePoolVersion,
 					},
-				}
-
-				_, err = framework.UpdateNodePoolAndWait(ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-					*resourceGroup.Name,
-					clusterParams.ClusterName,
-					nodePoolParams.NodePoolName,
-					versionUpdate,
-					10*time.Minute,
-				)
-				checkExpectedError(&errs, "node pool version update validation", err, "version")
+				},
 			}
+
+			_, err = framework.UpdateNodePoolAndWait(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParams.NodePoolName,
+				versionUpdate,
+				10*time.Minute,
+			)
+			checkExpectedError(&errs, "invalid node pool version update", err, "node pool version cannot exceed control plane")
 
 			// TEST CASE: ARO-24877
 			By("attempting to update immutable platform profile fields")
