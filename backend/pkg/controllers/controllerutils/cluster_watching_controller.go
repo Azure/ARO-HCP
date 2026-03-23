@@ -19,21 +19,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/go-logr/logr"
-
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/utils"
-	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 type ClusterSyncer interface {
@@ -46,10 +38,6 @@ type clusterWatchingController struct {
 	syncer ClusterSyncer
 
 	cosmosClient database.DBClient
-
-	// queue is where incoming work is placed to de-dup and to allow "easy"
-	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[HCPClusterKey]
 }
 
 // NewClusterWatchingController periodically looks up all clusters and queues them
@@ -64,63 +52,29 @@ func NewClusterWatchingController(
 	resyncDuration time.Duration,
 	syncer ClusterSyncer,
 ) Controller {
-	c := &clusterWatchingController{
+
+	clusterSyncer := &clusterWatchingController{
 		name:         name,
 		cosmosClient: cosmosClient,
 		syncer:       syncer,
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[HCPClusterKey](),
-			workqueue.TypedRateLimitingQueueConfig[HCPClusterKey]{
-				Name: name,
-			},
-		),
 	}
+	clusterController := newGenericWatchingController(name, api.ClusterResourceType, clusterSyncer)
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if informers != nil {
 		clusterInformer, _ := informers.Clusters()
-		_, err := clusterInformer.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueClusterAdd,
-				UpdateFunc: c.enqueueClusterUpdate,
-			},
-			cache.HandlerOptions{
-				ResyncPeriod: ptr.To(resyncDuration),
-			})
-		if err != nil {
-			panic(err) // coding error
-		}
 		serviceProviderInformer, _ := informers.ServiceProviderClusters()
-		_, err = serviceProviderInformer.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueServiceProviderClusterAdd,
-				UpdateFunc: c.enqueueServiceProviderClusterUpdate,
-			},
-			cache.HandlerOptions{
-				ResyncPeriod: ptr.To(resyncDuration),
-			})
-		if err != nil {
-			panic(err) // coding error
-		}
 		managementClusterContentInformer, _ := informers.ManagementClusterContents()
-		_, err = managementClusterContentInformer.AddEventHandlerWithOptions(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.enqueueManagementClusterContentAdd,
-				UpdateFunc: c.enqueueManagementClusterContentUpdate,
-			},
-			cache.HandlerOptions{
-				ResyncPeriod: ptr.To(resyncDuration),
-			})
+		err := clusterController.QueueForInformers(resyncDuration, clusterInformer, serviceProviderInformer, managementClusterContentInformer)
 		if err != nil {
 			panic(err) // coding error
 		}
 	}
 
-	return c
+	return clusterController
 }
 
-func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) error {
-	key := keyObj.(HCPClusterKey)
+func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPClusterKey) error {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
@@ -140,114 +94,14 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, keyObj any) er
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *clusterWatchingController) Run(ctx context.Context, threadiness int) {
-	// don't let panics crash the process
-	defer utilruntime.HandleCrash()
-	// make sure the work queue is shutdown which will trigger workers to end
-	defer c.queue.ShutDown()
-
-	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting")
-
-	// start up your worker threads based on threadiness.  Some controllers
-	// have multiple kinds of workers
-	for i := 0; i < threadiness; i++ {
-		// runWorker will loop until "something bad" happens.  The .Until will
-		// then rekick the worker after one second
-		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
-	}
-
-	logger.Info("Started workers")
-
-	// wait until we're told to stop
-	<-ctx.Done()
-	logger.Info("Shutting down")
+func (c *clusterWatchingController) CooldownChecker() CooldownChecker {
+	return c.syncer.CooldownChecker()
 }
 
-func (c *clusterWatchingController) runWorker(ctx context.Context) {
-	for c.processNextWorkItem(ctx) {
-	}
-}
-
-// processNextWorkItem deals with one item off the queue.  It returns false
-// when it's time to quit.
-func (c *clusterWatchingController) processNextWorkItem(ctx context.Context) bool {
-	ref, shutdown := c.queue.Get()
-	if shutdown {
-		return false
-	}
-	defer c.queue.Done(ref)
-
-	logger := utils.LoggerFromContext(ctx)
-	logger = ref.AddLoggerValues(logger)
-	ctx = utils.ContextWithLogger(ctx, logger)
-
-	ReconcileTotal.WithLabelValues(c.name).Inc()
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		c.queue.Forget(ref)
-		return true
-	}
-
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-	c.queue.AddRateLimited(ref)
-
-	return true
-}
-
-// EnqueueResourceIDAdd traverses to find a resourceID that is an hcpcluster and adds it if found.
-// It is exposed so that individual controllers can add other items to requeue based on easily.
-func (c *clusterWatchingController) EnqueueResourceIDAdd(resourceID *azcorearm.ResourceID) {
-	if resourceID == nil {
-		return
-	}
-	if !apihelpers.ResourceTypeEqual(resourceID.ResourceType, api.ClusterResourceType) {
-		c.EnqueueResourceIDAdd(resourceID.Parent)
-		return
-	}
-
-	key := HCPClusterKey{
+func (c *clusterWatchingController) MakeKey(resourceID *azcorearm.ResourceID) HCPClusterKey {
+	return HCPClusterKey{
 		SubscriptionID:    resourceID.SubscriptionID,
 		ResourceGroupName: resourceID.ResourceGroupName,
 		HCPClusterName:    resourceID.Name,
 	}
-
-	logger := utils.DefaultLogger()
-	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
-	ctx := logr.NewContext(context.TODO(), logger)
-	logger = key.AddLoggerValues(logger)
-	ctx = logr.NewContext(ctx, logger)
-
-	if !c.syncer.CooldownChecker().CanSync(ctx, key) {
-		return
-	}
-
-	c.queue.Add(key)
-}
-
-// TODO once these share common metadata, recollapse
-func (c *clusterWatchingController) enqueueClusterAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.HCPOpenShiftCluster).ID)
-}
-
-func (c *clusterWatchingController) enqueueClusterUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.HCPOpenShiftCluster).ID)
-}
-
-func (c *clusterWatchingController) enqueueServiceProviderClusterAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).GetResourceID())
-}
-
-func (c *clusterWatchingController) enqueueServiceProviderClusterUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderCluster).GetResourceID())
-}
-
-func (c *clusterWatchingController) enqueueManagementClusterContentAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ManagementClusterContent).GetResourceID())
-}
-
-func (c *clusterWatchingController) enqueueManagementClusterContentUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ManagementClusterContent).GetResourceID())
 }

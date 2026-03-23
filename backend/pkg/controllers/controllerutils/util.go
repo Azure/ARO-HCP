@@ -38,6 +38,20 @@ type Controller interface {
 	Run(ctx context.Context, threadiness int)
 }
 
+type LoggableKey interface {
+	AddLoggerValues(logger logr.Logger) logr.Logger
+}
+
+func AddLoggerValues(logger logr.Logger, key any) logr.Logger {
+	switch castKey := key.(type) {
+	case LoggableKey:
+		return castKey.AddLoggerValues(logger)
+	default:
+		logger = logger.WithValues("controllerKey", key)
+		return logger
+	}
+}
+
 // OperationKey is for driving workqueues keyed for operations
 type OperationKey struct {
 	SubscriptionID   string `json:"subscriptionID"`
