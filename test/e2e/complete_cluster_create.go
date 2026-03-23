@@ -135,5 +135,11 @@ var _ = Describe("Customer", func() {
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("sleeping for 3 hour to allow cluster inspection")
+			GinkgoLogr.Info("Cluster is ready for inspection. Sleeping for 3 hour before cleanup...",
+				"resourceGroup", *resourceGroup.Name,
+				"clusterName", customerClusterName)
+			time.Sleep(3 * time.Hour)
 		})
 })
