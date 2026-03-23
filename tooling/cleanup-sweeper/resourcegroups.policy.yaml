@@ -1,17 +1,18 @@
-# Example cleanup-sweeper policy implementing the intended legacy behavior:
+# This policy implements the cleanup-sweeper behavior:
 # - Global default: delete RGs older than 2 days.
 # - Always skip managed resource groups (ManagedBy is set).
 # - persist=true normally protects RGs from 2-day deletion.
 # - Exception for hcp-underlay-pers-*:
 #   - delete after 2 days when persist != true
 #   - delete after 15 days when persist == true
+# - hcp-underlay-prow-* groups are deleted after 6 hours.
 
 rgOrdered:
   # Keep known long-lived/shared groups out of rg-ordered deletion candidates.
   excludedResourceGroups:
     - global
     - hcp-kusto-us
-    - hcp-automation-rg
+    - westus3-shared-resources
 
   discovery:
     # Rules are evaluated in order; first match wins.
@@ -40,6 +41,12 @@ rgOrdered:
           tagsNotEq:
             persist: "true"
         olderThan: "48h"
+
+      - name: prow-delete-after-6h
+        action: delete
+        match:
+          namePrefix: "hcp-underlay-prow-"
+        olderThan: "6h"
 
       - name: skip-persist-true-globally
         action: skip
