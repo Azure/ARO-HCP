@@ -28,6 +28,14 @@ acrPull:
     digest: sha256:042511defb0842f02593e48e68d83a20a1af4265db4e23fca484356e34a6c883
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
+  k8s:
+    namespace: acrpull
+    resources:
+      limits:
+        memory: 256Mi
+      requests:
+        memory: 256Mi
+    serviceAccountName: acrpull
 adminApi:
   audit:
     connectSocket: false
@@ -41,6 +49,11 @@ adminApi:
   k8s:
     namespace: aro-hcp-admin-api
     replicas: 2
+    resources:
+      limits:
+        memory: 128Mi
+      requests:
+        memory: 128Mi
     serviceAccountName: admin-api
   managedIdentityName: admin-api
 administration:
@@ -85,6 +98,11 @@ backend:
   k8s:
     namespace: aro-hcp
     replicas: 2
+    resources:
+      limits:
+        memory: 1216Mi
+      requests:
+        memory: 1216Mi
     serviceAccountName: backend
   maestro:
     sourceEnvironmentIdentifier: arohcpcspr
@@ -148,6 +166,11 @@ clustersService:
         maxUnavailable: 0
     namespace: clusters-service
     replicas: 3
+    resources:
+      limits:
+        memory: 1008Mi
+      requests:
+        memory: 1008Mi
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   ocpVersions:
@@ -189,6 +212,11 @@ customExporter:
     repository: arohcpmetrics
   k8s:
     namespace: aro-hcp-exporter
+    resources:
+      limits:
+        memory: 128Mi
+      requests:
+        memory: 128Mi
     serviceAccountName: aro-hcp-exporter
   managedIdentityName: aro-hcp-exporter
 cxKeyVault:
@@ -246,6 +274,11 @@ frontend:
   k8s:
     namespace: aro-hcp
     replicas: 2
+    resources:
+      limits:
+        memory: 256Mi
+      requests:
+        memory: 256Mi
     serviceAccountName: frontend
   managedIdentityName: frontend
   tracing:
@@ -376,6 +409,14 @@ kubeEvents:
     digest: sha256:f907f0eb97bdf12502907c5003845276d41662736d7a5462ae597eb74e337bc9
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
+  k8s:
+    namespace: kube-events
+    resources:
+      limits:
+        memory: 70Mi
+      requests:
+        memory: 70Mi
+    serviceAccountName: kube-events
 kusto:
   adminGroups: ""
   auditLogsEventHub:
@@ -451,6 +492,11 @@ maestro:
     k8s:
       namespace: maestro
       replicas: 3
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          memory: 512Mi
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
@@ -750,6 +796,11 @@ sessiongate:
   k8s:
     namespace: sessiongate
     replicas: 2
+    resources:
+      limits:
+        memory: 128Mi
+      requests:
+        memory: 128Mi
     serviceAccountName: sessiongate
   managedIdentityName: sessiongate
 svc:

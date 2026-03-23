@@ -58,9 +58,9 @@ spec:
         resources:
           limits:
             cpu: 100m
-            memory: 1Gi
+            memory: {{ .Values.resources.limits.memory }}
           requests:
             cpu: 100m
-            memory: 20Mi
+            memory: {{ .Values.resources.requests.memory }}
       serviceAccountName: acrpull
       terminationGracePeriodSeconds: 10

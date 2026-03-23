@@ -6,7 +6,9 @@ deployment:
   replicas: "{{ .sessiongate.k8s.replicas }}"
   requests:
     cpu: 250m
-    memory: 512Mi
+    memory: "{{ .sessiongate.k8s.resources.requests.memory }}"
+  limits:
+    memory: "{{ .sessiongate.k8s.resources.limits.memory }}"
 logLevel: "2"
 leaderElection:
   leaseDuration: "15s"

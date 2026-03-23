@@ -64,6 +64,8 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
+          limits:
+            memory: {{ .Values.deployment.limits.memory }}
           requests:
             cpu: {{ .Values.deployment.requests.cpu }}
             memory: {{ .Values.deployment.requests.memory }}

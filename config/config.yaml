@@ -92,6 +92,14 @@ defaults:
         days: 90
   # ACR Pull
   acrPull:
+    k8s:
+      namespace: acrpull
+      serviceAccountName: acrpull
+      resources:
+        requests:
+          memory: 256Mi
+        limits:
+          memory: 256Mi
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
@@ -121,6 +129,14 @@ defaults:
   # Kube Events
   kubeEvents:
     enabled: true
+    k8s:
+      namespace: kube-events
+      serviceAccountName: kube-events
+      resources:
+        requests:
+          memory: 70Mi
+        limits:
+          memory: 70Mi
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
@@ -131,6 +147,11 @@ defaults:
     k8s:
       namespace: aro-hcp-exporter
       serviceAccountName: aro-hcp-exporter
+      resources:
+        requests:
+          memory: 128Mi
+        limits:
+          memory: 128Mi
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
@@ -571,6 +592,11 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: backend
+      resources:
+        requests:
+          memory: 1216Mi
+        limits:
+          memory: 1216Mi
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     maestro:
@@ -589,6 +615,11 @@ defaults:
       replicas: 2
       namespace: aro-hcp-admin-api
       serviceAccountName: admin-api
+      resources:
+        requests:
+          memory: 128Mi
+        limits:
+          memory: 128Mi
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Session Gate
@@ -602,6 +633,11 @@ defaults:
       replicas: 2
       namespace: sessiongate
       serviceAccountName: sessiongate
+      resources:
+        requests:
+          memory: 128Mi
+        limits:
+          memory: 128Mi
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Frontend
@@ -620,6 +656,11 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: frontend
+      resources:
+        requests:
+          memory: 256Mi
+        limits:
+          memory: 256Mi
     cosmosDB:
       deploy: true
       disableLocalAuth: true
@@ -721,6 +762,11 @@ defaults:
         replicas: 3
         namespace: maestro
         serviceAccountName: maestro
+        resources:
+          requests:
+            memory: 512Mi
+          limits:
+            memory: 512Mi
     agent:
       consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       loglevel: 2
@@ -831,6 +877,11 @@ defaults:
         rollingUpdate:
           maxUnavailable: 0
           maxSurge: 1
+      resources:
+        requests:
+          memory: 1008Mi
+        limits:
+          memory: 1008Mi
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     # OCP Versions configuration

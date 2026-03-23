@@ -136,9 +136,9 @@ ocpAcrResourceId: ""
 # up to a multiple of 0.05 cores, which results in 0.3 cores.
 
 # Memory request.
-memoryRequest: "150Mi"
+memoryRequest: "1008Mi"
 # Memory limit.
-memoryLimit: "1Gi"
+memoryLimit: "1008Mi"
 # CPU request.
 cpuRequest: "50m"
 # CPU limit.

@@ -16,6 +16,11 @@ deployment:
   replicas: {{ .frontend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .frontend.image.repository }}@{{ .frontend.image.digest }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
+  resources:
+    requests:
+      memory: "{{ .frontend.k8s.resources.requests.memory }}"
+    limits:
+      memory: "{{ .frontend.k8s.resources.limits.memory }}"
 serviceAccount:
   name: "{{ .frontend.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__frontendMsiClientId__"

@@ -69,6 +69,6 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 128Mi
+            memory: {{ .Values.deployment.resources.requests.memory }}
           limits:
-            memory: 512Mi
+            memory: {{ .Values.deployment.resources.limits.memory }}

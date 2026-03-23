@@ -2,10 +2,10 @@ deployment:
   replicas: {{ .maestro.server.k8s.replicas }}
   requests:
     cpu: 200m
-    memory: 512Mi
+    memory: "{{ .maestro.server.k8s.resources.requests.memory }}"
   limits:
     cpu: 1
-    memory: 1Gi
+    memory: "{{ .maestro.server.k8s.resources.limits.memory }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 tracing:
   address: "{{ .maestro.server.tracing.address }}"

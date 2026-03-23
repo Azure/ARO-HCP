@@ -505,9 +505,11 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
+          limits:
+            memory: 128Mi
           requests:
             cpu: 250m
-            memory: 512Mi
+            memory: 128Mi
         volumeMounts: []
       volumes: []
       serviceAccountName: sessiongate
