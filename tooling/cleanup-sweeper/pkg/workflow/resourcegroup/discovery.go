@@ -44,7 +44,7 @@ func discoverCandidates(ctx context.Context, opts RunOptions) ([]string, error) 
 		if strings.TrimSpace(source) == "" {
 			source = "unknown source"
 		}
-		logger.V(1).Info(
+		logger.Info(
 			"RG candidate source for rg-ordered workflow",
 			"resourceGroup", resourceGroup,
 			"source", source,
@@ -101,7 +101,7 @@ func discoverPolicyCandidates(
 		if _, provided := candidateSources[*rg.Name]; !provided {
 			candidateSources[*rg.Name] = reason.SourceDescription()
 		}
-		logger.V(1).Info("Discovered RG candidate from policy", "resourceGroup", *rg.Name, "reason", reason.String())
+		logger.Info("Discovered RG candidate from policy", "resourceGroup", *rg.Name, "reason", reason.String())
 	}
 
 	return discoveredResourceGroups, nil

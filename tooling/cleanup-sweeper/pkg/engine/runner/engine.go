@@ -115,7 +115,7 @@ func (e *Engine) runStep(ctx context.Context, step Step) error {
 				}
 				return fmt.Errorf("%s: failed deleting %s (%s): %w", step.Name(), target.Name, target.Type, err)
 			}
-			logger.V(1).Info(
+			logger.Info(
 				"Deleted resource",
 				"step", step.Name(),
 				"resource", target.Name,
