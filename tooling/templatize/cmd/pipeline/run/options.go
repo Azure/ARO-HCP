@@ -127,6 +127,8 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 			SubscriptionIdToAzureConfigDirectory: subscriptionIdToAzureConfigDirectory,
 		},
 		Region:                o.PipelineOptions.RolloutOptions.Region,
+		Environment:           o.PipelineOptions.RolloutOptions.DeployEnv,
+		Stamp:                 o.PipelineOptions.RolloutOptions.Stamp,
 		Step:                  o.PipelineOptions.Step,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.PipelineOptions.RolloutOptions.Subscriptions),
 		TopologyDir:           o.PipelineOptions.TopologyDir,

@@ -16,7 +16,10 @@ package pipeline
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base32"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 
@@ -29,8 +32,31 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
-// runArmStackStep transforms a .bicep + .bicepparam into an ARM deployment stack, creates or updates the stack based on the
-// step name, and waits for the stack to finish deploying. This logic is a transliteration of the equivalent logic in the `az` CLI:
+// generateDeploymentStackName creates a deployment stack name based on:
+// service group / resource group / step name / cloud / env / region / stamp
+// This ensures the name is stable over time while being unique across deployment contexts.
+// The name is always hashed using base32(sha224(inputs)) to guarantee it fits within Azure's
+// 64-character deployment name limit. The resulting name is 45 characters.
+// The original inputs should be stored as tags on the deployment stack for traceability.
+func generateDeploymentStackName(serviceGroup, resourceGroup, stepName, cloud, environment, region, stamp string) string {
+	parts := []string{
+		serviceGroup,
+		resourceGroup,
+		stepName,
+		cloud,
+		environment,
+		region,
+		stamp,
+	}
+	fullName := strings.Join(parts, "-")
+	hash := sha256.Sum224([]byte(fullName))
+	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:]))
+}
+
+// runArmStackStep transforms a .bicep + .bicepparam into an ARM deployment stack. The deployment stack name is
+// generated from: service group / resource group / step name / cloud / env / region / stamp. This ensures the
+// name remains stable over time (required for deployment stacks) while being unique across environments and regions.
+// This logic is a transliteration of the equivalent logic in the `az` CLI:
 // https://github.com/Azure/azure-cli/blob/cf11272c36d2680a65bd775e10d338afa3a8b902/src/azure-cli/azure/cli/command_modules/resource/custom.py#L1396-L1405
 func runArmStackStep(
 	ctx context.Context,
@@ -39,6 +65,8 @@ func runArmStackStep(
 	id graph.Identifier,
 	step *types.ARMStackStep,
 	state *ExecutionState,
+	environment string,
+	stamp string,
 ) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -62,6 +90,17 @@ func runArmStackStep(
 	if err := ensureResourceGroupExists(ctx, resourceGroupClient, executionTarget.GetRegion(), executionTarget.GetResourceGroup(), !options.NoPersist); err != nil {
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
+
+	// Generate deployment stack name using the full context
+	deploymentStackName := generateDeploymentStackName(
+		id.ServiceGroup,
+		id.ResourceGroup,
+		step.StepName(),
+		options.Cloud,
+		environment,
+		executionTarget.GetRegion(),
+		stamp,
+	)
 
 	state.RLock()
 	inputValues, err := getInputValues(id.ServiceGroup, step.Variables, options.Configuration, state.Outputs)
@@ -103,13 +142,22 @@ func runArmStackStep(
 			Parameters: adaptedParams,
 			Template:   template,
 		},
+		Tags: map[string]*string{
+			"serviceGroup":  ptr.To(id.ServiceGroup),
+			"resourceGroup": ptr.To(id.ResourceGroup),
+			"stepName":      ptr.To(step.StepName()),
+			"cloud":         ptr.To(options.Cloud),
+			"environment":   ptr.To(environment),
+			"region":        ptr.To(executionTarget.GetRegion()),
+			"stamp":         ptr.To(stamp),
+		},
 	}
 
 	inputs := stackInputs{
 		Stack:           &stack,
 		DeploymentLevel: step.DeploymentLevel,
 		ResourceGroup:   executionTarget.GetResourceGroup(),
-		StepName:        step.StepName(),
+		StepName:        deploymentStackName,
 	}
 
 	_, skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, options.StepCacheDir)
@@ -121,33 +169,43 @@ func runArmStackStep(
 	}
 
 	var output armdeploymentstacks.DeploymentStack
-	var details DetailsProducer
 	switch step.DeploymentLevel {
 	case "Subscription":
-		details = DetermineOperationsForSubscriptionDeployment(operationsClient, step.StepName())
 		stack.Location = ptr.To(executionTarget.GetRegion())
-		poller, err := stackClient.BeginCreateOrUpdateAtSubscription(ctx, step.StepName(), stack, nil)
+		poller, err := stackClient.BeginCreateOrUpdateAtSubscription(ctx, deploymentStackName, stack, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create or update deployment stack at subscription scope: %w", err)
 		}
 		result, err := poller.PollUntilDone(ctx, nil)
 		if err != nil {
-			return nil, details, fmt.Errorf("failed to wait for deployment stack at subscription scope: %w", err)
+			return nil, nil, fmt.Errorf("failed to wait for deployment stack at subscription scope: %w", err)
 		}
 		output = result.DeploymentStack
 	case "ResourceGroup":
-		details = DetermineOperationsForResourceGroupDeployment(operationsClient, executionTarget.GetResourceGroup(), step.StepName())
-		poller, err := stackClient.BeginCreateOrUpdateAtResourceGroup(ctx, executionTarget.GetResourceGroup(), step.StepName(), stack, nil)
+		poller, err := stackClient.BeginCreateOrUpdateAtResourceGroup(ctx, executionTarget.GetResourceGroup(), deploymentStackName, stack, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create or update deployment stack at resource group scope: %w", err)
 		}
 		result, err := poller.PollUntilDone(ctx, nil)
 		if err != nil {
-			return nil, details, fmt.Errorf("failed to wait for deployment stack at subscription scope: %w", err)
+			return nil, nil, fmt.Errorf("failed to wait for deployment stack at resource group scope: %w", err)
 		}
 		output = result.DeploymentStack
 	default:
 		return nil, nil, fmt.Errorf("invalid deployment level: %s", step.DeploymentLevel)
+	}
+
+	// The deployment stack creates an underlying deployment whose name differs from the stack name.
+	// Extract the actual deployment name from the stack response to fetch operation details.
+	var details DetailsProducer
+	if output.Properties != nil && output.Properties.DeploymentID != nil {
+		underlyingDeploymentName := (*output.Properties.DeploymentID)[strings.LastIndex(*output.Properties.DeploymentID, "/")+1:]
+		switch step.DeploymentLevel {
+		case "Subscription":
+			details = DetermineOperationsForSubscriptionDeployment(operationsClient, underlyingDeploymentName)
+		case "ResourceGroup":
+			details = DetermineOperationsForResourceGroupDeployment(operationsClient, executionTarget.GetResourceGroup(), underlyingDeploymentName)
+		}
 	}
 
 	if output.Properties.Outputs != nil {

@@ -169,6 +169,8 @@ func (o *Options) Run(ctx context.Context) error {
 		},
 		TopologyDir:           o.TopoDir,
 		Region:                o.Region,
+		Environment:           o.DeployEnv,
+		Stamp:                 o.Stamp,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.Subscriptions),
 		Concurrency:           o.Concurrency,
 		TimingOutputFile:      o.TimingOutputFile,
