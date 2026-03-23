@@ -47,6 +47,7 @@ clean:
 image: Dockerfile $(BACKEND_SOURCES) Makefile
 	cd $(BACKEND_DIR)/.. && \
 	$(CONTAINER_ENGINE) build . --file backend/Dockerfile \
+		--platform linux/amd64 \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
