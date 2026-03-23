@@ -121,6 +121,53 @@ func TestEngineRun_DeleteErrorFailsWhenNotContinuable(t *testing.T) {
 	}
 }
 
+func TestEngineRun_DiscoverErrorFailsEvenWhenContinuable(t *testing.T) {
+	t.Parallel()
+
+	step := &fakeStep{
+		name:            "discover-fail-step",
+		discoverErr:     errors.New("discover boom"),
+		continueOnError: true,
+	}
+	engine := &Engine{
+		Steps:       []Step{step},
+		Parallelism: 1,
+	}
+
+	ctx := ContextWithLogger(context.Background(), logr.Discard())
+	err := engine.Run(ctx)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "discovery failed") {
+		t.Fatalf("expected discovery failure error, got %v", err)
+	}
+}
+
+func TestEngineRun_VerifyErrorFailsEvenWhenContinuable(t *testing.T) {
+	t.Parallel()
+
+	step := &fakeStep{
+		name:            "verify-fail-step",
+		targets:         []Target{{ID: "x"}},
+		verifyErr:       errors.New("verify boom"),
+		continueOnError: true,
+	}
+	engine := &Engine{
+		Steps:       []Step{step},
+		Parallelism: 1,
+	}
+
+	ctx := ContextWithLogger(context.Background(), logr.Discard())
+	err := engine.Run(ctx)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "verification failed") {
+		t.Fatalf("expected verification failure error, got %v", err)
+	}
+}
+
 func TestDeletionStepDiscover_AppliesSkipFilter(t *testing.T) {
 	t.Parallel()
 

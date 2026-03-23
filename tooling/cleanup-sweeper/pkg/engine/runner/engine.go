@@ -62,10 +62,6 @@ func (e *Engine) runStep(ctx context.Context, step Step) error {
 	logger := LoggerFromContext(ctx)
 	targets, err := step.Discover(ctx)
 	if err != nil {
-		if step.ContinueOnError() {
-			logger.Info("Discovery failed but continuing", "step", step.Name(), "error", err)
-			return nil
-		}
 		return fmt.Errorf("%s: discovery failed: %w", step.Name(), err)
 	}
 	if len(targets) == 0 {
@@ -130,10 +126,6 @@ func (e *Engine) runStep(ctx context.Context, step Step) error {
 	}
 
 	if err := step.Verify(ctx); err != nil {
-		if step.ContinueOnError() {
-			logger.Info("Verification failed but continuing", "step", step.Name(), "error", err)
-			return nil
-		}
 		return fmt.Errorf("%s: verification failed: %w", step.Name(), err)
 	}
 	return nil

@@ -139,6 +139,7 @@ func (o *RawOptions) Validate(_ context.Context) (*ValidatedOptions, error) {
 	if err != nil {
 		return nil, err
 	}
+	normalizedResourceGroups := setFromTrimmed(o.ResourceGroups)
 
 	pol := &policy.Policy{}
 	if workflow == WorkflowRGOrdered {
@@ -156,11 +157,11 @@ func (o *RawOptions) Validate(_ context.Context) (*ValidatedOptions, error) {
 		pol = loadedPolicy
 	}
 
-	if workflow == WorkflowRGOrdered && !hasRGOrderedSelectors(o) {
+	if workflow == WorkflowRGOrdered && !hasRGOrderedSelectors(o.DiscoverResourceGroups, normalizedResourceGroups) {
 		return nil, fmt.Errorf("rg-ordered workflow requires at least one RG selector or --discover-resource-groups")
 	}
 	if workflow == WorkflowSharedLeftovers {
-		if o.DiscoverResourceGroups || len(o.ResourceGroups) > 0 {
+		if hasRGOrderedSelectors(o.DiscoverResourceGroups, normalizedResourceGroups) {
 			return nil, fmt.Errorf("rg-ordered selectors are not allowed for shared-leftovers workflow")
 		}
 	}
@@ -302,9 +303,8 @@ func parseRequiredTags(raw []string) (map[string]string, error) {
 	return out, nil
 }
 
-func hasRGOrderedSelectors(o *RawOptions) bool {
-	return o.DiscoverResourceGroups ||
-		len(o.ResourceGroups) > 0
+func hasRGOrderedSelectors(discoverResourceGroups bool, resourceGroups sets.Set[string]) bool {
+	return discoverResourceGroups || resourceGroups.Len() > 0
 }
 
 func setFromTrimmed(values []string) sets.Set[string] {
