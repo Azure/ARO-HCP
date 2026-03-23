@@ -203,3 +203,51 @@ func TestDeletionStepRetryLimit_MinimumOne(t *testing.T) {
 		t.Fatalf("expected retry limit 1, got %d", got)
 	}
 }
+
+func TestEngineRun_PostRunFnCalled(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	engine := &Engine{
+		Steps:       []Step{&fakeStep{name: "s", targets: []Target{{ID: "a"}}}},
+		Parallelism: 1,
+		PostRunFn: func(_ context.Context) error {
+			called = true
+			return nil
+		},
+	}
+
+	ctx := ContextWithLogger(context.Background(), logr.Discard())
+	if err := engine.Run(ctx); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Fatal("expected PostRunFn to be called")
+	}
+}
+
+func TestEngineRun_PostRunFnNotCalledOnStepError(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	engine := &Engine{
+		Steps: []Step{&fakeStep{
+			name:          "fail",
+			targets:       []Target{{ID: "x", Name: "x", Type: "t"}},
+			deleteErrByID: map[string]error{"x": errors.New("boom")},
+		}},
+		Parallelism: 1,
+		PostRunFn: func(_ context.Context) error {
+			called = true
+			return nil
+		},
+	}
+
+	ctx := ContextWithLogger(context.Background(), logr.Discard())
+	if err := engine.Run(ctx); err == nil {
+		t.Fatal("expected error")
+	}
+	if called {
+		t.Fatal("PostRunFn should not be called when a step fails")
+	}
+}

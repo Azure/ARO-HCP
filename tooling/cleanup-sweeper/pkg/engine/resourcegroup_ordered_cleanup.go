@@ -5,6 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 	armsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
@@ -12,12 +20,6 @@ import (
 	kvsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/keyvault"
 	netsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/network"
 	rgsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/resourcegroup"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
 
 const (
@@ -114,6 +116,7 @@ func ResourceGroupOrderedCleanupWorkflow(
 		Parallelism: opts.Parallelism,
 		DryRun:      opts.DryRun,
 		Wait:        opts.Wait,
+		PostRunFn:   resourceGroupSummaryFn(resourcesClient, resourceGroupName, opts),
 		Steps: []runner.Step{
 			netsteps.NewNSPForceDeleteStep(netsteps.NSPForceDeleteStepConfig{
 				ResourceGroupName: resourceGroupName,
@@ -305,4 +308,65 @@ func ResourceGroupOrderedCleanupWorkflow(
 			}),
 		},
 	}, nil
+}
+
+// resourceGroupSummaryFn returns a PostRunFn that lists remaining resources in
+// a resource group and logs a summary. Errors are informational only.
+func resourceGroupSummaryFn(
+	client *armresources.Client,
+	resourceGroupName string,
+	opts WorkflowOptions,
+) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		logger := runner.LoggerFromContext(ctx)
+		if opts.DryRun {
+			logger.Info("Dry-run workflow complete; collecting final state")
+		} else {
+			logger.Info("Ordered cleanup workflow complete; collecting final state")
+		}
+
+		pager := client.NewListByResourceGroupPager(resourceGroupName, nil)
+		var remaining []*armresources.GenericResourceExpanded
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				if strings.Contains(err.Error(), "ResourceGroupNotFound") {
+					logger.Info("Resource group has been deleted")
+					return nil
+				}
+				logger.Info("Could not verify remaining resources", "error", err)
+				return nil
+			}
+			remaining = append(remaining, page.Value...)
+		}
+
+		if len(remaining) == 0 {
+			logger.Info("All resources have been deleted from the resource group")
+			return nil
+		}
+
+		byType := make(map[string][]string)
+		for _, res := range remaining {
+			if res.Type != nil && res.Name != nil {
+				byType[*res.Type] = append(byType[*res.Type], *res.Name)
+			}
+		}
+
+		if opts.DryRun {
+			logger.Info(fmt.Sprintf("Resource group cleanup preview completed. %d resources would be deleted", len(remaining)))
+		} else {
+			logger.Info(fmt.Sprintf("Resource group cleanup completed with %d resources remaining", len(remaining)))
+			if !opts.Wait {
+				logger.Info("Cleanup ran with wait=false, so asynchronous deletes may still be in progress")
+			}
+			for resType, names := range byType {
+				logger.Info("Remaining resources",
+					"type", resType,
+					"count", len(names),
+					"names", strings.Join(names, ", "),
+				)
+			}
+		}
+		return nil
+	}
 }

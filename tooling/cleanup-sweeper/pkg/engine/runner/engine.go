@@ -44,6 +44,7 @@ type Engine struct {
 	Parallelism int
 	DryRun      bool
 	Wait        bool
+	PostRunFn   func(ctx context.Context) error
 }
 
 func (e *Engine) Run(ctx context.Context) error {
@@ -54,6 +55,9 @@ func (e *Engine) Run(ctx context.Context) error {
 		if err := e.runStep(ctx, step); err != nil {
 			return err
 		}
+	}
+	if e.PostRunFn != nil {
+		return e.PostRunFn(ctx)
 	}
 	return nil
 }
