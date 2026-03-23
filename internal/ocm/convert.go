@@ -971,7 +971,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 }
 
 // BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
-func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
+func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool, versionID string) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	nodePoolBuilder := arohcpv1alpha1.NewNodePool()
 
 	// These attributes cannot be updated after node pool creation.
@@ -991,7 +991,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 		nodePoolBuilder.
 			ID(strings.ToLower(nodePool.Name)).
 			Version(arohcpv1alpha1.NewVersion().
-				ID(NewOpenShiftVersionXYZ(nodePool.Properties.Version.ID, nodePool.Properties.Version.ChannelGroup)).
+				ID(NewOpenShiftVersionXYZ(versionID, nodePool.Properties.Version.ChannelGroup)).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(subnetResourceIDString).
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().

@@ -285,13 +285,19 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
+	serviceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, f.dbClient, resourceID.Parent)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	validationOp := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
+
 	validationErrs := validation.ValidateNodePool(ctx, validationOp, newInternalNodePool, nil)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, nil, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePoolCreate(newInternalNodePool, cluster, serviceProviderCluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -300,7 +306,15 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, false)
+
+	versionID := newInternalNodePool.Properties.Version.ID
+	if len(versionID) == 0 {
+		lowest := api.FindLowestClusterVersion(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
+		if lowest != nil {
+			versionID = lowest.String()
+		}
+	}
+	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, false, versionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -578,7 +592,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true)
+	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true, newInternalNodePool.Properties.Version.ID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
