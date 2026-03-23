@@ -46,6 +46,14 @@ param auditLogsKustoConsumerGroupName string
 @description('Diagnostic settings authorization rule name')
 param auditLogsDiagnosticSettingsRuleName string
 
+@description('Optional cross-cluster ServiceLogs Kusto script content.')
+@secure()
+param crossClusterServiceLogsScript string = ''
+
+@description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
+@secure()
+param crossClusterHostedControlPlaneLogsScript string = ''
+
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -64,5 +72,7 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     auditLogsEventHubName: auditLogsEventHubName
     auditLogsKustoConsumerGroupName: auditLogsKustoConsumerGroupName
     auditLogsDiagnosticSettingsRuleName: auditLogsDiagnosticSettingsRuleName
+    crossClusterServiceLogsScript: crossClusterServiceLogsScript
+    crossClusterHostedControlPlaneLogsScript: crossClusterHostedControlPlaneLogsScript
   }
 }
