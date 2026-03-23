@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -30,7 +32,6 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -59,6 +60,14 @@ var _ = Describe("Customer", func() {
 			)
 
 			tc := framework.NewTestContext()
+
+			// IDMS feature is not yet rolled out to stage/prod environments.
+			// Time bomb: after 2026-03-30, remove this guard and expect the feature everywhere.
+			suiteName := os.Getenv("ARO_HCP_SUITE_NAME")
+			isStageProd := strings.HasPrefix(suiteName, "stage/") || strings.HasPrefix(suiteName, "prod/")
+			if isStageProd && time.Now().Before(time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)) {
+				Skip("IDMS feature not yet rolled out to this environment; skipping until 2026-03-30")
+			}
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -106,14 +115,8 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 
-			// v20251223preview API is not yet available in all environments (MSIT/production).
-			// Time bomb: after 2026-04-01, remove this guard and expect the API everywhere.
-			// Development environments use port-forward (no ARM), so never skip there.
 			var respErr *azcore.ResponseError
 			if createErr != nil && errors.As(createErr, &respErr) && respErr.ErrorCode == "NoRegisteredProviderFound" {
-				if !framework.IsDevelopmentEnvironment() && time.Now().Before(api.Must(time.Parse(time.DateOnly, "2026-04-01"))) {
-					Skip(fmt.Sprintf("v20251223preview API not available in ARM; skipping IDMS test: %v", createErr))
-				}
 				Fail(fmt.Sprintf("v20251223preview should be available but cluster creation failed: %v", createErr))
 			}
 			Expect(createErr).NotTo(HaveOccurred())
