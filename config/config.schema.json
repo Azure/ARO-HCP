@@ -1309,6 +1309,29 @@
     "miMockCertName": {
       "type": "string"
     },
+    "miMockPool": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "principalId": {
+            "type": "string"
+          },
+          "certName": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "clientId",
+          "principalId",
+          "certName"
+        ]
+      }
+    },
     "armHelperClientId": {
       "type": "string"
     },
