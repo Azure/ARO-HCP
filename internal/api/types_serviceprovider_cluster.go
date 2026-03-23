@@ -111,6 +111,9 @@ type ServiceProviderClusterStatus struct {
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
 	// and the Maestro Bundle Name and ID at the Maestro API level.
 	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
+	// BackupScheduleManifestWorkName is the name of the ManifestWork created in Maestro
+	// for the Velero backup schedule. Set once the ManifestWork has been successfully created.
+	BackupScheduleManifestWorkName string `json:"backupScheduleManifestWorkName,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
