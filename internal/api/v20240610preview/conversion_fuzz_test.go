@@ -77,6 +77,16 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ClusterServiceID = ocm.InternalID{}
 			j.ExistingCosmosUID = ""
 		},
+		// Status.Conditions does not roundtrip through the external type because it is purely an internal detail
+		func(j *api.HCPOpenShiftClusterStatus, c randfill.Continue) {
+			*j = api.HCPOpenShiftClusterStatus{}
+		},
+		func(j *api.HCPOpenShiftClusterNodePoolStatus, c randfill.Continue) {
+			*j = api.HCPOpenShiftClusterNodePoolStatus{}
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuthStatus, c randfill.Continue) {
+			*j = api.HCPOpenShiftClusterExternalAuthStatus{}
+		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// A zero-value KmsEncryptionProfile cannot roundtrip because

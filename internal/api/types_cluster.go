@@ -28,6 +28,7 @@ type HCPOpenShiftCluster struct {
 
 	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Status                    HCPOpenShiftClusterStatus                    `json:"status,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
 	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
 	// populated on DB read via the CosmosToInternalCluster() conversion function.
@@ -61,7 +62,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
 }
 
-// HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
+// HCPOpenShiftClusterServiceProviderProperties represents the internal property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
 	ExistingCosmosUID string                         `json:"-"`
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
@@ -84,6 +85,14 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// is set to a dummy value by our tools/testsuites/developers when
 	// creating ARO-HCP Clusters
 	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
+}
+
+// HCPOpenShiftClusterStatus contains controller-written status for a cluster.
+type HCPOpenShiftClusterStatus struct {
+	// Conditions tracks provisioning state transitions. Written by backend
+	// controllers only. Each provisioning state is a condition type with
+	// LastTransitionTime recording when the resource entered that state.
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

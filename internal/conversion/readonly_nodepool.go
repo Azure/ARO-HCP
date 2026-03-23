@@ -35,4 +35,5 @@ func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
 	dest.CosmosETag = src.CosmosETag
+	dest.Status = *src.Status.DeepCopy()
 }

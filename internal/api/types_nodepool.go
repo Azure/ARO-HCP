@@ -33,6 +33,7 @@ type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Status                    HCPOpenShiftClusterNodePoolStatus                    `json:"status,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
 	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
 	// populated on DB read via the CosmosToInternalNodePool() conversion function.
@@ -71,6 +72,11 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	ExistingCosmosUID string     `json:"-"`
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
+}
+
+// HCPOpenShiftClusterNodePoolStatus contains controller-written status for a node pool.
+type HCPOpenShiftClusterNodePoolStatus struct {
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

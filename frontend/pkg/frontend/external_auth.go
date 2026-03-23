@@ -690,6 +690,7 @@ func mergeToInternalExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, int
 	mergedExternalAuth.SystemData = internalObj.SystemData.DeepCopy()
 	mergedExternalAuth.Properties.ProvisioningState = internalObj.Properties.ProvisioningState
 	mergedExternalAuth.ServiceProviderProperties = *internalObj.ServiceProviderProperties.DeepCopy()
+	mergedExternalAuth.Status = *internalObj.Status.DeepCopy()
 
 	return mergedExternalAuth, nil
 }

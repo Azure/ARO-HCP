@@ -17,6 +17,7 @@ package operationcontrollers
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/tj/assert"
@@ -28,6 +29,86 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestClearConditionsIfNewOperation(t *testing.T) {
+	createStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	updateStart := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+
+	createOp := &api.Operation{
+		Request:   api.OperationRequestCreate,
+		StartTime: createStart,
+	}
+	updateOp := &api.Operation{
+		Request:   api.OperationRequestUpdate,
+		StartTime: updateStart,
+	}
+	deleteOp := &api.Operation{
+		Request:   api.OperationRequestDelete,
+		StartTime: updateStart,
+	}
+
+	tests := []struct {
+		name       string
+		conditions []api.Condition
+		op         *api.Operation
+		wantNil    bool
+	}{
+		{
+			name:       "no existing conditions, create op",
+			conditions: nil,
+			op:         createOp,
+			wantNil:    true,
+		},
+		{
+			name: "same operation, matching Accepted timestamp",
+			conditions: []api.Condition{
+				{Type: "Accepted", Status: api.ConditionFalse, LastTransitionTime: createStart},
+				{Type: "Provisioning", Status: api.ConditionTrue, LastTransitionTime: createStart.Add(time.Minute)},
+			},
+			op:      createOp,
+			wantNil: false,
+		},
+		{
+			name: "new operation, stale Accepted timestamp from prior create",
+			conditions: []api.Condition{
+				{Type: "Accepted", Status: api.ConditionFalse, LastTransitionTime: createStart},
+				{Type: "Succeeded", Status: api.ConditionTrue, LastTransitionTime: createStart.Add(5 * time.Minute)},
+			},
+			op:      updateOp,
+			wantNil: true,
+		},
+		{
+			name: "delete operation, no existing Deleting condition",
+			conditions: []api.Condition{
+				{Type: "Accepted", Status: api.ConditionFalse, LastTransitionTime: createStart},
+				{Type: "Succeeded", Status: api.ConditionTrue, LastTransitionTime: createStart.Add(5 * time.Minute)},
+			},
+			op:      deleteOp,
+			wantNil: true,
+		},
+		{
+			name: "same delete operation, matching Deleting timestamp",
+			conditions: []api.Condition{
+				{Type: "Deleting", Status: api.ConditionTrue, LastTransitionTime: updateStart},
+			},
+			op:      deleteOp,
+			wantNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conditions := tt.conditions
+			clearConditionsIfNewOperation(&conditions, tt.op)
+			if tt.wantNil {
+				assert.Nil(t, conditions, "expected conditions to be cleared")
+			} else {
+				assert.NotNil(t, conditions, "expected conditions to be preserved")
+				assert.Equal(t, len(tt.conditions), len(conditions), "expected conditions length to be unchanged")
+			}
+		})
+	}
+}
 
 func TestConvertClusterStatus(t *testing.T) {
 	// FIXME These tests are all tentative until the new "/api/aro_hcp/v1" OCM
