@@ -112,6 +112,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: sessiongate
+    - name: globalMSIId
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
     dependsOn:
     - resourceGroup: management
       step: infra

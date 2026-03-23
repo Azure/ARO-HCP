@@ -22,6 +22,9 @@ param adminApiMIResourceId string
 @description('Session Gate MI resource ID, used to grant AKS access')
 param sessiongateMIResourceId string
 
+@description('Global MSI resource ID, used for pipeline deployments to grant AKS access')
+param globalMSIId string
+
 resource cxKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: cxKeyVaultName
 }
@@ -112,6 +115,26 @@ resource sessiongateAksAccess 'Microsoft.Authorization/roleAssignments@2022-04-0
   properties: {
     roleDefinitionId: aksClusterRBACAdminRoleId
     principalId: sessiongateMSI.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+//
+//   G L O B A L   M S I   A K S   A C C E S S
+//
+
+var globalMIRef = res.msiRefFromId(globalMSIId)
+resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(globalMIRef.resourceGroup.subscriptionId, globalMIRef.resourceGroup.name)
+  name: globalMIRef.name
+}
+
+resource globalMSIAksAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aksCluster
+  name: guid(resourceGroup().id, aksClusterName, globalMSIId, aksClusterRBACAdminRoleId)
+  properties: {
+    roleDefinitionId: aksClusterRBACAdminRoleId
+    principalId: globalMSI.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }

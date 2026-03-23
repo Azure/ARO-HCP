@@ -28,3 +28,7 @@ param rpBackendMIResourceId = '__rpBackendMIResourceId__'
 // Session Gate identity
 // used for AKS access
 param sessiongateMIResourceId = '__sessiongateMIResourceId__'
+
+// Global MSI identity
+// used for pipeline deployments to AKS
+param globalMSIId = '__globalMSIId__'
