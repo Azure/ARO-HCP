@@ -6,58 +6,51 @@
 #   - delete after 2 days when persist != true
 #   - delete after 15 days when persist == true
 # - hcp-underlay-prow-* groups are deleted after 6 hours.
-
 rgOrdered:
   # Keep known long-lived/shared groups out of rg-ordered deletion candidates.
   excludedResourceGroups:
-    - global
-    - hcp-kusto-us
-    - westus3-shared-resources
-
+  - global
+  - hcp-kusto-us
+  - westus3-shared-resources
   discovery:
     # Rules are evaluated in order; first match wins.
     rules:
-      - name: skip-managed-resource-groups
-        action: skip
-        match:
-          any: true
-        conditions:
-          managedBySet: true
-
-      - name: pers-persist-delete-after-15d
-        action: delete
-        match:
-          namePrefix: "hcp-underlay-pers-"
-        conditions:
-          tagsEq:
-            persist: "true"
-        olderThan: "360h"
-
-      - name: pers-non-persist-delete-after-2d
-        action: delete
-        match:
-          namePrefix: "hcp-underlay-pers-"
-        conditions:
-          tagsNotEq:
-            persist: "true"
-        olderThan: "48h"
-
-      - name: prow-delete-after-6h
-        action: delete
-        match:
-          namePrefix: "hcp-underlay-prow-"
-        olderThan: "6h"
-
-      - name: skip-persist-true-globally
-        action: skip
-        match:
-          any: true
-        conditions:
-          tagsEq:
-            persist: "true"
-
-      - name: global-default-delete-after-2d
-        action: delete
-        match:
-          any: true
-        olderThan: "48h"
+    - name: skip-managed-resource-groups
+      action: skip
+      match:
+        any: true
+      conditions:
+        managedBySet: true
+    - name: pers-persist-delete-after-15d
+      action: delete
+      match:
+        namePrefix: "hcp-underlay-pers-"
+      conditions:
+        tagsEq:
+          persist: "true"
+      olderThan: "360h"
+    - name: pers-non-persist-delete-after-2d
+      action: delete
+      match:
+        namePrefix: "hcp-underlay-pers-"
+      conditions:
+        tagsNotEq:
+          persist: "true"
+      olderThan: "48h"
+    - name: prow-delete-after-6h
+      action: delete
+      match:
+        namePrefix: "hcp-underlay-prow-"
+      olderThan: "6h"
+    - name: skip-persist-true-globally
+      action: skip
+      match:
+        any: true
+      conditions:
+        tagsEq:
+          persist: "true"
+    - name: global-default-delete-after-2d
+      action: delete
+      match:
+        any: true
+      olderThan: "48h"
