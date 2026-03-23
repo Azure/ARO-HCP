@@ -6,7 +6,7 @@ acm:
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:093d20d103fb6f8a3471be881c31233e687c333540e71ac00daaf1cddc8f3ed2
+      digest: sha256:64e2b5f05ec1554cf5d9aea1c0ef544699e7ba7e18f564952fe35e6b64d70faa
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:74115cff31fb657e6509e4ef6b6884fdb05be9ba2f6577988ceb7851ccf114ba
+    digest: sha256:775128f8a1aa4d507a72df7262c52554f5a29bfa8e3ce28510c9e8f71354f2a8
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -79,7 +79,7 @@ backend:
     tlsCertificatesIssuer: Self
   exitOnPanic: true
   image:
-    digest: sha256:7ab1b21dfede38a6e659ed6728fa748695dd05b9d2100493eceec725610fa057
+    digest: sha256:bf450ce3941e70421c5cacb5dce54e1b60bb8e3800b4b65b9a78863342c4bf61
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -184,7 +184,7 @@ clustersService:
     exporter: ""
 customExporter:
   image:
-    digest: sha256:acb60698971dfb4223170d2cde2d02fe4c0326d5291c6f1d2dab0b06b36826e3
+    digest: sha256:b5037282d2ab0d60c02fd1a116fba72499db64759b613f9d621d554ff7548c5c
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -240,7 +240,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:f84fd06f54e18a2cca4f066542dc9c48e08144d24336cbb56db5583ce2524a24
+    digest: sha256:8f4f2194ba1a02be4f294e201aff28045bc10ac6dce864167a283aec4d55da1f
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -360,7 +360,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:b8010ba55e51dd3ae9540473cf090be6d866ebbec419385e430f0d8a2f9df1e1
+      digest: sha256:98901cb011818b804f1d95e94dd6ab70cb750f04a0574db7295bf62689f52fb2
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -744,7 +744,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-cspr-usw3
   image:
-    digest: sha256:1de020d53df39e3e29cda00ec9db05f3f48a53c9165fe062b12ffe66fe584c71
+    digest: sha256:c12de89fd595ef5a7652896e17ae1583f64ed8a6026c5396dcc3d5915c502041
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
