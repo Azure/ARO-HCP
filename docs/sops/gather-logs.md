@@ -72,13 +72,23 @@ The `clean` command processes must-gather data to remove sensitive information u
 
 *Important:* If you are cleaning data from MSFT environments, this tool *MUST* be run using the configuration in `sdp-pipelines`!
 
-#### must-gather-clean Binary Installation
+#### must-gather-clean Binary
 
-The `must-gather-clean` binary is available from the [openshift/must-gather-clean releases](https://github.com/openshift/must-gather-clean/releases) page.
+The `must-gather-clean` binary is automatically downloaded from the [openshift/must-gather-clean releases](https://github.com/openshift/must-gather-clean/releases) page and cached locally when the `--must-gather-clean-binary` flag is omitted. The cached binary is stored in your OS cache directory (`~/.cache/hcpctl/bin/` on Linux, `~/Library/Caches/hcpctl/bin/` on macOS).
+
+To use a specific binary instead, pass `--must-gather-clean-binary /path/to/must-gather-clean`.
 
 #### Usage Examples
 
-**Basic usage with required parameters:**
+**Basic usage (auto-downloads must-gather-clean):**
+```bash
+hcpctl must-gather clean \
+  --path-to-clean ./must-gather-20240101-120000 \
+  --service-config-path /home/jboll/workspace/opensource/ARO-HCP/config \
+  --cleaned-output-path ./cleaned-output
+```
+
+**With explicit binary path:**
 ```bash
 hcpctl must-gather clean \
   --path-to-clean ./must-gather-20240101-120000 \
@@ -92,9 +102,22 @@ hcpctl must-gather clean \
 hcpctl must-gather clean \
   --path-to-clean ./must-gather-20240101-120000 \
   --service-config-path /home/jboll/workspace/opensource/ARO-HCP/config \
-  --must-gather-clean-binary /usr/local/bin/must-gather-clean \
   --cleaned-output-path ./cleaned-output \
   --clean-config-path ./custom-clean-config.json
+```
+
+#### Troubleshooting
+
+If you need to force a re-download or clear cached binaries:
+
+**Linux/macOS:**
+```bash
+rm -rf ~/.cache/hcpctl/bin/must-gather-clean
+```
+
+**macOS (alternative location):**
+```bash
+rm -rf ~/Library/Caches/hcpctl/bin/must-gather-clean
 ```
 
 ### 3. query-infra

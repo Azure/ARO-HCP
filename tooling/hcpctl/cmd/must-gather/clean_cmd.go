@@ -17,6 +17,7 @@ package mustgather
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -109,13 +110,25 @@ func (opts *CleanOptions) Run(ctx context.Context) error {
 		"--config", configFileName,
 	}
 
+	logger.Info("running must-gather-clean binary", "binary", opts.MustGatherCleanBinary, "input", opts.PathToClean, "output", opts.CleanedOutputPath)
+
 	cmd := exec.Command(opts.MustGatherCleanBinary, args...)
 
 	output, err := cmd.CombinedOutput()
-	logger.V(4).Info("must-gather-clean output", "output", string(output))
+	if len(output) > 0 {
+		logger.V(1).Info("must-gather-clean output", "output", string(output))
+	}
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			return fmt.Errorf("failed to execute must-gather-clean binary at %q (permission denied — check file permissions): %w",
+				opts.MustGatherCleanBinary, err)
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			return fmt.Errorf("must-gather-clean binary not found at %q: %w", opts.MustGatherCleanBinary, err)
+		}
 		return fmt.Errorf("failed to run must-gather-clean: %w", err)
 	}
+	logger.Info("must-gather-clean completed successfully", "outputDir", opts.CleanedOutputPath)
 	return nil
 }
 
