@@ -60,7 +60,7 @@ spec:
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/must-gather-rhel9@sha256:8585500276ef75ce1b7e8d2f06702449ec69a529e669a476efd2483f52cac6f3'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:578debd8d7c91f3191b0c43bf1e719c37730c1bc834d915ff55998be4972e38b'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:3a84ce458e39a58d711066321edda05795462f1504d38f0c151bf680a324c026'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-agent-rhel9@sha256:6685ae0c29d3c958f54c2d7b73c91462ab3de46309ed2a2b04d728a790f39486'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
@@ -137,7 +137,7 @@ spec:
           value: 2.10.2
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:578debd8d7c91f3191b0c43bf1e719c37730c1bc834d915ff55998be4972e38b'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:3a84ce458e39a58d711066321edda05795462f1504d38f0c151bf680a324c026'
         livenessProbe:
           httpGet:
             path: /healthz
