@@ -478,7 +478,8 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 			ID("openshift-v4.19.25").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-			State(csImageRegistryStateEnabled))
+			State(csImageRegistryStateEnabled)).
+		FIPS(false)
 }
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
