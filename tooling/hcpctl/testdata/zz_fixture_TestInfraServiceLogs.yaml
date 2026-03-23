@@ -1,0 +1,10 @@
+database: ServiceLogs
+kql: |-
+  containerLogs
+  | project timestamp, log, cluster, namespace_name, container_name
+  | where timestamp between(datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | where cluster == 'test-cluster'
+  | limit 100
+  | order by timestamp asc
+name: infraServiceLogs
+unlimited: false

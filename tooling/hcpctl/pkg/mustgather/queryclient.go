@@ -27,9 +27,9 @@ import (
 
 // QueryClientInterface defines the interface for querying data
 type QueryClientInterface interface {
-	ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) error
+	ConcurrentQueries(ctx context.Context, queries []kusto.Query, outputChannel chan<- kusto.TaggedRow) error
 	Close() error
-	ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query kusto.Query, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error)
 }
 
 type QueryClient struct {
@@ -59,7 +59,7 @@ func NewQueryClientWithFileWriter(client kusto.KustoClient, queryTimeout time.Du
 	}
 }
 
-func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) error {
+func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []kusto.Query, outputChannel chan<- kusto.TaggedRow) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	queryGroup, queryCtx := errgroup.WithContext(ctx)
@@ -67,11 +67,11 @@ func (q *QueryClient) ConcurrentQueries(ctx context.Context, queries []*kusto.Co
 		queryGroup.Go(func() error {
 			result, err := q.Client.ExecutePreconfiguredQuery(queryCtx, query, outputChannel)
 			if err != nil {
-				logger.Error(err, "Query failed", "name", query.Name)
+				logger.Error(err, "Query failed", "name", query.GetName())
 				return fmt.Errorf("failed to execute query: %w", err)
 			}
 			if q.FileWriter != nil {
-				err = q.FileWriter.WriteFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
+				err = q.FileWriter.WriteFile(q.OutputPath, fmt.Sprintf("%s.json", query.GetName()), result)
 				if err != nil {
 					return fmt.Errorf("failed to write query result to file: %w", err)
 				}
@@ -87,6 +87,6 @@ func (q *QueryClient) Close() error {
 	return q.Client.Close()
 }
 
-func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error) {
+func (q *QueryClient) ExecutePreconfiguredQuery(ctx context.Context, query kusto.Query, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error) {
 	return q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel)
 }

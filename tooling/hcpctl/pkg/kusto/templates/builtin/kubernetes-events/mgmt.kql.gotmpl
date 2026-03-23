@@ -1,0 +1,11 @@
+{{- if .NoTruncation}}set notruncation;
+{{end -}}
+kubernetesEvents
+| where timestamp between({{ .TimestampMin }} .. {{ .TimestampMax }})
+| where cluster == '{{.ClusterName}}'
+| where eventNamespace !hasprefix '{{.HCPNamespacePrefix}}' or eventNamespace has_any ({{.ClusterIds}})
+| project timestamp, log, cluster
+{{- if gt .Limit 0}}
+| limit {{.Limit}}
+{{- end}}
+| order by timestamp asc

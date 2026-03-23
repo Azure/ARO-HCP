@@ -1,0 +1,10 @@
+database: HostedControlPlaneLogs
+kql: |-
+  containerLogs
+  | project timestamp, log, cluster, namespace_name, container_name
+  | where timestamp between(datetime(0001-01-01T00:00:00.0000000Z) .. datetime(0001-01-01T00:00:00.0000000Z))
+  | where namespace_name has 'cid1'
+  | limit 100
+  | order by timestamp asc
+name: hostedControlPlaneLogs
+unlimited: false

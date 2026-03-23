@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
 )
 
@@ -68,16 +69,14 @@ func (opts *CompletedInfraQueryOptions) RunInfra(ctx context.Context) error {
 	for _, clusterName := range opts.InfraClusters {
 		logger.V(1).Info("Gathering infrastructure logs", "cluster", clusterName)
 
-		queryOptions, err := mustgather.NewInfraQueryOptions(clusterName, opts.TimestampMin, opts.TimestampMax, opts.Limit)
-		if err != nil {
-			allErrors = append(allErrors, fmt.Errorf("failed to create query options for cluster %s: %w", clusterName, err))
-			continue
-		}
-
-		gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, mustgather.GathererOptions{
-			QueryOptions:    queryOptions,
-			GatherInfraLogs: true,
-		})
+		gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, CustomLogsDirectory, mustgather.GathererOptions{
+			QueryOptions: &kusto.QueryOptions{
+				InfraClusterName: clusterName,
+				TimestampMin:     opts.TimestampMin,
+				TimestampMax:     opts.TimestampMax,
+				Limit:            opts.Limit,
+			},
+		}, true)
 
 		if err := gatherer.GatherLogs(ctx); err != nil {
 			allErrors = append(allErrors, fmt.Errorf("failed to gather infrastructure logs for cluster %s: %w", clusterName, err))

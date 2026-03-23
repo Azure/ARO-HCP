@@ -1,0 +1,7 @@
+database: ServiceLogs
+kql: |-
+  containerLogs
+  | where log has '/subscriptions/test-sub/resourceGroups/test-rg'
+  | distinct cluster
+name: clusterNamesSvc
+unlimited: false

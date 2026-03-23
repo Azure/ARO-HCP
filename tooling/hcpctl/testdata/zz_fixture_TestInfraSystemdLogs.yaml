@@ -1,0 +1,11 @@
+database: ServiceLogs
+kql: |-
+  systemdLogs
+  | extend log=bag_pack_columns(systemd_unit,message)
+  | project timestamp, log, cluster
+  | where cluster == 'test-cluster'
+  | where timestamp between(datetime(2025-01-01T00:00:00.0000000Z) .. datetime(2025-01-02T00:00:00.0000000Z))
+  | limit 100
+  | order by timestamp asc
+name: systemdLogs
+unlimited: false

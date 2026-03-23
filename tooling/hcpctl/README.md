@@ -180,6 +180,25 @@ The limit applies per query, not to the total output. The must-gather tool inter
 
 `--timestamp-min` and  `--timestamp-max` can be used to limit the result set by filtering the timestamp. The time range filter is always applied first. The limit then caps how many rows are returned from within that time window. You can use this together with limit to iterate over large timeframes.
 
+## Adding Custom Kusto Queries
+
+Custom queries are KQL queries rendered via Go templates. They are embedded into the `hcpctl` binary at build time and can be used both for must-gather data collection and as Kusto deep-links for manual investigation.
+
+### Steps to add a new custom query
+
+1. **Create the template file** in `pkg/kusto/templates/custom/` with a `.kql.gotmpl` extension (e.g. `my_new_query.kql.gotmpl`). Write standard KQL using Go template placeholders for dynamic values (see [Template Data](#template-data) below).
+
+2. **Register the query** in `pkg/kusto/templates/custom/queries.yaml`. For queries composed of multiple related sub-queries, use `children`Children are rendered individually for must-gather collection but merged into a single query for Kusto deep-links.
+
+3. **Build and test.** Templates are embedded via `//go:embed`, so a rebuild is required to pick up changes. Existing query tests in `pkg/kusto/query_test.go` can serve as a reference.
+
+### Template Data
+
+Templates receive a `TemplateData` struct with all values needed to render a KQL query. 
+
+The timestamp fields define the time window for log queries. They are rendered as KQL `datetime(...)` literals (e.g. `datetime(2025-06-15T08:00:00.0000000Z)`)
+
+
 ## TODO
 
 - use the Hypershift generated clientsets instead of dedicated schema registration

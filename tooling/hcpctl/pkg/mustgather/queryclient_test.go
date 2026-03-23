@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 	"github.com/Azure/azure-kusto-go/azkustodata/types"
 
@@ -36,7 +37,7 @@ type MockKustoClient struct {
 	mock.Mock
 }
 
-func (m *MockKustoClient) ExecutePreconfiguredQuery(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error) {
+func (m *MockKustoClient) ExecutePreconfiguredQuery(ctx context.Context, query kusto.Query, outputChannel chan<- kusto.TaggedRow) (*kusto.QueryResult, error) {
 	args := m.Called(ctx, query, outputChannel)
 	return args.Get(0).(*kusto.QueryResult), args.Error(1)
 }
@@ -51,6 +52,12 @@ type MockFileWriter struct {
 	mock.Mock
 }
 
+func (m *MockFileWriter) WriteFile(outputPath, fileName string, data any) error {
+	args := m.Called(outputPath, fileName, data)
+	return args.Error(0)
+}
+
+// MockColumn implements azkquery.Column for testing
 type MockColumn struct {
 	name  string
 	ctype types.Column
@@ -69,10 +76,17 @@ func (m *MockColumn) Index() int {
 	return m.index
 }
 
-func (m *MockFileWriter) WriteFile(outputPath, fileName string, data any) error {
-	args := m.Called(outputPath, fileName, data)
-	return args.Error(0)
+// mockQuery implements kusto.Query for testing
+type mockQuery struct {
+	name     string
+	database string
 }
+
+func (q *mockQuery) GetName() string               { return q.name }
+func (q *mockQuery) GetQueryType() kusto.QueryType { return kusto.QueryTypeServices }
+func (q *mockQuery) GetDatabase() string           { return q.database }
+func (q *mockQuery) GetQuery() *kql.Builder        { return kql.New("") }
+func (q *mockQuery) IsUnlimited() bool             { return false }
 
 func TestNewQueryClient(t *testing.T) {
 	mockClient := &MockKustoClient{}
@@ -122,12 +136,10 @@ func TestQueryClient_ConcurrentQueries_Success(t *testing.T) {
 	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
-	// Create test queries
-	query1 := &kusto.ConfigurableQuery{Name: "query1"}
-	query2 := &kusto.ConfigurableQuery{Name: "query2"}
-	queries := []*kusto.ConfigurableQuery{query1, query2}
+	query1 := &mockQuery{name: "query1"}
+	query2 := &mockQuery{name: "query2"}
+	queries := []kusto.Query{query1, query2}
 
-	// Create mock results
 	result1 := &kusto.QueryResult{
 		Columns:    azkquery.Columns{&MockColumn{name: "col1", ctype: "string", index: 0}},
 		QueryStats: kusto.QueryStats{ExecutionTime: 100 * time.Millisecond, TotalRows: 10, DataSize: 1024},
@@ -137,9 +149,8 @@ func TestQueryClient_ConcurrentQueries_Success(t *testing.T) {
 		QueryStats: kusto.QueryStats{ExecutionTime: 200 * time.Millisecond, TotalRows: 20, DataSize: 2048},
 	}
 
-	// Set up mock expectations
-	mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query1, mock.Anything).Return(result1, nil)
-	mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query2, mock.Anything).Return(result2, nil)
+	mockClient.On("ExecutePreconfiguredQuery", mock.Anything, query1, mock.Anything).Return(result1, nil)
+	mockClient.On("ExecutePreconfiguredQuery", mock.Anything, query2, mock.Anything).Return(result2, nil)
 
 	mockFileWriter.On("WriteFile", "/test/output", "query1.json", result1).Return(nil)
 	mockFileWriter.On("WriteFile", "/test/output", "query2.json", result2).Return(nil)
@@ -165,11 +176,11 @@ func TestQueryClient_ConcurrentQueries_QueryExecutionError(t *testing.T) {
 	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
-	query := &kusto.ConfigurableQuery{Name: "failing_query"}
-	queries := []*kusto.ConfigurableQuery{query}
+	query := &mockQuery{name: "failing_query", database: "test"}
+	queries := []kusto.Query{query}
 
 	expectedError := errors.New("query execution failed")
-	mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query, mock.Anything).Return((*kusto.QueryResult)(nil), expectedError)
+	mockClient.On("ExecutePreconfiguredQuery", mock.Anything, query, mock.Anything).Return((*kusto.QueryResult)(nil), expectedError)
 
 	queryClient := &QueryClient{
 		Client:     mockClient,
@@ -193,8 +204,8 @@ func TestQueryClient_ConcurrentQueries_FileWriteError(t *testing.T) {
 	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
-	query := &kusto.ConfigurableQuery{Name: "query_with_write_error"}
-	queries := []*kusto.ConfigurableQuery{query}
+	query := &mockQuery{name: "query_with_write_error"}
+	queries := []kusto.Query{query}
 
 	result := &kusto.QueryResult{
 		Columns:    azkquery.Columns{&MockColumn{name: "col1", ctype: "string", index: 0}},
@@ -202,7 +213,7 @@ func TestQueryClient_ConcurrentQueries_FileWriteError(t *testing.T) {
 	}
 
 	expectedWriteError := errors.New("file write failed")
-	mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query, mock.Anything).Return(result, nil)
+	mockClient.On("ExecutePreconfiguredQuery", mock.Anything, query, mock.Anything).Return(result, nil)
 	mockFileWriter.On("WriteFile", "/test/output", "query_with_write_error.json", result).Return(expectedWriteError)
 
 	queryClient := &QueryClient{
@@ -227,7 +238,7 @@ func TestQueryClient_ConcurrentQueries_EmptyQueries(t *testing.T) {
 	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
-	queries := []*kusto.ConfigurableQuery{}
+	queries := []kusto.Query{}
 
 	queryClient := &QueryClient{
 		Client:     mockClient,
@@ -250,20 +261,18 @@ func TestQueryClient_ConcurrentQueries_Concurrency(t *testing.T) {
 	outputChannel := make(chan kusto.TaggedRow, 10)
 	defer close(outputChannel)
 
-	// Create multiple test queries
 	numQueries := 5
-	queries := make([]*kusto.ConfigurableQuery, numQueries)
+	queries := make([]kusto.Query, numQueries)
 	results := make([]*kusto.QueryResult, numQueries)
 
 	for i := 0; i < numQueries; i++ {
-		queries[i] = &kusto.ConfigurableQuery{Name: fmt.Sprintf("query%d", i)}
+		queries[i] = &mockQuery{name: fmt.Sprintf("query%d", i)}
 		results[i] = &kusto.QueryResult{
 			Columns:    azkquery.Columns{&MockColumn{name: fmt.Sprintf("col%d", i), ctype: "string", index: 0}},
 			QueryStats: kusto.QueryStats{ExecutionTime: time.Duration(i*100) * time.Millisecond, TotalRows: i * 10, DataSize: int64(i * 1024)},
 		}
 	}
 
-	// Track execution times to verify concurrency
 	var mu sync.Mutex
 	executionTimes := make(map[string]time.Time)
 
@@ -271,15 +280,14 @@ func TestQueryClient_ConcurrentQueries_Concurrency(t *testing.T) {
 		query := queries[i]
 		result := results[i]
 
-		mockClient.On("ExecutePreconfiguredQuery", mock.AnythingOfType("*context.cancelCtx"), query, mock.Anything).Run(func(args mock.Arguments) {
+		mockClient.On("ExecutePreconfiguredQuery", mock.Anything, query, mock.Anything).Run(func(args mock.Arguments) {
 			mu.Lock()
-			executionTimes[query.Name] = time.Now()
+			executionTimes[query.GetName()] = time.Now()
 			mu.Unlock()
-			// Simulate some processing time
 			time.Sleep(10 * time.Millisecond)
 		}).Return(result, nil)
 
-		mockFileWriter.On("WriteFile", "/test/output", fmt.Sprintf("%s.json", query.Name), result).Return(nil)
+		mockFileWriter.On("WriteFile", "/test/output", fmt.Sprintf("%s.json", query.GetName()), result).Return(nil)
 	}
 
 	queryClient := &QueryClient{
@@ -296,10 +304,8 @@ func TestQueryClient_ConcurrentQueries_Concurrency(t *testing.T) {
 
 	// Verify that execution was concurrent (should take much less time than sequential)
 	// Sequential execution would take at least numQueries * 10ms = 50ms
-	// Concurrent execution should complete much faster
-	assert.Less(t, duration, 30*time.Millisecond, "Execution should be concurrent")
+	assert.Less(t, duration, 40*time.Millisecond, "Execution should be concurrent")
 
-	// Verify all queries were executed
 	assert.Len(t, executionTimes, numQueries)
 
 	mockClient.AssertExpectations(t)

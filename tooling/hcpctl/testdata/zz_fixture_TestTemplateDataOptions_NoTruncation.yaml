@@ -1,0 +1,12 @@
+ClusterId: ""
+ClusterIds: ""
+ClusterName: ""
+ClusterNames: ''''''
+HCPNamespacePrefix: ""
+Limit: 0
+NoTruncation: true
+ResourceGroupName: ""
+SubResourceGroupId: /subscriptions//resourceGroups/
+Table: ""
+TimestampMax: datetime(0001-01-01T00:00:00.0000000Z)
+TimestampMin: datetime(0001-01-01T00:00:00.0000000Z)

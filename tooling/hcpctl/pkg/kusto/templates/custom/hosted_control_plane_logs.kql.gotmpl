@@ -1,9 +1,8 @@
-let _startTime = datetime("{{.StartTime}}");
-let _endTime = datetime("{{.EndTime}}");
-let _resource_group = '{{.ResourceGroupName}}';
+let _startTime = {{.TimestampMin }};
+let _endTime = {{.TimestampMax }};
 let cid = (database('ServiceLogs').table('clustersServiceLogs')
 | where timestamp between (_startTime .. _endTime)
-| where resource_id has _resource_group
+| where resource_id has '{{.ResourceGroupName}}'
 | where strlen( cid) > 0
 | distinct cid);
 database('HostedControlPlaneLogs').table('containerLogs')

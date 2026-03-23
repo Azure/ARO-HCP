@@ -1,0 +1,3 @@
+containerLogs
+| where log has '{{.SubResourceGroupId}}'
+| distinct cluster

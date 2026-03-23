@@ -1,0 +1,11 @@
+database: ServiceLogs
+kql: |-
+  kubernetesEvents
+  | where timestamp between(datetime(0001-01-01T00:00:00.0000000Z) .. datetime(0001-01-01T00:00:00.0000000Z))
+  | where cluster == 'test-cluster'
+  | where eventNamespace !hasprefix 'ocm-arohcp' or eventNamespace has_any ('cid1', 'cid2')
+  | project timestamp, log, cluster
+  | limit 50
+  | order by timestamp asc
+name: kubernetesEventsMgmt
+unlimited: false

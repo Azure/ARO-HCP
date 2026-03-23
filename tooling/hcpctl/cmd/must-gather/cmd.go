@@ -20,6 +20,7 @@ import (
 
 var ServicesLogDirectory = "service"
 var HostedControlPlaneLogDirectory = "hosted-control-plane"
+var CustomLogsDirectory = "custom"
 var InfraLogDirectory = "cluster"
 
 var OptionsOutputFile = "options.json"
@@ -53,13 +54,6 @@ and collecting diagnostic data for troubleshooting and analysis.`,
 		return nil, err
 	}
 	cmd.AddCommand(queryInfraCmd)
-
-	// Add legacy-query subcommand
-	queryCmdLegacy, err := newQueryCommandLegacy()
-	if err != nil {
-		return nil, err
-	}
-	cmd.AddCommand(queryCmdLegacy)
 
 	cleanCommand, err := newCleanCommand()
 	if err != nil {

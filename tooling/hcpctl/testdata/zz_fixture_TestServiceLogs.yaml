@@ -1,0 +1,10 @@
+database: ServiceLogs
+kql: |-
+  containerLogs
+  | project timestamp, log, cluster, namespace_name, container_name
+  | where timestamp between(datetime(0001-01-01T00:00:00.0000000Z) .. datetime(0001-01-01T00:00:00.0000000Z))
+  | where log has '/subscriptions/sub/resourceGroups/rg' or log has_any ('cid1')
+  | limit 10
+  | order by timestamp asc
+name: serviceLogs
+unlimited: false
