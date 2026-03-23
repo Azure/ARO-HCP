@@ -119,7 +119,7 @@ resourceGroups:
         name: globalMSIId
     dependsOn:
     - resourceGroup: management
-      step: infra
+      step: cluster
   - name: infra-output
     action: ARM
     template: templates/mgmt-infra-lookup.bicep
