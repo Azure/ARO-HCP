@@ -106,7 +106,7 @@ spec:
             cpu: 100m
             memory: 128Mi
           limits:
-            memory: 512Mi
+            memory: 128Mi
 ---
 # Source: aro-hcp-exporter/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

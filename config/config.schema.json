@@ -115,6 +115,9 @@
         },
         "deploymentStrategy": {
           "$ref": "#/definitions/k8sDeploymentStrategy"
+        },
+        "resources": {
+          "$ref": "#/definitions/containerResources"
         }
       },
       "additionalProperties": false,
@@ -2378,12 +2381,16 @@
         },
         "enabled": {
           "type": "boolean"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
-        "enabled"
+        "enabled",
+        "k8s"
       ]
     },
     "acrPull": {
@@ -2391,11 +2398,15 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
         }
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "k8s"
       ]
     },
     "aksCommandRuntime": {

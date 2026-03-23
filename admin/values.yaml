@@ -5,10 +5,10 @@ deployment:
   replicas: {{ .adminApi.k8s.replicas }}
   requests:
     cpu: 200m
-    memory: 512Mi
+    memory: "{{ .adminApi.k8s.resources.requests.memory }}"
   limits:
     cpu: 1
-    memory: 1Gi
+    memory: "{{ .adminApi.k8s.resources.limits.memory }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 serviceAccount:
   name: "{{ .adminApi.k8s.serviceAccountName }}"
