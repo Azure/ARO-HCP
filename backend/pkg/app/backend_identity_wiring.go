@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -53,8 +54,14 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 		return nil, utils.TrackError(fmt.Errorf("failed to create dataplane identities OIDC configuration blob storage client: %w", err))
 	}
 
+	roleDefinitionsClient, err := armauthorization.NewRoleDefinitionsClient(defaultAzureCredential, azureConfig.CloudEnvironment.ARMClientOptions())
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create role definitions client: %w", err))
+	}
+
 	clients := &azureclient.BackendIdentityAzureClients{
 		DataplaneIdentitiesOIDCConfigurationBlobStorageClient: blobStorageClient,
+		RoleDefinitionsClient: roleDefinitionsClient,
 	}
 
 	return clients, nil
