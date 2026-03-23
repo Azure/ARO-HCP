@@ -50,17 +50,6 @@ data:
         HC_Retry_Failure_Count    5
         HC_Period                 60
   parsers_custom.conf: |
-    # Previously, docker parser would parse the container log as record["log"].
-    # With the default cri parser, the container log will be parsed as record["message"].
-    # For backward compat with docker implementation, use the following parser.
-    [PARSER]
-        Name        cri-o
-        Format      regex
-        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
-        Time_Key    time
-        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
-        Time_Keep   On
-
     [PARSER]
         Name        containerlogs
         Format      json
@@ -75,7 +64,7 @@ data:
         Tag               kubernetes.*
         Path              /var/log/containers/*.log
         Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
-        Parser            cri-o
+        multiline.parser  cri
         # Docker_Mode       On
         # Parser            none
         DB                /var/log/flb-tail.db
@@ -141,13 +130,6 @@ data:
         Strip_Underscores On
         DB              /var/fluent-bit/flb-storage/flb-systemdb.db
   filter.conf: |
-    [FILTER]
-        Name   lua
-        Alias  lua.reassemble_cri
-        Match  kubernetes.var.log.containers.*
-        script /forwarder/etc/reassemble_cri.lua
-        call   reassemble_cri
-
     [FILTER]
         Name modify
         Match systemd.*
@@ -280,21 +262,6 @@ data:
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/fluent-bit/kusto
-
-  reassemble_cri.lua: |
-    local reassemble_state = {}
-    function reassemble_cri(tag, timestamp, record)
-      local reassemble_key = tag
-      -- if partial line, accumulate
-      if record.logtag == 'P' then
-        reassemble_state[reassemble_key] = (reassemble_state[reassemble_key] or "") .. (record.log or "")
-        return -1, 0, 0
-      end
-      -- otherwise, it's a full line, concatenate with accumulated partial lines if any
-      record.log = (reassemble_state[reassemble_key] or "") .. (record.log or "")
-      reassemble_state[reassemble_key] = nil
-      return 1, timestamp, record
-    end
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -390,7 +357,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 1e7dc31b8ec137da9f0467a8fa798e347a6ee01801dfd1d9c484117246341253
+        checksum/configmap: 541196050536203e8686d2409061701c8b5b22be6e43007e71303112427b10bc
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
