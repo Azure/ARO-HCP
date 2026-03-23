@@ -3,8 +3,6 @@ package database
 // Copyright (c) Microsoft Corporation.
 // Licensed under the Apache License 2.0.
 
-//go:generate $MOCKGEN -typed -source=transaction.go -destination=mock_transaction.go -package database DBTransaction DBTransactionResult
-
 import (
 	"context"
 	"encoding/json"

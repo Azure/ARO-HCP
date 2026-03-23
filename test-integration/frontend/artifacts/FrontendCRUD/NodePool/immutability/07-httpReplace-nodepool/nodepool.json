@@ -10,6 +10,10 @@
 				"sizeGiB": 65
 			},
 			"vmSize": "different"
+		},
+		"version": {
+			"channelGroup": "stable",
+			"id": "4.20.0"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"

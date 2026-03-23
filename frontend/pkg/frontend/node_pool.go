@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -226,18 +227,17 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 		systemData.CreatedAt = ptr.To(time.Now().UTC())
 	}
 
-	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
+	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	if err := externalNodePoolFromRequest.SetDefaultValues(externalNodePoolFromRequest); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal()
+	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(nil)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+	// Backstop for fields unknown to this API version's SetDefaultValues*.
+	// See docs/api-version-defaults-and-storage.md.
+	newInternalNodePool.EnsureDefaults()
 	// TrackedResource info doesn't appear to come from the external resource information
 	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
@@ -273,6 +273,11 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
+	if err != nil {
+		return err
+	}
+
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
@@ -280,7 +285,11 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
+	validationOp := operation.Operation{
+		Type:    operation.Create,
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	validationErrs := validation.ValidateNodePool(ctx, validationOp, newInternalNodePool, nil)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
 	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, nil, cluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
@@ -395,17 +404,12 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 	// Initialize versionedRequestNodePool to include both
 	// non-zero default values and current read-only values.
 	// Exact user request
-	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(&api.HCPOpenShiftClusterNodePool{})
+	externalNodePoolFromRequest := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	// Default values
-	if err := externalNodePoolFromRequest.SetDefaultValues(externalNodePoolFromRequest); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal()
+	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(oldInternalNodePool)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -483,7 +487,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalNodePool, err := newExternalNodePool.ConvertToInternal()
+	newInternalNodePool, err := newExternalNodePool.ConvertToInternal(oldInternalNodePool)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -535,7 +539,14 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
+	resourceID, err := utils.ResourceIDFromContext(ctx)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
+	if err != nil {
+		return err
+	}
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, oldInternalNodePool.ID.Parent)
@@ -554,8 +565,12 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	validationOp := operation.Operation{
+		Type:    operation.Update,
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
 
-	validationErrs := validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
+	validationErrs := validation.ValidateNodePool(ctx, validationOp, newInternalNodePool, oldInternalNodePool)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
 	// AdmitNodePoolUpdate includes AdmitNodePool checks plus version upgrade validation
 	validationErrs = append(validationErrs, admission.AdmitNodePoolUpdate(newInternalNodePool, oldInternalNodePool, cluster, spNodePool, spCluster)...)
@@ -768,6 +783,12 @@ func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, intern
 	mergedOldClusterServiceNodePool.Tags = maps.Clone(internalNodePool.Tags)
 	mergedOldClusterServiceNodePool.Properties.ProvisioningState = internalNodePool.Properties.ProvisioningState
 	mergedOldClusterServiceNodePool.ServiceProviderProperties = *internalNodePool.ServiceProviderProperties.DeepCopy()
+
+	// Properties.Version is the desired version; read it from Cosmos when set. Cluster Service reflects the
+	// actual node pool version and is updated when the upgrade completes.
+	if len(internalNodePool.Properties.Version.ID) > 0 {
+		mergedOldClusterServiceNodePool.Properties.Version = internalNodePool.Properties.Version
+	}
 
 	return mergedOldClusterServiceNodePool, nil
 }

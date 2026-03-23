@@ -40,6 +40,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/certificate"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -228,9 +229,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	// Create FPA TokenCredentials with watching and caching
-	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute)
+	certReader, err := certificate.NewWatchingAzureIdentityFileReader(ctx, o.FpaCertBundlePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
+	}
+	err = certReader.Run(ctx, 30*time.Minute)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run certificate reader: %w", err)
 	}
 	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {

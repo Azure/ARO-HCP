@@ -15,7 +15,6 @@
 package v20240610preview
 
 import (
-	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -38,16 +37,6 @@ func (h *NodePool) NewExternal() any {
 	return &NodePool{}
 }
 
-func (h *NodePool) SetDefaultValues(uncast any) error {
-	obj, ok := uncast.(*NodePool)
-	if !ok {
-		return fmt.Errorf("unexpected type %T", uncast)
-	}
-
-	SetDefaultValuesNodePool(obj)
-	return nil
-}
-
 func SetDefaultValuesNodePool(obj *NodePool) {
 	if obj.Properties == nil {
 		obj.Properties = &generated.NodePoolProperties{}
@@ -56,7 +45,7 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 		obj.Properties.Version = &generated.NodePoolVersionProfile{}
 	}
 	if obj.Properties.Version.ChannelGroup == nil {
-		obj.Properties.Version.ChannelGroup = ptr.To("stable")
+		obj.Properties.Version.ChannelGroup = ptr.To(api.DefaultNodePoolVersionChannelGroup)
 	}
 	if obj.Properties.Platform == nil {
 		obj.Properties.Platform = &generated.NodePoolPlatformProfile{}
@@ -65,7 +54,7 @@ func SetDefaultValuesNodePool(obj *NodePool) {
 		obj.Properties.Platform.OSDisk = &generated.OsDiskProfile{}
 	}
 	if obj.Properties.Platform.OSDisk.SizeGiB == nil {
-		obj.Properties.Platform.OSDisk.SizeGiB = ptr.To(int32(64))
+		obj.Properties.Platform.OSDisk.SizeGiB = ptr.To(api.DefaultNodePoolOSDiskSizeGiB)
 	}
 	if obj.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
 		obj.Properties.Platform.OSDisk.DiskStorageAccountType = ptr.To(generated.DiskStorageAccountTypePremiumLRS)
@@ -79,7 +68,7 @@ func (h *NodePool) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal() (*api.HCPOpenShiftClusterNodePool, error) {
+func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
 	out := &api.HCPOpenShiftClusterNodePool{}
 	errs := field.ErrorList{}
 
@@ -124,16 +113,14 @@ func (h *NodePool) ConvertToInternal() (*api.HCPOpenShiftClusterNodePool, error)
 		if h.Properties.ProvisioningState != nil {
 			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
 		}
-		if h.Properties != nil {
-			if h.Properties.AutoRepair != nil {
-				out.Properties.AutoRepair = *h.Properties.AutoRepair
-			}
-			if h.Properties.Version != nil {
-				normalizeNodePoolVersion(h.Properties.Version, &out.Properties.Version)
-			}
-			if h.Properties.Replicas != nil {
-				out.Properties.Replicas = *h.Properties.Replicas
-			}
+		if h.Properties.AutoRepair != nil {
+			out.Properties.AutoRepair = *h.Properties.AutoRepair
+		}
+		if h.Properties.Version != nil {
+			normalizeNodePoolVersion(h.Properties.Version, &out.Properties.Version)
+		}
+		if h.Properties.Replicas != nil {
+			out.Properties.Replicas = *h.Properties.Replicas
 		}
 		if h.Properties.Platform != nil {
 			errs = append(errs, normalizeNodePoolPlatform(field.NewPath("properties", "platform"), h.Properties.Platform, &out.Properties.Platform)...)
@@ -186,7 +173,18 @@ func (h *NodePool) ConvertToInternal() (*api.HCPOpenShiftClusterNodePool, error)
 
 	out.Identity = normalizeManagedIdentity(h.Identity)
 
+	if existing != nil {
+		preserveUnknownNodePoolFields(existing, out)
+	}
+
 	return out, arm.CloudErrorFromFieldErrors(errs)
+}
+
+// preserveUnknownNodePoolFields copies customer-facing fields from existing that
+// this API version (2024-06-10-preview) doesn't know about.
+func preserveUnknownNodePoolFields(from, to *api.HCPOpenShiftClusterNodePool) {
+	// DiskType was added in v20251223preview.
+	to.Properties.Platform.OSDisk.DiskType = from.Properties.Platform.OSDisk.DiskType
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
@@ -300,6 +298,9 @@ func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) generated.NodePoolAut
 	}
 }
 
+// NewHCPOpenShiftClusterNodePool converts an internal representation to this API version.
+// If from is nil, returns a defaulted external object for use on the write path
+// where defaults are applied before unmarshaling the request body.
 func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
 		ret := &NodePool{}
@@ -324,7 +325,9 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Platform:          api.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
 				Version:           api.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
-				// Keep PtrOrNil for AutoRepair since default is true - omitting false allows client to use default
+				// PtrOrNil retained for backward compatibility in this shipped API version.
+				// Note: AutoRepair=false is omitted from GET responses, causing GET-then-PUT
+				// data loss. Fixed in v20251223preview via Ptr. See docs/api-version-defaults-and-storage.md.
 				AutoRepair:              api.PtrOrNil(from.Properties.AutoRepair),
 				AutoScaling:             api.PtrOrNil(newNodePoolAutoScaling(from.Properties.AutoScaling)),
 				Replicas:                api.PtrOrNil(from.Properties.Replicas),

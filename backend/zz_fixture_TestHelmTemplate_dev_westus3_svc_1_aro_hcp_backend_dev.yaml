@@ -123,7 +123,7 @@ spec:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
       annotations:
-        checksum/backendservicekeyvault: 'd76b8f7a5cfa15bb0951ea1e9fd6cac34015808f8c7816410ae96b0c19a9d375'
+        checksum/backendservicekeyvault: 'be82d8149e3a59cca672fb0538c4374a0458490a685122deba53e092240e32a5'
         checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
     spec:
       topologySpreadConstraints:
@@ -175,6 +175,13 @@ spec:
         - "--insecure-azure-managed-identity-mock-principal-id"
         - "d6b62dfa-87f5-49b3-bbcb-4a687c4faa96"
         - "--insecure-azure-managed-identity-mock-tenant-id"
+        - "64dc69e4-d083-49fc-9569-ebece1dd1408"
+        # ARM Permissions Manager Identity flags. They should only be set in ARO-HCP environments where Microsoft's First Party Application (FPA) integration is not available.
+        - "--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path"
+        - "/secrets/backend-service-key-vault/arm-permissions-manager-identity-cert-bundle"
+        - "--insecure-azure-arm-permissions-manager-identity-client-id"
+        - "3331e670-0804-48e8-a086-6241671ddc93"
+        - "--insecure-azure-arm-permissions-manager-identity-tenant-id"
         - "64dc69e4-d083-49fc-9569-ebece1dd1408"
         env:
         - name: DB_NAME
@@ -307,6 +314,10 @@ spec:
           objectName: 'msiMockCert2'
           objectType: secret
           objectAlias: mi-mock-cert-bundle
+        - |
+          objectName: 'armHelperCert2'
+          objectType: secret
+          objectAlias: arm-permissions-manager-identity-cert-bundle
     tenantId: '__tenantId__'
     usePodIdentity: "false"
   provider: azure

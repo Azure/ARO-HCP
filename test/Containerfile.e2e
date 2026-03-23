@@ -1,14 +1,7 @@
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 as builder
-
-WORKDIR /app
-COPY test /app/test
-COPY internal /app/internal
-RUN cd test/e2e && make e2etest
-
-FROM --platform=linux/amd64 mcr.microsoft.com/azurelinux/distroless/base:3.0
-
-WORKDIR /
-ENV SETUP_FILEPATH=/test-artifacts/e2e-setup.json
-COPY --from=builder /app/test/e2e/e2e.test /e2e.test
-COPY --from=builder /app/test/e2e/bicep-templates /app/bicep-templates
-ENTRYPOINT ["/e2e.test", "--ginkgo.timeout", "1h", "--ginkgo.junit-report", "/test-artifacts/junit-report.xml", "--ginkgo.trace"]
+FROM registry.ci.openshift.org/aro-hcp/aro-hcp-ci-images:aro-hcp-e2e-base-ci
+USER root
+WORKDIR /opt/app-root/src/github.com/Azure/ARO-HCP
+COPY . .
+ENV GOFLAGS='-mod=readonly'
+RUN make -C test/ build && go clean -cache -modcache && rm -f go.work.sum
+RUN chmod 777 /opt/app-root/src/github.com/Azure/ARO-HCP

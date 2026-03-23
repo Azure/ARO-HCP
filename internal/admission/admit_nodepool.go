@@ -87,7 +87,17 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 		return nil
 	}
 
-	newVersion := semver.MustParse(newNodePool.Properties.Version.ID)
+	errs := field.ErrorList{}
+	fldPath := field.NewPath("properties", "version", "id")
+
+	newVersion, err := semver.Parse(newNodePool.Properties.Version.ID)
+	if err != nil {
+		errs = append(errs, field.Invalid(
+			fldPath,
+			newNodePool.Properties.Version.ID,
+			fmt.Sprintf("invalid node pool version format: %s", err.Error()),
+		))
+	}
 	// Skip validation if the newVersion hasn't changed from the desired Version
 	if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
 		newVersion.EQ(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
@@ -101,14 +111,12 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 		return nil
 	}
 
-	errs := field.ErrorList{}
-	fldPath := field.NewPath("properties", "version", "id")
 	// Check if the newVersion <= control plane versions
 	// TODO: We may relax this constraint in the future
 	clusterActiveVersions := spCluster.Status.ControlPlaneVersion.ActiveVersions
 	if len(clusterActiveVersions) > 0 {
-		lowestControlPlane := clusterActiveVersions[len(clusterActiveVersions)-1].Version
-		if newVersion.GT(*lowestControlPlane) {
+		lowestControlPlane := api.FindLowestClusterVersion(clusterActiveVersions)
+		if lowestControlPlane != nil && newVersion.GT(*lowestControlPlane) {
 			errs = append(errs, field.Invalid(
 				fldPath,
 				newNodePool.Properties.Version.ID,
@@ -119,10 +127,9 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 	}
 
 	if len(nodePoolActiveVersions) > 0 {
-		highestActive := nodePoolActiveVersions[0].Version
-		lowestActive := nodePoolActiveVersions[len(nodePoolActiveVersions)-1].Version
+		lowestActive, highestActive := api.FindNodePoolVersionBounds(nodePoolActiveVersions)
 		// No partial downgrades: Node pool version >= highest active version
-		if newVersion.LT(*highestActive) {
+		if highestActive != nil && newVersion.LT(*highestActive) {
 			errs = append(errs, field.Invalid(
 				fldPath,
 				newNodePool.Properties.Version.ID,

@@ -14,7 +14,7 @@ param automationAccountName string = 'hcp-${environment}-automation'
 param dailyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T06:00:00Z'
 
 @description('The start time for the hourly schedule')
-param hourlyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
+param hourlyScheduleStartTime string = dateTimeAdd(utcNow(), 'PT30M')
 
 @description('The commit hash of the script to use')
 param scriptVersion string = '0de69144a537d9e5a032605a5fa82e863fc45a9e'

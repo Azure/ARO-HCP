@@ -7,7 +7,6 @@
   "Fails to get a nonexistent cluster with a Not Found error",
   "Get each nodepool from HCPOpenShiftCluster",
   "Successfully lists clusters filtered by resource group name",
-  "Successfully lists clusters filtered by subscription ID",
   "creates a cluster and fails to update its name with a PATCH request",
   "creates and deletes vm type NC4asT4v3 in a single cluster",
   "should be able to create an HCP cluster then delete it by deleting the customer resource group",

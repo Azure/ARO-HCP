@@ -41,6 +41,7 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 	}
 
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
+	dest.CosmosETag = src.CosmosETag
 }
 
 func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdentity) {

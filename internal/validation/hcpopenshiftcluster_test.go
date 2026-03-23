@@ -181,11 +181,11 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
-					fieldPath: "customerProperties.platform.managedResourceGroup",
+					fieldPath: "customerProperties.version.id",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "customerProperties.version.id",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 				{
 					message:   "Required value",

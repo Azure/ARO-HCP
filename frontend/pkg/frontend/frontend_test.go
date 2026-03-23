@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -36,26 +35,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
-
-func getMockDBDoc[T any](t *T) (*T, error) {
-	if t != nil {
-		return t, nil
-	} else {
-		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
-	}
-}
 
 func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
@@ -69,6 +59,20 @@ func newClusterInternalID(t *testing.T) ocm.InternalID {
 	return internalID
 }
 
+// newTestSubscription creates a properly-formed subscription with CosmosMetadata set
+func newTestSubscription(subscriptionID string, state arm.SubscriptionState, props *arm.SubscriptionProperties) *arm.Subscription {
+	resourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+	return &arm.Subscription{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: resourceID,
+		},
+		ResourceID:       resourceID,
+		State:            state,
+		RegistrationDate: api.Ptr(time.Now().String()),
+		Properties:       props,
+	}
+}
+
 func TestSubscriptionsGET(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -76,13 +80,8 @@ func TestSubscriptionsGET(t *testing.T) {
 		expectedStatusCode int
 	}{
 		{
-			name: "GET Subscription - Doc Exists",
-			subDoc: &arm.Subscription{
-				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-				State:            arm.SubscriptionStateRegistered,
-				RegistrationDate: api.Ptr(time.Now().String()),
-				Properties:       nil,
-			},
+			name:               "GET Subscription - Doc Exists",
+			subDoc:             newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -94,9 +93,7 @@ func TestSubscriptionsGET(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockDBClient := database.NewMockDBClient(ctrl)
-			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := databasetesting.NewMockDBClient()
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -111,22 +108,13 @@ func TestSubscriptionsGET(t *testing.T) {
 				"", false, false, true,
 			)
 
-			// ArmSubscriptionGet.
-			mockDBClient.EXPECT().
-				Subscriptions().
-				Return(mockSubscriptionCRUD)
-			mockSubscriptionCRUD.EXPECT().
-				Get(gomock.Any(), gomock.Any()).
-				Return(getMockDBDoc(test.subDoc)).
-				Times(1)
-
-			// The subscription collector lists all documents once.
+			// Pre-populate subscription in the mock database
 			subs := make(map[string]*arm.Subscription)
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(ctx, f, mockDBClient, subs)
 
 			rs, err := ts.Client().Get(ts.URL + api.TestSubscriptionResourceID + "?api-version=" + arm.SubscriptionAPIVersion)
 			require.NoError(t, err)
@@ -183,12 +171,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
-			subDoc: &arm.Subscription{
-				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-				State:            arm.SubscriptionStateRegistered,
-				RegistrationDate: api.Ptr(time.Now().String()),
-				Properties:       nil,
-			},
+			subDoc:             newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
 			expectUpdated:      false,
 			expectedStatusCode: http.StatusOK,
 		},
@@ -208,12 +191,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 					},
 				},
 			},
-			subDoc: &arm.Subscription{
-				ResourceID:       api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-				State:            arm.SubscriptionStateRegistered,
-				RegistrationDate: api.Ptr(time.Now().String()),
-				Properties:       nil,
-			},
+			subDoc:             newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
 			expectUpdated:      true,
 			expectedStatusCode: http.StatusOK,
 		},
@@ -263,9 +241,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockDBClient := database.NewMockDBClient(ctrl)
-			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := databasetesting.NewMockDBClient()
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -283,49 +259,12 @@ func TestSubscriptionsPUT(t *testing.T) {
 			body, err := json.Marshal(&test.subscription)
 			require.NoError(t, err)
 
-			// MiddlewareLockSubscription
-			// (except when MiddlewareValidateStatic fails)
-			mockDBClient.EXPECT().
-				GetLockClient().
-				MaxTimes(1)
-
-			if test.expectedStatusCode != http.StatusBadRequest {
-				// ArmSubscriptionPut
-				mockDBClient.EXPECT().
-					Subscriptions().
-					Return(mockSubscriptionCRUD)
-				mockSubscriptionCRUD.EXPECT().
-					Get(gomock.Any(), gomock.Any()).
-					Return(getMockDBDoc(test.subDoc))
-				// ArmSubscriptionPut
-				if test.subDoc == nil {
-					mockDBClient.EXPECT().
-						Subscriptions().
-						Return(mockSubscriptionCRUD)
-					mockSubscriptionCRUD.EXPECT().
-						Create(gomock.Any(), gomock.Any(), gomock.Any()).
-						DoAndReturn(func(ctx context.Context, subscription *arm.Subscription, options *azcosmos.ItemOptions) (*arm.Subscription, error) {
-							return subscription, nil
-						})
-				} else if test.expectUpdated {
-					mockDBClient.EXPECT().
-						Subscriptions().
-						Return(mockSubscriptionCRUD)
-					mockSubscriptionCRUD.EXPECT().
-						Replace(gomock.Any(), gomock.Any(), gomock.Any()).
-						DoAndReturn(func(ctx context.Context, updated *arm.Subscription, options *azcosmos.ItemOptions) (*arm.Subscription, error) {
-							assert.True(t, test.expectUpdated)
-							return updated, nil
-						})
-				}
-			}
-
 			subs := make(map[string]*arm.Subscription)
 			if test.subDoc != nil {
 				subs[api.TestSubscriptionID] = test.subDoc
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(ctx, f, mockDBClient, subs)
 
 			urlPath := test.urlPath + "?api-version=" + arm.SubscriptionAPIVersion
 			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
@@ -419,7 +358,6 @@ func TestDeploymentPreflight(t *testing.T) {
 				},
 				"properties": map[string]any{
 					"version": map[string]any{
-						// missing ID
 						"channelGroup": "stable",
 					},
 					"network": map[string]any{
@@ -515,9 +453,7 @@ func TestDeploymentPreflight(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			preflightPath := path.Join(api.TestDeploymentResourceID, "preflight")
 
-			ctrl := gomock.NewController(t)
-			mockDBClient := database.NewMockDBClient(ctrl)
-			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := databasetesting.NewMockDBClient()
 			reg := prometheus.NewRegistry()
 
 			f := NewFrontend(
@@ -532,27 +468,11 @@ func TestDeploymentPreflight(t *testing.T) {
 				"", false, false, true,
 			)
 
-			// MiddlewareValidateSubscriptionState and MetricsMiddleware
-			mockDBClient.EXPECT().
-				Subscriptions().
-				Return(mockSubscriptionCRUD).
-				MaxTimes(2)
-			mockSubscriptionCRUD.EXPECT().
-				Get(gomock.Any(), api.TestSubscriptionID).
-				Return(&arm.Subscription{
-					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-					State:      arm.SubscriptionStateRegistered,
-				}, nil).
-				MaxTimes(2)
-
 			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: {
-					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-					State:      arm.SubscriptionStateRegistered,
-				},
+				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
 			}
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(ctx, f, mockDBClient, subs)
 
 			resource, err := json.Marshal(&test.resource)
 			require.NoError(t, err)
@@ -661,11 +581,8 @@ func TestRequestAdminCredential(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			reg := prometheus.NewRegistry()
-			mockDBClient := database.NewMockDBClient(ctrl)
+			mockDBClient := databasetesting.NewMockDBClient()
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-			mockOperationCRUD := database.NewMockOperationCRUD(ctrl)
-			mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
-			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 
 			f := NewFrontend(
 				testr.New(t),
@@ -679,107 +596,54 @@ func TestRequestAdminCredential(t *testing.T) {
 				"", false, false, true,
 			)
 
-			// MiddlewareValidateSubscriptionState and MetricsMiddleware
-			mockDBClient.EXPECT().
-				Subscriptions().
-				Return(mockSubscriptionCRUD)
-			mockSubscriptionCRUD.EXPECT().
-				Get(gomock.Any(), api.TestSubscriptionID).
-				Return(&arm.Subscription{
-					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-					State:      arm.SubscriptionStateRegistered,
-				}, nil).
-				MaxTimes(2)
-			// MiddlewareLockSubscription
-			mockDBClient.EXPECT().
-				GetLockClient().
-				Return(nil)
-			// ArmResourceActionRequestAdminCredential
-			mockDBClient.EXPECT().
-				HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).
-				Return(mockClusterCRUD)
-			mockClusterCRUD.EXPECT().
-				Get(gomock.Any(), clusterResourceID.Name).
-				Return(
-					&api.HCPOpenShiftCluster{
-						TrackedResource: arm.TrackedResource{
-							Resource: arm.Resource{
-								ID: clusterResourceID,
-							},
-						},
-						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-							ProvisioningState: test.clusterProvisioningState,
-							ClusterServiceID:  clusterInternalID,
-						},
+			// Pre-populate the mock database with cluster and subscription
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+
+			cluster := &api.HCPOpenShiftCluster{
+				TrackedResource: arm.TrackedResource{
+					Resource: arm.Resource{
+						ID: clusterResourceID,
 					},
-					nil)
-			if test.clusterProvisioningState.IsTerminal() {
-				revokeOperations := make(map[string]*api.Operation)
-				if !test.revokeCredentialsStatus.IsTerminal() {
-					revokeOperations[uuid.New().String()] = &api.Operation{
-						Request:    database.OperationRequestRevokeCredentials,
-						ExternalID: clusterResourceID,
-						InternalID: clusterInternalID,
-						Status:     test.revokeCredentialsStatus,
-					}
+				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: test.clusterProvisioningState,
+					ClusterServiceID:  clusterInternalID,
+				},
+			}
+			_, err := mockDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+
+			// Add active revoke operation if needed
+			if test.clusterProvisioningState.IsTerminal() && !test.revokeCredentialsStatus.IsTerminal() {
+				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
+				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
+				revokeOp := &api.Operation{
+					CosmosMetadata: api.CosmosMetadata{
+						ResourceID: resourceID,
+					},
+					ResourceID:  resourceID,
+					OperationID: operationID,
+					Request:     database.OperationRequestRevokeCredentials,
+					ExternalID:  clusterResourceID,
+					InternalID:  clusterInternalID,
+					Status:      test.revokeCredentialsStatus,
 				}
-				mockOperationIter := database.NewMockDBClientIterator[api.Operation](ctrl)
-				mockOperationIter.EXPECT().
-					Items(gomock.Any()).
-					Return(database.DBClientIteratorItem[api.Operation](maps.All(revokeOperations)))
+				_, err := mockDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, revokeOp, nil)
+				require.NoError(t, err)
+			}
 
-				// ArmResourceActionRequestAdminCredential
-				mockDBClient.EXPECT().
-					Operations(clusterResourceID.SubscriptionID).
-					Return(mockOperationCRUD)
-				mockOperationCRUD.EXPECT().
-					ListActiveOperations(gomock.Any()).
-					Return(mockOperationIter)
-
-				if test.revokeCredentialsStatus.IsTerminal() {
-					mockDBTransaction := database.NewMockDBTransaction(ctrl)
-					mockDBTransactionResult := database.NewMockDBTransactionResult(ctrl)
-
-					mockOperationIter.EXPECT().
-						GetError().
-						Return(nil)
-					// ArmResourceActionRequestAdminCredential
-					mockCSClient.EXPECT().
-						PostBreakGlassCredential(gomock.Any(), clusterInternalID).
-						Return(cmv1.NewBreakGlassCredential().
-							HREF(ocm.GenerateBreakGlassCredentialHREF(clusterInternalID.String(), "0")).Build())
-					// ArmResourceActionRequestAdminCredential
-					mockDBClient.EXPECT().
-						NewTransaction(api.TestSubscriptionID).
-						Return(mockDBTransaction)
-					// ArmResourceActionRequestAdminCredential
-					operationID := uuid.New().String()
-					mockDBTransaction.EXPECT().
-						OnSuccess(gomock.Any())
-					mockDBClient.EXPECT().
-						Operations(clusterResourceID.SubscriptionID).
-						DoAndReturn(func(s string) database.OperationCRUD {
-							return mockOperationCRUD
-						})
-					mockOperationCRUD.EXPECT().
-						AddCreateToTransaction(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-						Return(operationID, nil)
-
-					// ArmResourceActionRequestAdminCredential
-					mockDBTransaction.EXPECT().
-						Execute(gomock.Any(), nil).
-						Return(mockDBTransactionResult, nil)
-				}
+			// Set up cluster service expectations for success case
+			if test.clusterProvisioningState.IsTerminal() && test.revokeCredentialsStatus.IsTerminal() {
+				mockCSClient.EXPECT().
+					PostBreakGlassCredential(gomock.Any(), clusterInternalID).
+					Return(cmv1.NewBreakGlassCredential().
+						HREF(ocm.GenerateBreakGlassCredentialHREF(clusterInternalID.String(), "0")).Build())
 			}
 
 			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: {
-					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-					State:      arm.SubscriptionStateRegistered,
-				},
+				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
 			}
-			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(ctx, f, mockDBClient, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -837,11 +701,8 @@ func TestRevokeCredentials(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			reg := prometheus.NewRegistry()
-			mockDBClient := database.NewMockDBClient(ctrl)
+			mockDBClient := databasetesting.NewMockDBClient()
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-			mockOperationCRUD := database.NewMockOperationCRUD(ctrl)
-			mockClusterCRUD := database.NewMockHCPClusterCRUD(ctrl)
-			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
 
 			f := NewFrontend(
 				testr.New(t),
@@ -855,160 +716,79 @@ func TestRevokeCredentials(t *testing.T) {
 				"", false, false, true,
 			)
 
-			// MiddlewareValidateSubscriptionState and MetricsMiddleware
-			mockDBClient.EXPECT().
-				Subscriptions().
-				Return(mockSubscriptionCRUD)
-			mockSubscriptionCRUD.EXPECT().
-				Get(gomock.Any(), api.TestSubscriptionID).
-				Return(&arm.Subscription{
-					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-					State:      arm.SubscriptionStateRegistered,
-					Properties: &arm.SubscriptionProperties{
-						RegisteredFeatures: &[]arm.Feature{
-							{
-								Name:  api.Ptr(api.FeatureExperimentalReleaseFeatures),
-								State: api.Ptr("Registered"),
-							},
-						},
+			// Pre-populate the mock database with cluster
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+
+			cluster := &api.HCPOpenShiftCluster{
+				TrackedResource: arm.TrackedResource{
+					Resource: arm.Resource{
+						ID: clusterResourceID,
 					},
-				}, nil).
-				MaxTimes(2)
-			// MiddlewareLockSubscription
-			mockDBClient.EXPECT().
-				GetLockClient().
-				Return(nil)
-			// ArmResourceActionRequestAdminCredential
-			mockDBClient.EXPECT().
-				HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).
-				Return(mockClusterCRUD)
-			mockClusterCRUD.EXPECT().
-				Get(gomock.Any(), clusterResourceID.Name).
-				Return(
-					&api.HCPOpenShiftCluster{
-						TrackedResource: arm.TrackedResource{
-							Resource: arm.Resource{
-								ID: clusterResourceID,
-							},
-						},
-						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-							ProvisioningState: test.clusterProvisioningState,
-							ClusterServiceID:  clusterInternalID,
-						},
+				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: test.clusterProvisioningState,
+					ClusterServiceID:  clusterInternalID,
+				},
+			}
+			_, err := mockDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
+			require.NoError(t, err)
+
+			// Add active revoke operation if needed
+			if test.clusterProvisioningState.IsTerminal() && !test.revokeCredentialsStatus.IsTerminal() {
+				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
+				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
+				revokeOp := &api.Operation{
+					CosmosMetadata: api.CosmosMetadata{
+						ResourceID: resourceID,
 					},
-					nil)
-			if test.clusterProvisioningState.IsTerminal() {
-				// Subscription feature gate check in handler
-				mockDBClient.EXPECT().
-					Subscriptions().
-					Return(mockSubscriptionCRUD)
-
-				revokeOperations := make(map[string]*api.Operation)
-				if !test.revokeCredentialsStatus.IsTerminal() {
-					revokeOperations[uuid.New().String()] = &api.Operation{
-						Request:    database.OperationRequestRevokeCredentials,
-						ExternalID: clusterResourceID,
-						InternalID: clusterInternalID,
-						Status:     test.revokeCredentialsStatus,
-					}
+					ResourceID:  resourceID,
+					OperationID: operationID,
+					Request:     database.OperationRequestRevokeCredentials,
+					ExternalID:  clusterResourceID,
+					InternalID:  clusterInternalID,
+					Status:      test.revokeCredentialsStatus,
 				}
-				mockOperationIter := database.NewMockDBClientIterator[api.Operation](ctrl)
-				mockOperationIter.EXPECT().
-					Items(gomock.Any()).
-					Return(database.DBClientIteratorItem[api.Operation](maps.All(revokeOperations)))
+				_, err := mockDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, revokeOp, nil)
+				require.NoError(t, err)
+			}
 
-				// ArmResourceActionRequestAdminCredential
-				mockDBClient.EXPECT().
-					Operations(clusterResourceID.SubscriptionID).
-					Return(mockOperationCRUD)
-				mockOperationCRUD.EXPECT().
-					ListActiveOperations(gomock.Any()).
-					Return(mockOperationIter)
-				if test.revokeCredentialsStatus.IsTerminal() {
-					mockDBTransaction := database.NewMockDBTransaction(ctrl)
-					mockDBTransactionResult := database.NewMockDBTransactionResult(ctrl)
-
-					mockOperationIter.EXPECT().
-						GetError().
-						Return(nil)
-					// ArmResourceActionRequestAdminCredential
-					mockCSClient.EXPECT().
-						DeleteBreakGlassCredentials(gomock.Any(), clusterInternalID).
-						Return(nil)
-
-					requestOperationID := string(arm.ProvisioningStateProvisioning)
-					requestOperations := map[string]*api.Operation{
-						requestOperationID: {
-							Request:    database.OperationRequestRequestCredential,
-							ExternalID: clusterResourceID,
-							InternalID: clusterInternalID,
-							Status:     arm.ProvisioningStateProvisioning,
-						},
-					}
-					mockOperationIter = database.NewMockDBClientIterator[api.Operation](ctrl)
-					mockOperationIter.EXPECT().
-						Items(gomock.Any()).
-						Return(database.DBClientIteratorItem[api.Operation](maps.All(requestOperations)))
-					mockOperationIter.EXPECT().
-						GetError().
-						Return(nil)
-
-					// ArmResourceActionRequestAdminCredential
-					mockDBClient.EXPECT().
-						NewTransaction(api.TestSubscriptionID).
-						Return(mockDBTransaction)
-
-					// CancelActiveOperations
-					mockDBTransaction.EXPECT().
-						GetPartitionKey().
-						Return(api.TestSubscriptionID)
-					// CancelActiveOperations
-					mockDBClient.EXPECT().
-						Operations(clusterResourceID.SubscriptionID).
-						Return(mockOperationCRUD)
-					mockOperationCRUD.EXPECT().
-						ListActiveOperations(gomock.Any()).
-						Return(mockOperationIter)
-					// CancelActiveOperations
-					mockDBClient.EXPECT().
-						Operations(clusterResourceID.SubscriptionID).
-						Return(mockOperationCRUD)
-					mockOperationCRUD.EXPECT().
-						AddReplaceToTransaction(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-						DoAndReturn(func(ctx context.Context, transaction database.DBTransaction, operation *api.Operation, options *azcosmos.TransactionalBatchItemOptions) (string, error) {
-							return "", nil
-						})
-
-					// ArmResourceActionRequestAdminCredential
-					operationID := uuid.New().String()
-					mockDBClient.EXPECT().
-						Operations(clusterResourceID.SubscriptionID).
-						Return(mockOperationCRUD)
-					mockOperationCRUD.EXPECT().
-						AddCreateToTransaction(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-						DoAndReturn(func(ctx context.Context, transaction database.DBTransaction, operation *api.Operation, options *azcosmos.TransactionalBatchItemOptions) (string, error) {
-							return operationID, nil
-						})
-
-					// ExposeOperation
-					mockDBTransaction.EXPECT().
-						OnSuccess(gomock.Any())
-
-					// ArmResourceActionRequestAdminCredential
-					mockDBTransaction.EXPECT().
-						Execute(gomock.Any(), nil).
-						Return(mockDBTransactionResult, nil)
+			// Add active request credential operation (will be cancelled) for success case
+			if test.clusterProvisioningState.IsTerminal() && test.revokeCredentialsStatus.IsTerminal() {
+				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
+				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
+				requestOp := &api.Operation{
+					CosmosMetadata: api.CosmosMetadata{
+						ResourceID: resourceID,
+					},
+					ResourceID:  resourceID,
+					OperationID: operationID,
+					Request:     database.OperationRequestRequestCredential,
+					ExternalID:  clusterResourceID,
+					InternalID:  clusterInternalID,
+					Status:      arm.ProvisioningStateProvisioning,
 				}
+				_, err := mockDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, requestOp, nil)
+				require.NoError(t, err)
+			}
+
+			// Set up cluster service expectations for success case
+			if test.clusterProvisioningState.IsTerminal() && test.revokeCredentialsStatus.IsTerminal() {
+				mockCSClient.EXPECT().
+					DeleteBreakGlassCredentials(gomock.Any(), clusterInternalID).
+					Return(nil)
 			}
 
 			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: {
-					ResourceID: api.Must(arm.ToSubscriptionResourceID(api.TestSubscriptionID)),
-					State:      arm.SubscriptionStateRegistered,
-				},
+				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, &arm.SubscriptionProperties{
+					RegisteredFeatures: &[]arm.Feature{
+						{
+							Name:  api.Ptr(api.FeatureExperimentalReleaseFeatures),
+							State: api.Ptr("Registered"),
+						},
+					},
+				}),
 			}
-			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
-			ts := newHTTPServer(ctx, f, ctrl, mockDBClient, mockSubscriptionCRUD, subs)
+			ts := newHTTPServer(ctx, f, mockDBClient, subs)
 
 			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
 			resp, err := ts.Client().Post(url, "", nil)
@@ -1088,30 +868,18 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 	assert.Len(t, mfs, 2)
 }
 
-// newHTTPServer returns a test HTTP server. When a mock DB client is provided,
-// the subscription collector will be bootstrapped with the provided
-// subscription documents.
-func newHTTPServer(ctx context.Context, f *Frontend, ctrl *gomock.Controller, mockDBClient *database.MockDBClient, mockSubscriptionCRUD *database.MockSubscriptionCRUD, subs map[string]*arm.Subscription) *httptest.Server {
+// newHTTPServer returns a test HTTP server. The mock DB client will be
+// bootstrapped with the provided subscription documents for the
+// subscription collector.
+func newHTTPServer(ctx context.Context, f *Frontend, mockDBClient *databasetesting.MockDBClient, subs map[string]*arm.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext
 	ts.Start()
 
-	mockIter := database.NewMockDBClientIterator[arm.Subscription](ctrl)
-	mockIter.EXPECT().
-		Items(gomock.Any()).
-		Return(database.DBClientIteratorItem[arm.Subscription](maps.All(subs)))
-
-	mockIter.EXPECT().
-		GetError().
-		Return(nil)
-
-	mockDBClient.EXPECT().
-		Subscriptions().
-		Return(mockSubscriptionCRUD)
-	mockSubscriptionCRUD.EXPECT().
-		List(gomock.Any(), gomock.Any()).
-		Return(mockIter, nil).
-		Times(1)
+	// Pre-populate subscriptions in the mock database for the collector
+	for _, sub := range subs {
+		_, _ = mockDBClient.Subscriptions().Create(ctx, sub, nil)
+	}
 
 	// The initialization of the subscriptions collector is normally part of
 	// the Run() method but the method doesn't get called in the tests so it's

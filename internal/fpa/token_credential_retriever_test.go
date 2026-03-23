@@ -15,8 +15,6 @@
 package fpa
 
 import (
-	"crypto"
-	"crypto/x509"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,30 +22,22 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+
+	"github.com/Azure/ARO-HCP/internal/certificate"
+	"github.com/Azure/ARO-HCP/internal/certificatetest"
 )
 
-// mockCertificateReader is a simple mock for testing FirstPartyApplicationTokenCredentialRetriever
-type mockCertificateReader struct {
-	certs []*x509.Certificate
-	key   crypto.PrivateKey
-	err   error
-}
-
-func (m *mockCertificateReader) ReadCertificate() ([]*x509.Certificate, crypto.PrivateKey, error) {
-	return m.certs, m.key, m.err
-}
-
 func TestCredentialRetrieverLoadsInitialCertificate(t *testing.T) {
-	certPEM, keyPEM, err := generateTestCertificate(t, 20)
+	certPEM, keyPEM, err := certificatetest.GenerateTestCertificate(t, 20)
 	require.NoError(t, err)
 	certData := append(keyPEM, certPEM...)
 
 	certs, key, err := azidentity.ParseCertificates(certData, nil)
 	require.NoError(t, err)
 
-	mockReader := &mockCertificateReader{
-		certs: certs,
-		key:   key,
+	mockReader := &certificate.MockReader{
+		Certs: certs,
+		Key:   key,
 	}
 
 	retriever, err := NewFirstPartyApplicationTokenCredentialRetriever(

@@ -229,20 +229,26 @@ resourceGroups:
       - "DeploymentScriptExceededMaxAllowedTime"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
-  # - name: delete-non-swift-user-nodepools
-  #   aksCluster: '{{ .mgmt.aks.name }}'
-  #   action: Shell
-  #   command: ./scripts/delete-user-nodepools.sh
-  #   variables:
-  #   - name: CLUSTER_NAME
-  #     configRef: mgmt.aks.name
-  #   - name: RESOURCE_GROUP
-  #     configRef: mgmt.rg
-  #   - name: POOL_NAME_PATTERN
-  #     value: 'user[0-9]+'
-  #   dependsOn:
-  #   - resourceGroup: management
-  #     step: cluster
+  - name: delete-non-swift-user-nodepools
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: ./scripts/delete-user-nodepools.sh
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: POOL_NAME_PATTERN
+      value: 'user[0-9]+'
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true

@@ -1,0 +1,13 @@
+# This test case exercises the scenario where both the MI Mock Identity
+# and the ARM Permissions Manager Identity are not set.
+values: ../values.yaml
+name: backend-mi-mock-and-arm-perms-mgr-identities-unset
+namespace: aro-hcp
+testData:
+  armHelperCertName: ""
+  armHelperClientId: ""
+  armHelperTenantId: ""
+  miMockCertName: ""
+  miMockClientId: ""
+  miMockTenantId: ""
+  miMockPrincipalId: ""

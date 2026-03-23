@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +31,7 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Customer", func() {
@@ -78,6 +80,30 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			var errs []error
+
+			if false { // blocked by https://redhat.atlassian.net/browse/ARO-25089
+				// TEST CASE: ARO-22570
+				By("attempting to list clusters in a non-existent resource group")
+				clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+				nonExistentRgName := "non-existent-rg"
+				clusterPager := clusterClient.NewListByResourceGroupPager(nonExistentRgName, nil)
+				_, err = clusterPager.NextPage(ctx)
+				checkExpectedError(&errs, "cluster listing in non-existent resource group", err, "resource group not found")
+
+				// TEST CASE: ARO-22571
+				By("attempting to list node pools in a resource group without a cluster")
+				emptyRgNodePoolPager := nodePoolClient.NewListByParentPager(*resourceGroup.Name, clusterParams.ClusterName, nil)
+				_, err = emptyRgNodePoolPager.NextPage(ctx)
+				checkExpectedError(&errs, "node pool listing in RG with no clusters", err, "parent resource not found")
+
+				By("attempting to list node pools in a non-existent resource group")
+				nodePoolPager := nodePoolClient.NewListByParentPager(nonExistentRgName, clusterParams.ClusterName, nil)
+				_, err = nodePoolPager.NextPage(ctx)
+				checkExpectedError(&errs, "node pool listing in non-existent resource group", err, "resource group not found")
+			}
+
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
@@ -88,11 +114,50 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a nodepool")
+			By("getting credentials")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				10*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("ensuring the cluster is viable")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = clusterParams.ClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 
+			// TEST CASE: ARO-22576
+			nodePoolParamsInvalidInstance := nodePoolParams
+			nodePoolParamsInvalidInstance.VMSize = "Standard_A1_v2" // real, but unsupported Azure instance type
+
+			nodePoolParamsInvalidQuota := nodePoolParams
+			nodePoolParamsInvalidQuota.Replicas = int32(201)
+
+			By("attempting to create a node pool with invalid instance type")
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParamsInvalidInstance,
+				5*time.Minute,
+			)
+			checkExpectedError(&errs, "node pool creation with invalid instance type", err, "machine type not supported")
+
+			By("attempting to create a node pool with invalid quota")
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParamsInvalidQuota,
+				5*time.Minute,
+			)
+			checkExpectedError(&errs, "node pool creation with invalid quota", err, "invalid value must be less than or equal to")
+
+			By("creating a nodepool")
 			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				clusterParams.ClusterName,
@@ -101,11 +166,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-
-			var errs []error
-
-			// TEST CASE: Invalid version update should be rejected
+			// TEST CASE: ARO-23182
 			if false { // blocked by https://issues.redhat.com/browse/ARO-24542
 				By("attempting to update nodepool version to higher than cluster version")
 				clusterVersion := clusterParams.OpenshiftVersionId
@@ -128,14 +189,10 @@ var _ = Describe("Customer", func() {
 					versionUpdate,
 					10*time.Minute,
 				)
-				if err == nil {
-					errs = append(errs, fmt.Errorf("version validation: expected error when updating to invalid version %s, but no error occurred", invalidNodePoolVersion))
-				} else if !strings.Contains(strings.ToLower(err.Error()), "version") {
-					errs = append(errs, fmt.Errorf("version validation: expected error to contain 'version', got: %s", err.Error()))
-				}
+				checkExpectedError(&errs, "node pool version update validation", err, "version")
 			}
 
-			// TEST CASE: Immutable field updates should be rejected
+			// TEST CASE: ARO-24877
 			By("attempting to update immutable platform profile fields")
 			nodePool, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
 			if err != nil {
@@ -153,11 +210,8 @@ var _ = Describe("Customer", func() {
 				}
 
 				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nodePool.NodePool, nil)
-				if err == nil {
-					errs = append(errs, fmt.Errorf("expected error when updating immutable fields, but no error occurred"))
-				} else if !strings.Contains(err.Error(), "Forbidden: field is immutable") {
-					errs = append(errs, fmt.Errorf("expected 'Forbidden: field is immutable', got: %s", err.Error()))
-				} else {
+				checkExpectedError(&errs, "updating immutable fields", err, "forbidden field immutable")
+				if err != nil {
 					updatedNodePool, getErr := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
 					if getErr != nil {
 						errs = append(errs, fmt.Errorf("failed to verify nodepool after failed update: %w", getErr))
@@ -188,12 +242,25 @@ var _ = Describe("Customer", func() {
 			}
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22240 to be implemented here
 
-			// TEST CASE: https://issues.redhat.com/browse/ARO-22570 to be implemented here
-
-			// TEST CASE: https://issues.redhat.com/browse/ARO-22571 to be implemented here
 			if len(errs) > 0 {
 				Expect(errors.Join(errs...)).NotTo(HaveOccurred())
 			}
 		})
 
 })
+
+func checkExpectedError(errs *[]error, operation string, err error, expectedErrorKeywords string) {
+	GinkgoLogr.Error(err, operation)
+
+	if err == nil {
+		*errs = append(*errs, fmt.Errorf("%s: expected error but none occurred", operation))
+		return
+	}
+
+	pattern := ".*" + strings.ReplaceAll(strings.ToLower(expectedErrorKeywords), " ", ".*") + ".*"
+	lowerError := strings.ToLower(err.Error())
+
+	if matched, _ := regexp.MatchString(pattern, lowerError); !matched {
+		*errs = append(*errs, fmt.Errorf("%s: expected error containing keywords '%s', got: %s", operation, expectedErrorKeywords, err.Error()))
+	}
+}

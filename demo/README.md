@@ -78,8 +78,8 @@ Make sure to change the version in the template to use the desired one, both for
 
 ```json
     "version": {
-      "id": "4.20.5", 
-      "channelGroup": "candidate"
+      "id": "4.20.15",
+      "channelGroup": "stable"
     },
 ```
 or 

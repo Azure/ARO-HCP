@@ -24,12 +24,9 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -44,7 +41,6 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		expectedState arm.SubscriptionState
 		httpMethod    string
 		requestPath   string
-		cosmosdbError error
 		expectedError *arm.CloudError
 	}{
 		{
@@ -178,39 +174,30 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:        "cosmosdb error returns internal server error",
-			httpMethod:  http.MethodGet,
-			requestPath: defaultRequestPath,
-			cosmosdbError: &azcore.ResponseError{
-				StatusCode: http.StatusInternalServerError,
-				ErrorCode:  "CosmosDB is down",
-			},
-			expectedError: &arm.CloudError{
-				StatusCode: http.StatusInternalServerError,
-				CloudErrorBody: &arm.CloudErrorBody{
-					Code:    arm.CloudErrorCodeInternalServerError,
-					Message: "Internal server error.",
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockDBClient := database.NewMockDBClient(ctrl)
-			mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
+			mockDBClient := databasetesting.NewMockDBClient()
 
 			var subscription *arm.Subscription
 
 			if tt.cachedState != "" {
+				resourceID := arm.Must(arm.ToSubscriptionResourceID(subscriptionId))
 				subscription = &arm.Subscription{
-					State: tt.cachedState,
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: resourceID,
+					},
+					ResourceID: resourceID,
+					State:      tt.cachedState,
 					Properties: &arm.SubscriptionProperties{
 						TenantId: &tenantId,
 					},
 				}
+				// Pre-populate the subscription in the mock database
+				ctx := t.Context()
+				_, err := mockDBClient.Subscriptions().Create(ctx, subscription, nil)
+				require.NoError(t, err)
 			}
 
 			writer := httptest.NewRecorder()
@@ -230,19 +217,6 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 			if tt.requestPath == defaultRequestPath {
 				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
-				mockDBClient.EXPECT().
-					Subscriptions().
-					Return(mockSubscriptionCRUD)
-
-				if tt.cosmosdbError != nil {
-					mockSubscriptionCRUD.EXPECT().
-						Get(gomock.Any(), subscriptionId).
-						Return(nil, tt.cosmosdbError)
-				} else {
-					mockSubscriptionCRUD.EXPECT().
-						Get(gomock.Any(), subscriptionId).
-						Return(getMockDBDoc(subscription)) // defined in frontend_test.go
-				}
 			}
 
 			newMiddlewareValidateSubscriptionState(mockDBClient).handleRequest(writer, request, next)

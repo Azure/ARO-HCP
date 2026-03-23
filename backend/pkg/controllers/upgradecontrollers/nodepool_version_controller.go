@@ -267,11 +267,10 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 	}
 
 	// Get the lowest and highest node pool active versions
-	lowestNodePoolVersion := findLowestNodePoolVersion(nodePoolActiveVersions)
-	highestNodePoolVersion := findHighestNodePoolVersion(nodePoolActiveVersions)
+	lowestNodePoolVersion, highestNodePoolVersion := api.FindNodePoolVersionBounds(nodePoolActiveVersions)
 
 	// Get the lowest control plane version (most restrictive upper bound)
-	lowestControlPlaneVersion := findLowestControlPlaneVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+	lowestControlPlaneVersion := api.FindLowestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
 
 	// Node pool version >= highest active version (no partial downgrades)
 	if highestNodePoolVersion != nil && desiredVersion.LT(*highestNodePoolVersion) {
@@ -333,35 +332,6 @@ func isVersionInActiveVersions(version *semver.Version, activeVersions []api.HCP
 		}
 	}
 	return false
-}
-
-// findLowestNodePoolVersion returns the lowest (oldest) version from the node pool active versions.
-// ActiveVersions is ordered with the most recent version first, so the lowest is the last element.
-// Returns nil if no versions are present.
-func findLowestNodePoolVersion(activeVersions []api.HCPNodePoolActiveVersion) *semver.Version {
-	if len(activeVersions) == 0 {
-		return nil
-	}
-	return activeVersions[len(activeVersions)-1].Version
-}
-
-// findHighestNodePoolVersion returns the highest (most recent) version from the node pool active versions.
-// This represents the current upgrade target. Desired version must be >= this to prevent partial downgrades.
-// ActiveVersions is ordered with the most recent version first, so the highest is the first element.
-// Returns nil if no versions are present.
-func findHighestNodePoolVersion(activeVersions []api.HCPNodePoolActiveVersion) *semver.Version {
-	if len(activeVersions) == 0 {
-		return nil
-	}
-	return activeVersions[0].Version
-}
-
-// findLowestControlPlaneVersion returns the lowest version from the list of control plane active versions.
-func findLowestControlPlaneVersion(activeVersions []api.HCPClusterActiveVersion) *semver.Version {
-	if len(activeVersions) == 0 {
-		return nil
-	}
-	return activeVersions[len(activeVersions)-1].Version
 }
 
 // validateUpgradePathAvailable checks that an upgrade path exists from current to desired version.

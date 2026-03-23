@@ -9,6 +9,16 @@ metadata:
 spec:
   clusterSet: hypershift-management-clusters
 ---
+# Source: AcmPolicies/templates/managedclustersetbinding.yaml
+# Makes the default clusterset available for arobit namespace-resourceid-mapping policy
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: default
+  namespace: 'open-cluster-management-policies'
+spec:
+  clusterSet: default
+---
 # Source: AcmPolicies/templates/all-hosted-clusters.placement.yaml
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
@@ -18,6 +28,25 @@ metadata:
 spec:
   clusterSets:
   - hypershift-management-clusters
+---
+# Source: AcmPolicies/templates/namespace-resourceid-mapping.placement.yaml
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: namespace-resourceid-mapping
+  namespace: 'open-cluster-management-policies'
+spec:
+  predicates:
+  - requiredClusterSelector:
+      labelSelector:
+        matchLabels:
+          cluster.open-cluster-management.io/clusterset: default
+          name: local-cluster
+  tolerations:
+  - key: cluster.open-cluster-management.io/unavailable
+    operator: Exists
+  - key: cluster.open-cluster-management.io/unreachable
+    operator: Exists
 ---
 # Source: AcmPolicies/templates/default-ingress-cert.policy.yaml
 apiVersion: policy.open-cluster-management.io/v1
@@ -48,6 +77,21 @@ subjects:
 - apiGroup: policy.open-cluster-management.io
   kind: Policy
   name: ingress-controller-check
+---
+# Source: AcmPolicies/templates/namespace-resourceid-mapping.placementbinding.yaml
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: namespace-resourceid-mapping
+  namespace: 'open-cluster-management-policies'
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: namespace-resourceid-mapping
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: namespace-resourceid-mapping
 ---
 # Source: AcmPolicies/templates/sre-breakglass-role.policy.yaml
 apiVersion: policy.open-cluster-management.io/v1
@@ -183,6 +227,46 @@ spec:
         pruneObjectBehavior: None
         remediationAction: inform
         severity: low
+---
+# Source: AcmPolicies/templates/namespace-resourceid-mapping.policy.yaml
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+  name: namespace-resourceid-mapping
+  namespace: 'open-cluster-management-policies'
+spec:
+  disabled: false
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: namespace-resourceid-mapping
+      spec:
+        pruneObjectBehavior: DeleteIfCreated
+        remediationAction: enforce
+        severity: low
+        evaluationInterval:
+          compliant: 2m
+          noncompliant: 30s
+        object-templates-raw: |
+          - complianceType: mustonlyhave
+            objectDefinition:
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: namespace-resourceid-mapping
+                namespace: arobit
+              data:
+                {{- range (lookup "hypershift.openshift.io/v1beta1" "HostedCluster" "" "").items }}
+                {{- if index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}
+                '{{ .metadata.namespace }}-{{ .metadata.name }}': '{{ index .metadata.annotations "azure.microsoft.com/hcp-cluster-azure-resource-id" }}'
+                {{- end }}
+                {{- end }}
 ---
 # Source: AcmPolicies/templates/sre-breakglass-role.policy.yaml
 apiVersion: policy.open-cluster-management.io/v1

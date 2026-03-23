@@ -20,7 +20,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -41,31 +40,6 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 	})
 
 	Context("Positive", func() {
-		It("Successfully lists clusters filtered by subscription ID", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, func(ctx context.Context) {
-			tc := framework.NewTestContext()
-
-			By("Preparing pager to list clusters")
-			listOptions := &hcpsdk20240610preview.HcpOpenShiftClustersClientListBySubscriptionOptions{}
-			pager := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(listOptions)
-			By("Accessing IDs of all fetched clusters")
-			foundPreCreated := false
-			clusterCount := 0
-			for pager.More() {
-				clusterList, err := pager.NextPage(ctx)
-				Expect(err).To(BeNil())
-				clusterCount += len(clusterList.Value)
-				for _, val := range clusterList.Value {
-					Expect(*val.ID).ToNot(BeEmpty())
-					if val.Name != nil && *val.Name == clusterName {
-						foundPreCreated = true
-						break
-					}
-				}
-			}
-			Expect(clusterCount).To(BeNumerically(">", 0), "Expected at least one cluster to be listed")
-			Expect(foundPreCreated).To(BeTrue(), "Expected to find pre-created cluster name %s in the list", clusterName)
-		})
-
 		It("Successfully lists clusters filtered by resource group name", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, func(ctx context.Context) {
 			tc := framework.NewTestContext()
 

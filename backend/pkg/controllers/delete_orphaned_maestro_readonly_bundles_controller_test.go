@@ -164,9 +164,36 @@ func (p *paginationGlobalListers) ServiceProviderNodePools() database.GlobalList
 
 var _ database.GlobalListers = (*paginationGlobalListers)(nil)
 
+// simpleIterator is a simple iterator implementation for testing that doesn't use gomock.
+type simpleIterator[T any] struct {
+	ids               []string
+	items             []*T
+	continuationToken string
+	err               error
+}
+
+func (s *simpleIterator[T]) Items(ctx context.Context) database.DBClientIteratorItem[T] {
+	return func(yield func(string, *T) bool) {
+		for i, item := range s.items {
+			if !yield(s.ids[i], item) {
+				return
+			}
+		}
+	}
+}
+
+func (s *simpleIterator[T]) GetContinuationToken() string {
+	return s.continuationToken
+}
+
+func (s *simpleIterator[T]) GetError() error {
+	return s.err
+}
+
+var _ database.DBClientIterator[api.ServiceProviderCluster] = &simpleIterator[api.ServiceProviderCluster]{}
+
 func TestDeleteOrphanedMaestroReadonlyBundles_getAllServiceProviderClusters_Pagination(t *testing.T) {
 	ctx := context.Background()
-	ctrl := gomock.NewController(t)
 	spc1ResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/serviceProviderClusters/default"))
 	spc2ResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub2/resourceGroups/rg2/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster2/serviceProviderClusters/default"))
 	page1SPC := &api.ServiceProviderCluster{
@@ -178,29 +205,25 @@ func TestDeleteOrphanedMaestroReadonlyBundles_getAllServiceProviderClusters_Pagi
 		ResourceID:     *spc2ResourceID,
 	}
 
-	iter1 := database.NewMockDBClientIterator[api.ServiceProviderCluster](ctrl)
-	iter1.EXPECT().Items(gomock.Any()).DoAndReturn(func(ctx context.Context) database.DBClientIteratorItem[api.ServiceProviderCluster] {
-		return func(yield func(string, *api.ServiceProviderCluster) bool) {
-			yield("id1", page1SPC)
-		}
-	})
-	iter1.EXPECT().GetError().Return(nil)
-	iter1.EXPECT().GetContinuationToken().Return("token1")
+	iter1 := &simpleIterator[api.ServiceProviderCluster]{
+		ids:               []string{"id1"},
+		items:             []*api.ServiceProviderCluster{page1SPC},
+		continuationToken: "token1",
+		err:               nil,
+	}
 
-	iter2 := database.NewMockDBClientIterator[api.ServiceProviderCluster](ctrl)
-	iter2.EXPECT().Items(gomock.Any()).DoAndReturn(func(ctx context.Context) database.DBClientIteratorItem[api.ServiceProviderCluster] {
-		return func(yield func(string, *api.ServiceProviderCluster) bool) {
-			yield("id2", page2SPC)
-		}
-	})
-	iter2.EXPECT().GetError().Return(nil)
-	iter2.EXPECT().GetContinuationToken().Return("")
+	iter2 := &simpleIterator[api.ServiceProviderCluster]{
+		ids:               []string{"id2"},
+		items:             []*api.ServiceProviderCluster{page2SPC},
+		continuationToken: "",
+		err:               nil,
+	}
 
 	paginationListers := &paginationGlobalListers{
 		spcLister: &paginationSPCGlobalLister{iter1: iter1, iter2: iter2, token: "token1"},
 	}
-	mockDB := database.NewMockDBClient(ctrl)
-	mockDB.EXPECT().GlobalListers().Return(paginationListers).Times(2)
+	mockDB := databasetesting.NewMockDBClient()
+	mockDB.SetGlobalListers(paginationListers)
 
 	c := &deleteOrphanedMaestroReadonlyBundles{cosmosClient: mockDB}
 	all, err := c.getAllServiceProviderClusters(ctx)
@@ -212,17 +235,16 @@ func TestDeleteOrphanedMaestroReadonlyBundles_getAllServiceProviderClusters_Pagi
 
 func TestDeleteOrphanedMaestroReadonlyBundles_getAllServiceProviderClusters_IteratorError(t *testing.T) {
 	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-	iter := database.NewMockDBClientIterator[api.ServiceProviderCluster](ctrl)
-	iter.EXPECT().Items(gomock.Any()).DoAndReturn(func(ctx context.Context) database.DBClientIteratorItem[api.ServiceProviderCluster] {
-		return func(yield func(string, *api.ServiceProviderCluster) bool) {}
-	})
 	iterErr := fmt.Errorf("iteration error")
-	iter.EXPECT().GetError().Return(iterErr)
-	// GetContinuationToken is not called when GetError returns non-nil (controller returns early).
+	iter := &simpleIterator[api.ServiceProviderCluster]{
+		ids:               []string{},
+		items:             []*api.ServiceProviderCluster{},
+		continuationToken: "",
+		err:               iterErr,
+	}
 
-	mockDB := database.NewMockDBClient(ctrl)
-	mockDB.EXPECT().GlobalListers().Return(&paginationGlobalListers{
+	mockDB := databasetesting.NewMockDBClient()
+	mockDB.SetGlobalListers(&paginationGlobalListers{
 		spcLister: &iteratorErrorSPCGlobalLister{iter: iter},
 	})
 
@@ -285,10 +307,9 @@ func (f *alwaysErrorGlobalLister[T]) List(ctx context.Context, options *database
 var _ database.GlobalLister[any] = (*alwaysErrorGlobalLister[any])(nil)
 
 func TestDeleteOrphanedMaestroReadonlyBundles_SyncOnce_ListServiceProviderClustersError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockDB := database.NewMockDBClient(ctrl)
+	mockDB := databasetesting.NewMockDBClient()
 	listErr := fmt.Errorf("list SPCs error")
-	mockDB.EXPECT().GlobalListers().Return(&alwaysErrorGlobalListers{err: listErr})
+	mockDB.SetGlobalListers(&alwaysErrorGlobalListers{err: listErr})
 
 	c := &deleteOrphanedMaestroReadonlyBundles{
 		cosmosClient: mockDB,
@@ -327,15 +348,13 @@ func TestDeleteOrphanedMaestroReadonlyBundles_buildProvisionShardToServiceProvid
 			name: "Get cluster error",
 			setup: func(t *testing.T, ctrl *gomock.Controller) (*deleteOrphanedMaestroReadonlyBundles, []*api.ServiceProviderCluster) {
 				t.Helper()
-				mockDB := database.NewMockDBClient(ctrl)
+				// Use databasetesting mock - cluster is not added, so Get() will return not found
+				mockDB := databasetesting.NewMockDBClient()
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-				mockClusters := database.NewMockHCPClusterCRUD(ctrl)
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
 					ResourceID:     *spcResourceID,
 				}
-				mockDB.EXPECT().HCPClusters("sub", "rg").Return(mockClusters)
-				mockClusters.EXPECT().Get(gomock.Any(), "cluster").Return(nil, fmt.Errorf("cluster not found"))
 				mockCS.EXPECT().ListProvisionShards().Return(ocm.NewSimpleProvisionShardListIterator(nil, nil))
 				return &deleteOrphanedMaestroReadonlyBundles{cosmosClient: mockDB, clusterServiceClient: mockCS}, []*api.ServiceProviderCluster{spc}
 			},
