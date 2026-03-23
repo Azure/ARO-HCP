@@ -227,9 +227,9 @@ func (c *nodePoolWatchingController) enqueueNodePoolUpdate(_ interface{}, newObj
 }
 
 func (c *nodePoolWatchingController) enqueueServiceProviderNodePoolAdd(newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderNodePool).CosmosMetadata.ResourceID)
+	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderNodePool).ResourceID)
 }
 
 func (c *nodePoolWatchingController) enqueueServiceProviderNodePoolUpdate(_ interface{}, newObj interface{}) {
-	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderNodePool).CosmosMetadata.ResourceID)
+	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderNodePool).ResourceID)
 }

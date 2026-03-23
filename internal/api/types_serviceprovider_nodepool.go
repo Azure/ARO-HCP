@@ -16,8 +16,6 @@ package api
 
 import (
 	"github.com/blang/semver/v4"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 const (
@@ -33,10 +31,6 @@ type ServiceProviderNodePool struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
 	// it will be the ServiceProviderNodePool type and the name default
 	CosmosMetadata `json:"cosmosMetadata"`
-
-	// resourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
-	// at which point we will stop using properties.resourceId in our queries. That will be about a month from now.
-	ResourceID azcorearm.ResourceID `json:"resourceId"`
 
 	// Spec contains the desired state of the nodepool
 	Spec ServiceProviderNodePoolSpec `json:"spec,omitempty"`

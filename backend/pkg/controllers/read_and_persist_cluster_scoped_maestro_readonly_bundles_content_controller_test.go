@@ -716,7 +716,6 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/serviceProviderClusters/default"))
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 	}
 	spcCRUD := mockDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = spcCRUD.Create(ctx, spc, nil)
@@ -759,7 +758,6 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/serviceProviderClusters/default"))
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{Name: api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster, MaestroAPIMaestroBundleName: "bundle-name"},
@@ -816,7 +814,6 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/serviceProviderClusters/default"))
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{Name: api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster, MaestroAPIMaestroBundleName: "bundle-name"},

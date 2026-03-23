@@ -1,9 +1,10 @@
 {
 	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-84ed-829da40501dc\"",
-	"_rid": "ZWxVAJMOK1ENAAAAAAAAAA==",
-	"_self": "dbs/ZWxVAA==/colls/ZWxVAJMOK1E=/docs/ZWxVAJMOK1ENAAAAAAAAAA==/",
-	"_ts": 1768350854,
+	"_etag": "\"00000000-0000-0000-712b-4e012c0501dc\"",
+	"_rid": "SdEpAPzZNVkHAAAAAAAAAA==",
+	"_self": "dbs/SdEpAA==/colls/SdEpAPzZNVk=/docs/SdEpAPzZNVkHAAAAAAAAAA==/",
+	"_ts": 1766178372,
+	"id": "9b74accf-0661-53d8-9741-b3aa39f9a53c",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
 	"properties": {

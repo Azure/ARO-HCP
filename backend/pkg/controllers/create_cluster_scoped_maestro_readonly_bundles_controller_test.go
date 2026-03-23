@@ -290,7 +290,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "existing reference but no ID - sets new ID and preserves name",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 						{
@@ -324,7 +323,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "complete bundle reference - ID unchanged",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 						{
@@ -357,7 +355,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "multiple refs - only synced ref is updated, other refs unchanged",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 						{
@@ -401,7 +398,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "maestro get or create error - returns last persisted SPC",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 						{
@@ -433,7 +429,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "no bundle reference initially - creates ref with deterministic UUID name and new ID",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{},
 				},
@@ -471,7 +466,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "no bundle ref initially - bundle name persisted then getOrCreate fails - returns SPC with name set, no ID",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{},
 				},
@@ -742,7 +736,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_AllBundlesAlre
 	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/serviceProviderClusters/default"))
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{
@@ -817,7 +810,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_SyncLoopExecut
 		CosmosMetadata: arm.CosmosMetadata{
 			ResourceID: spcResourceID,
 		},
-		ResourceID: *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{},
 		},
@@ -926,7 +918,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_ProcessesParti
 	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/serviceProviderClusters/default"))
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{
