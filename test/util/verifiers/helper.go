@@ -55,6 +55,11 @@ var defaultRESTMappings = []meta.RESTMapping{
 		Resource:         schema.GroupVersionResource{Group: "", Version: "v1", Resource: "configmaps"},
 	},
 	{
+		GroupVersionKind: schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Namespace"},
+		Scope:            meta.RESTScopeRoot,
+		Resource:         schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"},
+	},
+	{
 		GroupVersionKind: schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"},
 		Scope:            meta.RESTScopeNamespace,
 		Resource:         schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"},
