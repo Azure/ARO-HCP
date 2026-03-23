@@ -85,6 +85,7 @@ log STEP "Checking for RMO CRDs"
 RMO_CRDS=(
     "clusterurlmonitors.monitoring.openshift.io"
     "routemonitors.monitoring.openshift.io"
+    "servicemonitors.monitoring.rhobs"
 )
 
 for crd in "${RMO_CRDS[@]}"; do

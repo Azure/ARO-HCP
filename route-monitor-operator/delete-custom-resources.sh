@@ -86,7 +86,11 @@ safe_delete "clusterurlmonitors.monitoring.openshift.io" "" "ClusterUrlMonitor i
 log STEP "Step 2: Deleting RouteMonitor instances"
 safe_delete "routemonitors.monitoring.openshift.io" "" "RouteMonitor instances"
 
-# Step 3: Wait for resources to be fully deleted
+# Step 3: Delete ServiceMonitor instances (monitoring.rhobs)
+log STEP "Step 3: Deleting ServiceMonitor (monitoring.rhobs) instances"
+safe_delete "servicemonitors.monitoring.rhobs" "" "ServiceMonitor (monitoring.rhobs) instances"
+
+# Step 4: Wait for resources to be fully deleted
 if [[ "$DRY_RUN" != "true" ]]; then
     log INFO "Waiting for resources to be fully deleted..."
     sleep 5
@@ -94,11 +98,12 @@ if [[ "$DRY_RUN" != "true" ]]; then
     # Verify deletion
     remaining_clusterurl=$(kubectl get clusterurlmonitors.monitoring.openshift.io --all-namespaces -o name 2>/dev/null | wc -l || echo "0")
     remaining_route=$(kubectl get routemonitors.monitoring.openshift.io --all-namespaces -o name 2>/dev/null | wc -l || echo "0")
+    remaining_svcmon=$(kubectl get servicemonitors.monitoring.rhobs --all-namespaces -o name 2>/dev/null | wc -l || echo "0")
 
-    if [[ "$remaining_clusterurl" -eq 0 ]] && [[ "$remaining_route" -eq 0 ]]; then
+    if [[ "$remaining_clusterurl" -eq 0 ]] && [[ "$remaining_route" -eq 0 ]] && [[ "$remaining_svcmon" -eq 0 ]]; then
         log SUCCESS "All custom resources have been deleted"
     else
-        log WARN "$remaining_clusterurl ClusterUrlMonitor(s) and $remaining_route RouteMonitor(s) still remain"
+        log WARN "$remaining_clusterurl ClusterUrlMonitor(s), $remaining_route RouteMonitor(s), and $remaining_svcmon ServiceMonitor(s) still remain"
     fi
 fi
 

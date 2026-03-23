@@ -1,5 +1,5 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator.Delete
+serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator
 rolloutName: Delete Route Monitor Operator
 resourceGroups:
 - name: global
