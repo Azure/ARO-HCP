@@ -365,7 +365,7 @@ cd dev-infrastructure/
 make create-msi-mock-pool
 
 # Grant the pool SPs access to the E2E test subscription
-make grant-msi-mock-pool-e2e-access E2E_TESTING_SUBSCRIPTION_ID=<sub-id>
+make grant-msi-mock-pool-e2e-access
 ```
 
 After creation, populate `config/config.yaml` with the real client IDs and principal IDs:
@@ -377,6 +377,41 @@ make populate-msi-mock-pool-config
 # Regenerate rendered configs
 make -C ../config materialize
 ```
+
+### Boskos configuration
+
+To change the naming or number of MSI mock SPs, update [`generate-boskos.py`](https://github.com/openshift/release/blob/main/core-services/prow/02_config/generate-boskos.py) in the `openshift/release` repository:
+
+```python
+'aro-hcp-msi-mock-cs-sp-dev': {},
+# ...
+for i in range(20):
+    CONFIG['aro-hcp-msi-mock-cs-sp-dev'][f'aro-hcp-msi-mock-cs-sp-dev-{i}'] = 1
+```
+### Lease configuration
+
+To change the naming or number of MSI mock SP leases in the job
+configuration, update the
+[`aro-hcp-local-e2e` workflow](https://github.com/openshift/release/blob/main/ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml)
+in `openshift/release`. Each job requests a single lease from the pool:
+
+```yaml
+leases:
+  - resource_type: aro-hcp-msi-mock-cs-sp-dev
+    env: LEASED_MSI_MOCK_SP
+    count: 1
+```
+
+The leased SP is then consumed during environment provisioning in
+[`aro-hcp-provision-environment-commands.sh`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/provision/environment/aro-hcp-provision-environment-commands.sh),
+overriding the default mock SP values:
+
+```bash
+MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" "${SHARED_DIR}/config.yaml")
+MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" "${SHARED_DIR}/config.yaml")
+MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" "${SHARED_DIR}/config.yaml")
+```
+
 ## EV2 Pipeline Integration
 
 The periodic E2E test jobs are integrated with EV2 (Express V2) deployment pipelines for Microsoft tenant environments (Int, Stage, and Prod). This integration enables automated testing as part of the deployment validation process.
