@@ -16,6 +16,8 @@ package e2e
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,8 +35,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
@@ -164,15 +168,64 @@ var _ = Describe("Customer", func() {
 			By(fmt.Sprintf("creating %d admin credentials for the ready cluster", credentialCount))
 			for i := range credentialCount {
 				By(fmt.Sprintf("requesting admin credential %d", i+1))
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
-					ctx,
-					clusterClient,
+				validationTimeout := 10 * time.Minute
+				validationCtx, validationCancel := context.WithTimeoutCause(ctx, validationTimeout, fmt.Errorf(
+					"timeout exceeded (%v) while requesting admin credential %d",
+					validationTimeout, i+1))
+				defer validationCancel()
+
+				// request admin credential without using the helper function to ensure we can validate
+				// the raw kubeconfig returned by the API. The helper function returns a rest.Config
+				// that omits certain information that is required for validation (e.g. config.Clusters).
+				adminCredentialRequestPoller, err := clusterClient.BeginRequestAdminCredential(
+					validationCtx,
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					nil,
 				)
 				Expect(err).NotTo(HaveOccurred())
+
+				credResp, err := adminCredentialRequestPoller.PollUntilDone(validationCtx, &runtime.PollUntilDoneOptions{
+					Frequency: framework.StandardPollInterval,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(credResp.Kubeconfig).NotTo(BeNil())
+
+				By("validating kubeconfig returned by the API is valid")
+				kubeconfigData := []byte(*credResp.Kubeconfig)
+				config, err := clientcmd.Load(kubeconfigData)
+				Expect(err).NotTo(HaveOccurred(), "kubeconfig must be valid YAML")
+
+				By("validating exactly one cluster in kubeconfig")
+				Expect(config.Clusters).To(HaveLen(1), "kubeconfig must contain exactly one cluster")
+				Expect(config.Clusters["cluster"]).NotTo(BeNil())
+				cluster := config.Clusters["cluster"]
+
+				By("validating cluster has CertificateAuthorityData")
+				Expect(cluster.CertificateAuthorityData).NotTo(BeEmpty(), "cluster must have CertificateAuthorityData")
+
+				By("validating cluster CA data is valid PEM")
+				pemBlock, rest := pem.Decode(cluster.CertificateAuthorityData)
+				Expect(pemBlock).NotTo(BeNil(), "cluster CA data must contain a valid PEM block")
+				Expect(pemBlock.Type).To(Equal("CERTIFICATE"), "cluster CA PEM block must be of type CERTIFICATE")
+				Expect(rest).To(BeEmpty(), "cluster CA data must contain exactly one PEM block")
+
+				// the certificate-authority-data is always presented as a self signed certificate where
+				// the subject and issuer are identical
+				// https://learn.microsoft.com/en-us/archive/technet-wiki/3147.pki-certificate-chaining-engine-cce#Building_the_Certificate_Chain
+				By("validating certificate authority data content uses the correct certificate")
+				cert, err := x509.ParseCertificate(pemBlock.Bytes)
+				Expect(err).NotTo(HaveOccurred(), "cluster CA data must contain a valid certificate")
+				Expect(cert.Issuer).To(Equal(cert.Subject), "root CA data must be self-signed")
+
+				By("validating cluster does not use InsecureSkipTLSVerify")
+				Expect(cluster.InsecureSkipTLSVerify).To(BeFalse(), "cluster must not use InsecureSkipTLSVerify")
+
+				By("converting validated kubeconfig to rest.Config")
+				adminRESTConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfigData)
+				Expect(err).NotTo(HaveOccurred())
 				Expect(adminRESTConfig).NotTo(BeNil(), "adminRESTConfig was nil for credential %d", i+1)
+
 				credentials = append(credentials, adminRESTConfig)
 
 				By(fmt.Sprintf("validating admin credential %d works", i+1))

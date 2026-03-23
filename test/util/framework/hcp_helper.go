@@ -115,31 +115,15 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
-		return readStaticRESTConfig(m.Kubeconfig)
+		return clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+			if m.Kubeconfig == nil {
+				return nil, fmt.Errorf("kubeconfig content is nil")
+			}
+			return clientcmd.Load([]byte(*m.Kubeconfig))
+		})
 	default:
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
-}
-
-func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
-	ret, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
-		if kubeconfigContent == nil {
-			return nil, fmt.Errorf("kubeconfig content is nil")
-		}
-		return clientcmd.Load([]byte(*kubeconfigContent))
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Skip TLS verification for development environments with self-signed certificates
-	if IsDevelopmentEnvironment() {
-		ret.Insecure = true
-		ret.CAData = nil
-		ret.CAFile = ""
-	}
-
-	return ret, nil
 }
 
 func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
