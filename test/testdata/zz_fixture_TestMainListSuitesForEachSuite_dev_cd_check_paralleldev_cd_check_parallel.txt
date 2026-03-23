@@ -25,4 +25,7 @@ Engineering should be able to retrieve kusto logs for a cluster and services
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled
 Customer should be able to update node pool labels and taints
 Customer should be able to update nodepool replicas and autoscaling
+Customer should upgrade a nodepool from 4.20.z to 4.21.zLatest
+Customer should upgrade a nodepool from 4.21.z to 4.21.zLatest
+Customer should upgrade a nodepool from 4.20.z to 4.20.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
