@@ -134,7 +134,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:b5037282d2ab0d60c02fd1a116fba72499db64759b613f9d621d554ff7548c5c # 9b1d9b2 (2026-03-23 02:26)
+      digest: sha256:38294123323d6fd6b64bf8095ad5cb1d11997023e20d61349d47f6615318205e # 10b5899 (2026-03-23 12:10)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -562,7 +562,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:bf450ce3941e70421c5cacb5dce54e1b60bb8e3800b4b65b9a78863342c4bf61 # 9b1d9b2 (2026-03-23 02:28)
+      digest: sha256:c66a929fcc05a6e0b8acf4993c81e3d6e622b71a5452c1935957c93fb9bfa1e6 # 10b5899 (2026-03-23 12:12)
     tracing:
       address: ""
       exporter: ""
@@ -583,7 +583,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:775128f8a1aa4d507a72df7262c52554f5a29bfa8e3ce28510c9e8f71354f2a8 # 9b1d9b2 (2026-03-23 02:28)
+      digest: sha256:0609756433a51e34d487c1353e6ca3b2b35d70958e6212745f4817ec6f157400 # 10b5899 (2026-03-23 12:12)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -596,7 +596,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: sha256:c12de89fd595ef5a7652896e17ae1583f64ed8a6026c5396dcc3d5915c502041 # 9b1d9b2 (2026-03-23 02:27)
+      digest: sha256:90b4bc17b10655896816db597fee7465f75df4a7f34d7d0bc310b3619edfb2df # 10b5899 (2026-03-23 12:12)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
@@ -611,7 +611,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:8f4f2194ba1a02be4f294e201aff28045bc10ac6dce864167a283aec4d55da1f # 9b1d9b2 (2026-03-23 02:27)
+      digest: sha256:dbe283fa0b759ea7112146f2be841a2b7d9c45e9efd41ab382b9b36a8b5bae4c # 10b5899 (2026-03-23 12:11)
     tracing:
       address: ""
       exporter: ""
@@ -758,7 +758,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:646dbd891853231e6c3f03b93ec6edc89675d7d9842a836c7c9f750a25766e1e # 284274cde6a71f7fdfe4d322b012f5cc99a7b2ec (2026-03-16 11:57)
+      digest: sha256:8afde7f961257dc948732ead18da933bd4472060a1723e7e594fcdc7c0152558 # 1584dc0758e40c2280e49fc36f202803e9d5920c (2026-03-23 08:21)
   # PKO
   pko:
     managedIdentityName: package-operator
@@ -783,12 +783,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
-        digest: sha256:64e2b5f05ec1554cf5d9aea1c0ef544699e7ba7e18f564952fe35e6b64d70faa # v2.15.2-431 (2026-03-23 05:34)
+        digest: sha256:830068f4ad3db31a3ba675f0f174f1f72807850fe547f8ec4f86d8d2339a1122 # v2.15.2-432 (2026-03-23 11:24)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:a7fd8bcb7357180043ee1b6a3a3712946177b5b1e57bacb42897a30260eff04a # v2.10.2-452 (2026-03-20 23:07)
+        digest: sha256:52025d924fd25c4f17739f6819bdf6c7acddeef6f3cdef21f39f4fed5dcc6555 # v2.10.2-453 (2026-03-23 11:22)
   # Cluster Service
   clustersService:
     image:
@@ -860,7 +860,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:98901cb011818b804f1d95e94dd6ab70cb750f04a0574db7295bf62689f52fb2 # 9b1d9b2 (2026-03-23 02:26)
+        digest: sha256:4ac6ca8f7fbdfe9148d210d8699c8f1be7ae7677a6f65227ad0e7cc4209abaed # 10b5899 (2026-03-23 12:11)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20"
   # Automation Account
