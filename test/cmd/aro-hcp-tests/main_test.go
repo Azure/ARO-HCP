@@ -30,8 +30,11 @@ func TestMainListSuitesForEachSuite(t *testing.T) {
 
 	tests := []testCase{
 		{suite: "integration/parallel", suffix: "integration-parallel"},
+		{suite: "integration/ocp-nightly/parallel", suffix: "integration-ocp-nightly-parallel"},
 		{suite: "stage/parallel", suffix: "stage-parallel"},
+		{suite: "stage/ocp-nightly/parallel", suffix: "stage-ocp-nightly-parallel"},
 		{suite: "prod/parallel", suffix: "prod-parallel"},
+		{suite: "prod/ocp-nightly/parallel", suffix: "prod-ocp-nightly-parallel"},
 		{suite: "dev-cd-check/parallel", suffix: "dev-cd-check-parallel"},
 		{suite: "rp-api-compat-all/parallel", suffix: "rp-api-compat-all-parallel"},
 		{suite: "rp-api-compat-all/parallel", suffix: "rp-api-compat-all-parallel-development", setDevelopmentEnv: true},
