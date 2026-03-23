@@ -59,6 +59,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
 	Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
+	ImageDigestMirrors      []ImageDigestMirror         `json:"imageDigestMirrors,omitempty"`
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -213,6 +214,19 @@ type ClusterImageRegistryProfile struct {
 	State ClusterImageRegistryState `json:"state,omitempty"`
 }
 
+// ImageDigestMirror specifies image mirrors that can be used by cluster nodes
+// to pull content.
+type ImageDigestMirror struct {
+	Source  string   `json:"source,omitempty"`
+	Mirrors []string `json:"mirrors,omitempty"`
+
+	// MirrorSourcePolicy is not exposed in the customer-facing API as of
+	// v20251223preview, but is still recorded in CosmosDB so that, if we
+	// ever do expose this field, existing cluster documents in CosmosDB
+	// will not need to be migrated.
+	MirrorSourcePolicy MirrorSourcePolicy `json:"mirrorSourcePolicy,omitempty"`
+}
+
 // Creates an HCPOpenShiftCluster with any non-zero default values.
 func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
@@ -275,6 +289,11 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
 		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+	}
+	for i := range cluster.CustomerProperties.ImageDigestMirrors {
+		if len(cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy) == 0 {
+			cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = MirrorSourcePolicyAllowContactingSource
+		}
 	}
 }
 
