@@ -803,7 +803,7 @@ svc:
     istioctlVersion: 1.29.1
     tag: prod-stable
     targetVersion: asm-1-26
-    versions: asm-1-26
+    versions: asm-1-26,asm-1-28
   jaeger:
     deploy: true
   nsp:

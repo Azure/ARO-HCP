@@ -1054,7 +1054,7 @@ clouds:
           accessMode: 'Learning'
         istio:
           targetVersion: "asm-1-26"
-          versions: "asm-1-26"
+          versions: "asm-1-26,asm-1-28"
         aks:
           etcd:
             softDelete: false
