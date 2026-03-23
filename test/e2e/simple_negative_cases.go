@@ -157,6 +157,34 @@ var _ = Describe("Customer", func() {
 			)
 			checkExpectedError(&errs, "node pool creation with invalid quota", err, "invalid value must be less than or equal to")
 
+			By("attempting to create a node pool with a major version only")
+			splitXYZNodePoolVersion := strings.Split(nodePoolParams.OpenshiftVersionId, ".")
+			Expect(splitXYZNodePoolVersion).To(HaveLen(3), "expected nodepool version '%s' to be in the format of major.minor.patch", nodePoolParams.OpenshiftVersionId)
+
+			nodePoolParamsWithInvalidVersion := nodePoolParams
+			nodePoolParamsWithInvalidVersion.NodePoolName = "np-invalid-version-create-with-major-version-only"
+			nodePoolParamsWithInvalidVersion.OpenshiftVersionId = splitXYZNodePoolVersion[0]
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParamsWithInvalidVersion,
+				2*time.Minute,
+			)
+			checkExpectedError(&errs, "node pool creation with major version only", err, "No Major.Minor.Patch elements found")
+
+			By("attempting to create a node pool with a major.minor version only")
+			nodePoolParamsWithInvalidVersion.NodePoolName = "np-invalid-version-create-with-major-minor-version-only"
+			nodePoolParamsWithInvalidVersion.OpenshiftVersionId = fmt.Sprintf("%s.%s", splitXYZNodePoolVersion[0], splitXYZNodePoolVersion[1])
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParamsWithInvalidVersion,
+				2*time.Minute,
+			)
+			checkExpectedError(&errs, "node pool creation with major.minor version only", err, "No Major.Minor.Patch elements found")
+
 			By("creating a nodepool")
 			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
@@ -191,6 +219,116 @@ var _ = Describe("Customer", func() {
 				)
 				checkExpectedError(&errs, "node pool version update validation", err, "version")
 			}
+
+			By("attempting to downgrade nodepool patch version")
+			npPatchVersion, err := strconv.Atoi(splitXYZNodePoolVersion[2])
+			Expect(err).NotTo(HaveOccurred(), "expected nodepool patch version to be an integer")
+			if npPatchVersion > 0 {
+				npDowngradedPatchVersionString := fmt.Sprintf("%s.%s.%d", splitXYZNodePoolVersion[0], splitXYZNodePoolVersion[1], npPatchVersion-1)
+				versionUpdate := hcpsdk20240610preview.NodePoolUpdate{
+					Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+						Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+							ID: &npDowngradedPatchVersionString,
+						},
+					},
+				}
+
+				_, err = framework.UpdateNodePoolAndWait(ctx,
+					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+					*resourceGroup.Name,
+					clusterParams.ClusterName,
+					nodePoolParams.NodePoolName,
+					versionUpdate,
+					10*time.Minute,
+				)
+				checkExpectedError(&errs, "node pool version update validation", err, "cannot downgrade from version")
+			} else {
+				GinkgoLogr.Info("nodepool version is '%s', skipping nodepool patch version downgrade test", nodePoolParams.OpenshiftVersionId)
+			}
+
+			By("attempting to downgrade nodepool minor version")
+			npMinorVersion, err := strconv.Atoi(splitXYZNodePoolVersion[1])
+			Expect(err).NotTo(HaveOccurred(), "expected nodepool minor version to be an integer")
+			npDowngradedMinorVersionString := fmt.Sprintf("%s.%d.%s", splitXYZNodePoolVersion[0], npMinorVersion-1, splitXYZNodePoolVersion[2])
+			versionUpdate := hcpsdk20240610preview.NodePoolUpdate{
+				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+						ID: &npDowngradedMinorVersionString,
+					},
+				},
+			}
+
+			_, err = framework.UpdateNodePoolAndWait(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParams.NodePoolName,
+				versionUpdate,
+				10*time.Minute,
+			)
+			checkExpectedError(&errs, "node pool version update validation", err, "cannot downgrade from version")
+
+			By("attempting to upgrade nodepool with a major version only")
+			npMajorVersion, err := strconv.Atoi(splitXYZNodePoolVersion[0])
+			Expect(err).NotTo(HaveOccurred(), "expected nodepool major version to be an integer")
+			npUpgradedMajorVersionOnly := fmt.Sprintf("%d", npMajorVersion+1)
+			versionUpdate = hcpsdk20240610preview.NodePoolUpdate{
+				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+						ID: &npUpgradedMajorVersionOnly,
+					},
+				},
+			}
+
+			_, err = framework.UpdateNodePoolAndWait(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParams.NodePoolName,
+				versionUpdate,
+				10*time.Minute,
+			)
+			checkExpectedError(&errs, "node pool version update validation", err, "No Major.Minor.Patch elements found")
+
+			By("attempting to upgrade nodepool with a major.minor version only")
+			npUpgradedMajorMinorVersion := fmt.Sprintf("%s.%d", splitXYZNodePoolVersion[0], npMinorVersion+1)
+			versionUpdate = hcpsdk20240610preview.NodePoolUpdate{
+				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+						ID: &npUpgradedMajorMinorVersion,
+					},
+				},
+			}
+
+			_, err = framework.UpdateNodePoolAndWait(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParams.NodePoolName,
+				versionUpdate,
+				10*time.Minute,
+			)
+			checkExpectedError(&errs, "node pool version update validation", err, "No Major.Minor.Patch elements found")
+
+			By("attempting to skip minor version on nodepool version upgrade")
+			npSkippedMinorVersion := fmt.Sprintf("%s.%d.0", splitXYZNodePoolVersion[0], npMinorVersion+2)
+			versionUpdate = hcpsdk20240610preview.NodePoolUpdate{
+				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+						ID: &npSkippedMinorVersion,
+					},
+				},
+			}
+
+			_, err = framework.UpdateNodePoolAndWait(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				clusterParams.ClusterName,
+				nodePoolParams.NodePoolName,
+				versionUpdate,
+				10*time.Minute,
+			)
+			checkExpectedError(&errs, "node pool version update validation", err, "skipping minor versions is not allowed")
 
 			// TEST CASE: ARO-24877
 			By("attempting to update immutable platform profile fields")
