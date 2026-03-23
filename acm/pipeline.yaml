@@ -39,6 +39,10 @@ resourceGroups:
       name: kustoUri
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
     kustoTable: 'containerLogs'
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
+      resourceGroup: management
+      step: svc-mgmt-permissions
     identityFrom:
       resourceGroup: global
       step: output
