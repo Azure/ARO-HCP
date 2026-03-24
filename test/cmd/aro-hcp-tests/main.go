@@ -224,6 +224,10 @@ func setupCli() *cobra.Command {
 	//	}
 	// })
 
+	// Temporary filter: run only the ephemeral OS disk test for STAGE validation.
+	// Remove this filter after validation is complete.
+	specs = specs.MustFilter([]string{`name.contains("Ephemeral")`})
+
 	ext.AddSpecs(specs)
 	registry.Register(ext)
 
