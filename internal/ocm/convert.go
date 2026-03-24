@@ -738,7 +738,9 @@ func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+// resolvedVersionID, when non-empty, is the resolved X.Y.Z version string (e.g. "4.19.15")
+// used instead of the cluster's Version.ID. It is converted to CS format internally.
+func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, resolvedVersionID string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
 
 	// Ensure required headers are present.
@@ -758,6 +760,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 			resourceID.ResourceGroupName,
 			tenantID,
 			requestHeader.Get(arm.HeaderNameIdentityURL),
+			resolvedVersionID,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -816,7 +819,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string, resolvedVersionID string) (*arohcpv1alpha1.ClusterBuilder, error) {
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, err
@@ -838,9 +841,11 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			ID(csProductId)).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(csHypershifEnabled)).
-		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
+		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled))
+
+	clusterBuilder.
 		Version(arohcpv1alpha1.NewVersion().
-			ID(NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
+			ID(NewOpenShiftVersionXYZ(resolvedVersionID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
 			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).

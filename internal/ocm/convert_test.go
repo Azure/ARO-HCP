@@ -288,17 +288,19 @@ func TestSetClusterServiceOnlyFieldsOnCluster(t *testing.T) {
 
 func TestWithImmutableAttributes(t *testing.T) {
 	testCases := []struct {
-		name       string
-		hcpCluster *api.HCPOpenShiftCluster
-		want       *arohcpv1alpha1.Cluster
+		name              string
+		hcpCluster        *api.HCPOpenShiftCluster
+		resolvedVersionID string
+		want              *arohcpv1alpha1.Cluster
 	}{
 		{
-			name:       "simple default",
-			hcpCluster: &api.HCPOpenShiftCluster{},
-			want:       ocmCluster(t, ocmClusterDefaults(api.TestLocation)),
+			name:              "simple default",
+			hcpCluster:        &api.HCPOpenShiftCluster{},
+			resolvedVersionID: "4.19.0",
+			want:              ocmCluster(t, ocmClusterDefaults(api.TestLocation)),
 		},
 		{
-			name: "converts stable version from RP to CS (adds patch and prefix)",
+			name: "converts stable version from RP to CS (adds .0 patch and prefix)",
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
@@ -307,9 +309,10 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.0",
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.25").
+					ID("openshift-v4.19.0").
 					ChannelGroup("stable"))),
 		},
 		{
@@ -322,6 +325,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.19",
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.19-candidate").
@@ -337,40 +341,33 @@ func TestWithImmutableAttributes(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.0-0.nightly-2025-01-01",
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly"))),
 		},
 		{
-			name: "with version 4.19",
+			name: "with version 4.19 X.Y defaults to .0",
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
 				},
 			},
+			resolvedVersionID: "4.19.0",
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.25").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.0").ChannelGroup("stable"))),
 		},
 		{
-			name: "with version 4.20",
+			name: "with version 4.20 X.Y defaults to .0",
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{ID: "4.20", ChannelGroup: "stable"},
 				},
 			},
+			resolvedVersionID: "4.20.0",
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.16").ChannelGroup("stable"))),
-		},
-		{
-			name: "with version 4.21",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{ID: "4.21", ChannelGroup: "stable"},
-				},
-			},
-			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.5").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.0").ChannelGroup("stable"))),
 		},
 	}
 
@@ -386,6 +383,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				api.TestResourceGroupName,
 				api.TestTenantID,
 				api.TestManagedIdentitiesDataPlaneIdentityURL,
+				tc.resolvedVersionID,
 			)
 			require.NoError(t, err)
 			result, err := builder.Build()
@@ -475,7 +473,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.19.25").
+			ID("openshift-v4.19.0").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled)).
@@ -565,7 +563,7 @@ func TestBuildCSNodePool(t *testing.T) {
 				}...),
 		},
 		{
-			name: "converts stable version from RP to CS (adds patch and prefix)",
+			name: "converts stable version from RP to CS (adds .0 patch and prefix)",
 			hcpNodePool: getHCPNodePoolResource(
 				func(hsc *api.HCPOpenShiftClusterNodePool) {
 					hsc.Properties.Version = api.NodePoolVersionProfile{
@@ -576,7 +574,7 @@ func TestBuildCSNodePool(t *testing.T) {
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.25").
+					ID("openshift-v4.19.0").
 					ChannelGroup("stable")),
 		},
 		{
@@ -869,6 +867,7 @@ func TestBuildCSCluster(t *testing.T) {
 		hcpCluster               *api.HCPOpenShiftCluster
 		requiredProperties       map[string]string
 		oldClusterServiceCluster *arohcpv1alpha1.Cluster
+		resolvedVersionID        string
 		expectedCSCluster        *arohcpv1alpha1.ClusterBuilder
 		expectedError            string
 	}{
@@ -881,6 +880,7 @@ func TestBuildCSCluster(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.0",
 			expectedCSCluster: getBaseCSClusterBuilder(false),
 		},
 		{
@@ -890,7 +890,8 @@ func TestBuildCSCluster(t *testing.T) {
 				cluster.CustomerProperties.API.AuthorizedCIDRs = make([]string, 0)
 				return cluster
 			}(),
-			expectedError: "AuthorizedCIDRs cannot be an empty list",
+			resolvedVersionID: "4.19.0",
+			expectedError:     "AuthorizedCIDRs cannot be an empty list",
 		},
 		{
 			name: "CREATE - sets CIDRBlockAccess with non-empty AuthorizedCIDRs",
@@ -902,6 +903,7 @@ func TestBuildCSCluster(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.0",
 			expectedCSCluster: getBaseCSClusterBuilder(false).
 				API(arohcpv1alpha1.NewClusterAPI().
 					Listening(arohcpv1alpha1.ListeningMethodInternal).
@@ -977,6 +979,7 @@ func TestBuildCSCluster(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.0",
 			expectedCSCluster: getBaseCSClusterBuilder(false).
 				Properties(map[string]string{
 					"hosted_cluster_single_replica": "true",
@@ -992,6 +995,7 @@ func TestBuildCSCluster(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.0",
 			expectedCSCluster: getBaseCSClusterBuilder(false).
 				Properties(map[string]string{
 					"hosted_cluster_single_replica": "true",
@@ -1079,6 +1083,7 @@ func TestBuildCSCluster(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.0",
 			expectedCSCluster: getBaseCSClusterBuilder(false).
 				Properties(map[string]string{
 					"provision_shard_id":            "test-shard",
@@ -1102,6 +1107,7 @@ func TestBuildCSCluster(t *testing.T) {
 					},
 				},
 			},
+			resolvedVersionID: "4.19.0",
 			expectedCSCluster: getBaseCSClusterBuilder(false).
 				Properties(map[string]string{
 					"hosted_cluster_single_replica": "true",
@@ -1109,7 +1115,8 @@ func TestBuildCSCluster(t *testing.T) {
 				}),
 		},
 		{
-			name: "CREATE - sets some image digest mirrors",
+			name:              "CREATE - sets some image digest mirrors",
+			resolvedVersionID: "4.19.0",
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					ImageDigestMirrors: []api.ImageDigestMirror{
@@ -1180,7 +1187,7 @@ func TestBuildCSCluster(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build actual CS cluster
-			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster)
+			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster, tc.resolvedVersionID)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -1201,4 +1208,34 @@ func TestBuildCSCluster(t *testing.T) {
 			assert.Equal(t, expected, actual)
 		})
 	}
+}
+
+func TestBuildCSCluster_WithResolvedVersion(t *testing.T) {
+	hcpCluster := api.ClusterTestCase(t, &api.HCPOpenShiftCluster{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			Version: api.VersionProfile{
+				ID:           "4.19",
+				ChannelGroup: "stable",
+			},
+		},
+	})
+
+	requestHeader := http.Header{}
+	requestHeader.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+	requestHeader.Set(arm.HeaderNameIdentityURL, "")
+
+	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+	require.NoError(t, err)
+
+	resolvedVersionID := "4.19.15"
+	actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, nil, nil, resolvedVersionID)
+	require.NoError(t, err)
+
+	actual, err := actualClusterBuilder.Autoscaler(actualAutoscalerBuilder).Build()
+	require.NoError(t, err)
+
+	version, ok := actual.GetVersion()
+	require.True(t, ok)
+	assert.Equal(t, "openshift-v4.19.15", version.ID())
+	assert.Equal(t, "stable", version.ChannelGroup())
 }

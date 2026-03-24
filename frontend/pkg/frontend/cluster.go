@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
+	internalversion "github.com/Azure/ARO-HCP/internal/version"
 )
 
 // GetHCPCluster implements the GET single resource API contract for HCP Clusters
@@ -342,6 +343,16 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// TODO this is bad, see above TODOs. We want to validate what we store.
 	newInternalCluster.Identity.UserAssignedIdentities = nil
 
+	// For now, version resolution is done here in the frontend.  This will be moved to the backend in the future (ARO-24824)
+	// following the changes to move cluster service create calls to the backend (ARO-24384).
+	resolvedVersion, err := internalversion.ResolveInitialVersion(ctx, f.cincinnatiClient,
+		newInternalCluster.CustomerProperties.Version.ChannelGroup,
+		newInternalCluster.CustomerProperties.Version.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	logger.Info("Resolved initial cluster version", "customerVersion", newInternalCluster.CustomerProperties.Version.ID, "resolvedVersion", resolvedVersion)
+
 	initialClusterProperties := map[string]string{}
 	if len(f.clusterServiceProvisionShard) != 0 {
 		initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard
@@ -352,7 +363,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if f.clusterServiceNoopDeprovision {
 		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
 	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, request.Header, newInternalCluster, initialClusterProperties, nil)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, request.Header, newInternalCluster, initialClusterProperties, nil, resolvedVersion.String())
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -627,7 +638,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, nil, oldClusterServiceCluster)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, nil, oldClusterServiceCluster, oldClusterServiceCluster.Version().RawID())
 	if err != nil {
 		return utils.TrackError(err)
 	}

@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/cincinatti"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -53,6 +54,7 @@ import (
 
 type Frontend struct {
 	clusterServiceClient ocm.ClusterServiceClientSpec
+	cincinnatiClient     cincinatti.Client
 	listener             net.Listener
 	metricsListener      net.Listener
 	server               http.Server
@@ -86,6 +88,7 @@ func NewFrontend(
 	registry *prometheus.Registry,
 	dbClient database.DBClient,
 	csClient ocm.ClusterServiceClientSpec,
+	cincinnatiClient cincinatti.Client,
 	auditClient audit.Client,
 	azureLocation string,
 	clusterServiceProvisionShard string,
@@ -100,6 +103,7 @@ func NewFrontend(
 
 	f := &Frontend{
 		clusterServiceClient: csClient,
+		cincinnatiClient:     cincinnatiClient,
 		listener:             listener,
 		metricsListener:      metricsListener,
 		server: http.Server{

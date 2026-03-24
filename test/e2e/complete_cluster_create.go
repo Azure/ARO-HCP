@@ -85,6 +85,10 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("resolving expected install version before creation")
+			preVersion, err := framework.ResolveExpectedInstallVersion(ctx, clusterParams.ChannelGroup, clusterParams.OpenshiftVersionId)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
@@ -93,6 +97,10 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("resolving expected install version after creation")
+			postVersion, err := framework.ResolveExpectedInstallVersion(ctx, clusterParams.ChannelGroup, clusterParams.OpenshiftVersionId)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting credentials")
@@ -105,8 +113,10 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("ensuring the cluster is viable")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
+			By("ensuring the cluster is viable and installed with the correct version")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.VerifyControlPlaneInstalledVersion(preVersion, postVersion),
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the node pool")
