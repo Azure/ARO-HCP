@@ -61,7 +61,7 @@ jobs:
         sudo mv oc /usr/local/bin/oc
         chmod +x /usr/local/bin/oc
     # Used to deploy Maestro Server, Frontend
-    - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+    - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       with:
         version: 'v3.18.6'
     - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.2
@@ -136,7 +136,7 @@ jobs:
     - uses: oras-project/setup-oras@v1
       with:
         version: 1.2.3
-    - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+    - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       with:
         version: 'v3.18.6'
     # Prepare kubeconfig
