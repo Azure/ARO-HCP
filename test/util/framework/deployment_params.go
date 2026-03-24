@@ -129,6 +129,7 @@ func NewDefaultClusterParams() ClusterParams {
 		},
 		EncryptionKeyManagementMode: "CustomerManaged",
 		EncryptionType:              "KMS",
+		KeyVaultVisibility:          "Public",
 		APIVisibility:               "Public",
 		ImageRegistryState:          "Enabled",
 		ChannelGroup:                DefaultOpenshiftChannelGroup(),

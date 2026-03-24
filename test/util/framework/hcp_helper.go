@@ -1099,7 +1099,8 @@ func BuildHCPCluster20251223FromParams(
 					CustomerManaged: &hcpsdk20251223preview.CustomerManagedEncryptionProfile{
 						EncryptionType: to.Ptr(hcpsdk20251223preview.CustomerManagedEncryptionType(parameters.EncryptionType)),
 						Kms: &hcpsdk20251223preview.KmsEncryptionProfile{
-							VaultName: to.Ptr(parameters.KeyVaultName),
+							VaultName:  to.Ptr(parameters.KeyVaultName),
+							Visibility: to.Ptr(hcpsdk20251223preview.KeyVaultVisibility(parameters.KeyVaultVisibility)),
 							ActiveKey: &hcpsdk20251223preview.KmsKey{
 								Name:    to.Ptr(parameters.EtcdEncryptionKeyName),
 								Version: to.Ptr(parameters.EtcdEncryptionKeyVersion),
