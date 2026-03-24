@@ -16,13 +16,13 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"iter"
 	"net/http"
 	"reflect"
 	"slices"
 	"strings"
 
-	"dario.cat/mergo"
 	jsonpatch "github.com/evanphx/json-patch"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -225,64 +225,36 @@ func MergeStringPtrMapIntoResourceIDMap(fldPath *field.Path, src map[string]*str
 	return errs
 }
 
-// ApplyRequestBody applies a JSON request body to the value pointed to by v.
-// If the request method is PATCH, the request body is applied to v using JSON
-// Merge Patch (RFC 7396) semantics. Otherwise the request body is unmarshalled
-// directly to v.
+// ApplyRequestBody applies a JSON request body to the value pointed to by v
+// using JSON Merge Patch (RFC 7396) semantics. Only PATCH requests are
+// supported; any other method triggers a panic because all callers should
+// use PATCH and the PUT+mergo code path has been removed.
 func ApplyRequestBody(requestMethod string, body []byte, v any) error {
+	if requestMethod != http.MethodPatch {
+		panic(fmt.Sprintf("ApplyRequestBody only supports PATCH requests, got %s", requestMethod))
+	}
+
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return arm.NewInvalidRequestContentError(&json.InvalidUnmarshalError{Type: rv.Type()})
 	}
 
-	switch requestMethod {
-	case http.MethodPatch:
-		originalData, err := json.Marshal(v)
-		if err != nil {
-			return utils.TrackError(err)
-		}
+	originalData, err := json.Marshal(v)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
-		modifiedData, err := jsonpatch.MergePatch(originalData, body)
-		if err != nil {
-			return utils.TrackError(err)
-		}
+	modifiedData, err := jsonpatch.MergePatch(originalData, body)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
-		// Reset *v to its zero value.
-		rv.Elem().SetZero()
+	// Reset *v to its zero value.
+	rv.Elem().SetZero()
 
-		err = json.Unmarshal(modifiedData, v)
-		if err != nil {
-			return arm.NewInvalidRequestContentError(err)
-		}
-
-	default:
-		// We need to unmarshal in two phases because Unmarshal in
-		// encoding/json (v1) replaces Go maps instead of merging JSON
-		// keys into them. This is critical for UserAssignedIdentities.
-		//
-		// First we unmarshal the request body into a newly-allocated
-		// struct of v's type, then merge the allocated struct into v.
-		//
-		// FIXME encoding/json/v2 claims to handle this better but is
-		//       currently experimental. Its "Unmarshal" docs state:
-		//
-		//      "Maps are not cleared. If the Go map is nil, then a
-		//       new map is allocated to decode into. If the decoded
-		//       key matches an existing Go map entry, the entry
-		//       value is reused by decoding the JSON object value
-		//       into it."
-
-		src := reflect.New(rv.Elem().Type()).Interface()
-
-		err := json.Unmarshal(body, src)
-		if err != nil {
-			return arm.NewInvalidRequestContentError(err)
-		}
-
-		err = mergo.Merge(v, src, mergo.WithOverride)
-		if err != nil {
-			return utils.TrackError(err)
-		}
+	err = json.Unmarshal(modifiedData, v)
+	if err != nil {
+		return arm.NewInvalidRequestContentError(err)
 	}
 
 	return nil

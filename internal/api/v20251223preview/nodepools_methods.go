@@ -75,10 +75,9 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 	out := &api.HCPOpenShiftClusterNodePool{}
 	errs := field.ErrorList{}
 
-	// Reject null on required fields. On the PATCH path, JSON merge-patch
-	// converts explicit null to a nil pointer. On the PUT path, defaults
-	// are applied before the request body so nil here means the user
-	// explicitly sent null (mergo does not override with nil).
+	// Reject null on required fields. JSON merge-patch converts explicit
+	// null to a nil pointer after JSON unmarshal, so a nil here means the
+	// user explicitly sent null in the request body.
 	if h.Properties != nil {
 		if h.Properties.AutoRepair == nil {
 			errs = append(errs, field.Required(field.NewPath("properties", "autoRepair"), "field cannot be null"))

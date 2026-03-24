@@ -368,10 +368,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 	out := &api.HCPOpenShiftCluster{}
 	errs := field.ErrorList{}
 
-	// Reject null on required fields. On the PATCH path, JSON merge-patch
-	// converts explicit null to a nil pointer. On the PUT path, defaults
-	// are applied before the request body so nil here means the user
-	// explicitly sent null (mergo does not override with nil).
+	// Reject null on required fields. JSON merge-patch converts explicit
+	// null to a nil pointer after JSON unmarshal, so a nil here means the
+	// user explicitly sent null in the request body.
 	if c.Properties != nil {
 		if c.Properties.Network != nil && c.Properties.Network.HostPrefix == nil {
 			errs = append(errs, field.Required(field.NewPath("properties", "network", "hostPrefix"), "field cannot be null"))
