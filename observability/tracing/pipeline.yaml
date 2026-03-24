@@ -41,6 +41,10 @@ resourceGroups:
       variables:
       - name: DRY_RUN
         value: "true"
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
+      resourceGroup: management
+      step: svc-mgmt-permissions
     shellIdentity:
       input:
         resourceGroup: global

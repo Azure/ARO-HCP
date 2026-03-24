@@ -161,6 +161,10 @@ resourceGroups:
       step: mirror-azure-plugin-image
     - resourceGroup: global
       step: mirror-hypershift-plugin-image
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
+      resourceGroup: management
+      step: svc-mgmt-permissions
     identityFrom:
       resourceGroup: global
       step: output

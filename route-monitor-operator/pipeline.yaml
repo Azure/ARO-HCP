@@ -83,6 +83,10 @@ resourceGroups:
     action: Shell
     command: make default-ingresscontroller-hack
     workingDir: ./
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
+      resourceGroup: management
+      step: svc-mgmt-permissions
     shellIdentity:
       input:
         resourceGroup: global
