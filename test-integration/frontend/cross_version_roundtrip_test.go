@@ -18,14 +18,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -95,9 +90,7 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
-			logger := utils.LoggerFromContext(ctx)
+			ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
 
 			testInfo, err := integrationutils.NewIntegrationTestInfoFromEnv(ctx, t, withMock)
 			require.NoError(t, err)
@@ -105,43 +98,8 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 			cleanupCtx = utils.ContextWithLogger(cleanupCtx, integrationutils.DefaultLogger(t))
 			defer testInfo.Cleanup(cleanupCtx)
 
-			frontendStarted := atomic.Bool{}
-			frontendErrCh := make(chan error, 1)
-			defer func() {
-				if frontendStarted.Load() {
-					require.NoError(t, <-frontendErrCh)
-				}
-			}()
-			adminAPIStarted := atomic.Bool{}
-			adminAPIErrCh := make(chan error, 1)
-			defer func() {
-				if adminAPIStarted.Load() {
-					require.NoError(t, <-adminAPIErrCh)
-				}
-			}()
-			defer cancel()
-			go func() {
-				frontendStarted.Store(true)
-				frontendErrCh <- testInfo.Frontend.Run(ctx)
-			}()
-			go func() {
-				adminAPIStarted.Store(true)
-				adminAPIErrCh <- testInfo.AdminAPI.Run(ctx)
-			}()
-
-			err = wait.PollUntilContextCancel(ctx, 100*time.Millisecond, true, func(ctx context.Context) (bool, error) {
-				for _, url := range []string{testInfo.FrontendURL, testInfo.AdminURL} {
-					resp, err := http.Get(url)
-					if err != nil {
-						return false, nil
-					}
-					if closeErr := resp.Body.Close(); closeErr != nil {
-						logger.Error(closeErr, "failed to close response body")
-					}
-				}
-				return true, nil
-			})
-			require.NoError(t, err)
+			cleanup := integrationutils.StartTestServers(ctx, t, testInfo)
+			defer cleanup()
 
 			// Register subscription
 			subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
