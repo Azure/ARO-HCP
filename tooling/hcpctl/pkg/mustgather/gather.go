@@ -346,6 +346,10 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
+	if len(allClusterIds) == 0 {
+		return fmt.Errorf("no cluster ids found for sub %s and rg %s", g.opts.QueryOptions.SubscriptionId, g.opts.QueryOptions.ResourceGroupName)
+	}
+
 	for _, row := range allClusterIds {
 		clusterIds = append(clusterIds, row.ClusterId)
 	}
