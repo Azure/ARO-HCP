@@ -86,7 +86,10 @@ func (l *httpGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepI
 	actual, err := accessor.Get(ctx, l.key.ResourceID)
 	switch {
 	case len(l.expectedError) > 0:
-		require.ErrorContains(t, err, l.expectedError)
+		expectedErrors := extractExpectedErrors(l.expectedError)
+		for _, expectedErr := range expectedErrors {
+			errorContainsNormalized(t, err, expectedErr)
+		}
 		return
 	default:
 		require.NoError(t, err)

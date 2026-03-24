@@ -77,9 +77,9 @@ func (l *httpPostStep) RunTest(ctx context.Context, t *testing.T, stepInput Step
 
 		switch {
 		case len(l.expectedError) > 0:
-			expectedErrors := splitExpectedErrors(l.expectedError)
+			expectedErrors := extractExpectedErrors(l.expectedError)
 			for _, expectedErr := range expectedErrors {
-				require.ErrorContains(t, err, expectedErr)
+				errorContainsNormalized(t, err, expectedErr)
 			}
 			return
 		default:

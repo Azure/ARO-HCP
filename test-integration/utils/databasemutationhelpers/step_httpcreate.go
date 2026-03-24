@@ -26,6 +26,54 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// extractJSONBody strips the TrackError prefix and "HTTP NNN: "
+// prefix from error strings, returning the JSON body portion.
+// TrackError wraps errors as "(wrapped at file:line) HTTP NNN: {...}".
+func extractJSONBody(errStr string) string {
+	httpIdx := strings.Index(errStr, "HTTP ")
+	if httpIdx >= 0 {
+		remainder := errStr[httpIdx:]
+		if colonIdx := strings.Index(remainder, ": "); colonIdx >= 0 {
+			return remainder[colonIdx+2:]
+		}
+	}
+	return errStr
+}
+
+// extractExpectedErrors splits expected-error.txt content into
+// individual error objects using json.Decoder streaming.
+// All fixtures should be valid JSON objects (normalized as part
+// of this work item). Falls back to whole string for any
+// remaining non-JSON fixtures.
+func extractExpectedErrors(expectedError string) []string {
+	expectedError = strings.TrimSpace(expectedError)
+	dec := json.NewDecoder(strings.NewReader(expectedError))
+	var results []string
+	for dec.More() {
+		var obj json.RawMessage
+		if err := dec.Decode(&obj); err != nil {
+			return []string{expectedError}
+		}
+		results = append(results, string(obj))
+	}
+	if len(results) == 0 {
+		return []string{expectedError}
+	}
+	return results
+}
+
+// errorContainsNormalized checks if the JSON body of actualErr
+// contains the expected substring after whitespace normalization.
+// Both sides are normalized to single-space separation, making
+// comparison insensitive to indentation/formatting differences.
+func errorContainsNormalized(t *testing.T, actualErr error, expectedSubstring string) {
+	t.Helper()
+	require.Error(t, actualErr)
+	actualBody := strings.Join(strings.Fields(extractJSONBody(actualErr.Error())), " ")
+	expectedNorm := strings.Join(strings.Fields(expectedSubstring), " ")
+	require.Contains(t, actualBody, expectedNorm)
+}
+
 type httpCreateStep struct {
 	stepID StepID
 	key    ResourceKey
@@ -77,43 +125,13 @@ func (l *httpCreateStep) RunTest(ctx context.Context, t *testing.T, stepInput St
 
 		switch {
 		case len(l.expectedError) > 0:
-			// Split expected error by object boundaries to check each error individually
-			// This handles multi-error responses where the details array has commas between objects
-			expectedErrors := splitExpectedErrors(l.expectedError)
+			expectedErrors := extractExpectedErrors(l.expectedError)
 			for _, expectedErr := range expectedErrors {
-				require.ErrorContains(t, err, expectedErr)
+				errorContainsNormalized(t, err, expectedErr)
 			}
 			return
 		default:
 			require.NoError(t, err)
 		}
 	}
-}
-
-// splitExpectedErrors splits expected error content into individual error objects.
-// This handles expected-error.txt files that contain multiple JSON error objects
-// which need to be checked individually against the actual error response.
-func splitExpectedErrors(expectedError string) []string {
-	// Split on the pattern "}\n      {" which separates error objects in expected-error.txt
-	// The actual response has "},\n      {" but we check each object as a substring
-	parts := strings.Split(expectedError, "}\n      {")
-	if len(parts) == 1 {
-		// No split found, return the original string
-		return []string{expectedError}
-	}
-
-	result := make([]string, len(parts))
-	for i, part := range parts {
-		if i == 0 {
-			// First part needs closing brace
-			result[i] = part + "}"
-		} else if i == len(parts)-1 {
-			// Last part needs opening brace
-			result[i] = "      {" + part
-		} else {
-			// Middle parts need both
-			result[i] = "      {" + part + "}"
-		}
-	}
-	return result
 }
