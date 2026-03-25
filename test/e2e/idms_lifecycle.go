@@ -26,6 +26,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -89,23 +90,21 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("validating SMI identity has correct service managed identity role binding")
-			// Determine which resource group contains the identities
-			var identityResourceGroup string
-			if tc.UsePooledIdentities() {
-				leasedPool, _, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
-				Expect(err).NotTo(HaveOccurred())
-				identityResourceGroup = leasedPool.ResourceGroupName
-			} else {
-				identityResourceGroup = *resourceGroup.Name
-			}
+			// Parse the SMI resource ID to get the identity name and resource group
+			// This avoids double-leasing in pooled mode and works for both pooled and non-pooled
+			Expect(clusterParams.UserAssignedIdentitiesProfile).NotTo(BeNil())
+			Expect(clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity).NotTo(BeNil())
+
+			smiResourceID, err := azcorearm.ParseResourceID(*clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Extract resource group and identity name from the parsed resource ID
+			identityResourceGroup := smiResourceID.ResourceGroupName
+			smiIdentityName := smiResourceID.Name
 
 			// Validate the SMI Identity
 			// TODO: Remove this once we have updated rolebinding
 			// we should no longer see see tests not adding permissions
-			smiIdentityName := framework.ServiceManagedIdentityName
-			if !tc.UsePooledIdentities() {
-				smiIdentityName = fmt.Sprintf("%s-%s", framework.ServiceManagedIdentityName, customerClusterName)
-			}
 			err = tc.ValidateIdentityRoleBindings(ctx, smiIdentityName, identityResourceGroup)
 			Expect(err).NotTo(HaveOccurred())
 

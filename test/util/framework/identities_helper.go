@@ -1054,11 +1054,6 @@ type IdentityRoleBindings struct {
 // Note: Wildcards (*) in actions grant broad permissions. The validation checks if the identity
 // has the required permissions through ANY of its assigned roles.
 func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error) {
-	// Normalize the identity name by stripping the suffix used in non-pooled mode
-	// Non-pooled identities follow the pattern: "<base-name>-<cluster-name>"
-	// Example: "service-mycluster" -> "service"
-	baseIdentityName, _, _ := strings.Cut(identityName, "-")
-
 	// Permission mappings based on Azure built-in role definitions
 	// These will be validated by fetching actual role definitions from Azure
 	roleBindingsMap := map[string]*IdentityRoleBindings{
@@ -1093,9 +1088,9 @@ func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error)
 		},
 	}
 
-	bindings, exists := roleBindingsMap[baseIdentityName]
+	bindings, exists := roleBindingsMap[identityName]
 	if !exists {
-		return nil, fmt.Errorf("unknown identity name: %s (base: %s)", identityName, baseIdentityName)
+		return nil, fmt.Errorf("unknown identity name: %s", identityName)
 	}
 
 	return bindings, nil
