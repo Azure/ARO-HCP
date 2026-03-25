@@ -520,6 +520,11 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
             successThreshold: 1
+          resources:
+            requests:
+              memory: 100Mi
+            limits:
+              memory: 768Mi
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false
@@ -626,6 +631,11 @@ spec:
             capabilities:
               add: []
               drop: []
+          resources:
+            requests:
+              memory: 100Mi
+            limits:
+              memory: 256Mi
           volumeMounts:
             - name: mdsd-run-clusterlogs
               mountPath: /var/run/mdsd/
