@@ -98,14 +98,13 @@ var _ = Describe("Customer", func() {
 			smiResourceID, err := azcorearm.ParseResourceID(*clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Extract resource group and identity name from the parsed resource ID
-			identityResourceGroup := smiResourceID.ResourceGroupName
+			// Extract identity name from the parsed resource ID
 			smiIdentityName := smiResourceID.Name
 
 			// Validate the SMI Identity
 			// TODO: Remove this once we have updated rolebinding
 			// we should no longer see see tests not adding permissions
-			err = tc.ValidateIdentityRoleBindings(ctx, smiIdentityName, identityResourceGroup)
+			err = tc.ValidateIdentityRoleBindings(ctx, smiIdentityName, *resourceGroup.Name)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster with ImageDigestMirrors via v20251223preview")
