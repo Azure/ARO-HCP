@@ -332,9 +332,13 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 	}()
 
 	if !tc.UsePooledIdentities() {
-		// For non-pooled mode, still clean up custom role definitions
+		// For non-pooled mode, still clean up role assignments and custom role definitions
 		subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
 		if err == nil {
+			// Clean up role assignments first, then role definitions
+			if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
+				ginkgo.GinkgoLogr.Info("WARN: failed to cleanup role assignments", "error", err)
+			}
 			if err := tc.cleanupCustomRoleDefinitions(ctx, subscriptionID); err != nil {
 				ginkgo.GinkgoLogr.Info("WARN: failed to cleanup custom role definitions", "error", err)
 			}
@@ -390,8 +394,11 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 		}
 	}
 
-	// Clean up custom role definitions after role assignments have been cleaned up
+	// Clean up role assignments first, then custom role definitions
 	// This prevents errors trying to delete roles that still have active assignments
+	if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
+		errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
+	}
 	if err := tc.cleanupCustomRoleDefinitions(ctx, subscriptionID); err != nil {
 		errs = append(errs, fmt.Errorf("failed to cleanup custom role definitions: %w", err))
 	}
@@ -474,6 +481,70 @@ func (tc *perItOrDescribeTestContext) trackCustomRoleDefinition(roleDefID string
 	}
 
 	tc.createdCustomRoleDefinitionIDs = append(tc.createdCustomRoleDefinitionIDs, roleDefID)
+}
+
+// trackRoleAssignment tracks a role assignment ID for cleanup.
+func (tc *perItOrDescribeTestContext) trackRoleAssignment(assignmentID string) {
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	// Check if already tracked to avoid duplicates
+	for _, id := range tc.createdRoleAssignmentIDs {
+		if id == assignmentID {
+			return
+		}
+	}
+
+	tc.createdRoleAssignmentIDs = append(tc.createdRoleAssignmentIDs, assignmentID)
+}
+
+// cleanupRoleAssignments deletes only the role assignments created by THIS test.
+// Must be called BEFORE cleanupCustomRoleDefinitions since role definitions
+// cannot be deleted while they have active assignments.
+func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context, subscriptionID string) error {
+	tc.contextLock.RLock()
+	assignmentIDsToDelete := tc.createdRoleAssignmentIDs
+	tc.contextLock.RUnlock()
+
+	if len(assignmentIDsToDelete) == 0 {
+		ginkgo.GinkgoLogr.Info("No role assignments to clean up")
+		return nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return err
+	}
+
+	roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create role assignments client: %w", err)
+	}
+
+	// Delete only the role assignments we created
+	var errs []error
+	for _, assignmentID := range assignmentIDsToDelete {
+		ginkgo.GinkgoLogr.Info("Deleting role assignment created by this test",
+			"assignmentID", assignmentID)
+
+		_, err := roleAssignmentsClient.DeleteByID(ctx, assignmentID, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+				ginkgo.GinkgoLogr.Info("Role assignment already deleted", "assignmentID", assignmentID)
+				continue
+			}
+			errs = append(errs, fmt.Errorf("failed to delete role assignment %s: %w", assignmentID, err))
+		} else {
+			ginkgo.GinkgoLogr.Info("Successfully deleted role assignment", "assignmentID", assignmentID)
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to delete some role assignments: %w", errors.Join(errs...))
+	}
+
+	return nil
 }
 
 // cleanupCustomRoleDefinitions deletes only the custom role definitions created by THIS test.
@@ -1217,16 +1288,16 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 
 	// Check if this exact role already exists
 	existingRole, err := roleDefsClient.Get(ctx, scope, roleDefID, nil)
-	if err == nil && existingRole.RoleDefinition.Properties != nil {
+	if err == nil && existingRole.Properties != nil {
 		// Role with this exact set of actions already exists
 		// Track it so we know to clean it up (in case we created it in a previous validation step)
 		tc.trackCustomRoleDefinition(roleDefID)
 
 		ginkgo.GinkgoLogr.Info("Custom role with these actions already exists, reusing it",
 			"roleName", roleName,
-			"roleID", *existingRole.RoleDefinition.ID,
+			"roleID", *existingRole.ID,
 			"actionCount", len(actions))
-		return *existingRole.RoleDefinition.ID, nil
+		return *existingRole.ID, nil
 	}
 
 	// Create new role definition with the missing actions
@@ -1260,10 +1331,10 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 
 	ginkgo.GinkgoLogr.Info("New custom role created with missing actions",
 		"roleName", roleName,
-		"roleID", *result.RoleDefinition.ID,
+		"roleID", *result.ID,
 		"actions", actions)
 
-	return *result.RoleDefinition.ID, nil
+	return *result.ID, nil
 }
 
 // assignRoleToIdentity assigns a role to a managed identity at the resource group scope.
@@ -1303,11 +1374,14 @@ func (tc *perItOrDescribeTestContext) assignRoleToIdentity(
 		return fmt.Errorf("failed to create role assignment: %w", err)
 	}
 
+	// Track this role assignment so we can clean it up later
+	tc.trackRoleAssignment(*result.ID)
+
 	ginkgo.GinkgoLogr.Info("Role assigned to identity",
 		"scope", scope,
 		"principalID", principalID,
 		"roleDefinitionID", roleDefinitionID,
-		"assignmentID", *result.RoleAssignment.ID)
+		"assignmentID", *result.ID)
 
 	return nil
 }

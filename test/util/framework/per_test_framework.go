@@ -61,6 +61,7 @@ type perItOrDescribeTestContext struct {
 	knownResourceGroups            []string
 	knownAppRegistrationIDs        []string
 	createdCustomRoleDefinitionIDs []string
+	createdRoleAssignmentIDs       []string
 	subscriptionID                 string
 	clientFactory20240610          *hcpsdk20240610preview.ClientFactory
 	clientFactory20251223          *hcpsdk20251223preview.ClientFactory
