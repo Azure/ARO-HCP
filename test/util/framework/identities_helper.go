@@ -1300,10 +1300,8 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 	// Check if this exact role already exists
 	existingRole, err := roleDefsClient.Get(ctx, scope, roleDefID, nil)
 	if err == nil && existingRole.Properties != nil {
-		// Role with this exact set of actions already exists
-		// Track it so we know to clean it up (in case we created it in a previous validation step)
-		tc.trackCustomRoleDefinition(roleDefID)
-
+		// Role with this exact set of actions already exists from a previous test run
+		// Do NOT track it for cleanup - we only clean up roles created in THIS test run
 		ginkgo.GinkgoLogr.Info("Custom role with these actions already exists, reusing it",
 			"roleName", roleName,
 			"roleID", *existingRole.ID,
@@ -1311,7 +1309,18 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 		return *existingRole.ID, nil
 	}
 
+	// If Get failed with something other than 404, return the error
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if !errors.As(err, &respErr) || respErr.StatusCode != http.StatusNotFound {
+			return "", fmt.Errorf("failed to check if role definition exists: %w", err)
+		}
+		// 404 means role doesn't exist, proceed to create it
+	}
+
 	// Create new role definition with the missing actions
+	// Limit AssignableScopes to only the resource group to minimize blast radius
+	resourceGroupScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroupName)
 	roleProperties := &armauthorization.RoleDefinitionProperties{
 		RoleName:    &roleName,
 		Description: to.Ptr(fmt.Sprintf("E2E test custom role for %s with additional permissions", roleName)),
@@ -1323,8 +1332,7 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 			},
 		},
 		AssignableScopes: []*string{
-			&scope,
-			to.Ptr(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroupName)),
+			to.Ptr(resourceGroupScope),
 		},
 	}
 
