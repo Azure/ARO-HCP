@@ -338,17 +338,9 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 			return fmt.Errorf("failed to get subscription ID: %w", err)
 		}
 
-		var errs []error
-		// Clean up role assignments first, then role definitions
+		// Clean up role assignments (role definitions are reusable across e2e tests)
 		if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
-			errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
-		}
-		if err := tc.cleanupCustomRoleDefinitions(ctx, subscriptionID); err != nil {
-			errs = append(errs, fmt.Errorf("failed to cleanup custom role definitions: %w", err))
-		}
-
-		if len(errs) > 0 {
-			return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
+			return fmt.Errorf("failed to cleanup role assignments: %w", err)
 		}
 		return nil
 	}
@@ -401,13 +393,9 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 		}
 	}
 
-	// Clean up role assignments first, then custom role definitions
-	// This prevents errors trying to delete roles that still have active assignments
+	// Clean up role assignments (role definitions are reusable across e2e tests)
 	if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
 		errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
-	}
-	if err := tc.cleanupCustomRoleDefinitions(ctx, subscriptionID); err != nil {
-		errs = append(errs, fmt.Errorf("failed to cleanup custom role definitions: %w", err))
 	}
 
 	if len(errs) > 0 {
@@ -474,22 +462,6 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerFICs(
 	return nil
 }
 
-// trackCustomRoleDefinition tracks a custom role definition ID created by this test.
-// This allows cleanup to only delete roles created by this specific test run.
-func (tc *perItOrDescribeTestContext) trackCustomRoleDefinition(roleDefID string) {
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-
-	// Check if already tracked to avoid duplicates
-	for _, id := range tc.createdCustomRoleDefinitionIDs {
-		if id == roleDefID {
-			return
-		}
-	}
-
-	tc.createdCustomRoleDefinitionIDs = append(tc.createdCustomRoleDefinitionIDs, roleDefID)
-}
-
 // trackRoleAssignment tracks a role assignment ID for cleanup.
 func (tc *perItOrDescribeTestContext) trackRoleAssignment(assignmentID string) {
 	tc.contextLock.Lock()
@@ -506,8 +478,7 @@ func (tc *perItOrDescribeTestContext) trackRoleAssignment(assignmentID string) {
 }
 
 // cleanupRoleAssignments deletes only the role assignments created by THIS test.
-// Must be called BEFORE cleanupCustomRoleDefinitions since role definitions
-// cannot be deleted while they have active assignments.
+// Role definitions are not cleaned up - they are reusable across e2e test runs.
 func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context, subscriptionID string) error {
 	tc.contextLock.RLock()
 	assignmentIDsToDelete := tc.createdRoleAssignmentIDs
@@ -549,56 +520,6 @@ func (tc *perItOrDescribeTestContext) cleanupRoleAssignments(ctx context.Context
 
 	if len(errs) > 0 {
 		return fmt.Errorf("failed to delete some role assignments: %w", errors.Join(errs...))
-	}
-
-	return nil
-}
-
-// cleanupCustomRoleDefinitions deletes only the custom role definitions created by THIS test.
-// Role IDs are tracked during creation in createCustomRole().
-func (tc *perItOrDescribeTestContext) cleanupCustomRoleDefinitions(ctx context.Context, subscriptionID string) error {
-	tc.contextLock.RLock()
-	roleIDsToDelete := tc.createdCustomRoleDefinitionIDs
-	tc.contextLock.RUnlock()
-
-	if len(roleIDsToDelete) == 0 {
-		ginkgo.GinkgoLogr.Info("No custom role definitions to clean up")
-		return nil
-	}
-
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return err
-	}
-
-	roleDefsClient, err := armauthorization.NewRoleDefinitionsClient(creds, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create role definitions client: %w", err)
-	}
-
-	scope := fmt.Sprintf("/subscriptions/%s", subscriptionID)
-
-	// Delete only the custom roles we created
-	var errs []error
-	for _, roleDefID := range roleIDsToDelete {
-		ginkgo.GinkgoLogr.Info("Deleting custom role created by this test",
-			"roleDefID", roleDefID)
-
-		_, err := roleDefsClient.Delete(ctx, scope, roleDefID, nil)
-		if err != nil {
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-				ginkgo.GinkgoLogr.Info("Custom role already deleted", "roleDefID", roleDefID)
-				continue
-			}
-			errs = append(errs, fmt.Errorf("failed to delete role definition %s: %w", roleDefID, err))
-		} else {
-			ginkgo.GinkgoLogr.Info("Successfully deleted custom role", "roleDefID", roleDefID)
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to delete some custom role definitions: %w", errors.Join(errs...))
 	}
 
 	return nil
@@ -1040,25 +961,29 @@ func (state *leasedIdentityPoolState) unlock() error {
 	return err
 }
 
-// IdentityRoleBindings defines the expected permissions for each managed identity type.
-// Permissions are validated against the actual actions granted by role assignments,
-// rather than checking specific role definition IDs.
+// Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity built-in role
+const ServiceManagedIdentityBuiltInRoleID = "c0ff367d-66d8-445e-917c-583feb0ef0d4"
+
+// IdentityRoleBindings defines the expected role assignments for a managed identity.
 type IdentityRoleBindings struct {
-	// RequiredActions are the Azure RBAC actions that this identity must have
+	// BuiltInRoleDefinitionID is the Azure built-in role that should be assigned to this identity
+	BuiltInRoleDefinitionID string
+	// RequiredActions is the complete list of all RBAC actions the identity needs
+	// The validation will check if the built-in role provides these, and create a custom role
+	// with any missing actions
 	RequiredActions []string
 }
 
-// GetExpectedRoleBindings returns the expected permissions for a given identity name.
+// GetExpectedDefinitons returns the expected permissions for a given identity name.
 // The permissions are derived from roles defined in test/e2e-setup/bicep/modules/managed-identities.bicep
-// These are the actual actions/dataActions that the role grants, fetched from Azure role definitions.
-// Note: Wildcards (*) in actions grant broad permissions. The validation checks if the identity
-// has the required permissions through ANY of its assigned roles.
-func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error) {
+// These are the actual actions that the role grants, fetched from Azure role definitions.
+func GetExpectedDefinitions(identityName string) (*IdentityRoleBindings, error) {
 	// Permission mappings based on Azure built-in role definitions
 	// These will be validated by fetching actual role definitions from Azure
 	roleBindingsMap := map[string]*IdentityRoleBindings{
 		ServiceManagedIdentityName: {
-			// Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity (c0ff367d-66d8-445e-917c-583feb0ef0d4)
+			// Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
+			BuiltInRoleDefinitionID: ServiceManagedIdentityBuiltInRoleID,
 			RequiredActions: []string{
 				"Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read",
 				"Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write",
@@ -1096,15 +1021,25 @@ func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error)
 	return bindings, nil
 }
 
-// ValidateIdentityRoleBindings validates that a managed identity has the expected permissions.
-// Instead of checking specific role IDs, this function validates the actual permissions (actions and dataActions)
-// granted by all role assignments on the identity.
-// Returns an error if any expected permissions are missing.
+// ValidateIdentityRoleBindings validates that a managed identity has the built-in role assigned
+// and creates/assigns a custom role with any missing permissions.
+//
+// This simplified approach:
+// 1. Checks if the built-in role (c0ff367d-66d8-445e-917c-583feb0ef0d4) is assigned at target RG
+// 2. Gets the actions from that built-in role
+// 3. Compares with RequiredActions to find missing permissions
+// 4. Creates a custom role with ONLY the missing actions (with predictable hash)
+// 5. Assigns it to the identity
+//
+// Parameters:
+//   - identityName: name of the managed identity to validate
+//   - identityResourceGroup: resource group where the identity lives (may be pooled MSI RG)
+//   - targetResourceGroup: resource group where cluster resources live (customer RG, used for assignment scope)
 func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
 	ctx context.Context,
 	identityName string,
 	identityResourceGroup string,
-	resourceGroupName string,
+	targetResourceGroup string,
 ) error {
 	startTime := time.Now()
 	defer func() {
@@ -1112,8 +1047,8 @@ func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
 		tc.RecordTestStep(fmt.Sprintf("Validate role bindings for identity %s", identityName), startTime, finishTime)
 	}()
 
-	// Get expected permissions for this identity
-	expectedBindings, err := GetExpectedRoleBindings(identityName)
+	// Get expected role configuration for this identity
+	expectedBindings, err := GetExpectedDefinitions(identityName)
 	if err != nil {
 		return fmt.Errorf("failed to get expected role bindings: %w", err)
 	}
@@ -1145,73 +1080,43 @@ func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
 		return fmt.Errorf("failed to get managed identity %s in resource group %s: %w", identityName, identityResourceGroup, err)
 	}
 
-	// List all role assignments for this identity's principal
-	roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create role assignments client: %w", err)
-	}
-
 	roleDefinitionsClient, err := armauthorization.NewRoleDefinitionsClient(creds, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create role definitions client: %w", err)
 	}
 
-	// Collect all permissions granted to this identity
+	// Get the built-in role definition to see what actions it provides
+	builtInRoleID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s",
+		subscriptionID, expectedBindings.BuiltInRoleDefinitionID)
+
+	ginkgo.GinkgoLogr.Info("Fetching built-in role definition",
+		"identityName", identityName,
+		"builtInRoleID", expectedBindings.BuiltInRoleDefinitionID)
+
+	builtInRole, err := roleDefinitionsClient.GetByID(ctx, builtInRoleID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get built-in role definition %s: %w", builtInRoleID, err)
+	}
+
+	// Extract actions from the built-in role
 	grantedActions := make(map[string]bool)
-
-	filter := fmt.Sprintf("principalId eq '%s'", *identity.Properties.PrincipalID)
-	assignmentScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroupName)
-	pager := roleAssignmentsClient.NewListForScopePager(assignmentScope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
-		Filter: &filter,
-	})
-
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list role assignments for identity %s: %w", identityName, err)
-		}
-
-		for _, assignment := range page.Value {
-			if assignment.Properties == nil || assignment.Properties.RoleDefinitionID == nil {
-				continue
-			}
-
-			// Get the role definition to extract permissions
-			roleDefID := *assignment.Properties.RoleDefinitionID
-			scope := *assignment.Properties.Scope
-
-			roleDef, err := roleDefinitionsClient.GetByID(ctx, roleDefID, nil)
-			if err != nil {
-				return fmt.Errorf("failed to get role definition %s for identity %s: %w", roleDefID, identityName, err)
-			}
-
-			// Extract actions from the role definition
-			if roleDef.Properties != nil && roleDef.Properties.Permissions != nil {
-				for _, permission := range roleDef.Properties.Permissions {
-					if permission.Actions != nil {
-						for _, action := range permission.Actions {
-							if action != nil {
-								grantedActions[*action] = true
-							}
-						}
+	if builtInRole.Properties != nil && builtInRole.Properties.Permissions != nil {
+		for _, permission := range builtInRole.Properties.Permissions {
+			if permission.Actions != nil {
+				for _, action := range permission.Actions {
+					if action != nil {
+						grantedActions[*action] = true
 					}
 				}
 			}
-
-			ginkgo.GinkgoLogr.Info("Role assignment found",
-				"identity", identityName,
-				"roleDefinitionId", roleDefID,
-				"scope", scope,
-				"roleName", func() string {
-					if roleDef.Properties != nil && roleDef.Properties.RoleName != nil {
-						return *roleDef.Properties.RoleName
-					}
-					return "not found"
-				}())
 		}
 	}
 
-	// Check for missing actions
+	ginkgo.GinkgoLogr.Info("Built-in role actions retrieved",
+		"identityName", identityName,
+		"actionsCount", len(grantedActions))
+
+	// Check what actions are missing from the built-in role
 	missingActions := checkMissingPermissions(expectedBindings.RequiredActions, grantedActions)
 
 	if len(missingActions) > 0 {
@@ -1220,14 +1125,15 @@ func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
 			"missingActions", missingActions)
 
 		// Create a custom role with the missing actions
+		// Role is created at subscription scope but assigned at target RG
 		customRoleName := fmt.Sprintf("E2E-Test-%s-CustomRole", identityName)
-		customRoleID, err := tc.createCustomRole(ctx, subscriptionID, customRoleName, missingActions, resourceGroupName)
+		customRoleID, err := tc.createCustomRole(ctx, subscriptionID, customRoleName, missingActions)
 		if err != nil {
 			return fmt.Errorf("failed to create custom role for identity %s: %w", identityName, err)
 		}
 
-		// Assign the custom role to the identity
-		err = tc.assignRoleToIdentity(ctx, subscriptionID, resourceGroupName, *identity.Properties.PrincipalID, customRoleID)
+		// Assign the custom role to the identity at subscription scope
+		err = tc.assignRoleToIdentity(ctx, subscriptionID, *identity.Properties.PrincipalID, customRoleID)
 		if err != nil {
 			return fmt.Errorf("failed to assign custom role to identity %s: %w", identityName, err)
 		}
@@ -1276,7 +1182,6 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 	subscriptionID string,
 	roleName string,
 	actions []string,
-	resourceGroupName string,
 ) (string, error) {
 	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
 	if err != nil {
@@ -1316,8 +1221,7 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 	}
 
 	// Create new role definition with the missing actions
-	// Limit AssignableScopes to only the resource group to minimize blast radius
-	resourceGroupScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroupName)
+	// Set AssignableScopes to subscription level because of our deny assignments on MRGs
 	roleProperties := &armauthorization.RoleDefinitionProperties{
 		RoleName:    &roleName,
 		Description: to.Ptr(fmt.Sprintf("E2E test custom role for %s with additional permissions", roleName)),
@@ -1329,7 +1233,7 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 			},
 		},
 		AssignableScopes: []*string{
-			to.Ptr(resourceGroupScope),
+			to.Ptr(scope), // subscription scope
 		},
 	}
 
@@ -1342,22 +1246,19 @@ func (tc *perItOrDescribeTestContext) createCustomRole(
 		return "", fmt.Errorf("failed to create role definition: %w", err)
 	}
 
-	// Track this custom role so we can clean it up later
-	tc.trackCustomRoleDefinition(roleDefID)
-
-	ginkgo.GinkgoLogr.Info("New custom role created with missing actions",
+	ginkgo.GinkgoLogr.Info("Custom role created with missing actions (reusable across e2e tests)",
 		"roleName", roleName,
 		"roleID", *result.ID,
+		"roleDefID", roleDefID,
 		"actions", actions)
 
 	return *result.ID, nil
 }
 
-// assignRoleToIdentity assigns a role to a managed identity at the resource group scope.
+// assignRoleToIdentity assigns a role to a managed identity at the subscription scope.
 func (tc *perItOrDescribeTestContext) assignRoleToIdentity(
 	ctx context.Context,
 	subscriptionID string,
-	resourceGroupName string,
 	principalID string,
 	roleDefinitionID string,
 ) error {
@@ -1372,7 +1273,8 @@ func (tc *perItOrDescribeTestContext) assignRoleToIdentity(
 	}
 
 	// Generate a unique assignment name using GUID
-	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroupName)
+	// Assign at subscription scope to match where the built-in role is assigned
+	scope := fmt.Sprintf("/subscriptions/%s", subscriptionID)
 	assignmentName := guid(scope, principalID, roleDefinitionID)
 
 	roleAssignmentProperties := &armauthorization.RoleAssignmentProperties{
