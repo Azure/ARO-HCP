@@ -12,6 +12,13 @@ deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
+  strategy:
+    rollingUpdate:
+      maxSurge: "{{ .backend.k8s.deploymentStrategy.rollingUpdate.maxSurge }}"
+      maxUnavailable: "{{ .backend.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
+  resources:
+    requests:
+      memory: "{{ .backend.k8s.resources.requests.memory }}"
 serviceAccount:
   name: "{{ .backend.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__backendMsiClientId__"

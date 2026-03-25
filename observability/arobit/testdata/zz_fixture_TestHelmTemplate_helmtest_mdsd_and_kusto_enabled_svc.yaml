@@ -401,6 +401,9 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
             successThreshold: 1
+          resources:
+            requests:
+              memory: 256Mi
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false

@@ -14,8 +14,8 @@ spec:
       app: aro-hcp-frontend
   strategy:
     rollingUpdate:
-      maxSurge: 50%
-      maxUnavailable: 50%
+      maxSurge: {{ .Values.deployment.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.deployment.strategy.rollingUpdate.maxUnavailable }}
     type: RollingUpdate
   template:
     metadata:
@@ -72,11 +72,9 @@ spec:
         - containerPort: 8081
           protocol: TCP
         resources:
-          limits:
-            memory: 1Gi
           requests:
             cpu: 100m
-            memory: 500Mi
+            memory: {{ .Values.deployment.resources.requests.memory }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

@@ -70,6 +70,9 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
             successThreshold: 1
+          resources:
+            requests:
+              memory: {{ .Values.forwarder.resources.requests.memory }}
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false

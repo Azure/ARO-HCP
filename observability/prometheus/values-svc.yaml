@@ -92,9 +92,6 @@ prometheusSpec:
     requests:
       cpu: {{ .svc.prometheus.prometheusSpec.resources.requests.cpu }}
       memory: {{ .svc.prometheus.prometheusSpec.resources.requests.memory }}
-    limits:
-      cpu: {{ .svc.prometheus.prometheusSpec.resources.limits.cpu }}
-      memory: {{ .svc.prometheus.prometheusSpec.resources.limits.memory }}
 prometheus:
   prometheusSpec:
     shards: {{ .svc.prometheus.prometheusSpec.shards }}

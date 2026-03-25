@@ -13,8 +13,8 @@ spec:
       app: admin-api
   strategy:
     rollingUpdate:
-      maxSurge: 50%
-      maxUnavailable: 50%
+      maxSurge: {{ .Values.deployment.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.deployment.strategy.rollingUpdate.maxUnavailable }}
     type: RollingUpdate
   template:
     metadata:
@@ -79,9 +79,6 @@ spec:
           requests:
             cpu: {{ .Values.deployment.requests.cpu }}
             memory: {{ .Values.deployment.requests.memory }}
-          limits:
-            cpu: {{ .Values.deployment.limits.cpu }}
-            memory: {{ .Values.deployment.limits.memory }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

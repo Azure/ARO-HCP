@@ -12,8 +12,8 @@ spec:
   replicas: {{ .Values.deployment.replicas }}
   strategy:
     rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+      maxSurge: {{ .Values.deployment.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.deployment.strategy.rollingUpdate.maxUnavailable }}
     type: RollingUpdate
   template:
     metadata:
@@ -131,9 +131,6 @@ spec:
           requests:
             cpu: '{{ .Values.deployment.requests.cpu }}'
             memory: '{{ .Values.deployment.requests.memory }}'
-          limits:
-            cpu: '{{ .Values.deployment.limits.cpu }}'
-            memory: '{{ .Values.deployment.limits.memory }}'
         livenessProbe:
           httpGet:
             path: /healthcheck

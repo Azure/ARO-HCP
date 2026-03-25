@@ -28,6 +28,16 @@ acrPull:
     digest: sha256:042511defb0842f02593e48e68d83a20a1af4265db4e23fca484356e34a6c883
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
+  k8s:
+    deploymentStrategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+    namespace: acrpull
+    resources:
+      requests:
+        memory: 256Mi
+    serviceAccountName: acrpull
 adminApi:
   audit:
     connectSocket: false
@@ -39,8 +49,15 @@ adminApi:
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
+    deploymentStrategy:
+      rollingUpdate:
+        maxSurge: 50%
+        maxUnavailable: 50%
     namespace: aro-hcp-admin-api
     replicas: 2
+    resources:
+      requests:
+        memory: 128Mi
     serviceAccountName: admin-api
   managedIdentityName: admin-api
 administration:
@@ -62,6 +79,9 @@ arobit:
       digest: sha256:33bed43b09e3d2384c7661c74f6ed79ca53b0c25a3e28d77f139a7b9d50fbf1a
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
+    resources:
+      requests:
+        memory: 256Mi
   kusto:
     enabled: true
     environmentName: dev
@@ -90,8 +110,15 @@ backend:
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
+    deploymentStrategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
     namespace: aro-hcp
     replicas: 2
+    resources:
+      requests:
+        memory: 1216Mi
     serviceAccountName: backend
   maestro:
     sourceEnvironmentIdentifier: arohcpcspr
@@ -155,6 +182,9 @@ clustersService:
         maxUnavailable: 0
     namespace: clusters-service
     replicas: 3
+    resources:
+      requests:
+        memory: 1008Mi
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   ocpVersions:
@@ -195,7 +225,14 @@ customExporter:
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
+    deploymentStrategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
     namespace: aro-hcp-exporter
+    resources:
+      requests:
+        memory: 128Mi
     serviceAccountName: aro-hcp-exporter
   managedIdentityName: aro-hcp-exporter
 cxKeyVault:
@@ -251,8 +288,15 @@ frontend:
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
+    deploymentStrategy:
+      rollingUpdate:
+        maxSurge: 50%
+        maxUnavailable: 50%
     namespace: aro-hcp
     replicas: 2
+    resources:
+      requests:
+        memory: 256Mi
     serviceAccountName: frontend
   managedIdentityName: frontend
   tracing:
@@ -383,6 +427,16 @@ kubeEvents:
     digest: sha256:f907f0eb97bdf12502907c5003845276d41662736d7a5462ae597eb74e337bc9
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
+  k8s:
+    deploymentStrategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+    namespace: kube-events
+    resources:
+      requests:
+        memory: 70Mi
+    serviceAccountName: kube-events
 kusto:
   adminGroups: ""
   autoScaleMax: 10
@@ -451,8 +505,15 @@ maestro:
   restrictIstioIngress: false
   server:
     k8s:
+      deploymentStrategy:
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
       namespace: maestro
       replicas: 3
+      resources:
+        requests:
+          memory: 512Mi
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
@@ -548,9 +609,6 @@ mgmt:
         sha: eb5dcb5c4f6e229d6dfe17b492291e06bea7ba19f080d48a7afc663e4420386c
       replicas: 2
       resources:
-        limits:
-          cpu: NONE
-          memory: NONE
         requests:
           cpu: NONE
           memory: NONE
@@ -750,8 +808,15 @@ sessiongate:
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
+    deploymentStrategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
     namespace: sessiongate
     replicas: 2
+    resources:
+      requests:
+        memory: 128Mi
     serviceAccountName: sessiongate
   managedIdentityName: sessiongate
 svc:
@@ -843,9 +908,6 @@ svc:
         sha: eb5dcb5c4f6e229d6dfe17b492291e06bea7ba19f080d48a7afc663e4420386c
       replicas: 2
       resources:
-        limits:
-          cpu: NONE
-          memory: NONE
         requests:
           cpu: NONE
           memory: NONE

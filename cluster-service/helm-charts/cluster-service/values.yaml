@@ -136,13 +136,9 @@ ocpAcrResourceId: ""
 # up to a multiple of 0.05 cores, which results in 0.3 cores.
 
 # Memory request.
-memoryRequest: "150Mi"
-# Memory limit.
-memoryLimit: "1Gi"
+memoryRequest: "1008Mi"
 # CPU request.
 cpuRequest: "50m"
-# CPU limit.
-cpuLimit: "1"
 # Client ID for the CS manage identity.
 azureCsMiClientId: ""
 # Azure region the CS instance is running in.

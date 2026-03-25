@@ -44,6 +44,11 @@ metadata:
     app: 'aro-hcp-exporter'
 spec:
   replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: 'aro-hcp-exporter'
@@ -105,8 +110,6 @@ spec:
           requests:
             cpu: 100m
             memory: 128Mi
-          limits:
-            memory: 512Mi
 ---
 # Source: aro-hcp-exporter/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

@@ -11,6 +11,11 @@ spec:
     matchLabels:
       app.kubernetes.io/name: acrpull
   replicas: {{ .Values.replicas }}
+  strategy:
+    rollingUpdate:
+      maxSurge: {{ .Values.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.strategy.rollingUpdate.maxUnavailable }}
+    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -56,11 +61,8 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources:
-          limits:
-            cpu: 100m
-            memory: 1Gi
           requests:
             cpu: 100m
-            memory: 20Mi
+            memory: {{ .Values.resources.requests.memory }}
       serviceAccountName: acrpull
       terminationGracePeriodSeconds: 10

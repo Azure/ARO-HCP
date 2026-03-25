@@ -10,6 +10,13 @@ service:
   name: "aro-hcp-exporter"
 deployment:
   name: "aro-hcp-exporter"
+  strategy:
+    rollingUpdate:
+      maxSurge: "{{ .customExporter.k8s.deploymentStrategy.rollingUpdate.maxSurge }}"
+      maxUnavailable: "{{ .customExporter.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
+  resources:
+    requests:
+      memory: "{{ .customExporter.k8s.resources.requests.memory }}"
 subscriptionNames:
 - "{{ .svc.subscription.key }}"
 - "{{ .mgmt.subscription.key }}"

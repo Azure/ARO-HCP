@@ -9,6 +9,11 @@ metadata:
     app: '{{ .Values.deployment.name }}'
 spec:
   replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: {{ .Values.deployment.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.deployment.strategy.rollingUpdate.maxUnavailable }}
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: '{{ .Values.deployment.name }}'
@@ -69,6 +74,4 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 128Mi
-          limits:
-            memory: 512Mi
+            memory: {{ .Values.deployment.resources.requests.memory }}

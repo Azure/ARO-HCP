@@ -92,6 +92,16 @@ defaults:
         days: 90
   # ACR Pull
   acrPull:
+    k8s:
+      namespace: acrpull
+      serviceAccountName: acrpull
+      deploymentStrategy:
+        rollingUpdate:
+          maxSurge: "25%"
+          maxUnavailable: "25%"
+      resources:
+        requests:
+          memory: 256Mi
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
@@ -109,6 +119,9 @@ defaults:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
         digest: sha256:33bed43b09e3d2384c7661c74f6ed79ca53b0c25a3e28d77f139a7b9d50fbf1a # v4.2.3 (2026-03-16 17:07)
+      resources:
+        requests:
+          memory: 256Mi
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -121,6 +134,16 @@ defaults:
   # Kube Events
   kubeEvents:
     enabled: true
+    k8s:
+      namespace: kube-events
+      serviceAccountName: kube-events
+      deploymentStrategy:
+        rollingUpdate:
+          maxSurge: 1
+          maxUnavailable: 0
+      resources:
+        requests:
+          memory: 70Mi
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
@@ -131,6 +154,13 @@ defaults:
     k8s:
       namespace: aro-hcp-exporter
       serviceAccountName: aro-hcp-exporter
+      deploymentStrategy:
+        rollingUpdate:
+          maxSurge: "25%"
+          maxUnavailable: "25%"
+      resources:
+        requests:
+          memory: 128Mi
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
@@ -422,9 +452,6 @@ defaults:
           requests:
             cpu: NONE
             memory: NONE
-          limits:
-            cpu: NONE
-            memory: NONE
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -540,9 +567,6 @@ defaults:
           requests:
             cpu: NONE
             memory: NONE
-          limits:
-            cpu: NONE
-            memory: NONE
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -575,6 +599,13 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: backend
+      deploymentStrategy:
+        rollingUpdate:
+          maxSurge: "25%"
+          maxUnavailable: "25%"
+      resources:
+        requests:
+          memory: 1216Mi
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     maestro:
@@ -593,6 +624,13 @@ defaults:
       replicas: 2
       namespace: aro-hcp-admin-api
       serviceAccountName: admin-api
+      deploymentStrategy:
+        rollingUpdate:
+          maxSurge: "50%"
+          maxUnavailable: "50%"
+      resources:
+        requests:
+          memory: 128Mi
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Session Gate
@@ -606,6 +644,13 @@ defaults:
       replicas: 2
       namespace: sessiongate
       serviceAccountName: sessiongate
+      deploymentStrategy:
+        rollingUpdate:
+          maxSurge: "25%"
+          maxUnavailable: "25%"
+      resources:
+        requests:
+          memory: 128Mi
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Frontend
@@ -624,6 +669,13 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: frontend
+      deploymentStrategy:
+        rollingUpdate:
+          maxSurge: "50%"
+          maxUnavailable: "50%"
+      resources:
+        requests:
+          memory: 256Mi
     cosmosDB:
       deploy: true
       disableLocalAuth: true
@@ -725,6 +777,13 @@ defaults:
         replicas: 3
         namespace: maestro
         serviceAccountName: maestro
+        deploymentStrategy:
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
+        resources:
+          requests:
+            memory: 512Mi
     agent:
       consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       loglevel: 2
@@ -835,6 +894,9 @@ defaults:
         rollingUpdate:
           maxUnavailable: 0
           maxSurge: 1
+      resources:
+        requests:
+          memory: 1008Mi
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     # OCP Versions configuration

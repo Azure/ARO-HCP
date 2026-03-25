@@ -22,6 +22,9 @@ forwarder:
   ## Pods Service Account
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
   serviceAccountName: arobit-forwarder
+  resources:
+    requests:
+      memory: "{{ .arobit.forwarder.resources.requests.memory }}"
   fluentbit:
     ## Fluent Bit image version
     ##

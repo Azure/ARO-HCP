@@ -256,6 +256,3 @@ spec:
           requests:
             memory: '{{ .Values.memoryRequest }}'
             cpu: '{{ .Values.cpuRequest }}'
-          limits:
-            memory: '{{ .Values.memoryLimit }}'
-            cpu: '{{ .Values.cpuLimit }}'

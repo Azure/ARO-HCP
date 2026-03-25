@@ -1,11 +1,12 @@
 deployment:
   replicas: {{ .maestro.server.k8s.replicas }}
+  strategy:
+    rollingUpdate:
+      maxSurge: {{ .maestro.server.k8s.deploymentStrategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .maestro.server.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}
   requests:
     cpu: 200m
-    memory: 512Mi
-  limits:
-    cpu: 1
-    memory: 1Gi
+    memory: "{{ .maestro.server.k8s.resources.requests.memory }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 tracing:
   address: "{{ .maestro.server.tracing.address }}"

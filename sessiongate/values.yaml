@@ -4,9 +4,13 @@ image:
   digest: "{{ .sessiongate.image.digest }}"
 deployment:
   replicas: "{{ .sessiongate.k8s.replicas }}"
+  strategy:
+    rollingUpdate:
+      maxSurge: "{{ .sessiongate.k8s.deploymentStrategy.rollingUpdate.maxSurge }}"
+      maxUnavailable: "{{ .sessiongate.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
   requests:
     cpu: 250m
-    memory: 512Mi
+    memory: "{{ .sessiongate.k8s.resources.requests.memory }}"
 logLevel: "2"
 leaderElection:
   leaseDuration: "15s"

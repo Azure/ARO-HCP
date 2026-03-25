@@ -68445,9 +68445,6 @@ spec:
     requests:
       cpu: '20'
       memory: '1Gi'
-    limits:
-      cpu: '20'
-      memory: '100Gi'
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

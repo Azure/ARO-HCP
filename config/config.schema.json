@@ -115,6 +115,9 @@
         },
         "deploymentStrategy": {
           "$ref": "#/definitions/k8sDeploymentStrategy"
+        },
+        "resources": {
+          "$ref": "#/definitions/containerResources"
         }
       },
       "additionalProperties": false,
@@ -607,9 +610,6 @@
       "additionalProperties": false,
       "properties": {
         "requests": {
-          "$ref": "#/definitions/resources"
-        },
-        "limits": {
           "$ref": "#/definitions/resources"
         }
       }
@@ -2318,11 +2318,15 @@
           "properties": {
             "image": {
               "$ref": "#/definitions/containerImage"
+            },
+            "resources": {
+              "$ref": "#/definitions/containerResources"
             }
           },
           "additionalProperties": false,
           "required": [
-            "image"
+            "image",
+            "resources"
           ]
         },
         "kusto": {
@@ -2387,12 +2391,16 @@
         },
         "enabled": {
           "type": "boolean"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
-        "enabled"
+        "enabled",
+        "k8s"
       ]
     },
     "acrPull": {
@@ -2400,11 +2408,15 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
         }
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "k8s"
       ]
     },
     "aksCommandRuntime": {
