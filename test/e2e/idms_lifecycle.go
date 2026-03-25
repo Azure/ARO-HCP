@@ -100,11 +100,12 @@ var _ = Describe("Customer", func() {
 
 			// Extract identity name from the parsed resource ID
 			smiIdentityName := smiResourceID.Name
+			smiIdentityResourceGroup := smiResourceID.ResourceGroupName
 
 			// Validate the SMI Identity
 			// TODO: Remove this once we have updated rolebinding
-			// we should no longer see see tests not adding permissions
-			err = tc.ValidateIdentityRoleBindings(ctx, smiIdentityName, *resourceGroup.Name)
+			// we should no longer see tests not adding permissions
+			err = tc.ValidateIdentityRoleBindings(ctx, smiIdentityName, smiIdentityResourceGroup, *resourceGroup.Name)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster with ImageDigestMirrors via v20251223preview")

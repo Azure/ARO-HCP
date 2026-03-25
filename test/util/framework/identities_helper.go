@@ -1067,7 +1067,7 @@ func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error)
 				"Microsoft.Network/loadBalancers/backendAddressPools/read",  // read backend address pools of LB to check if the backend address pool already exists
 				"Microsoft.Network/loadBalancers/backendAddressPools/write", // write backend address pools to LB
 				"Microsoft.Network/loadBalancers/read",                      // to check if LB exists or not before writing to it
-				"Microsoft.Network/loadBalancers/write",                     // create LB if it doesn"t exist
+				"Microsoft.Network/loadBalancers/write",                     // create LB if it doesn't exist
 				"Microsoft.Network/natGateways/join/action",                 // subnet/write needs /join/action on nat gateway if present in request
 				"Microsoft.Network/natGateways/read",
 				"Microsoft.Network/networkSecurityGroups/join/action", // subnet/write needs /join/action on NSG if present in request
@@ -1103,6 +1103,7 @@ func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error)
 func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
 	ctx context.Context,
 	identityName string,
+	identityResourceGroup string,
 	resourceGroupName string,
 ) error {
 	startTime := time.Now()
@@ -1139,9 +1140,9 @@ func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
 		return fmt.Errorf("failed to create MSI client factory: %w", err)
 	}
 
-	identity, err := msiClientFactory.NewUserAssignedIdentitiesClient().Get(ctx, resourceGroupName, identityName, nil)
+	identity, err := msiClientFactory.NewUserAssignedIdentitiesClient().Get(ctx, identityResourceGroup, identityName, nil)
 	if err != nil {
-		return fmt.Errorf("failed to get managed identity %s in resource group %s: %w", identityName, resourceGroupName, err)
+		return fmt.Errorf("failed to get managed identity %s in resource group %s: %w", identityName, identityResourceGroup, err)
 	}
 
 	// List all role assignments for this identity's principal
