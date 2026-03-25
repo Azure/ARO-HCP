@@ -20,6 +20,11 @@
       }
       {
         "code": "InvalidRequestContent",
+        "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet\": must not be the same resource group name: \"some-resource-group\"",
+        "target": "properties.platform.subnetId"
+      }
+      {
+        "code": "InvalidRequestContent",
         "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity\": must not be the same resource group name: \"some-resource-group\"",
         "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operator1]"
       }
@@ -41,11 +46,6 @@
       {
         "code": "InvalidRequestContent",
         "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity\": must not be the same resource group name: \"some-resource-group\"",
-        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity\": identity is not assigned to this resource",
         "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"
       }
       {

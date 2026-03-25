@@ -1,13 +1,14 @@
 {
-	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-update",
+	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/patch-identity",
 	"identity": {
 		"type": "UserAssigned",
 		"userAssignedIdentities": {
-			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {}
+			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure": {},
+			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {}
 		}
 	},
 	"location": "fake-location",
-	"name": "noop-update",
+	"name": "patch-identity",
 	"properties": {
 		"api": {
 			"visibility": "Public"
@@ -44,14 +45,17 @@
 		},
 		"platform": {
 			"managedResourceGroup": "managed-resource-group-name",
-			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
 			"operatorsAuthentication": {
 				"userAssignedIdentities": {
-					"serviceManagedIdentity": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+					"controlPlaneOperators": {
+						"some-key": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure"
+					},
+					"serviceManagedIdentity": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
 				}
 			},
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 		},
 		"provisioningState": "Accepted",
 		"version": {

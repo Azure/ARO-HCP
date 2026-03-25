@@ -1,7 +1,11 @@
 {
 	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/patch-identity",
 	"identity": {
-		"type": "UserAssigned"
+		"type": "UserAssigned",
+		"userAssignedIdentities": {
+			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure": {},
+			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {}
+		}
 	},
 	"location": "fake-location",
 	"name": "patch-identity",

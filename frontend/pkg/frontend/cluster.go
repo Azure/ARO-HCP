@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -223,6 +224,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+
 	// Backstop for fields unknown to this API version's SetDefaultValues*.
 	// See docs/api-version-defaults-and-storage.md.
 	newInternalCluster.EnsureDefaults()
@@ -239,11 +241,6 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	// We set the managed identities data plane identity URL associated to the cluster from the
 	// http header 'X-Ms-Identity-Url'.
 	newInternalCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = requestHeader.Get(arm.HeaderNameIdentityURL)
-
-	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
-	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
-	// TODO we probably update validation to require this field is cleared.
-	//newInternalCluster.Identity.UserAssignedIdentities = nil
 
 	return newInternalCluster, nil
 }
@@ -304,9 +301,11 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	// Now that validation is done we clear the user-assigned identities map since that is reconstructed from Cluster Service data
-	// TODO this is bad, see above TODOs. We want to validate what we store.
+	// we must validate using user provided .Identity.UserAssignedIdentities because that is the intent expressed by the user to allow
+	// us to use these identities. The information contained in those key is not trusted to be accurate, so we clear this field and set to
+	// a valid, but empty set of information
 	newInternalCluster.Identity.UserAssignedIdentities = nil
+	completeClusterIdentity(newInternalCluster, nil)
 
 	initialClusterProperties := map[string]string{}
 	if len(f.clusterServiceProvisionShard) != 0 {
@@ -456,10 +455,8 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		newInternalCluster.Tags = maps.Clone(oldInternalCluster.Tags)
 	}
 
-	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
-	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
-	// TODO we probably update validation to require this field is cleared.
-	//newInternalCluster.Identity.UserAssignedIdentities = nil
+	// set any missing defaults
+	newInternalCluster.EnsureDefaults()
 
 	return newInternalCluster, nil
 }
@@ -521,10 +518,6 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	//    validation errors on status fields that the user isn't trying to modify.
 	conversion.CopyReadOnlyClusterValues(newInternalCluster, oldInternalCluster)
 	newInternalCluster.SystemData = ensureSystemData(systemData, oldInternalCluster.SystemData)
-	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
-	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
-	// TODO we probably update validation to require this field is cleared.
-	//newInternalCluster.Identity.UserAssignedIdentities = nil
 
 	// Here the difference between a nil map and an empty map is significant.
 	// If the Tags map is nil, that means it was omitted from the request body,
@@ -534,6 +527,9 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	if newInternalCluster.Tags == nil {
 		newInternalCluster.Tags = maps.Clone(oldInternalCluster.Tags)
 	}
+
+	// set any missing defaults
+	newInternalCluster.EnsureDefaults()
 
 	return newInternalCluster, nil
 }
@@ -580,9 +576,11 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		return utils.TrackError(err)
 	}
 
-	// Now that validation is done we clear the user-assigned identities map since that is reconstructed from Cluster Service data
-	// TODO this is bad, see above TODOs. We want to validate what we store.
+	// we must validate using user provided .Identity.UserAssignedIdentities because that is the intent expressed by the user to allow
+	// us to use these identities. The information contained in those key is not trusted to be accurate, so we clear this field and set to
+	// a valid, but empty set of information
 	newInternalCluster.Identity.UserAssignedIdentities = nil
+	completeClusterIdentity(newInternalCluster, oldInternalCluster.Identity.UserAssignedIdentities)
 
 	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
@@ -822,6 +820,11 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 	}
 	internalCluster.ID = resourceID
 
+	// this allows partial information to be provided by a controller.
+	completeClusterIdentity(internalCluster, nil)
+
+	// temporarily fill in info if we have something missing.
+
 	return internalCluster, nil
 }
 
@@ -860,5 +863,52 @@ func ensureSystemData(newObj, oldObj *arm.SystemData) *arm.SystemData {
 	}
 
 	return ret
+}
 
+// completeClusterIdentity fills in any missing cluster.Identity.UserAssignedIdentities and removes any extra cluster.Identity.UserAssignedIdentities keys.
+func completeClusterIdentity(cluster *api.HCPOpenShiftCluster, existingUserAssignedIdentity map[string]*arm.UserAssignedIdentity) {
+	allExpectedKeys := sets.Set[string]{}
+
+	// set default .Identity.UserAssignedIdentities if none exist for required entry.
+	for _, operatorIdentityResourceID := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		allExpectedKeys.Insert(operatorIdentityResourceID.String())
+		if cluster.Identity == nil {
+			cluster.Identity = &arm.ManagedServiceIdentity{}
+		}
+		if cluster.Identity.UserAssignedIdentities == nil {
+			cluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
+		}
+
+		if val, ok := cluster.Identity.UserAssignedIdentities[operatorIdentityResourceID.String()]; !ok || val == nil {
+			if existingValue, hasExisting := existingUserAssignedIdentity[operatorIdentityResourceID.String()]; hasExisting {
+				cluster.Identity.UserAssignedIdentities[operatorIdentityResourceID.String()] = existingValue.DeepCopy()
+			} else {
+				cluster.Identity.UserAssignedIdentities[operatorIdentityResourceID.String()] = &arm.UserAssignedIdentity{}
+			}
+		}
+	}
+	if serviceManagedIdentity := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; serviceManagedIdentity != nil {
+		allExpectedKeys.Insert(serviceManagedIdentity.String())
+
+		if cluster.Identity == nil {
+			cluster.Identity = &arm.ManagedServiceIdentity{}
+		}
+		if cluster.Identity.UserAssignedIdentities == nil {
+			cluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
+		}
+
+		if val, ok := cluster.Identity.UserAssignedIdentities[serviceManagedIdentity.String()]; !ok || val == nil {
+			if existingValue, hasExisting := existingUserAssignedIdentity[serviceManagedIdentity.String()]; hasExisting {
+				cluster.Identity.UserAssignedIdentities[serviceManagedIdentity.String()] = existingValue.DeepCopy()
+			} else {
+				cluster.Identity.UserAssignedIdentities[serviceManagedIdentity.String()] = &arm.UserAssignedIdentity{}
+			}
+		}
+	}
+
+	for key := range cluster.Identity.UserAssignedIdentities {
+		if !allExpectedKeys.Has(key) {
+			delete(cluster.Identity.UserAssignedIdentities, key)
+		}
+	}
 }
