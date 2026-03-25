@@ -9,4 +9,5 @@ strategy:
     maxUnavailable: {{ .kubeEvents.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}
 resources:
   requests:
+    cpu: '{{ .kubeEvents.k8s.resources.requests.cpu }}'
     memory: '{{ .kubeEvents.k8s.resources.requests.memory }}'

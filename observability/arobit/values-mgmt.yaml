@@ -21,10 +21,11 @@ forwarder:
     runAsGroup: 65532
   ## Pods Service Account
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
-  serviceAccountName: arobit-forwarder
+  serviceAccountName: "{{ .arobit.k8s.serviceAccountName }}"
   resources:
     requests:
-      memory: "{{ .arobit.forwarder.resources.requests.memory }}"
+      memory: "{{ .arobit.k8s.resources.requests.memory }}"
+      cpu: "{{ .arobit.k8s.resources.requests.cpu }}"
   fluentbit:
     ## Fluent Bit image version
     ##

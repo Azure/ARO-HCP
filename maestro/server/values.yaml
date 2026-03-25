@@ -5,7 +5,7 @@ deployment:
       maxSurge: {{ .maestro.server.k8s.deploymentStrategy.rollingUpdate.maxSurge }}
       maxUnavailable: {{ .maestro.server.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}
   requests:
-    cpu: 200m
+    cpu: "{{ .maestro.server.k8s.resources.requests.cpu }}"
     memory: "{{ .maestro.server.k8s.resources.requests.memory }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 tracing:

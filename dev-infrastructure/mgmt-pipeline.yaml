@@ -523,7 +523,7 @@ resourceGroups:
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
     releaseName: kube-events
-    releaseNamespace: monitoring
+    releaseNamespace: '{{ .kubeEvents.k8s.namespace }}'
     chartDir: ./../observability/kube-events/deploy
     valuesFile: ./../observability/kube-events/values.yaml
     kustoEndpoint:

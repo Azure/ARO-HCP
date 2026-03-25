@@ -73,6 +73,7 @@ spec:
           resources:
             requests:
               memory: {{ .Values.forwarder.resources.requests.memory }}
+              cpu: {{ .Values.forwarder.resources.requests.cpu }}
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false

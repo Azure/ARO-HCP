@@ -16,6 +16,7 @@ deployment:
       maxUnavailable: "{{ .customExporter.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
   resources:
     requests:
+      cpu: "{{ .customExporter.k8s.resources.requests.cpu }}"
       memory: "{{ .customExporter.k8s.resources.requests.memory }}"
 subscriptionNames:
 - "{{ .svc.subscription.key }}"

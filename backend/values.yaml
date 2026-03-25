@@ -18,6 +18,7 @@ deployment:
       maxUnavailable: "{{ .backend.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
   resources:
     requests:
+      cpu: "{{ .backend.k8s.resources.requests.cpu }}"
       memory: "{{ .backend.k8s.resources.requests.memory }}"
 serviceAccount:
   name: "{{ .backend.k8s.serviceAccountName }}"

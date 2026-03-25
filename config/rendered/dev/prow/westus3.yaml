@@ -36,6 +36,7 @@ acrPull:
     namespace: acrpull
     resources:
       requests:
+        cpu: 100m
         memory: 256Mi
     serviceAccountName: acrpull
 adminApi:
@@ -57,6 +58,7 @@ adminApi:
     replicas: 2
     resources:
       requests:
+        cpu: 200m
         memory: 128Mi
     serviceAccountName: admin-api
   managedIdentityName: admin-api
@@ -79,9 +81,13 @@ arobit:
       digest: sha256:33bed43b09e3d2384c7661c74f6ed79ca53b0c25a3e28d77f139a7b9d50fbf1a
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
+  k8s:
+    namespace: arobit
     resources:
       requests:
+        cpu: 100m
         memory: 256Mi
+    serviceAccountName: arobit-forwarder
   kusto:
     enabled: true
     environmentName: dev
@@ -118,6 +124,7 @@ backend:
     replicas: 2
     resources:
       requests:
+        cpu: 100m
         memory: 1216Mi
     serviceAccountName: backend
   maestro:
@@ -184,6 +191,7 @@ clustersService:
     replicas: 3
     resources:
       requests:
+        cpu: 50m
         memory: 1008Mi
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
@@ -232,6 +240,7 @@ customExporter:
     namespace: aro-hcp-exporter
     resources:
       requests:
+        cpu: 100m
         memory: 128Mi
     serviceAccountName: aro-hcp-exporter
   managedIdentityName: aro-hcp-exporter
@@ -296,6 +305,7 @@ frontend:
     replicas: 2
     resources:
       requests:
+        cpu: 100m
         memory: 256Mi
     serviceAccountName: frontend
   managedIdentityName: frontend
@@ -432,9 +442,10 @@ kubeEvents:
       rollingUpdate:
         maxSurge: 1
         maxUnavailable: 0
-    namespace: kube-events
+    namespace: monitoring
     resources:
       requests:
+        cpu: 200m
         memory: 70Mi
     serviceAccountName: kube-events
 kusto:
@@ -513,6 +524,7 @@ maestro:
       replicas: 3
       resources:
         requests:
+          cpu: 200m
           memory: 512Mi
       serviceAccountName: maestro
     loglevel: 2
@@ -818,6 +830,7 @@ sessiongate:
     replicas: 2
     resources:
       requests:
+        cpu: 250m
         memory: 128Mi
     serviceAccountName: sessiongate
   managedIdentityName: sessiongate
@@ -913,8 +926,8 @@ svc:
       replicas: 2
       resources:
         requests:
-          cpu: NONE
-          memory: NONE
+          cpu: 100m
+          memory: 2048Mi
       shards: 1
       version: ""
   rg: hcp-underlay-prow-j7654321-svc

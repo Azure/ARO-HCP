@@ -8,7 +8,7 @@ deployment:
       maxSurge: "{{ .adminApi.k8s.deploymentStrategy.rollingUpdate.maxSurge }}"
       maxUnavailable: "{{ .adminApi.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
   requests:
-    cpu: 200m
+    cpu: "{{ .adminApi.k8s.resources.requests.cpu }}"
     memory: "{{ .adminApi.k8s.resources.requests.memory }}"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 serviceAccount:

@@ -101,6 +101,7 @@ defaults:
           maxUnavailable: "25%"
       resources:
         requests:
+          cpu: 100m
           memory: 256Mi
     image:
       registry: mcr.microsoft.com
@@ -119,9 +120,13 @@ defaults:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
         digest: sha256:33bed43b09e3d2384c7661c74f6ed79ca53b0c25a3e28d77f139a7b9d50fbf1a # v4.2.3 (2026-03-16 17:07)
+    k8s:
+      serviceAccountName: arobit-forwarder
+      namespace: arobit
       resources:
         requests:
           memory: 256Mi
+          cpu: 100m
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -135,7 +140,7 @@ defaults:
   kubeEvents:
     enabled: true
     k8s:
-      namespace: kube-events
+      namespace: monitoring
       serviceAccountName: kube-events
       deploymentStrategy:
         rollingUpdate:
@@ -143,6 +148,7 @@ defaults:
           maxUnavailable: 0
       resources:
         requests:
+          cpu: 200m
           memory: 70Mi
     image:
       registry: kubernetesshared.azurecr.io
@@ -160,6 +166,7 @@ defaults:
           maxUnavailable: "25%"
       resources:
         requests:
+          cpu: 100m
           memory: 128Mi
     image:
       registry: arohcpsvcdev.azurecr.io
@@ -450,8 +457,8 @@ defaults:
         version: ""
         resources:
           requests:
-            cpu: NONE
-            memory: NONE
+            cpu: 100m
+            memory: 2048Mi
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -605,6 +612,7 @@ defaults:
           maxUnavailable: "25%"
       resources:
         requests:
+          cpu: 100m
           memory: 1216Mi
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
@@ -630,6 +638,7 @@ defaults:
           maxUnavailable: "50%"
       resources:
         requests:
+          cpu: 200m
           memory: 128Mi
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
@@ -650,6 +659,7 @@ defaults:
           maxUnavailable: "25%"
       resources:
         requests:
+          cpu: 250m
           memory: 128Mi
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
@@ -675,6 +685,7 @@ defaults:
           maxUnavailable: "50%"
       resources:
         requests:
+          cpu: 100m
           memory: 256Mi
     cosmosDB:
       deploy: true
@@ -783,6 +794,7 @@ defaults:
             maxUnavailable: 1
         resources:
           requests:
+            cpu: 200m
             memory: 512Mi
     agent:
       consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
@@ -896,6 +908,7 @@ defaults:
           maxSurge: 1
       resources:
         requests:
+          cpu: 50m
           memory: 1008Mi
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA

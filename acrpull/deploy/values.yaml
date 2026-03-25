@@ -8,4 +8,5 @@ strategy:
     maxUnavailable: "{{ .acrPull.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
 resources:
   requests:
+    cpu: "{{ .acrPull.k8s.resources.requests.cpu }}"
     memory: "{{ .acrPull.k8s.resources.requests.memory }}"

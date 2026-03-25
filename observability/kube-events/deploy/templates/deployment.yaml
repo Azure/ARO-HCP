@@ -38,6 +38,6 @@ spec:
           timeoutSeconds: 1
         resources:
           requests:
-            cpu: 200m
+            cpu: {{ .Values.resources.requests.cpu }}
             memory: {{ .Values.resources.requests.memory }}
 {{ end }}

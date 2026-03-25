@@ -56,6 +56,7 @@ deploy:
 	  --set region=${REGION} \
 	  --set serviceKeyvaultName=${SERVICE_KV} \
 	  --set replicas=${REPLICAS} \
+	  --set cpuRequest=${CS_CPU_REQUEST} \
 	  --set memoryRequest=${CS_MEMORY_REQUEST} \
 	  --set imageRegistry=${ACR_NAME}.azurecr.io \
 	  --set imageRepository=${IMAGE_REPO} \

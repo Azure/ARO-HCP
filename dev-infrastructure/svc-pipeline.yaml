@@ -358,7 +358,7 @@ resourceGroups:
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
     releaseName: 'arobit'
-    releaseNamespace: 'arobit'
+    releaseNamespace: '{{ .arobit.k8s.namespace }}'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-svc.yaml
     kustoEndpoint:
@@ -397,7 +397,7 @@ resourceGroups:
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
     releaseName: kube-events
-    releaseNamespace: monitoring
+    releaseNamespace: '{{ .kubeEvents.k8s.namespace }}'
     chartDir: ./../observability/kube-events/deploy
     valuesFile: ./../observability/kube-events/values.yaml
     kustoEndpoint:

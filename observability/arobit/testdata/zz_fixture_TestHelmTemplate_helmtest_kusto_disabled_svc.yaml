@@ -403,6 +403,7 @@ spec:
           resources:
             requests:
               memory: 256Mi
+              cpu: 100m
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false

@@ -2318,16 +2318,15 @@
           "properties": {
             "image": {
               "$ref": "#/definitions/containerImage"
-            },
-            "resources": {
-              "$ref": "#/definitions/containerResources"
             }
           },
           "additionalProperties": false,
           "required": [
-            "image",
-            "resources"
+            "image"
           ]
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
         },
         "kusto": {
           "type": "object",

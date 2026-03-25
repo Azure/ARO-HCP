@@ -9,7 +9,7 @@ deployment:
       maxSurge: "{{ .sessiongate.k8s.deploymentStrategy.rollingUpdate.maxSurge }}"
       maxUnavailable: "{{ .sessiongate.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
   requests:
-    cpu: 250m
+    cpu: "{{ .sessiongate.k8s.resources.requests.cpu }}"
     memory: "{{ .sessiongate.k8s.resources.requests.memory }}"
 logLevel: "2"
 leaderElection:
