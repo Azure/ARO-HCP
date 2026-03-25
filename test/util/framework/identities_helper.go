@@ -334,14 +334,21 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 	if !tc.UsePooledIdentities() {
 		// For non-pooled mode, still clean up role assignments and custom role definitions
 		subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-		if err == nil {
-			// Clean up role assignments first, then role definitions
-			if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
-				ginkgo.GinkgoLogr.Info("WARN: failed to cleanup role assignments", "error", err)
-			}
-			if err := tc.cleanupCustomRoleDefinitions(ctx, subscriptionID); err != nil {
-				ginkgo.GinkgoLogr.Info("WARN: failed to cleanup custom role definitions", "error", err)
-			}
+		if err != nil {
+			return fmt.Errorf("failed to get subscription ID: %w", err)
+		}
+
+		var errs []error
+		// Clean up role assignments first, then role definitions
+		if err := tc.cleanupRoleAssignments(ctx, subscriptionID); err != nil {
+			errs = append(errs, fmt.Errorf("failed to cleanup role assignments: %w", err))
+		}
+		if err := tc.cleanupCustomRoleDefinitions(ctx, subscriptionID); err != nil {
+			errs = append(errs, fmt.Errorf("failed to cleanup custom role definitions: %w", err))
+		}
+
+		if len(errs) > 0 {
+			return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 		}
 		return nil
 	}
@@ -1047,6 +1054,11 @@ type IdentityRoleBindings struct {
 // Note: Wildcards (*) in actions grant broad permissions. The validation checks if the identity
 // has the required permissions through ANY of its assigned roles.
 func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error) {
+	// Normalize the identity name by stripping the suffix used in non-pooled mode
+	// Non-pooled identities follow the pattern: "<base-name>-<cluster-name>"
+	// Example: "service-mycluster" -> "service"
+	baseIdentityName, _, _ := strings.Cut(identityName, "-")
+
 	// Permission mappings based on Azure built-in role definitions
 	// These will be validated by fetching actual role definitions from Azure
 	roleBindingsMap := map[string]*IdentityRoleBindings{
@@ -1072,18 +1084,18 @@ func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error)
 				"Microsoft.Network/routeTables/read",
 				"Microsoft.Network/virtualNetworks/join/action",             // attach private DNS zone
 				"Microsoft.Network/virtualNetworks/joinLoadBalancer/action", // add private IP addresses to LB backend
-				"Microsoft.Network/virtualNetworks/read",                    // validate CIDR & existance
+				"Microsoft.Network/virtualNetworks/read",                    // validate CIDR & existence
 				"Microsoft.Network/virtualNetworks/subnets/join/action",     // create private load balancer and join to subnet
-				"Microsoft.Network/virtualNetworks/subnets/read",            // validate CIDR & existance
+				"Microsoft.Network/virtualNetworks/subnets/read",            // validate CIDR & existence
 				"Microsoft.Network/virtualNetworks/subnets/write",           // attach the NSG to subnet
 
 			},
 		},
 	}
 
-	bindings, exists := roleBindingsMap[identityName]
+	bindings, exists := roleBindingsMap[baseIdentityName]
 	if !exists {
-		return nil, fmt.Errorf("unknown identity name: %s", identityName)
+		return nil, fmt.Errorf("unknown identity name: %s (base: %s)", identityName, baseIdentityName)
 	}
 
 	return bindings, nil
@@ -1173,8 +1185,7 @@ func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
 
 			roleDef, err := roleDefinitionsClient.GetByID(ctx, roleDefID, nil)
 			if err != nil {
-				ginkgo.GinkgoLogr.Info("WARN: failed to get role definition", "roleDefID", roleDefID, "error", err)
-				continue
+				return fmt.Errorf("failed to get role definition %s for identity %s: %w", roleDefID, identityName, err)
 			}
 
 			// Extract actions from the role definition
