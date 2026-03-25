@@ -5,3 +5,4 @@ approvers:
   - bennerv
   - service-lifecycle-global-approvers
 reviewers:
+  - service-lifecycle
