@@ -392,8 +392,15 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 				errs = append(errs, field.Required(field.NewPath("properties", "etcd", "dataEncryption", "customerManaged", "kms", "visibility"), "field cannot be null"))
 			}
 		}
-		if c.Properties.Platform != nil && c.Properties.Platform.VnetIntegrationSubnetID != nil && len(*c.Properties.Platform.VnetIntegrationSubnetID) == 0 {
-			errs = append(errs, field.Invalid(field.NewPath("properties", "platform", "vnetIntegrationSubnetId"), "", "field cannot be empty string"))
+		if c.Properties.Platform != nil {
+			if c.Properties.Platform.VnetIntegrationSubnetID == nil {
+				// TODO: Remove this check when v20240610preview is removed and
+				// vnetIntegrationSubnetId is enforced via validate.RequiredPointer
+				// in validateCustomerPlatformProfile.
+				errs = append(errs, field.Required(field.NewPath("properties", "platform", "vnetIntegrationSubnetId"), "field cannot be null"))
+			} else if len(*c.Properties.Platform.VnetIntegrationSubnetID) == 0 {
+				errs = append(errs, field.Invalid(field.NewPath("properties", "platform", "vnetIntegrationSubnetId"), "", "field cannot be empty string"))
+			}
 		}
 	}
 
