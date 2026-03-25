@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"time"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -91,6 +93,35 @@ func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster
 	}
 	if len(existingCluster.Identity.UserAssignedIdentities) == 0 {
 		return true
+	}
+
+	for operatorIdentityResourceIDString, userAssignedIdentity := range existingCluster.Identity.UserAssignedIdentities {
+		if userAssignedIdentity == nil || len(ptr.Deref(userAssignedIdentity.ClientID, "")) == 0 || len(ptr.Deref(userAssignedIdentity.PrincipalID, "")) == 0 {
+			// try to fill in the information.
+			return true
+		}
+
+		controlPlaneExists := false
+		for _, resourceID := range existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+			if resourceID != nil && resourceID.String() == operatorIdentityResourceIDString {
+				controlPlaneExists = true
+				break
+			}
+		}
+		if !controlPlaneExists {
+			// need to prune
+			return true
+		}
+	}
+
+	for _, operatorIdentityResourceID := range existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		userAssignedIdentity, ok := existingCluster.Identity.UserAssignedIdentities[operatorIdentityResourceID.String()]
+		if !ok {
+			return true
+		}
+		if len(ptr.Deref(userAssignedIdentity.ClientID, "")) == 0 || len(ptr.Deref(userAssignedIdentity.PrincipalID, "")) == 0 {
+			return true
+		}
 	}
 
 	return false

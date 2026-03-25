@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -66,6 +68,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 						},
 					},
 				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
+				}
 			}),
 			existingCluster: newTestClusterForIdentityMigration(func(c *api.HCPOpenShiftCluster) {
 				c.Identity = &arm.ManagedServiceIdentity{
@@ -75,6 +80,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 							PrincipalID: stringPtr(testPrincipalID),
 						},
 					},
+				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
 				}
 			}),
 			expectCosmosGet:             false,
@@ -98,6 +106,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 						},
 					},
 				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
+				}
 			}),
 			expectCosmosGet:             true,
 			expectCSCall:                false,
@@ -117,6 +128,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 							PrincipalID: stringPtr(testPrincipalID),
 						},
 					},
+				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
 				}
 			}),
 			expectCosmosGet:             false,
