@@ -1160,7 +1160,8 @@ func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
 	grantedActions := make(map[string]bool)
 
 	filter := fmt.Sprintf("principalId eq '%s'", *identity.Properties.PrincipalID)
-	pager := roleAssignmentsClient.NewListForSubscriptionPager(&armauthorization.RoleAssignmentsClientListForSubscriptionOptions{
+	assignmentScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroupName)
+	pager := roleAssignmentsClient.NewListForScopePager(assignmentScope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
 		Filter: &filter,
 	})
 
