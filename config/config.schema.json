@@ -2686,13 +2686,21 @@
             "sl"
           ]
         },
-        "maxActiveTimeSeries": {
+        "svcMaxActiveTimeSeries": {
           "type": "integer",
-          "description": "Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
+          "description": "Maximum active time series limit for service Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
         },
-        "maxEventsPerMinute": {
+        "svcMaxEventsPerMinute": {
           "type": "integer",
-          "description": "Maximum events per minute limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
+          "description": "Maximum events per minute limit for service Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
+        },
+        "hcpMaxActiveTimeSeries": {
+          "type": "integer",
+          "description": "Maximum active time series limit for HCP Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
+        },
+        "hcpMaxEventsPerMinute": {
+          "type": "integer",
+          "description": "Maximum events per minute limit for HCP Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
         }
       },
       "additionalProperties": false,

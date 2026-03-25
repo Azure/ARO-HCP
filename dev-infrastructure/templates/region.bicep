@@ -39,11 +39,17 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
-@description('Maximum active time series limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
-param amwMaxActiveTimeSeries int = 2000000
+@description('Maximum active time series limit for service Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)')
+param svcAmwMaxActiveTimeSeries int = 2000000
 
-@description('Maximum events per minute limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
-param amwMaxEventsPerMinute int = 2000000
+@description('Maximum events per minute limit for service Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)')
+param svcAmwMaxEventsPerMinute int = 2000000
+
+@description('Maximum active time series limit for HCP Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)')
+param hcpAmwMaxActiveTimeSeries int = 2000000
+
+@description('Maximum events per minute limit for HCP Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)')
+param hcpAmwMaxEventsPerMinute int = 2000000
 
 import * as res from '../modules/resource.bicep'
 
@@ -151,8 +157,8 @@ module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   params: {
     azureMonitorWorkspaceName: svcMonitorName
     location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
+    maxActiveTimeSeries: svcAmwMaxActiveTimeSeries
+    maxEventsPerMinute: svcAmwMaxEventsPerMinute
   }
   dependsOn: [svcMonitor]
 }
@@ -162,8 +168,8 @@ module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   params: {
     azureMonitorWorkspaceName: hcpMonitorName
     location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
+    maxActiveTimeSeries: hcpAmwMaxActiveTimeSeries
+    maxEventsPerMinute: hcpAmwMaxEventsPerMinute
   }
   dependsOn: [hcpMonitor]
 }

@@ -625,6 +625,8 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
+  hcpMaxActiveTimeSeries: 2000000
+  hcpMaxEventsPerMinute: 2000000
   hcpWorkspaceName: hcps-j7654321
   icm:
     connectionId: ""
@@ -646,8 +648,8 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
-  maxActiveTimeSeries: 2000000
-  maxEventsPerMinute: 2000000
+  svcMaxActiveTimeSeries: 2000000
+  svcMaxEventsPerMinute: 2000000
   svcWorkspaceName: services-j7654321
 msiCredentialsRefresher:
   certificate:

@@ -6,8 +6,10 @@ clouds:
         defaults:
           # Monitoring - Int needs higher limits
           monitoring:
-            maxActiveTimeSeries: 4000000
-            maxEventsPerMinute: 4000000
+            svcMaxActiveTimeSeries: 4000000
+            svcMaxEventsPerMinute: 4000000
+            hcpMaxActiveTimeSeries: 4000000
+            hcpMaxEventsPerMinute: 4000000
           # E2E
           e2e:
             regionTest:
