@@ -57,17 +57,18 @@ import (
 type perItOrDescribeTestContext struct {
 	perBinaryInvocationTestContext *perBinaryInvocationTestContext
 
-	contextLock                   sync.RWMutex
-	knownResourceGroups           []string
-	knownAppRegistrationIDs       []string
-	subscriptionID                string
-	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
-	clientFactory20251223         *hcpsdk20251223preview.ClientFactory
-	armComputeClientFactory       *armcompute.ClientFactory
-	armResourcesClientFactory     *armresources.ClientFactory
-	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
-	armNetworkClientFactory       *armnetwork.ClientFactory
-	graphClient                   *graphutil.Client
+	contextLock                    sync.RWMutex
+	knownResourceGroups            []string
+	knownAppRegistrationIDs        []string
+	createdCustomRoleDefinitionIDs []string
+	subscriptionID                 string
+	clientFactory20240610          *hcpsdk20240610preview.ClientFactory
+	clientFactory20251223          *hcpsdk20251223preview.ClientFactory
+	armComputeClientFactory        *armcompute.ClientFactory
+	armResourcesClientFactory      *armresources.ClientFactory
+	armSubscriptionsClientFactory  *armsubscriptions.ClientFactory
+	armNetworkClientFactory        *armnetwork.ClientFactory
+	graphClient                    *graphutil.Client
 
 	azureLogFile     *os.File
 	timingMetadata   timing.SpecTimingMetadata

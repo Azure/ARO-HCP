@@ -26,11 +26,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -330,6 +332,13 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 	}()
 
 	if !tc.UsePooledIdentities() {
+		// For non-pooled mode, still clean up custom role definitions
+		subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+		if err == nil {
+			if err := tc.cleanupCustomRoleDefinitions(ctx, subscriptionID); err != nil {
+				ginkgo.GinkgoLogr.Info("WARN: failed to cleanup custom role definitions", "error", err)
+			}
+		}
 		return nil
 	}
 
@@ -380,6 +389,13 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 			errs = append(errs, fmt.Errorf("failed to release identity container %s: %w", resourceGroup, err))
 		}
 	}
+
+	// Clean up custom role definitions after role assignments have been cleaned up
+	// This prevents errors trying to delete roles that still have active assignments
+	if err := tc.cleanupCustomRoleDefinitions(ctx, subscriptionID); err != nil {
+		errs = append(errs, fmt.Errorf("failed to cleanup custom role definitions: %w", err))
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
@@ -441,6 +457,72 @@ func (tc *perItOrDescribeTestContext) cleanupLeasedIdentityContainerFICs(
 	if len(errs) > 0 {
 		return fmt.Errorf("failed cleanup operations: %w", errors.Join(errs...))
 	}
+	return nil
+}
+
+// trackCustomRoleDefinition tracks a custom role definition ID created by this test.
+// This allows cleanup to only delete roles created by this specific test run.
+func (tc *perItOrDescribeTestContext) trackCustomRoleDefinition(roleDefID string) {
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	// Check if already tracked to avoid duplicates
+	for _, id := range tc.createdCustomRoleDefinitionIDs {
+		if id == roleDefID {
+			return
+		}
+	}
+
+	tc.createdCustomRoleDefinitionIDs = append(tc.createdCustomRoleDefinitionIDs, roleDefID)
+}
+
+// cleanupCustomRoleDefinitions deletes only the custom role definitions created by THIS test.
+// Role IDs are tracked during creation in createCustomRole().
+func (tc *perItOrDescribeTestContext) cleanupCustomRoleDefinitions(ctx context.Context, subscriptionID string) error {
+	tc.contextLock.RLock()
+	roleIDsToDelete := tc.createdCustomRoleDefinitionIDs
+	tc.contextLock.RUnlock()
+
+	if len(roleIDsToDelete) == 0 {
+		ginkgo.GinkgoLogr.Info("No custom role definitions to clean up")
+		return nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return err
+	}
+
+	roleDefsClient, err := armauthorization.NewRoleDefinitionsClient(creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create role definitions client: %w", err)
+	}
+
+	scope := fmt.Sprintf("/subscriptions/%s", subscriptionID)
+
+	// Delete only the custom roles we created
+	var errs []error
+	for _, roleDefID := range roleIDsToDelete {
+		ginkgo.GinkgoLogr.Info("Deleting custom role created by this test",
+			"roleDefID", roleDefID)
+
+		_, err := roleDefsClient.Delete(ctx, scope, roleDefID, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+				ginkgo.GinkgoLogr.Info("Custom role already deleted", "roleDefID", roleDefID)
+				continue
+			}
+			errs = append(errs, fmt.Errorf("failed to delete role definition %s: %w", roleDefID, err))
+		} else {
+			ginkgo.GinkgoLogr.Info("Successfully deleted custom role", "roleDefID", roleDefID)
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to delete some custom role definitions: %w", errors.Join(errs...))
+	}
+
 	return nil
 }
 
@@ -878,4 +960,362 @@ func (state *leasedIdentityPoolState) unlock() error {
 	err := filelock.Unlock(state.lockFile.Fd())
 	state.mu.Unlock()
 	return err
+}
+
+// IdentityRoleBindings defines the expected permissions for each managed identity type.
+// Permissions are validated against the actual actions granted by role assignments,
+// rather than checking specific role definition IDs.
+type IdentityRoleBindings struct {
+	// RequiredActions are the Azure RBAC actions that this identity must have
+	RequiredActions []string
+}
+
+// GetExpectedRoleBindings returns the expected permissions for a given identity name.
+// The permissions are derived from roles defined in test/e2e-setup/bicep/modules/managed-identities.bicep
+// These are the actual actions/dataActions that the role grants, fetched from Azure role definitions.
+// Note: Wildcards (*) in actions grant broad permissions. The validation checks if the identity
+// has the required permissions through ANY of its assigned roles.
+func GetExpectedRoleBindings(identityName string) (*IdentityRoleBindings, error) {
+	// Permission mappings based on Azure built-in role definitions
+	// These will be validated by fetching actual role definitions from Azure
+	roleBindingsMap := map[string]*IdentityRoleBindings{
+		ServiceManagedIdentityName: {
+			// Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity (c0ff367d-66d8-445e-917c-583feb0ef0d4)
+			RequiredActions: []string{
+				"Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read",
+				"Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write",
+				"Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/delete",
+				"Microsoft.ManagedIdentity/userAssignedIdentities/read",
+				"Microsoft.Network/loadBalancers/backendAddressPools/read",  // read backend address pools of LB to check if the backend address pool already exists
+				"Microsoft.Network/loadBalancers/backendAddressPools/write", // write backend address pools to LB
+				"Microsoft.Network/loadBalancers/read",                      // to check if LB exists or not before writing to it
+				"Microsoft.Network/loadBalancers/write",                     // create LB if it doesn"t exist
+				"Microsoft.Network/natGateways/join/action",                 // subnet/write needs /join/action on nat gateway if present in request
+				"Microsoft.Network/natGateways/read",
+				"Microsoft.Network/networkSecurityGroups/join/action", // subnet/write needs /join/action on NSG if present in request
+				"Microsoft.Network/networkSecurityGroups/read",        // validate NSG
+				"Microsoft.Network/networkSecurityGroups/write",
+				"Microsoft.Network/privateDnsZones/virtualNetworkLinks/read",  // read existing links between private DNS zone and virtual network
+				"Microsoft.Network/privateDnsZones/virtualNetworkLinks/write", // attach private DNS zone to virtual network
+				"Microsoft.Network/routeTables/join/action",                   // subnet/write needs /join/action on nat route table if present in request
+				"Microsoft.Network/routeTables/read",
+				"Microsoft.Network/virtualNetworks/join/action",             // attach private DNS zone
+				"Microsoft.Network/virtualNetworks/joinLoadBalancer/action", // add private IP addresses to LB backend
+				"Microsoft.Network/virtualNetworks/read",                    // validate CIDR & existance
+				"Microsoft.Network/virtualNetworks/subnets/join/action",     // create private load balancer and join to subnet
+				"Microsoft.Network/virtualNetworks/subnets/read",            // validate CIDR & existance
+				"Microsoft.Network/virtualNetworks/subnets/write",           // attach the NSG to subnet
+
+			},
+		},
+	}
+
+	bindings, exists := roleBindingsMap[identityName]
+	if !exists {
+		return nil, fmt.Errorf("unknown identity name: %s", identityName)
+	}
+
+	return bindings, nil
+}
+
+// ValidateIdentityRoleBindings validates that a managed identity has the expected permissions.
+// Instead of checking specific role IDs, this function validates the actual permissions (actions and dataActions)
+// granted by all role assignments on the identity.
+// Returns an error if any expected permissions are missing.
+func (tc *perItOrDescribeTestContext) ValidateIdentityRoleBindings(
+	ctx context.Context,
+	identityName string,
+	resourceGroupName string,
+) error {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Validate role bindings for identity %s", identityName), startTime, finishTime)
+	}()
+
+	// Get expected permissions for this identity
+	expectedBindings, err := GetExpectedRoleBindings(identityName)
+	if err != nil {
+		return fmt.Errorf("failed to get expected role bindings: %w", err)
+	}
+
+	if len(expectedBindings.RequiredActions) == 0 {
+		// No permissions expected for this identity
+		return nil
+	}
+
+	// Get Azure credentials and subscription ID
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	// Get the managed identity
+	msiClientFactory, err := armmsi.NewClientFactory(subscriptionID, creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create MSI client factory: %w", err)
+	}
+
+	identity, err := msiClientFactory.NewUserAssignedIdentitiesClient().Get(ctx, resourceGroupName, identityName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get managed identity %s in resource group %s: %w", identityName, resourceGroupName, err)
+	}
+
+	// List all role assignments for this identity's principal
+	roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create role assignments client: %w", err)
+	}
+
+	roleDefinitionsClient, err := armauthorization.NewRoleDefinitionsClient(creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create role definitions client: %w", err)
+	}
+
+	// Collect all permissions granted to this identity
+	grantedActions := make(map[string]bool)
+
+	filter := fmt.Sprintf("principalId eq '%s'", *identity.Properties.PrincipalID)
+	pager := roleAssignmentsClient.NewListForSubscriptionPager(&armauthorization.RoleAssignmentsClientListForSubscriptionOptions{
+		Filter: &filter,
+	})
+
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list role assignments for identity %s: %w", identityName, err)
+		}
+
+		for _, assignment := range page.Value {
+			if assignment.Properties == nil || assignment.Properties.RoleDefinitionID == nil {
+				continue
+			}
+
+			// Get the role definition to extract permissions
+			roleDefID := *assignment.Properties.RoleDefinitionID
+			scope := *assignment.Properties.Scope
+
+			roleDef, err := roleDefinitionsClient.GetByID(ctx, roleDefID, nil)
+			if err != nil {
+				ginkgo.GinkgoLogr.Info("WARN: failed to get role definition", "roleDefID", roleDefID, "error", err)
+				continue
+			}
+
+			// Extract actions from the role definition
+			if roleDef.Properties != nil && roleDef.Properties.Permissions != nil {
+				for _, permission := range roleDef.Properties.Permissions {
+					if permission.Actions != nil {
+						for _, action := range permission.Actions {
+							if action != nil {
+								grantedActions[*action] = true
+							}
+						}
+					}
+				}
+			}
+
+			ginkgo.GinkgoLogr.Info("Role assignment found",
+				"identity", identityName,
+				"roleDefinitionId", roleDefID,
+				"scope", scope,
+				"roleName", func() string {
+					if roleDef.Properties != nil && roleDef.Properties.RoleName != nil {
+						return *roleDef.Properties.RoleName
+					}
+					return "not found"
+				}())
+		}
+	}
+
+	// Check for missing actions
+	missingActions := checkMissingPermissions(expectedBindings.RequiredActions, grantedActions)
+
+	if len(missingActions) > 0 {
+		ginkgo.GinkgoLogr.Info("Identity is missing required permissions, creating custom role",
+			"identity", identityName,
+			"missingActions", missingActions)
+
+		// Create a custom role with the missing actions
+		customRoleName := fmt.Sprintf("E2E-Test-%s-CustomRole", identityName)
+		customRoleID, err := tc.createCustomRole(ctx, subscriptionID, customRoleName, missingActions, resourceGroupName)
+		if err != nil {
+			return fmt.Errorf("failed to create custom role for identity %s: %w", identityName, err)
+		}
+
+		// Assign the custom role to the identity
+		err = tc.assignRoleToIdentity(ctx, subscriptionID, resourceGroupName, *identity.Properties.PrincipalID, customRoleID)
+		if err != nil {
+			return fmt.Errorf("failed to assign custom role to identity %s: %w", identityName, err)
+		}
+
+		ginkgo.GinkgoLogr.Info("Custom role created and assigned successfully",
+			"identity", identityName,
+			"customRoleName", customRoleName,
+			"customRoleID", customRoleID)
+	} else {
+		ginkgo.GinkgoLogr.Info("Identity permissions validated successfully",
+			"identity", identityName,
+			"grantedActions", len(grantedActions))
+	}
+
+	return nil
+}
+
+// checkMissingPermissions checks if all expected permissions are granted.
+func checkMissingPermissions(expected []string, granted map[string]bool) []string {
+	var missing []string
+
+	for _, expectedPerm := range expected {
+		if !hasPermission(expectedPerm, granted) {
+			missing = append(missing, expectedPerm)
+		}
+	}
+
+	return missing
+}
+
+// hasPermission checks if a specific permission is granted
+func hasPermission(required string, granted map[string]bool) bool {
+	// Direct match
+	if granted[required] {
+		return true
+	}
+
+	return false
+}
+
+// createCustomRole creates a custom Azure role definition with the specified actions.
+// The role is scoped to the subscription and can be assigned at the resource group level.
+// Each unique set of actions gets its own role definition.
+func (tc *perItOrDescribeTestContext) createCustomRole(
+	ctx context.Context,
+	subscriptionID string,
+	roleName string,
+	actions []string,
+	resourceGroupName string,
+) (string, error) {
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	roleDefsClient, err := armauthorization.NewRoleDefinitionsClient(creds, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create role definitions client: %w", err)
+	}
+
+	// Generate a unique role definition ID based on subscription, role name, and the specific actions
+	// This ensures each unique set of missing permissions gets its own role definition
+	roleDefID := guid(subscriptionID, roleName, strings.Join(actions, "|"))
+
+	scope := fmt.Sprintf("/subscriptions/%s", subscriptionID)
+
+	// Check if this exact role already exists
+	existingRole, err := roleDefsClient.Get(ctx, scope, roleDefID, nil)
+	if err == nil && existingRole.RoleDefinition.Properties != nil {
+		// Role with this exact set of actions already exists
+		// Track it so we know to clean it up (in case we created it in a previous validation step)
+		tc.trackCustomRoleDefinition(roleDefID)
+
+		ginkgo.GinkgoLogr.Info("Custom role with these actions already exists, reusing it",
+			"roleName", roleName,
+			"roleID", *existingRole.RoleDefinition.ID,
+			"actionCount", len(actions))
+		return *existingRole.RoleDefinition.ID, nil
+	}
+
+	// Create new role definition with the missing actions
+	roleProperties := &armauthorization.RoleDefinitionProperties{
+		RoleName:    &roleName,
+		Description: to.Ptr(fmt.Sprintf("E2E test custom role for %s with additional permissions", roleName)),
+		RoleType:    to.Ptr("CustomRole"),
+		Permissions: []*armauthorization.Permission{
+			{
+				Actions:    to.SliceOfPtrs(actions...),
+				NotActions: []*string{},
+			},
+		},
+		AssignableScopes: []*string{
+			&scope,
+			to.Ptr(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroupName)),
+		},
+	}
+
+	roleDefinition := armauthorization.RoleDefinition{
+		Properties: roleProperties,
+	}
+
+	result, err := roleDefsClient.CreateOrUpdate(ctx, scope, roleDefID, roleDefinition, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create role definition: %w", err)
+	}
+
+	// Track this custom role so we can clean it up later
+	tc.trackCustomRoleDefinition(roleDefID)
+
+	ginkgo.GinkgoLogr.Info("New custom role created with missing actions",
+		"roleName", roleName,
+		"roleID", *result.RoleDefinition.ID,
+		"actions", actions)
+
+	return *result.RoleDefinition.ID, nil
+}
+
+// assignRoleToIdentity assigns a role to a managed identity at the resource group scope.
+func (tc *perItOrDescribeTestContext) assignRoleToIdentity(
+	ctx context.Context,
+	subscriptionID string,
+	resourceGroupName string,
+	principalID string,
+	roleDefinitionID string,
+) error {
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to get Azure credentials: %w", err)
+	}
+
+	roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create role assignments client: %w", err)
+	}
+
+	// Generate a unique assignment name using GUID
+	scope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, resourceGroupName)
+	assignmentName := guid(scope, principalID, roleDefinitionID)
+
+	roleAssignmentProperties := &armauthorization.RoleAssignmentProperties{
+		PrincipalID:      &principalID,
+		RoleDefinitionID: &roleDefinitionID,
+		PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
+	}
+
+	roleAssignment := armauthorization.RoleAssignmentCreateParameters{
+		Properties: roleAssignmentProperties,
+	}
+
+	result, err := roleAssignmentsClient.Create(ctx, scope, assignmentName, roleAssignment, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create role assignment: %w", err)
+	}
+
+	ginkgo.GinkgoLogr.Info("Role assigned to identity",
+		"scope", scope,
+		"principalID", principalID,
+		"roleDefinitionID", roleDefinitionID,
+		"assignmentID", *result.RoleAssignment.ID)
+
+	return nil
+}
+
+// guid generates a deterministic UUID for Azure resource names.
+// This matches the pattern used in Bicep: guid(scope, principal, role).
+// Uses UUID v5 (SHA-1 based) for RFC 4122 compliant deterministic UUIDs.
+func guid(parts ...string) string {
+	combined := strings.Join(parts, "|")
+	return uuid.NewSHA1(uuid.NameSpaceDNS, []byte(combined)).String()
 }

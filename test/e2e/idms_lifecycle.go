@@ -88,6 +88,27 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("validating SMI identity has correct service managed identity role binding")
+			// Determine which resource group contains the identities
+			var identityResourceGroup string
+			if tc.UsePooledIdentities() {
+				leasedPool, _, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+				Expect(err).NotTo(HaveOccurred())
+				identityResourceGroup = leasedPool.ResourceGroupName
+			} else {
+				identityResourceGroup = *resourceGroup.Name
+			}
+
+			// Validate the SMI Identity
+			// TODO: Remove this once we have updated rolebinding
+			// we should no longer see see tests not adding permissions
+			smiIdentityName := framework.ServiceManagedIdentityName
+			if !tc.UsePooledIdentities() {
+				smiIdentityName = fmt.Sprintf("%s-%s", framework.ServiceManagedIdentityName, customerClusterName)
+			}
+			err = tc.ValidateIdentityRoleBindings(ctx, smiIdentityName, identityResourceGroup)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("creating the HCP cluster with ImageDigestMirrors via v20251223preview")
 			imageDigestMirrors := []*hcpsdk20251223preview.ImageDigestMirror{
 				{
