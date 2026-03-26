@@ -108,7 +108,7 @@ var _ = Describe("Customer", func() {
 				// Validate the SMI Identity
 				// TODO: Remove this once we have updated rolebinding
 				// we should no longer see tests not adding permissions
-				err = tc.ValidateIdentityRoleBindings(ctx, smiIdentityName, smiIdentityResourceGroup, *resourceGroup.Name)
+				err = tc.EnsureIdentityRoleAssignments(ctx, framework.ServiceManagedIdentityName, smiIdentityName, smiIdentityResourceGroup)
 				Expect(err).NotTo(HaveOccurred())
 			}
 
