@@ -30,6 +30,10 @@ def find_heading(lines: list[str], options: tuple[str, ...]) -> tuple[int, str] 
     return None
 
 
+def find_headings(lines: list[str], options: tuple[str, ...]) -> list[tuple[int, str]]:
+    return [(index, line) for index, line in enumerate(lines) if line in options]
+
+
 def section_body(lines: list[str], heading_index: int) -> str:
     body_lines: list[str] = []
     for line in lines[heading_index + 1 :]:
@@ -37,6 +41,33 @@ def section_body(lines: list[str], heading_index: int) -> str:
             break
         body_lines.append(line)
     return "\n".join(body_lines).strip()
+
+
+def validate_fixture(path: Path, lines: list[str]) -> list[str]:
+    errors: list[str] = []
+    if not lines or not lines[0].startswith("# PR #"):
+        return [f"{path} is missing a '# PR #' title heading"]
+
+    for prefix in REQUIRED_METADATA_PREFIXES:
+        if not any(line.startswith(prefix) for line in lines):
+            errors.append(f"{path} is missing required metadata line starting with: {prefix}")
+
+    for section_options in REQUIRED_SECTIONS:
+        heading = find_heading(lines, section_options)
+        if heading is None:
+            errors.append(f"{path} is missing one of the required headings: {section_options}")
+            continue
+
+        body = section_body(lines, heading[0])
+        if not body:
+            errors.append(f"{path} section {heading[1]} is empty")
+
+    for heading_index, heading_name in find_headings(lines, OPTIONAL_CONTEXT_SECTIONS):
+        body = section_body(lines, heading_index)
+        if not body:
+            errors.append(f"{path} section {heading_name} is empty")
+
+    return errors
 
 
 def main() -> int:
@@ -49,30 +80,7 @@ def main() -> int:
         errors.append(f"no historical fixture files found under {fixtures_dir}")
 
     for path in fixture_paths:
-        lines = path.read_text(encoding="utf-8").splitlines()
-        if not lines or not lines[0].startswith("# PR #"):
-            errors.append(f"{path} is missing a '# PR #' title heading")
-            continue
-
-        for prefix in REQUIRED_METADATA_PREFIXES:
-            if not any(line.startswith(prefix) for line in lines):
-                errors.append(f"{path} is missing required metadata line starting with: {prefix}")
-
-        for section_options in REQUIRED_SECTIONS:
-            heading = find_heading(lines, section_options)
-            if heading is None:
-                errors.append(f"{path} is missing one of the required headings: {section_options}")
-                continue
-
-            body = section_body(lines, heading[0])
-            if not body:
-                errors.append(f"{path} section {heading[1]} is empty")
-
-        optional_context_heading = find_heading(lines, OPTIONAL_CONTEXT_SECTIONS)
-        if optional_context_heading is not None:
-            body = section_body(lines, optional_context_heading[0])
-            if not body:
-                errors.append(f"{path} section {optional_context_heading[1]} is empty")
+        errors.extend(validate_fixture(path, path.read_text(encoding="utf-8").splitlines()))
 
     if errors:
         for error in errors:

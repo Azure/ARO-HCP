@@ -15,7 +15,7 @@ EVAL_JUDGE_TIMEOUT ?= 300
 .PHONY: pycheck jsoncheck inventorycheck historycheck commandcheck copilotcheck fixturecheck classify-test evalrunner-test validate evalcheck classify bootstrap-history
 
 pycheck:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m py_compile common/tools/classify_paths.py common/tools/bootstrap_history.py common/tools/run_reviewer_evals.py common/tools/test_classify_paths.py common/tools/test_run_reviewer_evals.py common/tools/validate_asset_inventory.py common/tools/validate_claude_commands.py common/tools/validate_copilot_instructions.py common/tools/validate_fixture_quality.py common/tools/validate_history_corpus.py common/tools/validate_reviewer_assets.py
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m py_compile common/tools/classify_paths.py common/tools/bootstrap_history.py common/tools/run_reviewer_evals.py common/tools/test_bootstrap_history.py common/tools/test_classify_paths.py common/tools/test_run_reviewer_evals.py common/tools/test_validate_fixture_quality.py common/tools/validate_asset_inventory.py common/tools/validate_claude_commands.py common/tools/validate_copilot_instructions.py common/tools/validate_fixture_quality.py common/tools/validate_history_corpus.py common/tools/validate_reviewer_assets.py
 
 jsoncheck:
 	$(PYTHON) common/tools/validate_reviewer_assets.py
@@ -34,9 +34,11 @@ copilotcheck:
 
 fixturecheck:
 	$(PYTHON) common/tools/validate_fixture_quality.py
+	$(PYTHON) common/tools/test_validate_fixture_quality.py
 
 classify-test:
 	$(PYTHON) common/tools/test_classify_paths.py
+	$(PYTHON) common/tools/test_bootstrap_history.py
 
 evalrunner-test:
 	$(PYTHON) common/tools/test_run_reviewer_evals.py

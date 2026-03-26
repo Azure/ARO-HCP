@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import classify_paths
 import json
 import re
 import subprocess
@@ -29,15 +30,11 @@ def repo_root(explicit_root: str | None) -> Path:
     return Path(run(['git', 'rev-parse', '--show-toplevel']).strip())
 
 def load_routing() -> dict:
-    path = Path(__file__).resolve().parents[1] / 'domain-routing' / 'path-routing.json'
-    return json.loads(path.read_text(encoding="utf-8"))
+    return classify_paths.load_routing()
 
 def classify(paths: list[str], routing: dict) -> list[str]:
-    domains = []
-    for domain in routing['domains']:
-        if any(path.startswith(prefix) for prefix in domain['path_prefixes'] for path in paths):
-            domains.append(domain['id'])
-    return sorted(set(domains))
+    classified = classify_paths.classify(paths, routing)
+    return [domain['domain'] for domain in classified['domains']]
 
 def merged_pr_numbers(
     root: Path,
