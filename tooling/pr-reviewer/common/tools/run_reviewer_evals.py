@@ -14,6 +14,8 @@ DEFAULT_MIXED_IDS = [9, 10, 11, 12, 13]
 DEFAULT_REVIEW_MODEL = "claude-sonnet-4-6"
 DEFAULT_JUDGE_MODEL = "claude-sonnet-4-6"
 PASSING_SCORE = 4
+# Headless evals auto-approve only these read-only tools via --permission-mode bypassPermissions.
+# Do not add write or execute tools here without an explicit security review.
 REVIEW_ALLOWED_TOOLS = "Read,Glob,Grep"
 
 JUDGE_SCHEMA = {

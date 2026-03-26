@@ -1,5 +1,6 @@
 PYTHON ?= python3
-REPO_ROOT ?= ~/ARO-HCP
+REVIEWER_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+REPO_ROOT ?= $(abspath $(REVIEWER_DIR)/../..)
 GIT_REF ?= origin/main
 SINCE ?= 2025-09-25
 OUTPUT ?= fixtures/history/bootstrap-$(SINCE).json
@@ -49,4 +50,4 @@ classify:
 	$(PYTHON) common/tools/classify_paths.py --pretty $(PATHS)
 
 bootstrap-history:
-	$(PYTHON) common/tools/bootstrap_history.py --repo-root $(REPO_ROOT) --git-ref $(GIT_REF) --since $(SINCE) --output $(OUTPUT)
+	$(PYTHON) common/tools/bootstrap_history.py --repo-root "$(REPO_ROOT)" --git-ref "$(GIT_REF)" --since "$(SINCE)" --output "$(OUTPUT)"

@@ -76,6 +76,8 @@ Common examples:
 
 `make -C tooling/pr-reviewer evalcheck` runs the shared automated eval runner. It executes the reviewer headlessly with the local `claude` CLI and scores the output with an automated judge, so it is intentionally separate from `make -C tooling/pr-reviewer validate`.
 
+The eval runner auto-approves only read-only Claude tools (`Read,Glob,Grep`) during headless execution. Treat that tool list as a security boundary: adding write or execute tools requires explicit review.
+
 ## How to contribute
 
 Keep contribution changes operational and source-of-truth driven:
