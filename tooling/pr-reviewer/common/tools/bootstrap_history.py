@@ -30,7 +30,7 @@ def repo_root(explicit_root: str | None) -> Path:
 
 def load_routing() -> dict:
     path = Path(__file__).resolve().parents[1] / 'domain-routing' / 'path-routing.json'
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 def classify(paths: list[str], routing: dict) -> list[str]:
     domains = []
@@ -132,6 +132,11 @@ def main() -> int:
     parser.add_argument('--output', required=True, help='Output JSON path')
     parser.add_argument('--paths', nargs='*', default=[], help='Optional path prefixes to limit merge discovery to')
     parser.add_argument('--include-check-runs', action='store_true', help='Also fetch check runs for each PR head SHA')
+    parser.add_argument(
+        '--include-repo-root',
+        action='store_true',
+        help='Include the local checkout path in generated artifacts. Off by default to keep checked-in metadata portable.',
+    )
     parser.add_argument('--state-file', default=None, help='Optional path to write refresh state metadata')
     args = parser.parse_args()
 
@@ -152,19 +157,22 @@ def main() -> int:
             + (f" ({', '.join(window)})" if window else ''),
             file=sys.stderr,
         )
+    metadata = {
+        'repo': args.repo,
+        'git_ref': args.git_ref,
+        'since': args.since,
+        'before': args.before,
+        'paths': args.paths,
+        'generated_at': datetime.now(timezone.utc).isoformat(),
+        'source': f'git first-parent merge history on {args.git_ref} + gh api pull request metadata',
+        'reviewer_version': 'v1-alpha',
+        'pull_request_count': len(numbers),
+    }
+    if args.include_repo_root:
+        metadata['repo_root'] = str(root)
+
     corpus = {
-        'metadata': {
-            'repo': args.repo,
-            'repo_root': str(root),
-            'git_ref': args.git_ref,
-            'since': args.since,
-            'before': args.before,
-            'paths': args.paths,
-            'generated_at': datetime.now(timezone.utc).isoformat(),
-            'source': f'git first-parent merge history on {args.git_ref} + gh api pull request metadata',
-            'reviewer_version': 'v1-alpha',
-            'pull_request_count': len(numbers),
-        },
+        'metadata': metadata,
         'pull_requests': [
             pull_request_bundle(args.repo, number, args.include_check_runs, routing)
             for number in numbers
@@ -182,12 +190,11 @@ def main() -> int:
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(corpus, indent=2, sort_keys=True) + '\n')
+    output_path.write_text(json.dumps(corpus, indent=2, sort_keys=True) + '\n', encoding='utf-8')
 
     if args.state_file:
         state = {
             'repo': args.repo,
-            'repo_root': str(root),
             'git_ref': args.git_ref,
             'since': args.since,
             'before': args.before,
@@ -196,7 +203,9 @@ def main() -> int:
             'pull_request_count': len(numbers),
             'last_pull_request': numbers[0] if numbers else None,
         }
-        Path(args.state_file).write_text(json.dumps(state, indent=2, sort_keys=True) + '\n')
+        if args.include_repo_root:
+            state['repo_root'] = str(root)
+        Path(args.state_file).write_text(json.dumps(state, indent=2, sort_keys=True) + '\n', encoding='utf-8')
 
     return 0
 

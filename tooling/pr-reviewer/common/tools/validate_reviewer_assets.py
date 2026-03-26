@@ -7,7 +7,10 @@ from pathlib import Path
 
 
 def load_json(path: Path) -> object:
-    return json.loads(path.read_text())
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{path} is not valid JSON: {exc}") from exc
 
 
 def main() -> int:
