@@ -1,0 +1,23 @@
+{
+  "eval_prompts": {
+    "azure-infra-bicep": 3,
+    "backend-state": 4,
+    "cluster-service": 3,
+    "config-pipelines": 4,
+    "lifecycle-operators": 4,
+    "maestro": 3,
+    "observability-testing-tooling": 8,
+    "resource-provider-api": 5
+  },
+  "fixtures": {
+    "azure-infra-bicep": 3,
+    "backend-state": 4,
+    "cluster-service": 3,
+    "config-pipelines": 4,
+    "lifecycle-operators": 4,
+    "maestro": 3,
+    "observability-testing-tooling": 5,
+    "resource-provider-api": 5
+  },
+  "last_updated": "2026-03-26"
+}

@@ -1,0 +1,247 @@
+{
+  "always_load": [
+    "sub-reviewers/cross-cutting.md"
+  ],
+  "domains": [
+    {
+      "display_name": "Resource Provider / API",
+      "high_risk_prefixes": [
+        "api/redhatopenshift/",
+        "internal/api/",
+        "internal/admission/",
+        "internal/validation/"
+      ],
+      "history_fixtures": [
+        "fixtures/historical-prs/pr-4536-nodepool-version-validation.md",
+        "fixtures/historical-prs/pr-4557-image-digest-mirrors.md",
+        "fixtures/historical-prs/pr-3954-control-plane-upgrade-controller-flow.md",
+        "fixtures/historical-prs/pr-3679-breakglass-sessions.md"
+      ],
+      "id": "resource-provider-api",
+      "owners_files": [
+        "OWNERS",
+        "frontend/OWNERS",
+        "admin/OWNERS",
+        "api/OWNERS",
+        "internal/OWNERS",
+        "tooling/OWNERS"
+      ],
+      "path_prefixes": [
+        "frontend/",
+        "admin/",
+        "api/",
+        "internal/api/",
+        "internal/admission/",
+        "internal/validation/",
+        "test-integration/frontend/",
+        "tooling/hcpctl/",
+        "tooling/kiota/"
+      ],
+      "priority": 1,
+      "sub_reviewer": "sub-reviewers/resource-provider-api.md"
+    },
+    {
+      "display_name": "Backend / State",
+      "high_risk_prefixes": [
+        "backend/pkg/controllers/",
+        "internal/database/"
+      ],
+      "history_fixtures": [
+        "fixtures/historical-prs/pr-1766-billing-documents-cosmos.md",
+        "fixtures/historical-prs/pr-3954-control-plane-upgrade-controller-flow.md",
+        "fixtures/historical-prs/pr-1633-self-managed-prometheus.md"
+      ],
+      "id": "backend-state",
+      "owners_files": [
+        "OWNERS",
+        "backend/OWNERS",
+        "internal/OWNERS"
+      ],
+      "path_prefixes": [
+        "backend/",
+        "internal/database/",
+        "test-integration/utils/databasemutationhelpers/"
+      ],
+      "priority": 5,
+      "sub_reviewer": "sub-reviewers/backend-state.md"
+    },
+    {
+      "display_name": "Cluster Service",
+      "high_risk_prefixes": [
+        "cluster-service/"
+      ],
+      "history_fixtures": [
+        "fixtures/historical-prs/pr-4318-pipeline-retry-scope.md",
+        "fixtures/historical-prs/pr-2252-cluster-service-slo-alerting.md",
+        "fixtures/historical-prs/pr-1633-self-managed-prometheus.md"
+      ],
+      "id": "cluster-service",
+      "owners_files": [
+        "OWNERS",
+        "cluster-service/OWNERS"
+      ],
+      "path_prefixes": [
+        "cluster-service/"
+      ],
+      "priority": 6,
+      "sub_reviewer": "sub-reviewers/cluster-service.md"
+    },
+    {
+      "display_name": "Maestro",
+      "high_risk_prefixes": [
+        "maestro/server/",
+        "maestro/agent/",
+        "backend/pkg/maestro/"
+      ],
+      "history_fixtures": [
+        "fixtures/historical-prs/pr-4318-pipeline-retry-scope.md",
+        "fixtures/historical-prs/pr-1229-maestro-agent-metrics.md",
+        "fixtures/historical-prs/pr-1633-self-managed-prometheus.md"
+      ],
+      "id": "maestro",
+      "owners_files": [
+        "OWNERS",
+        "maestro/OWNERS"
+      ],
+      "path_prefixes": [
+        "maestro/",
+        "backend/pkg/maestro/"
+      ],
+      "priority": 6,
+      "sub_reviewer": "sub-reviewers/maestro.md"
+    },
+    {
+      "display_name": "Lifecycle Operators",
+      "high_risk_prefixes": [
+        "acm/deploy/",
+        "hypershiftoperator/deploy/"
+      ],
+      "history_fixtures": [
+        "fixtures/historical-prs/pr-4318-pipeline-retry-scope.md",
+        "fixtures/historical-prs/pr-1073-use-helm-for-pko.md",
+        "fixtures/historical-prs/pr-3679-breakglass-sessions.md",
+        "fixtures/historical-prs/pr-1633-self-managed-prometheus.md"
+      ],
+      "id": "lifecycle-operators",
+      "owners_files": [
+        "OWNERS",
+        "acm/OWNERS",
+        "hypershiftoperator/OWNERS",
+        "route-monitor-operator/OWNERS",
+        "secret-sync-controller/OWNERS",
+        "pko/OWNERS",
+        "tooling/OWNERS"
+      ],
+      "path_prefixes": [
+        "acm/",
+        "hypershiftoperator/",
+        "route-monitor-operator/",
+        "secret-sync-controller/",
+        "velero/",
+        "pko/",
+        "tooling/olm-bundle-repkg/",
+        "tooling/secret-sync/"
+      ],
+      "priority": 7,
+      "sub_reviewer": "sub-reviewers/lifecycle-operators.md"
+    },
+    {
+      "display_name": "Azure Infrastructure / Bicep",
+      "high_risk_prefixes": [
+        "dev-infrastructure/templates/",
+        "dev-infrastructure/modules/",
+        "dev-infrastructure/configurations/"
+      ],
+      "history_fixtures": [
+        "fixtures/historical-prs/pr-4555-shoebox-log-forwarding.md",
+        "fixtures/historical-prs/pr-3679-breakglass-sessions.md",
+        "fixtures/historical-prs/pr-1633-self-managed-prometheus.md"
+      ],
+      "id": "azure-infra-bicep",
+      "owners_files": [
+        "OWNERS",
+        "dev-infrastructure/OWNERS"
+      ],
+      "path_prefixes": [
+        "dev-infrastructure/",
+        "demo/"
+      ],
+      "priority": 3,
+      "sub_reviewer": "sub-reviewers/azure-infra-bicep.md"
+    },
+    {
+      "display_name": "Config / Pipelines",
+      "high_risk_prefixes": [
+        "config/config.yaml",
+        "config/config.schema.json",
+        "config/rendered/",
+        ".github/workflows/"
+      ],
+      "history_fixtures": [
+        "fixtures/historical-prs/pr-4318-pipeline-retry-scope.md",
+        "fixtures/historical-prs/pr-4555-shoebox-log-forwarding.md",
+        "fixtures/historical-prs/pr-3679-breakglass-sessions.md",
+        "fixtures/historical-prs/pr-1633-self-managed-prometheus.md"
+      ],
+      "id": "config-pipelines",
+      "owners_files": [
+        "OWNERS",
+        ".github/OWNERS",
+        "config/OWNERS",
+        "tooling/OWNERS"
+      ],
+      "path_prefixes": [
+        "config/",
+        ".github/workflows/",
+        "topology.yaml",
+        "Makefile",
+        "tooling/azure-automation/",
+        "tooling/pipeline-documentation/",
+        "tooling/templatize/",
+        "tooling/image-updater/",
+        "tooling/yamlwrap/"
+      ],
+      "priority": 2,
+      "sub_reviewer": "sub-reviewers/config-pipelines.md"
+    },
+    {
+      "display_name": "Observability / Testing / Tooling",
+      "high_risk_prefixes": [
+        "observability/alerts/",
+        "observability/prometheus/",
+        "test/e2e/",
+        "tooling/prometheus-rules/"
+      ],
+      "history_fixtures": [
+        "fixtures/historical-prs/pr-4555-shoebox-log-forwarding.md",
+        "fixtures/historical-prs/pr-4557-image-digest-mirrors.md",
+        "fixtures/historical-prs/pr-2252-cluster-service-slo-alerting.md",
+        "fixtures/historical-prs/pr-3954-control-plane-upgrade-controller-flow.md",
+        "fixtures/historical-prs/pr-1633-self-managed-prometheus.md"
+      ],
+      "id": "observability-testing-tooling",
+      "owners_files": [
+        "OWNERS",
+        ".github/OWNERS",
+        "observability/OWNERS",
+        "test/OWNERS",
+        "tooling/OWNERS"
+      ],
+      "path_prefixes": [
+        "observability/",
+        "test/",
+        "test-integration/",
+        ".github/copilot-instructions.md",
+        ".github/instructions/arohcp-reviewer.instructions.md",
+        ".claude/commands/arohcp/",
+        "tooling/aro-hcp-exporter/",
+        "tooling/grafanactl/",
+        "tooling/helmtest/",
+        "tooling/prometheus-rules/",
+        "tooling/pr-reviewer/"
+      ],
+      "priority": 4,
+      "sub_reviewer": "sub-reviewers/observability-testing-tooling.md"
+    }
+  ]
+}

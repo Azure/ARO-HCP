@@ -1,0 +1,37 @@
+{
+  "finding_types": [
+    {
+      "description": "Behavior likely differs from intended product behavior.",
+      "id": "correctness"
+    },
+    {
+      "description": "Old/new API, persisted data, or version skew may break.",
+      "id": "compatibility"
+    },
+    {
+      "description": "Deployment, retry, or scope changes may create unsafe rollout behavior.",
+      "id": "rollout-safety"
+    },
+    {
+      "description": "Generated or rendered artifacts appear out of sync with source-of-truth changes.",
+      "id": "generated-drift"
+    },
+    {
+      "description": "Identity, secret, or RBAC boundaries may have widened unsafely.",
+      "id": "security-rbac"
+    },
+    {
+      "description": "Evidence is missing, weak, or contradicted by existing tests/fixtures.",
+      "id": "test-evidence"
+    },
+    {
+      "description": "Logs, metrics, tracing, or alert coverage may regress.",
+      "id": "observability"
+    },
+    {
+      "description": "The reviewer cannot responsibly conclude without domain-owner confirmation.",
+      "id": "owner-escalation"
+    }
+  ],
+  "version": 1
+}

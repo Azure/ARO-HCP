@@ -1,0 +1,310 @@
+{
+  "assets": [
+    {
+      "section": "entry-points",
+      "path": "SKILL.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
+      "path": "CLAUDE.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
+      "path": "AGENTS.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
+      "path": "Makefile",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
+      "path": "common/tools/run_reviewer_evals.py",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
+      "path": ".claude/commands/arohcp/review.md",
+      "root": "repo",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
+      "path": ".claude/commands/arohcp/eval.md",
+      "root": "repo",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
+      "path": ".github/copilot-instructions.md",
+      "root": "repo",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
+      "path": ".github/instructions/arohcp-reviewer.instructions.md",
+      "root": "repo",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/resource-provider-api.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/backend-state.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/cluster-service.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/maestro.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/lifecycle-operators.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/azure-infra-bicep.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/config-pipelines.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/observability-testing-tooling.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "domain-specialists",
+      "path": "sub-reviewers/cross-cutting.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/domain-routing/path-routing.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/owners/domain-owners.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/checklists/repo-invariants.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/checklists/high-risk-helpers.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/validation/command-policy.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/learnings/seed-history-lessons.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/triage/severity-confidence.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/output-contract/review-format.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/evidence/evidence-requirements.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/review-style/comment-style.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/scope-boundaries/non-goals.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/fallback-behavior/low-confidence.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/risk-model/blast-radius.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/change-intent/heuristics.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/update-workflows/incremental-refresh.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/staleness/freshness-rules.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/coverage/coverage-model.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/versioning/policy.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/human-escalation/rules.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/security-privacy/history-handling.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "shared-authoritative-assets",
+      "path": "common/acceptance-criteria/readiness.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "machine-readable-assets",
+      "path": "common/schema/history-corpus.schema.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "machine-readable-assets",
+      "path": "common/taxonomy/finding-types.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "machine-readable-assets",
+      "path": "common/suppressions/suppressions.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "machine-readable-assets",
+      "path": "common/staleness/seed-status.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "machine-readable-assets",
+      "path": "common/coverage/seed-coverage.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "machine-readable-assets",
+      "path": "common/versioning/version.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "machine-readable-assets",
+      "path": "common/versioning/asset-inventory.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "machine-readable-assets",
+      "path": "fixtures/history/*.json",
+      "root": "reviewer",
+      "kind": "glob"
+    },
+    {
+      "section": "seed-rationale-and-calibration",
+      "path": "fixtures/historical-prs/*.md",
+      "root": "reviewer",
+      "kind": "glob"
+    },
+    {
+      "section": "seed-rationale-and-calibration",
+      "path": "calibration/great-review-patterns.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "evaluation",
+      "path": "evals/evals.json",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "evaluation",
+      "path": "tests/README.md",
+      "root": "reviewer",
+      "kind": "file"
+    }
+  ]
+}

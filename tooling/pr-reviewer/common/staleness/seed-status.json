@@ -1,0 +1,55 @@
+{
+  "domains": [
+    {
+      "depth": "moderate",
+      "id": "resource-provider-api",
+      "needs_deeper_history": false,
+      "status": "seeded"
+    },
+    {
+      "depth": "light",
+      "id": "backend-state",
+      "needs_deeper_history": false,
+      "status": "seeded"
+    },
+    {
+      "depth": "light",
+      "id": "cluster-service",
+      "needs_deeper_history": false,
+      "status": "seeded"
+    },
+    {
+      "depth": "light",
+      "id": "maestro",
+      "needs_deeper_history": false,
+      "status": "seeded"
+    },
+    {
+      "depth": "light",
+      "id": "lifecycle-operators",
+      "needs_deeper_history": false,
+      "status": "seeded"
+    },
+    {
+      "depth": "light",
+      "id": "azure-infra-bicep",
+      "needs_deeper_history": false,
+      "status": "seeded"
+    },
+    {
+      "depth": "light",
+      "id": "config-pipelines",
+      "needs_deeper_history": false,
+      "status": "seeded"
+    },
+    {
+      "depth": "light",
+      "id": "observability-testing-tooling",
+      "needs_deeper_history": false,
+      "status": "seeded"
+    }
+  ],
+  "last_updated": "2026-03-25",
+  "notes": "Seeded from repo docs, local main-branch history, representative merged PRs #4536, #4318, #4555, and #4557, then expanded with dedicated older-history backfills for backend-state, cluster-service, maestro, and lifecycle-operators.",
+  "seed_type": "fixture-and-backfill-seed"
+}

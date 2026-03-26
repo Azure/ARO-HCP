@@ -1,0 +1,185 @@
+{
+  "evals": [
+    {
+      "expected_output": "Calls out X.Y.Z vs prerelease handling, checks whether old persisted data remains updatable, asks for targeted tests and actionable errors, and uses the #4536 history when relevant.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-4536-nodepool-version-validation.md",
+        "tooling/pr-reviewer/common/checklists/repo-invariants.md"
+      ],
+      "id": 1,
+      "prompt": "Review an ARO-HCP change that touches frontend/pkg/frontend/node_pool.go, internal/admission/admit_nodepool.go, internal/validation/validate_nodepools.go, and test-integration/frontend/cross_version_roundtrip_test.go to tighten nodepool version validation. I want a high-signal review focused on compatibility, exact version semantics, and missing evidence.",
+      "domains": [
+        "resource-provider-api"
+      ]
+    },
+    {
+      "expected_output": "Recognizes repo-wide blast radius, explains why generic retry patterns are risky, and ties the concern back to the historical lesson from #4318.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-4318-pipeline-retry-scope.md",
+        "tooling/pr-reviewer/common/risk-model/blast-radius.md"
+      ],
+      "id": 2,
+      "prompt": "Review an ARO-HCP PR that broadly removes 'context deadline exceeded' from many pipeline.yaml retry rules across service and management components. I want the review to focus on blast radius, rollout safety, and whether the retry policy is becoming too generic or too narrow.",
+      "domains": [
+        "cluster-service",
+        "maestro",
+        "lifecycle-operators",
+        "config-pipelines"
+      ]
+    },
+    {
+      "expected_output": "Checks mgmt-only gating, fixture completeness, evidence strength for rollout, and whether follow-up dependencies are acknowledged; references #4555 when helpful.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-4555-shoebox-log-forwarding.md",
+        "tooling/pr-reviewer/common/checklists/repo-invariants.md"
+      ],
+      "id": 3,
+      "prompt": "Review an ARO-HCP observability change that updates dev-infrastructure fixtures, observability/arobit templates, and the kusto log E2E to route management-cluster logs through a new Shoebox transform. I care about cluster-type gating, rollout evidence, and whether the generated outputs are complete.",
+      "domains": [
+        "azure-infra-bicep",
+        "observability-testing-tooling"
+      ]
+    },
+    {
+      "expected_output": "Looks for end-to-end propagation across generated and hand-written layers, checks validation and verifier updates, and distinguishes a flaky unit from a product regression using the #4557 history.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-4557-image-digest-mirrors.md",
+        "tooling/pr-reviewer/common/learnings/seed-history-lessons.md"
+      ],
+      "id": 4,
+      "prompt": "Review an ARO-HCP API/model plumbing change that adds ImageDigestMirrors support across TypeSpec, OpenAPI, internal/api, validation, OCM conversion, test SDK, E2E setup, and IDMS verifiers. I want the review to catch drift across generated artifacts and to separate product risk from obvious test flakes.",
+      "domains": [
+        "resource-provider-api",
+        "observability-testing-tooling"
+      ]
+    },
+    {
+      "expected_output": "Questions persisted identity field semantics, checks duplicate-query and delete-lifecycle handling, rejects clever error assumptions, and asks for targeted tests using the #1766 history when relevant.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-1766-billing-documents-cosmos.md",
+        "tooling/pr-reviewer/common/checklists/repo-invariants.md"
+      ],
+      "id": 5,
+      "prompt": "Review an ARO-HCP backend/state change that adds billing document persistence in Cosmos DB, touching backend/main.go, backend/operations_scanner.go, internal/database/document.go, internal/mocks/dbclient.go, and dev-infrastructure/modules/rp-cosmos.bicep. I want the review to focus on data-model identity, duplicate-query handling, delete/billing lifecycle correctness, and missing tests.",
+      "domains": [
+        "backend-state",
+        "azure-infra-bicep"
+      ]
+    },
+    {
+      "expected_output": "Cross-checks SLO prose, PromQL, and threshold math, flags 99 vs 99.9 drift, checks tested-rule and generated-output alignment, and treats the change as real behavioral risk using the #2252 history.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-2252-cluster-service-slo-alerting.md",
+        "tooling/pr-reviewer/common/checklists/repo-invariants.md"
+      ],
+      "id": 6,
+      "prompt": "Review an ARO-HCP cluster-service observability PR that adds SLO dashboards, generated alerting and recording rules, tested-rule fixtures, and Prometheus rule generator changes. I want the review to focus on SLO math, prose/query alignment, alert severity budgets, and whether generated and tested outputs stay in sync.",
+      "domains": [
+        "cluster-service",
+        "observability-testing-tooling"
+      ]
+    },
+    {
+      "expected_output": "Prefers direct upstream image references when safe, asks for stderr logging instead of file-based logs, questions unnecessary volumes or config indirection, and uses the #1229 history when relevant.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-1229-maestro-agent-metrics.md",
+        "tooling/pr-reviewer/common/review-style/comment-style.md"
+      ],
+      "id": 7,
+      "prompt": "Review a maestro agent observability change that adds podmonitor and metrics-proxy Helm templates, config.yaml values, and pipeline wiring. I care about image sourcing, runtime logging visibility, and whether the deployment is accumulating unnecessary operational surface area.",
+      "domains": [
+        "maestro",
+        "observability-testing-tooling"
+      ]
+    },
+    {
+      "expected_output": "Questions whether a custom image is necessary, looks for obsolete build glue left behind, pushes RBAC toward least privilege for the runtime service account, and checks config ownership using the #1073 history.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-1073-use-helm-for-pko.md",
+        "tooling/pr-reviewer/common/risk-model/blast-radius.md"
+      ],
+      "id": 8,
+      "prompt": "Review an ARO-HCP change that converts PKO deployment to Helm, updates config.yaml and public-cloud configs, and wires pipeline.yaml for operator rollout. I want the review to focus on RBAC scope, image sourcing, obsolete build glue, and configuration ownership.",
+      "domains": [
+        "lifecycle-operators",
+        "config-pipelines"
+      ]
+    },
+    {
+      "expected_output": "Treats the upgrade-controller flow as a real behavior change, checks whether desired-version resolution follows the actual upgrade graph, rejects duplicated state fields, asks whether stale active/desired version state can leak across reconciles, distinguishes missing next-minor channels from missing seed versions in that graph, and asks for targeted controller/integration evidence using the #3954 history.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-3954-control-plane-upgrade-controller-flow.md",
+        "tooling/pr-reviewer/common/checklists/repo-invariants.md"
+      ],
+      "id": 9,
+      "prompt": "Review an ARO-HCP change that adds control plane upgrade controller flow across backend/pkg/controllers/upgradecontrollers/, internal/api/types_serviceprovider_cluster.go, internal/cincinatti/, internal/ocm/, deepcopy generation, and DatabaseCRUD frontend artifacts. I want the review to focus on upgrade-path correctness, duplicated state, controller decomposition, and whether the test/evidence story is strong enough for a control-plane behavior change.",
+      "domains": [
+        "resource-provider-api",
+        "backend-state",
+        "observability-testing-tooling"
+      ]
+    },
+    {
+      "expected_output": "Treats the breakglass feature as a security-sensitive multi-surface rollout, asks for immutable/required field semantics, prefers deriving identity from the HCP resource ID, and checks config/rendered/policy/deployment sync using the #3679 history.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-3679-breakglass-sessions.md",
+        "tooling/pr-reviewer/common/risk-model/blast-radius.md"
+      ],
+      "id": 10,
+      "prompt": "Review an ARO-HCP admin API change that adds breakglass sessions across admin/server handlers and middleware, acm policy templates, config/config.yaml and config/rendered/, deployment templates, values, and docs. I want the review to focus on identity derivation, immutable field semantics, security/operability documentation, and whether the rollout artifacts stay consistent across all touched surfaces.",
+      "domains": [
+        "resource-provider-api",
+        "lifecycle-operators",
+        "config-pipelines"
+      ]
+    },
+    {
+      "expected_output": "Treats the self-managed Prometheus rollout as an operational system change, asks how Prometheus is monitored, checks persistence and anti-affinity choices, questions unnecessary monitors, and verifies config/bicep/docs move together using the #1633 history.",
+      "files": [
+        "tooling/pr-reviewer/fixtures/historical-prs/pr-1633-self-managed-prometheus.md",
+        "tooling/pr-reviewer/common/checklists/repo-invariants.md"
+      ],
+      "id": 11,
+      "prompt": "Review an ARO-HCP observability rollout that adds service and pod monitors across backend, cluster-service, frontend, hypershift, maestro, and PKO, updates config.yaml and public-cloud overlays, changes dev-infrastructure metrics and cluster templates, and updates monitoring docs. I want the review to focus on operational usefulness of each monitor, Prometheus deployment resilience, and whether config, infrastructure, and docs all describe the same runtime system.",
+      "domains": [
+        "azure-infra-bicep",
+        "cluster-service",
+        "maestro",
+        "lifecycle-operators",
+        "config-pipelines",
+        "observability-testing-tooling"
+      ]
+    },
+    {
+      "expected_output": "Flags hand-built ARM or Cosmos resource IDs instead of the shared `To*ResourceID*` helpers, checks `404`/`409`/`412`/`429` classification and CloudError shaping, asks whether cooldown and condition helpers still preserve controller lifecycle semantics, and questions controller tests that stop proving persisted end state by dropping the current `BasicControllerTest` and databasemutationhelpers patterns.",
+      "files": [
+        "tooling/pr-reviewer/common/checklists/high-risk-helpers.md",
+        "tooling/pr-reviewer/sub-reviewers/backend-state.md",
+        "tooling/pr-reviewer/sub-reviewers/resource-provider-api.md",
+        "tooling/pr-reviewer/sub-reviewers/observability-testing-tooling.md"
+      ],
+      "id": 12,
+      "prompt": "Review an ARO-HCP change that hand-builds cluster and operation resource IDs in controller code, broadens database and CloudError handling around not-found and conflict paths, replaces active-operation-aware cooldowns with a fixed timer, and simplifies controller integration tests so they no longer compare persisted end state after SyncOnce. I want the review to focus on identity safety, optimistic concurrency and error classification, controller lifecycle correctness, and whether the tests still prove real state transitions.",
+      "domains": [
+        "resource-provider-api",
+        "backend-state",
+        "observability-testing-tooling"
+      ]
+    },
+    {
+      "expected_output": "Treats the helper change as shared contract hardening, asks for focused regression tests proving informer indexing no longer panics on missing ResourceID and that generic Cosmos conversion restores ResourceID from the stored document instead of silently returning malformed state.",
+      "files": [
+        "tooling/pr-reviewer/common/checklists/high-risk-helpers.md",
+        "tooling/pr-reviewer/sub-reviewers/backend-state.md",
+        "tooling/pr-reviewer/sub-reviewers/observability-testing-tooling.md"
+      ],
+      "id": 13,
+      "prompt": "Review an ARO-HCP fix that adds nil checks to backend/pkg/informers/resourceGroupIndexFunc and hydrates ResourceID from GenericDocument.ResourceID inside internal/database/CosmosGenericToInternal after a field panic was observed, but adds no new tests. I want the review to focus on shared helper contracts, malformed persisted state recovery, and whether the regression evidence is strong enough.",
+      "domains": [
+        "backend-state",
+        "observability-testing-tooling"
+      ]
+    }
+  ],
+  "skill_name": "aro-hcp-pr-reviewer"
+}

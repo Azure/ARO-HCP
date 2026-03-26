@@ -1,0 +1,115 @@
+{
+  "domains": [
+    {
+      "domain": "resource-provider-api",
+      "escalation_note": "Consult the local OWNERS files for touched directories before naming an expert in review output.",
+      "owners_files": [
+        "OWNERS",
+        "frontend/OWNERS",
+        "admin/OWNERS",
+        "api/OWNERS",
+        "internal/OWNERS",
+        "tooling/OWNERS"
+      ]
+    },
+    {
+      "domain": "backend-state",
+      "escalation_note": "Consult the local OWNERS files for touched directories before naming an expert in review output.",
+      "owners_files": [
+        "OWNERS",
+        "backend/OWNERS",
+        "internal/OWNERS"
+      ]
+    },
+    {
+      "domain": "cluster-service",
+      "escalation_note": "Consult the local OWNERS files for touched directories before naming an expert in review output.",
+      "owners_files": [
+        "OWNERS",
+        "cluster-service/OWNERS"
+      ]
+    },
+    {
+      "domain": "maestro",
+      "escalation_note": "Consult the local OWNERS files for touched directories before naming an expert in review output.",
+      "owners_files": [
+        "OWNERS",
+        "maestro/OWNERS"
+      ]
+    },
+    {
+      "domain": "lifecycle-operators",
+      "escalation_note": "Consult the local OWNERS files for touched directories before naming an expert in review output.",
+      "owners_files": [
+        "OWNERS",
+        "acm/OWNERS",
+        "hypershiftoperator/OWNERS",
+        "route-monitor-operator/OWNERS",
+        "secret-sync-controller/OWNERS",
+        "pko/OWNERS",
+        "tooling/OWNERS"
+      ]
+    },
+    {
+      "domain": "azure-infra-bicep",
+      "escalation_note": "Consult the local OWNERS files for touched directories before naming an expert in review output.",
+      "owners_files": [
+        "OWNERS",
+        "dev-infrastructure/OWNERS"
+      ]
+    },
+    {
+      "domain": "config-pipelines",
+      "escalation_note": "Consult the local OWNERS files for touched directories before naming an expert in review output.",
+      "owners_files": [
+        "OWNERS",
+        ".github/OWNERS",
+        "config/OWNERS",
+        "tooling/OWNERS"
+      ]
+    },
+    {
+      "domain": "observability-testing-tooling",
+      "escalation_note": "Consult the local OWNERS files for touched directories before naming an expert in review output.",
+      "owners_files": [
+        "OWNERS",
+        ".github/OWNERS",
+        "observability/OWNERS",
+        "test/OWNERS",
+        "tooling/OWNERS"
+      ]
+    }
+  ],
+  "root": {
+    "aliases": {
+      "service-lifecycle": [
+        "ashishmax31",
+        "avollmer-redhat",
+        "hbhushan3",
+        "janboll",
+        "mmazur",
+        "raelga",
+        "roivaz",
+        "sclarkso",
+        "venkateshsredhat",
+        "weherdh"
+      ],
+      "service-lifecycle-global-approvers": [
+        "janboll",
+        "mmazur",
+        "raelga",
+        "roivaz"
+      ]
+    },
+    "global_approvers": [
+      "deads2k",
+      "stevekuznetsov",
+      "geoberle",
+      "bennerv"
+    ],
+    "owners_files": [
+      "OWNERS",
+      "OWNERS_ALIASES"
+    ]
+  }
+}

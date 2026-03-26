@@ -1,0 +1,13 @@
+{
+  "before": "2025-09-25",
+  "generated_at": "2026-03-25T22:40:22.701113+00:00",
+  "git_ref": "origin/main",
+  "last_pull_request": 2798,
+  "paths": [
+    "cluster-service/"
+  ],
+  "pull_request_count": 86,
+  "repo": "Azure/ARO-HCP",
+  "repo_root": "/home/swiencki/ARO-HCP",
+  "since": null
+}

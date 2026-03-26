@@ -1,0 +1,173 @@
+{
+  "$id": "https://example.invalid/arohcp/pr-reviewer/history-corpus.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "metadata": {
+      "additionalProperties": true,
+      "properties": {
+        "before": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "git_ref": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pull_request_count": {
+          "type": "integer"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "repo_root": {
+          "type": "string"
+        },
+        "reviewer_version": {
+          "type": "string"
+        },
+        "since": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "since",
+        "generated_at",
+        "source"
+      ],
+      "type": "object"
+    },
+    "pull_requests": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changed_files": {
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "additions": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "changes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "deletions": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "filename"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "check_runs": {
+            "type": "array"
+          },
+          "commits": {
+            "type": "array"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "html_url": {
+            "type": "string"
+          },
+          "issue_comments": {
+            "type": "array"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "merged_at": {
+            "type": "string"
+          },
+          "merged_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "type": "integer"
+          },
+          "review_comments": {
+            "type": "array"
+          },
+          "reviews": {
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "merged_at",
+          "changed_files",
+          "domains"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "metadata",
+    "pull_requests"
+  ],
+  "title": "ARO-HCP reviewer history corpus",
+  "type": "object"
+}

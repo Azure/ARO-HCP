@@ -1,0 +1,18 @@
+{
+  "before": "2025-09-25",
+  "generated_at": "2026-03-25T22:46:51.467831+00:00",
+  "git_ref": "origin/main",
+  "last_pull_request": 2774,
+  "paths": [
+    "acm/",
+    "hypershiftoperator/",
+    "route-monitor-operator/",
+    "secret-sync-controller/",
+    "velero/",
+    "pko/"
+  ],
+  "pull_request_count": 40,
+  "repo": "Azure/ARO-HCP",
+  "repo_root": "/home/swiencki/ARO-HCP",
+  "since": null
+}
