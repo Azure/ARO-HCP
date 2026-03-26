@@ -446,7 +446,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	if len(managedResourceGroups) > 0 {
-		return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s", len(managedResourceGroups), resourceGroupName)
+		return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v", len(managedResourceGroups), resourceGroupName, managedResourceGroups)
 	} else {
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
 	}
