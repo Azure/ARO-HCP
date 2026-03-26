@@ -22,6 +22,15 @@ build-and-push: image
 	$(CONTAINER_ENGINE) push ${OC_MIRROR_IMAGE}:latest
 .PHONY: build-and-push
 
+export-image-vars:
+ifndef IMAGE_VARS_FILE
+	$(error IMAGE_VARS_FILE is not set)
+endif
+	@echo "IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR_URL}" > $(IMAGE_VARS_FILE)
+	@echo "IMAGE_REF=${OC_MIRROR_IMAGE_TAGGED}" >> $(IMAGE_VARS_FILE)
+	@echo "IMAGE_REF_LATEST=${OC_MIRROR_IMAGE}:latest" >> $(IMAGE_VARS_FILE)
+.PHONY: export-image-vars
+
 acm-dry-run: image
 	@$(CONTAINER_ENGINE) run -it --rm --tmpfs /oc-mirror-workspace \
 		-e XDG_RUNTIME_DIR=/ \

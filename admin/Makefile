@@ -78,6 +78,14 @@ build-and-push: image $(ORAS)
 	$(CONTAINER_ENGINE) push ${ADMIN_API_TAGGED_IMAGE}
 .PHONY: build-and-push
 
+export-image-vars:
+ifndef IMAGE_VARS_FILE
+	$(error IMAGE_VARS_FILE is not set)
+endif
+	@echo "IMAGE_REGISTRY=${ARO_HCP_IMAGE_REGISTRY}" > $(IMAGE_VARS_FILE)
+	@echo "IMAGE_REF=${ADMIN_API_TAGGED_IMAGE}" >> $(IMAGE_VARS_FILE)
+.PHONY: export-image-vars
+
 OVERRIDE_CONFIG_FILE ?= /tmp/amin-api-override-config-$(date +%s).yaml
 
 record-override: $(YQ) $(ORAS)

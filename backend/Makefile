@@ -58,6 +58,14 @@ build-and-push: image $(ORAS)
 	$(CONTAINER_ENGINE) push ${BACKEND_TAGGED_IMAGE}
 .PHONY: build-and-push
 
+export-image-vars:
+ifndef IMAGE_VARS_FILE
+	$(error IMAGE_VARS_FILE is not set)
+endif
+	@echo "IMAGE_REGISTRY=${ARO_HCP_IMAGE_REGISTRY}" > $(IMAGE_VARS_FILE)
+	@echo "IMAGE_REF=${BACKEND_TAGGED_IMAGE}" >> $(IMAGE_VARS_FILE)
+.PHONY: export-image-vars
+
 # Unix timestamp for this make run; computed once so multiple targets see the same value.
 MAKE_RUN_TS := $(shell date +%s)
 OVERRIDE_CONFIG_FILE ?= /tmp/backend-override-config-$(MAKE_RUN_TS).yaml
