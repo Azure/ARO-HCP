@@ -47,7 +47,7 @@ This file is the index for the ARO-HCP PR reviewer. Treat the listed files as th
 - `common/coverage/seed-coverage.json`
 - `common/versioning/version.json`
 - `common/versioning/asset-inventory.json`
-- `fixtures/history/*.json`
+- `tests/history-corpus-smoke.json`
 
 ## Seed rationale and calibration
 

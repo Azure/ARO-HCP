@@ -278,9 +278,9 @@
     },
     {
       "section": "machine-readable-assets",
-      "path": "fixtures/history/*.json",
+      "path": "tests/history-corpus-smoke.json",
       "root": "reviewer",
-      "kind": "glob"
+      "kind": "file"
     },
     {
       "section": "seed-rationale-and-calibration",

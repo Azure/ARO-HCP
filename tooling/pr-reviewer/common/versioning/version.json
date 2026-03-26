@@ -1,6 +1,6 @@
 {
   "last_updated": "2026-03-26",
-  "notes": "Added automated reviewer eval runner, make evalcheck wiring, and command integration for /arohcp:eval.",
+  "notes": "Added automated reviewer eval runner and replaced committed raw history corpora with a small schema-validation sample.",
   "status": "active",
   "version": "v1-alpha"
 }

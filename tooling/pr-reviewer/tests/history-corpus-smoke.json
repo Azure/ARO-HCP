@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "generated_at": "2026-03-26T00:00:00+00:00",
+    "git_ref": "origin/main",
+    "paths": [
+      "backend/"
+    ],
+    "pull_request_count": 1,
+    "repo": "Azure/ARO-HCP",
+    "reviewer_version": "v1-alpha",
+    "since": "2025-09-25",
+    "source": "small committed sample for history-corpus schema validation"
+  },
+  "pull_requests": [
+    {
+      "body": null,
+      "changed_files": [
+        {
+          "filename": "backend/pkg/informers/informers.go",
+          "status": "modified"
+        }
+      ],
+      "check_runs": [],
+      "commits": [],
+      "domains": [
+        "backend-state"
+      ],
+      "issue_comments": [],
+      "merged_at": "2026-03-24T15:38:46Z",
+      "number": 4605,
+      "review_comments": [],
+      "reviews": [],
+      "title": "Sample shared helper hardening change"
+    }
+  ]
+}

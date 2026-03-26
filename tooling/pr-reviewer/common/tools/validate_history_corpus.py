@@ -121,7 +121,7 @@ def validate_history_corpus(corpus: object, schema: dict[str, object], domain_id
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate reviewer history corpus snapshots against the schema.")
+    parser = argparse.ArgumentParser(description="Validate reviewer history corpus JSON against the schema.")
     parser.add_argument("paths", nargs="*", help="Optional history corpus JSON paths to validate")
     args = parser.parse_args()
 
@@ -140,7 +140,7 @@ def main() -> int:
     if args.paths:
         corpus_paths = [Path(item).expanduser() for item in args.paths]
     else:
-        corpus_paths = sorted((reviewer_root / "fixtures/history").glob("*.json"))
+        corpus_paths = [reviewer_root / "tests/history-corpus-smoke.json"]
 
     if not corpus_paths:
         print("no history corpus files found", file=sys.stderr)
