@@ -1,0 +1,5 @@
+FROM nested-podman
+USER root
+RUN chmod 777 /opt/app-root
+RUN dnf install -y git go make pass qrencode net-tools tree || true
+RUN dnf clean all
