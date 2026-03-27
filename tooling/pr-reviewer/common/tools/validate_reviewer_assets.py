@@ -17,6 +17,7 @@ def main() -> int:
     reviewer_root = Path(__file__).resolve().parents[2]
     repo_root = reviewer_root.parent.parent
     errors: list[str] = []
+    runtime_agent_path = reviewer_root / "agents/aro-hcp-pr-reviewer-main.md"
 
     def require(condition: bool, message: str) -> None:
         if not condition:
@@ -36,6 +37,18 @@ def main() -> int:
     load_json(reviewer_root / "common/taxonomy/finding-types.json")
     load_json(reviewer_root / "common/suppressions/suppressions.json")
     load_json(reviewer_root / "common/schema/history-corpus.schema.json")
+    skill_text = (reviewer_root / "SKILL.md").read_text(encoding="utf-8")
+    require_file(runtime_agent_path, "runtime reviewer agent")
+    runtime_agent_text = runtime_agent_path.read_text(encoding="utf-8") if runtime_agent_path.exists() else ""
+
+    require("context: fork" in skill_text, "SKILL.md must declare context: fork")
+    require("disable-model-invocation: true" in skill_text, "SKILL.md must disable direct model invocation")
+    require("agent: aro-hcp-pr-reviewer-main" in skill_text, "SKILL.md must dispatch to aro-hcp-pr-reviewer-main")
+    if runtime_agent_text:
+        require(
+            "name: aro-hcp-pr-reviewer-main" in runtime_agent_text,
+            "runtime reviewer agent name must match SKILL.md agent",
+        )
 
     domains = routing["domains"]
     routing_ids = [domain["id"] for domain in domains]

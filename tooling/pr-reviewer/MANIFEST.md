@@ -4,7 +4,8 @@ This file is the index for the ARO-HCP PR reviewer. Treat the listed files as th
 
 ## Entry points
 
-- `SKILL.md` — portable orchestrator workflow and trigger description.
+- `SKILL.md` — portable launcher that forks to the fresh reviewer runtime.
+- `agents/aro-hcp-pr-reviewer-main.md` — authoritative runtime reviewer agent used by the forked launcher.
 - `CLAUDE.md` — repo-local entry point that points back to `SKILL.md`.
 - `AGENTS.md` — minimal loader for environments that look for agent notes.
 - `Makefile` — convenience targets for script validation, reviewer asset validation, asset inventory checks, history corpus validation, path classification, and history bootstrap.

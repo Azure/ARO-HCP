@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-03-26",
-  "notes": "Added automated reviewer eval runner and replaced committed raw history corpora with a small schema-validation sample.",
+  "last_updated": "2026-03-27",
+  "notes": "Moved SKILL.md to a fresh forked launcher and added the main runtime reviewer agent.",
   "status": "active",
   "version": "v1-alpha"
 }

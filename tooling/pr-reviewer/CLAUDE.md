@@ -2,7 +2,7 @@
 
 This directory contains the in-repo ARO-HCP PR reviewer agent.
 
-Start with `SKILL.md` for the portable review workflow and triggering guidance.
+Start with `SKILL.md` for the portable launcher and triggering guidance. It forks into `agents/aro-hcp-pr-reviewer-main.md` for the runtime review flow.
 
 Use `MANIFEST.md` to find the authoritative assets:
 - `sub-reviewers/` contains domain-specific reviewer instructions.

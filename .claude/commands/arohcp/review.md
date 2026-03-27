@@ -1,7 +1,7 @@
 ---
 description: Review an ARO-HCP PR, commit range, path set, or current branch diff using the in-repo reviewer
 argument-hint: [PR-number | PR-URL | commit-range | paths]
-allowed-tools: Read, Glob, Grep, Bash(git:*), Bash(gh:*), Bash(make:*), Bash(go:*), Bash(python3:*)
+allowed-tools: Read, Glob, Grep, Bash(git:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(make:*), Bash(go:*), Bash(python3:*)
 ---
 
 # ARO-HCP Review
@@ -13,7 +13,7 @@ Use the in-repo reviewer under `tooling/pr-reviewer/` instead of manually rememb
 1. Treat `tooling/pr-reviewer/SKILL.md`, `tooling/pr-reviewer/MANIFEST.md`, and `tooling/pr-reviewer/common/validation/command-policy.md` as authoritative.
 2. Resolve the target from `$ARGUMENTS`:
    - if empty, review the current branch diff against `origin/main`
-   - if it is a PR number or GitHub PR URL, gather the PR body, changed files, review comments, issue comments, and check signal with `gh`
+   - if it is a PR number or GitHub PR URL, gather the PR body, changed files, review comments, issue comments, and check signal with read-only `gh pr view` / `gh pr diff` calls
    - if it contains `..` or `...`, treat it as a commit range
    - otherwise, treat it as one or more file/path arguments
 3. Gather the changed files and enough surrounding context to understand intent before reviewing.

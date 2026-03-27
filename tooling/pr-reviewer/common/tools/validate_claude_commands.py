@@ -10,12 +10,13 @@ COMMAND_SPECS = {
     ".claude/commands/arohcp/review.md": {
         "title": "# ARO-HCP Review",
         "required_frontmatter": ["description", "argument-hint", "allowed-tools"],
-        "required_allowed_tools": [
+        "expected_allowed_tools": [
             "Read",
             "Glob",
             "Grep",
             "Bash(git:*)",
-            "Bash(gh:*)",
+            "Bash(gh pr view:*)",
+            "Bash(gh pr diff:*)",
             "Bash(make:*)",
             "Bash(go:*)",
             "Bash(python3:*)",
@@ -35,12 +36,11 @@ COMMAND_SPECS = {
     ".claude/commands/arohcp/eval.md": {
         "title": "# ARO-HCP Eval",
         "required_frontmatter": ["description", "argument-hint", "allowed-tools"],
-        "required_allowed_tools": [
+        "expected_allowed_tools": [
             "Read",
             "Glob",
             "Grep",
             "Bash(git:*)",
-            "Bash(gh:*)",
             "Bash(make:*)",
             "Bash(python3:*)",
         ],
@@ -128,9 +128,11 @@ def main() -> int:
                 errors.append(f"{path} is missing required frontmatter key: {key}")
 
         allowed_tools = parse_allowed_tools(frontmatter.get("allowed-tools", ""))
-        for tool in spec["required_allowed_tools"]:
-            if tool not in allowed_tools:
-                errors.append(f"{path} is missing required allowed-tools entry: {tool}")
+        expected_allowed_tools = set(spec["expected_allowed_tools"])
+        for tool in expected_allowed_tools - allowed_tools:
+            errors.append(f"{path} is missing required allowed-tools entry: {tool}")
+        for tool in allowed_tools - expected_allowed_tools:
+            errors.append(f"{path} has unexpected allowed-tools entry: {tool}")
 
         if spec["title"] not in body:
             errors.append(f"{path} is missing required title heading: {spec['title']}")

@@ -1,7 +1,7 @@
 ---
 description: Run ARO-HCP reviewer evals, including the mixed-domain suite
 argument-hint: [mixed | all | eval-id[,eval-id...]]
-allowed-tools: Read, Glob, Grep, Bash(git:*), Bash(gh:*), Bash(make:*), Bash(python3:*)
+allowed-tools: Read, Glob, Grep, Bash(git:*), Bash(make:*), Bash(python3:*)
 ---
 
 # ARO-HCP Eval
@@ -20,11 +20,12 @@ Use the in-repo eval set to check whether the reviewer is still producing the ex
    - `make -C tooling/pr-reviewer evalcheck SELECTION=all` for the full set
    - `make -C tooling/pr-reviewer evalcheck SELECTION="$ARGUMENTS"` for explicit ids
 4. The shared runner lives at `tooling/pr-reviewer/common/tools/run_reviewer_evals.py` and is the source of truth for:
-   - executing the reviewer from `tooling/pr-reviewer/SKILL.md` and the assets indexed by `tooling/pr-reviewer/MANIFEST.md`
-   - executing the reviewer against the selected eval prompts
-   - scoring the output with the automated judge
-   - deciding pass/fail and surfacing missing behaviors
-5. Return the runner summary and call out which reviewer assets likely need tightening if any eval fails.
+    - executing the reviewer from `tooling/pr-reviewer/SKILL.md` and the assets indexed by `tooling/pr-reviewer/MANIFEST.md`
+    - executing the reviewer against the selected eval prompts
+    - scoring the output with the automated judge
+    - deciding pass/fail and surfacing missing behaviors
+5. Keep the eval command local to the repo assets and runner; it should not need `gh` access.
+6. Return the runner summary and call out which reviewer assets likely need tightening if any eval fails.
 
 ## Your Task
 

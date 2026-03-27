@@ -6,7 +6,8 @@ The goal is to keep reviewer behavior in the same assets the agent actually uses
 
 ## Start here
 
-- `SKILL.md` is the main reviewer workflow.
+- `SKILL.md` is the fresh-context launcher for the reviewer.
+- `agents/aro-hcp-pr-reviewer-main.md` is the main runtime reviewer workflow.
 - `MANIFEST.md` is the index of authoritative assets.
 - `Makefile` provides easy entry points for script validation, reviewer asset validation, path classification, and history bootstrap.
 - `common/validation/command-policy.md` defines the baseline and conditional repo-native commands for live reviews.
@@ -25,9 +26,9 @@ The goal is to keep reviewer behavior in the same assets the agent actually uses
 At runtime, the reviewer follows a compact flow:
 
 1. Claude commands or Copilot instructions point the agent at `tooling/pr-reviewer/`.
-2. `SKILL.md` and `MANIFEST.md` define the authoritative workflow and asset set.
+2. `SKILL.md` forks into `agents/aro-hcp-pr-reviewer-main.md`, and `MANIFEST.md` defines the authoritative workflow and asset set.
 3. Changed paths are classified with `common/tools/classify_paths.py` and `common/domain-routing/path-routing.json`.
-4. The reviewer loads `sub-reviewers/cross-cutting.md`, every matched domain specialist, and the router-selected `history_fixtures`.
+4. The forked runtime reviewer loads `sub-reviewers/cross-cutting.md`, every matched domain specialist, and the router-selected `history_fixtures`.
 5. Validation runs from `common/validation/command-policy.md`, including reviewer-local validation when the reviewer itself changes.
 6. Output is shaped by the review format, evidence rules, severity triage, and the no-findings path.
 
@@ -77,6 +78,8 @@ Common examples:
 `make -C tooling/pr-reviewer evalcheck` runs the shared automated eval runner. It executes the reviewer headlessly with the local `claude` CLI and scores the output with an automated judge, so it is intentionally separate from `make -C tooling/pr-reviewer validate`.
 
 The eval runner auto-approves only read-only Claude tools (`Read,Glob,Grep`) during headless execution. Treat that tool list as a security boundary: adding write or execute tools requires explicit review.
+
+The Claude review command still needs GitHub CLI access for PR context, but its allowlist should stay read-only and limited to `gh pr view` / `gh pr diff`.
 
 ## How to contribute
 

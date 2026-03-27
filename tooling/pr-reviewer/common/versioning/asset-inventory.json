@@ -8,6 +8,12 @@
     },
     {
       "section": "entry-points",
+      "path": "agents/aro-hcp-pr-reviewer-main.md",
+      "root": "reviewer",
+      "kind": "file"
+    },
+    {
+      "section": "entry-points",
       "path": "CLAUDE.md",
       "root": "reviewer",
       "kind": "file"
