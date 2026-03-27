@@ -1,0 +1,1487 @@
+{
+	"identity": {
+		"type": "UserAssigned",
+		"userAssignedIdentities": {}
+	},
+	"name": "invalid-idm-too-many",
+	"properties": {
+		"api": {
+			"visibility": "Public"
+		},
+		"clusterImageRegistry": {
+			"state": "Disabled"
+		},
+		"etcd": {
+			"dataEncryption": {
+				"keyManagementMode": "PlatformManaged"
+			}
+		},
+		"imageDigestMirrors": [
+			{
+				"source": "registry.example.com/ns0",
+				"mirrors": [
+					"mirror.example.com/ns0"
+				]
+			},
+			{
+				"source": "registry.example.com/ns1",
+				"mirrors": [
+					"mirror.example.com/ns1"
+				]
+			},
+			{
+				"source": "registry.example.com/ns2",
+				"mirrors": [
+					"mirror.example.com/ns2"
+				]
+			},
+			{
+				"source": "registry.example.com/ns3",
+				"mirrors": [
+					"mirror.example.com/ns3"
+				]
+			},
+			{
+				"source": "registry.example.com/ns4",
+				"mirrors": [
+					"mirror.example.com/ns4"
+				]
+			},
+			{
+				"source": "registry.example.com/ns5",
+				"mirrors": [
+					"mirror.example.com/ns5"
+				]
+			},
+			{
+				"source": "registry.example.com/ns6",
+				"mirrors": [
+					"mirror.example.com/ns6"
+				]
+			},
+			{
+				"source": "registry.example.com/ns7",
+				"mirrors": [
+					"mirror.example.com/ns7"
+				]
+			},
+			{
+				"source": "registry.example.com/ns8",
+				"mirrors": [
+					"mirror.example.com/ns8"
+				]
+			},
+			{
+				"source": "registry.example.com/ns9",
+				"mirrors": [
+					"mirror.example.com/ns9"
+				]
+			},
+			{
+				"source": "registry.example.com/ns10",
+				"mirrors": [
+					"mirror.example.com/ns10"
+				]
+			},
+			{
+				"source": "registry.example.com/ns11",
+				"mirrors": [
+					"mirror.example.com/ns11"
+				]
+			},
+			{
+				"source": "registry.example.com/ns12",
+				"mirrors": [
+					"mirror.example.com/ns12"
+				]
+			},
+			{
+				"source": "registry.example.com/ns13",
+				"mirrors": [
+					"mirror.example.com/ns13"
+				]
+			},
+			{
+				"source": "registry.example.com/ns14",
+				"mirrors": [
+					"mirror.example.com/ns14"
+				]
+			},
+			{
+				"source": "registry.example.com/ns15",
+				"mirrors": [
+					"mirror.example.com/ns15"
+				]
+			},
+			{
+				"source": "registry.example.com/ns16",
+				"mirrors": [
+					"mirror.example.com/ns16"
+				]
+			},
+			{
+				"source": "registry.example.com/ns17",
+				"mirrors": [
+					"mirror.example.com/ns17"
+				]
+			},
+			{
+				"source": "registry.example.com/ns18",
+				"mirrors": [
+					"mirror.example.com/ns18"
+				]
+			},
+			{
+				"source": "registry.example.com/ns19",
+				"mirrors": [
+					"mirror.example.com/ns19"
+				]
+			},
+			{
+				"source": "registry.example.com/ns20",
+				"mirrors": [
+					"mirror.example.com/ns20"
+				]
+			},
+			{
+				"source": "registry.example.com/ns21",
+				"mirrors": [
+					"mirror.example.com/ns21"
+				]
+			},
+			{
+				"source": "registry.example.com/ns22",
+				"mirrors": [
+					"mirror.example.com/ns22"
+				]
+			},
+			{
+				"source": "registry.example.com/ns23",
+				"mirrors": [
+					"mirror.example.com/ns23"
+				]
+			},
+			{
+				"source": "registry.example.com/ns24",
+				"mirrors": [
+					"mirror.example.com/ns24"
+				]
+			},
+			{
+				"source": "registry.example.com/ns25",
+				"mirrors": [
+					"mirror.example.com/ns25"
+				]
+			},
+			{
+				"source": "registry.example.com/ns26",
+				"mirrors": [
+					"mirror.example.com/ns26"
+				]
+			},
+			{
+				"source": "registry.example.com/ns27",
+				"mirrors": [
+					"mirror.example.com/ns27"
+				]
+			},
+			{
+				"source": "registry.example.com/ns28",
+				"mirrors": [
+					"mirror.example.com/ns28"
+				]
+			},
+			{
+				"source": "registry.example.com/ns29",
+				"mirrors": [
+					"mirror.example.com/ns29"
+				]
+			},
+			{
+				"source": "registry.example.com/ns30",
+				"mirrors": [
+					"mirror.example.com/ns30"
+				]
+			},
+			{
+				"source": "registry.example.com/ns31",
+				"mirrors": [
+					"mirror.example.com/ns31"
+				]
+			},
+			{
+				"source": "registry.example.com/ns32",
+				"mirrors": [
+					"mirror.example.com/ns32"
+				]
+			},
+			{
+				"source": "registry.example.com/ns33",
+				"mirrors": [
+					"mirror.example.com/ns33"
+				]
+			},
+			{
+				"source": "registry.example.com/ns34",
+				"mirrors": [
+					"mirror.example.com/ns34"
+				]
+			},
+			{
+				"source": "registry.example.com/ns35",
+				"mirrors": [
+					"mirror.example.com/ns35"
+				]
+			},
+			{
+				"source": "registry.example.com/ns36",
+				"mirrors": [
+					"mirror.example.com/ns36"
+				]
+			},
+			{
+				"source": "registry.example.com/ns37",
+				"mirrors": [
+					"mirror.example.com/ns37"
+				]
+			},
+			{
+				"source": "registry.example.com/ns38",
+				"mirrors": [
+					"mirror.example.com/ns38"
+				]
+			},
+			{
+				"source": "registry.example.com/ns39",
+				"mirrors": [
+					"mirror.example.com/ns39"
+				]
+			},
+			{
+				"source": "registry.example.com/ns40",
+				"mirrors": [
+					"mirror.example.com/ns40"
+				]
+			},
+			{
+				"source": "registry.example.com/ns41",
+				"mirrors": [
+					"mirror.example.com/ns41"
+				]
+			},
+			{
+				"source": "registry.example.com/ns42",
+				"mirrors": [
+					"mirror.example.com/ns42"
+				]
+			},
+			{
+				"source": "registry.example.com/ns43",
+				"mirrors": [
+					"mirror.example.com/ns43"
+				]
+			},
+			{
+				"source": "registry.example.com/ns44",
+				"mirrors": [
+					"mirror.example.com/ns44"
+				]
+			},
+			{
+				"source": "registry.example.com/ns45",
+				"mirrors": [
+					"mirror.example.com/ns45"
+				]
+			},
+			{
+				"source": "registry.example.com/ns46",
+				"mirrors": [
+					"mirror.example.com/ns46"
+				]
+			},
+			{
+				"source": "registry.example.com/ns47",
+				"mirrors": [
+					"mirror.example.com/ns47"
+				]
+			},
+			{
+				"source": "registry.example.com/ns48",
+				"mirrors": [
+					"mirror.example.com/ns48"
+				]
+			},
+			{
+				"source": "registry.example.com/ns49",
+				"mirrors": [
+					"mirror.example.com/ns49"
+				]
+			},
+			{
+				"source": "registry.example.com/ns50",
+				"mirrors": [
+					"mirror.example.com/ns50"
+				]
+			},
+			{
+				"source": "registry.example.com/ns51",
+				"mirrors": [
+					"mirror.example.com/ns51"
+				]
+			},
+			{
+				"source": "registry.example.com/ns52",
+				"mirrors": [
+					"mirror.example.com/ns52"
+				]
+			},
+			{
+				"source": "registry.example.com/ns53",
+				"mirrors": [
+					"mirror.example.com/ns53"
+				]
+			},
+			{
+				"source": "registry.example.com/ns54",
+				"mirrors": [
+					"mirror.example.com/ns54"
+				]
+			},
+			{
+				"source": "registry.example.com/ns55",
+				"mirrors": [
+					"mirror.example.com/ns55"
+				]
+			},
+			{
+				"source": "registry.example.com/ns56",
+				"mirrors": [
+					"mirror.example.com/ns56"
+				]
+			},
+			{
+				"source": "registry.example.com/ns57",
+				"mirrors": [
+					"mirror.example.com/ns57"
+				]
+			},
+			{
+				"source": "registry.example.com/ns58",
+				"mirrors": [
+					"mirror.example.com/ns58"
+				]
+			},
+			{
+				"source": "registry.example.com/ns59",
+				"mirrors": [
+					"mirror.example.com/ns59"
+				]
+			},
+			{
+				"source": "registry.example.com/ns60",
+				"mirrors": [
+					"mirror.example.com/ns60"
+				]
+			},
+			{
+				"source": "registry.example.com/ns61",
+				"mirrors": [
+					"mirror.example.com/ns61"
+				]
+			},
+			{
+				"source": "registry.example.com/ns62",
+				"mirrors": [
+					"mirror.example.com/ns62"
+				]
+			},
+			{
+				"source": "registry.example.com/ns63",
+				"mirrors": [
+					"mirror.example.com/ns63"
+				]
+			},
+			{
+				"source": "registry.example.com/ns64",
+				"mirrors": [
+					"mirror.example.com/ns64"
+				]
+			},
+			{
+				"source": "registry.example.com/ns65",
+				"mirrors": [
+					"mirror.example.com/ns65"
+				]
+			},
+			{
+				"source": "registry.example.com/ns66",
+				"mirrors": [
+					"mirror.example.com/ns66"
+				]
+			},
+			{
+				"source": "registry.example.com/ns67",
+				"mirrors": [
+					"mirror.example.com/ns67"
+				]
+			},
+			{
+				"source": "registry.example.com/ns68",
+				"mirrors": [
+					"mirror.example.com/ns68"
+				]
+			},
+			{
+				"source": "registry.example.com/ns69",
+				"mirrors": [
+					"mirror.example.com/ns69"
+				]
+			},
+			{
+				"source": "registry.example.com/ns70",
+				"mirrors": [
+					"mirror.example.com/ns70"
+				]
+			},
+			{
+				"source": "registry.example.com/ns71",
+				"mirrors": [
+					"mirror.example.com/ns71"
+				]
+			},
+			{
+				"source": "registry.example.com/ns72",
+				"mirrors": [
+					"mirror.example.com/ns72"
+				]
+			},
+			{
+				"source": "registry.example.com/ns73",
+				"mirrors": [
+					"mirror.example.com/ns73"
+				]
+			},
+			{
+				"source": "registry.example.com/ns74",
+				"mirrors": [
+					"mirror.example.com/ns74"
+				]
+			},
+			{
+				"source": "registry.example.com/ns75",
+				"mirrors": [
+					"mirror.example.com/ns75"
+				]
+			},
+			{
+				"source": "registry.example.com/ns76",
+				"mirrors": [
+					"mirror.example.com/ns76"
+				]
+			},
+			{
+				"source": "registry.example.com/ns77",
+				"mirrors": [
+					"mirror.example.com/ns77"
+				]
+			},
+			{
+				"source": "registry.example.com/ns78",
+				"mirrors": [
+					"mirror.example.com/ns78"
+				]
+			},
+			{
+				"source": "registry.example.com/ns79",
+				"mirrors": [
+					"mirror.example.com/ns79"
+				]
+			},
+			{
+				"source": "registry.example.com/ns80",
+				"mirrors": [
+					"mirror.example.com/ns80"
+				]
+			},
+			{
+				"source": "registry.example.com/ns81",
+				"mirrors": [
+					"mirror.example.com/ns81"
+				]
+			},
+			{
+				"source": "registry.example.com/ns82",
+				"mirrors": [
+					"mirror.example.com/ns82"
+				]
+			},
+			{
+				"source": "registry.example.com/ns83",
+				"mirrors": [
+					"mirror.example.com/ns83"
+				]
+			},
+			{
+				"source": "registry.example.com/ns84",
+				"mirrors": [
+					"mirror.example.com/ns84"
+				]
+			},
+			{
+				"source": "registry.example.com/ns85",
+				"mirrors": [
+					"mirror.example.com/ns85"
+				]
+			},
+			{
+				"source": "registry.example.com/ns86",
+				"mirrors": [
+					"mirror.example.com/ns86"
+				]
+			},
+			{
+				"source": "registry.example.com/ns87",
+				"mirrors": [
+					"mirror.example.com/ns87"
+				]
+			},
+			{
+				"source": "registry.example.com/ns88",
+				"mirrors": [
+					"mirror.example.com/ns88"
+				]
+			},
+			{
+				"source": "registry.example.com/ns89",
+				"mirrors": [
+					"mirror.example.com/ns89"
+				]
+			},
+			{
+				"source": "registry.example.com/ns90",
+				"mirrors": [
+					"mirror.example.com/ns90"
+				]
+			},
+			{
+				"source": "registry.example.com/ns91",
+				"mirrors": [
+					"mirror.example.com/ns91"
+				]
+			},
+			{
+				"source": "registry.example.com/ns92",
+				"mirrors": [
+					"mirror.example.com/ns92"
+				]
+			},
+			{
+				"source": "registry.example.com/ns93",
+				"mirrors": [
+					"mirror.example.com/ns93"
+				]
+			},
+			{
+				"source": "registry.example.com/ns94",
+				"mirrors": [
+					"mirror.example.com/ns94"
+				]
+			},
+			{
+				"source": "registry.example.com/ns95",
+				"mirrors": [
+					"mirror.example.com/ns95"
+				]
+			},
+			{
+				"source": "registry.example.com/ns96",
+				"mirrors": [
+					"mirror.example.com/ns96"
+				]
+			},
+			{
+				"source": "registry.example.com/ns97",
+				"mirrors": [
+					"mirror.example.com/ns97"
+				]
+			},
+			{
+				"source": "registry.example.com/ns98",
+				"mirrors": [
+					"mirror.example.com/ns98"
+				]
+			},
+			{
+				"source": "registry.example.com/ns99",
+				"mirrors": [
+					"mirror.example.com/ns99"
+				]
+			},
+			{
+				"source": "registry.example.com/ns100",
+				"mirrors": [
+					"mirror.example.com/ns100"
+				]
+			},
+			{
+				"source": "registry.example.com/ns101",
+				"mirrors": [
+					"mirror.example.com/ns101"
+				]
+			},
+			{
+				"source": "registry.example.com/ns102",
+				"mirrors": [
+					"mirror.example.com/ns102"
+				]
+			},
+			{
+				"source": "registry.example.com/ns103",
+				"mirrors": [
+					"mirror.example.com/ns103"
+				]
+			},
+			{
+				"source": "registry.example.com/ns104",
+				"mirrors": [
+					"mirror.example.com/ns104"
+				]
+			},
+			{
+				"source": "registry.example.com/ns105",
+				"mirrors": [
+					"mirror.example.com/ns105"
+				]
+			},
+			{
+				"source": "registry.example.com/ns106",
+				"mirrors": [
+					"mirror.example.com/ns106"
+				]
+			},
+			{
+				"source": "registry.example.com/ns107",
+				"mirrors": [
+					"mirror.example.com/ns107"
+				]
+			},
+			{
+				"source": "registry.example.com/ns108",
+				"mirrors": [
+					"mirror.example.com/ns108"
+				]
+			},
+			{
+				"source": "registry.example.com/ns109",
+				"mirrors": [
+					"mirror.example.com/ns109"
+				]
+			},
+			{
+				"source": "registry.example.com/ns110",
+				"mirrors": [
+					"mirror.example.com/ns110"
+				]
+			},
+			{
+				"source": "registry.example.com/ns111",
+				"mirrors": [
+					"mirror.example.com/ns111"
+				]
+			},
+			{
+				"source": "registry.example.com/ns112",
+				"mirrors": [
+					"mirror.example.com/ns112"
+				]
+			},
+			{
+				"source": "registry.example.com/ns113",
+				"mirrors": [
+					"mirror.example.com/ns113"
+				]
+			},
+			{
+				"source": "registry.example.com/ns114",
+				"mirrors": [
+					"mirror.example.com/ns114"
+				]
+			},
+			{
+				"source": "registry.example.com/ns115",
+				"mirrors": [
+					"mirror.example.com/ns115"
+				]
+			},
+			{
+				"source": "registry.example.com/ns116",
+				"mirrors": [
+					"mirror.example.com/ns116"
+				]
+			},
+			{
+				"source": "registry.example.com/ns117",
+				"mirrors": [
+					"mirror.example.com/ns117"
+				]
+			},
+			{
+				"source": "registry.example.com/ns118",
+				"mirrors": [
+					"mirror.example.com/ns118"
+				]
+			},
+			{
+				"source": "registry.example.com/ns119",
+				"mirrors": [
+					"mirror.example.com/ns119"
+				]
+			},
+			{
+				"source": "registry.example.com/ns120",
+				"mirrors": [
+					"mirror.example.com/ns120"
+				]
+			},
+			{
+				"source": "registry.example.com/ns121",
+				"mirrors": [
+					"mirror.example.com/ns121"
+				]
+			},
+			{
+				"source": "registry.example.com/ns122",
+				"mirrors": [
+					"mirror.example.com/ns122"
+				]
+			},
+			{
+				"source": "registry.example.com/ns123",
+				"mirrors": [
+					"mirror.example.com/ns123"
+				]
+			},
+			{
+				"source": "registry.example.com/ns124",
+				"mirrors": [
+					"mirror.example.com/ns124"
+				]
+			},
+			{
+				"source": "registry.example.com/ns125",
+				"mirrors": [
+					"mirror.example.com/ns125"
+				]
+			},
+			{
+				"source": "registry.example.com/ns126",
+				"mirrors": [
+					"mirror.example.com/ns126"
+				]
+			},
+			{
+				"source": "registry.example.com/ns127",
+				"mirrors": [
+					"mirror.example.com/ns127"
+				]
+			},
+			{
+				"source": "registry.example.com/ns128",
+				"mirrors": [
+					"mirror.example.com/ns128"
+				]
+			},
+			{
+				"source": "registry.example.com/ns129",
+				"mirrors": [
+					"mirror.example.com/ns129"
+				]
+			},
+			{
+				"source": "registry.example.com/ns130",
+				"mirrors": [
+					"mirror.example.com/ns130"
+				]
+			},
+			{
+				"source": "registry.example.com/ns131",
+				"mirrors": [
+					"mirror.example.com/ns131"
+				]
+			},
+			{
+				"source": "registry.example.com/ns132",
+				"mirrors": [
+					"mirror.example.com/ns132"
+				]
+			},
+			{
+				"source": "registry.example.com/ns133",
+				"mirrors": [
+					"mirror.example.com/ns133"
+				]
+			},
+			{
+				"source": "registry.example.com/ns134",
+				"mirrors": [
+					"mirror.example.com/ns134"
+				]
+			},
+			{
+				"source": "registry.example.com/ns135",
+				"mirrors": [
+					"mirror.example.com/ns135"
+				]
+			},
+			{
+				"source": "registry.example.com/ns136",
+				"mirrors": [
+					"mirror.example.com/ns136"
+				]
+			},
+			{
+				"source": "registry.example.com/ns137",
+				"mirrors": [
+					"mirror.example.com/ns137"
+				]
+			},
+			{
+				"source": "registry.example.com/ns138",
+				"mirrors": [
+					"mirror.example.com/ns138"
+				]
+			},
+			{
+				"source": "registry.example.com/ns139",
+				"mirrors": [
+					"mirror.example.com/ns139"
+				]
+			},
+			{
+				"source": "registry.example.com/ns140",
+				"mirrors": [
+					"mirror.example.com/ns140"
+				]
+			},
+			{
+				"source": "registry.example.com/ns141",
+				"mirrors": [
+					"mirror.example.com/ns141"
+				]
+			},
+			{
+				"source": "registry.example.com/ns142",
+				"mirrors": [
+					"mirror.example.com/ns142"
+				]
+			},
+			{
+				"source": "registry.example.com/ns143",
+				"mirrors": [
+					"mirror.example.com/ns143"
+				]
+			},
+			{
+				"source": "registry.example.com/ns144",
+				"mirrors": [
+					"mirror.example.com/ns144"
+				]
+			},
+			{
+				"source": "registry.example.com/ns145",
+				"mirrors": [
+					"mirror.example.com/ns145"
+				]
+			},
+			{
+				"source": "registry.example.com/ns146",
+				"mirrors": [
+					"mirror.example.com/ns146"
+				]
+			},
+			{
+				"source": "registry.example.com/ns147",
+				"mirrors": [
+					"mirror.example.com/ns147"
+				]
+			},
+			{
+				"source": "registry.example.com/ns148",
+				"mirrors": [
+					"mirror.example.com/ns148"
+				]
+			},
+			{
+				"source": "registry.example.com/ns149",
+				"mirrors": [
+					"mirror.example.com/ns149"
+				]
+			},
+			{
+				"source": "registry.example.com/ns150",
+				"mirrors": [
+					"mirror.example.com/ns150"
+				]
+			},
+			{
+				"source": "registry.example.com/ns151",
+				"mirrors": [
+					"mirror.example.com/ns151"
+				]
+			},
+			{
+				"source": "registry.example.com/ns152",
+				"mirrors": [
+					"mirror.example.com/ns152"
+				]
+			},
+			{
+				"source": "registry.example.com/ns153",
+				"mirrors": [
+					"mirror.example.com/ns153"
+				]
+			},
+			{
+				"source": "registry.example.com/ns154",
+				"mirrors": [
+					"mirror.example.com/ns154"
+				]
+			},
+			{
+				"source": "registry.example.com/ns155",
+				"mirrors": [
+					"mirror.example.com/ns155"
+				]
+			},
+			{
+				"source": "registry.example.com/ns156",
+				"mirrors": [
+					"mirror.example.com/ns156"
+				]
+			},
+			{
+				"source": "registry.example.com/ns157",
+				"mirrors": [
+					"mirror.example.com/ns157"
+				]
+			},
+			{
+				"source": "registry.example.com/ns158",
+				"mirrors": [
+					"mirror.example.com/ns158"
+				]
+			},
+			{
+				"source": "registry.example.com/ns159",
+				"mirrors": [
+					"mirror.example.com/ns159"
+				]
+			},
+			{
+				"source": "registry.example.com/ns160",
+				"mirrors": [
+					"mirror.example.com/ns160"
+				]
+			},
+			{
+				"source": "registry.example.com/ns161",
+				"mirrors": [
+					"mirror.example.com/ns161"
+				]
+			},
+			{
+				"source": "registry.example.com/ns162",
+				"mirrors": [
+					"mirror.example.com/ns162"
+				]
+			},
+			{
+				"source": "registry.example.com/ns163",
+				"mirrors": [
+					"mirror.example.com/ns163"
+				]
+			},
+			{
+				"source": "registry.example.com/ns164",
+				"mirrors": [
+					"mirror.example.com/ns164"
+				]
+			},
+			{
+				"source": "registry.example.com/ns165",
+				"mirrors": [
+					"mirror.example.com/ns165"
+				]
+			},
+			{
+				"source": "registry.example.com/ns166",
+				"mirrors": [
+					"mirror.example.com/ns166"
+				]
+			},
+			{
+				"source": "registry.example.com/ns167",
+				"mirrors": [
+					"mirror.example.com/ns167"
+				]
+			},
+			{
+				"source": "registry.example.com/ns168",
+				"mirrors": [
+					"mirror.example.com/ns168"
+				]
+			},
+			{
+				"source": "registry.example.com/ns169",
+				"mirrors": [
+					"mirror.example.com/ns169"
+				]
+			},
+			{
+				"source": "registry.example.com/ns170",
+				"mirrors": [
+					"mirror.example.com/ns170"
+				]
+			},
+			{
+				"source": "registry.example.com/ns171",
+				"mirrors": [
+					"mirror.example.com/ns171"
+				]
+			},
+			{
+				"source": "registry.example.com/ns172",
+				"mirrors": [
+					"mirror.example.com/ns172"
+				]
+			},
+			{
+				"source": "registry.example.com/ns173",
+				"mirrors": [
+					"mirror.example.com/ns173"
+				]
+			},
+			{
+				"source": "registry.example.com/ns174",
+				"mirrors": [
+					"mirror.example.com/ns174"
+				]
+			},
+			{
+				"source": "registry.example.com/ns175",
+				"mirrors": [
+					"mirror.example.com/ns175"
+				]
+			},
+			{
+				"source": "registry.example.com/ns176",
+				"mirrors": [
+					"mirror.example.com/ns176"
+				]
+			},
+			{
+				"source": "registry.example.com/ns177",
+				"mirrors": [
+					"mirror.example.com/ns177"
+				]
+			},
+			{
+				"source": "registry.example.com/ns178",
+				"mirrors": [
+					"mirror.example.com/ns178"
+				]
+			},
+			{
+				"source": "registry.example.com/ns179",
+				"mirrors": [
+					"mirror.example.com/ns179"
+				]
+			},
+			{
+				"source": "registry.example.com/ns180",
+				"mirrors": [
+					"mirror.example.com/ns180"
+				]
+			},
+			{
+				"source": "registry.example.com/ns181",
+				"mirrors": [
+					"mirror.example.com/ns181"
+				]
+			},
+			{
+				"source": "registry.example.com/ns182",
+				"mirrors": [
+					"mirror.example.com/ns182"
+				]
+			},
+			{
+				"source": "registry.example.com/ns183",
+				"mirrors": [
+					"mirror.example.com/ns183"
+				]
+			},
+			{
+				"source": "registry.example.com/ns184",
+				"mirrors": [
+					"mirror.example.com/ns184"
+				]
+			},
+			{
+				"source": "registry.example.com/ns185",
+				"mirrors": [
+					"mirror.example.com/ns185"
+				]
+			},
+			{
+				"source": "registry.example.com/ns186",
+				"mirrors": [
+					"mirror.example.com/ns186"
+				]
+			},
+			{
+				"source": "registry.example.com/ns187",
+				"mirrors": [
+					"mirror.example.com/ns187"
+				]
+			},
+			{
+				"source": "registry.example.com/ns188",
+				"mirrors": [
+					"mirror.example.com/ns188"
+				]
+			},
+			{
+				"source": "registry.example.com/ns189",
+				"mirrors": [
+					"mirror.example.com/ns189"
+				]
+			},
+			{
+				"source": "registry.example.com/ns190",
+				"mirrors": [
+					"mirror.example.com/ns190"
+				]
+			},
+			{
+				"source": "registry.example.com/ns191",
+				"mirrors": [
+					"mirror.example.com/ns191"
+				]
+			},
+			{
+				"source": "registry.example.com/ns192",
+				"mirrors": [
+					"mirror.example.com/ns192"
+				]
+			},
+			{
+				"source": "registry.example.com/ns193",
+				"mirrors": [
+					"mirror.example.com/ns193"
+				]
+			},
+			{
+				"source": "registry.example.com/ns194",
+				"mirrors": [
+					"mirror.example.com/ns194"
+				]
+			},
+			{
+				"source": "registry.example.com/ns195",
+				"mirrors": [
+					"mirror.example.com/ns195"
+				]
+			},
+			{
+				"source": "registry.example.com/ns196",
+				"mirrors": [
+					"mirror.example.com/ns196"
+				]
+			},
+			{
+				"source": "registry.example.com/ns197",
+				"mirrors": [
+					"mirror.example.com/ns197"
+				]
+			},
+			{
+				"source": "registry.example.com/ns198",
+				"mirrors": [
+					"mirror.example.com/ns198"
+				]
+			},
+			{
+				"source": "registry.example.com/ns199",
+				"mirrors": [
+					"mirror.example.com/ns199"
+				]
+			},
+			{
+				"source": "registry.example.com/ns200",
+				"mirrors": [
+					"mirror.example.com/ns200"
+				]
+			},
+			{
+				"source": "registry.example.com/ns201",
+				"mirrors": [
+					"mirror.example.com/ns201"
+				]
+			},
+			{
+				"source": "registry.example.com/ns202",
+				"mirrors": [
+					"mirror.example.com/ns202"
+				]
+			},
+			{
+				"source": "registry.example.com/ns203",
+				"mirrors": [
+					"mirror.example.com/ns203"
+				]
+			},
+			{
+				"source": "registry.example.com/ns204",
+				"mirrors": [
+					"mirror.example.com/ns204"
+				]
+			},
+			{
+				"source": "registry.example.com/ns205",
+				"mirrors": [
+					"mirror.example.com/ns205"
+				]
+			},
+			{
+				"source": "registry.example.com/ns206",
+				"mirrors": [
+					"mirror.example.com/ns206"
+				]
+			},
+			{
+				"source": "registry.example.com/ns207",
+				"mirrors": [
+					"mirror.example.com/ns207"
+				]
+			},
+			{
+				"source": "registry.example.com/ns208",
+				"mirrors": [
+					"mirror.example.com/ns208"
+				]
+			},
+			{
+				"source": "registry.example.com/ns209",
+				"mirrors": [
+					"mirror.example.com/ns209"
+				]
+			},
+			{
+				"source": "registry.example.com/ns210",
+				"mirrors": [
+					"mirror.example.com/ns210"
+				]
+			},
+			{
+				"source": "registry.example.com/ns211",
+				"mirrors": [
+					"mirror.example.com/ns211"
+				]
+			},
+			{
+				"source": "registry.example.com/ns212",
+				"mirrors": [
+					"mirror.example.com/ns212"
+				]
+			},
+			{
+				"source": "registry.example.com/ns213",
+				"mirrors": [
+					"mirror.example.com/ns213"
+				]
+			},
+			{
+				"source": "registry.example.com/ns214",
+				"mirrors": [
+					"mirror.example.com/ns214"
+				]
+			},
+			{
+				"source": "registry.example.com/ns215",
+				"mirrors": [
+					"mirror.example.com/ns215"
+				]
+			},
+			{
+				"source": "registry.example.com/ns216",
+				"mirrors": [
+					"mirror.example.com/ns216"
+				]
+			},
+			{
+				"source": "registry.example.com/ns217",
+				"mirrors": [
+					"mirror.example.com/ns217"
+				]
+			},
+			{
+				"source": "registry.example.com/ns218",
+				"mirrors": [
+					"mirror.example.com/ns218"
+				]
+			},
+			{
+				"source": "registry.example.com/ns219",
+				"mirrors": [
+					"mirror.example.com/ns219"
+				]
+			},
+			{
+				"source": "registry.example.com/ns220",
+				"mirrors": [
+					"mirror.example.com/ns220"
+				]
+			},
+			{
+				"source": "registry.example.com/ns221",
+				"mirrors": [
+					"mirror.example.com/ns221"
+				]
+			},
+			{
+				"source": "registry.example.com/ns222",
+				"mirrors": [
+					"mirror.example.com/ns222"
+				]
+			},
+			{
+				"source": "registry.example.com/ns223",
+				"mirrors": [
+					"mirror.example.com/ns223"
+				]
+			},
+			{
+				"source": "registry.example.com/ns224",
+				"mirrors": [
+					"mirror.example.com/ns224"
+				]
+			},
+			{
+				"source": "registry.example.com/ns225",
+				"mirrors": [
+					"mirror.example.com/ns225"
+				]
+			},
+			{
+				"source": "registry.example.com/ns226",
+				"mirrors": [
+					"mirror.example.com/ns226"
+				]
+			},
+			{
+				"source": "registry.example.com/ns227",
+				"mirrors": [
+					"mirror.example.com/ns227"
+				]
+			},
+			{
+				"source": "registry.example.com/ns228",
+				"mirrors": [
+					"mirror.example.com/ns228"
+				]
+			},
+			{
+				"source": "registry.example.com/ns229",
+				"mirrors": [
+					"mirror.example.com/ns229"
+				]
+			},
+			{
+				"source": "registry.example.com/ns230",
+				"mirrors": [
+					"mirror.example.com/ns230"
+				]
+			},
+			{
+				"source": "registry.example.com/ns231",
+				"mirrors": [
+					"mirror.example.com/ns231"
+				]
+			},
+			{
+				"source": "registry.example.com/ns232",
+				"mirrors": [
+					"mirror.example.com/ns232"
+				]
+			},
+			{
+				"source": "registry.example.com/ns233",
+				"mirrors": [
+					"mirror.example.com/ns233"
+				]
+			},
+			{
+				"source": "registry.example.com/ns234",
+				"mirrors": [
+					"mirror.example.com/ns234"
+				]
+			},
+			{
+				"source": "registry.example.com/ns235",
+				"mirrors": [
+					"mirror.example.com/ns235"
+				]
+			},
+			{
+				"source": "registry.example.com/ns236",
+				"mirrors": [
+					"mirror.example.com/ns236"
+				]
+			},
+			{
+				"source": "registry.example.com/ns237",
+				"mirrors": [
+					"mirror.example.com/ns237"
+				]
+			},
+			{
+				"source": "registry.example.com/ns238",
+				"mirrors": [
+					"mirror.example.com/ns238"
+				]
+			},
+			{
+				"source": "registry.example.com/ns239",
+				"mirrors": [
+					"mirror.example.com/ns239"
+				]
+			},
+			{
+				"source": "registry.example.com/ns240",
+				"mirrors": [
+					"mirror.example.com/ns240"
+				]
+			}
+		],
+		"network": {
+			"hostPrefix": 23,
+			"machineCidr": "10.0.0.0/16",
+			"networkType": "OVNKubernetes",
+			"podCidr": "10.128.0.0/14",
+			"serviceCidr": "172.30.0.0/16"
+		},
+		"platform": {
+			"managedResourceGroup": "managed-resource-group-name",
+			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"outboundType": "LoadBalancer",
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+			"vnetIntegrationSubnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/hcp-tunnel-subnet"
+		},
+		"version": {
+			"channelGroup": "stable",
+			"id": "4.20"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

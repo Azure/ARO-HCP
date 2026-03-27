@@ -1,0 +1,5 @@
+{
+  "code": "InvalidRequestContent",
+  "message": "Invalid value: 0: must have at least 1 items",
+  "target": "properties.imageDigestMirrors[0].mirrors"
+}

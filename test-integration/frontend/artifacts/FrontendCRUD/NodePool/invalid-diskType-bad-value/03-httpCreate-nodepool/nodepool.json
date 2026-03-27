@@ -1,0 +1,13 @@
+{
+	"name": "bad-disktype-np",
+	"properties": {
+		"autoRepair": true,
+		"platform": {
+			"vmSize": "large",
+			"osDisk": {
+				"diskType": "InvalidValue"
+			}
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

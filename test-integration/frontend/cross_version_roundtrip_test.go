@@ -86,6 +86,18 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 			name: "ExternalAuth/PATCH/v2025-create-v2024-patch-v2025-verify",
 			fn:   testCrossVersionExternalAuthPATCH,
 		},
+		{
+			name: "Cluster/PUT/v2025-kms-create-v2024-put-v2025-verify",
+			fn:   testCrossVersionKMSClusterPUT,
+		},
+		{
+			name: "Cluster/PATCH/v2025-kms-create-v2024-patch-v2025-verify",
+			fn:   testCrossVersionKMSClusterPATCH,
+		},
+		{
+			name: "Cluster/PUT/v2025-autoscaling-large-values-roundtrip",
+			fn:   testAutoscalingLargeValuesRoundTrip,
+		},
 	}
 
 	for _, tt := range tests {
@@ -167,7 +179,8 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
 }`, clusterName, subscriptionID, subscriptionID))
 
 	case v2025:
-		// v2025 payload — includes all optional fields (autoscaling, nodeDrainTimeoutMinutes)
+		// v2025 payload — includes all optional fields (autoscaling, nodeDrainTimeoutMinutes,
+		// imageDigestMirrors, vnetIntegrationSubnetId) to exercise full field preservation.
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
@@ -192,6 +205,15 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
         "keyManagementMode": "PlatformManaged"
       }
     },
+    "imageDigestMirrors": [
+      {
+        "source": "registry.example.com/xvrt",
+        "mirrors": [
+          "mirror1.internal.example.com/xvrt",
+          "mirror2.internal.example.com/xvrt"
+        ]
+      }
+    ],
     "nodeDrainTimeoutMinutes": 15,
     "network": {
       "hostPrefix": 23,
@@ -702,7 +724,7 @@ func testCrossVersionExternalAuthPATCH(t *testing.T, testInfo *integrationutils.
 	// Step 7: Compare — all other v2025 fields should be preserved
 	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
 	if !equals {
-		t.Logf("before (v2025 GET before v2024 PATCH, ca equalized):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("before (v2025 GET before v2024 PATCH, issuer.url equalized):\n%s", prettyJSON(t, beforeMap))
 		t.Logf("after (v2025 GET after v2024 PATCH):\n%s", prettyJSON(t, afterMap))
 		t.Errorf("ExternalAuth cross-version PATCH data loss: v2024 PATCH lost v2025 fields:\n%s", diff)
 	}
@@ -742,5 +764,239 @@ func testSameVersionClusterPATCH(t *testing.T, testInfo *integrationutils.Integr
 		t.Logf("before (tags equalized):\n%s", prettyJSON(t, beforeMap))
 		t.Logf("after:\n%s", prettyJSON(t, afterMap))
 		t.Errorf("same-version PATCH lost non-tag data:\n%s", diff)
+	}
+}
+
+// kmsClusterCreatePayload returns a v2025 cluster payload with CustomerManaged KMS
+// encryption. v2024 does not support the kms.vaultName and kms.visibility fields
+// at the top level, so a cross-version round-trip must preserve them.
+func kmsClusterCreatePayload(clusterName string) []byte {
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	return []byte(fmt.Sprintf(`{
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {}
+  },
+  "name": "%s",
+  "properties": {
+    "api": {
+      "visibility": "Public"
+    },
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 900,
+      "maxPodGracePeriodSeconds": 600,
+      "podPriorityThreshold": -10
+    },
+    "clusterImageRegistry": {
+      "state": "Disabled"
+    },
+    "etcd": {
+      "dataEncryption": {
+        "keyManagementMode": "CustomerManaged",
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "vaultName": "my-key-vault",
+            "visibility": "Public",
+            "activeKey": {
+              "name": "my-key",
+              "version": "abc123def456"
+            }
+          }
+        }
+      }
+    },
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "managed-rg-kms-xvrt",
+      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "outboundType": "LoadBalancer",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+      "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
+    },
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "tags": {
+    "env": "test"
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
+}
+
+// createKMSClusterAndComplete creates a CustomerManaged KMS cluster and marks
+// the creation operation as succeeded.
+func createKMSClusterAndComplete(
+	t *testing.T,
+	ctx context.Context,
+	testInfo *integrationutils.IntegrationTestInfo,
+	subscriptionID, clusterName string,
+) {
+	t.Helper()
+
+	resourceID := clusterResourceID(clusterName)
+	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2025)
+	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, kmsClusterCreatePayload(clusterName)))
+
+	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+}
+
+// testCrossVersionKMSClusterPUT verifies that a v2024 GET-then-PUT of a
+// CustomerManaged KMS cluster preserves the v2025-exclusive kms.vaultName
+// and kms.visibility fields.
+func testCrossVersionKMSClusterPUT(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	clusterName := "xvrt-kms-put-cross"
+	resourceID := clusterResourceID(clusterName)
+
+	// Step 1: Create KMS cluster via v2025
+	createKMSClusterAndComplete(t, ctx, testInfo, subscriptionID, clusterName)
+
+	// Step 2: GET via v2025 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
+
+	// Step 3: GET via v2024 → v2024 has vaultName in activeKey; drops kms.visibility
+	v2024Body, _ := getResourceResponse(t, ctx, testInfo, v2024, resourceID)
+
+	// Step 4: PUT via v2024 using the v2024 response (which lacks the v2025 KMS fields)
+	v2024Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2024)
+	require.NoError(t, v2024Accessor.CreateOrUpdate(ctx, resourceID, v2024Body))
+
+	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+
+	// Step 5: GET via v2025 → snapshot after the v2024 round-trip ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
+
+	// Step 6: kms.visibility must be preserved (via preserveUnknownClusterFields),
+	// and kms.vaultName must survive (via v2024 activeKey.vaultName round-trip).
+	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
+	if !equals {
+		t.Logf("before (v2025 KMS GET before v2024 PUT):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v2025 KMS GET after v2024 PUT):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("KMS cross-version PUT data loss: v2024 PUT caused field drift in KMS cluster:\n%s", diff)
+	}
+}
+
+// testCrossVersionKMSClusterPATCH verifies that a v2024 tag PATCH on a
+// CustomerManaged KMS cluster preserves the v2025-exclusive kms.vaultName
+// and kms.visibility fields.
+func testCrossVersionKMSClusterPATCH(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	clusterName := "xvrt-kms-patch-cross"
+	resourceID := clusterResourceID(clusterName)
+
+	// Step 1: Create KMS cluster via v2025
+	createKMSClusterAndComplete(t, ctx, testInfo, subscriptionID, clusterName)
+
+	// Step 2: GET via v2025 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
+
+	// Step 3: PATCH an unrelated field via v2024 (tags only)
+	patchBody := []byte(`{"tags": {"patched": "true"}}`)
+	v2024Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2024)
+	require.NoError(t, v2024Accessor.Patch(ctx, resourceID, patchBody))
+
+	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+
+	// Step 4: GET via v2025 → snapshot after the v2024 PATCH ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
+
+	// Step 5: Equalize tags (what was patched) and compare everything else
+	afterTags, ok := afterMap["tags"].(map[string]any)
+	require.True(t, ok, "PATCH response should have tags")
+	require.Contains(t, afterTags, "patched", "PATCH should have added the new tag")
+	beforeMap["tags"] = afterMap["tags"]
+
+	// kms.visibility must be preserved (via preserveUnknownClusterFields),
+	// and kms.vaultName must survive (via v2024 activeKey.vaultName round-trip).
+	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
+	if !equals {
+		t.Logf("before (v2025 KMS GET before v2024 PATCH, tags equalized):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v2025 KMS GET after v2024 PATCH):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("KMS cross-version PATCH data loss: v2024 PATCH caused field drift in KMS cluster:\n%s", diff)
+	}
+}
+
+// testAutoscalingLargeValuesRoundTrip verifies that large autoscaling field
+// values (maxNodesTotal at the allowed maximum of 500, maxNodeProvisionTimeSeconds
+// at a high value) survive a v2025 GET-then-PUT round-trip without truncation.
+func testAutoscalingLargeValuesRoundTrip(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	clusterName := "xvrt-autoscale-large"
+	resourceID := clusterResourceID(clusterName)
+
+	// Step 1: Create cluster with maxNodesTotal=500 (boundary max) and high maxNodeProvisionTimeSeconds
+	payload := []byte(fmt.Sprintf(`{
+  "identity": {"type": "UserAssigned", "userAssignedIdentities": {}},
+  "name": "%s",
+  "properties": {
+    "api": {"visibility": "Public"},
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 86400,
+      "maxNodesTotal": 500,
+      "maxPodGracePeriodSeconds": 3600,
+      "podPriorityThreshold": -100
+    },
+    "clusterImageRegistry": {"state": "Disabled"},
+    "etcd": {"dataEncryption": {"keyManagementMode": "PlatformManaged"}},
+    "nodeDrainTimeoutMinutes": 10080,
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "managed-rg-autoscale",
+      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "outboundType": "LoadBalancer",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+      "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
+    },
+    "version": {"channelGroup": "stable", "id": "4.20"}
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
+
+	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2025)
+	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, payload))
+
+	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+
+	// Step 2: GET → snapshot
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
+
+	// Step 3: PUT back the same response (same-version round-trip)
+	v2025Body, _ := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
+	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, v2025Body))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+
+	// Step 4: Verify large values survived the round-trip
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
+
+	afterProps, _ := afterMap["properties"].(map[string]any)
+	afterAutoscaling, _ := afterProps["autoscaling"].(map[string]any)
+	require.EqualValues(t, float64(500), afterAutoscaling["maxNodesTotal"], "maxNodesTotal must survive round-trip at boundary max")
+	require.EqualValues(t, float64(86400), afterAutoscaling["maxNodeProvisionTimeSeconds"], "maxNodeProvisionTimeSeconds must survive round-trip at large value")
+	require.EqualValues(t, float64(10080), afterProps["nodeDrainTimeoutMinutes"], "nodeDrainTimeoutMinutes must survive round-trip at max")
+
+	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
+	if !equals {
+		t.Logf("before:\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after:\n%s", prettyJSON(t, afterMap))
+		t.Errorf("autoscaling large-values round-trip lost data:\n%s", diff)
 	}
 }
