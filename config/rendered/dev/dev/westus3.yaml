@@ -620,6 +620,7 @@ monitoring:
   alertRuleOwningTeamTag: ""
   alertsEnabled: true
   crossTenantSecurityGroup: ""
+  deployAmwIngestionLimits: false
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin

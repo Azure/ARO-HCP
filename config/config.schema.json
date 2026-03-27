@@ -2690,6 +2690,10 @@
             "sl"
           ]
         },
+        "deployAmwIngestionLimits": {
+          "type": "boolean",
+          "description": "Whether to deploy Azure Monitor Workspace ingestion limits"
+        },
         "maxActiveTimeSeries": {
           "type": "integer",
           "description": "Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"

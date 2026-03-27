@@ -59,6 +59,9 @@ param aksClusterOutboundIPAddressIPTags string = ''
 @description('Azure Monitor Workspace name for Prometheus remote write')
 param azureMonitorWorkspaceName string
 
+@description('Whether to deploy Azure Monitor Workspace ingestion limits')
+param deployAmwIngestionLimits bool = false
+
 @description('Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)')
 param amwMaxActiveTimeSeries int = 2000000
 
@@ -226,7 +229,7 @@ resource azureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' = {
   }
 }
 
-module amwIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
+module amwIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = if (deployAmwIngestionLimits) {
   name: 'amw-ingestion-limits'
   params: {
     azureMonitorWorkspaceName: azureMonitorWorkspaceName
