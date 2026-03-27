@@ -178,3 +178,13 @@ For the full guide, see [Creating Registry Service Accounts](https://access.redh
 ## Validating Encrypted Secrets
 
 See [`tooling/secret-sync/README.md`](../tooling/secret-sync/README.md#validating-encrypted-secrets) for how to run `make test-decrypt` to validate encrypted secrets.
+
+## Troubleshooting
+
+If you encounter issues during secret synchronization, check the following:
+
+- Verify that the Key Vault name matches the target environment
+- Ensure the RSA key pair `secretSyncKey` exists in the target Key Vault
+- Confirm that the `--cloud` flag matches the target environment (`dev` or `public`)
+- Check that the secret file is not empty and contains the expected content
+- For MSFT environments (int/stg/prod), verify that PIM/JIT access is active
