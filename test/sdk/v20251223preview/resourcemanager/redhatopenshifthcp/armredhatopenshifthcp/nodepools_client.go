@@ -13,6 +13,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 )
@@ -29,6 +30,20 @@ type NodePoolsClient struct {
 //   - credential - used to authorize requests. Usually a credential from azidentity.
 //   - options - pass nil to accept the default values.
 func NewNodePoolsClient(subscriptionID string, credential azcore.TokenCredential, options *arm.ClientOptions) (*NodePoolsClient, error) {
+	if options == nil {
+		options = &arm.ClientOptions{}
+	}
+
+	options.Cloud = cloud.Configuration{
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				// 2025-12-23-preview is available right now in Central US EUAP, so we need to set the endpoint to centraluseuap.management.azure.com for testing.
+				// Once 2025-12-23-preview is available in public cloud, we can remove this override and use the default endpoint.
+				Endpoint: "https://centraluseuap.management.azure.com",
+			},
+		},
+	}
+
 	cl, err := arm.NewClient(moduleName, moduleVersion, credential, options)
 	if err != nil {
 		return nil, err

@@ -7,6 +7,7 @@ package armredhatopenshifthcp
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 )
 
 // ClientFactory is a client factory used to create any client in this module.
@@ -22,6 +23,19 @@ type ClientFactory struct {
 //   - credential - used to authorize requests. Usually a credential from azidentity.
 //   - options - pass nil to accept the default values.
 func NewClientFactory(subscriptionID string, credential azcore.TokenCredential, options *arm.ClientOptions) (*ClientFactory, error) {
+	if options == nil {
+		options = &arm.ClientOptions{}
+	}
+	options.Cloud = cloud.Configuration{
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				// 2025-12-23-preview is available right now in Central US EUAP, so we need to set the endpoint to centraluseuap.management.azure.com for testing.
+				// Once 2025-12-23-preview is available in public cloud, we can remove this override and use the default endpoint.
+				Endpoint: "https://centraluseuap.management.azure.com",
+				Audience: "https://management.core.windows.net/",
+			},
+		},
+	}
 	internal, err := arm.NewClient(moduleName, moduleVersion, credential, options)
 	if err != nil {
 		return nil, err

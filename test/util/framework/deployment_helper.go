@@ -380,6 +380,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPCluster20251223FromParam(
 		finishTime := time.Now()
 		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20251223preview)", resourceGroupName, clusterName), startTime, finishTime)
 	}()
+	fmt.Println("we're in create cluster 2025 from param")
 
 	cluster, err := BuildHCPCluster20251223FromParams(parameters, tc.Location(), imageDigestMirrors)
 	if err != nil {
