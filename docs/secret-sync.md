@@ -178,3 +178,29 @@ For the full guide, see [Creating Registry Service Accounts](https://access.redh
 ## Validating Encrypted Secrets
 
 See [`tooling/secret-sync/README.md`](../tooling/secret-sync/README.md#validating-encrypted-secrets) for how to run `make test-decrypt` to validate encrypted secrets.
+
+## Troubleshooting
+
+### Common Issues
+
+| Issue | Cause | Resolution |
+|---|---|---|
+| `register` fails with "invalid public key" | PEM file is corrupted or wrong format | Re-download the public key from Key Vault |
+| `populate` fails with "access denied" | Missing Key Vault permissions | Ensure the pipeline identity has `unwrapKey` permission on the `secretSyncKey` |
+| Secret value is garbled after populate | Secret was double base64-encoded | Decode once before registering; check the consuming service's expected format |
+| `populate` fails with "key not found" | `secretSyncKey` doesn't exist in target vault | Verify the key exists: `az keyvault key show --vault-name $KV -n secretSyncKey` |
+
+### Verifying a Secret Was Synced
+
+```sh
+# Check that the secret exists in the target Key Vault
+az keyvault secret show --vault-name ${KEYVAULT} --name ${SECRET_NAME} --query "attributes.updated" -o tsv
+```
+
+### Debugging Pipeline Failures
+
+If the `SecretSync` step in `global-pipeline.yaml` fails:
+
+1. Check the pipeline logs for the specific error message
+2. Verify the managed identity has the correct RBAC role on the Key Vault
+3. Ensure `encryptedsecrets.yaml` is well-formed — run `make test-decrypt` locally to validate
