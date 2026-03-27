@@ -9,7 +9,7 @@ from pathlib import Path
 
 def load_routing() -> dict:
     routing_path = Path(__file__).resolve().parents[1] / 'domain-routing' / 'path-routing.json'
-    return json.loads(routing_path.read_text())
+    return json.loads(routing_path.read_text(encoding='utf-8'))
 
 
 def normalize_path(raw_path: str) -> str:

@@ -37,7 +37,7 @@
         "tooling/hcpctl/",
         "tooling/kiota/"
       ],
-      "priority": 1,
+      "priority": 2,
       "sub_reviewer": "sub-reviewers/resource-provider-api.md"
     },
     {
@@ -201,7 +201,7 @@
         "tooling/image-updater/",
         "tooling/yamlwrap/"
       ],
-      "priority": 2,
+      "priority": 1,
       "sub_reviewer": "sub-reviewers/config-pipelines.md"
     },
     {
