@@ -70,10 +70,10 @@ arobit:
       repository: oss/v2/fluent/fluent-bit
     resources:
       limits:
-        memory: 1Gi
+        memory: 2Gi
       requests:
         cpu: 100m
-        memory: 256Mi
+        memory: 512Mi
   kusto:
     enabled: true
     environmentName: dev
