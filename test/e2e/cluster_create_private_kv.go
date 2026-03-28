@@ -28,6 +28,7 @@ import (
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
@@ -161,5 +162,49 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				"clusterName", customerClusterName,
 				"keyVaultName", clusterParams.KeyVaultName,
 				"keyVaultVisibility", *cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility)
+
+			By("creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = "np-1"
+			nodePoolParams.Replicas = int32(2)
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			GinkgoLogr.Info("Nodepool created successfully for private keyvault cluster",
+				"clusterName", customerClusterName,
+				"nodePoolName", nodePoolParams.NodePoolName)
+
+			By("getting admin credentials for the cluster")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				10*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying the cluster is viable and pod logs can be fetched")
+			logVerifier := verifiers.VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")
+			var previousError string
+			Eventually(func() error {
+				err := logVerifier.Verify(ctx, adminRESTConfig)
+				if err != nil {
+					currentError := err.Error()
+					if currentError != previousError {
+						GinkgoLogr.Info("Verifier check", "name", logVerifier.Name(), "status", "failed", "error", currentError)
+						previousError = currentError
+					}
+				}
+				return err
+			}, 10*time.Minute, 30*time.Second).Should(Succeed(), "router-default deployment logs should be fetchable")
+
 		})
 })
