@@ -846,8 +846,8 @@ defaults:
   clustersService:
     image:
       registry: quay.io
-      repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:9e2e55328213e25a3a666c57ca6b6b444940a99d2731e8c476a06ee8f41c539b # 9d0706d2460d0b2fa00b9593b06e89db14e1006b (2026-03-28 01:02)
+      repository: raelga/aro-hcp-clusters-service
+      digest: sha256:4eb6142d00b2a70ad664a70489c343653420fbef712678f2e895e9be7adf17d8 # revert-noop-upgrade-policy
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     # batch processes
