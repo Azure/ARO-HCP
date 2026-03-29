@@ -28,7 +28,7 @@
 
 ## Kubernetes verifiers
 
-* **K8S client-go:** Use this client to communicate with created HCP clusters. Client requires rest Config which is provided by method `GetAdminRESTConfigForHCPCluster` with 15 minutes timeout.
+* **K8S client-go:** Use this client to communicate with created HCP clusters. Client requires rest Config which is provided by method `GetAdminRESTConfigForHCPCluster` with a 30-minute timeout (`framework.AdminRESTConfigTimeout`).
 * **HostedClusterVerifier:** This interface is designed for all verifiers and provides the essential `Name` and `Verify` methods for extension.
 * **Code location:** Verifiers are located in the util module `verifiers`. ([https://github.com/Azure/ARO-HCP/tree/main/test/util/verifiers](https://github.com/Azure/ARO-HCP/tree/main/test/util/verifiers))
 
