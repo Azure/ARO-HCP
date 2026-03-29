@@ -25,13 +25,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/v2/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/kube"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -42,10 +40,14 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
+
+	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 )
 
 var _ = Describe("Create HCPOpenShiftCluster with Cilium CNI", func() {
@@ -311,10 +313,10 @@ func installCiliumChart(ctx context.Context, kubeconfigPath, clusterName string)
 	installClient.WaitStrategy = kube.StatusWatcherStrategy
 	installClient.WaitForJobs = true
 	installClient.Timeout = 10 * time.Minute
-	installClient.ChartPathOptions.RepoURL = ciliumRepoURL
+	installClient.RepoURL = ciliumRepoURL
 
 	settings := cli.New()
-	chartPath, err := installClient.ChartPathOptions.LocateChart(chartName, settings)
+	chartPath, err := installClient.LocateChart(chartName, settings)
 	if err != nil {
 		return fmt.Errorf("failed to locate cilium chart: %w", err)
 	}
