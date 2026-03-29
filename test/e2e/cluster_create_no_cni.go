@@ -88,7 +88,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				15*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())

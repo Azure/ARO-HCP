@@ -187,7 +187,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				15*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

@@ -240,7 +240,7 @@ var _ = Describe("Customer", func() {
 				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				15*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

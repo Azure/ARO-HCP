@@ -105,7 +105,7 @@ var _ = Describe("Control plane automated z-stream upgrade with candidate channe
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				15*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)

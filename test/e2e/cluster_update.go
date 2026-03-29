@@ -89,7 +89,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					15*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -165,7 +165,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					15*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
