@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 					clusterClient,
 					*resourceGroup.Name,
 					clusterName,
-					15*time.Minute,
+					framework.AdminRESTConfigTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(adminRESTConfig).NotTo(BeNil(), "adminRESTConfig was nil for credential %d", i+1)
@@ -239,7 +239,7 @@ var _ = Describe("Customer", func() {
 				clusterClient,
 				*resourceGroup.Name,
 				clusterName,
-				15*time.Minute,
+				framework.AdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(newAdminRESTConfig).NotTo(BeNil(), "newAdminRESTConfig was nil after revocation")

@@ -54,6 +54,9 @@ import (
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
+// AdminRESTConfigTimeout is the default timeout for GetAdminRESTConfigForHCPCluster.
+const AdminRESTConfigTimeout = 30 * time.Minute
+
 // checkOperationResult ensures the result model returned by a runtime.Poller
 // matches the resource model returned from a GET request.
 func checkOperationResult(expectModel, resultModel any) error {

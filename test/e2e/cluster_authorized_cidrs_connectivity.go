@@ -180,7 +180,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					15*time.Minute,
+					framework.AdminRESTConfigTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred())
 

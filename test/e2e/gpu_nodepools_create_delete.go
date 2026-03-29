@@ -103,7 +103,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					customerClusterName,
-					15*time.Minute,
+					framework.AdminRESTConfigTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())

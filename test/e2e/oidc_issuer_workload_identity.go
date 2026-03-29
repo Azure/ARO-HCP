@@ -240,7 +240,7 @@ var _ = Describe("Customer", func() {
 				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
-				15*time.Minute,
+				framework.AdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

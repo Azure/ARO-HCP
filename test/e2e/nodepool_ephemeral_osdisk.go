@@ -176,7 +176,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				15*time.Minute,
+				framework.AdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
