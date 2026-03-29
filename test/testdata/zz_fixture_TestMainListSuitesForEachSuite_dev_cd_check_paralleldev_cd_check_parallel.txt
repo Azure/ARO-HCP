@@ -4,6 +4,7 @@ Customer should be able to test admin credentials before cluster ready, then ful
 Customer should be able to create node pools with ARM64-based VMs
 Authorized CIDRs Connectivity should allow API access only from authorized VM IP
 Customer should be able to create an HCP cluster with custom autoscaling
+Create HCPOpenShiftCluster with Cilium CNI should create a no-CNI cluster with private etcd and install Cilium
 Customer should be able to create a HCP cluster without CNI
 Customer should be able to create an HCP cluster and custom node pool osDisk size
 Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20251223preview API

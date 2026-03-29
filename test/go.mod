@@ -34,8 +34,10 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sync v0.20.0
+	helm.sh/helm/v4 v4.0.0-beta.2
 	k8s.io/api v0.34.3
 	k8s.io/apimachinery v0.34.3
+	k8s.io/cli-runtime v0.34.3
 	k8s.io/client-go v0.34.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.34.3
@@ -286,10 +288,8 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	helm.sh/helm/v4 v4.0.0-beta.2 // indirect
 	k8s.io/apiextensions-apiserver v0.34.3 // indirect
 	k8s.io/apiserver v0.34.3 // indirect
-	k8s.io/cli-runtime v0.34.3 // indirect
 	k8s.io/component-base v0.34.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/kubectl v0.34.1 // indirect
