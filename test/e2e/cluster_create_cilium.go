@@ -43,12 +43,12 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
+
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
-
-	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 )
 
 var _ = Describe("Create HCPOpenShiftCluster with Cilium CNI", func() {
