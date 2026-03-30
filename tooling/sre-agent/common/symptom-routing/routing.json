@@ -1,0 +1,38 @@
+{
+  "always_load": [
+    "sub-investigators/cross-cutting.md"
+  ],
+  "domains": [
+    {
+      "id": "kube-apiserver",
+      "display_name": "KAS / kube-apiserver",
+      "priority": 0,
+      "symptom_triggers": {
+        "component_names": [
+          "kas",
+          "kube-apiserver",
+          "control-plane api",
+          "route-monitor-operator",
+          "blackbox-exporter"
+        ],
+        "alert_names": [
+          "kas-monitor-ErrorBudgetBurn",
+          "kas-monitor-ServiceMonitorCreationErrorBudgetBurn"
+        ],
+        "error_patterns": [
+          "probe_success",
+          "probe_url",
+          "/livez",
+          "/readyz",
+          "99.95"
+        ]
+      },
+      "history_fixtures": [
+        "fixtures/historical-incidents/incident-002-kas-api-availability-burn.md"
+      ],
+      "sub_investigator": "sub-investigators/kube-apiserver.md",
+      "domain_agent_name": "arohcp-sre-kube-apiserver",
+      "domain_agent": "agents/arohcp-sre-kube-apiserver.md"
+    }
+  ]
+}
