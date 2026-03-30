@@ -19,7 +19,7 @@ param openshiftVersionId string
 @description('Network configuration of the hosted cluster')
 param networkConfig object = {
   networkType: 'OVNKubernetes'
-  podCidr: '10.128.0.0/14'
+  podCidr: '10.132.0.0/14'
   serviceCidr: '172.30.0.0/16'
   machineCidr: '10.0.0.0/16'
   hostPrefix: 23

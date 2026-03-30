@@ -209,7 +209,7 @@ model NetworkProfile {
   /** The CIDR of the pod IP addresses */
   @clientName("podCIDR")
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  podCidr?: string = "10.128.0.0/14";
+  podCidr?: string = "10.132.0.0/14";
 
   /** The CIDR block for assigned service IPs */
   @clientName("serviceCIDR")

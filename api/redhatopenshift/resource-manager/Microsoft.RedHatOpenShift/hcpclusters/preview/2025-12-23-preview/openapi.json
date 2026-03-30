@@ -2694,7 +2694,7 @@
         "podCidr": {
           "type": "string",
           "description": "The CIDR of the pod IP addresses",
-          "default": "10.128.0.0/14",
+          "default": "10.132.0.0/14",
           "x-ms-client-name": "podCIDR",
           "x-ms-mutability": [
             "read",

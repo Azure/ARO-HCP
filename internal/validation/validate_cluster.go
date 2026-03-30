@@ -442,6 +442,22 @@ func validateNetworkProfile(ctx context.Context, op operation.Operation, fldPath
 		errs = append(errs, field.Invalid(fldPath, newObj.ServiceCIDR, fmt.Sprintf("service CIDR '%s' and pod CIDR '%s' overlap", newObj.ServiceCIDR, newObj.PodCIDR)))
 	}
 
+	// Reject CIDRs that overlap with the reserved SDN range used internally.
+	_, reservedSDNCIDR, _ := net.ParseCIDR("10.128.0.0/14")
+	for _, cidr := range []struct {
+		name string
+		net  *net.IPNet
+		raw  string
+	}{
+		{"machine CIDR", machineCIDR, newObj.MachineCIDR},
+		{"service CIDR", serviceCIDR, newObj.ServiceCIDR},
+		{"pod CIDR", podCIDR, newObj.PodCIDR},
+	} {
+		if intersect(cidr.net, reservedSDNCIDR) {
+			errs = append(errs, field.Invalid(fldPath, cidr.raw, fmt.Sprintf("%s '%s' overlaps with reserved network 10.128.0.0/14", cidr.name, cidr.raw)))
+		}
+	}
+
 	return errs
 }
 

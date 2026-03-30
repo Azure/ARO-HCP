@@ -35,7 +35,7 @@ package api
 // Cluster defaults
 const (
 	DefaultClusterVersionChannelGroup               = "stable"
-	DefaultClusterNetworkPodCIDR                    = "10.128.0.0/14"
+	DefaultClusterNetworkPodCIDR                    = "10.132.0.0/14"
 	DefaultClusterNetworkServiceCIDR                = "172.30.0.0/16"
 	DefaultClusterNetworkMachineCIDR                = "10.0.0.0/16"
 	DefaultClusterNetworkHostPrefix           int32 = 23
