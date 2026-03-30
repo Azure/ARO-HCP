@@ -423,6 +423,26 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: image-registry-policy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: image-registry-policy
+    releaseNamespace: image-registry-policy
+    chartDir: ./../image-registry-policy/deploy
+    valuesFile: ./../image-registry-policy/deploy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
