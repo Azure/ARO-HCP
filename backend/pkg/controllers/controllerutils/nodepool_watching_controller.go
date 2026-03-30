@@ -102,7 +102,18 @@ func NewNodePoolWatchingController(
 		if err != nil {
 			panic(err)
 		}
-
+		controllerInformer, _ := informers.Controllers()
+		_, err = controllerInformer.AddEventHandlerWithOptions(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc:    c.enqueueControllerAdd,
+				UpdateFunc: c.enqueueControllerUpdate,
+			},
+			cache.HandlerOptions{
+				ResyncPeriod: ptr.To(resyncDuration),
+			})
+		if err != nil {
+			panic(err) // coding error
+		}
 	}
 
 	return c
@@ -232,4 +243,12 @@ func (c *nodePoolWatchingController) enqueueServiceProviderNodePoolAdd(newObj in
 
 func (c *nodePoolWatchingController) enqueueServiceProviderNodePoolUpdate(_ interface{}, newObj interface{}) {
 	c.EnqueueResourceIDAdd(newObj.(*api.ServiceProviderNodePool).CosmosMetadata.ResourceID)
+}
+
+func (c *nodePoolWatchingController) enqueueControllerAdd(newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.Controller).GetResourceID())
+}
+
+func (c *nodePoolWatchingController) enqueueControllerUpdate(_ interface{}, newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.Controller).GetResourceID())
 }
