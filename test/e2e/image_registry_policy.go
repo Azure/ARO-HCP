@@ -93,18 +93,15 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.Negative,
 		labels.CoreInfraService,
 		func(ctx context.Context) {
-			testNS := "image-policy-test"
-
 			By("creating a test namespace")
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: testNS,
+					GenerateName: "image-policy-test-",
 				},
 			}
-			_, err := kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-			if err != nil && !apierrors.IsAlreadyExists(err) {
-				Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace")
-			}
+			createdNS, err := kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace")
+			testNS := createdNS.Name
 			DeferCleanup(func(ctx context.Context) {
 				_ = kubeClient.CoreV1().Namespaces().Delete(ctx, testNS, metav1.DeleteOptions{})
 			})
@@ -138,18 +135,15 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.Positive,
 		labels.CoreInfraService,
 		func(ctx context.Context) {
-			testNS := "image-policy-test"
-
 			By("creating a test namespace")
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: testNS,
+					GenerateName: "image-policy-test-",
 				},
 			}
-			_, err := kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-			if err != nil && !apierrors.IsAlreadyExists(err) {
-				Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace")
-			}
+			createdNS, err := kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace")
+			testNS := createdNS.Name
 			DeferCleanup(func(ctx context.Context) {
 				_ = kubeClient.CoreV1().Namespaces().Delete(ctx, testNS, metav1.DeleteOptions{})
 			})
