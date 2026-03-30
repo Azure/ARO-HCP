@@ -16,9 +16,7 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"iter"
-	"net/http"
 	"reflect"
 	"slices"
 	"strings"
@@ -225,15 +223,9 @@ func MergeStringPtrMapIntoResourceIDMap(fldPath *field.Path, src map[string]*str
 	return errs
 }
 
-// ApplyRequestBody applies a JSON request body to the value pointed to by v
-// using JSON Merge Patch (RFC 7396) semantics. Only PATCH requests are
-// supported; any other method triggers a panic because all callers should
-// use PATCH and the PUT+mergo code path has been removed.
-func ApplyRequestBody(requestMethod string, body []byte, v any) error {
-	if requestMethod != http.MethodPatch {
-		panic(fmt.Sprintf("ApplyRequestBody only supports PATCH requests, got %s", requestMethod))
-	}
-
+// ApplyPatchRequestBody applies a JSON request body to the value pointed to
+// by v using JSON Merge Patch (RFC 7396) semantics.
+func ApplyPatchRequestBody(body []byte, v any) error {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return arm.NewInvalidRequestContentError(&json.InvalidUnmarshalError{Type: rv.Type()})

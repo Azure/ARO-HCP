@@ -484,7 +484,7 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	// TODO find a way to represent the desired change without starting from internal state here (very confusing)
 	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
 	newExternalNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(oldInternalNodePool)
-	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalNodePool); err != nil {
+	if err := api.ApplyPatchRequestBody(body, newExternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	newInternalNodePool, err := newExternalNodePool.ConvertToInternal(oldInternalNodePool)
