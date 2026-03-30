@@ -38,8 +38,8 @@ Primary ARO-HCP areas:
 
 ## High-signal investigation entry points
 
-- `/home/swiencki/worktree/Azure-Documents-Common/Teams/Azure RedHat OpenShift/doc/hcp/troubleshooting/kube-api-availability-monitoring.md`
-- `/home/swiencki/worktree/Azure-Documents-Common/Teams/Azure RedHat OpenShift/doc/hcp/troubleshooting/rmo-monitoring.md`
+- Internal runbook: `Kube API availability monitoring` (Azure Docs, internal)
+- Internal runbook: `Route Monitor Operator monitoring` (Azure Docs, internal)
 
 ## Phase-1 fixture lesson
 

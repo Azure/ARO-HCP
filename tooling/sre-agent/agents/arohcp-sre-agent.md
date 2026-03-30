@@ -1,7 +1,7 @@
 ---
 name: arohcp-sre-agent
 description: Fresh-session runtime investigator for ARO-HCP kube-apiserver availability incidents.
-tools: ["Read", "Grep", "Glob", "Bash"]
+tools: ["view", "rg", "glob", "bash"]
 model: sonnet
 ---
 

@@ -118,10 +118,7 @@ def main() -> int:
         "name: arohcp-sre-kube-apiserver" in domain_text,
         "domain agent name must match router metadata",
     )
-    require(
-        "template.md" in output_contract_text,
-        "output contract must reference the shared TSG template",
-    )
+    require("## Template" in output_contract_text, "output contract must embed the TSG Template")
     require(
         "Incident envelope" in output_contract_text,
         "output contract must include Incident envelope metadata",
@@ -137,25 +134,56 @@ def main() -> int:
     require("smoke:" in makefile_text, "Makefile must include a smoke target")
 
     routing = load_json(sre_root / "common/symptom-routing/routing.json")
-    domains = routing.get("domains", [])
-    require(bool(domains), "routing must define at least one domain")
-    require(len(domains) == 1, "kernel PR routing must define exactly one domain")
-    if domains:
-        domain = domains[0]
-        require(domain.get("id") == "kube-apiserver", "kernel PR domain must be kube-apiserver")
-        require(
-            domain.get("domain_agent_name") == "arohcp-sre-kube-apiserver",
-            "routing must point to the kube-apiserver child agent",
-        )
-        require(
-            domain.get("sub_investigator") == "sub-investigators/kube-apiserver.md",
-            "routing must point to the kube-apiserver investigator",
-        )
-        for rel in domain.get("history_fixtures", []):
-            require((sre_root / rel).exists(), f"missing routing fixture: {rel}")
+    domains: list[object] = []
+    always_load: list[object] = []
+    if isinstance(routing, dict):
+        raw_domains = routing.get("domains", [])
+        if isinstance(raw_domains, list):
+            domains = raw_domains
+        else:
+            require(False, "routing domains must be a JSON array")
 
-    for rel in routing.get("always_load", []):
-        require((sre_root / rel).exists(), f"missing always_load asset: {rel}")
+        raw_always_load = routing.get("always_load", [])
+        if isinstance(raw_always_load, list):
+            always_load = raw_always_load
+        else:
+            require(False, "routing always_load must be a JSON array")
+
+        require(bool(domains), "routing must define at least one domain")
+        require(len(domains) == 1, "kernel PR routing must define exactly one domain")
+        if domains:
+            domain = domains[0]
+            require(isinstance(domain, dict), "routing domain entries must be JSON objects")
+            if isinstance(domain, dict):
+                require(
+                    domain.get("id") == "kube-apiserver",
+                    "kernel PR domain must be kube-apiserver",
+                )
+                require(
+                    domain.get("domain_agent_name") == "arohcp-sre-kube-apiserver",
+                    "routing must point to the kube-apiserver child agent",
+                )
+                require(
+                    domain.get("sub_investigator") == "sub-investigators/kube-apiserver.md",
+                    "routing must point to the kube-apiserver investigator",
+                )
+                history_fixtures = domain.get("history_fixtures", [])
+                require(
+                    isinstance(history_fixtures, list),
+                    "routing history_fixtures must be a JSON array",
+                )
+                if isinstance(history_fixtures, list):
+                    for rel in history_fixtures:
+                        require(isinstance(rel, str), "routing fixture entries must be strings")
+                        if isinstance(rel, str):
+                            require((sre_root / rel).exists(), f"missing routing fixture: {rel}")
+
+        for rel in always_load:
+            require(isinstance(rel, str), "always_load entries must be strings")
+            if isinstance(rel, str):
+                require((sre_root / rel).exists(), f"missing always_load asset: {rel}")
+    else:
+        require(False, "routing.json must contain a JSON object at the top level")
 
     if errors:
         for error in errors:

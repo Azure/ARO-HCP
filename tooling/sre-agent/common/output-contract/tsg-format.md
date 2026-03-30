@@ -1,6 +1,6 @@
 # TSG Output Contract
 
-Base every substantive incident write-up on the shared TSG template at `/home/swiencki/worktree/Azure-Documents-Common/Teams/Azure RedHat OpenShift/doc/hcp/troubleshooting/template.md`.
+Base every substantive incident write-up on the shared TSG template defined in the section below.
 
 For the kernel PR, keep the template structure and additionally:
 

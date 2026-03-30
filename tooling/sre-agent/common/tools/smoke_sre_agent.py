@@ -45,13 +45,16 @@ def main() -> int:
     if result.returncode != 0:
         return result.returncode
 
-    fixture_rel = fixture.relative_to(repo_root)
+    try:
+        fixture_display: Path | str = fixture.relative_to(repo_root)
+    except ValueError:
+        fixture_display = fixture
     print("SRE agent smoke prompt")
     print()
     print(f"Repository: {repo_root}")
     print("Run Copilot CLI in that directory and use:")
     print()
-    print(f"Use arohcp-sre-agent on {fixture_rel}")
+    print(f"Use arohcp-sre-agent on {fixture_display}")
     print()
     print("Expected kernel behavior:")
     print("- output starts with `# TSG:`")

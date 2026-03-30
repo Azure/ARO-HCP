@@ -1,7 +1,7 @@
 ---
 name: arohcp-sre-kube-apiserver
 description: Fresh-session domain investigator for kube-apiserver and KAS availability incidents in ARO-HCP.
-tools: ["Read", "Grep", "Glob", "Bash"]
+tools: ["view", "rg", "glob", "bash"]
 model: sonnet
 ---
 
