@@ -90,7 +90,7 @@ var _ = Describe("Image Registry Policy", func() {
 	It("should deny pods with images from disallowed registries",
 		labels.RequireNothing,
 		labels.High,
-		labels.Positive,
+		labels.Negative,
 		labels.CoreInfraService,
 		func(ctx context.Context) {
 			testNS := "image-policy-test"
