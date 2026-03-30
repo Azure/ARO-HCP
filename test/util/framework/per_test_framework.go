@@ -447,7 +447,17 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	if len(managedResourceGroups) > 0 {
-		return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s", len(managedResourceGroups), resourceGroupName)
+		ginkgo.GinkgoLogr.Info("found managed resource groups left behind, attempting direct cleanup", "resourceGroup", resourceGroupName, "count", len(managedResourceGroups))
+		for _, managedRG := range managedResourceGroups {
+			ginkgo.GinkgoLogr.Info("deleting orphaned managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
+			if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout); err != nil {
+				if isIgnorableResourceGroupCleanupError(err) {
+					ginkgo.GinkgoLogr.Info("ignoring not found managed resource group", "resourceGroup", managedRG)
+				} else {
+					return fmt.Errorf("failed to cleanup orphaned managed resource group %q in %s: %w", managedRG, resourceGroupName, err)
+				}
+			}
+		}
 	} else {
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
 	}
