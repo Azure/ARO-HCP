@@ -32,14 +32,13 @@ spec:
   variables:
   - name: allImages
     expression: >-
-      object.spec.containers.map(c, c.image)
-      + object.spec.?initContainers.orValue([]).map(c, c.image)
-      + object.spec.?ephemeralContainers.orValue([]).map(c, c.image)
+      object.spec.containers.map(c, c.image) + object.spec.?initContainers.orValue([]).map(c, c.image) + object.spec.?ephemeralContainers.orValue([]).map(c, c.image)
   - name: allowedPrefixes
     expression: "params.data.allowedRegistries.split(',')"
   validations:
   - expression: >-
       variables.allImages.all(img,
+
         variables.allowedPrefixes.exists(prefix,
           img.startsWith(prefix + '/')
           || img.startsWith(prefix + '@')
@@ -47,10 +46,8 @@ spec:
         )
       )
     messageExpression: >-
-      'One or more container images are not from an allowed registry. Allowed registries: '
-      + params.data.allowedRegistries
-      + '. Images: '
-      + variables.allImages.filter(img,
+      'One or more container images are not from an allowed registry. Allowed registries: ' + params.data.allowedRegistries + '. Images: ' + variables.allImages.filter(img,
+
           !variables.allowedPrefixes.exists(prefix,
             img.startsWith(prefix + '/')
             || img.startsWith(prefix + '@')
