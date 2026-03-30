@@ -4,8 +4,3 @@ allowedRegistries:
 - '{{ .acr.ocp.name }}.{{ .acrDNSSuffix }}'
 - mcr.microsoft.com
 - kubernetesshared.azurecr.io
-excludedNamespaces:
-- kube-system
-- kube-node-lease
-- kube-public
-- gatekeeper-system
