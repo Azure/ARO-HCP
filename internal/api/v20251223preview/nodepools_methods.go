@@ -71,8 +71,31 @@ func (h *NodePool) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	out := &api.HCPOpenShiftClusterNodePool{}
+// ZeroOwnedFields zeros the fields of 'internal' that this API version (v20251223preview) owns.
+// v20251223preview owns all nodepool customer-visible fields including OSDiskProfile.DiskType.
+func (h *NodePool) ZeroOwnedFields(internal *api.HCPOpenShiftClusterNodePool) {
+	internal.ID = nil
+	internal.Name = ""
+	internal.Type = ""
+	internal.Location = ""
+	internal.Tags = nil
+	internal.Identity = nil
+	internal.SystemData = nil
+
+	internal.Properties.AutoRepair = false
+	internal.Properties.Replicas = 0
+	internal.Properties.NodeDrainTimeoutMinutes = nil
+	internal.Properties.Version = api.NodePoolVersionProfile{}
+	internal.Properties.Platform = api.NodePoolPlatformProfile{} // zeros ALL platform fields including DiskType
+	internal.Properties.AutoScaling = nil
+	internal.Properties.Labels = nil
+	internal.Properties.Taints = nil
+}
+
+// ApplyOwnedFields copies values from the receiver (external object populated from the request
+// body) into 'internal', for all fields this v20251223preview version owns.
+// Null checks on required fields are at the TOP before any normalization.
+func (h *NodePool) ApplyOwnedFields(internal *api.HCPOpenShiftClusterNodePool) error {
 	errs := field.ErrorList{}
 
 	// Reject null on required fields. JSON merge-patch converts explicit
@@ -84,35 +107,39 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 		}
 	}
 
+	if len(errs) > 0 {
+		return arm.CloudErrorFromFieldErrors(errs)
+	}
+
 	if h.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
+		internal.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
 	}
 	if h.Name != nil {
-		out.Name = *h.Name
+		internal.Name = *h.Name
 	}
 	if h.Type != nil {
-		out.Type = *h.Type
+		internal.Type = *h.Type
 	}
 	if h.SystemData != nil {
-		out.SystemData = &arm.SystemData{
+		internal.SystemData = &arm.SystemData{
 			CreatedAt:      h.SystemData.CreatedAt,
 			LastModifiedAt: h.SystemData.LastModifiedAt,
 		}
 		if h.SystemData.CreatedBy != nil {
-			out.SystemData.CreatedBy = *h.SystemData.CreatedBy
+			internal.SystemData.CreatedBy = *h.SystemData.CreatedBy
 		}
 		if h.SystemData.CreatedByType != nil {
-			out.SystemData.CreatedByType = arm.CreatedByType(*h.SystemData.CreatedByType)
+			internal.SystemData.CreatedByType = arm.CreatedByType(*h.SystemData.CreatedByType)
 		}
 		if h.SystemData.LastModifiedBy != nil {
-			out.SystemData.LastModifiedBy = *h.SystemData.LastModifiedBy
+			internal.SystemData.LastModifiedBy = *h.SystemData.LastModifiedBy
 		}
 		if h.SystemData.LastModifiedByType != nil {
-			out.SystemData.LastModifiedByType = arm.CreatedByType(*h.SystemData.LastModifiedByType)
+			internal.SystemData.LastModifiedByType = arm.CreatedByType(*h.SystemData.LastModifiedByType)
 		}
 	}
 	if h.Location != nil {
-		out.Location = *h.Location
+		internal.Location = *h.Location
 	}
 	// Per RPC-Patch-V1-04, the Tags field does NOT follow
 	// JSON merge-patch (RFC 7396) semantics:
@@ -120,28 +147,25 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 	//   When Tags are patched, the tags from the request
 	//   replace all existing tags for the resource
 	//
-	out.Tags = api.StringPtrMapToStringMap(h.Tags)
+	internal.Tags = api.StringPtrMapToStringMap(h.Tags)
 	if h.Properties != nil {
-		if h.Properties.ProvisioningState != nil {
-			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
-		}
-		out.Properties.AutoRepair = api.Deref(h.Properties.AutoRepair)
-		out.Properties.Replicas = api.Deref(h.Properties.Replicas)
-		out.Properties.NodeDrainTimeoutMinutes = h.Properties.NodeDrainTimeoutMinutes
+		internal.Properties.AutoRepair = api.Deref(h.Properties.AutoRepair)
+		internal.Properties.Replicas = api.Deref(h.Properties.Replicas)
+		internal.Properties.NodeDrainTimeoutMinutes = h.Properties.NodeDrainTimeoutMinutes
 		if h.Properties.Version != nil {
-			normalizeNodePoolVersion(h.Properties.Version, &out.Properties.Version)
+			normalizeNodePoolVersion(h.Properties.Version, &internal.Properties.Version)
 		}
 		if h.Properties.Platform != nil {
-			errs = append(errs, normalizeNodePoolPlatform(field.NewPath("properties", "platform"), h.Properties.Platform, &out.Properties.Platform)...)
+			errs = append(errs, normalizeNodePoolPlatform(field.NewPath("properties", "platform"), h.Properties.Platform, &internal.Properties.Platform)...)
 		}
 		if h.Properties.AutoScaling != nil {
-			out.Properties.AutoScaling = &api.NodePoolAutoScaling{
+			internal.Properties.AutoScaling = &api.NodePoolAutoScaling{
 				Max: api.Deref(h.Properties.AutoScaling.Max),
 				Min: api.Deref(h.Properties.AutoScaling.Min),
 			}
 		}
 		if h.Properties.Labels != nil {
-			out.Properties.Labels = make(map[string]string)
+			internal.Properties.Labels = make(map[string]string)
 			for _, v := range h.Properties.Labels {
 				if v == nil {
 					continue
@@ -156,32 +180,22 @@ func (h *NodePool) ConvertToInternal(existing *api.HCPOpenShiftClusterNodePool) 
 				// "" becomes nil when going internal -> external
 				// that means to round trip, we must go "" -> nil -> ""
 				key := ptr.Deref(v.Key, "")
-				out.Properties.Labels[key] = value
+				internal.Properties.Labels[key] = value
 			}
 		}
 		if h.Properties.Taints != nil {
-			out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
+			internal.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
 			for i := range h.Properties.Taints {
-				out.Properties.Taints[i].Effect = api.Effect(api.Deref(h.Properties.Taints[i].Effect))
-				out.Properties.Taints[i].Key = api.Deref(h.Properties.Taints[i].Key)
-				out.Properties.Taints[i].Value = api.Deref(h.Properties.Taints[i].Value)
+				internal.Properties.Taints[i].Effect = api.Effect(api.Deref(h.Properties.Taints[i].Effect))
+				internal.Properties.Taints[i].Key = api.Deref(h.Properties.Taints[i].Key)
+				internal.Properties.Taints[i].Value = api.Deref(h.Properties.Taints[i].Value)
 			}
 		}
 	}
 
-	out.Identity = normalizeManagedIdentity(h.Identity)
+	internal.Identity = normalizeManagedIdentity(h.Identity)
 
-	if existing != nil {
-		preserveUnknownNodePoolFields(existing, out)
-	}
-
-	return out, arm.CloudErrorFromFieldErrors(errs)
-}
-
-// preserveUnknownNodePoolFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20251223preview.
-func preserveUnknownNodePoolFields(from, to *api.HCPOpenShiftClusterNodePool) {
+	return arm.CloudErrorFromFieldErrors(errs)
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {

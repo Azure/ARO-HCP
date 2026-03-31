@@ -229,8 +229,8 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 	if err := json.Unmarshal(body, &externalExternalAuthFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal(nil)
-	if err != nil {
+	newInternalExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
+	if err := api.ApplyVersionedCreate(externalExternalAuthFromRequest, newInternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	// Backstop for fields unknown to this API version's SetDefaultValues*.
@@ -395,8 +395,8 @@ func decodeDesiredExternalAuthReplace(ctx context.Context, oldInternalExternalAu
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalExternalAuth, err := externalExternalAuthFromRequest.ConvertToInternal(oldInternalExternalAuth)
-	if err != nil {
+	newInternalExternalAuth := oldInternalExternalAuth.DeepCopy()
+	if err := api.ApplyVersionedUpdate(externalExternalAuthFromRequest, newInternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {
@@ -451,8 +451,8 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	if err := api.ApplyPatchRequestBody(body, newExternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalExternalAuth, err := newExternalExternalAuth.ConvertToInternal(oldInternalExternalAuth)
-	if err != nil {
+	newInternalExternalAuth := oldInternalExternalAuth.DeepCopy()
+	if err := api.ApplyVersionedUpdate(newExternalExternalAuth, newInternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	if len(newInternalExternalAuth.Name) > 0 && newInternalExternalAuth.Name != resourceID.Name {

@@ -103,7 +103,16 @@ type VersionedResource interface {
 type VersionedCreatableResource[InternalAPIType any] interface {
 	VersionedResource
 	NewExternal() any
-	ConvertToInternal(existing *InternalAPIType) (*InternalAPIType, error)
+	// ZeroOwnedFields zeros the fields of 'internal' that this API version
+	// owns. Fields this version does not know about are left untouched.
+	// Must be idempotent.
+	ZeroOwnedFields(internal *InternalAPIType)
+	// ApplyOwnedFields copies values from the receiver (external object
+	// populated from the request body) into 'internal', but only for fields
+	// this version owns. Also performs normalization (type casting, resource ID
+	// parsing) and returns validation errors for null-on-required and
+	// malformed values.
+	ApplyOwnedFields(internal *InternalAPIType) error
 }
 
 type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]

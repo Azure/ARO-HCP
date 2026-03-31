@@ -231,8 +231,8 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	if err := json.Unmarshal(body, &externalNodePoolFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(nil)
-	if err != nil {
+	newInternalNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID, azureLocation)
+	if err := api.ApplyVersionedCreate(externalNodePoolFromRequest, newInternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	// Backstop for fields unknown to this API version's SetDefaultValues*.
@@ -409,8 +409,14 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalNodePool, err := externalNodePoolFromRequest.ConvertToInternal(oldInternalNodePool)
-	if err != nil {
+	// Snapshot dynamically-created values before they are zeroed by ZeroOwnedFields.
+	// SubnetID is immutable-after-create; Version.ID may be omitted in a PUT body that
+	// does not intend to change the version.
+	versionID := oldInternalNodePool.Properties.Version.ID
+	subnetID := oldInternalNodePool.Properties.Platform.SubnetID
+
+	newInternalNodePool := oldInternalNodePool.DeepCopy()
+	if err := api.ApplyVersionedUpdate(externalNodePoolFromRequest, newInternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {
@@ -419,10 +425,10 @@ func decodeDesiredNodePoolReplace(ctx context.Context, oldInternalNodePool *api.
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
 	if len(newInternalNodePool.Properties.Version.ID) == 0 {
-		newInternalNodePool.Properties.Version.ID = oldInternalNodePool.Properties.Version.ID
+		newInternalNodePool.Properties.Version.ID = versionID
 	}
 	if newInternalNodePool.Properties.Platform.SubnetID == nil {
-		newInternalNodePool.Properties.Platform.SubnetID = oldInternalNodePool.Properties.Platform.SubnetID
+		newInternalNodePool.Properties.Platform.SubnetID = subnetID
 	}
 
 	// ServiceProviderProperties contains two types of information
@@ -487,8 +493,8 @@ func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HC
 	if err := api.ApplyPatchRequestBody(body, newExternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalNodePool, err := newExternalNodePool.ConvertToInternal(oldInternalNodePool)
-	if err != nil {
+	newInternalNodePool := oldInternalNodePool.DeepCopy()
+	if err := api.ApplyVersionedUpdate(newExternalNodePool, newInternalNodePool); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	if len(newInternalNodePool.Name) > 0 && newInternalNodePool.Name != resourceID.Name {

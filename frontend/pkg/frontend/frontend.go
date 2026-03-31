@@ -687,14 +687,13 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				continue
 			}
 
-			newInternalCluster, err := versionedCluster.ConvertToInternal(nil)
-			if err != nil {
+			freshCluster := api.NewDefaultHCPOpenShiftCluster(nil, f.azureLocation)
+			if err = api.ApplyVersionedCreate(versionedCluster, freshCluster); err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
-			// Backstop for fields unknown to this API version's SetDefaultValues*.
-			// See docs/api-version-defaults-and-storage.md.
-			newInternalCluster.EnsureDefaults()
+			freshCluster.EnsureDefaults()
+			newInternalCluster := freshCluster
 			newInternalCluster.SystemData = ensureSystemData(newInternalCluster.SystemData, nil)
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
@@ -728,14 +727,13 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			newInternalNodePool, err := versionedNodePool.ConvertToInternal(nil)
-			if err != nil {
+			freshNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(nil, f.azureLocation)
+			if err = api.ApplyVersionedCreate(versionedNodePool, freshNodePool); err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
-			// Backstop for fields unknown to this API version's SetDefaultValues*.
-			// See docs/api-version-defaults-and-storage.md.
-			newInternalNodePool.EnsureDefaults()
+			freshNodePool.EnsureDefaults()
+			newInternalNodePool := freshNodePool
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{
 				"/subscriptions", subscriptionID,
@@ -770,14 +768,13 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			newInternalAuth, err := versionedExternalAuth.ConvertToInternal(nil)
-			if err != nil {
+			freshAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(nil)
+			if err = api.ApplyVersionedCreate(versionedExternalAuth, freshAuth); err != nil {
 				resourceLogger.Info("preflight: failed to convert resource", "error", err.Error())
 				continue
 			}
-			// Backstop for fields unknown to this API version's SetDefaultValues*.
-			// See docs/api-version-defaults-and-storage.md.
-			newInternalAuth.EnsureDefaults()
+			freshAuth.EnsureDefaults()
+			newInternalAuth := freshAuth
 			newInternalAuth.SystemData = ensureSystemData(newInternalAuth.SystemData, nil)
 			// the external type lacks sufficient data to full produce a valid resourceID.  We do that separately here.
 			parts := []string{

@@ -220,7 +220,7 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 // This is the path where PtrOrNil data loss manifests:
 //
 //	internal -> NewHCPOpenShiftClusterNodePool -> JSON marshal ->
-//	JSON unmarshal -> SetDefaultValuesNodePool (simulating constructor) -> ConvertToInternal
+//	JSON unmarshal -> SetDefaultValuesNodePool (simulating constructor) -> ApplyVersionedCreate
 func jsonRoundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePool {
 	t.Helper()
 	v := version{}
@@ -233,9 +233,9 @@ func jsonRoundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePo
 	require.NoError(t, json.Unmarshal(jsonBytes, newExt))
 	SetDefaultValuesNodePool(newExt)
 
-	result, err := newExt.ConvertToInternal(nil)
-	require.NoError(t, err)
-	return result
+	base := api.NewDefaultHCPOpenShiftClusterNodePool(nil, "")
+	require.NoError(t, api.ApplyVersionedCreate(newExt, base))
+	return base
 }
 
 // jsonRoundTripCluster simulates a GET-then-PUT cycle through JSON.
@@ -251,9 +251,9 @@ func jsonRoundTripCluster(t *testing.T, original *api.HCPOpenShiftCluster) *api.
 	require.NoError(t, json.Unmarshal(jsonBytes, newExt))
 	SetDefaultValuesCluster(newExt)
 
-	result, err := newExt.ConvertToInternal(nil)
-	require.NoError(t, err)
-	return result
+	base := api.NewDefaultHCPOpenShiftCluster(nil, "")
+	require.NoError(t, api.ApplyVersionedCreate(newExt, base))
+	return base
 }
 
 // newBaselineInternalNodePool creates a valid node pool with all potentially

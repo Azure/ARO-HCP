@@ -16,7 +16,6 @@ package v20240610preview
 
 import (
 	"strings"
-	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -59,76 +58,74 @@ func (h *ExternalAuth) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
-	out := &api.HCPOpenShiftClusterExternalAuth{}
+// ZeroOwnedFields zeros the fields of 'internal' that this API version (v20240610preview) owns.
+// Properties.Condition is service-provider-only (read-only, @visibility(Lifecycle.Read))
+// and is intentionally NOT zeroed.
+func (h *ExternalAuth) ZeroOwnedFields(internal *api.HCPOpenShiftClusterExternalAuth) {
+	internal.ID = nil
+	internal.Name = ""
+	internal.Type = ""
+	internal.SystemData = nil
+	internal.Properties.Issuer = api.TokenIssuerProfile{}
+	internal.Properties.Claim = api.ExternalAuthClaimProfile{}
+	internal.Properties.Clients = nil
+	// Properties.Condition is service-provider-only. NOT zeroed.
+	// Properties.ProvisioningState is service-provider-only. NOT zeroed.
+}
 
+// ApplyOwnedFields copies values from the receiver (external object populated from the request
+// body) into 'internal', for all fields this v20240610preview version owns.
+// Properties.Condition and Properties.ProvisioningState are service-provider-only fields
+// and are NOT mapped here — they are managed by CopyReadOnlyExternalAuthValues.
+func (h *ExternalAuth) ApplyOwnedFields(internal *api.HCPOpenShiftClusterExternalAuth) error {
 	if h.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
+		internal.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*h.ID)))
 	}
 	if h.Name != nil {
-		out.Name = *h.Name
+		internal.Name = *h.Name
 	}
 	if h.Type != nil {
-		out.Type = *h.Type
+		internal.Type = *h.Type
 	}
 	if h.SystemData != nil {
-		out.SystemData = &arm.SystemData{
+		internal.SystemData = &arm.SystemData{
 			CreatedAt:      h.SystemData.CreatedAt,
 			LastModifiedAt: h.SystemData.LastModifiedAt,
 		}
 		if h.SystemData.CreatedBy != nil {
-			out.SystemData.CreatedBy = *h.SystemData.CreatedBy
+			internal.SystemData.CreatedBy = *h.SystemData.CreatedBy
 		}
 		if h.SystemData.CreatedByType != nil {
-			out.SystemData.CreatedByType = arm.CreatedByType(*h.SystemData.CreatedByType)
+			internal.SystemData.CreatedByType = arm.CreatedByType(*h.SystemData.CreatedByType)
 		}
 		if h.SystemData.LastModifiedBy != nil {
-			out.SystemData.LastModifiedBy = *h.SystemData.LastModifiedBy
+			internal.SystemData.LastModifiedBy = *h.SystemData.LastModifiedBy
 		}
 		if h.SystemData.LastModifiedByType != nil {
-			out.SystemData.LastModifiedByType = arm.CreatedByType(*h.SystemData.LastModifiedByType)
+			internal.SystemData.LastModifiedByType = arm.CreatedByType(*h.SystemData.LastModifiedByType)
 		}
 	}
 
 	if h.Properties != nil {
-		if h.Properties.ProvisioningState != nil {
-			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
-		}
-
-		if h.Properties.Condition != nil {
-			out.Properties.Condition = api.ExternalAuthCondition{
-				Type:               api.ExternalAuthConditionType(ptr.Deref(h.Properties.Condition.Type, "")),
-				Status:             api.ConditionStatusType(ptr.Deref(h.Properties.Condition.Status, "")),
-				LastTransitionTime: ptr.Deref(h.Properties.Condition.LastTransitionTime, time.Time{}),
-				Reason:             ptr.Deref(h.Properties.Condition.Reason, ""),
-				Message:            ptr.Deref(h.Properties.Condition.Message, ""),
-			}
-		}
+		// Properties.ProvisioningState is NOT mapped — it is a service-provider-only
+		// field overwritten by CopyReadOnlyExternalAuthValues.
+		// Properties.Condition is NOT mapped — it is read-only (@visibility(Lifecycle.Read))
+		// and was incorrectly mapped in the old ConvertToInternal. Do not carry forward.
 
 		if h.Properties.Issuer != nil {
-			normalizeTokenIssuerProfile(h.Properties.Issuer, &out.Properties.Issuer)
+			normalizeTokenIssuerProfile(h.Properties.Issuer, &internal.Properties.Issuer)
 		}
 		if h.Properties.Claim != nil {
-			normalizeExternalAuthClaimProfile(h.Properties.Claim, &out.Properties.Claim)
+			normalizeExternalAuthClaimProfile(h.Properties.Claim, &internal.Properties.Claim)
 		}
 
-		out.Properties.Clients = make([]api.ExternalAuthClientProfile, len(h.Properties.Clients))
+		internal.Properties.Clients = make([]api.ExternalAuthClientProfile, len(h.Properties.Clients))
 		for i := range h.Properties.Clients {
-			normalizeExternalAuthClientProfile(h.Properties.Clients[i], &out.Properties.Clients[i])
+			normalizeExternalAuthClientProfile(h.Properties.Clients[i], &internal.Properties.Clients[i])
 		}
 	}
 
-	if existing != nil {
-		preserveUnknownExternalAuthFields(existing, out)
-	}
-
-	return out, nil
-}
-
-// preserveUnknownExternalAuthFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20251223preview.
-func preserveUnknownExternalAuthFields(from, to *api.HCPOpenShiftClusterExternalAuth) {
+	return nil
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {

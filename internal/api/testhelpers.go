@@ -148,9 +148,13 @@ func (m *ExternalTestResource) GetVersion() Version {
 	return nil
 }
 
-func (m *ExternalTestResource) ConvertToInternal(_ *InternalTestResource) (*InternalTestResource, error) {
+func (m *ExternalTestResource) ZeroOwnedFields(_ *InternalTestResource) {
 	// FIXME Implement if there's a need for it in tests.
-	return nil, nil
+}
+
+func (m *ExternalTestResource) ApplyOwnedFields(_ *InternalTestResource) error {
+	// FIXME Implement if there's a need for it in tests.
+	return nil
 }
 
 // Must is a helper function that takes a value and error, returns the value if no error occurred,

@@ -10,9 +10,7 @@
 
 ### Overlay + Reset-Fields Will Replace Conversion
 
-> **Implementation status:** This section describes the target design. The overlay+reset-fields mechanism is not yet implemented — `ConvertToInternal` remains active. Implementation is tracked as acceptance criterion 3 in [AGENT_TODO.md](AGENT_TODO.md).
-
-Per-API-version conversion functions (`ConvertToInternal`) will be replaced by
+Per-API-version conversion functions (`ConvertToInternal`) have been replaced by
 a generic three-step mechanism:
 
 1. **Load**: The existing internal type is read from Cosmos via the per-resource-type conversion function (`CosmosToInternalCluster`, `CosmosToInternalNodePool`, `CosmosToInternalExternalAuth`) including `EnsureDefaults`. This is the base for preservation.

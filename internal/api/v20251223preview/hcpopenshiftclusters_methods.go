@@ -364,8 +364,37 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	out := &api.HCPOpenShiftCluster{}
+// ZeroOwnedFields zeros the fields of 'internal' that this API version (v20251223preview) owns.
+// v20251223preview owns all customer-visible fields, so everything a customer can set is zeroed.
+// ServiceProviderProperties is intentionally NOT zeroed — those fields are restored by
+// CopyReadOnlyClusterValues() in the frontend handler.
+func (c *HcpOpenShiftCluster) ZeroOwnedFields(internal *api.HCPOpenShiftCluster) {
+	// ARM Resource metadata — owned by all versions
+	internal.ID = nil
+	internal.Name = ""
+	internal.Type = ""
+	internal.Location = ""
+	internal.Tags = nil
+	internal.Identity = nil
+	internal.SystemData = nil
+
+	// ALL customer-visible properties — owned by v2025
+	internal.CustomerProperties.Version = api.VersionProfile{}
+	internal.CustomerProperties.DNS = api.CustomerDNSProfile{}
+	internal.CustomerProperties.Network = api.NetworkProfile{}
+	internal.CustomerProperties.API = api.CustomerAPIProfile{}
+	internal.CustomerProperties.Platform = api.CustomerPlatformProfile{}
+	internal.CustomerProperties.Autoscaling = api.ClusterAutoscalingProfile{}
+	internal.CustomerProperties.NodeDrainTimeoutMinutes = 0
+	internal.CustomerProperties.Etcd = api.EtcdProfile{}
+	internal.CustomerProperties.ClusterImageRegistry = api.ClusterImageRegistryProfile{}
+	internal.CustomerProperties.ImageDigestMirrors = nil
+}
+
+// ApplyOwnedFields copies values from the receiver (external object populated from the request
+// body) into 'internal', for all fields this v20251223preview version owns.
+// Null checks on required fields are at the TOP before any normalization.
+func (c *HcpOpenShiftCluster) ApplyOwnedFields(internal *api.HCPOpenShiftCluster) error {
 	errs := field.ErrorList{}
 
 	// Reject null on required fields. JSON merge-patch converts explicit
@@ -393,9 +422,6 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		}
 		if c.Properties.Platform != nil {
 			if c.Properties.Platform.VnetIntegrationSubnetID == nil {
-				// TODO: Remove this check when v20240610preview is removed and
-				// vnetIntegrationSubnetId is enforced via validate.RequiredPointer
-				// in validateCustomerPlatformProfile.
 				errs = append(errs, field.Required(field.NewPath("properties", "platform", "vnetIntegrationSubnetId"), "field cannot be null"))
 			} else if len(*c.Properties.Platform.VnetIntegrationSubnetID) == 0 {
 				errs = append(errs, field.Invalid(field.NewPath("properties", "platform", "vnetIntegrationSubnetId"), "", "field cannot be empty string"))
@@ -403,92 +429,86 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		}
 	}
 
+	if len(errs) > 0 {
+		return arm.CloudErrorFromFieldErrors(errs)
+	}
+
 	if c.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
+		internal.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
 	}
 	if c.Name != nil {
-		out.Name = *c.Name
+		internal.Name = *c.Name
 	}
 	if c.Type != nil {
-		out.Type = *c.Type
+		internal.Type = *c.Type
 	}
 	if c.SystemData != nil {
-		out.SystemData = &arm.SystemData{
+		internal.SystemData = &arm.SystemData{
 			CreatedAt:      c.SystemData.CreatedAt,
 			LastModifiedAt: c.SystemData.LastModifiedAt,
 		}
 		if c.SystemData.CreatedBy != nil {
-			out.SystemData.CreatedBy = *c.SystemData.CreatedBy
+			internal.SystemData.CreatedBy = *c.SystemData.CreatedBy
 		}
 		if c.SystemData.CreatedByType != nil {
-			out.SystemData.CreatedByType = arm.CreatedByType(*c.SystemData.CreatedByType)
+			internal.SystemData.CreatedByType = arm.CreatedByType(*c.SystemData.CreatedByType)
 		}
 		if c.SystemData.LastModifiedBy != nil {
-			out.SystemData.LastModifiedBy = *c.SystemData.LastModifiedBy
+			internal.SystemData.LastModifiedBy = *c.SystemData.LastModifiedBy
 		}
 		if c.SystemData.LastModifiedByType != nil {
-			out.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
+			internal.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
 		}
 	}
 	if c.Location != nil {
-		out.Location = *c.Location
+		internal.Location = *c.Location
 	}
-	out.Identity = normalizeManagedIdentity(c.Identity)
+	internal.Identity = normalizeManagedIdentity(c.Identity)
 	// Per RPC-Patch-V1-04, the Tags field does NOT follow
 	// JSON merge-patch (RFC 7396) semantics:
 	//
 	//   When Tags are patched, the tags from the request
 	//   replace all existing tags for the resource
 	//
-	out.Tags = api.StringPtrMapToStringMap(c.Tags)
+	internal.Tags = api.StringPtrMapToStringMap(c.Tags)
 	if c.Properties != nil {
-		if c.Properties.ProvisioningState != nil {
-			out.ServiceProviderProperties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
-		}
 		if c.Properties.Version != nil {
-			normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
+			normalizeVersion(c.Properties.Version, &internal.CustomerProperties.Version)
 		}
 		if c.Properties.DNS != nil {
-			normalizeDNS(c.Properties.DNS, &out.CustomerProperties.DNS, &out.ServiceProviderProperties.DNS)
+			normalizeDNS(c.Properties.DNS, &internal.CustomerProperties.DNS, &internal.ServiceProviderProperties.DNS)
 		}
 		if c.Properties.Network != nil {
-			normalizeNetwork(c.Properties.Network, &out.CustomerProperties.Network)
+			normalizeNetwork(c.Properties.Network, &internal.CustomerProperties.Network)
 		}
 		if c.Properties.Console != nil {
-			normalizeConsole(c.Properties.Console, &out.ServiceProviderProperties.Console)
+			normalizeConsole(c.Properties.Console, &internal.ServiceProviderProperties.Console)
 		}
 		if c.Properties.API != nil {
-			normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
+			normalizeAPI(c.Properties.API, &internal.CustomerProperties.API, &internal.ServiceProviderProperties.API)
 		}
 		if c.Properties.Platform != nil {
-			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
+			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &internal.CustomerProperties.Platform, &internal.ServiceProviderProperties.Platform)...)
 		}
 		if c.Properties.Autoscaling != nil {
-			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
+			normalizeAutoscaling(c.Properties.Autoscaling, &internal.CustomerProperties.Autoscaling)
 		}
-		out.CustomerProperties.NodeDrainTimeoutMinutes = api.Deref(c.Properties.NodeDrainTimeoutMinutes)
+		internal.CustomerProperties.NodeDrainTimeoutMinutes = api.Deref(c.Properties.NodeDrainTimeoutMinutes)
 		if c.Properties.ClusterImageRegistry != nil {
-			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
+			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &internal.CustomerProperties.ClusterImageRegistry)
 		}
 		if c.Properties.Etcd != nil {
-			normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
+			normalizeEtcd(c.Properties.Etcd, &internal.CustomerProperties.Etcd)
 		}
 		if c.Properties.ImageDigestMirrors != nil {
-			normalizeImageDigestMirrors(c.Properties.ImageDigestMirrors, &out.CustomerProperties.ImageDigestMirrors)
+			normalizeImageDigestMirrors(c.Properties.ImageDigestMirrors, &internal.CustomerProperties.ImageDigestMirrors)
 		}
 	}
 
-	if existing != nil {
-		preserveUnknownClusterFields(existing, out)
-	}
+	// Field preservation is structural: fields not in v20251223preview's owned set
+	// are preserved verbatim from the base (via ZeroOwnedFields leaving them untouched).
 
-	return out, arm.CloudErrorFromFieldErrors(errs)
-}
-
-// preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20251223preview.
-func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
+	return arm.CloudErrorFromFieldErrors(errs)
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {

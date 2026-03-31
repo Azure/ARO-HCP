@@ -44,8 +44,43 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			c.FillNoCustom(j)
 			// ImageDigestMirrors is a v20251223preview field that does not exist in v20240610preview.
 			// It cannot roundtrip through this version's external type.
-			// Cross-version preservation is handled by preserveUnknownClusterFields.
+			// Cross-version preservation is handled by ZeroOwnedFields not zeroing it.
 			j.ImageDigestMirrors = nil
+		},
+		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
+			j.ActiveOperationID = ""
+			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
+			j.ClusterServiceID = ocm.InternalID{}
+			j.ExistingCosmosUID = ""
+		},
+		func(j *api.OSDiskProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// DiskType is a v20251223preview field that does not exist in v20240610preview.
+			// It cannot roundtrip through this version's external type.
+			// Cross-version preservation is handled by ZeroOwnedFields not zeroing it.
+			j.DiskType = ""
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
+			j.ActiveOperationID = ""
+			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
+			j.ClusterServiceID = ocm.InternalID{}
+			j.ExistingCosmosUID = ""
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuthProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// ProvisioningState is service-provider-only and is NOT mapped by ApplyOwnedFields.
+			j.ProvisioningState = ""
+			// Condition is service-provider-only (@visibility(Lifecycle.Read)) and is NOT mapped by ApplyOwnedFields.
+			j.Condition = api.ExternalAuthCondition{}
+		},
+		func(j *api.HCPOpenShiftClusterNodePoolProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// ProvisioningState is service-provider-only and is NOT mapped by ApplyOwnedFields.
+			j.ProvisioningState = ""
 		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -60,29 +95,9 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// the information is not provided in the request body. That information is provided via
 			// the http header 'X-Ms-Identity-Url' and we set it after the call to conversion to internal.
 			j.ManagedIdentitiesDataPlaneIdentityURL = ""
-		},
-		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
-			j.ActiveOperationID = ""
-			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = ocm.InternalID{}
-			j.ExistingCosmosUID = ""
-		},
-		func(j *api.OSDiskProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// DiskType is a v20251223preview field that does not exist in v20240610preview.
-			// It cannot roundtrip through this version's external type.
-			// Cross-version preservation is handled by preserveUnknownNodePoolFields.
-			j.DiskType = ""
-		},
-		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
-			j.ActiveOperationID = ""
-			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = ocm.InternalID{}
-			j.ExistingCosmosUID = ""
+			// ProvisioningState is service-provider-only and is NOT mapped by ApplyOwnedFields.
+			// It is managed by CopyReadOnlyClusterValues after conversion.
+			j.ProvisioningState = ""
 		},
 		func(j *api.CustomerPlatformProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -143,21 +158,30 @@ func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
 	return f
 }
 
+// roundTripHCPCluster verifies the overlay+reset pattern for v20240610preview:
+// internal → external → ApplyVersionedUpdate(original.DeepCopy()) → compare.
+//
+// Using ApplyVersionedUpdate (not ApplyVersionedCreate) is intentional: v20240610preview
+// does not own v20251223preview-exclusive fields (ImageDigestMirrors, VnetIntegrationSubnetID,
+// Kms.Visibility). The overlay semantics require that those fields are preserved from the
+// "existing" doc. Starting from original.DeepCopy() provides that existing doc, so the
+// unknown-to-v2024 fields survive the round trip.
 func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
+	base := original.DeepCopy()
+	err := api.ApplyVersionedUpdate(externalObj.(*HcpOpenShiftCluster), base)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
-	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
+	if !equality.Semantic.DeepEqual(original, base) {
 		// useful for debugging
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
-		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
+		resultJSON, _ := json.MarshalIndent(base, "", "    ")
 		t.Logf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, base, api.CmpDiffOptions...))
 	}
 }
 
@@ -165,17 +189,18 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
+	base := original.DeepCopy()
+	err := api.ApplyVersionedUpdate(externalObj.(*NodePool), base)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
-	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
+	if !equality.Semantic.DeepEqual(original, base) {
 		// useful for debugging
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
-		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
+		resultJSON, _ := json.MarshalIndent(base, "", "    ")
 		t.Logf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, base, api.CmpDiffOptions...))
 	}
 }
 
@@ -183,16 +208,17 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
+	base := original.DeepCopy()
+	err := api.ApplyVersionedUpdate(externalObj.(*ExternalAuth), base)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
-	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
+	if !equality.Semantic.DeepEqual(original, base) {
 		// useful for debugging
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
-		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
+		resultJSON, _ := json.MarshalIndent(base, "", "    ")
 		t.Logf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, base, api.CmpDiffOptions...))
 	}
 }

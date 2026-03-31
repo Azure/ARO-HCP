@@ -341,11 +341,16 @@ func TestNewOSDiskProfile(t *testing.T) {
 
 func roundTripInternalNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) {
 	v := version{}
-	roundTrippedObj, err := v.NewHCPOpenShiftClusterNodePool(original).ConvertToInternal(nil)
+	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
+
+	// Use ApplyVersionedUpdate on a DeepCopy of original so that fields unknown to
+	// v20240610preview (e.g. OSDisk.DiskType) are preserved from the existing doc.
+	base := original.DeepCopy()
+	err := api.ApplyVersionedUpdate(externalObj.(*NodePool), base)
 	require.NoError(t, err)
 
 	// we compare using DeepEqual here because many of these types have private fields that cannot be introspected
-	if !reflect.DeepEqual(original, roundTrippedObj) {
-		t.Errorf("Round trip failed:\n%s", cmp.Diff(original, roundTrippedObj))
+	if !reflect.DeepEqual(original, base) {
+		t.Errorf("Round trip failed:\n%s", cmp.Diff(original, base))
 	}
 }

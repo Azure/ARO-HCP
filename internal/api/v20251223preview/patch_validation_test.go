@@ -21,14 +21,15 @@ import (
 
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
 )
 
-// TestClusterConvertToInternal_RejectsNullOnRequiredFields verifies that
-// ConvertToInternal returns validation errors when required fields are nil.
+// TestClusterApplyOwnedFields_RejectsNullOnRequiredFields verifies that
+// ApplyOwnedFields returns validation errors when required fields are nil.
 // This implements Option B from the DDR: PATCH with null on a required field
 // returns 400 BadRequest.
-func TestClusterConvertToInternal_RejectsNullOnRequiredFields(t *testing.T) {
+func TestClusterApplyOwnedFields_RejectsNullOnRequiredFields(t *testing.T) {
 	tests := []struct {
 		name          string
 		cluster       *HcpOpenShiftCluster
@@ -96,16 +97,17 @@ func TestClusterConvertToInternal_RejectsNullOnRequiredFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.cluster.ConvertToInternal(nil)
+			internal := api.NewDefaultHCPOpenShiftCluster(nil, "")
+			err := tt.cluster.ApplyOwnedFields(internal)
 			require.Error(t, err, "expected validation error for null required field")
 			require.Contains(t, err.Error(), tt.expectedField)
 		})
 	}
 }
 
-// TestClusterConvertToInternal_AcceptsExplicitZero verifies that explicit
+// TestClusterApplyOwnedFields_AcceptsExplicitZero verifies that explicit
 // zero values (not null) are accepted and preserved.
-func TestClusterConvertToInternal_AcceptsExplicitZero(t *testing.T) {
+func TestClusterApplyOwnedFields_AcceptsExplicitZero(t *testing.T) {
 	cluster := &HcpOpenShiftCluster{
 		generated.HcpOpenShiftCluster{
 			Properties: &generated.HcpOpenShiftClusterProperties{
@@ -121,17 +123,18 @@ func TestClusterConvertToInternal_AcceptsExplicitZero(t *testing.T) {
 		},
 	}
 
-	result, err := cluster.ConvertToInternal(nil)
+	internal := api.NewDefaultHCPOpenShiftCluster(nil, "")
+	err := cluster.ApplyOwnedFields(internal)
 	require.NoError(t, err)
-	require.Equal(t, int32(0), result.CustomerProperties.Network.HostPrefix)
-	require.Equal(t, int32(0), result.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds)
-	require.Equal(t, int32(0), result.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds)
-	require.Equal(t, int32(0), result.CustomerProperties.Autoscaling.PodPriorityThreshold)
+	require.Equal(t, int32(0), internal.CustomerProperties.Network.HostPrefix)
+	require.Equal(t, int32(0), internal.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds)
+	require.Equal(t, int32(0), internal.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds)
+	require.Equal(t, int32(0), internal.CustomerProperties.Autoscaling.PodPriorityThreshold)
 }
 
-// TestNodePoolConvertToInternal_RejectsNullAutoRepair verifies that
-// ConvertToInternal returns a validation error when AutoRepair is nil.
-func TestNodePoolConvertToInternal_RejectsNullAutoRepair(t *testing.T) {
+// TestNodePoolApplyOwnedFields_RejectsNullAutoRepair verifies that
+// ApplyOwnedFields returns a validation error when AutoRepair is nil.
+func TestNodePoolApplyOwnedFields_RejectsNullAutoRepair(t *testing.T) {
 	np := &NodePool{
 		generated.NodePool{
 			Properties: &generated.NodePoolProperties{
@@ -140,14 +143,15 @@ func TestNodePoolConvertToInternal_RejectsNullAutoRepair(t *testing.T) {
 		},
 	}
 
-	_, err := np.ConvertToInternal(nil)
+	internal := api.NewDefaultHCPOpenShiftClusterNodePool(nil, "")
+	err := np.ApplyOwnedFields(internal)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "properties.autoRepair")
 }
 
-// TestNodePoolConvertToInternal_AcceptsExplicitFalseAutoRepair verifies that
+// TestNodePoolApplyOwnedFields_AcceptsExplicitFalseAutoRepair verifies that
 // AutoRepair=false (explicit, not null) is accepted and preserved.
-func TestNodePoolConvertToInternal_AcceptsExplicitFalseAutoRepair(t *testing.T) {
+func TestNodePoolApplyOwnedFields_AcceptsExplicitFalseAutoRepair(t *testing.T) {
 	np := &NodePool{
 		generated.NodePool{
 			Properties: &generated.NodePoolProperties{
@@ -156,9 +160,10 @@ func TestNodePoolConvertToInternal_AcceptsExplicitFalseAutoRepair(t *testing.T) 
 		},
 	}
 
-	result, err := np.ConvertToInternal(nil)
+	internal := api.NewDefaultHCPOpenShiftClusterNodePool(nil, "")
+	err := np.ApplyOwnedFields(internal)
 	require.NoError(t, err)
-	require.Equal(t, false, result.Properties.AutoRepair)
+	require.Equal(t, false, internal.Properties.AutoRepair)
 }
 
 // TestNewHCPOpenShiftCluster_NilInput verifies that NewHCPOpenShiftCluster(nil)

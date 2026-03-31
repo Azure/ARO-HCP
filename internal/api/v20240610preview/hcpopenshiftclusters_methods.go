@@ -343,110 +343,145 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 	return versionedInterface
 }
 
-func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	out := &api.HCPOpenShiftCluster{}
+// ZeroOwnedFields zeros the fields of 'internal' that this API version (v20240610preview) owns.
+// Fields introduced in later API versions (ImageDigestMirrors, VnetIntegrationSubnetID,
+// Kms.Visibility) are intentionally NOT zeroed so they are preserved from the existing
+// Cosmos document verbatim.
+func (c *HcpOpenShiftCluster) ZeroOwnedFields(internal *api.HCPOpenShiftCluster) {
+	// ARM Resource metadata — owned by all versions
+	internal.ID = nil
+	internal.Name = ""
+	internal.Type = ""
+	internal.Location = ""
+	internal.Tags = nil
+	internal.Identity = nil
+	internal.SystemData = nil
+
+	// Customer-visible properties known to v20240610preview
+	internal.CustomerProperties.Version = api.VersionProfile{}
+	internal.CustomerProperties.DNS = api.CustomerDNSProfile{}
+	internal.CustomerProperties.Network = api.NetworkProfile{}
+	internal.CustomerProperties.API = api.CustomerAPIProfile{}
+
+	// Platform: zero only the fields v20240610preview exposes.
+	// VnetIntegrationSubnetID is NOT zeroed — it was added in v20251223preview
+	// and must be preserved from the existing Cosmos document.
+	internal.CustomerProperties.Platform.ManagedResourceGroup = ""
+	internal.CustomerProperties.Platform.SubnetID = nil
+	internal.CustomerProperties.Platform.OutboundType = ""
+	internal.CustomerProperties.Platform.NetworkSecurityGroupID = nil
+	internal.CustomerProperties.Platform.OperatorsAuthentication = api.OperatorsAuthenticationProfile{}
+
+	internal.CustomerProperties.Autoscaling = api.ClusterAutoscalingProfile{}
+	internal.CustomerProperties.NodeDrainTimeoutMinutes = 0
+
+	// Etcd: zero only the fields v20240610preview exposes at the leaf level.
+	// CustomerManaged is NOT zeroed as a whole — that would destroy the
+	// v20251223preview-exclusive Kms.Visibility field.
+	internal.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = ""
+	if internal.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil {
+		internal.CustomerProperties.Etcd.DataEncryption.CustomerManaged.EncryptionType = ""
+		if internal.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+			internal.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Name = ""
+			internal.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = ""
+			internal.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName = ""
+			// Kms.Visibility is NOT zeroed — it was added in v20251223preview.
+		}
+	}
+
+	internal.CustomerProperties.ClusterImageRegistry = api.ClusterImageRegistryProfile{}
+
+	// ImageDigestMirrors is NOT zeroed — it was added in v20251223preview
+	// and must be preserved from the existing Cosmos document.
+}
+
+// ApplyOwnedFields copies values from the receiver (external object populated from the request
+// body) into 'internal', for all fields this v20240610preview version owns.
+// Null checks on required fields are at the TOP before any normalization.
+// Note: VnetIntegrationSubnetID is NOT checked here — it is a v20251223preview requirement.
+func (c *HcpOpenShiftCluster) ApplyOwnedFields(internal *api.HCPOpenShiftCluster) error {
 	errs := field.ErrorList{}
 
+	// No v20240610preview-specific required-field null checks beyond what
+	// SetDefaultValuesCluster guarantees. VnetIntegrationSubnetID null rejection
+	// is a v20251223preview concern (that version exposes and requires it).
+
 	if c.ID != nil {
-		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
+		internal.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
 	}
 	if c.Name != nil {
-		out.Name = *c.Name
+		internal.Name = *c.Name
 	}
 	if c.Type != nil {
-		out.Type = *c.Type
+		internal.Type = *c.Type
 	}
 	if c.SystemData != nil {
-		out.SystemData = &arm.SystemData{
+		internal.SystemData = &arm.SystemData{
 			CreatedAt:      c.SystemData.CreatedAt,
 			LastModifiedAt: c.SystemData.LastModifiedAt,
 		}
 		if c.SystemData.CreatedBy != nil {
-			out.SystemData.CreatedBy = *c.SystemData.CreatedBy
+			internal.SystemData.CreatedBy = *c.SystemData.CreatedBy
 		}
 		if c.SystemData.CreatedByType != nil {
-			out.SystemData.CreatedByType = arm.CreatedByType(*c.SystemData.CreatedByType)
+			internal.SystemData.CreatedByType = arm.CreatedByType(*c.SystemData.CreatedByType)
 		}
 		if c.SystemData.LastModifiedBy != nil {
-			out.SystemData.LastModifiedBy = *c.SystemData.LastModifiedBy
+			internal.SystemData.LastModifiedBy = *c.SystemData.LastModifiedBy
 		}
 		if c.SystemData.LastModifiedByType != nil {
-			out.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
+			internal.SystemData.LastModifiedByType = arm.CreatedByType(*c.SystemData.LastModifiedByType)
 		}
 	}
 	if c.Location != nil {
-		out.Location = *c.Location
+		internal.Location = *c.Location
 	}
-	out.Identity = normalizeManagedIdentity(c.Identity)
+	internal.Identity = normalizeManagedIdentity(c.Identity)
 	// Per RPC-Patch-V1-04, the Tags field does NOT follow
 	// JSON merge-patch (RFC 7396) semantics:
 	//
 	//   When Tags are patched, the tags from the request
 	//   replace all existing tags for the resource
 	//
-	out.Tags = api.StringPtrMapToStringMap(c.Tags)
+	internal.Tags = api.StringPtrMapToStringMap(c.Tags)
 	if c.Properties != nil {
-		if c.Properties.ProvisioningState != nil {
-			out.ServiceProviderProperties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
-		}
 		if c.Properties.Version != nil {
-			normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
+			normalizeVersion(c.Properties.Version, &internal.CustomerProperties.Version)
 		}
 		if c.Properties.DNS != nil {
-			normalizeDNS(c.Properties.DNS, &out.CustomerProperties.DNS, &out.ServiceProviderProperties.DNS)
+			normalizeDNS(c.Properties.DNS, &internal.CustomerProperties.DNS, &internal.ServiceProviderProperties.DNS)
 		}
 		if c.Properties.Network != nil {
-			normalizeNetwork(c.Properties.Network, &out.CustomerProperties.Network)
+			normalizeNetwork(c.Properties.Network, &internal.CustomerProperties.Network)
 		}
 		if c.Properties.Console != nil {
-			normalizeConsole(c.Properties.Console, &out.ServiceProviderProperties.Console)
+			normalizeConsole(c.Properties.Console, &internal.ServiceProviderProperties.Console)
 		}
 		if c.Properties.API != nil {
-			normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
+			normalizeAPI(c.Properties.API, &internal.CustomerProperties.API, &internal.ServiceProviderProperties.API)
 		}
 		if c.Properties.Platform != nil {
-			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
+			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &internal.CustomerProperties.Platform, &internal.ServiceProviderProperties.Platform)...)
 		}
 		if c.Properties.Autoscaling != nil {
-			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
+			normalizeAutoscaling(c.Properties.Autoscaling, &internal.CustomerProperties.Autoscaling)
 		}
 		if c.Properties.NodeDrainTimeoutMinutes != nil {
-			out.CustomerProperties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
+			internal.CustomerProperties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
 		}
 		if c.Properties.ClusterImageRegistry != nil {
-			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
+			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &internal.CustomerProperties.ClusterImageRegistry)
 		}
 		if c.Properties.Etcd != nil {
-			normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
+			normalizeEtcd(c.Properties.Etcd, &internal.CustomerProperties.Etcd)
 		}
 	}
 
-	if existing != nil {
-		preserveUnknownClusterFields(existing, out)
-	}
+	// Field preservation is structural: fields not in v20240610preview's owned set
+	// (ImageDigestMirrors, VnetIntegrationSubnetID, Kms.Visibility) are preserved
+	// verbatim from the base via ZeroOwnedFields leaving them untouched.
 
-	return out, arm.CloudErrorFromFieldErrors(errs)
-}
-
-// preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about.
-func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
-	for _, idmFrom := range from.CustomerProperties.ImageDigestMirrors {
-		to.CustomerProperties.ImageDigestMirrors = append(
-			to.CustomerProperties.ImageDigestMirrors, *idmFrom.DeepCopy())
-	}
-	// VnetIntegrationSubnetID was added in v2025_12_23_preview.
-	to.CustomerProperties.Platform.VnetIntegrationSubnetID = from.CustomerProperties.Platform.VnetIntegrationSubnetID
-	// Visibility was added in v2025_12_23_preview.
-	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {
-			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{}
-		}
-		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms == nil {
-			to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &api.KmsEncryptionProfile{}
-		}
-		to.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility
-	}
+	return arm.CloudErrorFromFieldErrors(errs)
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
@@ -574,6 +609,8 @@ func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.Clust
 func normalizeEtcd(p *generated.EtcdProfile, out *api.EtcdProfile) {
 	if p.DataEncryption != nil {
 		normalizeEtcdDataEncryptionProfile(p.DataEncryption, &out.DataEncryption)
+	} else {
+		out.DataEncryption = api.EtcdDataEncryptionProfile{}
 	}
 }
 
@@ -583,6 +620,8 @@ func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, 
 			out.CustomerManaged = &api.CustomerManagedEncryptionProfile{}
 		}
 		normalizeCustomerManaged(p.CustomerManaged, out.CustomerManaged)
+	} else {
+		out.CustomerManaged = nil
 	}
 	if p.KeyManagementMode != nil {
 		out.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeType(*p.KeyManagementMode)
@@ -598,6 +637,8 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 			out.Kms = &api.KmsEncryptionProfile{}
 		}
 		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
+	} else {
+		out.Kms = nil
 	}
 }
 

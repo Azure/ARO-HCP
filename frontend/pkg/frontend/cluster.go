@@ -253,8 +253,8 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal(nil)
-	if err != nil {
+	newInternalCluster := api.NewDefaultHCPOpenShiftCluster(resourceID, azureLocation)
+	if err := api.ApplyVersionedCreate(externalClusterFromRequest, newInternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	// Backstop for fields unknown to this API version's SetDefaultValues*.
@@ -460,8 +460,14 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 		return nil, utils.TrackError(err)
 	}
 
-	newInternalCluster, err := externalClusterFromRequest.ConvertToInternal(oldInternalCluster)
-	if err != nil {
+	// Snapshot immutable-after-create values before they are zeroed by ZeroOwnedFields.
+	// On PUT-replace, if the request body omits these fields, ApplyOwnedFields writes empty
+	// strings (from the nil-defaulted external struct). Restoring from snapshot preserves them.
+	baseDomainPrefix := oldInternalCluster.CustomerProperties.DNS.BaseDomainPrefix
+	managedResourceGroup := oldInternalCluster.CustomerProperties.Platform.ManagedResourceGroup
+
+	newInternalCluster := oldInternalCluster.DeepCopy()
+	if err := api.ApplyVersionedUpdate(externalClusterFromRequest, newInternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
@@ -470,10 +476,10 @@ func decodeDesiredClusterReplace(ctx context.Context, oldInternalCluster *api.HC
 
 	// values a user doesn't have to provide, but are not static defaults (set dynamically during create).  Set these from old value
 	if len(newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
-		newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix = oldInternalCluster.CustomerProperties.DNS.BaseDomainPrefix
+		newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix = baseDomainPrefix
 	}
 	if len(newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup) == 0 {
-		newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup = oldInternalCluster.CustomerProperties.Platform.ManagedResourceGroup
+		newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup = managedResourceGroup
 	}
 
 	// ServiceProviderProperties contains two types of information
@@ -543,8 +549,8 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	if err := api.ApplyPatchRequestBody(body, newExternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newInternalCluster, err := newExternalCluster.ConvertToInternal(oldInternalCluster)
-	if err != nil {
+	newInternalCluster := oldInternalCluster.DeepCopy()
+	if err := api.ApplyVersionedUpdate(newExternalCluster, newInternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	if len(newInternalCluster.Name) > 0 && newInternalCluster.Name != resourceID.Name {
