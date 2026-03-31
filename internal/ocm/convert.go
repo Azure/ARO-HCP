@@ -341,17 +341,21 @@ func GetClusterServiceUserAssignedIdentities(clusterServiceCluster *arohcpv1alph
 			for _, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
 				clientID, _ := operatorIdentity.GetClientID()
 				principalID, _ := operatorIdentity.GetPrincipalID()
-				ret[operatorIdentity.ResourceID()] = &arm.UserAssignedIdentity{
-					ClientID:    &clientID,
-					PrincipalID: &principalID,
+				if len(clientID) > 0 && len(principalID) > 0 {
+					ret[operatorIdentity.ResourceID()] = &arm.UserAssignedIdentity{
+						ClientID:    &clientID,
+						PrincipalID: &principalID,
+					}
 				}
 			}
 			if len(mi.ServiceManagedIdentity().ResourceID()) > 0 {
 				clientID, _ := mi.ServiceManagedIdentity().GetClientID()
 				principalID, _ := mi.ServiceManagedIdentity().GetPrincipalID()
-				ret[mi.ServiceManagedIdentity().ResourceID()] = &arm.UserAssignedIdentity{
-					ClientID:    &clientID,
-					PrincipalID: &principalID,
+				if len(clientID) > 0 && len(principalID) > 0 {
+					ret[mi.ServiceManagedIdentity().ResourceID()] = &arm.UserAssignedIdentity{
+						ClientID:    &clientID,
+						PrincipalID: &principalID,
+					}
 				}
 			}
 		}
