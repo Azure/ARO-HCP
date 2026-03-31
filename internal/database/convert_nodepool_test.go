@@ -90,7 +90,7 @@ func TestCosmosToInternalNodePoolPreservesETag(t *testing.T) {
 			},
 		},
 		NodePoolProperties: NodePoolProperties{
-			ResourceDocument: &ResourceDocument{
+			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID: resourceID,
 			},
 		},

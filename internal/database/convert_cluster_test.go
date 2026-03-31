@@ -180,7 +180,7 @@ func TestCosmosToInternalClusterPreservesETag(t *testing.T) {
 			},
 		},
 		HCPClusterProperties: HCPClusterProperties{
-			ResourceDocument: &ResourceDocument{
+			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID: resourceID,
 			},
 		},
