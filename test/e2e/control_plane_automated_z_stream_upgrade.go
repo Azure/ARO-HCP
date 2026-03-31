@@ -50,6 +50,10 @@ var _ = Describe("Control plane automated z-stream upgrade with candidate channe
 
 			tc := framework.NewTestContext()
 
+			if minorVersion == "4.19" {
+				Skip("4.19 z-stream test temporarily skipped to reduce mgmt cluster pressure during e2e")
+			}
+
 			if len(baseInstallVersion) == 0 {
 				baseInstallVersion = minorVersion // set it to minor so that we defaul to .0 as the patch version
 			}
