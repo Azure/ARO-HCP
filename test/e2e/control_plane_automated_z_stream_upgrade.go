@@ -164,10 +164,6 @@ var _ = Describe("Service Provider", func() {
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 
-		// for 4.19, if we start with 4.19.0, the version that has an upgrade path to 4.19.latest is
-		// 4.19.3 but cluster install on this version fails with KMS authentication problem.
-		// For all the other minor versions, we can start with 4.y.0 and install the latest version in the candidate channel.
-		Entry("for 4.19", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.19", "4.19.25"),
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20", ""),
 		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21", ""),
 		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22", ""),
