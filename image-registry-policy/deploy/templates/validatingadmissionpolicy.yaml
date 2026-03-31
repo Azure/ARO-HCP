@@ -36,22 +36,6 @@ spec:
   - name: allowedPrefixes
     expression: "params.data.allowedRegistries.split(',')"
   validations:
-  - expression: >-
-      variables.allImages.all(img,
-
-        variables.allowedPrefixes.exists(prefix,
-          img.startsWith(prefix + '/')
-          || img.startsWith(prefix + '@')
-          || img.startsWith(prefix + ':')
-        )
-      )
-    messageExpression: >-
-      'One or more container images are not from an allowed registry. Allowed registries: ' + params.data.allowedRegistries + '. Images: ' + variables.allImages.filter(img,
-
-          !variables.allowedPrefixes.exists(prefix,
-            img.startsWith(prefix + '/')
-            || img.startsWith(prefix + '@')
-            || img.startsWith(prefix + ':')
-          )
-        ).join(', ')
+  - expression: "variables.allImages.all(img, variables.allowedPrefixes.exists(prefix, img.startsWith(prefix + '/') || img.startsWith(prefix + '@') || img.startsWith(prefix + ':')))"
+    messageExpression: "'One or more container images are not from an allowed registry. Allowed registries: ' + params.data.allowedRegistries + '. Images: ' + variables.allImages.filter(img, !variables.allowedPrefixes.exists(prefix, img.startsWith(prefix + '/') || img.startsWith(prefix + '@') || img.startsWith(prefix + ':'))).join(', ')"
     reason: Forbidden
