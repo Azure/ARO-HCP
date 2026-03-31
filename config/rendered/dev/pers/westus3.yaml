@@ -186,13 +186,13 @@ clustersService:
     channelGroups:
       candidate:
         maxVersion: ""
-        minVersion: 4.19.7
+        minVersion: 4.20.8
       nightly:
         maxVersion: ""
-        minVersion: 4.19.0-0.nightly-20200101
+        minVersion: 4.20.0-0.nightly-20200101
       stable:
         maxVersion: ""
-        minVersion: 4.19.0
+        minVersion: 4.20.8
     defaultVersion:
       version: 4.20.8
   postgres:
