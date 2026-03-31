@@ -1,0 +1,41 @@
+rule_files:
+  - kubeNode-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Scenario 1: Node under MemoryPressure for more than 5 minutes - alert should fire
+- interval: 1m
+  input_series:
+  - series: 'kube_node_status_condition{cluster="svc-1",node="node-1",condition="MemoryPressure",status="true"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeMemoryPressure
+    exp_alerts:
+      - exp_labels:
+          alertname: KubeMemoryPressure
+          severity: warning
+          cluster: svc-1
+          node: node-1
+          condition: MemoryPressure
+          status: "true"
+        exp_annotations:
+          summary: "Node under memory pressure"
+          description: "Node node-1 is reporting MemoryPressure condition"
+# Scenario 5: MemoryPressure clears before 5 minutes - alert should NOT fire
+- interval: 1m
+  input_series:
+  - series: 'kube_node_status_condition{cluster="svc-1",node="node-1",condition="MemoryPressure",status="true"}'
+    values: "1 1 1 1 0 0 0 0 0 0"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeMemoryPressure
+    exp_alerts: [ ]
+# Scenario 6: MemoryPressure never happens - no alert
+- interval: 1m
+  input_series:
+  - series: 'kube_node_status_condition{cluster="svc-1",node="node-1",condition="MemoryPressure",status="true"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeMemoryPressure
+    exp_alerts: [ ]

@@ -1439,3 +1439,42 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
     ]
   }
 }
+
+resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'kube-node-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeMemoryPressure'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'KubeMemoryPressure/{{ $labels.cluster }}/{{ $labels.node }}'
+          description: 'Node {{ $labels.node }} is reporting MemoryPressure condition'
+          info: 'Node {{ $labels.node }} is reporting MemoryPressure condition'
+          summary: 'Node under memory pressure'
+          title: 'Node under memory pressure'
+        }
+        expression: 'kube_node_status_condition{condition="MemoryPressure",status="true"} == 1'
+        for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

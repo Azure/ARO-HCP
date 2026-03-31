@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kube-node-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: kube-node-rules
+    rules:
+    - alert: KubeMemoryPressure
+      annotations:
+        summary: "Node under memory pressure"
+        description: "Node {{ $labels.node }} is reporting MemoryPressure condition"
+      expr: |
+        kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+      for: 5m
+      labels:
+        severity: warning
