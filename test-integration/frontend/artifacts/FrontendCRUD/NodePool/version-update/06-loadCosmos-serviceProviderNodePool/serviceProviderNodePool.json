@@ -7,14 +7,14 @@
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/version-update/nodePools/update-np/serviceProviderNodePools/default",
 		"spec": {
 			"nodePoolVersion": {
-				"desiredVersion": "4.17.5"
+				"desiredVersion": "4.20.10"
 			}
 		},
 		"status": {
 			"nodePoolVersion": {
 				"activeVersions": [
-					{"version": "4.17.5"},
-					{"version": "4.17.0"}
+					{"version": "4.20.10"},
+					{"version": "4.20.8"}
 				]
 			}
 		}

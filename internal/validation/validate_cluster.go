@@ -325,7 +325,15 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	// Version ID is required, but some records may not have had it originally, so don't fail them yet.
 	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
-		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.19")...)
+
+		if !op.HasOption(api.FeatureExperimentalReleaseFeatures) {
+			errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.20")...)
+		} else {
+			// only allow install from 4.19 with experimental flag
+			// this should be removed once support for 4.19 has been fully removed
+			errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID), "4.19")...)
+		}
+
 		errs = append(errs, VersionMayNotDecrease(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
 	}
 	if !op.HasOption(api.FeatureExperimentalReleaseFeatures) {

@@ -260,12 +260,12 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			name: "converts stable version from CS to RP (X.Y.Z to X.Y)",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.25").
+					ID("openshift-v4.20.16").
 					ChannelGroup("stable")),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.19",
+						ID:           "4.20",
 						ChannelGroup: "stable",
 					},
 				},
@@ -275,12 +275,12 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			name: "converts nightly version from CS to RP (strips channel suffix)",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
+					ID("openshift-v4.21.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly")),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.19",
+						ID:           "4.21",
 						ChannelGroup: "nightly",
 					},
 				},
@@ -290,12 +290,12 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			name: "converts candidate version from CS to RP",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.1-candidate").
+					ID("openshift-v4.21.1-candidate").
 					ChannelGroup("candidate")),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.19",
+						ID:           "4.21",
 						ChannelGroup: "candidate",
 					},
 				},
@@ -447,14 +447,14 @@ func TestWithImmutableAttributes(t *testing.T) {
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.19",
+						ID:           "4.20",
 						ChannelGroup: "stable",
 					},
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.25").
+					ID("openshift-v4.20.16").
 					ChannelGroup("stable"))),
 		},
 		{
@@ -462,14 +462,14 @@ func TestWithImmutableAttributes(t *testing.T) {
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.19.19",
+						ID:           "4.21.19",
 						ChannelGroup: "candidate",
 					},
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.19-candidate").
+					ID("openshift-v4.21.19-candidate").
 					ChannelGroup("candidate"))),
 		},
 		{
@@ -477,14 +477,14 @@ func TestWithImmutableAttributes(t *testing.T) {
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.19.0-0.nightly-2025-01-01",
+						ID:           "4.21.0-0.nightly-2025-01-01",
 						ChannelGroup: "nightly",
 					},
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
+					ID("openshift-v4.21.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly"))),
 		},
 		{
@@ -496,16 +496,6 @@ func TestWithImmutableAttributes(t *testing.T) {
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
 				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.25").ChannelGroup("stable"))),
-		},
-		{
-			name: "with version 4.20",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{ID: "4.20", ChannelGroup: "stable"},
-				},
-			},
-			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.16").ChannelGroup("stable"))),
 		},
 		{
 			name: "with version 4.21",
@@ -621,7 +611,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.19.25").
+			ID("openshift-v4.20.16").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled)).
@@ -715,14 +705,14 @@ func TestBuildCSNodePool(t *testing.T) {
 			hcpNodePool: getHCPNodePoolResource(
 				func(hsc *api.HCPOpenShiftClusterNodePool) {
 					hsc.Properties.Version = api.NodePoolVersionProfile{
-						ID:           "4.19",
+						ID:           "4.20",
 						ChannelGroup: "stable",
 					}
 				},
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.25").
+					ID("openshift-v4.20.16").
 					ChannelGroup("stable")),
 		},
 		{
@@ -730,14 +720,14 @@ func TestBuildCSNodePool(t *testing.T) {
 			hcpNodePool: getHCPNodePoolResource(
 				func(hsc *api.HCPOpenShiftClusterNodePool) {
 					hsc.Properties.Version = api.NodePoolVersionProfile{
-						ID:           "4.19.19",
+						ID:           "4.21.19",
 						ChannelGroup: "candidate",
 					}
 				},
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.19-candidate").
+					ID("openshift-v4.21.19-candidate").
 					ChannelGroup("candidate")),
 		},
 		{
@@ -745,14 +735,14 @@ func TestBuildCSNodePool(t *testing.T) {
 			hcpNodePool: getHCPNodePoolResource(
 				func(hsc *api.HCPOpenShiftClusterNodePool) {
 					hsc.Properties.Version = api.NodePoolVersionProfile{
-						ID:           "4.19.0-0.nightly-2025-01-01",
+						ID:           "4.21.0-0.nightly-2025-01-01",
 						ChannelGroup: "nightly",
 					}
 				},
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
+					ID("openshift-v4.21.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly")),
 		},
 		{

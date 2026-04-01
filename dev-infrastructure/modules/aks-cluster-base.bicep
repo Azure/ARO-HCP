@@ -86,8 +86,6 @@ param dnsPrefix string = aksClusterName
 param systemOsDiskSizeGB int
 param userOsDiskSizeGB int
 param infraOsDiskSizeGB int
-param imageGcHighThreshold int = 70
-param imageGcLowThreshold int = 60
 
 @description('The resource IDs of ACR instances that the AKS cluster will pull images from')
 param pullAcrResourceIds array = []
@@ -310,10 +308,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
         enableFIPS: true
         enableNodePublicIP: false
         kubeletDiskType: 'OS'
-        kubeletConfig: {
-          imageGcHighThreshold: imageGcHighThreshold
-          imageGcLowThreshold: imageGcLowThreshold
-        }
         osDiskType: 'Ephemeral'
         osDiskSizeGB: systemOsDiskSizeGB
         minCount: systemAgentMinCount

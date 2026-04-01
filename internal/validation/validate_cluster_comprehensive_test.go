@@ -1138,6 +1138,27 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{},
 		},
+		{
+			name: "valid 4.19 version with experimental flag - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "invalid 4.19 version without experimental flag - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be at least 4.20", fieldPath: "customerProperties.version.id"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1354,12 +1375,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "version ID can be changed - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.20"
+				c.CustomerProperties.Version.ID = "4.21"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.19"
+				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
@@ -1931,7 +1952,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "multiple immutable field changes - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.20"
+				c.CustomerProperties.Version.ID = "4.21"
 				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "newprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
@@ -1940,7 +1961,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.19"
+				c.CustomerProperties.Version.ID = "4.20"
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "oldprefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
@@ -1983,7 +2004,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.19"
+				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
@@ -1995,7 +2016,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "update: version.id can be added when old cluster had no version.id",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.19"
+				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -2007,15 +2028,15 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
-			name: "update: version may not decrease from 4.20 to 4.19",
+			name: "update: version may not decrease from 4.21 to 4.20",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.19"
+				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.20"
+				c.CustomerProperties.Version.ID = "4.21"
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
@@ -2024,15 +2045,15 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "update: version can increase from 4.19 to 4.20 using a case insensitive AFEC",
+			name: "update: version can increase from 4.20 to 4.21 using a case insensitive AFEC",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.20"
+				c.CustomerProperties.Version.ID = "4.21"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.19"
+				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
 			opOptions:    testFeatureOptions("Microsoft.Redhatopenshift/ExperimentalReleaseFeatures"),
@@ -2042,31 +2063,45 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "update: version can stay the same",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.19"
+				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.19"
+				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
 			expectErrors: []expectedError{},
 		},
 		{
-			name: "update: version must still be at least 4.19 even if old cluster had lower version",
+			name: "update: version can stay the same 4.19 version with experimental flag",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.18"
+				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.18"
+				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "update: version must still be at least 4.20 even if old cluster had lower version without experimental flag",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ID = "4.19"
+				return c
+			}(),
 			expectErrors: []expectedError{
-				{message: "must be at least 4.19", fieldPath: "customerProperties.version.id"},
+				{message: "must be at least 4.20", fieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2116,7 +2151,7 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 
 	// Set required fields that are not in the default
 	cluster.Location = "eastus"                    // Required for TrackedResource validation
-	cluster.CustomerProperties.Version.ID = "4.19" // Use MAJOR.MINOR format, must be at least 4.19
+	cluster.CustomerProperties.Version.ID = "4.20" // Use MAJOR.MINOR format, must be at least 4.20
 	cluster.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
 	// Use different resource group for subnet to ensure same subscription validation
 	cluster.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))

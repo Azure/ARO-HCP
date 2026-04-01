@@ -1,0 +1,21 @@
+{
+	"id": "|subscriptions|a1b2c3d4-0000-0000-0000-afec00000000|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|basic|nodepools|valid-419-np|serviceprovidernodepools|default",
+	"partitionKey": "a1b2c3d4-0000-0000-0000-afec00000000",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools",
+	"resourceID": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/valid-419-np/serviceProviderNodePools/default",
+	"properties": {
+		"resourceId": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/valid-419-np/serviceProviderNodePools/default",
+		"spec": {
+			"nodePoolVersion": {
+				"desiredVersion": "4.19.16"
+			}
+		},
+		"status": {
+			"nodePoolVersion": {
+				"activeVersions": [
+					{"version": "4.19.16"}
+				]
+			}
+		}
+	}
+}

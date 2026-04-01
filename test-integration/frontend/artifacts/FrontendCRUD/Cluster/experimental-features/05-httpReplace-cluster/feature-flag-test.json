@@ -44,7 +44,7 @@
 		},
 		"version": {
 			"channelGroup": "stable",
-			"id": "4.20"
+			"id": "4.19"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

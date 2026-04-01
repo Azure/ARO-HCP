@@ -1,5 +1,5 @@
   {
     "code": "InvalidRequestContent",
-    "message": "Invalid value: \"4.22.0\": invalid upgrade path from 4.20.0 to 4.22.0: skipping minor versions is not allowed",
+    "message": "Invalid value: \"4.22.0\": invalid upgrade path from 4.20.8 to 4.22.0: skipping minor versions is not allowed",
     "target": "properties.version.id"
   }

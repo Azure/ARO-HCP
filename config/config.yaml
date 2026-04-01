@@ -1261,6 +1261,8 @@ clouds:
                 vmSize: 'Standard_D16s_v3'
                 secondaryNicCount: 7
                 osDiskSizeGB: 128
+              enableSwiftV2Vnet: true
+              enableSwiftV2Nodepools: true
           # Geneva
           geneva:
             logs:

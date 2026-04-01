@@ -156,7 +156,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "valid nodepool with version ID - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.15.1"
+				np.Properties.Version.ID = "4.20.8"
 				np.Properties.Version.ChannelGroup = "fast"
 				return np
 			}(),
@@ -171,6 +171,17 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
+			},
+		},
+		{
+			name: "version ID lower than minimum version without experimental flag - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.0"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be at least 4.20.8", fieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -890,12 +901,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			name: "valid nodepool update - version change",
 			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.15.2"
+				np.Properties.Version.ID = "4.20.9"
 				return np
 			}(),
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.15.1"
+				np.Properties.Version.ID = "4.20.8"
 				return np
 			}(),
 			expectErrors: []expectedError{},
@@ -1128,16 +1139,28 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "version ID lower than minimum version - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.0"
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []expectedError{
+				{message: "must be at least 4.20.8", fieldPath: "properties.version.id"},
+			},
+		},
+		{
 			name: "update with same version skips validation - allows unrelated changes",
 			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.20" // Old X.Y format
-				np.Properties.Replicas = 5        // Unrelated change
+				np.Properties.Version.ID = "4.20.8" // Old X.Y format
+				np.Properties.Replicas = 5          // Unrelated change
 				return np
 			}(),
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.20" // Same version
+				np.Properties.Version.ID = "4.20.8" // Same version
 				np.Properties.Replicas = 3
 				return np
 			}(),
@@ -1352,7 +1375,7 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 
 	// Set required fields that are not in the default
 	nodePool.Location = "eastus" // Required for TrackedResource validation
-	nodePool.Properties.Version.ID = "4.15.0"
+	nodePool.Properties.Version.ID = "4.20.8"
 	nodePool.Properties.Version.ChannelGroup = "stable"
 	nodePool.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	nodePool.Properties.Platform.VMSize = "Standard_D2s_v3"
@@ -1394,7 +1417,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			name: "X.Y format rejected for stable channel ",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.19"
+				np.Properties.Version.ID = "4.20"
 				np.Properties.Version.ChannelGroup = "stable"
 				return np
 			}(),
@@ -1407,7 +1430,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			name: "X.Y.Z.A format rejected for stable channel ",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.19.14.12"
+				np.Properties.Version.ID = "4.20.14.12"
 				np.Properties.Version.ChannelGroup = "stable"
 				return np
 			}(),
@@ -1420,7 +1443,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			name: "prerelease version allowed for non-stable channel with experimental flag",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.19.0-rc.1"
+				np.Properties.Version.ID = "4.21.0-rc.1"
 				np.Properties.Version.ChannelGroup = "candidate"
 				return np
 			}(),
@@ -1431,7 +1454,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			name: "nightly version allowed with experimental flag",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Version.ID = "4.20.0-0.nightly-2024-01-15-123456"
+				np.Properties.Version.ID = "4.21.0-0.nightly-2024-01-15-123456"
 				np.Properties.Version.ChannelGroup = "nightly"
 				return np
 			}(),
@@ -1449,6 +1472,16 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			expectErrors: []expectedError{
 				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
 			},
+		},
+		{
+			name: "version ID lower than minimum version with experimental flag - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.20.0"
+				return np
+			}(),
+			opOptions:    testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []expectedError{},
 		},
 	}
 

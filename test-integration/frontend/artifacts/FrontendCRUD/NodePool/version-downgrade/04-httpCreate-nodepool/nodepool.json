@@ -10,7 +10,7 @@
 			"vmSize": "large"
 		},
 		"version": {
-			"id": "4.19.0",
+			"id": "4.21.0",
 			"channelGroup": "stable"
 		}
 	},

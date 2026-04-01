@@ -326,7 +326,7 @@ func TestClusterValidate(t *testing.T) {
 			name: "Version ID with micro version is rejected without experimental flag",
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
-				r.CustomerProperties.Version.ID = "4.19.3"
+				r.CustomerProperties.Version.ID = "4.20.8"
 				return r
 			}(),
 			expectErrors: []expectedError{
@@ -340,7 +340,7 @@ func TestClusterValidate(t *testing.T) {
 			name: "Version ID with micro version is allowed with experimental flag",
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
-				r.CustomerProperties.Version.ID = "4.19.3"
+				r.CustomerProperties.Version.ID = "4.20.8"
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
@@ -374,7 +374,7 @@ func TestClusterValidate(t *testing.T) {
 			name: "Version ID with prerelease is rejected without experimental flag",
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
-				r.CustomerProperties.Version.ID = "4.20.0-rc.1"
+				r.CustomerProperties.Version.ID = "4.21.0-rc.1"
 				return r
 			}(),
 			expectErrors: []expectedError{
@@ -388,7 +388,7 @@ func TestClusterValidate(t *testing.T) {
 			name: "Version ID with prerelease is allowed with experimental flag",
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
-				r.CustomerProperties.Version.ID = "4.20.0-rc.1"
+				r.CustomerProperties.Version.ID = "4.21.0-rc.1"
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
@@ -399,7 +399,7 @@ func TestClusterValidate(t *testing.T) {
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
-				r.CustomerProperties.Version.ID = "4.20.0-0.nightly-2024-01-15-123456"
+				r.CustomerProperties.Version.ID = "4.21.0-0.nightly-2024-01-15-123456"
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
@@ -415,12 +415,22 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
-			name: "Version must be at least 4.19 - version 4.20 accepted",
+			name: "Version must be at least 4.20 without experimental flag",
 			resource: func() *api.HCPOpenShiftCluster {
 				r := api.MinimumValidClusterTestCase()
 				r.CustomerProperties.Version.ID = "4.20"
 				return r
 			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "Version must be at least 4.19 with experimental flag",
+			resource: func() *api.HCPOpenShiftCluster {
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Version.ID = "4.19"
+				return r
+			}(),
+			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []expectedError{},
 		},
 		{

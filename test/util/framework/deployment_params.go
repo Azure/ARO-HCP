@@ -154,6 +154,10 @@ type NodePoolParams struct {
 	OSDiskSizeGiB          int32
 	DiskStorageAccountType string
 	ChannelGroup           string
+	// NodeDrainTimeoutMinutes: how long (in minutes) to respect Pod Disruption Budgets when draining
+	// nodes in this pool (e.g. upgrades, scale-in). Valid: 0 to 10080. 0 = no time limit for that phase.
+	// When omitted from the create payload or nil here, the cluster-configured global nodeDrainTimeoutMinutes kicks in.
+	NodeDrainTimeoutMinutes *int32
 	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
 	AutoScaling *NodePoolAutoScalingParams
 }

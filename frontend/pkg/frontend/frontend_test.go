@@ -330,7 +330,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				},
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "4.19",
+						"id":           "4.20",
 						"channelGroup": "stable",
 					},
 					"api": map[string]any{

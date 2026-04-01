@@ -218,7 +218,8 @@ func buildNodePoolWithDiskType(
 				ID:           to.Ptr(params.OpenshiftVersionId),
 				ChannelGroup: to.Ptr(params.ChannelGroup),
 			},
-			Replicas: to.Ptr(params.Replicas),
+			NodeDrainTimeoutMinutes: params.NodeDrainTimeoutMinutes,
+			Replicas:                to.Ptr(params.Replicas),
 			Platform: &hcpsdk20251223preview.NodePoolPlatformProfile{
 				VMSize: to.Ptr(params.VMSize),
 				OSDisk: &hcpsdk20251223preview.OsDiskProfile{
