@@ -26,7 +26,7 @@ export-image-vars:
 ifndef IMAGE_VARS_FILE
 	$(error IMAGE_VARS_FILE is not set)
 endif
-	@echo "IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR_URL}" > $(IMAGE_VARS_FILE)
+	@echo "IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}" > $(IMAGE_VARS_FILE)
 	@echo "IMAGE_REF=${OC_MIRROR_IMAGE_TAGGED}" >> $(IMAGE_VARS_FILE)
 	@echo "IMAGE_REF_LATEST=${OC_MIRROR_IMAGE}:latest" >> $(IMAGE_VARS_FILE)
 .PHONY: export-image-vars

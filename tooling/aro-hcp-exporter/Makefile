@@ -55,6 +55,6 @@ export-image-vars:
 ifndef IMAGE_VARS_FILE
 	$(error IMAGE_VARS_FILE is not set)
 endif
-	@echo "IMAGE_REGISTRY=${ARO_HCP_IMAGE_REGISTRY}" > $(IMAGE_VARS_FILE)
+	@echo "IMAGE_REGISTRY=${ARO_HCP_IMAGE_ACR}" > $(IMAGE_VARS_FILE)
 	@echo "IMAGE_REF=${ARO_HCP_EXPORTER_TAGGED_IMAGE}" >> $(IMAGE_VARS_FILE)
 .PHONY: export-image-vars
