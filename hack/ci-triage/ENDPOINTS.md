@@ -1,6 +1,6 @@
 # CI Triage — Artifact Reference
 
-All paths relative to `base_url` (from `prow.py list-jobs` output or `prow.py resolve-url`).
+All paths relative to `base_url` (from `prow.py env-health` output).
 
 ## Job-level
 
