@@ -6,6 +6,7 @@ handles investigation and reasoning.
 
 Commands:
     env-health       — pass/fail ratio with failed job list
+    failure-summary  — cross-job failure grouping with error samples
     fetch-failures   — per-test failures (auto-falls back to step-level)
     build-log        — build-log.txt tail or grep
 """
@@ -349,58 +350,83 @@ class ProwClient:
         return str((ts_ms - _TWITTER_EPOCH_MS) << 22)
 
     def _gcs_list_builds(self, name, job_type,
-                         start_bid=None, limit=1000):
-        """List build IDs from GCS JSON API.
+                         start_bid=None, limit=None):
+        """List build IDs from GCS JSON API with pagination.
 
-        For presubmit jobs, returns items with name, metadata
-        (x-goog-meta-link), and timeCreated.
-        For periodic jobs, returns subdirectory prefixes.
+        For presubmit jobs, returns [(bid, gs_link), ...].
+        For periodic jobs, returns [bid, ...].
+        Paginates automatically; limit caps the total returned.
         """
+        page_size = 1000
         if job_type == "periodic":
             prefix = f"logs/{name}/"
-            params = (f"prefix={_url_encode(prefix)}"
-                      f"&delimiter=/&maxResults={limit}"
-                      f"&fields=prefixes,nextPageToken")
+            base_params = (f"prefix={_url_encode(prefix)}"
+                           f"&delimiter=/&maxResults={page_size}"
+                           f"&fields=prefixes,nextPageToken")
             if start_bid:
                 offset = f"{prefix}{start_bid}/"
-                params += f"&startOffset={_url_encode(offset)}"
-            url = f"{GCS_API}?{params}"
-            data = self.fetcher.fetch_json(url, timeout=15)
-            if not data:
-                return []
-            prefixes = data.get("prefixes", [])
-            # Extract build IDs from prefix paths
-            return [p.rstrip("/").rsplit("/", 1)[-1]
-                    for p in prefixes
-                    if re.match(r"\d{19}$",
-                                p.rstrip("/").rsplit("/", 1)[-1])]
+                base_params += (
+                    f"&startOffset={_url_encode(offset)}")
+            all_bids = []
+            page_token = None
+            while True:
+                params = base_params
+                if page_token:
+                    params += (
+                        f"&pageToken={_url_encode(page_token)}")
+                data = self.fetcher.fetch_json(
+                    f"{GCS_API}?{params}", timeout=15)
+                if not data:
+                    break
+                for p in data.get("prefixes", []):
+                    bid = p.rstrip("/").rsplit("/", 1)[-1]
+                    if re.match(r"\d{19}$", bid):
+                        all_bids.append(bid)
+                page_token = data.get("nextPageToken")
+                if not page_token:
+                    break
+                if limit and len(all_bids) >= limit:
+                    break
+            return all_bids[:limit] if limit else all_bids
         else:
             prefix = f"pr-logs/directory/{name}/"
-            params = (f"prefix={_url_encode(prefix)}"
-                      f"&maxResults={limit}"
-                      f"&fields=items(name,metadata)")
+            base_params = (f"prefix={_url_encode(prefix)}"
+                           f"&maxResults={page_size}"
+                           f"&fields=items(name,metadata)"
+                           f",nextPageToken")
             if start_bid:
                 offset = f"{prefix}{start_bid}"
-                params += f"&startOffset={_url_encode(offset)}"
-            url = f"{GCS_API}?{params}"
-            data = self.fetcher.fetch_json(url, timeout=15)
-            if not data:
-                return []
-            items = data.get("items", [])
+                base_params += (
+                    f"&startOffset={_url_encode(offset)}")
             results = []
-            for item in items:
-                fname = item["name"].rsplit("/", 1)[-1]
-                if fname == "latest-build.txt" or not fname.endswith(
-                        ".txt"):
-                    continue
-                bid = fname.replace(".txt", "")
-                if not re.match(r"\d{19}$", bid):
-                    continue
-                # Extract gs:// path from metadata
-                meta = item.get("metadata", {})
-                gs_link = meta.get("x-goog-meta-link", "")
-                results.append((bid, gs_link))
-            return results
+            page_token = None
+            while True:
+                params = base_params
+                if page_token:
+                    params += (
+                        f"&pageToken={_url_encode(page_token)}")
+                data = self.fetcher.fetch_json(
+                    f"{GCS_API}?{params}", timeout=15)
+                if not data:
+                    break
+                for item in data.get("items", []):
+                    fname = item["name"].rsplit("/", 1)[-1]
+                    if (fname == "latest-build.txt"
+                            or not fname.endswith(".txt")):
+                        continue
+                    bid = fname.replace(".txt", "")
+                    if not re.match(r"\d{19}$", bid):
+                        continue
+                    meta = item.get("metadata", {})
+                    gs_link = meta.get(
+                        "x-goog-meta-link", "")
+                    results.append((bid, gs_link))
+                page_token = data.get("nextPageToken")
+                if not page_token:
+                    break
+                if limit and len(results) >= limit:
+                    break
+            return results[:limit] if limit else results
 
     def _fetch_finished(self, gcs_url):
         """Fetch finished.json from a GCS direct URL."""
@@ -502,25 +528,45 @@ class ProwClient:
                 results.append(entry)
 
         results.sort(key=lambda e: e["job_id"], reverse=True)
-        return results[:limit]
+        return results[:limit] if limit else results
+
+    @staticmethod
+    def _summarize_jobs(all_jobs):
+        """Partition jobs by state and compute pass rate."""
+        passed = [j for j in all_jobs
+                  if j["state"] == "success"]
+        failed = [j for j in all_jobs
+                  if j["state"] in ("failure", "error")]
+        aborted = [j for j in all_jobs
+                   if j["state"] == "aborted"]
+        completed = len(passed) + len(failed)
+        pass_rate = (round(len(passed) / completed, 2)
+                     if completed else 0.0)
+        window = {
+            "earliest": all_jobs[-1]["started"],
+            "latest": all_jobs[0]["started"],
+        }
+        return passed, failed, aborted, pass_rate, window
+
+    def _fetch_jobs(self, env, job_type, since, history):
+        """Fetch job list with appropriate limit."""
+        effective_limit = None if since else history
+        return self.list_jobs(env, job_type,
+                              limit=effective_limit, since=since)
 
     def env_health(self, env, job_type, since=None, history=20):
         """Environment health with root-cause grouped failures."""
-        # When filtering by date, don't artificially cap — return
-        # all jobs in the window (list_jobs handles early termination)
-        effective_limit = max(history, 500) if since else history
-        all_jobs = self.list_jobs(env, job_type, limit=effective_limit,
-                                  since=since)
+        all_jobs = self._fetch_jobs(env, job_type, since, history)
         if not all_jobs:
             return {
                 "env": env, "type": job_type, "window": None,
-                "total": 0, "passed": 0, "failed": 0, "pass_rate": 1.0,
+                "total": 0, "passed": 0, "failed": 0,
+                "aborted": 0, "pass_rate": 1.0,
                 "last_success": None, "failed_jobs": [],
             }
 
-        passed = [j for j in all_jobs if j["state"] == "success"]
-        failed = [j for j in all_jobs
-                  if j["state"] in ("failure", "error")]
+        passed, failed, aborted, pass_rate, window = (
+            self._summarize_jobs(all_jobs))
 
         last_success = None
         if passed:
@@ -528,11 +574,6 @@ class ProwClient:
             last_success = {"completed": ls["completed"]}
             if "pr" in ls:
                 last_success["pr"] = ls["pr"]
-
-        window = {
-            "earliest": all_jobs[-1]["started"],
-            "latest": all_jobs[0]["started"],
-        }
 
         failed_jobs_out = []
         for j in failed:
@@ -549,9 +590,93 @@ class ProwClient:
             "total": len(all_jobs),
             "passed": len(passed),
             "failed": len(failed),
-            "pass_rate": round(len(passed) / len(all_jobs), 2),
+            "aborted": len(aborted),
+            "pass_rate": pass_rate,
             "last_success": last_success,
             "failed_jobs": failed_jobs_out,
+        }
+
+    def failure_summary(self, env, job_type, since=None,
+                        history=20, sample=3):
+        """Fetch failures from all failed jobs and group by test.
+
+        Returns a compact cross-job summary: which tests fail most
+        often, with representative error messages and job URLs.
+        Uses list_jobs directly and fetches junit.xml in parallel.
+        """
+        all_jobs = self._fetch_jobs(env, job_type, since, history)
+        if not all_jobs:
+            return {
+                "env": env, "type": job_type, "window": None,
+                "total": 0, "passed": 0, "failed": 0,
+                "aborted": 0, "pass_rate": 1.0,
+                "jobs_analyzed": 0, "failure_groups": [],
+            }
+
+        passed, failed, aborted, pass_rate, window = (
+            self._summarize_jobs(all_jobs))
+
+        # Parallel fetch junit from all failed jobs
+        def _fetch_one(job):
+            result = self.fetch_failures(job["base_url"], env)
+            return job, result
+
+        job_results = []
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            futures = {pool.submit(_fetch_one, j): j
+                       for j in failed}
+            for f in as_completed(futures):
+                try:
+                    job, result = f.result()
+                except Exception:
+                    continue
+                if result and result.get("failures"):
+                    job_results.append((job, result))
+
+        # Group failures by test name
+        groups = {}
+        for job, result in job_results:
+            short = _short_url(job["base_url"])
+            for failure in result["failures"]:
+                name = (failure.get("test")
+                        or failure.get("step")
+                        or "unknown")
+                if name not in groups:
+                    groups[name] = {
+                        "count": 0, "messages": [],
+                        "jobs": [],
+                    }
+                g = groups[name]
+                g["count"] += 1
+                g["jobs"].append(short)
+                msg = failure.get("message", "")
+                if (msg and len(g["messages"]) < sample
+                        and msg not in g["messages"]):
+                    g["messages"].append(msg)
+
+        # Sort by frequency
+        failure_groups = []
+        for name, g in sorted(groups.items(),
+                              key=lambda x: x[1]["count"],
+                              reverse=True):
+            failure_groups.append({
+                "test": name,
+                "count": g["count"],
+                "jobs_hit": len(g["jobs"]),
+                "sample_messages": g["messages"],
+            })
+
+        return {
+            "env": env,
+            "type": job_type,
+            "window": window,
+            "total": len(all_jobs),
+            "passed": len(passed),
+            "failed": len(failed),
+            "aborted": len(aborted),
+            "pass_rate": pass_rate,
+            "jobs_analyzed": len(job_results),
+            "failure_groups": failure_groups,
         }
 
 
@@ -572,6 +697,16 @@ def _build_parser():
     eh.add_argument("type", help="Job type (periodic, presubmit)")
     eh.add_argument("--since", help="ISO date/datetime filter")
     eh.add_argument("--history", type=int, default=20,
+                    help="Number of jobs to analyze (default: 20)")
+
+    fs = sub.add_parser(
+        "failure-summary",
+        help="Cross-job failure summary — groups errors "
+             "across all failed jobs")
+    fs.add_argument("env", help="Environment (dev, int, stg, prod)")
+    fs.add_argument("type", help="Job type (periodic, presubmit)")
+    fs.add_argument("--since", help="ISO date/datetime filter")
+    fs.add_argument("--history", type=int, default=20,
                     help="Number of jobs to analyze (default: 20)")
 
     ff = sub.add_parser(
@@ -618,6 +753,12 @@ def main(argv=None):
     try:
         if args.command == "env-health":
             result = client.env_health(
+                args.env, args.type, since=args.since,
+                history=args.history)
+            print(json.dumps(result, indent=2))
+
+        elif args.command == "failure-summary":
+            result = client.failure_summary(
                 args.env, args.type, since=args.since,
                 history=args.history)
             print(json.dumps(result, indent=2))

@@ -399,6 +399,7 @@ class TestEnvHealth(unittest.TestCase):
         client = self._make_client([])
         result = client.env_health("dev", "presubmit")
         self.assertEqual(result["total"], 0)
+        self.assertEqual(result["aborted"], 0)
         self.assertEqual(result["pass_rate"], 1.0)
         self.assertEqual(result["failed_jobs"], [])
         self.assertIsNone(result["window"])
@@ -449,6 +450,21 @@ class TestEnvHealth(unittest.TestCase):
         result = client.env_health("dev", "presubmit")
         self.assertEqual(result["failed"], 1)
         self.assertEqual(result["pass_rate"], 0.0)
+
+    def test_aborted_excluded_from_pass_rate(self):
+        jobs = [
+            self._job("1234567890123456791", "success"),
+            self._job("1234567890123456790", "aborted"),
+            self._job("1234567890123456789", "failure"),
+        ]
+        client = self._make_client(jobs)
+        result = client.env_health("dev", "presubmit")
+        self.assertEqual(result["total"], 3)
+        self.assertEqual(result["passed"], 1)
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(result["aborted"], 1)
+        # pass_rate = 1/(1+1) = 0.5, not 1/3
+        self.assertEqual(result["pass_rate"], 0.5)
 
     def test_window_uses_first_and_last_job(self):
         jobs = [

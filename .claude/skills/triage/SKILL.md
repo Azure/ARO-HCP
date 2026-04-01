@@ -31,19 +31,25 @@ From `env-health`, note:
 
 ### 2. Read the actual failures
 
-The `env-health` failure groups give you normalized grouping keys, but **you must read the raw evidence** to understand what's actually happening. Don't just report the group key — investigate it.
+Use `failure-summary` to see error patterns across all failed jobs at once:
 
-For each distinct failure group:
+```bash
+# Cross-job failure grouping — which tests fail most, with sample errors
+python3 hack/ci-triage/prow.py failure-summary ENV TYPE --history 20
+python3 hack/ci-triage/prow.py failure-summary ENV TYPE --since 2026-03-25
+```
+
+This fetches junit.xml from every failed job in parallel and groups failures by test name. Read the `sample_messages` yourself. Ask:
+- Is this a test bug, an infrastructure problem, or a code regression?
+- Is the error message the real cause or a symptom of something else?
+- Does `jobs_hit` (how many jobs hit this failure) suggest a systemic issue?
+
+For deeper investigation of a specific job, use `fetch-failures` and `build-log`:
 
 ```bash
 # Get failures from a specific failed job (auto-falls back to step-level)
 python3 hack/ci-triage/prow.py fetch-failures BASE_URL ENV
 ```
-
-Read the failure messages yourself. Ask yourself:
-- Is this a test bug, an infrastructure problem, or a code regression?
-- Is the error message the real cause or a symptom of something else?
-- Does this error make sense given what this test does?
 
 ### 3. Dig into build logs for the real cause
 
@@ -120,6 +126,7 @@ Run from repo root: `python3 hack/ci-triage/prow.py COMMAND ...`. All output is 
 
 ### Analysis
 - `env-health ENV TYPE [--history N] [--since DT]` — Pass/fail ratio and failed job list. Returns `failed_jobs` with short URLs for drill-down.
+- `failure-summary ENV TYPE [--history N] [--since DT]` — Cross-job failure grouping. Fetches junit from all failed jobs in parallel, groups by test name with counts and sample messages. Use this to understand failure patterns across many jobs at once.
 
 ### Per-job deep-dive
 - `fetch-failures BASE_URL [ENV]` — Test failures (auto-falls back to step-level if no junit.xml)
