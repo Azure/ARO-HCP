@@ -46,7 +46,7 @@ class Show(AAZCommand):
 
         _args_schema = cls._args_schema
         _args_schema.hcp_open_shift_cluster_name = AAZStrArg(
-            options=["-n", "--name", "--hcp-open-shift-cluster-name"],
+            options=["-n", "--name", "--cluster-name", "--hcp-open-shift-cluster-name"],
             help="The name of the HcpOpenShiftCluster",
             required=True,
             fmt=AAZStrArgFormat(

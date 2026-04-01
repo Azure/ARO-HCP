@@ -48,7 +48,7 @@ class Update(AAZCommand):
 
         _args_schema = cls._args_schema
         _args_schema.hcp_open_shift_cluster_name = AAZStrArg(
-            options=["--hcp-open-shift-cluster-name"],
+            options=["-c", "--cluster-name", "--hcp-open-shift-cluster-name"],
             help="The name of the HcpOpenShiftCluster",
             required=True,
             id_part="name",
@@ -87,7 +87,7 @@ class Update(AAZCommand):
             nullable=True,
         )
         _args_schema.node_drain_timeout_minutes = AAZIntArg(
-            options=["--node-drain-timeout-minutes"],
+            options=["-d", "--drain-timeout", "--node-drain-timeout-minutes"],
             arg_group="Properties",
             help="nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This is especially relevant to cluster upgrades.  Valid values are from 0 to 10080 minutes (1 week) . 0 means that the NodePool can be drained without any time limitation.  If unset the cluster nodeDrainTimeoutMinutes value is used as a default.",
             nullable=True,
