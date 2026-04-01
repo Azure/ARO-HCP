@@ -60,6 +60,7 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 	// some pieces of data in the internalExternalAuth conflict with ResourceDocument fields.  We may evolve over time, but for
 	// now avoid persisting those.
 	cosmosObj.InternalState.InternalAPI.ProxyResource = arm.ProxyResource{}
+	cosmosObj.InternalState.InternalAPI.CosmosMetadata = cosmosObj.CosmosMetadata
 	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}

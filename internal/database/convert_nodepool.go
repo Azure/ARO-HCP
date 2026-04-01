@@ -61,6 +61,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 	cosmosObj.InternalState.InternalAPI.TrackedResource = arm.TrackedResource{
 		Location: internalObj.Location, // this is the only TrackedResource value not present elsewhere in ResourceDcoument
 	}
+	cosmosObj.InternalState.InternalAPI.CosmosMetadata = cosmosObj.CosmosMetadata
 	cosmosObj.InternalState.InternalAPI.Identity = nil
 	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
