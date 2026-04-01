@@ -126,7 +126,7 @@ Run from repo root: `python3 hack/ci-triage/prow.py COMMAND ...`. All output is 
 
 ### Analysis
 - `env-health ENV TYPE [--history N] [--since DT]` — Pass/fail ratio and failed job list. Returns `failed_jobs` with short URLs for drill-down.
-- `failure-summary ENV TYPE [--history N] [--since DT]` — Cross-job failure grouping. Fetches junit from all failed jobs in parallel, groups by test name with counts and sample messages. Use this to understand failure patterns across many jobs at once.
+- `failure-summary ENV TYPE [--history N] [--since DT]` — Cross-job failure grouping via Sippy API (1 request for all jobs). Groups by test name with counts. Use `fetch-failures` for error messages on specific jobs.
 
 ### Per-job deep-dive
 - `fetch-failures BASE_URL [ENV]` — Test failures (auto-falls back to step-level if no junit.xml)

@@ -31,6 +31,15 @@ GCS_API = "https://storage.googleapis.com/storage/v1/b/test-platform-results/o"
 GCS_DIRECT = "https://storage.googleapis.com/test-platform-results"
 GCS_BUCKET = "test-platform-results"
 
+SIPPY_API = "https://sippy.dptools.openshift.org/api/jobs/runs"
+
+# Sippy release names by env
+SIPPY_RELEASES = {
+    "int": "aro-integration",
+    "stg": "aro-stage",
+    "prod": "aro-production",
+}
+
 _TWITTER_EPOCH_MS = 1288834974657
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m|\ufffd\[[0-9;]*m")
@@ -530,6 +539,100 @@ class ProwClient:
         results.sort(key=lambda e: e["job_id"], reverse=True)
         return results[:limit] if limit else results
 
+    def _sippy_runs(self, env, job_type, since=None, limit=500):
+        """Fetch job runs from the Sippy API.
+
+        Returns normalized job dicts compatible with list_jobs output,
+        plus failed_test_names for each run. Single HTTP request
+        replaces N+1 GCS requests.
+        """
+        if job_type == "presubmit":
+            release = "Presubmits"
+        else:
+            release = SIPPY_RELEASES.get(env)
+        if not release:
+            return None
+
+        job_name = (PERIODIC_JOBS.get(env) if job_type == "periodic"
+                    else PRESUBMIT_JOBS.get(env))
+
+        params = (f"release={_url_encode(release)}"
+                  f"&limit={limit}"
+                  f"&sortField=timestamp&sort=desc")
+
+        # Build filter
+        filters = []
+        if job_type == "presubmit" and job_name:
+            filters.append({
+                "columnField": "job",
+                "operatorValue": "equals",
+                "value": job_name,
+            })
+        if since:
+            iso = since if len(since) > 10 else since + "T00:00:00"
+            dt = datetime.fromisoformat(iso).replace(
+                tzinfo=timezone.utc)
+            ts_ms = str(int(dt.timestamp() * 1000))
+            filters.append({
+                "columnField": "timestamp",
+                "operatorValue": ">=",
+                "value": ts_ms,
+            })
+        if filters:
+            filt = json.dumps({"items": filters})
+            params += f"&filter={_url_encode(filt)}"
+
+        url = f"{SIPPY_API}?{params}"
+        data = self.fetcher.fetch_json(url, timeout=20)
+        if not data or "rows" not in data:
+            return None
+
+        results = []
+        for row in data["rows"]:
+            result_code = row.get("overall_result", "")
+            if result_code == "S":
+                state = "success"
+            elif result_code == "F":
+                state = "failure"
+            elif result_code == "n":
+                state = "aborted"
+            else:
+                state = "unknown"
+
+            ts = row.get("timestamp", 0)
+            dt = datetime.fromtimestamp(
+                ts / 1000, tz=timezone.utc)
+            started = dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+            prow_url = row.get("url", "")
+            base_url = _normalize_base_url(prow_url)
+
+            entry = {
+                "state": state,
+                "started": started,
+                "completed": started,
+                "job_id": str(row.get("prow_id", "")),
+                "base_url": base_url,
+            }
+
+            # PR info for presubmits
+            pr_link = row.get("pull_request_link", "")
+            if pr_link:
+                try:
+                    entry["pr"] = int(
+                        pr_link.rstrip("/").rsplit("/", 1)[-1])
+                except (ValueError, IndexError):
+                    pass
+
+            # Failed test names (Sippy-specific)
+            ftn = row.get("failed_test_names")
+            if ftn:
+                entry["failed_test_names"] = ftn
+
+            results.append(entry)
+
+        return results
+
     @staticmethod
     def _summarize_jobs(all_jobs):
         """Partition jobs by state and compute pass rate."""
@@ -549,7 +652,15 @@ class ProwClient:
         return passed, failed, aborted, pass_rate, window
 
     def _fetch_jobs(self, env, job_type, since, history):
-        """Fetch job list with appropriate limit."""
+        """Fetch job list — Sippy first, GCS fallback."""
+        runs = self._sippy_runs(
+            env, job_type, since=since,
+            limit=history if not since else 500)
+        if runs is not None:
+            if not since:
+                runs = runs[:history]
+            return runs
+        # Fallback to GCS
         effective_limit = None if since else history
         return self.list_jobs(env, job_type,
                               limit=effective_limit, since=since)
@@ -600,9 +711,9 @@ class ProwClient:
                         history=20, sample=3):
         """Fetch failures from all failed jobs and group by test.
 
-        Returns a compact cross-job summary: which tests fail most
-        often, with representative error messages and job URLs.
-        Uses list_jobs directly and fetches junit.xml in parallel.
+        Uses Sippy failed_test_names when available (0 extra HTTP
+        requests). Falls back to parallel junit.xml fetches from
+        GCS when Sippy data is unavailable.
         """
         all_jobs = self._fetch_jobs(env, job_type, since, history)
         if not all_jobs:
@@ -616,55 +727,81 @@ class ProwClient:
         passed, failed, aborted, pass_rate, window = (
             self._summarize_jobs(all_jobs))
 
-        # Parallel fetch junit from all failed jobs
-        def _fetch_one(job):
-            result = self.fetch_failures(job["base_url"], env)
-            return job, result
+        # Check if Sippy data includes failed_test_names
+        has_sippy = any("failed_test_names" in j for j in failed)
 
-        job_results = []
-        with ThreadPoolExecutor(max_workers=20) as pool:
-            futures = {pool.submit(_fetch_one, j): j
-                       for j in failed}
-            for f in as_completed(futures):
-                try:
-                    job, result = f.result()
-                except Exception:
+        if has_sippy:
+            # Fast path: use Sippy data directly (no HTTP)
+            groups = {}
+            analyzed = 0
+            for job in failed:
+                names = job.get("failed_test_names")
+                if not names:
                     continue
-                if result and result.get("failures"):
-                    job_results.append((job, result))
+                analyzed += 1
+                short = _short_url(job["base_url"])
+                for name in names:
+                    if name not in groups:
+                        groups[name] = {
+                            "count": 0, "jobs": [],
+                        }
+                    g = groups[name]
+                    g["count"] += 1
+                    g["jobs"].append(short)
+        else:
+            # Slow path: fetch junit.xml from GCS
+            def _fetch_one(job):
+                result = self.fetch_failures(
+                    job["base_url"], env)
+                return job, result
 
-        # Group failures by test name
-        groups = {}
-        for job, result in job_results:
-            short = _short_url(job["base_url"])
-            for failure in result["failures"]:
-                name = (failure.get("test")
-                        or failure.get("step")
-                        or "unknown")
-                if name not in groups:
-                    groups[name] = {
-                        "count": 0, "messages": [],
-                        "jobs": [],
-                    }
-                g = groups[name]
-                g["count"] += 1
-                g["jobs"].append(short)
-                msg = failure.get("message", "")
-                if (msg and len(g["messages"]) < sample
-                        and msg not in g["messages"]):
-                    g["messages"].append(msg)
+            job_results = []
+            with ThreadPoolExecutor(max_workers=20) as pool:
+                futures = {pool.submit(_fetch_one, j): j
+                           for j in failed}
+                for f in as_completed(futures):
+                    try:
+                        job, result = f.result()
+                    except Exception:
+                        continue
+                    if result and result.get("failures"):
+                        job_results.append((job, result))
+
+            groups = {}
+            analyzed = len(job_results)
+            for job, result in job_results:
+                short = _short_url(job["base_url"])
+                for failure in result["failures"]:
+                    name = (failure.get("test")
+                            or failure.get("step")
+                            or "unknown")
+                    if name not in groups:
+                        groups[name] = {
+                            "count": 0, "messages": [],
+                            "jobs": [],
+                        }
+                    g = groups[name]
+                    g["count"] += 1
+                    g["jobs"].append(short)
+                    msg = failure.get("message", "")
+                    if (msg
+                            and len(g.get("messages", [])) < sample
+                            and msg not in g.get("messages", [])):
+                        g.setdefault("messages", []).append(msg)
 
         # Sort by frequency
         failure_groups = []
         for name, g in sorted(groups.items(),
                               key=lambda x: x[1]["count"],
                               reverse=True):
-            failure_groups.append({
+            entry = {
                 "test": name,
                 "count": g["count"],
                 "jobs_hit": len(g["jobs"]),
-                "sample_messages": g["messages"],
-            })
+            }
+            if "messages" in g:
+                entry["sample_messages"] = g["messages"]
+            failure_groups.append(entry)
 
         return {
             "env": env,
@@ -675,7 +812,7 @@ class ProwClient:
             "failed": len(failed),
             "aborted": len(aborted),
             "pass_rate": pass_rate,
-            "jobs_analyzed": len(job_results),
+            "jobs_analyzed": analyzed,
             "failure_groups": failure_groups,
         }
 

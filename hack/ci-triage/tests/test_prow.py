@@ -1012,5 +1012,134 @@ class TestCli(unittest.TestCase):
                 self.assertNotEqual(r.returncode, 0)
 
 
+class TestSippyRuns(unittest.TestCase):
+    """Tests for Sippy API integration."""
+
+    @staticmethod
+    def _sippy_response(rows):
+        """Build a Sippy API response."""
+        return {
+            "rows": rows,
+            "page_size": len(rows),
+            "page": 0,
+            "total_rows": len(rows),
+        }
+
+    @staticmethod
+    def _sippy_row(prow_id, result="S", timestamp=1775000000000,
+                   job="periodic-ci-Azure-ARO-HCP-main-periodic-"
+                       "integration-e2e-parallel",
+                   failed_test_names=None, **kwargs):
+        return {
+            "prow_id": prow_id,
+            "job": job,
+            "overall_result": result,
+            "timestamp": timestamp,
+            "url": f"https://prow.ci.openshift.org/view/gs/"
+                   f"test-platform-results/logs/{job}/{prow_id}",
+            "test_failures": (len(failed_test_names)
+                              if failed_test_names else 0),
+            "failed_test_names": failed_test_names,
+            "pull_request_link": "",
+            "pull_request_org": "",
+            "pull_request_repo": "",
+            "pull_request_author": "",
+            "pull_request_sha": "",
+            **kwargs,
+        }
+
+    def test_periodic_returns_normalized_jobs(self):
+        rows = [
+            self._sippy_row(123, "S", 1775000000000),
+            self._sippy_row(456, "F", 1774900000000,
+                            failed_test_names=["TestA"]),
+        ]
+        resp = self._sippy_response(rows)
+        fetcher = MockFetcher(
+            fetch_json_fn=lambda url, t: resp)
+        client = prow.ProwClient(fetcher)
+        result = client._sippy_runs("int", "periodic")
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["state"], "success")
+        self.assertEqual(result[1]["state"], "failure")
+        self.assertEqual(result[1]["failed_test_names"], ["TestA"])
+
+    def test_failure_summary_uses_sippy_test_names(self):
+        rows = [
+            self._sippy_row(1, "S", 1775000000000),
+            self._sippy_row(2, "F", 1774900000000,
+                            failed_test_names=["TestA", "TestB"]),
+            self._sippy_row(3, "F", 1774800000000,
+                            failed_test_names=["TestA", "TestC"]),
+        ]
+        resp = self._sippy_response(rows)
+        fetcher = MockFetcher(
+            fetch_json_fn=lambda url, t: resp)
+        client = prow.ProwClient(fetcher)
+        result = client.failure_summary("int", "periodic",
+                                        history=10)
+        self.assertEqual(result["total"], 3)
+        self.assertEqual(result["failed"], 2)
+        self.assertEqual(result["jobs_analyzed"], 2)
+        # TestA appears in both failed jobs
+        groups = {g["test"]: g for g in result["failure_groups"]}
+        self.assertEqual(groups["TestA"]["count"], 2)
+        self.assertEqual(groups["TestB"]["count"], 1)
+        self.assertEqual(groups["TestC"]["count"], 1)
+        # No sample_messages in Sippy mode
+        self.assertNotIn("sample_messages", groups["TestA"])
+
+    def test_presubmit_uses_presubmits_release(self):
+        """Presubmit jobs should use 'Presubmits' release."""
+        urls_seen = []
+
+        def fetch_json(url, timeout):
+            urls_seen.append(url)
+            return self._sippy_response([])
+
+        fetcher = MockFetcher(fetch_json_fn=fetch_json)
+        client = prow.ProwClient(fetcher)
+        client._sippy_runs("int", "presubmit")
+        self.assertTrue(any("Presubmits" in u for u in urls_seen))
+        self.assertFalse(
+            any("aro-integration" in u for u in urls_seen))
+
+    def test_aborted_state_mapped_from_n(self):
+        rows = [self._sippy_row(1, "n", 1775000000000)]
+        resp = self._sippy_response(rows)
+        fetcher = MockFetcher(
+            fetch_json_fn=lambda url, t: resp)
+        client = prow.ProwClient(fetcher)
+        result = client._sippy_runs("int", "periodic")
+        self.assertEqual(result[0]["state"], "aborted")
+
+    def test_pr_extracted_from_link(self):
+        rows = [self._sippy_row(
+            1, "F", 1775000000000,
+            job="pull-ci-Azure-ARO-HCP-main-e2e-parallel",
+            pull_request_link="https://github.com/Azure/"
+                              "ARO-HCP/pull/4618")]
+        resp = self._sippy_response(rows)
+        fetcher = MockFetcher(
+            fetch_json_fn=lambda url, t: resp)
+        client = prow.ProwClient(fetcher)
+        result = client._sippy_runs("dev", "presubmit")
+        self.assertEqual(result[0]["pr"], 4618)
+
+    def test_sippy_failure_falls_back_to_gcs(self):
+        """When Sippy returns None, _fetch_jobs falls back to GCS."""
+        client = prow.ProwClient(MockFetcher())
+        # Mock _sippy_runs to return None
+        client._sippy_runs = lambda *a, **kw: None
+        # Mock list_jobs to return test data
+        client.list_jobs = lambda *a, **kw: [
+            {"state": "success", "started": "2026-03-31T10:00:00",
+             "completed": "2026-03-31T11:00:00",
+             "job_id": "1", "base_url": "https://x.com/1"}]
+        result = client.env_health("dev", "presubmit")
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["passed"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
