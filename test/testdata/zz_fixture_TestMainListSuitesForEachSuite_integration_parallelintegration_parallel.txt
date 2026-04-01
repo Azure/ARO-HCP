@@ -1,1 +1,34 @@
+Customer should be able to list available HCP OpenShift versions and validate response content
+Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
+Customer should be able to create node pools with ARM64-based VMs
+Authorized CIDRs Connectivity should allow API access only from authorized VM IP
+Customer should be able to create an HCP cluster with custom autoscaling
+Customer should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully
+Customer should be able to create a HCP cluster without CNI
+Customer should be able to create an HCP cluster and custom node pool osDisk size
+Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20251223preview API
+Customer should be able to list HCP clusters without node pools at the resource group level
+Customer should not be able to reuse subnets and NSGs between clusters
 Customer should be able to create an HCP cluster and manage pull secrets
+Customer should create an HCP cluster and validate TLS certificates
+Update HCPOpenShiftCluster Negative creates a cluster and fails to update its name with a PATCH request
+Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
+Customer should be able to create an HCP cluster with back-level version 4.19
+Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
+Customer should be able to create an HCP cluster
+Control plane automated z-stream upgrade with candidate channel should perform an automated control plane z-stream upgrade for 4.19
+Control plane automated z-stream upgrade with candidate channel should perform an automated control plane z-stream upgrade for 4.20
+Control plane automated z-stream upgrade with candidate channel should perform an automated control plane z-stream upgrade for 4.21
+Control plane automated z-stream upgrade with candidate channel should perform an automated control plane z-stream upgrade for 4.22
+Control plane automated z-stream upgrade with candidate channel should perform an automated control plane z-stream upgrade for 4.23
+Customer should be able to create a cluster with an external auth config and get the external auth config
+Customer should be able to lifecycle and confirm external auth on a cluster
+HCP Nodepools GPU instances creates and deletes vm type NC4asT4v3 in a single cluster
+Customer should be able to create an HCP cluster and manage ImageDigestMirrors
+Customer should be able to create an HCP cluster with Image Registry not present
+Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled
+Customer should respect cluster-wide node limits with nodepool autoscaling
+Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled
+Customer should be able to update node pool labels and taints
+Customer should be able to use workload identity via the cluster OIDC issuer URL
+Customer should not be able to perform various invalid operations on cluster resources
