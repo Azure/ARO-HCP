@@ -1,14 +1,15 @@
 """Prow CI triage — data acquisition for agent-driven analysis.
 
-Thin data layer for CI failure triage. Fetches job data, parses
-junit artifacts, and returns raw results. The agent (SKILL.md)
-handles investigation and reasoning.
+Thin data layer for CI failure triage. Uses Sippy API as primary
+source for bulk job/test data (1 request). Falls back to GCS for
+error messages and build logs. The agent (SKILL.md) handles
+investigation and reasoning.
 
 Commands:
-    env-health       — pass/fail ratio with failed job list
-    failure-summary  — cross-job failure grouping with error samples
-    fetch-failures   — per-test failures (auto-falls back to step-level)
-    build-log        — build-log.txt tail or grep
+    failure-summary  — cross-job failure grouping (Sippy-backed)
+    env-health       — pass/fail ratio with failed job list (Sippy-backed)
+    fetch-failures   — per-test failures with error messages (GCS)
+    build-log        — build-log.txt tail or grep (GCS)
 """
 
 import argparse

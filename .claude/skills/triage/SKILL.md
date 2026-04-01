@@ -13,43 +13,39 @@ Triage Prow CI failures for ARO-HCP. You are an SRE investigating CI failures �
 
 ## How to triage
 
-### 1. Get the lay of the land
+### 1. Get the overview
 
-Start by understanding the failure landscape — don't dive into a single job.
+Start with `failure-summary` — it gives you the full picture in a single request (via Sippy API): pass/fail ratio, which tests fail, and how often.
 
 ```bash
-# For environment triage: get pass/fail ratio and failure groups
-python3 hack/ci-triage/prow.py env-health ENV TYPE --history 20
+# Full cross-job failure analysis — 1 HTTP request via Sippy
+python3 hack/ci-triage/prow.py failure-summary ENV TYPE --history 20
+python3 hack/ci-triage/prow.py failure-summary ENV TYPE --since 2026-03-25
 
 # For PR triage: get check status first
 gh pr checks PR_NUMBER
 ```
 
-From `env-health`, note:
+From `failure-summary`, note:
 - **pass_rate** — Is this environment healthy (>0.8) or broken (<0.5)?
-- **failed_jobs** — List of failed jobs with short URLs for drill-down. Use these URLs with `fetch-failures` and `build-log` to investigate.
+- **failure_groups** — Which tests fail, how often (`count`), across how many jobs (`jobs_hit`). High `jobs_hit` = systemic issue.
+- **jobs_analyzed** — How many failed jobs had test data.
 
-### 2. Read the actual failures
+If you only need pass/fail counts without test-level details, use `env-health` (also Sippy-backed, returns `failed_jobs` with URLs for drill-down).
 
-Use `failure-summary` to see error patterns across all failed jobs at once:
+### 2. Drill into specific failures
 
-```bash
-# Cross-job failure grouping — which tests fail most, with sample errors
-python3 hack/ci-triage/prow.py failure-summary ENV TYPE --history 20
-python3 hack/ci-triage/prow.py failure-summary ENV TYPE --since 2026-03-25
-```
-
-This fetches junit.xml from every failed job in parallel and groups failures by test name. Read the `sample_messages` yourself. Ask:
-- Is this a test bug, an infrastructure problem, or a code regression?
-- Is the error message the real cause or a symptom of something else?
-- Does `jobs_hit` (how many jobs hit this failure) suggest a systemic issue?
-
-For deeper investigation of a specific job, use `fetch-failures` and `build-log`:
+`failure-summary` gives test names but not error messages (Sippy doesn't store them). For error details, drill into specific failed jobs with `fetch-failures` and `build-log`:
 
 ```bash
-# Get failures from a specific failed job (auto-falls back to step-level)
+# Get error messages from a specific failed job's junit.xml
 python3 hack/ci-triage/prow.py fetch-failures BASE_URL ENV
+
+# Get BASE_URL from env-health output's failed_jobs list
+python3 hack/ci-triage/prow.py env-health ENV TYPE --history 20
 ```
+
+Pick representative jobs from `failure-summary`'s groups — you don't need to check every failed job, just one or two per distinct failure pattern.
 
 ### 3. Dig into build logs for the real cause
 
@@ -77,9 +73,9 @@ Once you understand a failure, figure out how widespread it is:
 - **Hitting multiple PRs?** The failure is pre-existing, not caused by any single PR.
 
 ```bash
-# Compare across environments — run env-health for each
-python3 hack/ci-triage/prow.py env-health int periodic --history 10
-python3 hack/ci-triage/prow.py env-health stg periodic --history 10
+# Compare across environments — run failure-summary for each
+python3 hack/ci-triage/prow.py failure-summary int periodic --history 10
+python3 hack/ci-triage/prow.py failure-summary stg periodic --history 10
 ```
 
 ### 5. Find the cause for new failures
@@ -124,12 +120,12 @@ When triaging a specific PR (`/triage pr 4618`):
 
 Run from repo root: `python3 hack/ci-triage/prow.py COMMAND ...`. All output is JSON.
 
-### Analysis
-- `env-health ENV TYPE [--history N] [--since DT]` — Pass/fail ratio and failed job list. Returns `failed_jobs` with short URLs for drill-down.
-- `failure-summary ENV TYPE [--history N] [--since DT]` — Cross-job failure grouping via Sippy API (1 request for all jobs). Groups by test name with counts. Use `fetch-failures` for error messages on specific jobs.
+### Analysis (Sippy-backed, 1 request each)
+- `failure-summary ENV TYPE [--history N] [--since DT]` — Cross-job failure grouping. Groups test failures by name with counts across all failed jobs. Start here.
+- `env-health ENV TYPE [--history N] [--since DT]` — Pass/fail ratio and failed job list with short URLs for drill-down. Use when you need job URLs but don't need test-level grouping.
 
-### Per-job deep-dive
-- `fetch-failures BASE_URL [ENV]` — Test failures (auto-falls back to step-level if no junit.xml)
+### Per-job deep-dive (GCS-backed, 1-2 requests each)
+- `fetch-failures BASE_URL [ENV]` — Test failures with error messages from junit.xml (auto-falls back to step-level)
 - `build-log BASE_URL [ENV] [--step test|provision] [--lines N] [--grep PAT] [--context N]` — Build log tail or search
 
 ### PR
