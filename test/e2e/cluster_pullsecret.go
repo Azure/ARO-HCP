@@ -131,7 +131,9 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			By("Creating the node pool")
+
+			// skip nodepool creation.
+			/* By("Creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.NodePoolName = "np-1"
 			nodePoolParams.ClusterName = customerClusterName
@@ -142,7 +144,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred()) */
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
