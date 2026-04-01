@@ -22,6 +22,12 @@ Start with `failure-summary` — it gives you the full picture in a single reque
 python3 hack/ci-triage/prow.py failure-summary ENV TYPE --history 20
 python3 hack/ci-triage/prow.py failure-summary ENV TYPE --since 2026-03-25
 
+# All envs at once — are things healthy or on fire?
+python3 hack/ci-triage/prow.py overview --history 10
+
+# Is this getting better or worse?
+python3 hack/ci-triage/prow.py trending ENV TYPE --days 7
+
 # For PR triage: get check status first
 gh pr checks PR_NUMBER
 ```
@@ -121,7 +127,9 @@ When triaging a specific PR (`/triage pr 4618`):
 Run from repo root: `python3 hack/ci-triage/prow.py COMMAND ...`. All output is JSON.
 
 ### Analysis (Sippy-backed, 1 request each)
-- `failure-summary ENV TYPE [--history N] [--since DT]` — Cross-job failure grouping. Groups test failures by name with counts across all failed jobs. Start here.
+- `failure-summary ENV TYPE [--history N] [--since DT]` — Cross-job failure grouping. Groups test failures by name with counts across all failed jobs. Includes sample error messages for top groups. Start here.
+- `overview [--history N] [--since DT]` — All envs at once. Runs failure-summary for every env/type combo in parallel. Good for "what's broken right now?" questions.
+- `trending ENV TYPE [--days N] [--bucket daily|weekly]` — Pass rate over time with trend detection (improving/degrading/stable). Use to check if things are getting better or worse.
 - `env-health ENV TYPE [--history N] [--since DT]` — Pass/fail ratio and failed job list with short URLs for drill-down. Use when you need job URLs but don't need test-level grouping.
 
 ### Per-job deep-dive (GCS-backed, 1-2 requests each)

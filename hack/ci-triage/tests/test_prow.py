@@ -1140,6 +1140,250 @@ class TestSippyRuns(unittest.TestCase):
         self.assertEqual(result["total"], 1)
         self.assertEqual(result["passed"], 1)
 
+    def test_sippy_noise_filtered(self):
+        """sig-sippy meta-tests are stripped from failed_test_names."""
+        rows = [self._sippy_row(
+            1, "F", 1775000000000,
+            failed_test_names=[
+                "[sig-sippy] openshift-tests should work",
+                "[sig-sippy] infrastructure should work",
+                "TestRealFailure",
+            ])]
+        resp = self._sippy_response(rows)
+        fetcher = MockFetcher(
+            fetch_json_fn=lambda url, t: resp)
+        client = prow.ProwClient(fetcher)
+        result = client._sippy_runs("int", "periodic")
+        self.assertEqual(result[0]["failed_test_names"],
+                         ["TestRealFailure"])
+
+    def test_sippy_noise_all_filtered_removes_key(self):
+        """If all test names are noise, failed_test_names is absent."""
+        rows = [self._sippy_row(
+            1, "F", 1775000000000,
+            failed_test_names=[
+                "[sig-sippy] openshift-tests should work",
+            ])]
+        resp = self._sippy_response(rows)
+        fetcher = MockFetcher(
+            fetch_json_fn=lambda url, t: resp)
+        client = prow.ProwClient(fetcher)
+        result = client._sippy_runs("int", "periodic")
+        self.assertNotIn("failed_test_names", result[0])
+
+    def test_failure_summary_sample_messages(self):
+        """failure_summary fetches sample error messages for top groups
+        when Sippy data is available."""
+        rows = [
+            self._sippy_row(1, "S", 1775000000000),
+            self._sippy_row(2, "F", 1774900000000,
+                            failed_test_names=["TestA"]),
+        ]
+        resp = self._sippy_response(rows)
+
+        def fetch_fn(url, timeout):
+            # Return junit for sample fetch
+            if "junit.xml" in url:
+                return (b'<testsuite tests="1">'
+                        b'<testcase name="TestA">'
+                        b'<failure message="boom">boom</failure>'
+                        b'</testcase></testsuite>')
+            return None
+
+        fetcher = MockFetcher(
+            fetch_json_fn=lambda url, t: resp,
+            fetch_fn=fetch_fn)
+        client = prow.ProwClient(fetcher)
+        result = client.failure_summary("int", "periodic",
+                                        history=10)
+        groups = {g["test"]: g for g in result["failure_groups"]}
+        self.assertIn("sample_messages", groups["TestA"])
+        self.assertIn("boom", groups["TestA"]["sample_messages"][0])
+
+
+class TestOverview(unittest.TestCase):
+    """Tests for the overview command."""
+
+    @staticmethod
+    def _sippy_response(rows):
+        return {
+            "rows": rows,
+            "page_size": len(rows),
+            "page": 0,
+            "total_rows": len(rows),
+        }
+
+    def test_overview_returns_all_envs(self):
+        """overview runs failure_summary for all env/type combos."""
+        resp = self._sippy_response([])
+        fetcher = MockFetcher(
+            fetch_json_fn=lambda url, t: resp)
+        client = prow.ProwClient(fetcher)
+        result = client.overview(history=5)
+        self.assertIn("environments", result)
+        # 3 periodic (int, stg, prod) + 4 presubmit (dev, int, stg, prod) = 7
+        self.assertEqual(len(result["environments"]), 7)
+
+    def test_overview_sorted_by_pass_rate(self):
+        """Results are sorted by pass_rate ascending (worst first)."""
+        client = prow.ProwClient(MockFetcher())
+        # Mock failure_summary to return controlled pass rates
+        rates = {"int/periodic": 0.9, "stg/periodic": 0.5,
+                 "prod/periodic": 1.0}
+
+        def mock_fs(env, jt, since=None, history=20):
+            key = f"{env}/{jt}"
+            return {
+                "env": env, "type": jt, "window": None,
+                "total": 10, "passed": 5, "failed": 5,
+                "aborted": 0,
+                "pass_rate": rates.get(key, 0.8),
+                "jobs_analyzed": 5, "failure_groups": [],
+            }
+
+        client.failure_summary = mock_fs
+        result = client.overview(history=5)
+        pr = [r["pass_rate"] for r in result["environments"]]
+        self.assertEqual(pr, sorted(pr))
+
+
+class TestTrending(unittest.TestCase):
+    """Tests for the trending command."""
+
+    @staticmethod
+    def _sippy_response(rows):
+        return {
+            "rows": rows,
+            "page_size": len(rows),
+            "page": 0,
+            "total_rows": len(rows),
+        }
+
+    @staticmethod
+    def _sippy_row(prow_id, result, timestamp,
+                   job="periodic-ci-Azure-ARO-HCP-main-periodic-"
+                       "integration-e2e-parallel"):
+        return {
+            "prow_id": prow_id,
+            "job": job,
+            "overall_result": result,
+            "timestamp": timestamp,
+            "url": f"https://prow.ci.openshift.org/view/gs/"
+                   f"test-platform-results/logs/{job}/{prow_id}",
+            "test_failures": 0,
+            "failed_test_names": None,
+            "pull_request_link": "",
+            "pull_request_org": "",
+            "pull_request_repo": "",
+            "pull_request_author": "",
+            "pull_request_sha": "",
+        }
+
+    def test_trending_no_data(self):
+        client = prow.ProwClient(MockFetcher())
+        client._sippy_runs = lambda *a, **kw: None
+        client.list_jobs = lambda *a, **kw: []
+        result = client.trending("int", "periodic")
+        self.assertEqual(result["trend"], "no_data")
+        self.assertEqual(result["buckets"], [])
+
+    def test_trending_daily_buckets(self):
+        """Daily buckets group jobs by date."""
+        from datetime import datetime, timezone
+        # Create jobs on two different days
+        d1 = "2026-03-30T10:00:00"
+        d2 = "2026-03-31T10:00:00"
+        jobs = [
+            {"state": "success", "started": d1,
+             "job_id": "1", "base_url": "u1"},
+            {"state": "failure", "started": d1,
+             "job_id": "2", "base_url": "u2"},
+            {"state": "success", "started": d2,
+             "job_id": "3", "base_url": "u3"},
+        ]
+        client = prow.ProwClient(MockFetcher())
+        client._fetch_jobs = lambda *a, **kw: jobs
+        result = client.trending("int", "periodic", days=7)
+        self.assertEqual(len(result["buckets"]), 2)
+        self.assertEqual(result["buckets"][0]["date"], "2026-03-30")
+        self.assertEqual(result["buckets"][0]["passed"], 1)
+        self.assertEqual(result["buckets"][0]["failed"], 1)
+        self.assertEqual(result["buckets"][0]["pass_rate"], 0.5)
+        self.assertEqual(result["buckets"][1]["pass_rate"], 1.0)
+
+    def test_trending_improving(self):
+        """Trend is 'improving' when second half has higher pass rate."""
+        jobs = []
+        for i in range(4):
+            jobs.append({
+                "state": "failure",
+                "started": f"2026-03-{20+i:02d}T10:00:00",
+                "job_id": str(i), "base_url": f"u{i}",
+            })
+        for i in range(4):
+            jobs.append({
+                "state": "success",
+                "started": f"2026-03-{25+i:02d}T10:00:00",
+                "job_id": str(10 + i), "base_url": f"u{10+i}",
+            })
+        client = prow.ProwClient(MockFetcher())
+        client._fetch_jobs = lambda *a, **kw: jobs
+        result = client.trending("int", "periodic", days=14)
+        self.assertEqual(result["trend"], "improving")
+
+    def test_trending_degrading(self):
+        """Trend is 'degrading' when second half has lower pass rate."""
+        jobs = []
+        for i in range(4):
+            jobs.append({
+                "state": "success",
+                "started": f"2026-03-{20+i:02d}T10:00:00",
+                "job_id": str(i), "base_url": f"u{i}",
+            })
+        for i in range(4):
+            jobs.append({
+                "state": "failure",
+                "started": f"2026-03-{25+i:02d}T10:00:00",
+                "job_id": str(10 + i), "base_url": f"u{10+i}",
+            })
+        client = prow.ProwClient(MockFetcher())
+        client._fetch_jobs = lambda *a, **kw: jobs
+        result = client.trending("int", "periodic", days=14)
+        self.assertEqual(result["trend"], "degrading")
+
+    def test_trending_weekly_buckets(self):
+        """Weekly bucket groups by Monday of the week."""
+        # Mon 2026-03-30 and Mon 2026-03-23
+        jobs = [
+            {"state": "success",
+             "started": "2026-03-24T10:00:00",  # Tue, week of 3/23
+             "job_id": "1", "base_url": "u1"},
+            {"state": "success",
+             "started": "2026-03-31T10:00:00",  # Tue, week of 3/30
+             "job_id": "2", "base_url": "u2"},
+        ]
+        client = prow.ProwClient(MockFetcher())
+        client._fetch_jobs = lambda *a, **kw: jobs
+        result = client.trending("int", "periodic", days=14,
+                                 bucket="weekly")
+        self.assertEqual(len(result["buckets"]), 2)
+        self.assertEqual(result["buckets"][0]["date"], "2026-03-23")
+        self.assertEqual(result["buckets"][1]["date"], "2026-03-30")
+
+    def test_trending_aborted_excluded_from_pass_rate(self):
+        """Aborted jobs don't count toward pass rate in buckets."""
+        jobs = [
+            {"state": "success", "started": "2026-03-30T10:00:00",
+             "job_id": "1", "base_url": "u1"},
+            {"state": "aborted", "started": "2026-03-30T11:00:00",
+             "job_id": "2", "base_url": "u2"},
+        ]
+        client = prow.ProwClient(MockFetcher())
+        client._fetch_jobs = lambda *a, **kw: jobs
+        result = client.trending("int", "periodic", days=7)
+        self.assertEqual(result["buckets"][0]["pass_rate"], 1.0)
+        self.assertEqual(result["buckets"][0]["aborted"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

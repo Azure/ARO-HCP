@@ -6,7 +6,9 @@ error messages and build logs. The agent (SKILL.md) handles
 investigation and reasoning.
 
 Commands:
+    overview         — all envs at once (Sippy-backed)
     failure-summary  — cross-job failure grouping (Sippy-backed)
+    trending         — pass rate over time (Sippy-backed)
     env-health       — pass/fail ratio with failed job list (Sippy-backed)
     fetch-failures   — per-test failures with error messages (GCS)
     build-log        — build-log.txt tail or grep (GCS)
@@ -21,7 +23,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 GCSWEB_BASE = (
     "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com"
@@ -79,6 +81,13 @@ TEST_CONTAINERS = {
 PROVISION_CONTAINER = "aro-hcp-provision-environment"
 
 MAX_MESSAGE_CHARS = 2000
+
+# Synthetic Sippy meta-tests that fire whenever anything fails.
+# Filter these from failure groups — they're noise, not signal.
+_SIPPY_NOISE = frozenset([
+    "[sig-sippy] openshift-tests should work",
+    "[sig-sippy] infrastructure should work",
+])
 
 _ENV_URL_MARKERS = {
     "integration-e2e": "int",
@@ -625,10 +634,12 @@ class ProwClient:
                 except (ValueError, IndexError):
                     pass
 
-            # Failed test names (Sippy-specific)
+            # Failed test names (Sippy-specific), filtering noise
             ftn = row.get("failed_test_names")
             if ftn:
-                entry["failed_test_names"] = ftn
+                ftn = [t for t in ftn if t not in _SIPPY_NOISE]
+                if ftn:
+                    entry["failed_test_names"] = ftn
 
             results.append(entry)
 
@@ -732,7 +743,9 @@ class ProwClient:
         has_sippy = any("failed_test_names" in j for j in failed)
 
         if has_sippy:
-            # Fast path: use Sippy data directly (no HTTP)
+            # Fast path: use Sippy data directly (no HTTP
+            # for grouping), then fetch error messages from
+            # a sample of jobs for the top failure groups.
             groups = {}
             analyzed = 0
             for job in failed:
@@ -749,6 +762,47 @@ class ProwClient:
                     g = groups[name]
                     g["count"] += 1
                     g["jobs"].append(short)
+
+            # Fetch error messages for top groups by picking
+            # one representative job per group and fetching its
+            # junit.xml. Deduplicate jobs to minimize requests.
+            top_names = sorted(groups, key=lambda n: groups[n]["count"],
+                               reverse=True)[:sample * 3]
+            sample_jobs = {}  # base_url -> job
+            for name in top_names:
+                if name in sample_jobs:
+                    continue
+                # Find a failed job that has this test name
+                for job in failed:
+                    ftn = job.get("failed_test_names", [])
+                    if name in ftn:
+                        sample_jobs[job["base_url"]] = job
+                        break
+
+            if sample_jobs:
+                def _fetch_sample(job):
+                    return job, self.fetch_failures(
+                        job["base_url"], env)
+
+                with ThreadPoolExecutor(max_workers=10) as pool:
+                    for f in as_completed(
+                            pool.submit(_fetch_sample, j)
+                            for j in sample_jobs.values()):
+                        try:
+                            _, result = f.result()
+                        except Exception:
+                            continue
+                        if not result or not result.get("failures"):
+                            continue
+                        for fail in result["failures"]:
+                            tname = (fail.get("test")
+                                     or fail.get("step", ""))
+                            if tname in groups:
+                                g = groups[tname]
+                                msg = fail.get("message", "")
+                                msgs = g.setdefault("messages", [])
+                                if msg and len(msgs) < sample:
+                                    msgs.append(msg)
         else:
             # Slow path: fetch junit.xml from GCS
             def _fetch_one(job):
@@ -817,6 +871,110 @@ class ProwClient:
             "failure_groups": failure_groups,
         }
 
+    def overview(self, since=None, history=20):
+        """Cross-env failure summary — all envs and types at once.
+
+        Runs failure_summary for every env/type combo in parallel.
+        Returns a list of per-env results sorted by pass_rate.
+        """
+        combos = []
+        for env in PERIODIC_JOBS:
+            combos.append((env, "periodic"))
+        for env in PRESUBMIT_JOBS:
+            combos.append((env, "presubmit"))
+
+        results = []
+        with ThreadPoolExecutor(max_workers=len(combos)) as pool:
+            futures = {
+                pool.submit(self.failure_summary, env, jt,
+                            since=since, history=history): (env, jt)
+                for env, jt in combos}
+            for f in as_completed(futures):
+                try:
+                    results.append(f.result())
+                except Exception:
+                    continue
+
+        results.sort(key=lambda r: r["pass_rate"])
+        return {"environments": results}
+
+    def trending(self, env, job_type, days=7, bucket="daily"):
+        """Pass rate over time in daily or weekly buckets.
+
+        Returns a time series of pass/fail counts per bucket,
+        plus overall trend direction.
+        """
+        now = datetime.now(tz=timezone.utc)
+        since = (now - timedelta(days=days)
+                 ).strftime("%Y-%m-%d")
+        all_jobs = self._fetch_jobs(env, job_type, since, history=500)
+        if not all_jobs:
+            return {
+                "env": env, "type": job_type,
+                "days": days, "bucket": bucket,
+                "buckets": [], "trend": "no_data",
+            }
+
+        bucket_days = 7 if bucket == "weekly" else 1
+        # Group by bucket
+        buckets = {}
+        for job in all_jobs:
+            dt = datetime.fromisoformat(
+                job["started"]).replace(tzinfo=timezone.utc)
+            if bucket_days == 1:
+                key = dt.strftime("%Y-%m-%d")
+            else:
+                # Week start (Monday)
+                monday = dt - timedelta(
+                    days=dt.weekday())
+                key = monday.strftime("%Y-%m-%d")
+            if key not in buckets:
+                buckets[key] = {"passed": 0, "failed": 0,
+                                "aborted": 0}
+            b = buckets[key]
+            if job["state"] == "success":
+                b["passed"] += 1
+            elif job["state"] in ("failure", "error"):
+                b["failed"] += 1
+            elif job["state"] == "aborted":
+                b["aborted"] += 1
+
+        # Build sorted time series
+        series = []
+        for key in sorted(buckets):
+            b = buckets[key]
+            completed = b["passed"] + b["failed"]
+            rate = (round(b["passed"] / completed, 2)
+                    if completed else 0.0)
+            series.append({
+                "date": key, "passed": b["passed"],
+                "failed": b["failed"], "aborted": b["aborted"],
+                "pass_rate": rate,
+            })
+
+        # Compute trend
+        if len(series) >= 2:
+            first_half = series[:len(series) // 2]
+            second_half = series[len(series) // 2:]
+            avg_first = (sum(b["pass_rate"] for b in first_half)
+                         / len(first_half))
+            avg_second = (sum(b["pass_rate"] for b in second_half)
+                          / len(second_half))
+            if avg_second > avg_first + 0.05:
+                trend = "improving"
+            elif avg_second < avg_first - 0.05:
+                trend = "degrading"
+            else:
+                trend = "stable"
+        else:
+            trend = "insufficient_data"
+
+        return {
+            "env": env, "type": job_type,
+            "days": days, "bucket": bucket,
+            "buckets": series, "trend": trend,
+        }
+
 
 # --- CLI ---
 
@@ -846,6 +1004,24 @@ def _build_parser():
     fs.add_argument("--since", help="ISO date/datetime filter")
     fs.add_argument("--history", type=int, default=20,
                     help="Number of jobs to analyze (default: 20)")
+
+    ov = sub.add_parser(
+        "overview",
+        help="Cross-env summary — all envs at once")
+    ov.add_argument("--since", help="ISO date/datetime filter")
+    ov.add_argument("--history", type=int, default=20,
+                    help="Number of jobs per env (default: 20)")
+
+    tr = sub.add_parser(
+        "trending",
+        help="Pass rate over time in daily/weekly buckets")
+    tr.add_argument("env", help="Environment (dev, int, stg, prod)")
+    tr.add_argument("type", help="Job type (periodic, presubmit)")
+    tr.add_argument("--days", type=int, default=7,
+                    help="Number of days to look back (default: 7)")
+    tr.add_argument("--bucket", choices=["daily", "weekly"],
+                    default="daily",
+                    help="Bucket size (default: daily)")
 
     ff = sub.add_parser(
         "fetch-failures",
@@ -899,6 +1075,17 @@ def main(argv=None):
             result = client.failure_summary(
                 args.env, args.type, since=args.since,
                 history=args.history)
+            print(json.dumps(result, indent=2))
+
+        elif args.command == "overview":
+            result = client.overview(
+                since=args.since, history=args.history)
+            print(json.dumps(result, indent=2))
+
+        elif args.command == "trending":
+            result = client.trending(
+                args.env, args.type,
+                days=args.days, bucket=args.bucket)
             print(json.dumps(result, indent=2))
 
         elif args.command == "fetch-failures":
