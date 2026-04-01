@@ -48,7 +48,9 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			if j == nil {
 				return
 			}
-			j.CosmosETag = ""
+			j.CosmosMetadata.ResourceID = j.ID
+			j.CosmosMetadata.ExistingCosmosUID = ""
+			j.CosmosMetadata.CosmosETag = ""
 			// Canonical defaults are applied on Cosmos read, so ensure
 			// defaulted fields are never zero during round-trip testing.
 			if len(j.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {

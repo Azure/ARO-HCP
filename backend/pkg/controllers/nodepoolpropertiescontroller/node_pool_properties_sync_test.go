@@ -269,6 +269,9 @@ func newTestCluster(t *testing.T) *api.HCPOpenShiftCluster {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
 	clusterInternalID := api.Must(api.NewInternalID(testClusterServiceIDStr))
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -292,6 +295,9 @@ func newTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) 
 			"/nodePools/" + testNodePoolName))
 	nodePoolInternalID := api.Must(api.NewInternalID(testNodePoolCSIDStr))
 	np := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,

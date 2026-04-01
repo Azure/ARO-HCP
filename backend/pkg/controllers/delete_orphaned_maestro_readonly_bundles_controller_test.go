@@ -368,6 +368,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_buildProvisionShardToServiceProvid
 				mockDB := databasetesting.NewMockDBClient()
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				cluster := &api.HCPOpenShiftCluster{
+					CosmosMetadata: api.CosmosMetadata{ResourceID: clusterResourceID},
 					TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
 					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/csid")),
@@ -395,6 +396,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_buildProvisionShardToServiceProvid
 				mockMaestroBuilder := maestro.NewMockMaestroClientBuilder(ctrl)
 				mockMaestro := maestro.NewMockClient(ctrl)
 				cluster := &api.HCPOpenShiftCluster{
+					CosmosMetadata: api.CosmosMetadata{ResourceID: clusterResourceID},
 					TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
 					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/csid")),
@@ -440,6 +442,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_buildProvisionShardToServiceProvid
 				mockMaestroBuilder := maestro.NewMockMaestroClientBuilder(ctrl)
 				mockMaestro := maestro.NewMockClient(ctrl)
 				cluster := &api.HCPOpenShiftCluster{
+					CosmosMetadata: api.CosmosMetadata{ResourceID: clusterResourceID},
 					TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
 					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/csid")),
@@ -489,12 +492,14 @@ func TestDeleteOrphanedMaestroReadonlyBundles_buildProvisionShardToServiceProvid
 				cluster1ResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1"))
 				cluster2ResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub2/resourceGroups/rg2/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster2"))
 				cluster1 := &api.HCPOpenShiftCluster{
+					CosmosMetadata: api.CosmosMetadata{ResourceID: cluster1ResourceID},
 					TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: cluster1ResourceID}},
 					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/csid1")),
 					},
 				}
 				cluster2 := &api.HCPOpenShiftCluster{
+					CosmosMetadata: api.CosmosMetadata{ResourceID: cluster2ResourceID},
 					TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: cluster2ResourceID}},
 					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/csid2")),
@@ -807,6 +812,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_SyncOnce_FullFlow_DeletesOrphanedB
 
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: clusterResourceID},
 		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
 		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/csid")),

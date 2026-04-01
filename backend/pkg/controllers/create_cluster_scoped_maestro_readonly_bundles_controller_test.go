@@ -131,6 +131,9 @@ func TestBuildInitialReadonlyMaestroBundleForHostedCluster(t *testing.T) {
 
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID: clusterResourceID,
@@ -510,6 +513,9 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			}
 			ctx := context.Background()
 			cluster := &api.HCPOpenShiftCluster{
+				CosmosMetadata: api.CosmosMetadata{
+					ResourceID: clusterResourceID,
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{ID: clusterResourceID},
 				},
@@ -676,6 +682,9 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_GetServiceProv
 
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
 		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111")),
@@ -726,6 +735,9 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_AllBundlesAlre
 
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{ID: clusterResourceID},
 		},
@@ -796,6 +808,9 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_SyncLoopExecut
 	// Setup cluster
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID: clusterResourceID,
@@ -910,6 +925,9 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_ProcessesParti
 
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{ID: clusterResourceID},
 		},

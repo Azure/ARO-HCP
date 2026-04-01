@@ -722,6 +722,9 @@ func controllerInformerTestCase() informerTestCase {
 			internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
 			require.NoError(t, err)
 			cluster := &api.HCPOpenShiftCluster{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: clusterResourceID,
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID:   clusterResourceID,
@@ -745,6 +748,9 @@ func controllerInformerTestCase() informerTestCase {
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 					"/nodePools/"+nodePoolName)
 			np := &api.HCPOpenShiftClusterNodePool{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: npResourceID,
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID:   npResourceID,
@@ -763,6 +769,9 @@ func controllerInformerTestCase() informerTestCase {
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 					"/externalAuths/"+externalAuthName)
 			ea := &api.HCPOpenShiftClusterExternalAuth{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: eaResourceID,
+				},
 				ProxyResource: arm.NewProxyResource(eaResourceID),
 			}
 			_, err = mockDB.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).Create(ctx, ea, nil)

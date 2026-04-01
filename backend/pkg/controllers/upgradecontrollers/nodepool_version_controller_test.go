@@ -71,6 +71,9 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockDB *da
 	require.NoError(t, err)
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -96,6 +99,9 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockDB *da
 	require.NoError(t, err)
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: nodePoolResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,

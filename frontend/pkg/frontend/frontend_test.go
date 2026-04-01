@@ -600,6 +600,9 @@ func TestRequestAdminCredential(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
 			cluster := &api.HCPOpenShiftCluster{
+				CosmosMetadata: api.CosmosMetadata{
+					ResourceID: clusterResourceID,
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID: clusterResourceID,
@@ -720,6 +723,9 @@ func TestRevokeCredentials(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
 			cluster := &api.HCPOpenShiftCluster{
+				CosmosMetadata: api.CosmosMetadata{
+					ResourceID: clusterResourceID,
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID: clusterResourceID,

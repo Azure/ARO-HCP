@@ -130,6 +130,9 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 			// If resource should be present, create a cluster document
 			if tt.resourceDocPresent {
 				cluster := &api.HCPOpenShiftCluster{
+					CosmosMetadata: api.CosmosMetadata{
+						ResourceID: resourceID,
+					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{ID: resourceID},
 					},
@@ -301,6 +304,9 @@ func TestUpdateOperationStatus(t *testing.T) {
 			// If resource should be present, create a cluster document
 			if tt.resourceDocPresent {
 				resourceDoc := &api.HCPOpenShiftCluster{
+					CosmosMetadata: api.CosmosMetadata{
+						ResourceID: resourceID,
+					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{
 							ID: resourceID,
