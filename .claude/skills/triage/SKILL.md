@@ -15,22 +15,24 @@ Triage Prow CI failures for ARO-HCP. You are an SRE investigating CI failures �
 
 ### 1. Get the overview
 
-Start with `failure-summary` — it gives you the full picture in a single request (via Sippy API): pass/fail ratio, which tests fail, and how often.
+Start with `--since` for today's date to see **all** jobs, not just the last N. Using `--history` caps results and can hide the true failure rate (e.g. dev presubmit can run 70+ jobs/day — `--history 20` would miss most of them).
 
 ```bash
-# Full cross-job failure analysis — 1 HTTP request via Sippy
-python3 hack/ci-triage/prow.py failure-summary ENV TYPE --history 20
+# All envs at once — use today's date to see everything
+python3 hack/ci-triage/prow.py overview --since $(date -u +%Y-%m-%d)
+
+# Single env — use --since for today, or a date range for investigation
+python3 hack/ci-triage/prow.py failure-summary ENV TYPE --since $(date -u +%Y-%m-%d)
 python3 hack/ci-triage/prow.py failure-summary ENV TYPE --since 2026-03-25
 
-# All envs at once — are things healthy or on fire?
-python3 hack/ci-triage/prow.py overview --history 10
-
-# Is this getting better or worse?
+# Is this getting better or worse over the past week?
 python3 hack/ci-triage/prow.py trending ENV TYPE --days 7
 
 # For PR triage: get check status first
 gh pr checks PR_NUMBER
 ```
+
+Use `--history N` only for quick spot checks or when you want a fixed sample size regardless of time range.
 
 From `failure-summary`, note:
 - **pass_rate** — Is this environment healthy (>0.8) or broken (<0.5)?
@@ -48,7 +50,7 @@ If you only need pass/fail counts without test-level details, use `env-health` (
 python3 hack/ci-triage/prow.py fetch-failures BASE_URL ENV
 
 # Get BASE_URL from env-health output's failed_jobs list
-python3 hack/ci-triage/prow.py env-health ENV TYPE --history 20
+python3 hack/ci-triage/prow.py env-health ENV TYPE --since $(date -u +%Y-%m-%d)
 ```
 
 Pick representative jobs from `failure-summary`'s groups — you don't need to check every failed job, just one or two per distinct failure pattern.
@@ -79,9 +81,12 @@ Once you understand a failure, figure out how widespread it is:
 - **Hitting multiple PRs?** The failure is pre-existing, not caused by any single PR.
 
 ```bash
-# Compare across environments — run failure-summary for each
-python3 hack/ci-triage/prow.py failure-summary int periodic --history 10
-python3 hack/ci-triage/prow.py failure-summary stg periodic --history 10
+# Compare across environments — overview does this in one shot
+python3 hack/ci-triage/prow.py overview --since $(date -u +%Y-%m-%d)
+
+# Or compare specific envs
+python3 hack/ci-triage/prow.py failure-summary int periodic --since $(date -u +%Y-%m-%d)
+python3 hack/ci-triage/prow.py failure-summary stg periodic --since $(date -u +%Y-%m-%d)
 ```
 
 ### 5. Find the cause for new failures
@@ -102,7 +107,7 @@ When triaging a specific PR (`/triage pr 4618`):
 
 1. **`gh pr checks`** — What's failing? Note flakes (failed then passed) vs. persistent failures.
 2. **`gh pr view`** — What does this PR change? Read the body and changed files.
-3. **Check periodic health** — Run `env-health ENV periodic` for each env where the PR has failures. If the same failure appears in periodic jobs, it's not the PR's fault.
+3. **Check periodic health** — Run `failure-summary ENV periodic --since $(date -u +%Y-%m-%d)` for each env where the PR has failures. If the same failure appears in periodic jobs, it's not the PR's fault.
 4. **Deep-dive the PR's failures** — Use the Prow link from `gh pr checks` to get the `base_url`, then `fetch-failures` and `build-log` to read the actual errors.
 5. **Compare** — Is the failure related to what the PR changes? A PR touching `frontend/` shouldn't cause failures in cluster provisioning.
 
