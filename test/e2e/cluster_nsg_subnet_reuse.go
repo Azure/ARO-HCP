@@ -120,7 +120,7 @@ var _ = Describe("Customer", func() {
 				5*time.Minute,
 			)
 			Expect(err).To(HaveOccurred())
-			GinkgoLogr.Error(err, "cluster deployment error")
+			GinkgoLogr.Info("cluster deployment returned expected error", "error", err)
 			Expect(err.Error()).To(MatchRegexp("Subnet .* is already in use by another cluster"))
 			clusterParams2.SubnetResourceID = originalSubnetResourceID
 
@@ -136,7 +136,7 @@ var _ = Describe("Customer", func() {
 				5*time.Minute,
 			)
 			Expect(err).To(HaveOccurred())
-			GinkgoLogr.Error(err, "cluster deployment error")
+			GinkgoLogr.Info("cluster deployment returned expected error", "error", err)
 			Expect(err.Error()).To(MatchRegexp("Network Security Group .* is already in use by another cluster"))
 		})
 })
