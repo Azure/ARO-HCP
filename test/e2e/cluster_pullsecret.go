@@ -16,7 +16,7 @@ package e2e
 
 import (
 	"context"
-	"encoding/base64"
+	//"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -164,7 +164,7 @@ var _ = Describe("Customer", func() {
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating test pull secret")
+			/* By("creating test pull secret")
 			username := "test-user"
 			auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + testPullSecretPassword))
 
@@ -201,6 +201,7 @@ var _ = Describe("Customer", func() {
 				testPullSecretEmail,
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
+			*/
 
 			By("reading pull-secret file from aro-hcp-qe-pull-secret directory")
 			pullSecretFileData, err := os.ReadFile(pullSecretFilePath)
@@ -239,12 +240,32 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Update the secret
+			/*
+				currentSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
+				_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+			*/
+
+			By("creating the test pull secret in the cluster")
 			currentSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
-			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
+			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, currentSecret, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Creating the node pool so HCCO can sync the updated pull secret to all nodes")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.NodePoolName = "np-1"
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.Replicas = int32(2)
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")
-			verifier = verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost)
+			verifier := verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost)
 			eventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
 				"registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
 
