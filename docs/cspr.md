@@ -64,7 +64,7 @@ Only use individual pipeline commands if you need to target a specific service g
   # deploy service cluster infrastructure only
   DEPLOY_ENV=cspr make pipeline/Service.Infra
 
-  # delete all resources in the management cluster resource group
+  # delete the management cluster resource group itself and all resources within it
   DEPLOY_ENV=cspr make pipeline/Management.Delete
   ```
 
