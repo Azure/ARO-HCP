@@ -7,6 +7,7 @@ SESSIONGATE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 -include ../tooling/hcpctl/Variables.mk
 
 # Image
+ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_COMMIT_TIME := $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 SESSION_GATE_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
