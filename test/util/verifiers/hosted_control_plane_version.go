@@ -51,7 +51,18 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
 	}
 
-	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history", "ocp version history", clusterVersion.Status.History)
+	for i, h := range clusterVersion.Status.History {
+		completionTime := "<nil>"
+		if h.CompletionTime != nil {
+			completionTime = h.CompletionTime.String()
+		}
+		ginkgo.GinkgoLogr.Info("cluster version history entry",
+			"index", i,
+			"version", h.Version,
+			"state", h.State,
+			"completionTime", completionTime,
+		)
+	}
 
 	var sawUpgrade bool
 	for _, history := range clusterVersion.Status.History {
