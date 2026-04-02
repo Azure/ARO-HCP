@@ -5,6 +5,8 @@ COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcela
 
 include ../../setup-templatize-env.mk
 
+ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
+
 ifeq ($(shell uname), Darwin)
 	AUTH_FILE = ${HOME}/.config/containers/auth.json
 else
