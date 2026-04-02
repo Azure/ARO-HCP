@@ -114,6 +114,18 @@ func NewClusterWatchingController(
 		if err != nil {
 			panic(err) // coding error
 		}
+		controllerInformer, _ := informers.Controllers()
+		_, err = controllerInformer.AddEventHandlerWithOptions(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc:    c.enqueueControllerAdd,
+				UpdateFunc: c.enqueueControllerUpdate,
+			},
+			cache.HandlerOptions{
+				ResyncPeriod: ptr.To(resyncDuration),
+			})
+		if err != nil {
+			panic(err) // coding error
+		}
 	}
 
 	return c
@@ -250,4 +262,12 @@ func (c *clusterWatchingController) enqueueManagementClusterContentAdd(newObj in
 
 func (c *clusterWatchingController) enqueueManagementClusterContentUpdate(_ interface{}, newObj interface{}) {
 	c.EnqueueResourceIDAdd(newObj.(*api.ManagementClusterContent).GetResourceID())
+}
+
+func (c *clusterWatchingController) enqueueControllerAdd(newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.Controller).GetResourceID())
+}
+
+func (c *clusterWatchingController) enqueueControllerUpdate(_ interface{}, newObj interface{}) {
+	c.EnqueueResourceIDAdd(newObj.(*api.Controller).GetResourceID())
 }

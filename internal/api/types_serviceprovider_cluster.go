@@ -19,6 +19,8 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -80,6 +82,22 @@ type ServiceProviderClusterSpecVersion struct {
 
 // ServiceProviderClusterStatus contains the observed state of the cluster.
 type ServiceProviderClusterStatus struct {
+	// Conditions are the top-level ServiceProviderCluster status conditions.
+	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	// Known condition types are:
+	// - "Progressing": True when the cluster is in the process of being created, updated, or deleted. Both end-user initiated actions as
+	//   well as internal actions such as upgrades or other maintenance operations are in progress are included in thsi condition.
+	// - "Degraded": True when the cluster is in a degraded state
+	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
+	// when there is a clear benefit to doing so. We expect the number of conditions at this
+	// level to be kept to a minimum. Take into consideration that conditions at other levels can be specified within
+	// ServiceProviderClusterStatus too.
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 	// ControlPlaneVersion contains the actual control plane version information.
 	// ActiveVersions contains all versions currently active in the control plane.
 	//
