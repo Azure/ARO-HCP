@@ -48,28 +48,24 @@ To access the service and management cluster of CS PR, make sure you have an act
 > [!CAUTION]
 > Infrastructure and service changes to the CS PR environment should be deployed through the [CI/CD pipeline](#cicd) by merging PRs. Running pipelines locally should only be done in emergency situations, e.g. to unblock a broken environment or to debug deployment failures that cannot be reproduced through CI/CD.
 
-If you need to run a deployment locally, make sure you have an active Azure session with your Red Hat account. Prefer using the **entrypoint** command, which runs the full region deployment including all dependent service groups:
+If you need to run a deployment locally, make sure you have an active Azure session with your Red Hat account and run:
 
   ```sh
-  # full region deployment (preferred)
   DEPLOY_ENV=cspr make entrypoint/Region
   ```
 
-Only use individual pipeline commands if you need to target a specific service group in isolation:
-
-  ```sh
-  # deploy management cluster infrastructure only
-  DEPLOY_ENV=cspr make pipeline/Management.Infra
-
-  # deploy service cluster infrastructure only
-  DEPLOY_ENV=cspr make pipeline/Service.Infra
-
-  # delete the management cluster resource group itself and all resources within it
-  DEPLOY_ENV=cspr make pipeline/Management.Delete
-  ```
-
-To perform a dry-run (no actual changes) first, add `DRY_RUN=true`:
+This runs the full region deployment including all dependent service groups in the correct order. To perform a dry-run (no actual changes) first, add `DRY_RUN=true`:
 
   ```sh
   DEPLOY_ENV=cspr DRY_RUN=true make entrypoint/Region
+  ```
+
+If the environment is broken beyond repair and needs to be rebuilt from scratch, you can delete all resources in the management cluster resource group first, then redeploy:
+
+  ```sh
+  # delete all resources in the management cluster resource group (destructive!)
+  DEPLOY_ENV=cspr make pipeline/Management.Delete
+
+  # then redeploy
+  DEPLOY_ENV=cspr make entrypoint/Region
   ```
