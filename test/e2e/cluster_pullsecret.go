@@ -73,9 +73,6 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			const (
 				customerClusterName    = "pullsecret-hcp-cluster"
-				testPullSecretHost     = "host.example.com"
-				testPullSecretPassword = "my_password"
-				testPullSecretEmail    = "noreply@example.com"
 				pullSecretName         = "additional-pull-secret"
 				pullSecretNamespace    = "kube-system"
 				redhatRegistryHost     = "registry.redhat.io"
@@ -219,36 +216,29 @@ var _ = Describe("Customer", func() {
 			redhatRegistryAuthString := redhatRegistryAuth.Auth
 			redhatRegistryEmail := redhatRegistryAuth.Email
 
-			By("updating additional-pull-secret to add registry.redhat.io credentials")
-			// Get the current additional-pull-secret
-			currentSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, pullSecretName, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to get existing additional-pull-secret")
-
-			// Parse the current dockerconfigjson
-			var currentConfig framework.DockerConfigJSON
-			err = json.Unmarshal(currentSecret.Data[corev1.DockerConfigJsonKey], &currentConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse current pull secret")
-
-			// Add registry.redhat.io credentials to the existing auths
-			currentConfig.Auths[redhatRegistryHost] = framework.RegistryAuth{
-				Auth:  redhatRegistryAuthString,
-				Email: redhatRegistryEmail,
+			By("creating additional-pull-secret with registry.redhat.io credentials")
+			pullSecretData := framework.DockerConfigJSON{
+				Auths: map[string]framework.RegistryAuth{
+					redhatRegistryHost: {
+						Auth:  redhatRegistryAuthString,
+						Email: redhatRegistryEmail,
+					},
+				},
 			}
-
-			// Marshal back to JSON
-			updatedDockerConfigJSON, err := json.Marshal(currentConfig)
+			pullSecretJSON, err := json.Marshal(pullSecretData)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Update the secret
-			/*
-				currentSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
-				_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
-				Expect(err).NotTo(HaveOccurred())
-			*/
-
-			By("creating the test pull secret in the cluster")
-			currentSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
-			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, currentSecret, metav1.CreateOptions{})
+			additionalPullSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      pullSecretName,
+					Namespace: pullSecretNamespace,
+				},
+				Type: corev1.SecretTypeDockerConfigJson,
+				Data: map[string][]byte{
+					corev1.DockerConfigJsonKey: pullSecretJSON,
+				},
+			}
+			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, additionalPullSecret, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Creating the node pool so HCCO can sync the updated pull secret to all nodes")
@@ -274,10 +264,7 @@ var _ = Describe("Customer", func() {
 			eventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
 				"global-pull-secret-syncer should have synced pull secret to all nodes")
 
-			By("verifying both test registries are now in the global pull secret")
-			err = verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "host.example.com should still be in global-pull-secret")
-
+			By("verifying registry.redhat.io credentials are in the global pull secret")
 			err = verifiers.VerifyPullSecretAuthData(
 				"global-pull-secret",
 				pullSecretNamespace,
