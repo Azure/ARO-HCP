@@ -806,7 +806,10 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		// deletion request containing these headers so these operations cannot be directly tracked.
 		operationDoc.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
 		operationDoc.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
-		operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+		notificationURI := request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+		if err := arm.ValidateNotificationURI(notificationURI); err == nil {
+			operationDoc.NotificationURI = notificationURI
+		}
 		transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	}
 	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)

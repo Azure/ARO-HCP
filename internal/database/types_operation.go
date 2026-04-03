@@ -47,6 +47,14 @@ func NewOperation(
 	correlationData *arm.CorrelationData,
 ) *api.Operation {
 
+	// Validate the notification URI to prevent SSRF attacks.
+	// Drop invalid URIs silently since this header is injected
+	// by ARM, not by the end user, so we should not fail the
+	// user's request if ARM sends something unexpected.
+	if err := arm.ValidateNotificationURI(notificationURI); err != nil {
+		notificationURI = ""
+	}
+
 	now := time.Now().UTC()
 
 	operation := &api.Operation{
