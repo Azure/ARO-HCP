@@ -235,7 +235,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/std-uritemplate/std-uritemplate/go/v2 v2.0.3 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
-	github.com/tektoncd/pipeline v1.6.0 // indirect
+	github.com/tektoncd/pipeline v1.6.1 // indirect
 	github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/trivago/tgo v1.0.7 // indirect

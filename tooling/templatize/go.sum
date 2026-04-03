@@ -839,8 +839,8 @@ github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/stvp/go-udp-testing v0.0.0-20201019212854-469649b16807/go.mod h1:7jxmlfBCDBXRzr0eAQJ48XC1hBu1np4CS5+cHEYfwpc=
-github.com/tektoncd/pipeline v1.6.0 h1:A+D+jzOVl2QNl/yiNT7csVgBUy2wpz6K6+/D4q5lfss=
-github.com/tektoncd/pipeline v1.6.0/go.mod h1:5SNoYgRYPQopkv7ApVq5GO3JqPk2AjV+VMMjwBsbJOg=
+github.com/tektoncd/pipeline v1.6.1 h1:DLeA6gVQrDHw9hy7eI48rOp2MO+Fwawj1+AcgSpJysk=
+github.com/tektoncd/pipeline v1.6.1/go.mod h1:5SNoYgRYPQopkv7ApVq5GO3JqPk2AjV+VMMjwBsbJOg=
 github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 h1:ZF+QBjOI+tILZjBaFj3HgFonKXUcwgJ4djLb6i42S3Q=
 github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834/go.mod h1:m9ymHTgNSEjuxvw8E7WWe4Pl4hZQHXONY8wE6dMLaRk=
 github.com/tetratelabs/wazero v1.9.0 h1:IcZ56OuxrtaEz8UYNRHBrUa9bYeX9oVY93KspZZBf/I=
