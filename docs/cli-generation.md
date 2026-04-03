@@ -171,7 +171,7 @@ rsync -a --delete \
 
 For MVP standalone testing, apply the same rewrite from
 `red-hat-open-shift` to `arohcp` described in
-`Optional command root rewrite (`az arohcp`)`, but run it against:
+Optional command root rewrite (`az arohcp`), but run it against:
 
 - `tooling/arohcp-cli/azext_arohcp/aaz/latest/red_hat_open_shift`
 
