@@ -45,7 +45,7 @@ setup(
     author_email='azpycli@microsoft.com',
     url='https://github.com/Azure/azure-cli-extensions/tree/main/src/arohcp',
     classifiers=CLASSIFIERS,
-    packages=find_packages(exclude=["tests"]),
+    packages=find_packages(exclude=["tests", "azext_arohcp.tests", "azext_arohcp.tests.*"]),
     package_data={'azext_arohcp': ['azext_metadata.json']},
     install_requires=DEPENDENCIES
 )
