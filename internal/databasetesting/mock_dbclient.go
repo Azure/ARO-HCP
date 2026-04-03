@@ -310,7 +310,7 @@ func (m *MockDBClient) ListDocuments(resourceType *azcorearm.ResourceType, prefi
 
 		// Check prefix match if specified
 		if len(prefix) != 0 {
-			if !strings.HasPrefix(strings.ToLower(typedDoc.ResourceID.String()), strings.ToLower(prefix)) {
+			if typedDoc.ResourceID == nil || !strings.HasPrefix(strings.ToLower(typedDoc.ResourceID.String()), strings.ToLower(prefix)) {
 				continue
 			}
 		}
