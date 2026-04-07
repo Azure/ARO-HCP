@@ -54,9 +54,6 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
           pipelinePath: maestro/agent/pipeline.yaml
           purpose: Deploy the Maestro Agent and register it with the MQTT stream.
-        - serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator
-          pipelinePath: route-monitor-operator/pipeline.yaml
-          purpose: Deploy the Route Monitor Operator.
         - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
           pipelinePath: mgmt-agent/pipeline.yaml
           purpose: Deploy the Management Agent.
