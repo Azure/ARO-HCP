@@ -277,7 +277,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:c5787a7f15979007174b4099b9f91e449c797c78aff00eb0787a510e4c7cb73a # 15f5b8da93b95cf8099c48537f981ce4a22c2aef (2026-03-25 21:40)
+      digest: sha256:fb0523c22deeb4b9e1b27b7b738569a6e042e1ce6cf1fe1d33bd8999339d27b4 # 2d72889a0d35535a8ea79c7a4640cca1927c8a31 (2026-04-06 20:48)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -802,7 +802,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:331aaa0d553e8eec9b69261f1dc6fd74eadc1daec5907287dc5e9bbc3a7e2bc0 # 1.28.2-1-azl3.0.20260304 (2026-03-04 11:13)
+          digest: sha256:b7cec6a44aca2b9577e63285f8cb1be4d697187b8c47d6910a075ed456131031 # 1.28.3-1-azl3.0.20260401 (2026-04-01 10:10)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -827,7 +827,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:195db1fb826c90b6f3a7621b2d11ed79d632e4e93a5dc475fb4e81d2c2e44cae # 8e59adbc040351456481cb12a2959e82d49ae432 (2026-03-24 09:15)
+      digest: sha256:91864b4571d431dbc0502d7a5cf9229c8d64fe3f85f60f1df92cddfcce3918f1 # 001af75eb0332efa7b58c33cd43193bd3cf222be (2026-04-01 06:41)
   # PKO
   pko:
     managedIdentityName: package-operator
@@ -852,12 +852,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
-        digest: sha256:851acca63dfb8ce9ac60dd755f5dd3f4ed77b59cc6124651cd753f918819e01a # v2.15.2-435 (2026-03-25 17:23)
+        digest: sha256:051659482be374019c051aa797f744a6d19e6330fc60d380c7d3987188e2f5f9 # v2.15.2-457 (2026-04-06 17:18)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:3e9c550d71223566ec0a4132ffe9952def98fac9e02ce53621e6b0f5dc9e96e7 # v2.10.2-461 (2026-03-25 17:23)
+        digest: sha256:d10ca5367d2ef61c0099f77f006fade5a6d37ce4bbee5b82878c74ca2a941dc3 # v2.10.2-480 (2026-04-07 05:41)
   # Cluster Service
   clustersService:
     image:
