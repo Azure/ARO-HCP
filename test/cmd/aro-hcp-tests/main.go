@@ -108,8 +108,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=15
-		Parallelism: 19,
+		// LEASED_MSI_CONTAINERS=12
+		Parallelism: 15,
 	})
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel/slow",
@@ -118,8 +118,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly avobe the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=15
-		Parallelism: 19,
+		// LEASED_MSI_CONTAINERS=12
+		Parallelism: 15,
 	})
 
 	ext.AddSuite(e.Suite{
