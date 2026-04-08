@@ -5,12 +5,10 @@ set -o nounset
 set -o pipefail
 
 source env_vars
-# The ONLY supported region for ARO-HCP in INT is uksouth
 LOCATION=${LOCATION:-uksouth}
 SUBSCRIPTION=$(az account show --query 'name' -o tsv)
 
 PROVIDER_JSON=$(az provider show --namespace Microsoft.RedHatOpenShift -o json)
-
 if [[ "Registered" != "$(echo ${PROVIDER_JSON} | jq -r .registrationState)" ]]; then
   echo "ERROR: Microsoft.RedHatOpenShift provider is not registered."
   exit 1
@@ -21,6 +19,11 @@ if [[ -z $(echo $PROVIDER_JSON | jq --arg location "${LOCATION}" -r '.resourceTy
   echo "ERROR: Location '${LOCATION}' is not supported for the Microsoft.RedHatOpenShift/hcpopenshiftclusters resource type."
   exit 1
 fi
+
+PRIVATE_KEYVAULT=true
+CLUSTER_VERSION="4.20"
+NODEPOOL_VERSION="4.20.16"
+
 
 az group create \
   --name "${CUSTOMER_RG_NAME}" \
@@ -35,7 +38,9 @@ az deployment group create \
   --parameters \
     customerNsgName="${CUSTOMER_NSG}" \
     customerVnetName="${CUSTOMER_VNET_NAME}" \
-    customerVnetSubnetName="${CUSTOMER_VNET_SUBNET1}"
+    customerVnetSubnetName="${CUSTOMER_VNET_SUBNET1}" \
+    customerVirtualNetworkIntegrationSubnetName="${CUSTOMER_VNET_INTEGRATION_SUBNET}" \
+    privateKeyVault=${PRIVATE_KEYVAULT}
 
 NSG_ID=$(az deployment group show \
           --name 'infra' \
@@ -55,6 +60,12 @@ KEYVAULT_NAME=$(az deployment group show \
           --resource-group "${CUSTOMER_RG_NAME}" \
           --query "properties.outputs.keyVaultName.value" -o tsv)
 
+VNET_INTEGRATION_SUBNET_ID=$(az deployment group show \
+          --name 'infra' \
+          --subscription "${SUBSCRIPTION}" \
+          --resource-group "${CUSTOMER_RG_NAME}" \
+          --query "properties.outputs.vnetIntegrationSubnetId.value" -o tsv)
+
 az deployment group create \
   --name 'aro-hcp'\
   --subscription "${SUBSCRIPTION}" \
@@ -63,10 +74,13 @@ az deployment group create \
   --parameters \
     vnetName="${CUSTOMER_VNET_NAME}" \
     subnetName="${CUSTOMER_VNET_SUBNET1}" \
+    vnetIntegrationSubnetName="${CUSTOMER_VNET_INTEGRATION_SUBNET}" \
     nsgName="${CUSTOMER_NSG}" \
     clusterName="${CLUSTER_NAME}" \
     managedResourceGroupName="${MANAGED_RESOURCE_GROUP}" \
-    keyVaultName="${KEYVAULT_NAME}"
+    keyVaultName="${KEYVAULT_NAME}" \
+    privateKeyVault=${PRIVATE_KEYVAULT} \
+    clusterVersion="${CLUSTER_VERSION}"
 
 az deployment group create \
   --name 'node-pool' \
@@ -75,4 +89,5 @@ az deployment group create \
   --template-file bicep/nodepool.bicep \
   --parameters \
     clusterName="${CLUSTER_NAME}" \
-    nodePoolName="${NP_NAME}"
+    nodePoolName="${NP_NAME}" \
+    nodePoolVersion="${NODEPOOL_VERSION}"

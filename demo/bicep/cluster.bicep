@@ -13,8 +13,17 @@ param vnetName string
 @description('The subnet name for deploying hcp cluster resources.')
 param subnetName string
 
+@description('The VNet integration subnet name for direct private network connectivity.')
+param vnetIntegrationSubnetName string
+
 @description('The KeyVault name that contains the encryption key')
 param keyVaultName string
+
+@description('The visibility of the KeyVault (Public or Private)')
+param privateKeyVault bool
+
+@description('The version of the cluster to create (e.g. 4.20)')
+param clusterVersion string
 
 @description('Tags that should be added to the ARO HCP cluster')
 param tags object = {}
@@ -37,6 +46,11 @@ resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing 
 
 resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
   name: nsgName
+}
+
+resource vnetIntegrationSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
+  name: vnetIntegrationSubnetName
+  parent: vnet
 }
 
 resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
@@ -462,10 +476,25 @@ resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
 //
 // S E R V I C E   M A N A G E D   I D E N T I T Y
 //
-
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-service-managed-identity-${randomSuffix}'
   location: resourceGroup().location
+}
+
+// hack: need network contributor role over vnet until built-in role definition rolls out (hcpServiceManagedIdentityRoleId)
+var networkContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '4d97b98b-1d4f-4787-a291-c67834d212e7'
+)
+
+resource serviceManagedIdentityRoleAssigmentVnetHack 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, networkContributorRoleId, vnet.id)
+  scope: vnet
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: networkContributorRoleId
+  }
 }
 
 // Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
@@ -474,21 +503,10 @@ var hcpServiceManagedIdentityRoleId = subscriptionResourceId(
   'c0ff367d-66d8-445e-917c-583feb0ef0d4'
 )
 
-// grant service managed identity role to the service managed identity over the user provided subnet
+// grant service managed identity role to the service managed identity over the user provided vnet
 resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, vnet.id)
   scope: vnet
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: hcpServiceManagedIdentityRoleId
-  }
-}
-
-// grant service managed identity role to the service managed identity over the user provided subnet
-resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, subnet.id)
-  scope: subnet
   properties: {
     principalId: serviceManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
@@ -507,7 +525,7 @@ resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAs
   }
 }
 
-resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' = {
+resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2025-12-23-preview' = {
   name: clusterName
   location: resourceGroup().location
   tags: tags
@@ -528,10 +546,11 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
           encryptionType: 'KMS'
           kms: {
              activeKey: {
-              vaultName: keyVaultName
               name: etcdEncryptionKeyName
               version: last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
              }
+             vaultName: keyVaultName
+             visibility: privateKeyVault ? 'Private' : 'Public'
           }
         }
       }
@@ -545,6 +564,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     platform: {
       managedResourceGroup: managedResourceGroupName
       subnetId: subnet.id
+      vnetIntegrationSubnetId: vnetIntegrationSubnet.id
       outboundType: 'LoadBalancer'
       networkSecurityGroupId: nsg.id
       operatorsAuthentication: {
@@ -569,6 +589,9 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
           serviceManagedIdentity: serviceManagedIdentity.id
         }
       }
+    }
+    version: {
+      id: clusterVersion
     }
   }
   identity: {
@@ -602,7 +625,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     dpFileCsiDriverMiFederatedCredentialsRoleAssignment
     dpImageRegistryMiFederatedCredentialsRoleAssignment
     serviceManagedIdentityRoleAssignmentVnet
-    serviceManagedIdentityRoleAssignmentSubnet
+    serviceManagedIdentityRoleAssigmentVnetHack
     serviceManagedIdentityRoleAssignmentNSG
     dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment
     dpFileCsiDriverFileStorageOperatorRoleNsgAssignment
