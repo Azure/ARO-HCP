@@ -1,0 +1,57 @@
+---
+metadata:
+  name: echo-a
+  labels:
+    name: echo-a
+    topology: any
+    component: network-check
+    traffic: internal
+    quarantine: "false"
+    type: autocheck
+spec:
+  template:
+    metadata:
+      labels:
+        name: echo-a
+    spec:
+      hostNetwork: false
+      containers:
+      - name: echo-a-container
+        env:
+        - name: PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+        image: quay.io/cilium/json-mock:v1.3.8@sha256:5aad04835eda9025fe4561ad31be77fd55309af8158ca8663a72f6abb78c2603
+        imagePullPolicy: IfNotPresent
+        terminationMessagePolicy: FallbackToLogsOnError
+        readinessProbe:
+          timeoutSeconds: 7
+          exec:
+            command:
+            - curl
+            - -sS
+            - --fail
+            - --connect-timeout
+            - "5"
+            - -o
+            - /dev/null
+            - localhost:8080
+        livenessProbe:
+          timeoutSeconds: 7
+          exec:
+            command:
+            - curl
+            - -sS
+            - --fail
+            - --connect-timeout
+            - "5"
+            - -o
+            - /dev/null
+            - localhost:8080
+  selector:
+    matchLabels:
+      name: echo-a
+  replicas: 1
+apiVersion: apps/v1
+kind: Deployment

@@ -1,0 +1,19 @@
+---
+metadata:
+  name: echo-a
+  labels:
+    name: echo-a
+    topology: any
+    component: network-check
+    traffic: internal
+    quarantine: "false"
+    type: autocheck
+spec:
+  ports:
+  - name: http
+    port: 8080
+  type: ClusterIP
+  selector:
+    name: echo-a
+apiVersion: v1
+kind: Service

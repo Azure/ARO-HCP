@@ -1,0 +1,18 @@
+---
+metadata:
+  name: echo-b-host-headless
+  labels:
+    name: echo-b-host-headless
+    topology: any
+    component: services-check
+    traffic: internal
+    quarantine: "false"
+    type: autocheck
+spec:
+  ports: []
+  type: ClusterIP
+  selector:
+    name: echo-b-host
+  clusterIP: None
+apiVersion: v1
+kind: Service
