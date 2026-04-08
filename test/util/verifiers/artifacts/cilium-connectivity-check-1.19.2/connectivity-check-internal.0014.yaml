@@ -1,0 +1,20 @@
+---
+metadata:
+  name: echo-b
+  labels:
+    name: echo-b
+    topology: any
+    component: services-check
+    traffic: internal
+    quarantine: "false"
+    type: autocheck
+spec:
+  ports:
+  - name: http
+    port: 8080
+    nodePort: 31414
+  type: NodePort
+  selector:
+    name: echo-b
+apiVersion: v1
+kind: Service
