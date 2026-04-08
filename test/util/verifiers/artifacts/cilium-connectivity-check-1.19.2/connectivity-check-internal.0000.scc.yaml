@@ -2,11 +2,11 @@
 apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
 metadata:
-  name: cilium-test
+  name: cilium-connectivity-check
 allowHostPorts: true
 allowHostNetwork: true
 users:
-  - system:serviceaccount:cilium-test:default
+  - system:serviceaccount:cilium-connectivity-check:default
 priority: null
 readOnlyRootFilesystem: false
 runAsUser:
