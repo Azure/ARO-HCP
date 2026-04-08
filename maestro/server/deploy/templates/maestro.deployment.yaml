@@ -142,6 +142,8 @@ spec:
             scheme: HTTP
           initialDelaySeconds: 25
           periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /healthcheck
@@ -152,3 +154,5 @@ spec:
               value: Probe
           initialDelaySeconds: 20
           periodSeconds: 5
+          timeoutSeconds: 10
+          failureThreshold: 5
