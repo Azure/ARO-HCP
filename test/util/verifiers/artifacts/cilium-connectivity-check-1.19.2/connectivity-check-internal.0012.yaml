@@ -1,0 +1,67 @@
+---
+metadata:
+  name: pod-to-b-intra-node-nodeport
+  labels:
+    name: pod-to-b-intra-node-nodeport
+    topology: intra-node
+    component: nodeport-check
+    traffic: internal
+    quarantine: "false"
+    type: autocheck
+spec:
+  template:
+    metadata:
+      labels:
+        name: pod-to-b-intra-node-nodeport
+    spec:
+      hostNetwork: false
+      containers:
+      - name: pod-to-b-intra-node-nodeport-container
+        ports: []
+        image: quay.io/cilium/alpine-curl:v1.5.0@sha256:7b286939730d8af1149ef88dba15739d8330bb83d7d9853a23e5ab4043e2d33c
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/ash
+        - -c
+        - sleep 1000000000
+        terminationMessagePolicy: FallbackToLogsOnError
+        readinessProbe:
+          timeoutSeconds: 7
+          exec:
+            command:
+            - curl
+            - -sS
+            - --fail
+            - --connect-timeout
+            - "5"
+            - -o
+            - /dev/null
+            - echo-b-host-headless:31414/public
+        livenessProbe:
+          timeoutSeconds: 7
+          exec:
+            command:
+            - curl
+            - -sS
+            - --fail
+            - --connect-timeout
+            - "5"
+            - -o
+            - /dev/null
+            - echo-b-host-headless:31414/public
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: name
+                operator: In
+                values:
+                - echo-b
+            topologyKey: kubernetes.io/hostname
+  selector:
+    matchLabels:
+      name: pod-to-b-intra-node-nodeport
+  replicas: 1
+apiVersion: apps/v1
+kind: Deployment

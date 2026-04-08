@@ -1,0 +1,66 @@
+---
+metadata:
+  name: echo-b-host
+  labels:
+    name: echo-b-host
+    topology: any
+    component: services-check
+    traffic: internal
+    quarantine: "false"
+    type: autocheck
+spec:
+  template:
+    metadata:
+      labels:
+        name: echo-b-host
+    spec:
+      hostNetwork: true
+      containers:
+      - name: echo-b-host-container
+        env:
+        - name: PORT
+          value: "21000"
+        ports: []
+        image: quay.io/cilium/json-mock:v1.3.8@sha256:5aad04835eda9025fe4561ad31be77fd55309af8158ca8663a72f6abb78c2603
+        imagePullPolicy: IfNotPresent
+        terminationMessagePolicy: FallbackToLogsOnError
+        readinessProbe:
+          timeoutSeconds: 7
+          exec:
+            command:
+            - curl
+            - -sS
+            - --fail
+            - --connect-timeout
+            - "5"
+            - -o
+            - /dev/null
+            - localhost:21000
+        livenessProbe:
+          timeoutSeconds: 7
+          exec:
+            command:
+            - curl
+            - -sS
+            - --fail
+            - --connect-timeout
+            - "5"
+            - -o
+            - /dev/null
+            - localhost:21000
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: name
+                operator: In
+                values:
+                - echo-b
+            topologyKey: kubernetes.io/hostname
+  selector:
+    matchLabels:
+      name: echo-b-host
+  replicas: 1
+apiVersion: apps/v1
+kind: Deployment
