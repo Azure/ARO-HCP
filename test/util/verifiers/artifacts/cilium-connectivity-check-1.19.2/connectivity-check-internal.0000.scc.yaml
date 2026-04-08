@@ -1,0 +1,25 @@
+# from https://github.com/openshift/hypershift/blob/dc7b179/docs/content/how-to/sdn/other-sdn-providers.md
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: cilium-test
+allowHostPorts: true
+allowHostNetwork: true
+users:
+  - system:serviceaccount:cilium-test:default
+priority: null
+readOnlyRootFilesystem: false
+runAsUser:
+  type: MustRunAsRange
+seLinuxContext:
+  type: MustRunAs
+volumes: null
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostPID: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: null
+defaultAddCapabilities: null
+requiredDropCapabilities: null
+groups: null
