@@ -153,6 +153,6 @@ spec:
             - name: User-Agent
               value: Probe
           initialDelaySeconds: 20
-          periodSeconds: 5
+          periodSeconds: 10
           timeoutSeconds: 10
           failureThreshold: 5
