@@ -102,6 +102,10 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("sleeping for 1 hour to allow manual testing")
+			GinkgoLogr.Info("cluster created, sleeping for 1 hour for manual testing")
+			time.Sleep(1 * time.Hour)
+
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred())
 

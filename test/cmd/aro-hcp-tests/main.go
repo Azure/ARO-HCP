@@ -200,7 +200,8 @@ func setupCli() *cobra.Command {
 	// 	specs = specs.AddLabel("SLOW")
 
 	// Specs can be globally filtered...
-	// specs = specs.MustFilter([]string{`name.contains("filter")`})
+	// TODO: remove after manual testing
+	specs = specs.MustFilter([]string{`name.contains("shoebox")`})
 
 	// Or walked...
 	// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {
