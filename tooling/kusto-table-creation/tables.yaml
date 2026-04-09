@@ -1,0 +1,122 @@
+# Kusto table schema definitions.
+definitions:
+  - name: common
+    columns:
+      - {name: timestamp, type: datetime, mapping: "$.timestamp"}
+      - {name: log, type: dynamic, mapping: "$.log.log"}
+      - {name: environment, type: string, mapping: "$.log.environment"}
+      - {name: cluster, type: string, mapping: "$.log.cluster"}
+      - {name: region, type: string, mapping: "$.log.region"}
+      - {name: tag, type: string, mapping: "$.tag"}
+
+  - name: kubernetes
+    columns:
+      - {name: namespace_name, type: string, mapping: "$.log.kubernetes.namespace_name"}
+      - {name: container_name, type: string, mapping: "$.log.kubernetes.container_name"}
+      - {name: container_image, type: string, mapping: "$.log.kubernetes.container_image"}
+      - {name: host, type: string, mapping: "$.log.kubernetes.host"}
+      - {name: labels, type: string, mapping: "$.log.kubernetes.labels"}
+      - {name: pod_name, type: string, mapping: "$.log.kubernetes.pod_name"}
+
+  # Legacy camelCase variant used by kubernetesEvents.
+  # Same JSON paths as 'kubernetes' but different column names.
+  - name: kubernetes_camel
+    columns:
+      - {name: namespace, type: string, mapping: "$.log.kubernetes.namespace_name"}
+      - {name: containerName, type: string, mapping: "$.log.kubernetes.container_name"}
+      - {name: containerImage, type: string, mapping: "$.log.kubernetes.container_image"}
+      - {name: host, type: string, mapping: "$.log.kubernetes.host"}
+      - {name: labels, type: string, mapping: "$.log.kubernetes.labels"}
+      - {name: podName, type: string, mapping: "$.log.kubernetes.pod_name"}
+
+  - name: structured_logging
+    columns:
+      - {name: level, type: string, mapping: "$.log.level"}
+      - {name: msg, type: string, mapping: "$.log.msg"}
+
+  - name: arm_tracking
+    columns:
+      - {name: client_request_id, type: string, mapping: "$.log.client_request_id"}
+      - {name: correlation_request_id, type: string, mapping: "$.log.correlation_request_id"}
+      - {name: subscription_id, type: string, mapping: "$.log.subscription_id"}
+      - {name: resource_group, type: string, mapping: "$.log.resource_group"}
+      - {name: cluster_name, type: string, mapping: "$.log.hcp_cluster_name"}
+      - {name: resource_id, type: string, mapping: "$.log.resource_id"}
+      - {name: resource_name, type: string, mapping: "$.log.resource_name"}
+
+# Table definitions
+tables:
+  - name: backendLogs
+    databases: [ServiceLogs]
+    definitions: [common, kubernetes, structured_logging, arm_tracking]
+    columns:
+      - {name: operation, type: string, mapping: "$.log.operation"}
+      - {name: operation_id, type: string, mapping: "$.log.operation_id"}
+      - {name: internal_id, type: string, mapping: "$.log.internal_id"}
+      - {name: cluster_id, type: string, mapping: "$.log.cluster_id"}
+      - {name: cloud_error_code, type: string, mapping: "$.log.cloud_error_code"}
+      - {name: cloud_error_message, type: string, mapping: "$.log.cloud_error_message"}
+
+  - name: clustersServiceLogs
+    databases: [ServiceLogs]
+    definitions: [common, kubernetes]
+    columns:
+      - {name: level, type: string, mapping: "$.log.level"}
+      - {name: caller, type: string, mapping: "$.log.caller"}
+      - {name: msg, type: string, mapping: "$.log.msg"}
+      - {name: resource_id, type: string, mapping: "$.log.aro_hcp_cluster_resource_id"}
+      - {name: opid, type: string, mapping: "$.log.opid"}
+      - {name: cid, type: string, mapping: "$.log.cid"}
+
+  - name: containerLogs
+    databases: [ServiceLogs, HostedControlPlaneLogs]
+    definitions: [common, kubernetes]
+
+  - name: frontendLogs
+    databases: [ServiceLogs]
+    definitions: [common, kubernetes, structured_logging, arm_tracking]
+    columns:
+      - {name: request_id, type: string, mapping: "$.log.request_id"}
+      - {name: request_method, type: string, mapping: "$.log.method"}
+      - {name: request_path, type: string, mapping: "$.log.path"}
+      - {name: request_proto, type: string, mapping: "$.log.request_proto"}
+      - {name: request_query, type: string, mapping: "$.log.request_query"}
+      - {name: request_referer, type: string, mapping: "$.log.request_referer"}
+      - {name: request_remote_addr, type: string, mapping: "$.log.request_remote_addr"}
+      - {name: request_user_agent, type: string, mapping: "$.log.request_user_agent"}
+      - {name: body_read_bytes, type: int, mapping: "$.log.body_read_bytes"}
+      - {name: body_written_bytes, type: int, mapping: "$.log.body_written_bytes"}
+      - {name: response_status_code, type: string, mapping: "$.log.response_status_code"}
+      - {name: duration, type: int, mapping: "$.log.duration"}
+
+  - name: kubernetesEvents
+    databases: [ServiceLogs, HostedControlPlaneLogs]
+    definitions: [common, kubernetes_camel]
+    columns:
+      - {name: count, type: int, mapping: "$.log.count"}
+      - {name: kubeEventType, type: string, mapping: "$.log.kubeEventType"}
+      - {name: firstSeen, type: datetime, mapping: "$.log.first_timestamp"}
+      - {name: lastSeen, type: datetime, mapping: "$.log.last_timestamp"}
+      - {name: message, type: string, mapping: "$.log.message"}
+      - {name: eventNamespace, type: string, mapping: "$.log.involved_object.namespace"}
+      - {name: objectKind, type: string, mapping: "$.log.involved_object.kind"}
+      - {name: objectName, type: string, mapping: "$.log.involved_object.name"}
+      - {name: objectApiVersion, type: string, mapping: "$.log.involved_object.api_version"}
+      - {name: objectUID, type: string, mapping: "$.log.involved_object.uid"}
+      - {name: reason, type: string, mapping: "$.log.reason"}
+      - {name: sourceComponent, type: string, mapping: "$.log.source.component"}
+
+  # systemdLogs does not use the 'common' definition because its 'log' column
+  # maps to '$.log' (the entire log object) rather than '$.log.log'.
+  - name: systemdLogs
+    databases: [ServiceLogs]
+    columns:
+      - {name: timestamp, type: datetime, mapping: "$.timestamp"}
+      - {name: cluster, type: string, mapping: "$.log.cluster"}
+      - {name: hostname, type: string, mapping: "$.log.HOSTNAME"}
+      - {name: region, type: string, mapping: "$.log.region"}
+      - {name: environment, type: string, mapping: "$.log.environment"}
+      - {name: log, type: dynamic, mapping: "$.log"}
+      - {name: systemd_unit, type: string, mapping: "$.log.SYSTEMD_UNIT"}
+      - {name: message, type: string, mapping: "$.log.MESSAGE"}
+      - {name: tag, type: string, mapping: "$.tag"}

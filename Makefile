@@ -36,7 +36,11 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
-generate: deepcopy mocks fmt record-nonlocal-e2e all-tidy
+generate: deepcopy mocks fmt record-nonlocal-e2e kusto-generate all-tidy
+
+kusto-generate:
+	$(MAKE) -C tooling/kusto-table-creation generate
+.PHONY: kusto-generate
 
 verify-generate: generate
 	./hack/verify.sh generate

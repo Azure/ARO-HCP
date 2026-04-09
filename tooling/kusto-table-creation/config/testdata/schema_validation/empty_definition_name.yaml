@@ -1,0 +1,4 @@
+definitions:
+  - name: ""
+    columns:
+      - {name: c, type: string, mapping: "$.c"}

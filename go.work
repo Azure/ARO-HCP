@@ -1,4 +1,4 @@
-go 1.25.5
+go 1.25.7
 
 use (
 	./admin/client
@@ -15,6 +15,7 @@ use (
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater
+	./tooling/kusto-table-creation
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules

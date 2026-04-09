@@ -98,5 +98,15 @@ var _ = Describe("Engineering", func() {
 				return verifiers.VerifyMustGatherCLI(subscriptionID, *resourceGroup.Name).Verify(ctx)
 			}, 10*time.Minute, 60*time.Second).Should(Succeed())
 
+			By("verifying all kusto table columns are populated")
+
+			Eventually(func() error {
+				v, err := verifiers.VerifyKustoTableColumns()
+				if err != nil {
+					return err
+				}
+				return v.Verify(ctx)
+			}, 10*time.Minute, 60*time.Second).Should(Succeed())
+
 		})
 })

@@ -1,0 +1,8 @@
+definitions:
+  - name: common
+    columns:
+      - {name: ts, type: datetime, mapping: "$.ts"}
+tables:
+  - name: myTable
+    databases: [ServiceLogs]
+    definitions: [nonexistent]
