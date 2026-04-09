@@ -270,6 +270,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			req, err := http.NewRequest(http.MethodPut, ts.URL+urlPath, bytes.NewReader(body))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
 
 			rs, err := ts.Client().Do(req)
 			require.NoError(t, err)

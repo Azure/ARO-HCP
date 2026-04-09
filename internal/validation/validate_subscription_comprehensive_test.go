@@ -275,7 +275,7 @@ func createValidSubscription() *arm.Subscription {
 		ResourceID:       api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012")),
 		State:            arm.SubscriptionStateRegistered,
 		RegistrationDate: ptr.To("2023-01-01T00:00:00Z"),
-		Properties:       nil, // Properties are optional
+		Properties:       &arm.SubscriptionProperties{TenantId: api.Ptr(api.TestTenantID)},
 	}
 }
 

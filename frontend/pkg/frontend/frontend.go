@@ -562,6 +562,20 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	}
 	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
 
+	// Ensure a tenant ID value is present in SubscriptionProperties. If it was omitted
+	// in the request body then get it from the request headers. The tenant ID field is
+	// optional according to the Resource Provider Contract, but the backend depends on
+	// it for cluster creation so it's effectively a required field for ARO-HCP.
+	if requestSubscription.Properties == nil {
+		requestSubscription.Properties = &arm.SubscriptionProperties{}
+	}
+	if requestSubscription.Properties.TenantId == nil || len(*requestSubscription.Properties.TenantId) == 0 {
+		tenantID := request.Header.Get(arm.HeaderNameHomeTenantID)
+		if len(tenantID) > 0 {
+			requestSubscription.Properties.TenantId = api.Ptr(tenantID)
+		}
+	}
+
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
