@@ -350,7 +350,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
     }
     autoUpgradeProfile: {
       nodeOSUpgradeChannel: 'NodeImage'
-      upgradeChannel: 'patch'
+      upgradeChannel: 'rapid'
     }
     azureMonitorProfile: {
       metrics: {
