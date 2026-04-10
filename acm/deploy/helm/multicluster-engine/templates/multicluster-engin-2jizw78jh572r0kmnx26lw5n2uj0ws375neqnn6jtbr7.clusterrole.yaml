@@ -1,0 +1,3300 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  - namespaces
+  - secrets
+  - serviceaccounts
+  - services
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - configmaps/status
+  - endpoints
+  - persistentvolumeclaims
+  - secrets/finalizers
+  - serviceaccounts/finalizers
+  - services/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - jobs
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/portforward
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts/token
+  verbs:
+  - create
+  - subscribe
+- apiGroups:
+  - ""
+  - apiextensions.k8s.io
+  - apps
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - customresourcedefinitions
+  - deployments
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - ""
+  - batch
+  - hive.openshift.io
+  - tower.ansible.com
+  resources:
+  - ansiblejobs
+  - clusterdeployments
+  - jobs
+  - machinepools
+  - serviceaccounts
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  - batch
+  - tower.ansible.com
+  resources:
+  - ansiblejobs
+  - jobs
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - ""
+  - batch
+  - tower.ansible.com
+  resources:
+  - clusterdeployments
+  - machinepools
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  - batch
+  - tower.ansible.com
+  resources:
+  - secrets
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  - coordination.k8s.io
+  resources:
+  - configmaps
+  - leases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - configmaps
+  - endpoints
+  - events
+  - namespaces
+  - secrets
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  - internal.open-cluster-management.io
+  resources:
+  - managedclusterinfos
+  - pods
+  - secrets
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - namespaces
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - action.open-cluster-management.io
+  resources:
+  - managedclusteractions
+  - managedclusteractions/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - addon.open-cluster-management.io
+  resources:
+  - addondeploymentconfigs
+  - addontemplates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - addon.open-cluster-management.io
+  resources:
+  - clustermanagementaddons
+  - clustermanagementaddons/finalizers
+  - managedclusteraddons
+  - managedclusteraddons/finalizers
+  - managedclusteraddons/status
+  verbs:
+  - '*'
+- apiGroups:
+  - addon.open-cluster-management.io
+  resources:
+  - clustermanagementaddons/status
+  verbs:
+  - '*'
+- apiGroups:
+  - addons.cluster.x-k8s.io
+  resources:
+  - clusterresourcesets/finalizers
+  - clusterresourcesets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - addons.cluster.x-k8s.io
+  - bootstrap.cluster.x-k8s.io
+  - controlplane.cluster.x-k8s.io
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - '*'
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admission.hive.openshift.io
+  resources:
+  - clusterdeployments
+  - clusterimagesets
+  - clusterprovisions
+  - dnszones
+  - machinepools
+  - selectorsyncsets
+  - syncsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - agent-install.openshift.io
+  resources:
+  - agentclassifications
+  - agents
+  - agentserviceconfigs
+  - hypershiftagentserviceconfigs
+  - infraenvs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - agent-install.openshift.io
+  resources:
+  - agentclassifications/finalizers
+  - agents/ai-deprovision
+  - agentserviceconfigs/finalizers
+  - hypershiftagentserviceconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - agent-install.openshift.io
+  resources:
+  - agentclassifications/status
+  - agents/status
+  - agentserviceconfigs/status
+  - hypershiftagentserviceconfigs/status
+  - infraenvs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - agent-install.openshift.io
+  resources:
+  - nmstateconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - agent.open-cluster-management.io
+  resources:
+  - klusterletaddonconfigs
+  - klusterletaddonconfigs/finalizers
+  - klusterletaddonconfigs/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - agent.open-cluster-management.io
+  - cluster.open-cluster-management.io
+  - operator.open-cluster-management.io
+  resources:
+  - klusterletaddonconfigs
+  - managedclusters
+  - multiclusterhubs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alertsmanagement.azure.com
+  resources:
+  - prometheusrulegroups
+  - smartdetectoralertrules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - alertsmanagement.azure.com
+  resources:
+  - prometheusrulegroups/finalizers
+  - prometheusrulegroups/status
+  - smartdetectoralertrules/finalizers
+  - smartdetectoralertrules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - apimanagement.azure.com
+  resources:
+  - apis
+  - apiversionsets
+  - authorizationproviders
+  - authorizationprovidersauthorizations
+  - authorizationprovidersauthorizationsaccesspolicies
+  - backends
+  - namedvalues
+  - policies
+  - policyfragments
+  - productapis
+  - productpolicies
+  - products
+  - services
+  - subscriptions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apimanagement.azure.com
+  resources:
+  - apis/finalizers
+  - apis/status
+  - apiversionsets/finalizers
+  - apiversionsets/status
+  - authorizationproviders/finalizers
+  - authorizationproviders/status
+  - authorizationprovidersauthorizations/finalizers
+  - authorizationprovidersauthorizations/status
+  - authorizationprovidersauthorizationsaccesspolicies/finalizers
+  - authorizationprovidersauthorizationsaccesspolicies/status
+  - backends/finalizers
+  - backends/status
+  - namedvalues/finalizers
+  - namedvalues/status
+  - policies/finalizers
+  - policies/status
+  - policyfragments/finalizers
+  - policyfragments/status
+  - productapis/finalizers
+  - productapis/status
+  - productpolicies/finalizers
+  - productpolicies/status
+  - products/finalizers
+  - products/status
+  - services/finalizers
+  - services/status
+  - subscriptions/finalizers
+  - subscriptions/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apiregistration.k8s.io
+  resources:
+  - apiservices
+  - apiservices/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - app.azure.com
+  resources:
+  - authconfigs
+  - containerapps
+  - jobs
+  - managedenvironments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - app.azure.com
+  resources:
+  - authconfigs/finalizers
+  - authconfigs/status
+  - containerapps/finalizers
+  - containerapps/status
+  - jobs/finalizers
+  - jobs/status
+  - managedenvironments/finalizers
+  - managedenvironments/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - app.k8s.io
+  resources:
+  - applications
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - appconfiguration.azure.com
+  resources:
+  - configurationstores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - appconfiguration.azure.com
+  resources:
+  - configurationstores/finalizers
+  - configurationstores/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - daemonsets/finalizers
+  - deployments/finalizers
+  - replicasets
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - '*'
+- apiGroups:
+  - apps
+  resources:
+  - deployments/scale
+  verbs:
+  - '*'
+- apiGroups:
+  - apps.open-cluster-management.io
+  resources:
+  - channels
+  - gitopsclusters
+  - helmreleases
+  - multiclusterapplicationsetreports
+  - placementrules
+  - subscriptionreports
+  - subscriptions
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - apps.open-cluster-management.io
+  resources:
+  - deployables
+  - deployables/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps.openshift.io
+  resources:
+  - deploymentconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - applications
+  - applicationsets
+  - argocds
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenrequests
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authentication.k8s.io
+  - config.openshift.io
+  resources:
+  - clusterversions
+  - tokenreviews
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - authentication.open-cluster-management.io
+  resources:
+  - managedserviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authentication.open-cluster-management.io
+  resources:
+  - managedserviceaccounts/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - authorization.azure.com
+  resources:
+  - roleassignments
+  - roledefinitions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authorization.azure.com
+  resources:
+  - roleassignments/finalizers
+  - roledefinitions/finalizers
+  - roledefinitions/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - authorization.azure.com
+  resources:
+  - roleassignments/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - authorization.openshift.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch.azure.com
+  resources:
+  - batchaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch.azure.com
+  resources:
+  - batchaccounts/finalizers
+  - batchaccounts/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - eksconfigs
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - eksconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - openshiftassistedconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - '*'
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cache.azure.com
+  resources:
+  - redis
+  - redisenterprisedatabases
+  - redisenterprises
+  - redisfirewallrules
+  - redislinkedservers
+  - redispatchschedules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cache.azure.com
+  resources:
+  - redis/finalizers
+  - redis/status
+  - redisenterprisedatabases/finalizers
+  - redisenterprisedatabases/status
+  - redisenterprises/finalizers
+  - redisenterprises/status
+  - redisfirewallrules/finalizers
+  - redisfirewallrules/status
+  - redislinkedservers/finalizers
+  - redislinkedservers/status
+  - redispatchschedules/finalizers
+  - redispatchschedules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - capi-provider.agent-install.openshift.io
+  resources:
+  - agentmachines
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - cdn.azure.com
+  resources:
+  - afdcustomdomains
+  - afdendpoints
+  - afdorigingroups
+  - afdorigins
+  - profiles
+  - profilesendpoints
+  - routes
+  - rules
+  - rulesets
+  - secrets
+  - securitypolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cdn.azure.com
+  resources:
+  - afdcustomdomains/finalizers
+  - afdcustomdomains/status
+  - afdendpoints/finalizers
+  - afdendpoints/status
+  - afdorigingroups/finalizers
+  - afdorigingroups/status
+  - afdorigins/finalizers
+  - afdorigins/status
+  - profiles/finalizers
+  - profiles/status
+  - profilesendpoints/finalizers
+  - profilesendpoints/status
+  - routes/finalizers
+  - routes/status
+  - rules/finalizers
+  - rules/status
+  - rulesets/finalizers
+  - rulesets/status
+  - secrets/finalizers
+  - secrets/status
+  - securitypolicies/finalizers
+  - securitypolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  - issuers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  - certificatesigningrequests/approval
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - signers
+  verbs:
+  - '*'
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - addonplacementscores
+  - addonplacementscores/status
+  - managedclustersetbindings
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - clustercurators
+  - clustercurators/status
+  - managedclusters
+  - managedclusters/finalizers
+  - managedclusters/status
+  - managedclustersets
+  - placementdecisions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - managedclusters/accept
+  - managedclustersetbindings/finalizers
+  - managedclustersets/bind
+  - managedclustersets/finalizers
+  - managedclustersets/join
+  - placements
+  - placements/finalizers
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - managedclustersetbindings/status
+  - managedclustersets/status
+  - placements/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - placementdecisions/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusterclasses
+  - clusterclasses/status
+  - clusters/finalizers
+  - machinedrainrules
+  - machinehealthchecks/finalizers
+  - machinehealthchecks/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  - clusters/status
+  - kubeadmcontrolplanes
+  - machinedeployments
+  - machinedeployments/finalizers
+  - machinedeployments/status
+  - machinehealthchecks
+  - machinepools
+  - machinepools/finalizers
+  - machinepools/status
+  - machines
+  - machines/finalizers
+  - machines/status
+  - machinesets
+  - machinesets/finalizers
+  - machinesets/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - clusterview.open-cluster-management.io
+  resources:
+  - managedclusters
+  - managedclustersets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - clusterview.open-cluster-management.io
+  resources:
+  - userpermissions
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - compute.azure.com
+  resources:
+  - diskaccesses
+  - diskencryptionsets
+  - disks
+  - images
+  - snapshots
+  - virtualmachines
+  - virtualmachinescalesets
+  - virtualmachinescalesetsextensions
+  - virtualmachinesextensions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - compute.azure.com
+  resources:
+  - diskaccesses/finalizers
+  - diskaccesses/status
+  - diskencryptionsets/finalizers
+  - diskencryptionsets/status
+  - disks/finalizers
+  - disks/status
+  - images/finalizers
+  - images/status
+  - snapshots/finalizers
+  - snapshots/status
+  - virtualmachines/finalizers
+  - virtualmachines/status
+  - virtualmachinescalesets/finalizers
+  - virtualmachinescalesets/status
+  - virtualmachinescalesetsextensions/finalizers
+  - virtualmachinescalesetsextensions/status
+  - virtualmachinesextensions/finalizers
+  - virtualmachinesextensions/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - config.open-cluster-management.io
+  resources:
+  - klusterletconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - apiservers
+  - clusteroperators
+  - clusterversions
+  - dnses
+  - ingresses
+  - proxies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - infrastructures
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - config.openshift.io
+  - console.openshift.io
+  - project.openshift.io
+  - tower.ansible.com
+  resources:
+  - ansiblejobs
+  - clusterversions
+  - consolelinks
+  - featuregates
+  - infrastructures
+  - projects
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - console.open-cluster-management.io
+  resources:
+  - userpreferences
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - console.openshift.io
+  resources:
+  - consoleclidownloads
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+- apiGroups:
+  - console.openshift.io
+  resources:
+  - consoleplugins
+  - consolequickstarts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - containerinstance.azure.com
+  resources:
+  - containergroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - containerinstance.azure.com
+  resources:
+  - containergroups/finalizers
+  - containergroups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - containerregistry.azure.com
+  resources:
+  - registries
+  - registryreplications
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - containerregistry.azure.com
+  resources:
+  - registries/finalizers
+  - registries/status
+  - registryreplications/finalizers
+  - registryreplications/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - containerservice.azure.com
+  resources:
+  - fleets
+  - fleetsmembers
+  - fleetsupdateruns
+  - maintenanceconfigurations
+  - managedclusters
+  - managedclustersagentpools
+  - trustedaccessrolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - containerservice.azure.com
+  resources:
+  - fleets/finalizers
+  - fleets/status
+  - fleetsmembers/finalizers
+  - fleetsupdateruns/finalizers
+  - fleetsupdateruns/status
+  - maintenanceconfigurations/finalizers
+  - maintenanceconfigurations/status
+  - managedclusters/finalizers
+  - managedclustersagentpools/finalizers
+  - trustedaccessrolebindings/finalizers
+  - trustedaccessrolebindings/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - containerservice.azure.com
+  resources:
+  - fleetsmembers/status
+  - managedclusters/status
+  - managedclustersagentpools/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - arocontrolplanes
+  - openshiftassistedcontrolplanes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - arocontrolplanes/finalizers
+  - awsmanagedcontrolplanes/finalizers
+  - openshiftassistedcontrolplanes/finalizers
+  - rosacontrolplanes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - arocontrolplanes/status
+  - openshiftassistedcontrolplanes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - awsmanagedcontrolplanes
+  - rosacontrolplanes
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - awsmanagedcontrolplanes/status
+  - rosacontrolplanes/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - '*'
+- apiGroups:
+  - datafactory.azure.com
+  resources:
+  - factories
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - datafactory.azure.com
+  resources:
+  - factories/finalizers
+  - factories/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - dataprotection.azure.com
+  resources:
+  - backupvaults
+  - backupvaultsbackupinstances
+  - backupvaultsbackuppolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - dataprotection.azure.com
+  resources:
+  - backupvaults/finalizers
+  - backupvaults/status
+  - backupvaultsbackupinstances/finalizers
+  - backupvaultsbackupinstances/status
+  - backupvaultsbackuppolicies/finalizers
+  - backupvaultsbackuppolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - dbformariadb.azure.com
+  resources:
+  - configurations
+  - databases
+  - servers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - dbformariadb.azure.com
+  resources:
+  - configurations/finalizers
+  - configurations/status
+  - databases/finalizers
+  - databases/status
+  - servers/finalizers
+  - servers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - dbformysql.azure.com
+  resources:
+  - flexibleservers
+  - flexibleserversadministrators
+  - flexibleserversconfigurations
+  - flexibleserversdatabases
+  - flexibleserversfirewallrules
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - dbformysql.azure.com
+  resources:
+  - flexibleservers/finalizers
+  - flexibleservers/status
+  - flexibleserversadministrators/finalizers
+  - flexibleserversadministrators/status
+  - flexibleserversconfigurations/finalizers
+  - flexibleserversconfigurations/status
+  - flexibleserversdatabases/finalizers
+  - flexibleserversdatabases/status
+  - flexibleserversfirewallrules/finalizers
+  - flexibleserversfirewallrules/status
+  - users/finalizers
+  - users/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - dbforpostgresql.azure.com
+  resources:
+  - flexibleservers
+  - flexibleserversadvancedthreatprotectionsettings
+  - flexibleserversbackups
+  - flexibleserversconfigurations
+  - flexibleserversdatabases
+  - flexibleserversfirewallrules
+  - flexibleserversvirtualendpoints
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - dbforpostgresql.azure.com
+  resources:
+  - flexibleservers/finalizers
+  - flexibleservers/status
+  - flexibleserversadvancedthreatprotectionsettings/finalizers
+  - flexibleserversadvancedthreatprotectionsettings/status
+  - flexibleserversbackups/finalizers
+  - flexibleserversbackups/status
+  - flexibleserversconfigurations/finalizers
+  - flexibleserversconfigurations/status
+  - flexibleserversdatabases/finalizers
+  - flexibleserversdatabases/status
+  - flexibleserversfirewallrules/finalizers
+  - flexibleserversfirewallrules/status
+  - flexibleserversvirtualendpoints/finalizers
+  - flexibleserversvirtualendpoints/status
+  - users/finalizers
+  - users/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - devices.azure.com
+  resources:
+  - iothubs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - devices.azure.com
+  resources:
+  - iothubs/finalizers
+  - iothubs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - discovery.open-cluster-management.io
+  resources:
+  - discoveredclusters
+  - discoveryconfigs
+  verbs:
+  - approve
+  - bind
+  - create
+  - delete
+  - deletecollection
+  - escalate
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - discovery.open-cluster-management.io
+  resources:
+  - discoveredclusters/finalizers
+  - discoveredclusters/status
+  - discoveryconfigs/finalizers
+  - discoveryconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - documentdb.azure.com
+  resources:
+  - databaseaccounts
+  - mongodbdatabasecollections
+  - mongodbdatabasecollectionthroughputsettings
+  - mongodbdatabases
+  - mongodbdatabasethroughputsettings
+  - mongodbuserdefinitions
+  - sqldatabasecontainers
+  - sqldatabasecontainerstoredprocedures
+  - sqldatabasecontainerthroughputsettings
+  - sqldatabasecontainertriggers
+  - sqldatabasecontaineruserdefinedfunctions
+  - sqldatabases
+  - sqldatabasethroughputsettings
+  - sqlroleassignments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - documentdb.azure.com
+  resources:
+  - databaseaccounts/finalizers
+  - databaseaccounts/status
+  - mongodbdatabasecollections/finalizers
+  - mongodbdatabasecollections/status
+  - mongodbdatabasecollectionthroughputsettings/finalizers
+  - mongodbdatabasecollectionthroughputsettings/status
+  - mongodbdatabases/finalizers
+  - mongodbdatabases/status
+  - mongodbdatabasethroughputsettings/finalizers
+  - mongodbdatabasethroughputsettings/status
+  - mongodbuserdefinitions/finalizers
+  - mongodbuserdefinitions/status
+  - sqldatabasecontainers/finalizers
+  - sqldatabasecontainers/status
+  - sqldatabasecontainerstoredprocedures/finalizers
+  - sqldatabasecontainerstoredprocedures/status
+  - sqldatabasecontainerthroughputsettings/finalizers
+  - sqldatabasecontainerthroughputsettings/status
+  - sqldatabasecontainertriggers/finalizers
+  - sqldatabasecontainertriggers/status
+  - sqldatabasecontaineruserdefinedfunctions/finalizers
+  - sqldatabasecontaineruserdefinedfunctions/status
+  - sqldatabases/finalizers
+  - sqldatabases/status
+  - sqldatabasethroughputsettings/finalizers
+  - sqldatabasethroughputsettings/status
+  - sqlroleassignments/finalizers
+  - sqlroleassignments/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - eventgrid.azure.com
+  resources:
+  - domains
+  - domainstopics
+  - eventsubscriptions
+  - topics
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - eventgrid.azure.com
+  resources:
+  - domains/finalizers
+  - domains/status
+  - domainstopics/finalizers
+  - domainstopics/status
+  - eventsubscriptions/finalizers
+  - eventsubscriptions/status
+  - topics/finalizers
+  - topics/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - eventhub.azure.com
+  resources:
+  - namespaces
+  - namespacesauthorizationrules
+  - namespaceseventhubs
+  - namespaceseventhubsauthorizationrules
+  - namespaceseventhubsconsumergroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - eventhub.azure.com
+  resources:
+  - namespaces/finalizers
+  - namespaces/status
+  - namespacesauthorizationrules/finalizers
+  - namespacesauthorizationrules/status
+  - namespaceseventhubs/finalizers
+  - namespaceseventhubs/status
+  - namespaceseventhubsauthorizationrules/finalizers
+  - namespaceseventhubsauthorizationrules/status
+  - namespaceseventhubsconsumergroups/finalizers
+  - namespaceseventhubsconsumergroups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - extensions.hive.openshift.io
+  resources:
+  - agentclusterinstalls
+  - imageclusterinstalls
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - extensions.hive.openshift.io
+  resources:
+  - agentclusterinstalls/finalizers
+  - imageclusterinstalls/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - extensions.hive.openshift.io
+  resources:
+  - agentclusterinstalls/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - extensions.hive.openshift.io
+  resources:
+  - imageclusterinstalls/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - extensions.hive.openshift.io
+  - hive.openshift.io
+  - hiveinternal.openshift.io
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- apiGroups:
+  - flowcontrol.apiserver.k8s.io
+  resources:
+  - flowschemas
+  - prioritylevelconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterclaims
+  - clusterdeployments
+  - clusterpools
+  - machinepools
+  verbs:
+  - '*'
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeprovisions
+  - clusterprovisions
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterimagesets
+  - selectorsyncsets
+  - syncsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - hiveconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - hiveinternal.openshift.io
+  resources:
+  - clustersyncs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - hypershift.openshift.io
+  resources:
+  - hostedclusters
+  - nodepools
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - imageregistry.open-cluster-management.io
+  resources:
+  - managedclusterimageregistries
+  - managedclusterimageregistries/status
+  verbs:
+  - approve
+  - bind
+  - create
+  - delete
+  - deletecollection
+  - escalate
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - '*'
+  - aroclusters
+  - aromachinepools
+  - awsmachines
+  - azureasomanagedclusters
+  - azureasomanagedcontrolplanes
+  - azureasomanagedmachinepools
+  - azureclusteridentities
+  - azureclusteridentities/status
+  - azureclusters
+  - azuremachinepoolmachines
+  - azuremachinepools
+  - azuremachines
+  - azuremanagedclusters
+  - azuremanagedcontrolplanes
+  - azuremanagedmachinepools
+  - metal3clusters
+  - metal3dataclaims
+  - metal3datas
+  - metal3datatemplates
+  - metal3machines
+  - metal3machinetemplates
+  - metal3remediations
+  - rosamachinepools
+  - rosanetworks
+  - rosaroleconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - aroclusters/finalizers
+  - aromachinepools/finalizers
+  - azureasomanagedclusters/finalizers
+  - azureasomanagedcontrolplanes/finalizers
+  - azureasomanagedmachinepools/finalizers
+  - rosamachinepools/finalizers
+  - rosanetworks/finalizers
+  - rosaroleconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - aroclusters/status
+  - aromachinepools/status
+  - awsclusters/status
+  - awsfargateprofiles/status
+  - awsmachinetemplates/status
+  - azureasomanagedclusters/status
+  - azureasomanagedcontrolplanes/status
+  - azureasomanagedmachinepools/status
+  - azureclusters/status
+  - azuremachinepoolmachines/status
+  - azuremachinepools/status
+  - azuremachines/status
+  - azuremanagedclusters/status
+  - azuremanagedcontrolplanes/status
+  - azuremanagedmachinepools/status
+  - metal3clusters/status
+  - metal3dataclaims/status
+  - metal3datas/status
+  - metal3datatemplates/status
+  - metal3machines/status
+  - metal3remediations/status
+  - rosaclusters/status
+  - rosanetworks/status
+  - rosaroleconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsclustercontrolleridentities
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsclusterroleidentities
+  - awsclusterstaticidentities
+  - awsmachinetemplates
+  - azuremachinetemplates
+  - azuremachinetemplates/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsclusters
+  - awsfargateprofiles
+  - awsmachinepools
+  - awsmanagedclusters
+  - awsmanagedmachinepools
+  - rosaclusters
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsmachinepools/finalizers
+  verbs:
+  - delete
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsmachinepools/status
+  - awsmachines/status
+  - awsmanagedclusters/status
+  - awsmanagedmachinepools/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - rosamachinepools/status
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - insights.azure.com
+  resources:
+  - actiongroups
+  - autoscalesettings
+  - components
+  - diagnosticsettings
+  - metricalerts
+  - scheduledqueryrules
+  - webtests
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - insights.azure.com
+  resources:
+  - actiongroups/finalizers
+  - actiongroups/status
+  - autoscalesettings/finalizers
+  - autoscalesettings/status
+  - components/finalizers
+  - components/status
+  - diagnosticsettings/finalizers
+  - diagnosticsettings/status
+  - metricalerts/finalizers
+  - metricalerts/status
+  - scheduledqueryrules/finalizers
+  - scheduledqueryrules/status
+  - webtests/finalizers
+  - webtests/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - internal.open-cluster-management.io
+  resources:
+  - managedclusterinfos
+  - managedclusterinfos/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  resources:
+  - ipaddressclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  resources:
+  - ipaddressclaims/status
+  verbs:
+  - get
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  resources:
+  - ipaddresses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  - ipam.metal3.io
+  resources:
+  - ipaddresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  - ipam.metal3.io
+  resources:
+  - ipaddresses/status
+  verbs:
+  - get
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipclaims/status
+  verbs:
+  - get
+  - watch
+- apiGroups:
+  - keyvault.azure.com
+  resources:
+  - vaults
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - keyvault.azure.com
+  resources:
+  - vaults/finalizers
+  - vaults/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - kubernetesconfiguration.azure.com
+  resources:
+  - extensions
+  - fluxconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kubernetesconfiguration.azure.com
+  resources:
+  - extensions/finalizers
+  - fluxconfigurations/finalizers
+  - fluxconfigurations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - kubernetesconfiguration.azure.com
+  resources:
+  - extensions/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kusto.azure.com
+  resources:
+  - clusters
+  - databases
+  - dataconnections
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kusto.azure.com
+  resources:
+  - clusters/finalizers
+  - clusters/status
+  - databases/finalizers
+  - databases/status
+  - dataconnections/finalizers
+  - dataconnections/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - machinelearningservices.azure.com
+  resources:
+  - registries
+  - workspaces
+  - workspacescomputes
+  - workspacesconnections
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - machinelearningservices.azure.com
+  resources:
+  - registries/finalizers
+  - registries/status
+  - workspaces/finalizers
+  - workspaces/status
+  - workspacescomputes/finalizers
+  - workspacescomputes/status
+  - workspacesconnections/finalizers
+  - workspacesconnections/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - managedidentity.azure.com
+  resources:
+  - federatedidentitycredentials
+  - userassignedidentities
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - managedidentity.azure.com
+  resources:
+  - federatedidentitycredentials/finalizers
+  - federatedidentitycredentials/status
+  - userassignedidentities/finalizers
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - managedidentity.azure.com
+  resources:
+  - userassignedidentities/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - metal3.io
+  resources:
+  - baremetalhosts
+  - dataimages
+  - preprovisioningimages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - metal3.io
+  resources:
+  - baremetalhosts/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - metal3.io
+  resources:
+  - baremetalhosts/status
+  - preprovisioningimages/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - metal3.io
+  resources:
+  - provisionings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - migration.k8s.io
+  resources:
+  - storageversionmigrations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - monitor.azure.com
+  resources:
+  - accounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - monitor.azure.com
+  resources:
+  - accounts/finalizers
+  - accounts/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheusrules
+  - servicemonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - multicluster.openshift.io
+  resources:
+  - internalenginecomponents
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - multicluster.openshift.io
+  resources:
+  - multiclusterengines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - multicluster.openshift.io
+  resources:
+  - multiclusterengines/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - multicluster.openshift.io
+  resources:
+  - multiclusterengines/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - multicluster.x-k8s.io
+  resources:
+  - clusterprofiles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - multicluster.x-k8s.io
+  resources:
+  - clusterprofiles/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - network.azure.com
+  resources:
+  - applicationgateways
+  - applicationsecuritygroups
+  - bastionhosts
+  - dnsforwardingrulesets
+  - dnsforwardingrulesetsforwardingrules
+  - dnsforwardingrulesetsvirtualnetworklinks
+  - dnsresolvers
+  - dnsresolversinboundendpoints
+  - dnsresolversoutboundendpoints
+  - dnszones
+  - dnszonesaaaarecords
+  - dnszonesarecords
+  - dnszonescaarecords
+  - dnszonescnamerecords
+  - dnszonesmxrecords
+  - dnszonesnsrecords
+  - dnszonesptrrecords
+  - dnszonessrvrecords
+  - dnszonestxtrecords
+  - loadbalancers
+  - loadbalancersinboundnatrules
+  - natgateways
+  - networkinterfaces
+  - networksecuritygroups
+  - networksecuritygroupssecurityrules
+  - privatednszones
+  - privatednszonesaaaarecords
+  - privatednszonesarecords
+  - privatednszonescnamerecords
+  - privatednszonesmxrecords
+  - privatednszonesptrrecords
+  - privatednszonessrvrecords
+  - privatednszonestxtrecords
+  - privatednszonesvirtualnetworklinks
+  - privateendpoints
+  - privateendpointsprivatednszonegroups
+  - privatelinkservices
+  - publicipaddresses
+  - publicipprefixes
+  - routetables
+  - routetablesroutes
+  - trafficmanagerprofiles
+  - trafficmanagerprofilesazureendpoints
+  - trafficmanagerprofilesexternalendpoints
+  - trafficmanagerprofilesnestedendpoints
+  - virtualnetworkgateways
+  - virtualnetworks
+  - virtualnetworkssubnets
+  - virtualnetworksvirtualnetworkpeerings
+  - webapplicationfirewallpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - network.azure.com
+  resources:
+  - applicationgateways/finalizers
+  - applicationgateways/status
+  - applicationsecuritygroups/finalizers
+  - applicationsecuritygroups/status
+  - bastionhosts/finalizers
+  - dnsforwardingrulesets/finalizers
+  - dnsforwardingrulesets/status
+  - dnsforwardingrulesetsforwardingrules/finalizers
+  - dnsforwardingrulesetsforwardingrules/status
+  - dnsforwardingrulesetsvirtualnetworklinks/finalizers
+  - dnsforwardingrulesetsvirtualnetworklinks/status
+  - dnsresolvers/finalizers
+  - dnsresolvers/status
+  - dnsresolversinboundendpoints/finalizers
+  - dnsresolversinboundendpoints/status
+  - dnsresolversoutboundendpoints/finalizers
+  - dnsresolversoutboundendpoints/status
+  - dnszones/finalizers
+  - dnszones/status
+  - dnszonesaaaarecords/finalizers
+  - dnszonesaaaarecords/status
+  - dnszonesarecords/finalizers
+  - dnszonesarecords/status
+  - dnszonescaarecords/finalizers
+  - dnszonescaarecords/status
+  - dnszonescnamerecords/finalizers
+  - dnszonescnamerecords/status
+  - dnszonesmxrecords/finalizers
+  - dnszonesmxrecords/status
+  - dnszonesnsrecords/finalizers
+  - dnszonesnsrecords/status
+  - dnszonesptrrecords/finalizers
+  - dnszonesptrrecords/status
+  - dnszonessrvrecords/finalizers
+  - dnszonessrvrecords/status
+  - dnszonestxtrecords/finalizers
+  - dnszonestxtrecords/status
+  - loadbalancers/finalizers
+  - loadbalancers/status
+  - loadbalancersinboundnatrules/finalizers
+  - loadbalancersinboundnatrules/status
+  - natgateways/finalizers
+  - networkinterfaces/finalizers
+  - networkinterfaces/status
+  - networksecuritygroups/finalizers
+  - networksecuritygroups/status
+  - networksecuritygroupssecurityrules/finalizers
+  - networksecuritygroupssecurityrules/status
+  - privatednszones/finalizers
+  - privatednszones/status
+  - privatednszonesaaaarecords/finalizers
+  - privatednszonesaaaarecords/status
+  - privatednszonesarecords/finalizers
+  - privatednszonesarecords/status
+  - privatednszonescnamerecords/finalizers
+  - privatednszonescnamerecords/status
+  - privatednszonesmxrecords/finalizers
+  - privatednszonesmxrecords/status
+  - privatednszonesptrrecords/finalizers
+  - privatednszonesptrrecords/status
+  - privatednszonessrvrecords/finalizers
+  - privatednszonessrvrecords/status
+  - privatednszonestxtrecords/finalizers
+  - privatednszonestxtrecords/status
+  - privatednszonesvirtualnetworklinks/finalizers
+  - privatednszonesvirtualnetworklinks/status
+  - privateendpoints/finalizers
+  - privateendpointsprivatednszonegroups/finalizers
+  - privateendpointsprivatednszonegroups/status
+  - privatelinkservices/finalizers
+  - privatelinkservices/status
+  - publicipaddresses/finalizers
+  - publicipaddresses/status
+  - publicipprefixes/finalizers
+  - publicipprefixes/status
+  - routetables/finalizers
+  - routetables/status
+  - routetablesroutes/finalizers
+  - routetablesroutes/status
+  - trafficmanagerprofiles/finalizers
+  - trafficmanagerprofiles/status
+  - trafficmanagerprofilesazureendpoints/finalizers
+  - trafficmanagerprofilesazureendpoints/status
+  - trafficmanagerprofilesexternalendpoints/finalizers
+  - trafficmanagerprofilesexternalendpoints/status
+  - trafficmanagerprofilesnestedendpoints/finalizers
+  - trafficmanagerprofilesnestedendpoints/status
+  - virtualnetworkgateways/finalizers
+  - virtualnetworkgateways/status
+  - virtualnetworks/finalizers
+  - virtualnetworkssubnets/finalizers
+  - virtualnetworksvirtualnetworkpeerings/finalizers
+  - virtualnetworksvirtualnetworkpeerings/status
+  - webapplicationfirewallpolicies/finalizers
+  - webapplicationfirewallpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - network.azure.com
+  resources:
+  - bastionhosts/status
+  - natgateways/status
+  - privateendpoints/status
+  - virtualnetworks/status
+  - virtualnetworkssubnets/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - network.frontdoor.azure.com
+  resources:
+  - webapplicationfirewallpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - network.frontdoor.azure.com
+  resources:
+  - webapplicationfirewallpolicies/finalizers
+  - webapplicationfirewallpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - get
+  - update
+- apiGroups:
+  - notificationhubs.azure.com
+  resources:
+  - namespaces
+  - namespacesauthorizationrules
+  - notificationhubs
+  - notificationhubsauthorizationrules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - notificationhubs.azure.com
+  resources:
+  - namespaces/finalizers
+  - namespaces/status
+  - namespacesauthorizationrules/finalizers
+  - namespacesauthorizationrules/status
+  - notificationhubs/finalizers
+  - notificationhubs/status
+  - notificationhubsauthorizationrules/finalizers
+  - notificationhubsauthorizationrules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - operationalinsights.azure.com
+  resources:
+  - workspaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operationalinsights.azure.com
+  resources:
+  - workspaces/finalizers
+  - workspaces/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - operator.open-cluster-management.io
+  resources:
+  - clustermanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.open-cluster-management.io
+  resources:
+  - clustermanagers/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - operator.open-cluster-management.io
+  resources:
+  - klusterlets
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - escalate
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.open-cluster-management.io
+  resources:
+  - multiclusterhubs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - consoles
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - clusterserviceversions
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - operatorconditions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - subscriptions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - policy.open-cluster-management.io
+  resources:
+  - placementbindings
+  - policies
+  - policyautomations
+  - policysets
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - proxy.open-cluster-management.io
+  resources:
+  - clusterstatuses/aggregator
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - proxy.open-cluster-management.io
+  resources:
+  - managedproxyconfigurations
+  verbs:
+  - '*'
+- apiGroups:
+  - proxy.open-cluster-management.io
+  resources:
+  - managedproxyconfigurations/finalizers
+  - managedproxyconfigurations/status
+  - managedproxyserviceresolvers/finalizers
+  - managedproxyserviceresolvers/status
+  verbs:
+  - '*'
+- apiGroups:
+  - proxy.open-cluster-management.io
+  resources:
+  - managedproxyserviceresolvers
+  verbs:
+  - '*'
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  verbs:
+  - bind
+  - create
+  - delete
+  - escalate
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles/finalizers
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - rbac.open-cluster-management.io
+  resources:
+  - clusterpermissions
+  - multiclusterroleassignments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - redhatopenshift.azure.com
+  resources:
+  - hcpopenshiftclusters
+  - hcpopenshiftclustersexternalauths
+  - hcpopenshiftclustersnodepools
+  - openshiftclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - redhatopenshift.azure.com
+  resources:
+  - hcpopenshiftclusters/finalizers
+  - hcpopenshiftclustersexternalauths/finalizers
+  - hcpopenshiftclustersnodepools/finalizers
+  - openshiftclusters/finalizers
+  - openshiftclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - redhatopenshift.azure.com
+  resources:
+  - hcpopenshiftclusters/status
+  - hcpopenshiftclustersexternalauths/status
+  - hcpopenshiftclustersnodepools/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - register.open-cluster-management.io
+  resources:
+  - managedclusters/accept
+  verbs:
+  - update
+- apiGroups:
+  - register.open-cluster-management.io
+  resources:
+  - managedclusters/clientcertificates
+  verbs:
+  - renew
+- apiGroups:
+  - resources.azure.com
+  resources:
+  - resourcegroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - resources.azure.com
+  resources:
+  - resourcegroups/finalizers
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - resources.azure.com
+  resources:
+  - resourcegroups/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  - routes/custom-host
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - runtime.cluster.x-k8s.io
+  resources:
+  - extensionconfigs
+  - extensionconfigs/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - scheduling.k8s.io
+  resources:
+  - priorityclasses
+  verbs:
+  - create
+  - get
+  - patch
+  - update
+- apiGroups:
+  - search.azure.com
+  resources:
+  - searchservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - search.azure.com
+  resources:
+  - searchservices/finalizers
+  - searchservices/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - search.open-cluster-management.io
+  resources:
+  - searches
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - servicebus.azure.com
+  resources:
+  - namespaces
+  - namespacesauthorizationrules
+  - namespacesqueues
+  - namespacestopics
+  - namespacestopicssubscriptions
+  - namespacestopicssubscriptionsrules
+  - topicauthorizationrules
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - servicebus.azure.com
+  resources:
+  - namespaces/finalizers
+  - namespaces/status
+  - namespacesauthorizationrules/finalizers
+  - namespacesauthorizationrules/status
+  - namespacesqueues/finalizers
+  - namespacesqueues/status
+  - namespacestopics/finalizers
+  - namespacestopics/status
+  - namespacestopicssubscriptions/finalizers
+  - namespacestopicssubscriptions/status
+  - namespacestopicssubscriptionsrules/finalizers
+  - namespacestopicssubscriptionsrules/status
+  - topicauthorizationrules/finalizers
+  - topicauthorizationrules/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - signalrservice.azure.com
+  resources:
+  - customcertificates
+  - customdomains
+  - replicas
+  - signalrs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - signalrservice.azure.com
+  resources:
+  - customcertificates/finalizers
+  - customcertificates/status
+  - customdomains/finalizers
+  - customdomains/status
+  - replicas/finalizers
+  - replicas/status
+  - signalrs/finalizers
+  - signalrs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - sql.azure.com
+  resources:
+  - servers
+  - serversadministrators
+  - serversadvancedthreatprotectionsettings
+  - serversauditingsettings
+  - serversazureadonlyauthentications
+  - serversconnectionpolicies
+  - serversdatabases
+  - serversdatabasesadvancedthreatprotectionsettings
+  - serversdatabasesauditingsettings
+  - serversdatabasesbackuplongtermretentionpolicies
+  - serversdatabasesbackupshorttermretentionpolicies
+  - serversdatabasessecurityalertpolicies
+  - serversdatabasestransparentdataencryptions
+  - serversdatabasesvulnerabilityassessments
+  - serverselasticpools
+  - serversfailovergroups
+  - serversfirewallrules
+  - serversipv6firewallrules
+  - serversoutboundfirewallrules
+  - serverssecurityalertpolicies
+  - serversvirtualnetworkrules
+  - serversvulnerabilityassessments
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - sql.azure.com
+  resources:
+  - servers/finalizers
+  - servers/status
+  - serversadministrators/finalizers
+  - serversadministrators/status
+  - serversadvancedthreatprotectionsettings/finalizers
+  - serversadvancedthreatprotectionsettings/status
+  - serversauditingsettings/finalizers
+  - serversauditingsettings/status
+  - serversazureadonlyauthentications/finalizers
+  - serversazureadonlyauthentications/status
+  - serversconnectionpolicies/finalizers
+  - serversconnectionpolicies/status
+  - serversdatabases/finalizers
+  - serversdatabases/status
+  - serversdatabasesadvancedthreatprotectionsettings/finalizers
+  - serversdatabasesadvancedthreatprotectionsettings/status
+  - serversdatabasesauditingsettings/finalizers
+  - serversdatabasesauditingsettings/status
+  - serversdatabasesbackuplongtermretentionpolicies/finalizers
+  - serversdatabasesbackuplongtermretentionpolicies/status
+  - serversdatabasesbackupshorttermretentionpolicies/finalizers
+  - serversdatabasesbackupshorttermretentionpolicies/status
+  - serversdatabasessecurityalertpolicies/finalizers
+  - serversdatabasessecurityalertpolicies/status
+  - serversdatabasestransparentdataencryptions/finalizers
+  - serversdatabasestransparentdataencryptions/status
+  - serversdatabasesvulnerabilityassessments/finalizers
+  - serversdatabasesvulnerabilityassessments/status
+  - serverselasticpools/finalizers
+  - serverselasticpools/status
+  - serversfailovergroups/finalizers
+  - serversfailovergroups/status
+  - serversfirewallrules/finalizers
+  - serversfirewallrules/status
+  - serversipv6firewallrules/finalizers
+  - serversipv6firewallrules/status
+  - serversoutboundfirewallrules/finalizers
+  - serversoutboundfirewallrules/status
+  - serverssecurityalertpolicies/finalizers
+  - serverssecurityalertpolicies/status
+  - serversvirtualnetworkrules/finalizers
+  - serversvirtualnetworkrules/status
+  - serversvulnerabilityassessments/finalizers
+  - serversvulnerabilityassessments/status
+  - users/finalizers
+  - users/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - storage.azure.com
+  resources:
+  - storageaccounts
+  - storageaccountsblobservices
+  - storageaccountsblobservicescontainers
+  - storageaccountsfileservices
+  - storageaccountsfileservicesshares
+  - storageaccountsmanagementpolicies
+  - storageaccountsqueueservices
+  - storageaccountsqueueservicesqueues
+  - storageaccountstableservices
+  - storageaccountstableservicestables
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.azure.com
+  resources:
+  - storageaccounts/finalizers
+  - storageaccounts/status
+  - storageaccountsblobservices/finalizers
+  - storageaccountsblobservices/status
+  - storageaccountsblobservicescontainers/finalizers
+  - storageaccountsblobservicescontainers/status
+  - storageaccountsfileservices/finalizers
+  - storageaccountsfileservices/status
+  - storageaccountsfileservicesshares/finalizers
+  - storageaccountsfileservicesshares/status
+  - storageaccountsmanagementpolicies/finalizers
+  - storageaccountsmanagementpolicies/status
+  - storageaccountsqueueservices/finalizers
+  - storageaccountsqueueservices/status
+  - storageaccountsqueueservicesqueues/finalizers
+  - storageaccountsqueueservicesqueues/status
+  - storageaccountstableservices/finalizers
+  - storageaccountstableservices/status
+  - storageaccountstableservicestables/finalizers
+  - storageaccountstableservicestables/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  - volumeattachments
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - submarineraddon.open-cluster-management.io
+  resources:
+  - submarinerconfigs
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - subscription.azure.com
+  resources:
+  - aliases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - subscription.azure.com
+  resources:
+  - aliases/finalizers
+  - aliases/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - synapse.azure.com
+  resources:
+  - workspaces
+  - workspacesbigdatapools
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - synapse.azure.com
+  resources:
+  - workspaces/finalizers
+  - workspaces/status
+  - workspacesbigdatapools/finalizers
+  - workspacesbigdatapools/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - user.openshift.io
+  resources:
+  - groups
+  - users
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - backups
+  verbs:
+  - create
+- apiGroups:
+  - view.open-cluster-management.io
+  resources:
+  - managedclusterviews
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - view.open-cluster-management.io
+  resources:
+  - managedclusterviews/status
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - web.azure.com
+  resources:
+  - serverfarms
+  - sites
+  - sitessourcecontrols
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - web.azure.com
+  resources:
+  - serverfarms/finalizers
+  - serverfarms/status
+  - sites/finalizers
+  - sites/status
+  - sitessourcecontrols/finalizers
+  - sitessourcecontrols/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - wgpolicyk8s.io
+  resources:
+  - policyreports
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworkreplicasets
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworkreplicasets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworkreplicasets/status
+  - manifestworks/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworks
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - execute-as
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - work.open-cluster-management.io
+  resources:
+  - manifestworks/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
