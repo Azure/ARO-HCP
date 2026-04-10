@@ -6,17 +6,18 @@ set -o pipefail
 
 source env_vars
 
-SWIFT=false
+SWIFT=true
 linked_resource_type=Microsoft.RedHatOpenShift/hcpOpenShiftClusters
 
 if [ $# -gt 1 ]; then
-  echo "$0 takes a single optional argument \"swift\""
+  echo "$0 takes a single optional argument \"noswift\""
   exit 1
 elif [ $# -eq 1 ]; then
-  if [ "$1" == "swift" ]; then
-    SWIFT=true
+  if [ "$1" == "noswift" ]; then
+    SWIFT=false
   else
-    echo "$0 takes a single optional argument \"swift\""
+    echo "$0 takes a single optional argument \"noswift\""
+    exit 1
   fi
 fi
 

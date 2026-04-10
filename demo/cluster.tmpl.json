@@ -21,10 +21,11 @@
           "encryptionType": "KMS",
           "kms": {
             "activeKey": {
-              "vaultName": "customer-kv",
               "name": "etcd-encryption-key-name",
               "version": "etcd-encryption-key-version"
-            }
+            },
+            "vaultName": "customer-kv",
+            "visibility": "Public"
           }
         }
       }

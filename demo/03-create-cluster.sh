@@ -7,6 +7,14 @@ set -o pipefail
 source env_vars
 source "$(dirname "$0")"/common.sh
 
+SWIFT=true
+if [ "${1:-}" == "noswift" ]; then
+  SWIFT=false
+elif [ -n "${1:-}" ]; then
+  echo "$0 takes a single optional argument \"noswift\""
+  exit 1
+fi
+
 initialize_control_plane_identities_uamis_names() {
   for operator_name in "${CONTROL_PLANE_OPERATORS_NAMES[@]}"
   do
@@ -108,10 +116,11 @@ initialize_etcd_encryption_json_map() {
           "encryptionType": "KMS",
           "kms": {
             "activeKey": {
-              "vaultName": "",
               "name": "",
               "version": ""
-            }
+            },
+            "vaultName": "",
+            "visibility": "Public"
           }
         }
       }
@@ -125,7 +134,7 @@ EOF
     --arg key_name "$ETCD_ENCRYPTION_KEY_NAME" \
     --arg key_version "$KEY_VAULT_KEY_VERSION" \
     '
-      .dataEncryption.customerManaged.kms.activeKey.vaultName = $vault_name |
+      .dataEncryption.customerManaged.kms.vaultName = $vault_name |
       .dataEncryption.customerManaged.kms.activeKey.name = $key_name |
       .dataEncryption.customerManaged.kms.activeKey.version = $key_version
     '
@@ -155,6 +164,11 @@ create_azure_managed_identities_for_cluster() {
 main() {
   NSG_ID=$(az network nsg list --resource-group ${CUSTOMER_RG_NAME} --query "[?name=='${CUSTOMER_NSG}'].id" --output tsv)
   SUBNET_ID=$(az network vnet subnet show --resource-group ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_SUBNET1} --query id --output tsv)
+
+  POD_SUBNET_ID=""
+  if $SWIFT; then
+    POD_SUBNET_ID=$(az network vnet subnet show --resource-group ${CUSTOMER_RG_NAME} --vnet-name ${CUSTOMER_VNET_NAME} --name ${CUSTOMER_VNET_PODNETWORK1} --query id --output tsv)
+  fi
 
   UAMIS_RESOURCE_IDS_PREFIX="${RESOURCE_GROUP_RESOURCE_ID}/providers/Microsoft.ManagedIdentity/userAssignedIdentities"
 
@@ -231,6 +245,7 @@ main() {
     --arg managed_rg "$MANAGED_RESOURCE_GROUP" \
     --arg subnet_id "$SUBNET_ID" \
     --arg nsg_id "$NSG_ID" \
+    --arg pod_subnet_id "$POD_SUBNET_ID" \
     --argjson uamis_json_map "$UAMIS_JSON_MAP" \
     --argjson identity_uamis_json_map "$IDENTITY_UAMIS_JSON_MAP" \
     --argjson etcd_encryption_json_map "$ETCD_ENCRYPTION_JSON_MAP" \
@@ -241,7 +256,8 @@ main() {
       .properties.platform.networkSecurityGroupId = $nsg_id |
       .properties.platform.operatorsAuthentication.userAssignedIdentities = $uamis_json_map |
       .identity.userAssignedIdentities = $identity_uamis_json_map |
-      .properties.etcd = $etcd_encryption_json_map
+      .properties.etcd = $etcd_encryption_json_map |
+      if $pod_subnet_id != "" then .properties.platform.vnetIntegrationSubnetId = $pod_subnet_id else . end
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
   rp_put_request "${CLUSTER_RESOURCE_ID}" "@${CLUSTER_FILE}"
