@@ -262,6 +262,84 @@ var systemPoolZonesArray = systemZoneRedundantMode == 'Enabled' || (systemZoneRe
   ? systemAgentPoolZones
   : null
 
+var systemAgentsPools = [{
+  name: systemAgentPoolName
+  osType: 'Linux'
+  osSKU: 'AzureLinux'
+  orchestratorVersion: null
+  mode: 'System'
+  enableAutoScaling: true
+  enableEncryptionAtHost: true
+  enableFIPS: true
+  enableNodePublicIP: false
+  kubeletDiskType: 'OS'
+  osDiskType: 'Ephemeral'
+  osDiskSizeGB: systemOsDiskSizeGB
+  minCount: systemAgentMinCount
+  maxCount: systemAgentMaxCount
+  vmSize: systemAgentVMSize
+  type: 'VirtualMachineScaleSets'
+  upgradeSettings: {
+    maxSurge: '10%'
+  }
+  vnetSubnetID: nodeSubnetId
+  podSubnetID: aksPodSubnet.id
+  maxPods: 100
+  availabilityZones: systemPoolZonesArray
+  securityProfile: {
+    enableSecureBoot: false
+    enableVTPM: false
+  }
+  nodeLabels: {
+    'aro-hcp.azure.com/role': 'system'
+  }
+  nodeTaints: [
+    'CriticalAddonsOnly=true:NoSchedule'
+  ]
+  tags: swiftNodepoolTags
+}]
+
+var userAgentPools array = getAgentPoolDefinition({
+    aksClusterName: aksCluster.name
+    kubernetesVersion: kubernetesVersion
+    poolBaseName: userAgentPoolName
+    poolZones: userAgentPoolZones
+    poolCount: userAgentPoolCount
+    poolRole: 'worker'
+    enableSwiftV2: enableSwiftV2Nodepools
+    secondaryNicCount: userSecondaryNicCount
+    minCount: userAgentMinCount
+    maxCount: userAgentMaxCount
+    vmSize: userAgentVMSize
+    osDiskSizeGB: userOsDiskSizeGB
+    vnetSubnetId: nodeSubnetId
+    podSubnetId: aksPodSubnet.id
+    zoneRedundantMode: userZoneRedundantMode
+    maxPods: 225
+  })
+
+var infraAgentPools = getAgentPoolDefinition({
+    aksClusterName: aksCluster.name
+    kubernetesVersion: kubernetesVersion
+    poolBaseName: infraAgentPoolName
+    poolZones: infraAgentPoolZones
+    poolCount: infraAgentPoolCount
+    poolRole: 'infra'
+    enableSwiftV2: false
+    secondaryNicCount: 0
+    minCount: infraAgentMinCount
+    maxCount: infraAgentMaxCount
+    vmSize: infraAgentVMSize
+    osDiskSizeGB: infraOsDiskSizeGB
+    vnetSubnetId: nodeSubnetId
+    podSubnetId: aksPodSubnet.id
+    zoneRedundantMode: infraZoneRedundantMode
+    maxPods: 225
+    taints: [
+      'infra=true:NoSchedule'
+    ]
+  })
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-preview' = {
   location: location
   name: aksClusterName
@@ -297,43 +375,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
         enabled: false
       }
     }
-    agentPoolProfiles: [
-      {
-        name: systemAgentPoolName
-        osType: 'Linux'
-        osSKU: 'AzureLinux'
-        mode: 'System'
-        enableAutoScaling: true
-        enableEncryptionAtHost: true
-        enableFIPS: true
-        enableNodePublicIP: false
-        kubeletDiskType: 'OS'
-        osDiskType: 'Ephemeral'
-        osDiskSizeGB: systemOsDiskSizeGB
-        minCount: systemAgentMinCount
-        maxCount: systemAgentMaxCount
-        vmSize: systemAgentVMSize
-        type: 'VirtualMachineScaleSets'
-        upgradeSettings: {
-          maxSurge: '10%'
-        }
-        vnetSubnetID: nodeSubnetId
-        podSubnetID: aksPodSubnet.id
-        maxPods: 100
-        availabilityZones: systemPoolZonesArray
-        securityProfile: {
-          enableSecureBoot: false
-          enableVTPM: false
-        }
-        nodeLabels: {
-          'aro-hcp.azure.com/role': 'system'
-        }
-        nodeTaints: [
-          'CriticalAddonsOnly=true:NoSchedule'
-        ]
-        tags: swiftNodepoolTags
-      }
-    ]
+    agentPoolProfiles: concat(systemAgentsPools, userAgentPools, infraAgentPools)
     autoScalerProfile: {
       'balance-similar-node-groups': 'true'
       'daemonset-eviction-for-occupied-nodes': true
@@ -491,6 +533,7 @@ resource maintenanceWindows 'Microsoft.ContainerService/managedClusters/maintena
   }
 ]
 
+/* // disabled for workaround - see below, at the end of the file
 module userAgentPools '../modules/aks/pool.bicep' = {
   name: 'user-agent-pools'
   params: {
@@ -534,7 +577,7 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
       'infra=true:NoSchedule'
     ]
   }
-}
+} */
 
 //
 // ACR Pull Permissions on the own resource group and the resource groups provided
@@ -638,3 +681,118 @@ output aksClusterName string = aksClusterName
 output aksClusterKeyVaultSecretsProviderPrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
 output aksClusterManagedIdentityPrincipalId string = aksClusterUserDefinedManagedIdentity.properties.principalId
 output etcKeyVaultId string = aks_keyvault_builder.outputs.kvId
+
+
+// --------------------------------------------------------------------------------------------------------------------------------------------------------
+// workaround to be able to inline the AgentPool definition to the aksCluster defintion to upgrade them in a single step
+// and void version drift in the definitions (that will lead to failure)
+// Can be remove once we switch to fleet
+// --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+type PoolParams = {
+  aksClusterName: string
+  kubernetesVersion: string
+  poolBaseName: string
+  poolZones: array
+  poolCount: int
+  zoneRedundantMode: string
+  poolRole: string
+  enableSwiftV2: bool
+  secondaryNicCount: int
+  vmSize: string
+  minCount: int
+  maxCount: int
+  osDiskSizeGB: int
+  vnetSubnetId: string
+  podSubnetId: string
+  maxPods: int
+  taints: array?
+}
+
+type Pool = {
+  name: string
+  zones: array
+}
+
+// Helper functions for pool naming
+func getZonalPoolName(poolType string, zone string) string => '${poolType}${zone}'
+
+func getNonZonalPoolName(poolType string, counter int) string => '${poolType}nz${counter}'
+
+func isZonalPool(poolName string) bool => !contains(poolName, 'nz')
+
+// Helper functions for calculating pool counts
+func getZonalPoolCount(availableZones array, requiredPools int) int => min(length(availableZones), requiredPools)
+
+func getNonZonalPoolCount(availableZones array, requiredPools int) int => max(0, requiredPools - length(availableZones))
+
+//   P O O L   S T R A T E G Y
+func isUseZonalPools(pp PoolParams) bool => pp.zoneRedundantMode == 'Enabled' || (pp.zoneRedundantMode == 'Auto' && length(pp.poolZones) > 0)
+func getFinalZones(pp PoolParams) array => isUseZonalPools(pp) ? pp.poolZones : []
+
+func getZonalPools(pp PoolParams) array => map(range(0, getZonalPoolCount(getFinalZones(pp), pp.poolCount)), i => {
+  name: getZonalPoolName(pp.poolBaseName, getFinalZones(pp)[i])
+  zones: [getFinalZones(pp)[i]]
+})
+
+func getNonZonalPools(pp PoolParams) array => map(range(0, getNonZonalPoolCount(getFinalZones(pp), pp.poolCount)), i => {
+    name: getNonZonalPoolName(pp.poolBaseName, i + 1)
+    zones: []
+})
+
+func getUserPools(pp PoolParams) array => concat(getZonalPools(pp), getNonZonalPools(pp))
+
+// User node pool - conditionally add secondary-count tag based on secondaryNicCount
+//var swiftNodepoolTags = {}
+
+func getSwiftNodepoolTagsFor(pp PoolParams) object? => pp.enableSwiftV2
+  ? (pp.secondaryNicCount > 0
+      ? {
+          'aks-nic-enable-multi-tenancy': 'true'
+          'aks-nic-secondary-count': string(pp.secondaryNicCount)
+        }
+      : {
+          'aks-nic-enable-multi-tenancy': 'true'
+        })
+  : null
+
+
+// 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01'
+func getAgentPoolDefinition(pp PoolParams) array => map(getUserPools(pp), (pool, i) => {
+  name: take(pool.name, 12)
+  properties: {
+    osType: 'Linux'
+    osSKU: 'AzureLinux'
+    orchestratorVersion: pp.kubernetesVersion
+    mode: 'User'
+    enableAutoScaling: true
+    enableEncryptionAtHost: true
+    enableFIPS: true
+    enableNodePublicIP: false
+    kubeletDiskType: 'OS'
+    osDiskType: 'Ephemeral'
+    osDiskSizeGB: pp.osDiskSizeGB
+    count: pp.minCount
+    minCount: pp.minCount
+    maxCount: pp.maxCount
+    vmSize: pp.vmSize
+    type: 'VirtualMachineScaleSets'
+    upgradeSettings: {
+      maxSurge: '10%'
+    }
+    vnetSubnetID: pp.vnetSubnetId
+    podSubnetID: pp.podSubnetId
+    maxPods: pp.maxPods
+    availabilityZones: length(pool.zones) > 0 ? pool.zones : null
+    securityProfile: {
+      enableSecureBoot: false
+      enableVTPM: false
+    }
+    nodeLabels: {
+      'aro-hcp.azure.com/role': pp.poolRole
+    }
+    nodeTaints: pp.taints != null && length(pp.taints) > 0 ? pp.taints : null
+    tags: getSwiftNodepoolTagsFor(pp)
+  }
+})
+
