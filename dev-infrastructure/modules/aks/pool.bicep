@@ -1,4 +1,5 @@
 param aksClusterName string
+param kubernetesVersion string
 param poolBaseName string
 
 param poolZones array
@@ -88,6 +89,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
     properties: {
       osType: 'Linux'
       osSKU: 'AzureLinux'
+      orchestratorVersion: kubernetesVersion
       mode: 'User'
       enableAutoScaling: true
       enableEncryptionAtHost: true
