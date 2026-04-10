@@ -115,8 +115,10 @@ func (f *clusterTestFixture) newOperation(request database.OperationRequest) *ap
 
 func (f *clusterTestFixture) operationKey() controllerutils.OperationKey {
 	return controllerutils.OperationKey{
-		SubscriptionID: testSubscriptionID,
-		OperationName:  testOperationName,
+		SubscriptionID:   testSubscriptionID,
+		OperationName:    testOperationName,
+		ParentResourceID: f.clusterResourceID.String(),
+		InternalID:       f.clusterInternalID.String(),
 	}
 }
 
@@ -208,8 +210,10 @@ func (f *nodePoolTestFixture) newOperation(request database.OperationRequest) *a
 
 func (f *nodePoolTestFixture) operationKey() controllerutils.OperationKey {
 	return controllerutils.OperationKey{
-		SubscriptionID: testSubscriptionID,
-		OperationName:  testOperationName,
+		SubscriptionID:   testSubscriptionID,
+		OperationName:    testOperationName,
+		ParentResourceID: f.clusterResourceID.String(),
+		InternalID:       f.clusterInternalID.String(),
 	}
 }
 
@@ -301,7 +305,9 @@ func (f *externalAuthTestFixture) newOperation(request database.OperationRequest
 
 func (f *externalAuthTestFixture) operationKey() controllerutils.OperationKey {
 	return controllerutils.OperationKey{
-		SubscriptionID: testSubscriptionID,
-		OperationName:  testOperationName,
+		SubscriptionID:   testSubscriptionID,
+		OperationName:    testOperationName,
+		ParentResourceID: f.clusterResourceID.String(),
+		InternalID:       f.clusterInternalID.String(),
 	}
 }

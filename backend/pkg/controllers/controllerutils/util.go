@@ -58,6 +58,7 @@ type OperationKey struct {
 	SubscriptionID   string `json:"subscriptionID"`
 	OperationName    string `json:"operationName"`
 	ParentResourceID string `json:"parentResourceID"`
+	InternalID       string `json:"internalID"`
 }
 
 func (k *OperationKey) GetParentResourceID() *azcorearm.ResourceID {
@@ -68,7 +69,8 @@ func (k *OperationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(
 		utils.LogValues{}.
 			AddLogValuesForResourceID(k.GetParentResourceID()).
-			AddOperationID(k.OperationName)...)
+			AddOperationID(k.OperationName).
+			AddInternalID(k.InternalID)...)
 }
 
 func (k *OperationKey) InitialController(controllerName string) *api.Controller {

@@ -180,6 +180,7 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 		SubscriptionID:   castObj.ExternalID.SubscriptionID,
 		OperationName:    castObj.ResourceID.Name,
 		ParentResourceID: castObj.ExternalID.String(),
+		InternalID:       castObj.InternalID.String(),
 	}
 	logger = key.AddLoggerValues(logger)
 	ctx = logr.NewContext(ctx, logger)
