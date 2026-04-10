@@ -302,7 +302,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
         name: systemAgentPoolName
         osType: 'Linux'
         osSKU: 'AzureLinux'
-        orchestratorVersion: kubernetesVersion
         mode: 'System'
         enableAutoScaling: true
         enableEncryptionAtHost: true
@@ -496,7 +495,6 @@ module userAgentPools '../modules/aks/pool.bicep' = {
   name: 'user-agent-pools'
   params: {
     aksClusterName: aksCluster.name
-    kubernetesVersion: kubernetesVersion
     poolBaseName: userAgentPoolName
     poolZones: userAgentPoolZones
     poolCount: userAgentPoolCount
@@ -518,7 +516,6 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
   name: 'infra-agent-pools'
   params: {
     aksClusterName: aksCluster.name
-    kubernetesVersion: kubernetesVersion
     poolBaseName: infraAgentPoolName
     poolZones: infraAgentPoolZones
     poolCount: infraAgentPoolCount
