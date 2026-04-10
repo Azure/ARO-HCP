@@ -443,6 +443,12 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
