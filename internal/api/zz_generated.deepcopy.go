@@ -1580,6 +1580,17 @@ func (in *ServiceProviderNodePoolStatus) DeepCopyInto(out *ServiceProviderNodePo
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.MaestroReadonlyBundles != nil {
+		in, out := &in.MaestroReadonlyBundles, &out.MaestroReadonlyBundles
+		*out = make(MaestroBundleReferenceList, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(MaestroBundleReference)
+				**out = **in
+			}
+		}
+	}
 	in.NodePoolVersion.DeepCopyInto(&out.NodePoolVersion)
 	return
 }

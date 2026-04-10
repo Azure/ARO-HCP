@@ -83,6 +83,8 @@ type ServiceProviderNodePoolStatus struct {
 	// level to be kept to a minimum. Take into consideration that conditions at other levels can be specified within
 	// ServiceProviderNodePoolStatus too.
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+	// MaestroReadonlyBundles is the list of Maestro readonly bundle references associated to this node pool.
+	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
 	// NodePoolActiveVersions contains the actual node pool versions information
 	// ServiceProviderNodePoolActiveVersions contains all versions currently active in the NodePool
 	// During an upgrade, multiple versions can be active simultaneously. Meaning, there are nodes

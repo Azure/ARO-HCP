@@ -689,10 +689,10 @@ type mockManagementClusterContentCRUD struct {
 	*mockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]
 }
 
-func newMockManagementClusterContentCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockManagementClusterContentCRUD {
+func newMockManagementClusterContentCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockManagementClusterContentCRUD {
 	return &mockManagementClusterContentCRUD{
 		mockResourceCRUD: newMockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]](
-			client, parentResourceID, api.ManagementClusterContentResourceType),
+			client, parentResourceID, resourceType),
 	}
 }
 

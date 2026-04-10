@@ -216,6 +216,10 @@ const (
 	// MaestroBundleInternalNameReadonlyHypershiftHostedCluster is the internal name of the Maestro Bundle that represents
 	// the Cluster's Hypershift's HostedCluster K8s resource.
 	MaestroBundleInternalNameReadonlyHypershiftHostedCluster MaestroBundleInternalName = "readonlyHypershiftHostedCluster"
+
+	// MaestroBundleInternalNameReadonlyHypershiftNodePool is the internal name of the Maestro Bundle that represents
+	// a NodePool's Hypershift NodePool K8s resource.
+	MaestroBundleInternalNameReadonlyHypershiftNodePool MaestroBundleInternalName = "readonlyHypershiftNodePool"
 )
 
 // FindLowestClusterVersion returns the lowest version from the list of control plane active versions.

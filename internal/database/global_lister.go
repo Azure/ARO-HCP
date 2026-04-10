@@ -44,6 +44,7 @@ type GlobalListers interface {
 	ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool]
 	Controllers() GlobalLister[api.Controller]
 	ManagementClusterContents() GlobalLister[api.ManagementClusterContent]
+	NodePoolManagementClusterContents() GlobalLister[api.ManagementClusterContent]
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
 	BillingDocs() GlobalLister[BillingDocument]
@@ -121,6 +122,13 @@ func (g *cosmosGlobalListers) ManagementClusterContents() GlobalLister[api.Manag
 	return &cosmosGlobalLister[api.ManagementClusterContent, GenericDocument[api.ManagementClusterContent]]{
 		containerClient: g.resources,
 		resourceType:    api.ManagementClusterContentResourceType,
+	}
+}
+
+func (g *cosmosGlobalListers) NodePoolManagementClusterContents() GlobalLister[api.ManagementClusterContent] {
+	return &cosmosGlobalLister[api.ManagementClusterContent, GenericDocument[api.ManagementClusterContent]]{
+		containerClient: g.resources,
+		resourceType:    api.NodePoolManagementClusterContentResourceType,
 	}
 }
 

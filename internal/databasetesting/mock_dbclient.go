@@ -151,7 +151,13 @@ func (m *MockDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupNam
 // ManagementClusterContents returns a CRUD interface for management cluster content resources.
 func (m *MockDBClient) ManagementClusterContents(subscriptionID, resourceGroupName, clusterName string) database.ManagementClusterContentCRUD {
 	clusterResourceID := database.NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
-	return newMockManagementClusterContentCRUD(m, clusterResourceID)
+	return newMockManagementClusterContentCRUD(m, clusterResourceID, api.ManagementClusterContentResourceType)
+}
+
+// NodePoolManagementClusterContents returns a CRUD interface for node pool management cluster content resources.
+func (m *MockDBClient) NodePoolManagementClusterContents(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ManagementClusterContentCRUD {
+	nodePoolResourceID := database.NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return newMockManagementClusterContentCRUD(m, nodePoolResourceID, api.NodePoolManagementClusterContentResourceType)
 }
 
 // LoadFromDirectory loads cosmos-record context data from a directory.

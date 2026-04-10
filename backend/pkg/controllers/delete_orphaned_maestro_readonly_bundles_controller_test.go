@@ -158,6 +158,9 @@ func (p *paginationGlobalListers) Controllers() database.GlobalLister[api.Contro
 func (p *paginationGlobalListers) ManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
 	return &panicGlobalLister[api.ManagementClusterContent]{}
 }
+func (p *paginationGlobalListers) NodePoolManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
+	return &panicGlobalLister[api.ManagementClusterContent]{}
+}
 func (p *paginationGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
 	return &panicGlobalLister[api.ServiceProviderNodePool]{}
 }
@@ -291,6 +294,9 @@ func (f *alwaysErrorGlobalListers) Controllers() database.GlobalLister[api.Contr
 	return &alwaysErrorGlobalLister[api.Controller]{err: f.err}
 }
 func (f *alwaysErrorGlobalListers) ManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
+	return &alwaysErrorGlobalLister[api.ManagementClusterContent]{err: f.err}
+}
+func (f *alwaysErrorGlobalListers) NodePoolManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
 	return &alwaysErrorGlobalLister[api.ManagementClusterContent]{err: f.err}
 }
 func (f *alwaysErrorGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
@@ -570,7 +576,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_buildProvisionShardToServiceProvid
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			c, allSPCs := tt.setup(t, ctrl)
-			idx, err := c.buildProvisionShardToServiceProviderClustersIndex(ctx, allSPCs)
+			idx, err := c.buildProvisionShardToServiceProviderClustersIndex(ctx, allSPCs, nil)
 			defer cancelMaestroClientsInIndex(idx)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -627,7 +633,7 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 						},
 					},
 				}
-				m.EXPECT().List(gomock.Any(), gomock.Any()).Return(bundleList, nil)
+				m.EXPECT().List(gomock.Any(), gomock.Any()).Return(bundleList, nil).AnyTimes()
 				return map[string]*provisionShardServiceProviderClusters{
 					"shard-1": {maestroClient: m, maestroClientCancelFunc: func() {}, serviceProviderClusters: []*api.ServiceProviderCluster{}},
 				}
@@ -655,7 +661,11 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 						},
 					},
 				}
-				m.EXPECT().List(gomock.Any(), gomock.Any()).Return(bundleList, nil)
+				emptyBundleList := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
+				clusterScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueClusterScoped)
+				nodePoolScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueNodePoolScoped)
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: clusterScopedLabelSelector}).Return(bundleList, nil)
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: nodePoolScopedLabelSelector}).Return(emptyBundleList, nil)
 				return map[string]*provisionShardServiceProviderClusters{
 					"shard-1": {maestroClient: m, maestroClientCancelFunc: func() {}, serviceProviderClusters: []*api.ServiceProviderCluster{spc}},
 				}
@@ -683,8 +693,12 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 						},
 					},
 				}
-				m.EXPECT().List(gomock.Any(), gomock.Any()).Return(bundleList, nil)
+				emptyBundleList := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
+				clusterScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueClusterScoped)
+				nodePoolScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueNodePoolScoped)
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: clusterScopedLabelSelector}).Return(bundleList, nil)
 				m.EXPECT().Delete(gomock.Any(), "orphaned-bundle", gomock.Any()).Return(nil)
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: nodePoolScopedLabelSelector}).Return(emptyBundleList, nil)
 				return map[string]*provisionShardServiceProviderClusters{
 					"shard-1": {maestroClient: m, maestroClientCancelFunc: func() {}, serviceProviderClusters: []*api.ServiceProviderCluster{spc}},
 				}
@@ -704,8 +718,12 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 						},
 					},
 				}
-				m.EXPECT().List(gomock.Any(), gomock.Any()).Return(bundleList, nil)
+				emptyBundleList := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
+				clusterScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueClusterScoped)
+				nodePoolScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueNodePoolScoped)
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: clusterScopedLabelSelector}).Return(bundleList, nil)
 				m.EXPECT().Delete(gomock.Any(), "orphaned-bundle", gomock.Any()).Return(fmt.Errorf("delete failed"))
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: nodePoolScopedLabelSelector}).Return(emptyBundleList, nil)
 				return map[string]*provisionShardServiceProviderClusters{
 					"shard-1": {maestroClient: m, maestroClientCancelFunc: func() {}, serviceProviderClusters: []*api.ServiceProviderCluster{}},
 				}
@@ -729,10 +747,13 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 					},
 				}
 				page2 := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
+				emptyBundleList := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
 				labelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueClusterScoped)
+				nodePoolScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueNodePoolScoped)
 				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: labelSelector}).Return(page1, nil)
 				m.EXPECT().Delete(gomock.Any(), "orphan-page1", gomock.Any()).Return(nil)
 				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "token", LabelSelector: labelSelector}).Return(page2, nil)
+				m.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: nodePoolScopedLabelSelector}).Return(emptyBundleList, nil)
 				return map[string]*provisionShardServiceProviderClusters{
 					"shard-1": {maestroClient: m, maestroClientCancelFunc: func() {}, serviceProviderClusters: []*api.ServiceProviderCluster{}},
 				}
@@ -780,8 +801,10 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 		"shard-2": {maestroClient: mockShard2, maestroClientCancelFunc: func() {}, serviceProviderClusters: []*api.ServiceProviderCluster{}},
 	}
 
-	// Shard 1: list returns empty (no orphaned bundles there).
-	mockShard1.EXPECT().List(gomock.Any(), gomock.Any()).Return(&workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}, nil)
+	emptyBundleList := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
+
+	// Shard 1: list returns empty (no orphaned bundles there) for both label selectors.
+	mockShard1.EXPECT().List(gomock.Any(), gomock.Any()).Return(&workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}, nil).AnyTimes()
 
 	// Shard 2: list returns a bundle named "bundle-X". No SPC on shard-2 references it, so it is orphaned on this shard and must be deleted.
 	bundleListShard2 := &workv1.ManifestWorkList{
@@ -795,8 +818,11 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedMaestroReadonlyBundl
 			},
 		},
 	}
-	mockShard2.EXPECT().List(gomock.Any(), gomock.Any()).Return(bundleListShard2, nil)
+	clusterScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueClusterScoped)
+	nodePoolScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueNodePoolScoped)
+	mockShard2.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: clusterScopedLabelSelector}).Return(bundleListShard2, nil)
 	mockShard2.EXPECT().Delete(gomock.Any(), "bundle-X", gomock.Any()).Return(nil)
+	mockShard2.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: nodePoolScopedLabelSelector}).Return(emptyBundleList, nil)
 
 	c := &deleteOrphanedMaestroReadonlyBundles{}
 	err := c.ensureOrphanedMaestroReadonlyBundlesAreDeleted(ctx, index)
@@ -863,8 +889,12 @@ func TestDeleteOrphanedMaestroReadonlyBundles_SyncOnce_FullFlow_DeletesOrphanedB
 			},
 		},
 	}
-	mockMaestro.EXPECT().List(gomock.Any(), gomock.Any()).Return(bundleList, nil)
+	emptyBundleList := &workv1.ManifestWorkList{Items: []workv1.ManifestWork{}}
+	clusterScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueClusterScoped)
+	nodePoolScopedLabelSelector := fmt.Sprintf("%s=%s", readonlyBundleManagedByK8sLabelKey, readonlyBundleManagedByK8sLabelValueNodePoolScoped)
+	mockMaestro.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: clusterScopedLabelSelector}).Return(bundleList, nil)
 	mockMaestro.EXPECT().Delete(gomock.Any(), "orphaned-bundle", gomock.Any()).Return(nil)
+	mockMaestro.EXPECT().List(gomock.Any(), metav1.ListOptions{Limit: 400, Continue: "", LabelSelector: nodePoolScopedLabelSelector}).Return(emptyBundleList, nil)
 
 	controller := NewDeleteOrphanedMaestroReadonlyBundlesController(mockDB, mockCS, mockMaestroBuilder, "test-env")
 	err = controller.SyncOnce(ctx, nil)
