@@ -152,6 +152,26 @@ var _ = Describe("Customer", func() {
 				return err
 			}, 1*time.Minute, 15*time.Second).Should(Succeed(), "ImageDigestMirrorSet CRDs should exist on the hosted cluster")
 
+			// ensures the cluster is ready for updates before sending PATCH requests, eliminating the race
+			By("waiting for cluster to reach terminal provisioning state before update")
+			var lastState string
+			Eventually(func() bool {
+				cluster, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				if err != nil {
+					GinkgoLogr.Error(err, "Failed to get cluster state during polling")
+					return false
+				}
+				if cluster.Properties == nil || cluster.Properties.ProvisioningState == nil {
+					GinkgoLogr.Info("Cluster properties or provisioning state is nil")
+					return false
+				}
+
+				lastState = string(*cluster.Properties.ProvisioningState)
+				GinkgoLogr.Info("Cluster state check", "state", lastState)
+
+				return *cluster.Properties.ProvisioningState == hcpsdk20251223preview.ProvisioningStateSucceeded
+			}, 2*time.Minute, 15*time.Second).Should(BeTrue(), fmt.Sprintf("Cluster stuck in state: %s", lastState))
+
 			By("updating the cluster to add a second ImageDigestMirror set")
 			updateAdd := hcpsdk20251223preview.HcpOpenShiftClusterUpdate{
 				Properties: &hcpsdk20251223preview.HcpOpenShiftClusterPropertiesUpdate{
@@ -208,6 +228,26 @@ var _ = Describe("Customer", func() {
 				}
 				return err
 			}, 10*time.Minute, 15*time.Second).Should(Succeed(), "both ImageDigestMirrorSet entries should exist on the hosted cluster")
+
+			// ensures the cluster is ready for updates before sending PATCH requests, eliminating the race
+			lastState = "" // reset last state
+			By("waiting for cluster to reach terminal provisioning state before update")
+			Eventually(func() bool {
+				cluster, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				if err != nil {
+					GinkgoLogr.Error(err, "Failed to get cluster state during polling")
+					return false
+				}
+				if cluster.Properties == nil || cluster.Properties.ProvisioningState == nil {
+					GinkgoLogr.Info("Cluster properties or provisioning state is nil")
+					return false
+				}
+
+				lastState = string(*cluster.Properties.ProvisioningState)
+				GinkgoLogr.Info("Cluster state check", "state", lastState)
+
+				return *cluster.Properties.ProvisioningState == hcpsdk20251223preview.ProvisioningStateSucceeded
+			}, 2*time.Minute, 15*time.Second).Should(BeTrue(), fmt.Sprintf("Cluster stuck in state: %s", lastState))
 
 			By("updating the cluster to remove the second ImageDigestMirror set")
 			updateRemove := hcpsdk20251223preview.HcpOpenShiftClusterUpdate{
