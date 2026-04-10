@@ -36,10 +36,11 @@ import (
 
 func TestCSStateDump_SyncOnce(t *testing.T) {
 	tests := []struct {
-		name          string
-		createCluster bool
-		setupCSClient func(*ocm.MockClusterServiceClientSpec, api.InternalID)
-		wantErr       bool
+		name            string
+		createCluster   bool
+		createNodePools []*api.HCPOpenShiftClusterNodePool
+		setupCSClient   func(*ocm.MockClusterServiceClientSpec, api.InternalID)
+		wantErr         bool
 	}{
 		{
 			name:          "cluster not found in DB returns nil",
@@ -47,7 +48,7 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			wantErr:       false,
 		},
 		{
-			name:          "success logs cluster data",
+			name:          "success logs cluster data with no node pools",
 			createCluster: true,
 			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID api.InternalID) {
 				csCluster, _ := arohcpv1alpha1.NewCluster().
@@ -63,6 +64,84 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			createCluster: true,
 			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID api.InternalID) {
 				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(nil, fmt.Errorf("connection error"))
+			},
+			wantErr: false,
+		},
+		{
+			name:          "success dumps cluster and node pool data",
+			createCluster: true,
+			createNodePools: []*api.HCPOpenShiftClusterNodePool{
+				newTestNodePool("test-np-1", "/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np1"),
+			},
+			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID api.InternalID) {
+				csCluster, _ := arohcpv1alpha1.NewCluster().
+					ID("11111111111111111111111111111111").
+					State(arohcpv1alpha1.ClusterStateReady).
+					Build()
+				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(csCluster, nil)
+				csNodePool, _ := arohcpv1alpha1.NewNodePool().
+					ID("np1").
+					Replicas(3).
+					Build()
+				npCSID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np1"))
+				mock.EXPECT().GetNodePool(gomock.Any(), npCSID).Return(csNodePool, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:          "node pool without ClusterServiceID is skipped",
+			createCluster: true,
+			createNodePools: []*api.HCPOpenShiftClusterNodePool{
+				newTestNodePool("test-np-no-csid", ""),
+			},
+			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID api.InternalID) {
+				csCluster, _ := arohcpv1alpha1.NewCluster().
+					ID("11111111111111111111111111111111").
+					State(arohcpv1alpha1.ClusterStateReady).
+					Build()
+				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(csCluster, nil)
+				// No GetNodePool call expected because ClusterServiceID is empty
+			},
+			wantErr: false,
+		},
+		{
+			name:          "node pool CS GetNodePool error is logged but does not fail",
+			createCluster: true,
+			createNodePools: []*api.HCPOpenShiftClusterNodePool{
+				newTestNodePool("test-np-err", "/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-err"),
+			},
+			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID api.InternalID) {
+				csCluster, _ := arohcpv1alpha1.NewCluster().
+					ID("11111111111111111111111111111111").
+					State(arohcpv1alpha1.ClusterStateReady).
+					Build()
+				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(csCluster, nil)
+				npCSID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-err"))
+				mock.EXPECT().GetNodePool(gomock.Any(), npCSID).Return(nil, fmt.Errorf("node pool connection error"))
+			},
+			wantErr: false,
+		},
+		{
+			name:          "multiple node pools are all dumped",
+			createCluster: true,
+			createNodePools: []*api.HCPOpenShiftClusterNodePool{
+				newTestNodePool("test-np-a", "/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-a"),
+				newTestNodePool("test-np-b", "/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-b"),
+			},
+			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID api.InternalID) {
+				csCluster, _ := arohcpv1alpha1.NewCluster().
+					ID("11111111111111111111111111111111").
+					State(arohcpv1alpha1.ClusterStateReady).
+					Build()
+				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(csCluster, nil)
+
+				csNodePoolA, _ := arohcpv1alpha1.NewNodePool().ID("np-a").Replicas(2).Build()
+				npCSIDA := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-a"))
+				mock.EXPECT().GetNodePool(gomock.Any(), npCSIDA).Return(csNodePoolA, nil)
+
+				csNodePoolB, _ := arohcpv1alpha1.NewNodePool().ID("np-b").Replicas(5).Build()
+				npCSIDB := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111/node_pools/np-b"))
+				mock.EXPECT().GetNodePool(gomock.Any(), npCSIDB).Return(csNodePoolB, nil)
 			},
 			wantErr: false,
 		},
@@ -107,6 +186,12 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			for _, np := range tt.createNodePools {
+				nodePoolsCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
+				_, err := nodePoolsCRUD.Create(ctx, np, nil)
+				require.NoError(t, err)
+			}
+
 			if tt.setupCSClient != nil {
 				tt.setupCSClient(mockCSClient, csID)
 			}
@@ -120,6 +205,27 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newTestNodePool(name, clusterServiceIDStr string) *api.HCPOpenShiftClusterNodePool {
+	nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/" + name))
+	np := &api.HCPOpenShiftClusterNodePool{
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   nodePoolResourceID,
+				Name: name,
+				Type: api.NodePoolResourceType.String(),
+			},
+			Location: "eastus",
+		},
+	}
+	if clusterServiceIDStr != "" {
+		np.ServiceProviderProperties = api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ClusterServiceID: api.Must(api.NewInternalID(clusterServiceIDStr)),
+		}
+	}
+	return np
 }
 
 func TestCSStateDump_SyncOnce_CooldownPreventsSync(t *testing.T) {

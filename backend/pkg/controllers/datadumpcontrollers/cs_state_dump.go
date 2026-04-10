@@ -110,6 +110,50 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		"csCluster", clusterData,
 	)
 
+	// Fetch and dump node pools
+	allNodePools, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).List(ctx, nil)
+	if err != nil {
+		logger.Error(err, "failed to list node pools from cosmos for CS state dump")
+		// best effort, don't fail
+		return nil
+	}
+
+	for _, nodePool := range allNodePools.Items(ctx) {
+		npCSID := nodePool.ServiceProviderProperties.ClusterServiceID
+		if len(npCSID.String()) == 0 {
+			// No ClusterServiceID yet, node pool hasn't been registered with CS
+			continue
+		}
+
+		csNodePool, err := c.csClient.GetNodePool(ctx, npCSID)
+		if err != nil {
+			logger.Error(err, "failed to get node pool from cluster-service for CS state dump",
+				"nodePoolClusterServiceID", npCSID.String(),
+			)
+			continue
+		}
+
+		var nodePoolData map[string]any
+		if csNodePool != nil {
+			nodePoolData, err = csObjectToMap(csNodePool)
+			if err != nil {
+				logger.Error(err, "failed to serialize cluster-service node pool to JSON",
+					"nodePoolClusterServiceID", npCSID.String(),
+				)
+				continue
+			}
+		}
+
+		logger.Info("cluster-service node pool state dump",
+			"clusterServiceID", csID.String(),
+			"nodePoolClusterServiceID", npCSID.String(),
+			"csNodePool", nodePoolData,
+		)
+	}
+	if err := allNodePools.GetError(); err != nil {
+		logger.Error(err, "failed to iterate node pools from cosmos for CS state dump")
+	}
+
 	return nil
 }
 
