@@ -25,6 +25,7 @@ class MockFetcher(prow.Fetcher):
     """Test fetcher that returns preconfigured responses."""
 
     def __init__(self, fetch_fn=None, fetch_json_fn=None):
+        super().__init__()
         self._fetch_fn = fetch_fn
         self._fetch_json_fn = fetch_json_fn
 
@@ -273,6 +274,10 @@ class TestRenderEvidence(unittest.TestCase):
             "per_job_tests": [],
         }
 
+    def _wrap(self, env_results, fetch_errors=None):
+        return {"env": "int", "results": env_results,
+                "fetch_errors": fetch_errors or {}}
+
     def test_jobs_table_and_failures(self):
         groups = [{
             "test": "TestTimeout", "count": 3,
@@ -280,7 +285,8 @@ class TestRenderEvidence(unittest.TestCase):
                           "count": 3}],
             "first_seen": "2026-04-02T06:00:00",
         }]
-        evidence = prow._render_evidence([self._er(groups)])
+        evidence = prow._render_evidence(
+            self._wrap([self._er(groups)]))
         self.assertIn("## Jobs", evidence)
         self.assertIn("75%", evidence)
         self.assertIn("TestTimeout", evidence)
@@ -295,7 +301,17 @@ class TestRenderEvidence(unittest.TestCase):
             "passed": 28, "failed": 4,
         }]
         self.assertIn("28P/4F",
-                      prow._render_evidence([er]))
+                      prow._render_evidence(
+                          self._wrap([er])))
+
+    def test_fetch_warning(self):
+        data = self._wrap(
+            [self._er()],
+            fetch_errors={"timeout": 2, "http": 1})
+        output = prow._render_evidence(data)
+        self.assertIn("Warning", output)
+        self.assertIn("2 timeout", output)
+        self.assertIn("1 http", output)
 
 
 class TestFailureSummary(unittest.TestCase):
@@ -369,9 +385,9 @@ class TestSummary(unittest.TestCase):
             "failures": [{"test": "TestA", "message": "err"}],
             "passed": [],
         }
-        results = client.summary(since="2026-04-01")
-        envs_seen = {(r["env"], r["type"]) for r in results}
-        # Should have all env/type combos from ENVS
+        data = client.summary(since="2026-04-01")
+        envs_seen = {(r["env"], r["type"])
+                     for r in data["envs"]}
         expected = set()
         for env, cfg in prow.ENVS.items():
             for jt in ("periodic", "presubmit"):
@@ -394,21 +410,22 @@ class TestSummary(unittest.TestCase):
             "failures": [{"test": "TestB", "message": "err"}],
             "passed": [],
         }
-        results = client.summary(
+        data = client.summary(
             since="2026-04-01", envs=["int"])
-        # int has periodic + presubmit
-        for r in results:
+        for r in data["envs"]:
             self.assertEqual(r["passed"], 2)
             self.assertEqual(r["failed"], 1)
             self.assertAlmostEqual(r["pass_rate"], 0.67)
 
     def test_top_failures_limited(self):
         jobs = [
-            {"state": "failure", "started": f"2026-04-02T{10+i:02d}:00:00",
+            {"state": "failure",
+             "started": f"2026-04-02T{10+i:02d}:00:00",
              "job_id": str(i), "base_url": f"http://u{i}"}
             for i in range(5)
         ]
         call_count = []
+
         def mock_fetch(base_url, env):
             call_count.append(1)
             return {
@@ -419,25 +436,64 @@ class TestSummary(unittest.TestCase):
         client = prow.ProwClient(MockFetcher())
         client.list_jobs = lambda *a, **kw: jobs
         client.fetch_failures = mock_fetch
-        results = client.summary(
+        data = client.summary(
             since="2026-04-01", envs=["dev"])
-        # dev has only presubmit, so one combo
-        self.assertEqual(len(results), 1)
-        # Should sample at most 3 failed jobs
-        self.assertLessEqual(len(results[0]["top_failures"]), 5)
+        self.assertEqual(len(data["envs"]), 1)
+        self.assertLessEqual(
+            len(data["envs"][0]["top_failures"]), 5)
+
+    def test_fleet_failures_correlation(self):
+        """Failures across envs are correlated in fleet_failures."""
+        jobs = [
+            {"state": "failure",
+             "started": "2026-04-02T10:00:00",
+             "job_id": "1", "base_url": "http://u1"},
+        ]
+        client = prow.ProwClient(MockFetcher())
+        client.list_jobs = lambda *a, **kw: jobs
+        client.fetch_failures = lambda base_url, env: {
+            "failures": [
+                {"test": "TestShared", "message": "err"},
+                *(
+                    [{"test": "TestIntOnly", "message": "e"}]
+                    if env == "int" else []
+                ),
+            ],
+            "passed": [],
+        }
+        data = client.summary(
+            since="2026-04-01", envs=["int", "stg"])
+        fleet = data["fleet_failures"]
+        shared = next(f for f in fleet
+                      if f["test"] == "TestShared")
+        self.assertIn("int", shared["envs"])
+        self.assertIn("stg", shared["envs"])
+        int_only = next(
+            (f for f in fleet
+             if f["test"] == "TestIntOnly"), None)
+        if int_only:
+            self.assertEqual(int_only["envs"], ["int"])
 
     def test_render_summary(self):
-        results = [{
-            "env": "int", "type": "periodic",
-            "passed": 15, "failed": 5, "aborted": 0,
-            "pass_rate": 0.75,
-            "top_failures": ["TestTimeout", "TestAuth"],
-        }]
-        output = prow._render_summary(results)
+        data = {
+            "envs": [{
+                "env": "int", "type": "periodic",
+                "passed": 15, "failed": 5, "aborted": 0,
+                "pass_rate": 0.75,
+                "top_failures": ["TestTimeout", "TestAuth"],
+            }],
+            "fleet_failures": [
+                {"test": "TestTimeout",
+                 "envs": ["int", "stg"]},
+            ],
+        }
+        output = prow._render_summary(data)
         self.assertIn("# CI Summary", output)
         self.assertIn("75%", output)
         self.assertIn("TestTimeout", output)
         self.assertIn("int", output)
+        self.assertIn("Fleet-Wide Failures", output)
+        self.assertIn("int, stg", output)
 
 
 class TestMessageDedup(unittest.TestCase):
@@ -539,6 +595,230 @@ class TestParseSince(unittest.TestCase):
             r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
         self.assertIsNone(prow._parse_since(None))
         self.assertIsNone(prow._parse_since(""))
+
+
+class TestPr(unittest.TestCase):
+    def test_classifies_baseline_vs_new(self):
+        bid1 = _bid("2026-04-02T10:00:00")
+        bid2 = _bid("2026-04-02T14:00:00")
+
+        finished = {bid1: {"result": "FAILURE"},
+                    bid2: {"result": "FAILURE"}}
+
+        def fetch_json(url, timeout):
+            for bid, data in finished.items():
+                if f"/{bid}/finished.json" in url:
+                    return data
+            return None
+
+        client = prow.ProwClient(MockFetcher(
+            fetch_json_fn=fetch_json))
+
+        # PR has builds in int only
+        client._gcs_list_pr_builds = (
+            lambda pr, name: [bid1, bid2]
+            if name == prow.ENVS["int"]["presubmit"]
+            else [])
+
+        # Both have TestA and TestB failures
+        client.fetch_failures = lambda base_url, env: {
+            "failures": [
+                {"test": "TestA", "message": "err1"},
+                {"test": "TestB", "message": "err2"},
+            ],
+            "passed": [],
+        }
+
+        # Baseline has TestA only
+        client.failure_summary = lambda *a, **kw: {
+            "failure_groups": [{"test": "TestA"}],
+        }
+
+        result = client.pr(99)
+        self.assertEqual(result["pr"], 99)
+
+        int_result = next(
+            r for r in result["envs"] if r["env"] == "int")
+        self.assertEqual(int_result["failed"], 2)
+        self.assertTrue(int_result["has_baseline"])
+
+        failures = {f["test"]: f
+                    for f in int_result["failures"]}
+        self.assertTrue(failures["TestA"]["baseline"])
+        self.assertFalse(failures["TestB"]["baseline"])
+
+    def test_no_builds_returns_empty(self):
+        client = prow.ProwClient(MockFetcher())
+        client._gcs_list_pr_builds = lambda pr, name: []
+
+        result = client.pr(999)
+        self.assertEqual(result["pr"], 999)
+        self.assertEqual(result["envs"], [])
+
+    def test_no_periodic_means_no_baseline(self):
+        bid = _bid("2026-04-02T10:00:00")
+
+        def fetch_json(url, timeout):
+            if "finished.json" in url:
+                return {"result": "FAILURE"}
+            return None
+
+        client = prow.ProwClient(MockFetcher(
+            fetch_json_fn=fetch_json))
+
+        # PR has builds in dev only (no periodic)
+        client._gcs_list_pr_builds = (
+            lambda pr, name: [bid]
+            if name == prow.ENVS["dev"]["presubmit"]
+            else [])
+
+        client.fetch_failures = lambda *a, **kw: {
+            "failures": [
+                {"test": "TestA", "message": "err"}],
+            "passed": [],
+        }
+
+        result = client.pr(99)
+        dev_result = next(
+            (r for r in result["envs"]
+             if r["env"] == "dev"), None)
+        self.assertIsNotNone(dev_result)
+        self.assertFalse(dev_result["has_baseline"])
+        self.assertFalse(
+            dev_result["failures"][0]["baseline"])
+
+
+class TestFetcherErrors(unittest.TestCase):
+    def test_tracks_error_categories(self):
+        from fetcher import Fetcher
+        f = Fetcher()
+        self.assertEqual(f.errors["timeout"], 0)
+        self.assertEqual(f.errors["network"], 0)
+        # Simulate errors via _record_error
+        f._record_error("timeout")
+        f._record_error("timeout")
+        f._record_error("network")
+        self.assertEqual(f.errors["timeout"], 2)
+        self.assertEqual(f.errors["network"], 1)
+        self.assertEqual(f.errors["not_found"], 0)
+
+    def test_errors_returns_copy(self):
+        from fetcher import Fetcher
+        f = Fetcher()
+        e = f.errors
+        e["timeout"] = 999
+        self.assertEqual(f.errors["timeout"], 0)
+
+
+class TestRenderFetchWarnings(unittest.TestCase):
+    def test_no_errors(self):
+        self.assertEqual(prow._render_fetch_warnings({}), "")
+
+    def test_timeout_and_http(self):
+        w = prow._render_fetch_warnings(
+            {"timeout": 3, "http": 1})
+        self.assertIn("3 timeout", w)
+        self.assertIn("1 http", w)
+        self.assertIn("Warning", w)
+
+    def test_ignores_not_found(self):
+        w = prow._render_fetch_warnings(
+            {"not_found": 5})
+        self.assertEqual(w, "")
+
+
+class TestErrorDelta(unittest.TestCase):
+    def test_delta_computation(self):
+        client = prow.ProwClient(MockFetcher())
+        before = client._snap_errors()
+        client.fetcher._record_error("timeout")
+        client.fetcher._record_error("timeout")
+        client.fetcher._record_error("network")
+        delta = client._error_delta(before)
+        self.assertEqual(delta["timeout"], 2)
+        self.assertEqual(delta["network"], 1)
+        self.assertNotIn("not_found", delta)
+
+    def test_summary_includes_fetch_errors(self):
+        jobs = [
+            {"state": "success",
+             "started": "2026-04-02T10:00:00",
+             "job_id": "1", "base_url": "http://u1"},
+        ]
+        client = prow.ProwClient(MockFetcher())
+        client.list_jobs = lambda *a, **kw: jobs
+        data = client.summary(
+            since="2026-04-01", envs=["int"])
+        self.assertIn("fetch_errors", data)
+
+    def test_failures_includes_fetch_errors(self):
+        jobs = [
+            {"state": "success",
+             "started": "2026-04-02T10:00:00",
+             "job_id": "1", "base_url": "http://u1"},
+        ]
+        client = prow.ProwClient(MockFetcher())
+        client.list_jobs = lambda *a, **kw: jobs
+        data = client.failures("int", since="2026-04-01")
+        self.assertIn("fetch_errors", data)
+        self.assertIn("results", data)
+
+
+class TestRenderPr(unittest.TestCase):
+    def test_render_with_failures(self):
+        data = {
+            "pr": 4618,
+            "envs": [{
+                "env": "int",
+                "total": 3,
+                "passed": 1,
+                "failed": 2,
+                "has_baseline": True,
+                "failures": [{
+                    "test": "TestTimeout",
+                    "count": 2,
+                    "baseline": True,
+                    "messages": [{"msg": "deadline exceeded",
+                                  "count": 2}],
+                    "jobs": ["/pr-logs/.../1"],
+                }, {
+                    "test": "TestNew",
+                    "count": 1,
+                    "baseline": False,
+                    "messages": [{"msg": "new error",
+                                  "count": 1}],
+                    "jobs": ["/pr-logs/.../2"],
+                }],
+            }],
+        }
+        output = prow._render_pr(data)
+        self.assertIn("PR #4618", output)
+        self.assertIn("1/3 passed", output)
+        self.assertIn("[baseline]", output)
+        self.assertIn("[NEW]", output)
+        self.assertIn("TestTimeout", output)
+        self.assertIn("TestNew", output)
+
+    def test_render_empty(self):
+        data = {"pr": 999, "envs": []}
+        output = prow._render_pr(data)
+        self.assertIn("No presubmit jobs found", output)
+
+    def test_render_all_passed(self):
+        data = {
+            "pr": 100,
+            "envs": [{
+                "env": "dev",
+                "total": 2,
+                "passed": 2,
+                "failed": 0,
+                "has_baseline": False,
+                "failures": [],
+            }],
+        }
+        output = prow._render_pr(data)
+        self.assertIn("2/2 passed", output)
+        self.assertIn("All runs passed", output)
 
 
 if __name__ == "__main__":

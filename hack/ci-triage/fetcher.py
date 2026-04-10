@@ -14,12 +14,32 @@ import urllib.request
 class Fetcher:
     """HTTP fetcher for GCS and JSON endpoints."""
 
+    _ERROR_KINDS = ("not_found", "timeout", "http",
+                    "network", "parse")
+
+    def __init__(self):
+        self._errors = {k: 0 for k in self._ERROR_KINDS}
+
+    def _record_error(self, kind):
+        self._errors[kind] = self._errors.get(kind, 0) + 1
+
+    @property
+    def errors(self):
+        return dict(self._errors)
+
     def fetch(self, url, timeout=15):
         try:
             with urllib.request.urlopen(url, timeout=timeout) as r:
                 return r.read()
-        except (urllib.error.URLError, urllib.error.HTTPError,
-                TimeoutError, OSError):
+        except urllib.error.HTTPError as e:
+            self._record_error(
+                "not_found" if e.code == 404 else "http")
+            return None
+        except TimeoutError:
+            self._record_error("timeout")
+            return None
+        except (urllib.error.URLError, OSError):
+            self._record_error("network")
             return None
 
     def fetch_text(self, url, timeout=15):
@@ -30,10 +50,14 @@ class Fetcher:
                     return None
                 return r.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return None
+            self._record_error(
+                "not_found" if e.code == 404 else "http")
             return None
-        except (urllib.error.URLError, TimeoutError, OSError):
+        except TimeoutError:
+            self._record_error("timeout")
+            return None
+        except (urllib.error.URLError, OSError):
+            self._record_error("network")
             return None
 
     def fetch_json(self, url, timeout=15):
@@ -42,8 +66,18 @@ class Fetcher:
                 if "text/html" in r.headers.get("Content-Type", ""):
                     return None
                 return json.loads(r.read())
-        except (urllib.error.URLError, urllib.error.HTTPError,
-                TimeoutError, OSError, json.JSONDecodeError):
+        except urllib.error.HTTPError as e:
+            self._record_error(
+                "not_found" if e.code == 404 else "http")
+            return None
+        except TimeoutError:
+            self._record_error("timeout")
+            return None
+        except json.JSONDecodeError:
+            self._record_error("parse")
+            return None
+        except (urllib.error.URLError, OSError):
+            self._record_error("network")
             return None
 
 

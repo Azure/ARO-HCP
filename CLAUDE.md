@@ -111,6 +111,7 @@ Custom tools in `tooling/`:
 - `templatize` - Pipeline template processing
 - `secret-sync` - Secret management utilities
 - `prometheus-rules` - Monitoring rule generation
+- `ci-triage` - CI failure triage tool (GCS/Prow data → SQLite → analysis). Also available as `/triage` skill.
 
 ## Documentation
 

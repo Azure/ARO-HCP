@@ -64,6 +64,7 @@ ENVS = {
     },
 }
 PROVISION_CONTAINER = "aro-hcp-provision-environment"
+_GCS_PR_ORG_REPO = "Azure_ARO-HCP"
 
 MAX_MESSAGE_CHARS = 4000
 
@@ -221,6 +222,17 @@ class ProwClient:
     def __init__(self, fetcher=None):
         self.fetcher = fetcher or Fetcher()
 
+    def _snap_errors(self):
+        """Snapshot current fetcher error counts."""
+        return dict(self.fetcher.errors)
+
+    def _error_delta(self, before):
+        """Compute error count delta since snapshot."""
+        after = self._snap_errors()
+        return {k: after[k] - before.get(k, 0)
+                for k in after
+                if after[k] - before.get(k, 0) > 0}
+
     def _build_log_url(self, base_url, env, step="test"):
         cfg = ENVS.get(env)
         if not cfg:
@@ -345,6 +357,22 @@ class ProwClient:
                 gs_link = meta.get("x-goog-meta-link", "")
                 results.append((bid, gs_link))
             return results
+
+    def _gcs_list_pr_builds(self, pr_number, job_name):
+        """List build IDs for a specific PR's presubmit jobs."""
+        prefix = (f"pr-logs/pull/{_GCS_PR_ORG_REPO}/"
+                  f"{pr_number}/{job_name}/")
+        params = (f"prefix={urllib.parse.quote(prefix, safe='')}"
+                  f"&delimiter=/&maxResults=100"
+                  f"&fields=prefixes")
+        url = f"{GCS_API}?{params}"
+        data = self.fetcher.fetch_json(url, timeout=15)
+        if not data:
+            return []
+        return [p.rstrip("/").rsplit("/", 1)[-1]
+                for p in data.get("prefixes", [])
+                if re.match(r"\d{19}$",
+                            p.rstrip("/").rsplit("/", 1)[-1])]
 
     def list_jobs(self, env, job_type, limit=20, since=None):
         """List recent jobs via the GCS JSON API.
@@ -573,6 +601,7 @@ class ProwClient:
         Returns pass/fail counts and top failure names per env/type
         without fetching full evidence packets.
         """
+        snap = self._snap_errors()
         target_envs = envs or list(ENVS.keys())
         combos = []
         for env in target_envs:
@@ -604,7 +633,7 @@ class ProwClient:
 
             # Lightweight top-failure sample from 3 most recent fails
             top_failures = []
-            for job in failed[:3]:
+            for job in failed[:5]:
                 result = self.fetch_failures(job["base_url"], env)
                 if result:
                     for f in result.get("failures", []):
@@ -630,14 +659,30 @@ class ProwClient:
                     continue
 
         results.sort(key=lambda r: (r["env"], r["type"]))
-        return results
+
+        # Cross-env failure correlation
+        failure_envs = {}
+        for r in results:
+            for name in r.get("top_failures", []):
+                if name not in failure_envs:
+                    failure_envs[name] = []
+                if r["env"] not in failure_envs[name]:
+                    failure_envs[name].append(r["env"])
+
+        fleet = [{"test": name, "envs": sorted(envs)}
+                 for name, envs in failure_envs.items()]
+        fleet.sort(key=lambda x: (-len(x["envs"]), x["test"]))
+
+        return {"envs": results, "fleet_failures": fleet[:10],
+                "fetch_errors": self._error_delta(snap)}
 
     def failures(self, env, since=None, until=None):
         """Run failure_summary for all job types in an env.
 
-        Returns list of failure_summary results (one per job type).
+        Returns dict with results list and fetch error counts.
         This is the main entry point — parallel fetch + analysis.
         """
+        snap = self._snap_errors()
         cfg = ENVS.get(env)
         if not cfg:
             raise ValueError(
@@ -661,18 +706,189 @@ class ProwClient:
                     print(f"error: {ex}", file=sys.stderr)
 
         results.sort(key=lambda r: r["pass_rate"])
-        return results
+        return {"env": env, "results": results,
+                "fetch_errors": self._error_delta(snap)}
+
+    def pr(self, pr_number):
+        """PR failure analysis with periodic baseline comparison.
+
+        Finds presubmit jobs for the given PR across all envs,
+        fetches their failures, and compares against recent
+        periodic failures to classify each as baseline or new.
+        """
+        snap = self._snap_errors()
+
+        def _check_env(env, cfg):
+            job_name = cfg["presubmit"]
+            bids = self._gcs_list_pr_builds(
+                pr_number, job_name)
+            if not bids:
+                return None
+
+            def _build_entry(bid):
+                gcs_url = (
+                    f"{GCS_DIRECT}/pr-logs/pull/"
+                    f"{_GCS_PR_ORG_REPO}/{pr_number}/"
+                    f"{job_name}/{bid}")
+                gcsweb = gcs_url.replace(
+                    GCS_DIRECT, GCSWEB_BASE)
+                entry = {
+                    "state": "pending",
+                    "started": self._bid_to_iso(bid),
+                    "job_id": bid,
+                    "base_url": gcsweb,
+                }
+                finished = self.fetcher.fetch_json(
+                    f"{gcs_url}/finished.json", timeout=5)
+                if finished:
+                    result = (finished.get("result")
+                              or "").lower()
+                    entry["state"] = result or "unknown"
+                    rev = finished.get("revision")
+                    if rev:
+                        entry["revision"] = rev[:12]
+                return entry
+
+            jobs = []
+            with ThreadPoolExecutor(max_workers=20) as pool:
+                for f in as_completed(
+                        pool.submit(_build_entry, b)
+                        for b in bids):
+                    try:
+                        jobs.append(f.result())
+                    except Exception:
+                        continue
+            jobs.sort(
+                key=lambda e: e["job_id"], reverse=True)
+
+            passed_jobs = [j for j in jobs
+                           if j["state"] == "success"]
+            failed_jobs = [j for j in jobs
+                           if j["state"]
+                           in ("failure", "error")]
+
+            failures = {}
+
+            def _fetch_one(job):
+                return job, self.fetch_failures(
+                    job["base_url"], env)
+
+            with ThreadPoolExecutor(max_workers=20) as pool:
+                for f in as_completed(
+                        pool.submit(_fetch_one, j)
+                        for j in failed_jobs):
+                    try:
+                        job, result = f.result()
+                    except Exception:
+                        continue
+                    if not result:
+                        continue
+                    for fl in result.get("failures", []):
+                        name = (fl.get("test")
+                                or fl.get("step")
+                                or "unknown")
+                        if name not in failures:
+                            failures[name] = {
+                                "count": 0,
+                                "messages": [],
+                                "jobs": [],
+                            }
+                        failures[name]["count"] += 1
+                        if fl.get("message"):
+                            failures[name][
+                                "messages"].append(
+                                fl["message"])
+                        failures[name]["jobs"].append(
+                            _short_url(job["base_url"]))
+
+            baseline = set()
+            has_baseline = "periodic" in cfg
+            if has_baseline:
+                try:
+                    bs = self.failure_summary(
+                        env, "periodic", history=20)
+                    baseline = {
+                        fg["test"] for fg
+                        in bs.get("failure_groups", [])}
+                except Exception:
+                    pass
+
+            classified = []
+            for name, data in sorted(
+                    failures.items(),
+                    key=lambda x: x[1]["count"],
+                    reverse=True):
+                classified.append({
+                    "test": name,
+                    "count": data["count"],
+                    "baseline": name in baseline,
+                    "messages": _dedup_messages(
+                        data["messages"]),
+                    "jobs": data["jobs"],
+                })
+
+            return {
+                "env": env,
+                "total": len(jobs),
+                "passed": len(passed_jobs),
+                "failed": len(failed_jobs),
+                "has_baseline": has_baseline,
+                "failures": classified,
+            }
+
+        envs_to_check = [
+            (env, cfg) for env, cfg in ENVS.items()
+            if "presubmit" in cfg]
+
+        results = []
+        with ThreadPoolExecutor(
+                max_workers=len(envs_to_check)) as pool:
+            futures = {
+                pool.submit(_check_env, env, cfg): env
+                for env, cfg in envs_to_check}
+            for f in as_completed(futures):
+                try:
+                    result = f.result()
+                except Exception:
+                    continue
+                if result:
+                    results.append(result)
+
+        results.sort(key=lambda r: r["env"])
+        return {"pr": pr_number, "envs": results,
+                "fetch_errors": self._error_delta(snap)}
 
 
 # --- Evidence rendering ---
 
 
-def _render_summary(results):
+def _render_fetch_warnings(fetch_errors):
+    """Format fetch error warning, or empty string if none."""
+    parts = []
+    for kind in ("timeout", "http", "network", "parse"):
+        n = fetch_errors.get(kind, 0)
+        if n:
+            parts.append(f"{n} {kind}")
+    if not parts:
+        return ""
+    return (f"**Warning**: fetch errors ({', '.join(parts)})"
+            f" — some data may be incomplete")
+
+
+def _render_summary(data):
     """Render summary scan as compact markdown table."""
+    results = data["envs"]
+    fleet = data.get("fleet_failures", [])
+    fetch_errors = data.get("fetch_errors", {})
+
     lines = []
     now_str = datetime.now(tz=timezone.utc).strftime(
         "%Y-%m-%d %H:%M UTC")
     lines.append(f"# CI Summary — {now_str}")
+    warning = _render_fetch_warnings(fetch_errors)
+    if warning:
+        lines.append("")
+        lines.append(warning)
     lines.append("")
     lines.append(
         "| Env | Type | Passed | Failed"
@@ -691,15 +907,32 @@ def _render_summary(results):
             f"| {r['passed']} | {r['failed']} "
             f"| {pct} | {top} |")
     lines.append("")
+
+    if fleet:
+        lines.append("## Fleet-Wide Failures")
+        lines.append("")
+        for f in fleet:
+            envs_str = ", ".join(f["envs"])
+            lines.append(
+                f"- **{f['test']}** ({envs_str})")
+        lines.append("")
+
     return "\n".join(lines)
 
 
-def _render_evidence(env_results):
+def _render_evidence(data):
     """Render failure_summary results as markdown for agent analysis."""
+    env_results = data["results"]
+    fetch_errors = data.get("fetch_errors", {})
+
     lines = []
     now_str = datetime.now(tz=timezone.utc).strftime(
         "%Y-%m-%d %H:%M UTC")
     lines.append(f"# CI Evidence Packet — {now_str}")
+    warning = _render_fetch_warnings(fetch_errors)
+    if warning:
+        lines.append("")
+        lines.append(warning)
     lines.append("")
 
     # Job summary table
@@ -795,6 +1028,60 @@ def _render_evidence(env_results):
     return "\n".join(lines)
 
 
+def _render_pr(data):
+    """Render PR triage results as markdown."""
+    fetch_errors = data.get("fetch_errors", {})
+
+    lines = []
+    now_str = datetime.now(tz=timezone.utc).strftime(
+        "%Y-%m-%d %H:%M UTC")
+    lines.append(
+        f"# PR #{data['pr']} — CI Results — {now_str}")
+    warning = _render_fetch_warnings(fetch_errors)
+    if warning:
+        lines.append("")
+        lines.append(warning)
+    lines.append("")
+
+    if not data["envs"]:
+        lines.append(
+            "No presubmit jobs found for this PR.")
+        return "\n".join(lines)
+
+    for er in data["envs"]:
+        status = f"{er['passed']}/{er['total']} passed"
+        lines.append(f"## {er['env']}: {status}")
+        lines.append("")
+
+        if not er["failures"]:
+            if er["failed"]:
+                lines.append(
+                    "Failed jobs but no test-level "
+                    "failures (infrastructure issue?).")
+            else:
+                lines.append("All runs passed.")
+            lines.append("")
+            continue
+
+        for f in er["failures"]:
+            tag = "baseline" if f["baseline"] else "NEW"
+            lines.append(
+                f"**{f['test']}** — "
+                f"{f['count']}x [{tag}]")
+            for entry in f.get("messages", []):
+                suffix = (f" (x{entry['count']})"
+                          if entry["count"] > 1 else "")
+                msg_line = entry["msg"].split('\n')[0]
+                lines.append(
+                    f"  msg{suffix}: {msg_line}")
+            if f["jobs"]:
+                lines.append(
+                    f"  jobs: {', '.join(f['jobs'])}")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
 # --- CLI ---
 
 def _parse_since(value):
@@ -838,6 +1125,9 @@ def main(argv=None):
                     help="ISO date or relative (7d, 24h, 2w)")
     su.add_argument("--until",
                     help="ISO date end filter")
+    su.add_argument("--json", action="store_true",
+                    dest="json_output",
+                    help="Output JSON instead of markdown")
     su.add_argument("--cache-dir")
     su.add_argument("--no-cache", action="store_true")
 
@@ -848,8 +1138,20 @@ def main(argv=None):
                     help="ISO date or relative (7d, 24h, 2w)")
     fa.add_argument("--until",
                     help="ISO date end filter")
+    fa.add_argument("--json", action="store_true",
+                    dest="json_output",
+                    help="Output JSON instead of markdown")
     fa.add_argument("--cache-dir")
     fa.add_argument("--no-cache", action="store_true")
+
+    pr_p = sub.add_parser(
+        "pr", help="PR failure analysis with baseline")
+    pr_p.add_argument("pr_number", type=int)
+    pr_p.add_argument("--json", action="store_true",
+                      dest="json_output",
+                      help="Output JSON instead of markdown")
+    pr_p.add_argument("--cache-dir")
+    pr_p.add_argument("--no-cache", action="store_true")
 
     bl = sub.add_parser(
         "build-log", help="Build-log tail")
@@ -862,7 +1164,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     fetcher = None
-    if (args.command in ("failures", "summary")
+    if (args.command in ("failures", "summary", "pr")
             and not getattr(args, "no_cache", False)):
         cache_dir = getattr(args, "cache_dir", None)
         fetcher = CachedFetcher(cache_dir=cache_dir)
@@ -874,18 +1176,31 @@ def main(argv=None):
                 datetime.now(tz=timezone.utc)
                 - timedelta(days=7)
             ).strftime("%Y-%m-%d")
-            results = client.summary(
+            data = client.summary(
                 since=since, until=args.until)
-            print(_render_summary(results))
+            if args.json_output:
+                print(json.dumps(data, indent=2))
+            else:
+                print(_render_summary(data))
 
         elif args.command == "failures":
             since = _parse_since(args.since) or (
                 datetime.now(tz=timezone.utc)
                 - timedelta(days=7)
             ).strftime("%Y-%m-%d")
-            results = client.failures(
+            data = client.failures(
                 args.env, since=since, until=args.until)
-            print(_render_evidence(results))
+            if args.json_output:
+                print(json.dumps(data, indent=2))
+            else:
+                print(_render_evidence(data))
+
+        elif args.command == "pr":
+            data = client.pr(args.pr_number)
+            if args.json_output:
+                print(json.dumps(data, indent=2))
+            else:
+                print(_render_pr(data))
 
         elif args.command == "build-log":
             base_url = _normalize_base_url(args.base_url)
