@@ -88,7 +88,6 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
     properties: {
       osType: 'Linux'
       osSKU: 'AzureLinux'
-      orchestratorVersion: null
       mode: 'User'
       enableAutoScaling: true
       enableEncryptionAtHost: true
