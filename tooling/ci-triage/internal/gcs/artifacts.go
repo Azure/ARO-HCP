@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/config"
 )
 
 // StepExecution represents one step in the ci-operator step graph with timing.
@@ -110,7 +112,7 @@ type ARMResource struct {
 func (c *Client) FetchTimingMetadata(ctx context.Context, baseURL, step string) ([]TimingMetadata, error) {
 	// List timing metadata files
 	prefix := extractGCSPath(baseURL) + "/artifacts/" + step + "/aro-hcp-gather-test-visualization/artifacts/test-timing/"
-	listURL := fmt.Sprintf("%s?prefix=%s&fields=items(name)&maxResults=50", GCSAPI, prefix)
+	listURL := fmt.Sprintf("%s?prefix=%s&fields=items(name)&maxResults=50", config.GCSAPI, prefix)
 
 	var listResp gcsListResponse
 	if err := c.fetchJSON(ctx, listURL, 10*time.Second, &listResp); err != nil {
@@ -122,7 +124,7 @@ func (c *Client) FetchTimingMetadata(ctx context.Context, baseURL, step string) 
 		if len(item.Name) == 0 {
 			continue
 		}
-		fileURL := GCSDirect + "/" + item.Name
+		fileURL := config.GCSDirect + "/" + item.Name
 		data, err := c.fetchBytes(ctx, fileURL, 15*time.Second)
 		if err != nil || data == nil {
 			continue
@@ -136,8 +138,3 @@ func (c *Client) FetchTimingMetadata(ctx context.Context, baseURL, step string) 
 	return results, nil
 }
 
-// GCSAPI is the GCS JSON API endpoint for the test-platform-results bucket.
-const GCSAPI = "https://storage.googleapis.com/storage/v1/b/test-platform-results/o"
-
-// GCSDirect is the direct access URL for the test-platform-results bucket.
-const GCSDirect = "https://storage.googleapis.com/test-platform-results"

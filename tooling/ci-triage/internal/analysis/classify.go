@@ -137,7 +137,7 @@ func EstimateTypicalTestCount(runs []sippy.JobRun) int {
 	// Successful runs have 0 test failures, so we can't get count from them directly.
 	// Instead, look at runs with some failures but not wipeouts — the max
 	// (passed + failed) gives us the best estimate.
-	// As a heuristic: look at the median of failed test counts from non-wipeout
+	// As a heuristic: look at the max of failed test counts from non-wipeout
 	// failing runs. If no failures, use a default.
 	maxSeen := 0
 	for _, run := range runs {

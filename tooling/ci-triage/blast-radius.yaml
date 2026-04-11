@@ -1,0 +1,294 @@
+# ARO-HCP Component Blast Radius Map
+# Used by ci-triage agent to understand which code changes can cause
+# which test failures, improving PR relevance scoring and root cause analysis.
+#
+# This file is derived from the repo's Go module graph, pipeline definitions,
+# Makefile targets, and service deployment configurations.
+
+# Service-to-cluster mapping
+# Which services run where — critical for understanding failure scope
+services:
+  svc_cluster:
+    description: "Service cluster — one per region, hosts the control plane services"
+    services:
+      - name: frontend
+        directory: "frontend/"
+        description: "ARM REST API endpoint — handles Azure ARM API calls"
+        internal_packages: [admission, api, api/arm, api/v20240610preview, api/v20251223preview, audit, conversion, database, databasetesting, errorutils, ocm, serverutils, signal, tracing, utils, validation, version]
+        image_key: "frontend.image"
+      - name: backend
+        directory: "backend/"
+        description: "Async operations processor — controllers, informers, cluster/nodepool lifecycle"
+        internal_packages: [api, api/arm, certificate, cincinatti, database, databasetesting, fpa, ocm, serverutils, signal, tracing, utils, utils/apihelpers, version]
+        image_key: "backend.image"
+      - name: cluster-service
+        directory: "cluster-service/"
+        description: "Core cluster management — HCP cluster lifecycle via OCM"
+        image_key: "clustersService.image"
+        notes: "Deploys to SVC but interacts heavily with MGMT clusters"
+      - name: maestro-server
+        directory: "maestro/server/"
+        description: "Multi-cluster orchestration — server side on SVC"
+        image_key: "maestro.image"
+      - name: sessiongate
+        directory: "sessiongate/"
+        description: "Session management — standalone module, no internal/ dependencies"
+        image_key: "sessiongate.image"
+      - name: admin-api
+        directory: "admin/"
+        description: "Admin operations, breakglass, cosmos dump"
+        internal_packages: [api, api/arm, audit, certificate, database, errorutils, fpa, ocm, serverutils, signal, utils]
+        image_key: "adminApi.image"
+
+  mgmt_cluster:
+    description: "Management cluster — multiple per region, runs HCP workloads"
+    services:
+      - name: hypershiftoperator
+        directory: "hypershiftoperator/"
+        description: "HyperShift operator — manages hosted control planes on MGMT"
+        image_key: "hypershift.image"
+      - name: maestro-agent
+        directory: "maestro/agent/"
+        description: "Maestro agent — receives work from server, deploys to MGMT"
+        image_key: "maestro.image"
+        notes: "Also registers with SVC cluster — cross-cluster component"
+      - name: acm
+        directory: "acm/"
+        description: "Advanced Cluster Management — MCE CRDs, policies"
+        notes: "No custom image — uses upstream releases"
+      - name: secret-sync-controller
+        directory: "secret-sync-controller/"
+        description: "Syncs secrets from KeyVault to cluster"
+        image_key: "secretSyncController.image"
+      - name: velero
+        directory: "velero/"
+        description: "Backup/restore for MGMT cluster state"
+      - name: route-monitor-operator
+        directory: "route-monitor-operator/"
+        description: "Route monitoring and alerting"
+
+  both_clusters:
+    - name: observability-tracing
+      directory: "observability/tracing/"
+      description: "Distributed tracing — deployed to both SVC and MGMT"
+
+# Directory-to-blast-radius mapping
+# When a PR changes files in these directories, what's the impact?
+blast_radius:
+  # === MAXIMUM BLAST RADIUS ===
+  "internal/":
+    impact: critical
+    scope: "all services"
+    reason: "Shared library — imported by frontend, backend, admin, test, test-integration"
+    affected_services: [frontend, backend, admin-api, cluster-service]
+    affected_tests: [test, test-integration]
+    notes: >
+      Changes to internal/ sub-packages have different scopes:
+      - api/, database/, utils/ — used by almost everything (maximum blast radius)
+      - ocm/ — used by frontend, backend, admin (high blast radius)
+      - admission/, audit/, serverutils/ — frontend and admin only
+      - certificate/, fpa/, cincinatti/ — backend and admin only
+      - tracing/, signal/ — infrastructure, low functional blast radius
+
+  "internal/api/":
+    impact: critical
+    scope: "all services"
+    reason: "Core API types — every service that handles ARM resources depends on this"
+
+  "internal/database/":
+    impact: critical
+    scope: "all services with data persistence"
+    reason: "Database abstraction — frontend, backend, admin all use this"
+
+  "internal/ocm/":
+    impact: high
+    scope: "frontend, backend, admin, cluster-service"
+    reason: "OCM SDK integration — affects how clusters are created/managed via OCM"
+
+  # === HIGH BLAST RADIUS ===
+  "dev-infrastructure/templates/global-infra.bicep":
+    impact: critical
+    scope: "all environments, all regions, all clusters"
+    reason: "Global infrastructure — DNS, MSI, KeyVault used by everything"
+
+  "dev-infrastructure/modules/":
+    impact: high
+    scope: "varies by module — many are shared across global/region/svc/mgmt"
+    reason: "Reusable bicep modules referenced by multiple templates"
+    notable_modules:
+      "keyvault/": "used by global, svc, and mgmt — affects all certificate/secret operations"
+      "dns/": "used by global and region — affects all DNS resolution"
+      "acr/": "used by global — affects all image distribution"
+      "network/": "used by svc and mgmt — affects cluster networking"
+      "maestro/": "used by region, svc, and mgmt — affects cross-cluster communication"
+      "metrics/": "used by region and monitoring — affects observability"
+
+  "dev-infrastructure/templates/region.bicep":
+    impact: high
+    scope: "all clusters in one region (both SVC and MGMT)"
+    reason: "Regional infrastructure shared by SVC and MGMT"
+
+  "config/":
+    impact: high
+    scope: "all environments"
+    reason: "Central configuration — affects how all services are configured"
+    notes: "config.yaml changes can affect any environment; overlay files scope the impact"
+
+  # === MEDIUM BLAST RADIUS ===
+  "backend/":
+    impact: medium-high
+    scope: "backend service + cluster/nodepool tests"
+    cluster: svc
+    reason: "Async operations, controllers, cluster lifecycle"
+    test_correlation: "Strongly correlated with cluster create/update/delete tests and nodepool tests"
+
+  "frontend/":
+    impact: medium-high
+    scope: "frontend service + all ARM API tests"
+    cluster: svc
+    reason: "ARM REST API — all customer-facing operations go through frontend"
+    test_correlation: "Affects all tests that call the ARM API (most E2E tests)"
+
+  "cluster-service/":
+    impact: medium-high
+    scope: "cluster-service + cluster lifecycle tests"
+    cluster: svc
+    reason: "Core cluster management via OCM"
+    test_correlation: "Cluster creation, deletion, and lifecycle tests"
+
+  "maestro/":
+    impact: medium-high
+    scope: "maestro server (SVC) + maestro agent (MGMT) + cross-cluster communication"
+    cluster: both
+    reason: "Maestro bridges SVC and MGMT — changes can affect both clusters"
+    test_correlation: "Any test that requires work to propagate from SVC to MGMT"
+
+  "hypershiftoperator/":
+    impact: medium
+    scope: "hypershift operator on MGMT + hosted control plane lifecycle"
+    cluster: mgmt
+    reason: "Manages the actual HCP workloads on management clusters"
+    test_correlation: "Cluster provisioning and hosted control plane readiness tests"
+
+  "dev-infrastructure/templates/svc-cluster.bicep":
+    impact: medium
+    scope: "one SVC cluster"
+    reason: "AKS cluster, networking, CosmosDB, PostgreSQL for one SVC instance"
+
+  "dev-infrastructure/templates/mgmt-cluster.bicep":
+    impact: medium
+    scope: "one MGMT cluster (but affects all hosted clusters under it)"
+    reason: "AKS cluster, networking, storage for one MGMT instance"
+
+  # === LOW BLAST RADIUS ===
+  "test/":
+    impact: low
+    scope: "test execution only — does not affect service behavior"
+    reason: "Test code changes can cause test failures but not service failures"
+    notes: "A test/ change causing a failure is likely a test bug, not a regression"
+
+  "admin/":
+    impact: low-medium
+    scope: "admin API only"
+    cluster: svc
+    reason: "Admin operations — not in the hot path for customer operations"
+
+  "sessiongate/":
+    impact: low
+    scope: "sessiongate only — standalone module"
+    cluster: svc
+    reason: "No internal/ dependencies, isolated module"
+
+  "tooling/":
+    impact: minimal
+    scope: "developer tooling only — does not affect deployed services"
+    reason: "CLI tools, CI helpers, build utilities"
+    exceptions:
+      "tooling/templatize/": "Changes here can affect how pipelines are processed — medium blast radius"
+
+  "acm/":
+    impact: low-medium
+    scope: "ACM/MCE on MGMT"
+    cluster: mgmt
+    reason: "Uses upstream images — changes are config-only (Helm values)"
+
+  "secret-sync-controller/":
+    impact: low
+    scope: "secret syncing on MGMT"
+    cluster: mgmt
+
+  "velero/":
+    impact: low
+    scope: "backup/restore on MGMT"
+    cluster: mgmt
+
+  "route-monitor-operator/":
+    impact: low
+    scope: "route monitoring on MGMT"
+    cluster: mgmt
+
+  "observability/":
+    impact: low
+    scope: "tracing/monitoring — does not affect functional behavior"
+    cluster: both
+
+# Go module dependency graph (simplified)
+# Shows which modules are "core" (depended on by many) vs "leaf" (nothing depends on them)
+module_graph:
+  core:
+    - module: "internal"
+      dependents: [backend, frontend, "admin/server", test, test-integration]
+      notes: "THE core dependency — changes here ripple everywhere"
+
+  services:
+    - module: "backend"
+      depends_on: [internal]
+      dependents: [test-integration]
+    - module: "frontend"
+      depends_on: [internal]
+      dependents: [test-integration]
+    - module: "admin/server"
+      depends_on: [internal, sessiongate]
+      dependents: [test-integration]
+    - module: "sessiongate"
+      depends_on: []  # standalone
+      dependents: ["admin/server", test-integration]
+
+  test:
+    - module: "test"
+      depends_on: [internal, "tooling/hcpctl", "tooling/templatize"]
+      notes: "E2E test framework"
+    - module: "test-integration"
+      depends_on: [internal, "admin/server", backend, frontend, sessiongate]
+      notes: "Integration tests — depends on almost everything"
+
+  leaf:
+    - "admin/client"
+    - "tooling/ci-triage"
+    - "tooling/grafanactl"
+    - "tooling/helmtest"
+    - "tooling/image-updater"
+    - "tooling/olm-bundle-repkg"
+    - "tooling/pipeline-documentation"
+    - "tooling/prometheus-rules"
+    - "tooling/secret-sync"
+    - "tooling/yamlwrap"
+
+# Cross-component interactions the agent should know about
+# These are NOT visible in import graphs alone
+cross_component_interactions:
+  - name: "frontend → backend async handoff"
+    description: "Frontend accepts ARM requests and queues async operations for backend"
+    implication: "Frontend changes can cause backend controller failures (and vice versa)"
+
+  - name: "cluster-service → maestro → hypershift"
+    description: "Cluster creation flows: CS creates via OCM, Maestro propagates to MGMT, HyperShift provisions"
+    implication: "A cluster creation timeout could be caused by any component in this chain"
+
+  - name: "maestro server ↔ maestro agent"
+    description: "Server on SVC, agent on MGMT, communicate via EventGrid"
+    implication: "Maestro changes affect both clusters; EventGrid/regional infra changes affect maestro"
+
+  - name: "internal/api type changes"
+    description: "API type changes affect serialization in frontend AND backend AND admin"
+    implication: "A type change in internal/api/ can cause failures in any service that handles that type"

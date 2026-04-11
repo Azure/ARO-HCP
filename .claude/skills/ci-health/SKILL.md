@@ -1,6 +1,7 @@
 ---
 name: ci-health
 description: Fleet-wide CI health scan with infra event detection and fleet-wide failure classification
+argument-hint: (no arguments needed)
 user-invocable: true
 ---
 

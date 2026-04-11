@@ -79,9 +79,9 @@ func (e *UnknownEnvError) Error() string {
 	return fmt.Sprintf("unknown env: %s. Valid: %s", e.Env, strings.Join(EnvNames(), ", "))
 }
 
-// EnvNames returns sorted environment names.
+// EnvNames returns environment names in promotion order.
 func EnvNames() []string {
-	return []string{"dev", "int", "prod", "stg"}
+	return []string{"dev", "int", "stg", "prod"}
 }
 
 // envURLMarkers maps URL fragments to environment names.

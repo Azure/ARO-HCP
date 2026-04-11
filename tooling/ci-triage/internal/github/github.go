@@ -126,7 +126,7 @@ func ListMergedPRs(ctx context.Context, since, until string) ([]MergedPR, error)
 		// Trim timestamp to date for cleaner display
 		mergedAt := e.MergedAt
 		if idx := strings.IndexByte(mergedAt, 'T'); idx > 0 {
-			mergedAt = e.MergedAt
+			mergedAt = mergedAt[:idx]
 		}
 		result = append(result, MergedPR{
 			Number:   e.Number,

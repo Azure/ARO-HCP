@@ -1,0 +1,178 @@
+# ARO-HCP Deployment Topology Reference
+# Used by ci-triage agent to reason about environment relationships,
+# deployment promotion, and failure propagation.
+#
+# IMPORTANT: This file encodes operational knowledge that cannot be derived
+# from the repo alone. Keep it updated when the deployment process changes.
+
+# Environment promotion chain — code flows through these in order.
+# Each environment has different deployment drivers, timing, and gating.
+promotion_flow:
+  - env: dev
+    cloud: dev
+    tenant: redhat
+    deployment_driver: github_actions
+    # GitHub Actions runs on push to main (publish-service-images → aro-hcp-cd)
+    trigger: automatic_on_merge
+    # Images build and deploy within minutes of merge
+    typical_lag_from_merge: "~10-20 minutes"
+    gating: none
+    prow_jobs:
+      presubmit: pull-ci-Azure-ARO-HCP-main-e2e-parallel
+      periodic: null  # no periodic for dev
+    notes: >
+      Dev is the first environment to receive changes. GitHub Actions builds
+      images and deploys to the integrated dev AKS cluster automatically.
+      Failures here block nothing downstream — int/stg/prod use a separate
+      deployment path (EV2).
+
+  - env: int
+    cloud: public
+    tenant: msit_corp
+    deployment_driver: ev2_via_ado
+    # FILL IN: What triggers the int deployment?
+    # Options: automatic after dev passes? manual PR to sdp-pipelines?
+    # periodic schedule? manual ADO pipeline run?
+    trigger: "TODO: fill in — what triggers int deployment?"
+    # FILL IN: How long after merge to main does code typically reach int?
+    typical_lag_from_merge: "TODO: fill in (hours? days?)"
+    gating:
+      # gatePromotion: true in EV2 — Prow E2E results gate promotion to stg
+      prow_gates_promotion: true
+    prow_jobs:
+      presubmit: pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel
+      periodic: periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel
+    sippy_view: aro-integration
+    notes: >
+      First MSFT-tenant environment. Deployed via EV2 through sdp-pipelines.
+      Uses OneCert, ARM integration, MISE. Prow E2E results gate promotion
+      to stg. This is where most regressions are first caught in prod-like
+      conditions.
+
+  - env: stg
+    cloud: public
+    tenant: ame
+    deployment_driver: ev2_via_ado
+    # FILL IN: Is stg promotion automatic after int Prow passes?
+    # Or does it require manual approval?
+    trigger: "TODO: fill in — automatic after int gates pass, or manual?"
+    # FILL IN: Typical lag from int to stg
+    typical_lag_from_int: "TODO: fill in (hours? days?)"
+    gating:
+      # FILL IN: Does stg have its own gate, or just inherits from int?
+      approval_required: "TODO: fill in"
+      approval_group: "TM-AzureRedHatOpenshift-HCP-Leads"
+    prow_jobs:
+      presubmit: pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel
+      periodic: periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel
+    sippy_view: aro-stage
+    multi_tenant: true
+    notes: >
+      Pre-production environment. Multi-tenant like prod. Uses MSI-RP.
+      If a failure appears in stg but not int, check for multi-tenancy
+      or scale-related issues that don't manifest in single-tenant int.
+
+  - env: prod
+    cloud: public
+    tenant: ame
+    deployment_driver: ev2_via_ado
+    # FILL IN: How does prod promotion work?
+    trigger: "TODO: fill in — manual approval? automatic after stg?"
+    # FILL IN: Typical lag from stg to prod
+    typical_lag_from_stg: "TODO: fill in (hours? days?)"
+    gating:
+      approval_required: true
+      approval_group: "TM-AzureRedHatOpenshift-HCP-Leads"
+      saw_device_required: true
+    prow_jobs:
+      presubmit: pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel
+      periodic: periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel
+    sippy_view: aro-production
+    multi_tenant: true
+    notes: >
+      Production. Last to receive changes. If a failure appears in prod
+      with onset N days after int, that matches the promotion lag and
+      confirms a code regression propagating through environments.
+
+# EV2 Safe Deployment Practices (SDP)
+# FILL IN: How does region-by-region rollout work?
+ev2_sdp:
+  # FILL IN: What are the region groups and their order?
+  region_groups:
+    - group: 1
+      regions: ["TODO: fill in (canary region?)"]
+    - group: 2
+      regions: ["TODO: fill in"]
+    - group: 3
+      regions: ["TODO: fill in"]
+  # FILL IN: Is there automatic rollback on failure?
+  rollback_on_failure: "TODO: fill in"
+  # FILL IN: How long does a full rollout take across all regions?
+  full_rollout_duration: "TODO: fill in"
+
+# The dev→int boundary
+# This is the critical handoff point. Code deployed to dev via GitHub Actions
+# must be separately picked up by the EV2/ADO pipeline for int/stg/prod.
+dev_to_int_boundary:
+  mechanism: "sdp-pipelines repo"
+  # FILL IN: How does the commit SHA get into sdp-pipelines?
+  # Is it automatic? Does someone update Revision.mk manually?
+  sha_propagation: "TODO: fill in — how does the ARO-HCP commit reach sdp-pipelines?"
+  # FILL IN: Is there a config overlay step?
+  config_overlay: "sdp-pipelines/hcp/config.clouds-overlay.yaml"
+  notes: >
+    This boundary explains why a fix merged to main appears in dev quickly
+    but takes longer to reach int. The lag is NOT just deployment time —
+    it includes the time for someone/something to update sdp-pipelines.
+
+# Deployment topology — which pipelines run in which order
+# (derived from topology.yaml in the repo, reproduced here for agent context)
+pipeline_hierarchy:
+  - name: "Microsoft.Azure.ARO.HCP.Global"
+    scope: "once per environment"
+    deploys: "DNS zones, Grafana, MSI, ACRs, image sync"
+    children:
+      - name: "Microsoft.Azure.ARO.HCP.Geography"
+        children:
+          - name: "Microsoft.Azure.ARO.HCP.Region"
+            scope: "per region"
+            deploys: "regional DNS, EventGrid, ACR replication, monitoring, Kusto"
+            children:
+              - name: "Microsoft.Azure.ARO.HCP.Service.Infra"
+                scope: "per SVC cluster"
+                deploys: "SVC AKS, KeyVault, CosmosDB, Prometheus, Istio"
+                service_deployments:
+                  - "Maestro Server"
+                  - "Cluster Service"
+                  - "Backend (RP)"
+                  - "Frontend (RP)"
+                  - "SessionGate"
+                  - "Admin API"
+              - name: "Microsoft.Azure.ARO.HCP.Management.Infra"
+                scope: "per MGMT cluster"
+                deploys: "MGMT AKS, KeyVaults, storage, Prometheus"
+                service_deployments:
+                  - "Velero"
+                  - "Secret Sync Controller"
+                  - "ACM + MCE"
+                  - "HyperShift Operator"
+                  - "Maestro Agent"
+                  - "Route Monitor Operator"
+              - name: "Microsoft.Azure.ARO.HCP.Monitoring"
+                scope: "per region"
+              - name: "Microsoft.Azure.ARO.HCP.E2E"
+                scope: "per region"
+                notes: "gates SDP progression to next region group"
+
+# Reasoning shortcuts for the agent
+inference_rules:
+  - pattern: "failure in int with onset date D, then same failure in stg with onset D+N"
+    inference: "code regression propagating through promotion flow; N is the int→stg promotion lag"
+  - pattern: "failure in prod only, not in int or stg"
+    inference: "prod-specific issue: scale, multi-tenancy, config, or prod-only deployment"
+  - pattern: "failure in int only, not in stg or prod"
+    inference: "recent code change not yet promoted, OR int-specific environment issue"
+  - pattern: "failure in all envs simultaneously"
+    inference: "shared dependency or platform-wide issue, not a code regression"
+  - pattern: "failure appears in dev presubmit but not in int periodic"
+    inference: "dev and int use different deployment paths; check if the code has reached int yet"
