@@ -17,72 +17,42 @@ package cmd
 import (
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/analysis"
-	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/db"
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/render"
-	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/store"
+	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/sippy"
 )
 
 // NewPRCommand creates the pr cobra command.
 func NewPRCommand() *cobra.Command {
-	var (
-		jsonOutput bool
-		noSync     bool
-	)
-
 	cmd := &cobra.Command{
 		Use:   "pr NUMBER",
 		Short: "PR failure analysis with baseline comparison",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			dbPath := mustDBPath(cmd)
 
 			prNumber, err := strconv.Atoi(args[0])
 			if err != nil {
 				return fmt.Errorf("invalid PR number: %w", err)
 			}
 
-			database, err := db.OpenAndMigrate(dbPath)
-			if err != nil {
-				return err
-			}
-			defer database.Close()
-
-			s := store.New(database)
-
-			if !noSync {
-				// PR triage needs broader data: presubmit for the PR + periodic for baseline
-				sinceTime := time.Now().UTC().Add(-14 * 24 * time.Hour)
-				if err := syncIngest(ctx, s, sinceTime, ""); err != nil {
-					return err
-				}
-			}
-
-			data, err := analysis.PR(ctx, s, prNumber)
+			sc := sippy.NewClient()
+			data, err := analysis.PR(ctx, sc, prNumber)
 			if err != nil {
 				return err
 			}
 
-			if jsonOutput {
-				out, err := render.JSON(data)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintln(cmd.OutOrStdout(), out)
-			} else {
-				fmt.Fprint(cmd.OutOrStdout(), render.PR(data))
+			out, err := render.JSON(data)
+			if err != nil {
+				return err
 			}
+			fmt.Fprintln(cmd.OutOrStdout(), out)
 			return nil
 		},
 	}
-
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON instead of markdown")
-	cmd.Flags().BoolVar(&noSync, "no-sync", false, "skip data ingestion (use existing DB only)")
 
 	return cmd
 }

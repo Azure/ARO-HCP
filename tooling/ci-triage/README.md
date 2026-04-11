@@ -1,87 +1,90 @@
 # ci-triage
 
-CI failure triage tool for ARO-HCP Prow e2e tests. Ingests job data from GCS into a local SQLite database, then provides failure analysis, onset detection, message deduplication, and PR baseline comparison.
+CI failure triage tool for ARO-HCP Prow e2e tests. Queries Sippy and GCS for fleet health, failure classification, onset detection, deployment correlation, and root cause analysis across all environments.
+
+Stateless — no database, no local state. Sippy provides fleet data, GCS provides test artifacts (cached locally), GitHub provides PR data, and cross-CI search checks platform scope.
 
 ## Quick Start
 
 ```bash
 make build
 
-# One-shot: ingest + analyze (auto-syncs fresh data from GCS)
-./ci-triage summary --since 7d
-./ci-triage failures int --since 14d
-./ci-triage pr 4630
-
-# Build log (fetched live, not from DB)
-./ci-triage build-log <GCSWEB_URL> int --lines 200
+./ci-triage summary --since 14d                    # Fleet health across all envs
+./ci-triage failures int --since 14d               # Deep failure analysis for one env
+./ci-triage diagnose prod --since 14d              # Full automated synthesis with verdict
+./ci-triage correlate stg --since 14d              # Map failure onsets to deployments + PRs
+./ci-triage pr 4724                                # PR triage with baseline comparison
 ```
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `summary` | Cross-env health scan with pass rates and fleet-wide failure correlation |
-| `failures ENV` | Deep evidence packet: failure groups, onset detection, per-job breakdown |
-| `pr NUMBER` | PR triage with periodic baseline comparison (`[baseline]` vs `[NEW]`) |
-| `build-log URL [ENV]` | Raw build log tail with timestamp visibility |
-| `ingest` | Explicit data ingestion (query commands auto-sync by default) |
-| `serve` | HTTP server with continuous ingestion polling |
+| `summary` | Fleet-wide health scan: pass rates, infra event counts, flaky tests, fleet-wide failures with classification |
+| `failures ENV` | Deep failure analysis: classified failure groups, onset detection, cross-env context, EV2 deployment info, error messages |
+| `investigate ENV [--test]` | Deep single-test investigation: GCS artifacts (step timing, Azure API logs) + cross-CI scope check |
+| `diagnose ENV [--test]` | Full synthesis: fleet health + investigation + correlation → verdict with confidence and evidence chain |
+| `correlate ENV [--test]` | Map failure onsets to EV2 deployment changes and merged PRs with relevance scoring |
+| `timeline ENV` | Time-series of job pass/fail with rollout annotations and infra flags |
+| `pr NUMBER` | PR failure analysis with periodic baseline comparison (`[baseline]` vs `[NEW]`) and changed files |
+| `build-log URL ENV` | Raw build log tail from a specific job run |
+| `test-detail URL ENV TEST` | Per-test deep dive: full error, full output, Azure API logs (every ARM call with timestamps) |
+| `search QUERY [--cross-ci]` | Search CI artifacts for failure patterns; `--cross-ci` compares ARO vs all OpenShift CI |
 
-## How It Works
-
-1. **Ingest** fetches job metadata (`finished.json`) and test results (`junit.xml`) from GCS, parses them, and stores structured data in SQLite.
-2. **Query** commands read from the DB using SQL joins and aggregations — no network calls needed.
-3. **Auto-sync** (default) runs ingestion before each query to ensure fresh data. Use `--no-sync` to skip.
-4. **Retention** auto-prunes data older than 30 days during sync. Override with `ingest --retain 90d`.
-
-## Data Flow
+## Data Sources
 
 ```
-GCS (test-platform-results)
-  └─ finished.json, junit.xml per job
-       │
-       ▼
-  Ingester (parallel fetch, 20 workers)
-       │  parse JUnit XML
-       │  normalize failure messages for dedup
-       │  extract snowflake timestamps from build IDs
-       ▼
-  SQLite DB (~/.cache/ci-triage/ci-triage.db)
-       │  jobs table (env, state, revision, PR, timestamps)
-       │  test_results table (test name, status, message, normalized key)
-       ▼
-  Analysis (SQL queries: failure groups, onset, fleet correlation)
-       │
-       ▼
-  Output (markdown or JSON)
+Sippy API (sippy.dptools.openshift.org)
+  ├─ Job runs: pass/fail, failed test names, infra flags, flake data
+  ├─ EV2 annotations: deployment commit, build, region per job run
+  ├─ Test outputs: failure messages from Sippy's index
+  └─ Health/statistics endpoints
+
+GCS (test-platform-results, public, cached locally)
+  ├─ extension_test_result_e2e_*.json — full error + output + timing per test
+  ├─ azure.log (per test) — every ARM API call with timestamps
+  ├─ build-log.txt — CI step execution log
+  ├─ ci-operator-step-graph.json — step dependency graph + timing
+  ├─ junit.xml — test pass/fail summary (fallback)
+  └─ finished.json — job state + revision
+
+GitHub (via gh CLI)
+  ├─ PR metadata: title, author, files, merge time
+  └─ Merged PR listing by time window
+
+Cross-CI Search (search.dptools.openshift.org)
+  └─ Regex search across ~307K OpenShift CI jobs
 ```
 
-## Database
+## Key Capabilities
 
-Default location: `~/.cache/ci-triage/ci-triage.db` (respects `$XDG_CACHE_HOME`).
+- **Failure classification**: regression / flaky / infrastructure / fleet_wide with confidence scoring
+- **Infrastructure separation**: wipeout jobs (>80% tests failing or Sippy infra flag) excluded from test-level analysis
+- **Cross-env context**: each failure shows which other environments have the same failure
+- **Deployment correlation**: EV2 rollout annotations identify which deployment commit was running at onset
+- **PR relevance scoring**: PRs in onset window scored by file changes, component overlap, keyword matching
+- **Cross-CI scope**: distinguishes ARO-specific failures from platform-wide OpenShift issues
+- **Azure API log analysis**: per-test ARM call tracing with LRO state transitions and ResponseErrors
 
-Override with `--db /path/to/db` on any command.
+## Claude Code Skills
 
-The DB is safe to delete — it rebuilds incrementally on the next run. A 7-day rebuild takes ~15 seconds; 30 days takes ~60 seconds. Auto-pruning removes data older than 30 days during sync.
+Available as 8 focused skills:
 
-Approximate sizes: 7 days ~9 MB, 30 days ~28 MB.
-
-## Service Mode
-
-For continuous operation (e.g., in a pod called by GitHub Actions):
-
-```bash
-./ci-triage serve --listen :8080 --poll 5m
 ```
-
-Endpoints: `GET /api/v1/summary`, `/api/v1/failures/{env}`, `/api/v1/pr/{number}`, `/healthz`
+/triage health          — Fleet scan, routes to sub-skills
+/ci-health              — Fleet-wide health assessment
+/ci-investigate int     — Deep environment investigation
+/ci-diagnose prod       — Full automated synthesis with verdict
+/ci-correlate stg       — Onset → deployment → PR correlation
+/ci-triage-pr 4724      — PR regression triage
+/ci-build-log URL ENV   — Build log + Azure API log analysis
+/ci-search "error"      — Cross-CI failure scope check
+```
 
 ## Development
 
 ```bash
-make test           # run unit tests (uses :memory: SQLite)
-make build          # build binary
-make clean          # remove binary
+make build    # build binary (no CGO required)
+make test     # run unit tests
+make clean    # remove binary
 ```
-
-The tool is also available as a Claude Code skill: `/triage int` or `/triage pr 4630`.

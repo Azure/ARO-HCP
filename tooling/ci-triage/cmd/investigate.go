@@ -24,14 +24,22 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/sippy"
 )
 
-// NewFailuresCommand creates the failures cobra command.
-func NewFailuresCommand() *cobra.Command {
-	var since string
+// NewInvestigateCommand creates the investigate cobra command.
+func NewInvestigateCommand() *cobra.Command {
+	var (
+		since    string
+		testName string
+	)
 
 	cmd := &cobra.Command{
-		Use:   "failures ENV",
-		Short: "Deep failure analysis for one environment",
-		Args:  cobra.ExactArgs(1),
+		Use:   "investigate ENV",
+		Short: "Deep investigation of a test failure with GCS artifacts and cross-CI search",
+		Long: `Investigate a specific test failure in depth. Chains Sippy failure data,
+GCS artifact analysis (step timing, Azure API logs), and cross-CI search
+to build a complete evidence package.
+
+If --test is not specified, investigates the top failing test.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			env := args[0]
@@ -42,7 +50,7 @@ func NewFailuresCommand() *cobra.Command {
 			}
 
 			sc := sippy.NewClient()
-			data, err := analysis.Failures(ctx, sc, env, sinceDur)
+			data, err := analysis.Investigate(ctx, sc, env, testName, sinceDur)
 			if err != nil {
 				return err
 			}
@@ -56,6 +64,7 @@ func NewFailuresCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&since, "since", "7d", "lookback window (7d, 24h, 2w)")
+	cmd.Flags().StringVar(&since, "since", "14d", "lookback window (7d, 24h, 2w)")
+	cmd.Flags().StringVar(&testName, "test", "", "specific test name to investigate (default: top failure)")
 	return cmd
 }

@@ -24,13 +24,13 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/sippy"
 )
 
-// NewFailuresCommand creates the failures cobra command.
-func NewFailuresCommand() *cobra.Command {
+// NewTimelineCommand creates the timeline cobra command.
+func NewTimelineCommand() *cobra.Command {
 	var since string
 
 	cmd := &cobra.Command{
-		Use:   "failures ENV",
-		Short: "Deep failure analysis for one environment",
+		Use:   "timeline ENV",
+		Short: "Time-series of job pass/fail for pattern recognition",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -42,7 +42,7 @@ func NewFailuresCommand() *cobra.Command {
 			}
 
 			sc := sippy.NewClient()
-			data, err := analysis.Failures(ctx, sc, env, sinceDur)
+			data, err := analysis.Timeline(ctx, sc, env, sinceDur)
 			if err != nil {
 				return err
 			}

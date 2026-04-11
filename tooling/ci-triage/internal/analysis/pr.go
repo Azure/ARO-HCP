@@ -16,15 +16,24 @@ package analysis
 
 import (
 	"context"
+	"net/http"
 	"sort"
+	"time"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/config"
+	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/gcs"
+	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/github"
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/prow"
-	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/store"
+	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/sippy"
 )
 
-// PR runs PR triage analysis from the store.
-func PR(ctx context.Context, s *store.Store, prNumber int) (*PRResult, error) {
+// PR runs PR triage analysis using GCS for PR builds + Sippy for baseline.
+func PR(ctx context.Context, sc *sippy.Client, prNumber int) (*PRResult, error) {
+	log := logr.FromContextOrDiscard(ctx)
+	gcsClient := gcs.NewClient(&http.Client{Timeout: 20 * time.Second})
+
 	var envResults []PREnvResult
 
 	for _, env := range config.EnvNames() {
@@ -33,71 +42,77 @@ func PR(ctx context.Context, s *store.Store, prNumber int) (*PRResult, error) {
 			continue
 		}
 
-		// Get all jobs for this PR in this env
-		jobs, err := s.ListJobs(ctx, store.JobFilter{
-			Env:     env,
-			JobType: "presubmit",
-			PR:      prNumber,
-		})
+		// List builds for this PR from GCS
+		builds, err := gcsClient.ListPRBuilds(ctx, prNumber, cfg.PresubmitJob)
 		if err != nil {
-			return nil, err
+			log.V(1).Info("pr build list skipped", "env", env, "error", err)
+			continue
 		}
-		if len(jobs) == 0 {
+		if len(builds) == 0 {
 			continue
 		}
 
-		passed := 0
-		failed := 0
-		for _, j := range jobs {
-			switch j.State {
-			case "success":
-				passed++
-			case "failure", "error":
-				failed++
-			}
-		}
-
-		// Get test failures for this PR
-		prFailures, err := s.PRTestFailures(ctx, env, prNumber)
-		if err != nil {
-			return nil, err
-		}
-
-		// Group failures by test name
+		passed, failed := 0, 0
 		type failEntry struct {
 			count    int
 			messages []string
 			jobs     []string
 		}
 		failMap := make(map[string]*failEntry)
-		for _, f := range prFailures {
-			name := f.TestName
-			if name == "" {
-				name = "unknown"
+
+		for _, buildID := range builds {
+			baseURL := config.GCSWebBase + "/logs/" + cfg.PresubmitJob + "/" + buildID
+			finished, err := gcsClient.FetchFinished(ctx, baseURL)
+			if err != nil {
+				continue
 			}
-			e, ok := failMap[name]
-			if !ok {
-				e = &failEntry{}
-				failMap[name] = e
+
+			switch finished.Result {
+			case "SUCCESS":
+				passed++
+			case "FAILURE", "ERROR":
+				failed++
+			default:
+				continue
 			}
-			e.count++
-			if f.Message != "" {
-				e.messages = append(e.messages, f.Message)
+
+			// Fetch JUnit for failing builds
+			if finished.Result != "SUCCESS" {
+				data, err := gcsClient.FetchJUnit(ctx, baseURL, cfg.Step, cfg.Container)
+				if err != nil {
+					continue
+				}
+				result := prow.ParseJUnit(data)
+				if result == nil {
+					continue
+				}
+				for _, f := range result.Failures {
+					name := f.Name
+					if name == "" {
+						name = "unknown"
+					}
+					e, ok := failMap[name]
+					if !ok {
+						e = &failEntry{}
+						failMap[name] = e
+					}
+					e.count++
+					if f.Message != "" {
+						e.messages = append(e.messages, f.Message)
+					}
+					e.jobs = append(e.jobs, config.ShortURL(baseURL))
+				}
 			}
-			e.jobs = append(e.jobs, config.ShortURL(f.BaseURL))
 		}
 
-		// Check baseline
-		hasBaseline := cfg.PeriodicJob != ""
+		// Baseline comparison using Sippy periodic data
+		hasBaseline := cfg.PeriodicJob != "" && sippy.HasEnv(env)
 		baseline := make(map[string]bool)
 		if hasBaseline {
-			baseline, err = s.BaselineFailingTests(ctx, env, 20)
-			if err != nil {
-				return nil, err
-			}
+			baseline = baselineFromSippy(ctx, sc, env, log)
 		}
 
-		// Classify
+		// Classify failures
 		var classified []ClassifiedFail
 		for name, e := range failMap {
 			classified = append(classified, ClassifiedFail{
@@ -114,7 +129,7 @@ func PR(ctx context.Context, s *store.Store, prNumber int) (*PRResult, error) {
 
 		envResults = append(envResults, PREnvResult{
 			Env:         env,
-			Total:       len(jobs),
+			Total:       passed + failed,
 			Passed:      passed,
 			Failed:      failed,
 			HasBaseline: hasBaseline,
@@ -126,9 +141,36 @@ func PR(ctx context.Context, s *store.Store, prNumber int) (*PRResult, error) {
 		return envResults[i].Env < envResults[j].Env
 	})
 
-	return &PRResult{
-		PR:          prNumber,
-		Envs:        envResults,
-		FetchErrors: make(map[string]int),
-	}, nil
+	result := &PRResult{
+		PR:   prNumber,
+		Envs: envResults,
+	}
+
+	// Enrich with GitHub PR metadata (non-fatal if unavailable)
+	if detail, err := github.GetPR(ctx, prNumber); err == nil && detail != nil {
+		result.Title = detail.Title
+		result.Author = detail.Author
+		result.MergedAt = detail.MergedAt
+		result.ChangedFiles = detail.Files
+	}
+
+	return result, nil
+}
+
+// baselineFromSippy queries Sippy for recent periodic job failures to build
+// a baseline set of currently-failing tests.
+func baselineFromSippy(ctx context.Context, sc *sippy.Client, env string, log logr.Logger) map[string]bool {
+	baseline := make(map[string]bool)
+	response, err := sc.ListJobRuns(ctx, env, 7*24*time.Hour) // 7 days
+	if err != nil {
+		log.V(1).Info("baseline query failed", "env", env, "error", err)
+		return baseline
+	}
+
+	for _, run := range response.Rows {
+		for _, testName := range run.FailedTestNames {
+			baseline[testName] = true
+		}
+	}
+	return baseline
 }

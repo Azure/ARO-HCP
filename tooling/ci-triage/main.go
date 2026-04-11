@@ -38,9 +38,10 @@ func main() {
 
 	rootCmd := &cobra.Command{
 		Use:   "ci-triage",
-		Short: "CI triage tool for ARO-HCP Prow test failures",
-		Long: `ci-triage ingests CI job data from GCS, stores it in SQLite, and provides
-failure analysis, onset detection, and PR triage with baseline comparison.`,
+		Short: "CI triage tool for ARO-HCP e2e test failures",
+		Long: `ci-triage queries Sippy and GCS for CI test data and provides
+fleet health scanning, failure analysis with onset detection, baseline
+comparison, PR triage, timeline views, and onset-to-merge correlation.`,
 		SilenceUsage:     true,
 		SilenceErrors:    true,
 		TraverseChildren: true,
@@ -54,15 +55,18 @@ failure analysis, onset detection, and PR triage with baseline comparison.`,
 	}
 
 	rootCmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "verbosity level")
-	rootCmd.PersistentFlags().String("db", "", "path to SQLite database (default: ~/.cache/ci-triage/ci-triage.db)")
 
 	rootCmd.AddCommand(
-		cmd.NewIngestCommand(),
 		cmd.NewSummaryCommand(),
 		cmd.NewFailuresCommand(),
 		cmd.NewPRCommand(),
 		cmd.NewBuildLogCommand(),
-		cmd.NewServeCommand(),
+		cmd.NewTimelineCommand(),
+		cmd.NewCorrelateCommand(),
+		cmd.NewTestDetailCommand(),
+		cmd.NewSearchCommand(),
+		cmd.NewInvestigateCommand(),
+		cmd.NewDiagnoseCommand(),
 	)
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {

@@ -21,28 +21,21 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/analysis"
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/render"
-	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/sippy"
 )
 
-// NewFailuresCommand creates the failures cobra command.
-func NewFailuresCommand() *cobra.Command {
-	var since string
-
+// NewTestDetailCommand creates the test-detail cobra command.
+func NewTestDetailCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "failures ENV",
-		Short: "Deep failure analysis for one environment",
-		Args:  cobra.ExactArgs(1),
+		Use:   "test-detail URL ENV TEST_NAME",
+		Short: "Deep dive into one test: full error, output, and Azure API logs",
+		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			env := args[0]
+			jobURL := args[0]
+			env := args[1]
+			testName := args[2]
 
-			sinceDur, err := parseSinceDuration(since)
-			if err != nil {
-				return err
-			}
-
-			sc := sippy.NewClient()
-			data, err := analysis.Failures(ctx, sc, env, sinceDur)
+			data, err := analysis.TestDetail(ctx, jobURL, env, testName)
 			if err != nil {
 				return err
 			}
@@ -56,6 +49,5 @@ func NewFailuresCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&since, "since", "7d", "lookback window (7d, 24h, 2w)")
 	return cmd
 }

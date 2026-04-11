@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -24,13 +25,17 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/ci-triage/internal/sippy"
 )
 
-// NewFailuresCommand creates the failures cobra command.
-func NewFailuresCommand() *cobra.Command {
-	var since string
+// NewCorrelateCommand creates the correlate cobra command.
+func NewCorrelateCommand() *cobra.Command {
+	var (
+		since      string
+		testFilter string
+		window     string
+	)
 
 	cmd := &cobra.Command{
-		Use:   "failures ENV",
-		Short: "Deep failure analysis for one environment",
+		Use:   "correlate ENV",
+		Short: "Map failure onsets to merged PRs",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -41,8 +46,13 @@ func NewFailuresCommand() *cobra.Command {
 				return err
 			}
 
+			windowDur, err := time.ParseDuration(window)
+			if err != nil {
+				return fmt.Errorf("invalid --window: %w", err)
+			}
+
 			sc := sippy.NewClient()
-			data, err := analysis.Failures(ctx, sc, env, sinceDur)
+			data, err := analysis.Correlate(ctx, sc, env, sinceDur, testFilter, windowDur)
 			if err != nil {
 				return err
 			}
@@ -56,6 +66,8 @@ func NewFailuresCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&since, "since", "7d", "lookback window (7d, 24h, 2w)")
+	cmd.Flags().StringVar(&since, "since", "14d", "lookback window (7d, 24h, 2w)")
+	cmd.Flags().StringVar(&testFilter, "test", "", "specific test name to correlate")
+	cmd.Flags().StringVar(&window, "window", "6h", "time window around onset to search for merges")
 	return cmd
 }

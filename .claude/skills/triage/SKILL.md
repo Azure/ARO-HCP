@@ -1,69 +1,74 @@
 ---
 name: triage
-description: Triage Prow CI e2e test failures for ARO-HCP environments
-argument-hint: <env>  |  pr <number>
+description: Triage CI failures for ARO-HCP — wide to deep with evidence-based reasoning
+argument-hint: <env> | pr <number> | health | diagnose <env>
 user-invocable: true
 ---
 
-Investigate CI failures. Find root causes from evidence, not error names.
+Investigate CI failures. Synthesize evidence across data sources to find root causes.
 
-`$ARGUMENTS` is `ENV` (e.g., `int`, `stg`) or `pr NUMBER`. dev has no periodic.
+`$ARGUMENTS` determines entry point:
+- `health` or empty → `/ci-health`
+- `ENV` (int, stg, prod) → `/ci-investigate ENV`
+- `pr NUMBER` → `/ci-triage-pr NUMBER`
+- `diagnose ENV` → `/ci-diagnose ENV` (full automated synthesis)
 
-## Tools
+Build first if needed: `cd tooling/ci-triage && make build && cd -`
 
-The Go binary must be built first if not already available:
-```bash
-cd tooling/ci-triage && make build && cd -
-```
+## Commands — What Each Answers
 
-All query commands automatically fetch fresh data from GCS before analyzing. No manual ingest step needed.
+| Question | Command | Data Source |
+|----------|---------|------------|
+| What's broken fleet-wide? | `summary --since 14d` | Sippy |
+| How bad is one env? | `failures ENV --since 14d` | Sippy + GCS |
+| What's the full story for one test? | `investigate ENV --test "Name"` | Sippy + GCS + cross-CI |
+| Give me a verdict | `diagnose ENV [--test "Name"]` | All sources → synthesized verdict |
+| When did it start? Who caused it? | `correlate ENV --since 14d` | Sippy + GitHub |
+| Is this our bug or platform-wide? | `search "error msg" --cross-ci` | search.dptools |
+| What happened in this job run? | `build-log URL ENV --lines 200` | GCS build-log |
+| What happened for this test? | `test-detail URL ENV "Name"` | GCS extension results + azure.log |
+| Pass/fail over time? | `timeline ENV --since 14d` | Sippy |
+| Did this PR break something? | `pr NUMBER` | GCS + Sippy + GitHub |
 
-```bash
-tooling/ci-triage/ci-triage summary [--since 7d] [--json]
-tooling/ci-triage/ci-triage failures ENV [--since 14d] [--json]
-tooling/ci-triage/ci-triage pr NUMBER [--json]
-tooling/ci-triage/ci-triage build-log BASE_URL ENV [--lines 200] [--step provision]
-gh pr list --state merged --limit 20 --json number,title,mergedAt,files
-gh pr view NUMBER --json title,body,files,author
-```
+## Reasoning Stages
 
-## What the tools reveal and hide
+**WHAT** → `summary` + `failures`: classification (regression/flaky/infra/fleet_wide), infra events separated, meta-tests filtered, error messages with file:line
 
-- **summary** reveals which envs are broken and how badly, plus fleet-wide failures that appear across multiple envs. Hides why.
-- **failures ENV** reveals what is failing, when it started, and how often. Hides why — error messages name the operation that *detected* the failure, not the one that *caused* it.
-- **pr NUMBER** reveals which tests failed for a specific PR and whether each failure exists in periodic baselines (`baseline`) or is new to this PR (`NEW`). Use this instead of manually cross-referencing gh checks with periodic data.
-- **build-log** reveals what actually happened — step timestamps, where the test stalled, external kills. **Only tool that shows causation.**
-- **gh** reveals what code changed and when. Shows correlation, never causation.
+**WHEN** → `failures` + `correlate`: onset detection (last_passed → first_failed), onset_rollout (EV2 deployment at onset), timeline patterns
 
-## Traps
+**WHY** → `correlate` + `investigate` + `test-detail` + `search`:
+- Deployment correlation: commit_range between last-good and first-bad deployment
+- PR correlation: merged PRs in onset window with relevance scores
+- Azure API logs: which ARM calls were slow/failed/rate-limited
+- Cross-CI scope: is this ARO-specific or happening across OpenShift?
+- Build log timestamps: where time was actually spent
 
-- Error messages point at the wrong component. A downstream timeout fires first and gets recorded, but the bottleneck was upstream. Don't diagnose timeout failures without checking build-log timestamps.
-- Same revision producing wipeouts and clean runs is telling you about the environment, not the code.
-- Merge correlation is not causation. Check periodic on the same revision first.
-- One wipeout job inflates failure counts. It's one event, not 30 separate problems.
+## Key Output Fields (new since initial design)
 
-## Limits
+- `classification`: `{class, confidence, reason}` — on every failure group and fleet failure
+- `other_envs`: which other environments have the same failure
+- `onset_rollout`: EV2 deployment (commit, build, region) running at onset
+- `infra_jobs`: infrastructure events separated from real test regressions
+- `fleet_context`: pass rates of other envs for comparison
+- `deployment`: `{last_good_rollout, first_bad_rollout, commit_range}` on correlations
+- `confidence`: high/medium/low with reason on correlations
 
-You have: test results, error messages, job timelines, PR history. You do NOT have: backend logs, Azure resource health, cluster-service state. Say what you can see, what you can't, and ask the human a specific question.
+## GCS Artifacts Available Per Job Run
 
-## PR triage (`/triage pr NUMBER`)
+These files exist in GCS for every completed job and can be fetched on demand:
 
-1. Run `tooling/ci-triage/ci-triage pr NUMBER` — it auto-ingests 14d of data, then analyzes.
-2. Failures tagged `[baseline]` exist in periodic — they predate this PR. Failures tagged `[NEW]` don't appear in periodic and may be regressions.
-3. Use `gh pr view NUMBER --json files` to correlate NEW failures with changed files.
-4. If `has_baseline` is false for an env (e.g. dev), baseline classification is unavailable.
+| File | Contains | Use When |
+|------|----------|----------|
+| `extension_test_result_e2e_*.json` | Full error + output + timing per test | Primary message source (richer than JUnit) |
+| `azure.log` (per test dir) | Every ARM API call with timestamps | Investigating Azure/ARM issues |
+| `build-log.txt` | CI step execution log | Provisioning failures, job timeouts |
+| `junit.xml` | Test pass/fail summary | Fallback if extension results unavailable |
+| `finished.json` | Job state + revision | PR triage, revision tracking |
+| `ci-operator-step-graph.json` | Step dependency graph + timing | Step-level timing analysis |
+| `timing-metadata-*.yaml` | Per-deployment ARM operation durations | Deep ARM operation analysis (compressed) |
+| `identities-pool-state.yaml` | MSI container lease state | Parallel test resource contention |
+| `ci-operator.log` | CI orchestration output | CI infra issues |
 
-## Output
+## What You Cannot See
 
-```
-## CI Health: {RED|YELLOW|GREEN}
-{1-2 sentence summary}
-
-### {Problem} [{confirmed|indicated|suspected|needs investigation}]
-- **Evidence**: {what you observed}
-- **Root cause**: {what evidence supports, or "undetermined — needs X"}
-- **Action**: {next step}
-
-## Cannot Determine
-{Specific questions for human with deeper access}
-```
+Backend logs, Azure resource health, cluster-service internal state, Kusto. For the hard 30% — race conditions, transient Azure failures, multi-component interaction bugs — state what evidence points toward and what data would confirm it. Steve's triage tool (`tooling/triage/`) has full Kusto integration for this layer when available.
