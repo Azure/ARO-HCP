@@ -69,16 +69,18 @@ Key patterns:
 ### Timing Gap Analysis
 Gaps between entries = blocked time. A 30-minute gap between a PUT and the next log line means something was blocked for 30 minutes.
 
-### Common Azure Causation
+### Common Azure Patterns
 
-| Pattern | Root Cause |
-|---------|-----------|
-| Long gap → "context deadline exceeded" | Upstream dependency timeout |
-| "signal: killed" | Prow job timeout |
-| Repeated `Try=2`, `Try=3` | Transient errors with retries |
+| Pattern | Likely Cause |
+|---------|-------------|
+| Long gap → "context deadline exceeded" | Upstream dependency slow or unresponsive |
+| "signal: killed" | Prow job timeout (total time exceeded) |
+| Repeated `Try=2`, `Try=3` | Transient errors triggering retries |
 | HTTP 429 responses | Azure rate limiting |
 | HTTP 5xx responses | Azure service error |
-| `LongRunningOperation delay for 10s` (many times) | Polling a stuck operation |
+| `LongRunningOperation delay for 10s` (many times) | Polling a stuck or slow operation |
+
+These are starting hypotheses — verify against the actual log context before concluding.
 
 ## Build Log Analysis
 

@@ -64,9 +64,9 @@ Top-level also includes:
 | `infrastructure` | Mostly in wipeout jobs | Infra event, not test bug |
 | `unknown` | Insufficient data | Need more investigation |
 
-### 2. Onset + deployment tells you WHEN and WHICH code
+### 2. Onset + deployment indicates WHEN and WHICH code
 
-`last_passed` → `first_seen` = the onset window. `onset_rollout` shows which EV2 deployment was running at onset. If `onset_rollout.commit` differs from the prior passing run's rollout, you have a direct deployment correlation — stronger than PR inference.
+`last_passed` → `first_seen` = the onset window. `onset_rollout` shows which EV2 deployment was running at onset. If `onset_rollout.commit` differs from the prior passing run's rollout, that's a strong deployment correlation — but not proof. Verify by checking what changed in that deployment.
 
 ### 3. Cross-env context tells you the SCOPE
 
@@ -76,11 +76,11 @@ Top-level also includes:
 
 ### 4. Messages tell you HOW it manifests
 
-Error messages from extension test results (full, not truncated). Parse the failure mode:
-- `timeout 'N' minutes exceeded` → something is slow or stuck
-- `expected 200 got 403` → auth/RBAC
-- `failed waiting for hcpCluster` → cluster didn't reach ready
-- `Interrupted by User` → job killed by Prow timeout
+Error messages from extension test results (full, not truncated). Parse the failure mode — but remember these describe the SYMPTOM, not necessarily the cause:
+- `timeout 'N' minutes exceeded` → something is slow, stuck, OR the timeout is misconfigured
+- `expected 200 got 403` → auth/RBAC issue, OR the API path changed
+- `failed waiting for hcpCluster` → cluster didn't reach ready, OR readiness check is wrong
+- `Interrupted by User` → job killed by Prow timeout (cascading from earlier delays)
 
 ### 5. `investigate` adds GCS deep dive
 
@@ -95,6 +95,7 @@ Error messages from extension test results (full, not truncated). Parse the fail
 - `infra_jobs` are separated from real failures — don't count them as regressions
 - `[sig-sippy]` meta-tests are already filtered out by the tool
 - Same revision passing and failing = environmental, not code
+- **The classification is a hypothesis, not a conclusion.** If you see evidence that contradicts the tool's classification (e.g., classified "flaky" but you notice it fails in every env), trust your reasoning and investigate further
 
 ## Next Steps
 

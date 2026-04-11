@@ -45,7 +45,7 @@ These are jobs where >80% of tests failed OR Sippy flagged as infrastructure fai
 Tests that Sippy recorded as flaking (passed on retry). Lower priority than consistent failures.
 
 ### `fleet_failures` — tests failing across environments
-Each has a `classification`. `class: fleet_wide` with `confidence: high` means a test fails in 2+ environments simultaneously — almost always a code change, not infrastructure.
+Each has a `classification`. `class: fleet_wide` with `confidence: high` means a test fails in 2+ environments simultaneously — usually a code change, though shared infrastructure issues (DNS, certs, Azure region) can also cause fleet-wide failures.
 
 ### Fleet pattern interpretation
 - Fails in ALL envs simultaneously → code change or shared dependency
