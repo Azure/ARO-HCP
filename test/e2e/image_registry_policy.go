@@ -38,7 +38,7 @@ const (
 	imageRegistryPolicyBindingName = "image-registry-allowlist-policy-binding"
 	imageRegistryPolicyNamespace   = "image-registry-policy"
 	imageRegistryPolicyConfigMap   = "image-registry-allowlist-config"
-	disallowedImage                = "docker.io/library/nginx:latest"
+	disallowedImage                = "quay.io/library/nginx:latest"
 )
 
 var _ = Describe("Image Registry Policy", func() {
