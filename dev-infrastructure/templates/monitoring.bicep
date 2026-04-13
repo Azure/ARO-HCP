@@ -104,3 +104,5 @@ module msftAlerts '../modules/metrics/msft-rules.bicep' = {
     actionGroups: msftActionGroups
   }
 }
+
+output slActionGroupId string = manageConnection ? actionGroups.outputs.actionGroupsSL : ''

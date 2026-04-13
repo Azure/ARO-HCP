@@ -4,6 +4,7 @@
 # * Azure Monitor Metrics resources for services
 # * Azure Monitor Metrics resources for hosted control planes
 # * Action Groups & Prometheus alerting rules
+# * Kusto (ADX) log search alerting rules
 #
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
@@ -35,3 +36,39 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: kusto-alerting
+    action: ARM
+    template: templates/kusto-alerting.bicep
+    parameters: configurations/kusto-alerting.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: kustoClusterId
+      input:
+        resourceGroup: kusto
+        step: kusto-lookup
+        name: kustoResourceId
+    - name: kustoUri
+      input:
+        resourceGroup: kusto
+        step: kusto-lookup
+        name: kustoUri
+    - name: slActionGroupId
+      input:
+        resourceGroup: regional
+        step: monitoring
+        name: slActionGroupId
+    dependsOn:
+    - resourceGroup: kusto
+      step: kusto-lookup
+    - resourceGroup: regional
+      step: monitoring
