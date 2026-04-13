@@ -1161,8 +1161,8 @@ clouds:
         nsp:
           accessMode: 'Learning'
         istio:
-          targetVersion: "asm-1-26"
-          versions: "asm-1-26,asm-1-28"
+          targetVersion: "asm-1-28"
+          versions: "asm-1-28"
         aks:
           etcd:
             softDelete: false
@@ -1240,6 +1240,10 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
+          svc: 
+            istio:
+              targetVersion: "asm-1-26"
+              versions: "asm-1-26,asm-1-28"
           mgmt:
             aks:
               systemAgentPool:
@@ -1292,6 +1296,9 @@ clouds:
               userAgentPool:
                 minCount: 2
                 maxCount: 12
+            istio:
+              targetVersion: "asm-1-26"
+              versions: "asm-1-26,asm-1-28"                
           mgmt:
             aks:
               systemAgentPool:
@@ -1437,9 +1444,6 @@ clouds:
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
-            istio:
-              targetVersion: "asm-1-28"
-              versions: "asm-1-28"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               userAgentPool:
@@ -1462,6 +1466,9 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            istio:
+              targetVersion: "asm-1-26"
+              versions: "asm-1-26,asm-1-28"              
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
@@ -1613,9 +1620,6 @@ clouds:
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
-            istio:
-              targetVersion: "asm-1-28"
-              versions: "asm-1-28"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               userAgentPool:
