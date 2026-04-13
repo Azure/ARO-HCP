@@ -25,25 +25,24 @@ param identityId string
 @description('Pre-built adx() URI for ServiceLogs database')
 param adxServiceLogs string
 
-// --- Critical container OOM killing alert ---
+// --- Container OOM killing alert ---
 
 var oomKillingQueryTemplate = '''
 adx('{0}').kubernetesEvents
 | where timestamp >= ago(5m) and timestamp <= now()
 | where reason == 'OOMKilling'
 | extend name = extract(@"\d+ \(([^)]+)\)", 1, message)
-| where name in ('fluent-bit', 'mdsd', 'maestro', 'aro-hcp-frontend', 'aro-hcp-backend', 'clusters-service', 'hypershift')
 | project timestamp, cluster, name, message
 '''
 
 module oomKillingAlert 'alert-rule.bicep' = {
   name: 'oom-killing-alert'
   params: {
-    alertName: 'CriticalContainerOOMKilling'
+    alertName: 'ContainerOOMKilling'
     location: location
     kustoClusterId: kustoClusterId
     query: replace(oomKillingQueryTemplate, '{0}', adxServiceLogs)
-    severity: 2
+    severity: 3
     threshold: 0
     operator: 'GreaterThan'
     timeAggregation: 'Count'
@@ -52,7 +51,7 @@ module oomKillingAlert 'alert-rule.bicep' = {
     actionGroupIds: actionGroupIds
     identityId: identityId
     enabled: true
-    alertDescription: 'A critical container is being OOM killed'
+    alertDescription: 'A container is being OOM killed'
     dimensions: [
       {
         name: 'cluster'
