@@ -289,6 +289,15 @@ func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Clien
 	}
 }
 
+func (tc *perItOrDescribeTestContext) NewAdminAPIHTTPClient(ctx context.Context) (*http.Client, string, error) {
+	identityDetails, err := tc.GetCurrentAzureIdentityDetails(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get Azure identity details: %w", err)
+	}
+	httpClient := createAdminAPIHTTPClient(identityDetails)
+	return httpClient, tc.perBinaryInvocationTestContext.adminAPIAddress, nil
+}
+
 func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
 	httpClient := createAdminAPIHTTPClient(identityDetails)
 
@@ -494,6 +503,37 @@ func (tc *perItOrDescribeTestContext) GetManagementCluster(ctx context.Context, 
 		return nil, fmt.Errorf("failed to unmarshal management cluster: %w", err)
 	}
 	return &result, nil
+}
+
+// DoAdminAPIRequest sends an HTTP request to the admin API, checks the status code, and
+// JSON-decodes the response body into T.
+func DoAdminAPIRequest[T any](ctx context.Context, httpClient *http.Client, method, url string, expectedStatus int, body io.Reader) (T, error) {
+	var zero T
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return zero, fmt.Errorf("failed to create request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return zero, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expectedStatus {
+		respBody, _ := io.ReadAll(resp.Body)
+		return zero, fmt.Errorf("expected status %d, got %d: %s", expectedStatus, resp.StatusCode, string(respBody))
+	}
+
+	var result T
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return zero, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return result, nil
 }
 
 func adminAPIGet(ctx context.Context, httpClient *http.Client, endpoint string) ([]byte, error) {
