@@ -15,8 +15,10 @@ require (
 	github.com/microsoft/go-otel-audit v0.2.2
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.453
 	github.com/openshift-online/ocm-sdk-go v0.1.499
+	github.com/openshift/hypershift/api v0.0.0-20260424195428-c1a8bb61ff14
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
+	github.com/vmware-tanzu/velero v1.17.2
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0
 	k8s.io/apimachinery v0.35.3
@@ -75,7 +77,6 @@ require (
 	github.com/openshift-online/ocm-api-model/model v0.0.453 // indirect
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9 // indirect
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603 // indirect
-	github.com/openshift/hypershift/api v0.0.0-20260424195428-c1a8bb61ff14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
@@ -89,7 +90,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.13 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
-	github.com/vmware-tanzu/velero v1.17.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/prometheus v0.65.0 // indirect

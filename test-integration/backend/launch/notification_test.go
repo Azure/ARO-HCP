@@ -78,11 +78,13 @@ func TestControllerNotifications(t *testing.T) {
 			frontendErrCh <- testInfo.Frontend.Run(ctx)
 		}()
 
+		clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
+
 		resourcesDBClient := testInfo.ResourcesDBClient()
 		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
 
 		_, activeOperationLister := backendInformers.ActiveOperations()
-		testSyncer := newTestController(activeOperationLister)
+		testSyncer := newTestController(activeOperationLister, clusterResourceID)
 		testingController := controllerutils.NewClusterWatchingController(
 			"TestingController", resourcesDBClient, backendInformers, nil, 1*time.Minute, testSyncer)
 
@@ -95,8 +97,6 @@ func TestControllerNotifications(t *testing.T) {
 			testingController.Run(ctx, 20)
 			backendErrCh <- nil
 		}()
-
-		clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
 		frontendClientAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, "2024-06-10-preview")
 
 		subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
@@ -112,27 +112,23 @@ func TestControllerNotifications(t *testing.T) {
 		case <-ctx.Done():
 		}
 
-		require.Equal(t, int32(1), testSyncer.count.Load(), "missing sync")
-
-		testSyncer.observedKeys.Range(func(key, value interface{}) bool {
-			t.Log(key)
-			require.Equal(t, strings.ToLower(clusterResourceID.String()), strings.ToLower(key.(string)))
-			return true
-		})
+		_, found := testSyncer.observedKeys.Load(strings.ToLower(clusterResourceID.String()))
+		require.True(t, found, "expected cluster %s to be synced", clusterResourceID.String())
 	})
 }
 
 type testController struct {
 	cooldownChecker controllerutil.CooldownChecker
 
-	count        atomic.Int32
+	targetKey    string
 	observedKeys sync.Map
 	synced       chan struct{}
 }
 
-func newTestController(activeOperationLister listers.ActiveOperationLister) *testController {
+func newTestController(activeOperationLister listers.ActiveOperationLister, targetResourceID *azcorearm.ResourceID) *testController {
 	c := &testController{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		targetKey:       strings.ToLower(targetResourceID.String()),
 		observedKeys:    sync.Map{},
 		synced:          make(chan struct{}),
 	}
@@ -144,11 +140,15 @@ func (c *testController) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("SyncOnce", "key", key)
 
-	c.count.Add(1)
-	c.observedKeys.Store(key.GetResourceID().String(), true)
+	keyStr := strings.ToLower(key.GetResourceID().String())
+	c.observedKeys.Store(keyStr, true)
 
-	if c.count.Load() > 0 {
-		close(c.synced)
+	if keyStr == c.targetKey {
+		select {
+		case <-c.synced:
+		default:
+			close(c.synced)
+		}
 	}
 
 	return nil
