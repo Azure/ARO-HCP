@@ -37,35 +37,6 @@ kube-prometheus-stack:
     fullnameOverride: ""
     admissionWebhooks:
       enabled: true
-      patch:
-        tolerations:
-        - key: "infra"
-          operator: "Equal"
-          value: "true"
-          effect: "NoSchedule"
-        affinity:
-          nodeAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              nodeSelectorTerms:
-              - matchExpressions:
-                - key: aro-hcp.azure.com/role
-                  operator: In
-                  values:
-                  - infra
-    tolerations:
-    - key: "infra"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-          - matchExpressions:
-            - key: aro-hcp.azure.com/role
-              operator: In
-              values:
-              - infra
     image:
       registry: "{{ .opstool.prometheus.prometheusOperator.image.registry }}"
       repository: "{{ .opstool.prometheus.prometheusOperator.image.repository }}"
@@ -81,20 +52,6 @@ kube-prometheus-stack:
       registry: "{{ .opstool.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .opstool.prometheus.kubeStateMetrics.image.repository }}"
       sha: "{{ .opstool.prometheus.kubeStateMetrics.image.digest }}"
-    tolerations:
-    - key: "infra"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-          - matchExpressions:
-            - key: aro-hcp.azure.com/role
-              operator: In
-              values:
-              - infra
 # config for the files in templates/
 prometheusSpec:
   image:

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cihealth
+  labels:
+    app.kubernetes.io/name: cihealth
+    app.kubernetes.io/component: reporting

@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "cihealth.postgresName" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "cihealth.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: {{ include "cihealth.postgresName" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "cihealth.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "cihealth.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+      annotations:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: {{ include "cihealth.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgres
+          image: {{ include "cihealth.postgresImage" . | quote }}
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy | quote }}
+          ports:
+            - name: postgres
+              containerPort: {{ .Values.postgres.service.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER_FILE
+              value: {{ include "cihealth.postgresUsernameFile" . | quote }}
+            - name: POSTGRES_PASSWORD_FILE
+              value: {{ include "cihealth.postgresPasswordFile" . | quote }}
+            - name: POSTGRES_DB_FILE
+              value: {{ include "cihealth.postgresDatabaseFile" . | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            {{- with .Values.postgres.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -h 127.0.0.1 -p {{ .Values.postgres.service.port }} -U "$(cat {{ include "cihealth.postgresUsernameFile" . }})" -d "$(cat {{ include "cihealth.postgresDatabaseFile" . }})"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -h 127.0.0.1 -p {{ .Values.postgres.service.port }} -U "$(cat {{ include "cihealth.postgresUsernameFile" . }})" -d "$(cat {{ include "cihealth.postgresDatabaseFile" . }})"
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: secrets-store
+              mountPath: {{ include "cihealth.secretsStoreMountPath" . | quote }}
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "cihealth.postgresPvcName" . }}
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "cihealth.secretProviderClassName" . }}

@@ -1,0 +1,82 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.CertManager
+rolloutName: Opstool cert-manager Rollout
+resourceGroups:
+- name: opstool
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../../templates/output-opstool-cluster.bicep
+    parameters: ../../configurations/output-opstool-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .opstool.aks.name }}'
+    action: Helm
+    releaseName: 'cert-manager'
+    releaseNamespace: '{{ .opstool.certManager.namespace }}'
+    namespaceFiles:
+    - deploy/namespace.yaml
+    chartDir: deploy
+    valuesFile: deploy/values.yaml.tmpl
+    kustoEndpoint:
+      resourceGroup: opstool
+      step: output
+      name: kustoUri
+    kustoDatabase: ''
+    kustoTable: ''
+    inputVariables:
+      tenantId:
+        resourceGroup: opstool
+        step: output
+        name: tenantId
+      subscriptionId:
+        resourceGroup: opstool
+        step: output
+        name: subscriptionId
+      certManagerUAMIClientId:
+        resourceGroup: opstool
+        step: output
+        name: certManagerUAMIClientId
+    dependsOn:
+    - resourceGroup: opstool
+      step: output
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.Infra
+      resourceGroup: opstool
+      step: network
+    identityFrom:
+      resourceGroup: opstool
+      step: output
+      name: opstoolUAMIId
+  - name: issuer
+    aksCluster: '{{ .opstool.aks.name }}'
+    action: Helm
+    releaseName: 'cert-manager-issuer'
+    releaseNamespace: '{{ .opstool.certManager.namespace }}'
+    chartDir: issuer
+    valuesFile: issuer/values.yaml.tmpl
+    kustoEndpoint:
+      resourceGroup: opstool
+      step: output
+      name: kustoUri
+    kustoDatabase: ''
+    kustoTable: ''
+    inputVariables:
+      subscriptionId:
+        resourceGroup: opstool
+        step: output
+        name: subscriptionId
+      certManagerUAMIClientId:
+        resourceGroup: opstool
+        step: output
+        name: certManagerUAMIClientId
+    dependsOn:
+    - resourceGroup: opstool
+      step: deploy
+    identityFrom:
+      resourceGroup: opstool
+      step: output
+      name: opstoolUAMIId

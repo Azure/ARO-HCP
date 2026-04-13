@@ -1,0 +1,12 @@
+clusterIssuer:
+  name: "{{ .opstool.certManager.clusterIssuer.name }}"
+  email: "{{ .opstool.certManager.clusterIssuer.email }}"
+  privateKeySecretName: "{{ .opstool.certManager.clusterIssuer.privateKeySecretName }}"
+  server: "{{ .opstool.certManager.clusterIssuer.server }}"
+  azureDNS:
+    environment: "{{ .opstool.certManager.clusterIssuer.azureDNS.environment }}"
+    hostedZoneName: "{{ .opstool.gateway.dns.childZoneSubdomain }}.{{ .opstool.gateway.dns.parentZoneName }}"
+    resourceGroupName: "{{ .svc.rg }}"
+    subscriptionID: "__subscriptionId__"
+    managedIdentity:
+      clientID: "__certManagerUAMIClientId__"
