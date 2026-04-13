@@ -267,7 +267,9 @@ func (tc *perItOrDescribeTestContext) GetCurrentAzureIdentityDetails(ctx context
 	return tc.perBinaryInvocationTestContext.GetCurrentAzureIdentityDetails(ctx)
 }
 
-func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Client {
+// newAdminAPIHTTPClient builds an HTTP client configured with the given identity
+// headers and TLS settings for calling the admin API.
+func (tc *perItOrDescribeTestContext) newAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) (*http.Client, string) {
 	tlsConfig := &tls.Config{}
 	if IsDevelopmentEnvironment() {
 		tlsConfig.InsecureSkipVerify = true
@@ -280,13 +282,23 @@ func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Clien
 			identityDetails: identityDetails,
 		},
 		Timeout: adminAPIRequestTimeout,
+	}, tc.perBinaryInvocationTestContext.adminAPIAddress
+}
+
+// NewAdminAPIHTTPClient returns an HTTP client configured with the current
+// Azure identity's authentication headers and TLS settings for calling the
+// admin API, along with the admin API base URL.
+func (tc *perItOrDescribeTestContext) NewAdminAPIHTTPClient(ctx context.Context) (*http.Client, string, error) {
+	identityDetails, err := tc.GetCurrentAzureIdentityDetails(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get Azure identity details: %w", err)
 	}
+	httpClient, adminAPIAddress := tc.newAdminAPIHTTPClient(identityDetails)
+	return httpClient, adminAPIAddress, nil
 }
 
 func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
-	httpClient := createAdminAPIHTTPClient(identityDetails)
-
-	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
+	httpClient, adminAPIEndpoint := tc.newAdminAPIHTTPClient(identityDetails)
 
 	breakglassEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/breakglass",
 		adminAPIEndpoint,
@@ -397,9 +409,7 @@ func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Conte
 }
 
 func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, resourceID string, vmName string, identityDetails *AzureIdentityDetails) (string, error) {
-	httpClient := createAdminAPIHTTPClient(identityDetails)
-
-	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
+	httpClient, adminAPIEndpoint := tc.newAdminAPIHTTPClient(identityDetails)
 
 	serialConsoleEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/serialconsole",
 		adminAPIEndpoint,

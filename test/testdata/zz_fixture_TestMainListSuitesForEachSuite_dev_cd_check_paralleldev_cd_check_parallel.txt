@@ -55,6 +55,10 @@ Customer should be able to successfully upgrade control plane minor version from
 Engineering should be able to retrieve expected metrics from the /metrics endpoint
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to lifecycle and confirm external auth on a cluster
+Backups should be created by the schedule for an HCP cluster
+Backups can be created on-demand for an HCP cluster
+Backups schedules can be paused and activated via the admin API
+Fleet should have registered stamps with ready management clusters
 Customer should be able to create an HCP cluster and manage ImageDigestMirrors
 Customer should be able to create an HCP cluster with Image Registry not present
 Engineering should be able to retrieve kusto logs for a cluster and services
@@ -70,6 +74,4 @@ Customer should upgrade and update a nodepool from 4.21.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.20.z to 4.20.zLatest
 Customer should upgrade a nodepool to a version without Cincinnati upgrade edge z-stream upgrade without Cincinnati edge in 4.20
 Customer should upgrade a nodepool skipping one minor version (+2) from 4.20.z to 4.22.zLatest
-Customer should downgrade a nodepool version z-stream downgrade from 4.21.zLatest to 4.21.zPrevious
-Customer should downgrade a nodepool to a lower minor version from 4.21.zLatest to 4.19.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
