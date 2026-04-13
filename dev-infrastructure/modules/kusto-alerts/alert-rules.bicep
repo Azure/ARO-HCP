@@ -3,7 +3,7 @@
 //
 // To add a new alert:
 //   1. Define a query template variable using triple-quoted KQL
-//      - Use adx('{0}').tableName and replace '{0}' with adxServiceLogs or adxHcpLogs
+//      - Use adx('{0}').tableName and replace '{0}' with adxServiceLogs
 //      - Add explicit time filters: | where timestamp >= ago(5m) and timestamp <= now()
 //      - Project the columns needed for dimensions and context
 //   2. Create a module block referencing 'alert-rule.bicep'
@@ -24,9 +24,6 @@ param identityId string
 
 @description('Pre-built adx() URI for ServiceLogs database')
 param adxServiceLogs string
-
-@description('Pre-built adx() URI for HostedControlPlaneLogs database')
-param adxHcpLogs string
 
 // --- Fluent-bit OOM killing alert ---
 

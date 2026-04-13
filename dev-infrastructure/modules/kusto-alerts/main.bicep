@@ -36,7 +36,10 @@ resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' existing = {
   name: kustoName
 }
 
-var readerRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')
+var readerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
 
 resource kustoReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(kustoCluster.id, alertIdentity.id, readerRoleId)
@@ -79,7 +82,6 @@ module alertRules 'alert-rules.bicep' = {
     actionGroupIds: actionGroupIds
     identityId: alertIdentity.id
     adxServiceLogs: '${kustoUri}/${serviceLogsDatabase}'
-    adxHcpLogs: '${kustoUri}/${hostedControlPlaneLogsDatabase}'
   }
   dependsOn: [serviceLogsAccess, hcpLogsAccess, kustoReaderRole]
 }
