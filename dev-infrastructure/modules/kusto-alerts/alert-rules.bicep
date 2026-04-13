@@ -7,7 +7,7 @@
 //      - Add explicit time filters: | where timestamp >= ago(5m) and timestamp <= now()
 //      - Project the columns needed for dimensions and context
 //   2. Create a module block referencing 'alert-rule.bicep'
-//      - Use replace() to inject adxServiceLogs or adxHcpLogs into the query
+//      - Use replace() to inject adxServiceLogs into the query
 //      - Set dimensions to split alerts (e.g. by cluster)
 
 @description('Azure region')
@@ -25,21 +25,21 @@ param identityId string
 @description('Pre-built adx() URI for ServiceLogs database')
 param adxServiceLogs string
 
-// --- Fluent-bit OOM killing alert ---
+// --- Critical container OOM killing alert ---
 
 var oomKillingQueryTemplate = '''
 adx('{0}').kubernetesEvents
 | where timestamp >= ago(5m) and timestamp <= now()
 | where reason == 'OOMKilling'
 | extend name = extract(@"\d+ \(([^)]+)\)", 1, message)
-| where name == 'fluent-bit'
+| where name in ('fluent-bit', 'mdsd', 'maestro', 'aro-hcp-frontend', 'aro-hcp-backend', 'clusters-service', 'hypershift')
 | project timestamp, cluster, name, message
 '''
 
 module oomKillingAlert 'alert-rule.bicep' = {
   name: 'oom-killing-alert'
   params: {
-    alertName: 'FluentBitOOMKilling'
+    alertName: 'CriticalContainerOOMKilling'
     location: location
     kustoClusterId: kustoClusterId
     query: replace(oomKillingQueryTemplate, '{0}', adxServiceLogs)
@@ -52,10 +52,15 @@ module oomKillingAlert 'alert-rule.bicep' = {
     actionGroupIds: actionGroupIds
     identityId: identityId
     enabled: true
-    alertDescription: 'Fluent-bit container is being OOM killed'
+    alertDescription: 'A critical container is being OOM killed'
     dimensions: [
       {
         name: 'cluster'
+        operator: 'Include'
+        values: ['*']
+      }
+      {
+        name: 'name'
         operator: 'Include'
         values: ['*']
       }
