@@ -90,6 +90,9 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
+  # Image Registry Policy
+  imageRegistryPolicy:
+    extraAllowedRegistries: []
   # ACR Pull
   acrPull:
     image:
@@ -1184,6 +1187,13 @@ clouds:
         prometheus:
           prometheusSpec:
             shards: 1
+      # Image Registry Policy — dev-only registries for local dev tooling
+      imageRegistryPolicy:
+        extraAllowedRegistries:
+        - docker.io
+        - jaegertracing
+        - grafana
+        - otel
       # ACRs
       acr:
         svc:

@@ -444,7 +444,7 @@ resourceGroups:
     releaseName: image-registry-policy
     releaseNamespace: image-registry-policy
     chartDir: ./../image-registry-policy/deploy
-    valuesFile: ./../image-registry-policy/deploy/values.yaml
+    valuesFile: ./../image-registry-policy/values.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: output
