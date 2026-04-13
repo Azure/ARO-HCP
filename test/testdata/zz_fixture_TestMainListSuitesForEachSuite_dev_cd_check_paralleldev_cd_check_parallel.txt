@@ -58,6 +58,7 @@ Customer should be able to successfully upgrade control plane minor version from
 Customer should be able to successfully upgrade control plane minor version from 5.11 minor to 5.12 minor
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to lifecycle and confirm external auth on a cluster
+SRE can pause schedules to stop backup execution for an HCP cluster
 Customer should be able to create an HCP cluster and manage ImageDigestMirrors
 Customer should be able to create an HCP cluster with Image Registry not present
 Customer should be able to rotate KMS key for a cluster with version >= 4.22
