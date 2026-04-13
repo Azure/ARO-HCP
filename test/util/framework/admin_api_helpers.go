@@ -285,6 +285,15 @@ func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Clien
 	}
 }
 
+func (tc *perItOrDescribeTestContext) NewAdminAPIHTTPClient(ctx context.Context) (*http.Client, string, error) {
+	identityDetails, err := tc.GetCurrentAzureIdentityDetails(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get Azure identity details: %w", err)
+	}
+	httpClient := createAdminAPIHTTPClient(identityDetails)
+	return httpClient, tc.perBinaryInvocationTestContext.adminAPIAddress, nil
+}
+
 func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
 	httpClient := createAdminAPIHTTPClient(identityDetails)
 
