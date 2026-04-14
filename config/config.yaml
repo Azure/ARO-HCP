@@ -300,6 +300,8 @@ defaults:
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
+    adxDatasourceEnabled: false
+    adxDatasourceGeographies: ""
     # Format:
     #   Multiline string using '>-' YAML block scalar
     #   One item per line, formatted as: UUID/PrincipalType/RoleName

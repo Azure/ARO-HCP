@@ -694,6 +694,8 @@ mise:
     address: ""
     exporter: ""
 monitoring:
+  adxDatasourceEnabled: false
+  adxDatasourceGeographies: ""
   alertRuleOwningTeamTag: ""
   alertsEnabled: true
   crossTenantSecurityGroup: ""

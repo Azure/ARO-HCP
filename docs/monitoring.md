@@ -90,6 +90,45 @@ A single **Azure Managed Grafana** instance is deployed globally and configured 
 - Region-agnostic dashboard experience
 - Consolidated alerting and monitoring workflows
 
+### ADX / Kusto datasources
+
+Managed Grafana can also expose Azure Data Explorer datasources for ARO-HCP Kusto clusters. These datasources follow the same single-workspace-per-environment model as the Azure Monitor datasources above.
+
+- **Provisioning scope**: Geography pipeline, once per managed Kusto cluster
+- **Datasource name**: `kusto-<env>-<geoShortId>` (for example `kusto-int-uk`)
+- **Target database**: `ServiceLogs`
+- **Authentication**: Grafana workspace system-assigned managed identity
+- **RBAC**: Database-level `Viewer` on `ServiceLogs` only
+
+Provisioning is controlled by:
+
+- `monitoring.adxDatasourceEnabled`
+- `monitoring.adxDatasourceGeographies`
+
+When `adxDatasourceEnabled` is `true`, the geography pipeline creates or updates the datasource if that geography has a managed Kusto cluster (`kusto.manageInstance: true`). When `adxDatasourceGeographies` is empty, all managed Kusto geographies in the environment are included. When it is set, only the listed geography short IDs are allowed.
+
+During rollout, validate at least one datasource during the environment bake window with:
+
+1. Grafana UI
+2. Data sources
+3. `kusto-<env>-<geoShortId>`
+4. **Save & Test**
+
+### Kusto datasource lifecycle and teardown
+
+`adxDatasourceEnabled: false` is a provisioning gate, not a deletion signal. Disabling it stops future create or update attempts, but it does **not** remove an existing datasource.
+
+If a geography's Kusto cluster is intentionally decommissioned (`kusto.manageInstance` transitions to `false`), remove the corresponding datasource explicitly:
+
+```bash
+az grafana data-source delete \
+  --name "${GRAFANA_NAME}" \
+  --resource-group "${GRAFANA_RG}" \
+  --data-source "kusto-<env>-<geoShortId>"
+```
+
+This manual delete is required because the pipeline intentionally skips datasource changes when no `kustoUri` is available. That fail-closed behavior prevents accidental deletion caused by transient deployment or output issues.
+
 ### Regional Azure Monitor Workspace
 
 Each region contains **two Azure Monitor Workspaces (AMW)**:

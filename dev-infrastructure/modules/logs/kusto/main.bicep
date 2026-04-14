@@ -1,3 +1,5 @@
+import * as res from '../../resource.bicep'
+
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
@@ -41,14 +43,25 @@ param crossClusterServiceLogsScript string = ''
 @description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
 @secure()
 param crossClusterHostedControlPlaneLogsScript string = ''
+
+@description('Optional: Grafana resource ID for database-level Viewer access')
+param grafanaResourceId string = ''
+
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
 }
 
 var databases = [db.serviceLogs, db.hostedControlPlaneLogs]
+var hasGrafana = grafanaResourceId != ''
+var grafanaRef = hasGrafana ? res.grafanaRefFromId(grafanaResourceId) : null
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
+
+resource grafana 'Microsoft.Dashboard/grafana@2024-10-01' existing = if (hasGrafana) {
+  name: grafanaRef!.name
+  scope: resourceGroup(grafanaRef!.resourceGroup.subscriptionId, grafanaRef!.resourceGroup.name)
+}
 
 var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
@@ -189,7 +202,18 @@ module crossClusterHostedControlPlaneLogsQueryScript 'script.bicep' = if (deploy
   ]
 }
 
-// 6. Remove the caller principal
+// 6. Grafana service logs access
+module grafanaServiceLogsAccess 'grant-access.bicep' = if (hasGrafana) {
+  name: 'grafana-serviceLogs-viewer'
+  params: {
+    kustoName: kustoName
+    databaseName: db.serviceLogs
+    readAccessPrincipalIds: [grafana.identity.principalId]
+  }
+  dependsOn: [serviceLogsTables]
+}
+
+// 7. Remove the caller principal
 // THIS MUST BE THE LAST SCRIPT TO RUN
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
@@ -208,9 +232,11 @@ module removePermission 'script.bicep' = [
       hostedControlPlaneLogsTables
       crossClusterServiceLogsQueryScript
       crossClusterHostedControlPlaneLogsQueryScript
+      grafanaServiceLogsAccess
     ]
   }
 ]
 
 // Outputs mirror original contract
 output id string = cluster.outputs.id
+output kustoUri string = cluster.outputs.uri
