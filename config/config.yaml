@@ -1240,7 +1240,7 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
-          svc: 
+          svc:
             istio:
               targetVersion: "asm-1-26"
               versions: "asm-1-26,asm-1-28"
@@ -1298,7 +1298,7 @@ clouds:
                 maxCount: 12
             istio:
               targetVersion: "asm-1-26"
-              versions: "asm-1-26,asm-1-28"                
+              versions: "asm-1-26,asm-1-28"
           mgmt:
             aks:
               systemAgentPool:
@@ -1468,7 +1468,7 @@ clouds:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             istio:
               targetVersion: "asm-1-26"
-              versions: "asm-1-26,asm-1-28"              
+              versions: "asm-1-26,asm-1-28"
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
