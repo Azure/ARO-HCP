@@ -44,6 +44,10 @@ param crossClusterServiceLogsScript string = ''
 @description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
 @secure()
 param crossClusterHostedControlPlaneLogsScript string = ''
+
+@description('Optional: Grafana resource ID for database-level Viewer access')
+param grafanaResourceId string = ''
+
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -62,5 +66,8 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     enableAutoScale: enableAutoScale
     crossClusterServiceLogsScript: crossClusterServiceLogsScript
     crossClusterHostedControlPlaneLogsScript: crossClusterHostedControlPlaneLogsScript
+    grafanaResourceId: grafanaResourceId
   }
 }
+
+output kustoUri string = manageInstance ? kusto.outputs.kustoUri : ''
