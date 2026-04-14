@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -32,7 +33,7 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	It("should be able to update nodepool replicas and autoscaling",
+	It("should be able to update nodepool replicas and autoscaling as well as list node pools by cluster and resource group",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
@@ -69,9 +70,65 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
+			verifyNodePoolListByCluster := func(ctx context.Context, rgName, clusterName string, expectedNodePoolNames []string) {
+				npClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+				pager := npClient.NewListByParentPager(rgName, clusterName, nil)
+
+				var listedNodePoolNames []string
+				for pager.More() {
+					page, err := pager.NextPage(ctx)
+					Expect(err).NotTo(HaveOccurred(), "failed to list node pools by cluster %s", clusterName)
+					for _, np := range page.Value {
+						Expect(np.ID).NotTo(BeNil(), "listed node pool ID was nil in cluster %s", clusterName)
+						Expect(*np.ID).NotTo(BeEmpty(), "listed node pool ID was empty in cluster %s", clusterName)
+						if np.Name != nil {
+							listedNodePoolNames = append(listedNodePoolNames, *np.Name)
+						}
+					}
+				}
+
+				Expect(listedNodePoolNames).To(ConsistOf(expectedNodePoolNames), "expected %v node pools listed by cluster %s, got %v", expectedNodePoolNames, clusterName, listedNodePoolNames)
+			}
+
+			verifyNodePoolListByRG := func(ctx context.Context, rgName string, expectedNodePoolNames []string) {
+				clientFactory := tc.Get20240610ClientFactoryOrDie(ctx)
+				hcpClient := clientFactory.NewHcpOpenShiftClustersClient()
+				npClient := clientFactory.NewNodePoolsClient()
+
+				clusterPager := hcpClient.NewListByResourceGroupPager(rgName, nil)
+
+				var listedNodePoolNames []string
+				for clusterPager.More() {
+					clusterPage, err := clusterPager.NextPage(ctx)
+					Expect(err).NotTo(HaveOccurred(), "failed to list clusters in resource group %s", rgName)
+					for _, cluster := range clusterPage.Value {
+						if cluster.Name == nil {
+							continue
+						}
+						npPager := npClient.NewListByParentPager(rgName, *cluster.Name, nil)
+						for npPager.More() {
+							npPage, err := npPager.NextPage(ctx)
+							Expect(err).NotTo(HaveOccurred(), "failed to list node pools for cluster %s in resource group %s", *cluster.Name, rgName)
+							for _, np := range npPage.Value {
+								Expect(np.ID).NotTo(BeNil(), "listed node pool ID was nil in cluster %s", *cluster.Name)
+								Expect(*np.ID).NotTo(BeEmpty(), "listed node pool ID was empty in cluster %s", *cluster.Name)
+								if np.Name != nil {
+									listedNodePoolNames = append(listedNodePoolNames, *np.Name)
+								}
+							}
+						}
+					}
+				}
+
+				Expect(listedNodePoolNames).To(ConsistOf(expectedNodePoolNames), "expected %v node pools listed by resource group %s, got %v", expectedNodePoolNames, rgName, listedNodePoolNames)
+			}
+
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-update-nodes", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
+
+			By("listing node pools by empty resource group")
+			verifyNodePoolListByRG(ctx, *resourceGroup.Name, []string{})
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -98,6 +155,9 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("listing node pools by cluster without node pools")
+			verifyNodePoolListByCluster(ctx, *resourceGroup.Name, customerClusterName, []string{})
+
 			By("getting admin credentials for the cluster")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
@@ -108,7 +168,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating three node pools in parallel")
+			By(fmt.Sprintf("creating %d node pools in parallel", deployedNodePoolsNumber))
 			scaleDownParams := framework.NewDefaultNodePoolParams()
 			scaleDownParams.NodePoolName = scaleDownNodePoolName
 			scaleDownParams.Replicas = scaleDownNodePoolInitialReplicas
@@ -150,6 +210,13 @@ var _ = Describe("Customer", func() {
 			By("verifying nodes count and status after initial creation")
 			Expect(verifiers.VerifyNodeCount(initialNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed())
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
+
+			deployedNodePoolNames := []string{scaleDownNodePoolName, scaleUpNodePoolName, autoscaleNodePoolName}
+			By(fmt.Sprintf("listing node pools by cluster after creating %d node pools", deployedNodePoolsNumber))
+			verifyNodePoolListByCluster(ctx, *resourceGroup.Name, customerClusterName, deployedNodePoolNames)
+
+			By(fmt.Sprintf("listing node pools by resource group after creating %d node pools", deployedNodePoolsNumber))
+			verifyNodePoolListByRG(ctx, *resourceGroup.Name, deployedNodePoolNames)
 
 			By("scaling down, scaling up, and enabling autoscaling in parallel")
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
@@ -261,5 +328,11 @@ var _ = Describe("Customer", func() {
 			By("verifying nodes count and status after all updates")
 			Expect(verifiers.VerifyNodeCount(finalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed())
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
+
+			By("listing node pools by cluster after node pools updates")
+			verifyNodePoolListByCluster(ctx, *resourceGroup.Name, customerClusterName, deployedNodePoolNames)
+
+			By("listing node pools by resource group after node pools updates")
+			verifyNodePoolListByRG(ctx, *resourceGroup.Name, deployedNodePoolNames)
 		})
 })
