@@ -116,9 +116,13 @@ During rollout, validate at least one datasource during the environment bake win
 
 ### Kusto datasource lifecycle and teardown
 
-`adxDatasourceEnabled: false` is a provisioning gate, not a deletion signal. Disabling it stops future create or update attempts, but it does **not** remove an existing datasource.
+`adxDatasourceEnabled: false` is a provisioning gate, not a deletion signal. Disabling it stops future create or update attempts, but it does **not** remove an existing datasource by itself.
 
-If a geography's Kusto cluster is intentionally decommissioned (`kusto.manageInstance` transitions to `false`), remove the corresponding datasource explicitly:
+If a geography's Kusto cluster is intentionally decommissioned through the `Microsoft.Azure.ARO.HCP.Kusto.Delete` cleanup rollout, that cleanup flow deletes the corresponding `kusto-<env>-<geoShortId>` datasource from the shared Grafana workspace.
+
+The regular geography pipeline still skips datasource changes when no `kustoUri` is available. That fail-closed behavior prevents accidental deletion caused by transient deployment or output issues during normal rollout or provisioning retries.
+
+If a datasource needs to be removed outside the cleanup flow, delete it explicitly:
 
 ```bash
 az grafana data-source delete \
@@ -127,7 +131,7 @@ az grafana data-source delete \
   --data-source "kusto-<env>-<geoShortId>"
 ```
 
-This manual delete is required because the pipeline intentionally skips datasource changes when no `kustoUri` is available. That fail-closed behavior prevents accidental deletion caused by transient deployment or output issues.
+This manual delete is only needed for out-of-band cleanup. Normal Kusto decommission should use the cleanup rollout so the cluster teardown and datasource teardown stay aligned.
 
 ### Regional Azure Monitor Workspace
 

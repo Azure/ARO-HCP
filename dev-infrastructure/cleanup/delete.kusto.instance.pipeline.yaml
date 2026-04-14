@@ -45,8 +45,16 @@ resourceGroups:
       configRef: kusto.rg
     - name: KUSTO_INSTANCE
       configRef: kusto.kustoName
+    - name: GRAFANA_RESOURCE_ID
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaResourceId
     shellIdentity:
       input:
         resourceGroup: global
         step: output
         name: globalMSIId
+    dependsOn:
+    - resourceGroup: global
+      step: output
