@@ -198,6 +198,87 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 	return out, nil
 }
 
+func GetLatestInstallVersion(channelGroup string, version string) (string, error) {
+	switch channelGroup {
+	case "nightly":
+		return GetLatestInstallVersionForNightlyChannel(version)
+	case "stable":
+		return GetLatestInstallVersionForGraphChannel("stable", version)
+	case "candidate":
+		return GetLatestInstallVersionForGraphChannel("candidate", version)
+	case "fast":
+		return GetLatestInstallVersionForGraphChannel("fast", version)
+	default:
+		return "", fmt.Errorf("invalid channel group: %s", channelGroup)
+	}
+}
+
+func GetLatestInstallVersionForGraphChannel(channelGroup string, version string) (string, error) {
+	channel := fmt.Sprintf("%s-%s", channelGroup, version)
+	graphURL := fmt.Sprintf("https://api.openshift.com/api/upgrades_info/v1/graph?channel=%s", url.QueryEscape(channel))
+
+	req, err := http.NewRequest(http.MethodGet, graphURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("create %s graph request for %s: %w", channelGroup, channel, err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("query %s graph for %s: %w", channelGroup, channel, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("query %s graph for %s returned %s: %s", channelGroup, channel, resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Nodes []struct {
+			Version string `json:"version"`
+		} `json:"nodes"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", fmt.Errorf("decode %s graph response for %s: %w", channelGroup, channel, err)
+	}
+	if len(payload.Nodes) == 0 {
+		return "", fmt.Errorf("no graph nodes found for %s", channel)
+	}
+
+	requestedMinor, err := semver.ParseTolerant(version)
+	if err != nil {
+		return "", fmt.Errorf("parse requested %s minor %q: %w", channelGroup, version, err)
+	}
+
+	var latestVersion semver.Version
+	latestVersionID := ""
+	for _, node := range payload.Nodes {
+		nodeVersion, parseErr := semver.ParseTolerant(node.Version)
+		if parseErr != nil {
+			continue
+		}
+		if nodeVersion.Major != requestedMinor.Major || nodeVersion.Minor != requestedMinor.Minor {
+			continue
+		}
+		if latestVersionID == "" || nodeVersion.GT(latestVersion) {
+			latestVersion = nodeVersion
+			latestVersionID = node.Version
+		}
+	}
+
+	if latestVersionID == "" {
+		return "", fmt.Errorf("no %s versions found in %s for requested minor %s", channelGroup, channel, version)
+	}
+
+	// For stable channel, return the latest version in the minor
+	if channelGroup == "stable" {
+		return fmt.Sprintf("%d.%d", latestVersion.Major, latestVersion.Minor), nil
+	}
+
+	return latestVersionID, nil
+}
+
+
 // GetLatestInstallVersionForNightlyChannel returns the latest accepted nightly tag for the given minor version
 // (for example "4.19" -> "4.19.0-0.nightly-multi-YYYY-MM-DD-HHMMSS").
 func GetLatestInstallVersionForNightlyChannel(version string) (string, error) {
