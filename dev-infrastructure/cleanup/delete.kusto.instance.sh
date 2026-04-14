@@ -16,7 +16,7 @@ set -o pipefail
 
 if [[ -z "${RESOURCE_GROUP:-}" ]]; then
     echo "Error: RESOURCE_GROUP environment variable is required"
-    echo "Usage: RESOURCE_GROUP=<resource-group-name> [DRY_RUN=true] ./delete.kusto.instance.sh"
+    echo "Usage: RESOURCE_GROUP=<resource-group-name> KUSTO_INSTANCE=<kusto-instance-name> GRAFANA_RESOURCE_ID=<grafana-resource-id> [DRY_RUN=true] ./delete.kusto.instance.sh"
     exit 1
 fi
 
@@ -100,10 +100,14 @@ parse_grafana_context() {
 
 delete_grafana_datasource() {
     log STEP "Removing Grafana datasource"
-    az resource wait \
+    if ! az resource wait \
         --custom "properties.provisioningState=='Succeeded'" \
         --ids "${GRAFANA_RESOURCE_ID}" \
-        --api-version 2024-10-01
+        --api-version 2024-10-01 \
+        --timeout 300; then
+        log ERROR "Failed waiting for Grafana resource '${GRAFANA_RESOURCE_ID}' to reach provisioningState 'Succeeded' within 300 seconds"
+        exit 1
+    fi
 
     local existing_datasource
     existing_datasource=$(az grafana data-source list \
