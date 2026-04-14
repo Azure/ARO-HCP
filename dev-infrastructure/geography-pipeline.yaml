@@ -61,7 +61,7 @@ resourceGroups:
     action: Shell
     omitFromServiceGroupCompletion: true
     command: |
-      set -eu
+      set -euo pipefail
 
       if [ "${ADX_DATASOURCE_ENABLED}" != "true" ]; then
         echo "ADX datasource provisioning disabled, skipping"
