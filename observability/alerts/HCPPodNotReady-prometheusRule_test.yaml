@@ -1,0 +1,63 @@
+rule_files:
+- HCPPodNotReady-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Pod is ready in ocm- namespace, no alert fires
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_status_ready{cluster="mgmt-1", namespace="ocm-test-hcp", pod="router-abc123-xyz", condition="true"}'
+    values: "1+0x30"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: HCPPodNotReady
+    exp_alerts: []
+# Test 2: Pod not ready in ocm- namespace for > 5 minutes, alert fires
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_status_ready{cluster="mgmt-1", namespace="ocm-test-hcp", pod="router-abc123-xyz", condition="true"}'
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: HCPPodNotReady
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: HCPPodNotReady
+    exp_alerts:
+    - exp_labels:
+        alertname: HCPPodNotReady
+        severity: info
+        cluster: mgmt-1
+        namespace: ocm-test-hcp
+        pod: router-abc123-xyz
+      exp_annotations:
+        summary: "HCP pod not ready in ocm-test-hcp"
+        description: "Pod router-abc123-xyz in namespace ocm-test-hcp (on Mgmt Cluster mgmt-1) has not been ready for more than 5 minutes."
+        runbook_url: TBD
+# Test 3: Pod not ready in non-ocm namespace, no alert fires
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_status_ready{cluster="mgmt-1", namespace="kube-system", pod="coredns-abc123", condition="true"}'
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: HCPPodNotReady
+    exp_alerts: []
+# Test 4: Non-router pod not ready in ocm- namespace, alert still fires
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_status_ready{cluster="mgmt-1", namespace="ocm-test-hcp", pod="kube-apiserver-abc123", condition="true"}'
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: HCPPodNotReady
+    exp_alerts:
+    - exp_labels:
+        alertname: HCPPodNotReady
+        severity: info
+        cluster: mgmt-1
+        namespace: ocm-test-hcp
+        pod: kube-apiserver-abc123
+      exp_annotations:
+        summary: "HCP pod not ready in ocm-test-hcp"
+        description: "Pod kube-apiserver-abc123 in namespace ocm-test-hcp (on Mgmt Cluster mgmt-1) has not been ready for more than 5 minutes."
+        runbook_url: TBD

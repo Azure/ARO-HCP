@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-pod-not-ready-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-pod-not-ready-rules
+    rules:
+    - alert: HCPPodNotReady
+      expr: |
+        max by (cluster, namespace, pod) (
+          kube_pod_status_ready{condition="true", namespace=~"ocm-.*"}
+        ) == 0
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "HCP pod not ready in {{ $labels.namespace }}"
+        description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) has not been ready for more than 5 minutes."
+        runbook_url: TBD

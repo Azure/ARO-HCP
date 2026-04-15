@@ -2033,3 +2033,43 @@ This usually indicates critical operators (Network, API, etc.) are down.
     ]
   }
 }
+
+resource hcpPodNotReadyRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-pod-not-ready-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HCPPodNotReady'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'HCPPodNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          description: 'Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) has not been ready for more than 5 minutes.'
+          info: 'Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} (on Mgmt Cluster {{ $labels.cluster }}) has not been ready for more than 5 minutes.'
+          runbook_url: 'TBD'
+          summary: 'HCP pod not ready in {{ $labels.namespace }}'
+          title: 'HCP pod not ready in {{ $labels.namespace }}'
+        }
+        expression: 'max by (cluster, namespace, pod) ( kube_pod_status_ready{condition="true", namespace=~"ocm-.*"} ) == 0'
+        for: 'PT5M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
