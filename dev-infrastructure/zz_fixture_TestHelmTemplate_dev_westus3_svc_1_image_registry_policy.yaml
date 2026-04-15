@@ -1,13 +1,4 @@
 ---
-# Source: image-registry-policy/templates/namespace.yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: 'image-registry-policy'
-  labels:
-    app.kubernetes.io/name: image-registry-policy
-    app.kubernetes.io/managed-by: Helm
----
 # Source: image-registry-policy/templates/configmap.yaml
 apiVersion: v1
 kind: ConfigMap

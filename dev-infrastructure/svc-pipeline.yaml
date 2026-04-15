@@ -322,6 +322,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -554,6 +556,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -633,6 +637,8 @@ resourceGroups:
       step: prometheus
     - resourceGroup: service
       step: mirror-exporter-image
+    - resourceGroup: service
+      step: image-registry-policy
     inputVariables:
       kustoRegion:
         resourceGroup: kusto
