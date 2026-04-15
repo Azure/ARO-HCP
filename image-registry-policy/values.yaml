@@ -7,3 +7,7 @@ allowedRegistries:
 {{- range .imageRegistryPolicy.extraAllowedRegistries }}
 - '{{ . }}'
 {{- end }}
+validationActions:
+{{- range .imageRegistryPolicy.validationActions }}
+- '{{ . }}'
+{{- end }}

@@ -77,7 +77,9 @@ var _ = Describe("Image Registry Policy", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicyBinding %q not found", imageRegistryPolicyBindingName)
 			Expect(vapb.Spec.PolicyName).To(Equal(imageRegistryPolicyName))
-			Expect(vapb.Spec.ValidationActions).To(ContainElement(admissionregistrationv1.Deny))
+			Expect(vapb.Spec.ValidationActions).NotTo(BeEmpty(),
+				"ValidationActions should be set (Deny or Audit)",
+			)
 
 			By("verifying the allowlist ConfigMap exists and is non-empty")
 			cm, err := kubeClient.CoreV1().ConfigMaps(imageRegistryPolicyNamespace).Get(
@@ -92,6 +94,7 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.High,
 		labels.Negative,
 		labels.CoreInfraService,
+		labels.DevelopmentOnly,
 		func(ctx context.Context) {
 			By("creating a test namespace")
 			ns := &corev1.Namespace{
