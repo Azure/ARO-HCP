@@ -483,9 +483,20 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		managedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
 		if err != nil {
 			if len(managedResourceGroups) > 0 {
-				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
+				ginkgo.GinkgoLogr.Info("managed resource groups stuck after timeout, force-deleting",
+					"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
+				for _, managedRG := range managedResourceGroups {
+					if delErr := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout); delErr != nil {
+						if isIgnorableResourceGroupCleanupError(delErr) {
+							ginkgo.GinkgoLogr.Info("ignoring not found managed resource group during force deletion", "resourceGroup", managedRG)
+						} else {
+							return fmt.Errorf("failed to force-delete stuck managed resource group %q: %w", managedRG, delErr)
+						}
+					}
+				}
+			} else {
+				return fmt.Errorf("failed waiting for managed resource group deletion in %s: %w", resourceGroupName, err)
 			}
-			return fmt.Errorf("failed waiting for managed resource group deletion in %s: %w", resourceGroupName, err)
 		}
 	} else {
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
