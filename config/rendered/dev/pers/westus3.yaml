@@ -414,6 +414,8 @@ imageRegistryPolicy:
   - jaegertracing
   - grafana
   - otel
+  validationActions:
+  - Deny
 imageSync:
   environmentName: aro-hcp-image-sync
   ocMirror:

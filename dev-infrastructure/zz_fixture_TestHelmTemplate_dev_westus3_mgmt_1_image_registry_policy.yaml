@@ -73,7 +73,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   policyName: "image-registry-allowlist-policy"
-  validationActions: [Deny]
+  validationActions:
+  - Deny
   paramRef:
     name: "image-registry-allowlist-config"
     namespace: 'image-registry-policy'
