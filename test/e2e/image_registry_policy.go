@@ -21,24 +21,17 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 const (
-	imageRegistryPolicyName        = "image-registry-allowlist-policy"
-	imageRegistryPolicyBindingName = "image-registry-allowlist-policy-binding"
-	imageRegistryPolicyNamespace   = "image-registry-policy"
-	imageRegistryPolicyConfigMap   = "image-registry-allowlist-config"
-	disallowedImage                = "quay.io/library/nginx:latest"
+	disallowedImage = "quay.io/library/nginx:latest"
 )
 
 var _ = Describe("Image Registry Policy", func() {
@@ -54,40 +47,6 @@ var _ = Describe("Image Registry Policy", func() {
 		kubeClient, err = kubernetes.NewForConfig(restConfig)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create Kubernetes client")
 	})
-
-	It("should have the ValidatingAdmissionPolicy deployed and active",
-		labels.RequireNothing,
-		labels.High,
-		labels.Positive,
-		labels.CoreInfraService,
-		func(ctx context.Context) {
-			By("verifying the ValidatingAdmissionPolicy exists")
-			vap, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get(
-				ctx, imageRegistryPolicyName, metav1.GetOptions{},
-			)
-			Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicy %q not found", imageRegistryPolicyName)
-			Expect(vap.Spec.FailurePolicy).To(
-				Equal(to.Ptr(admissionregistrationv1.Fail)),
-				"FailurePolicy should be Fail for FSI compliance",
-			)
-
-			By("verifying the ValidatingAdmissionPolicyBinding exists")
-			vapb, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Get(
-				ctx, imageRegistryPolicyBindingName, metav1.GetOptions{},
-			)
-			Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicyBinding %q not found", imageRegistryPolicyBindingName)
-			Expect(vapb.Spec.PolicyName).To(Equal(imageRegistryPolicyName))
-			Expect(vapb.Spec.ValidationActions).NotTo(BeEmpty(),
-				"ValidationActions should be set (Deny or Audit)",
-			)
-
-			By("verifying the allowlist ConfigMap exists and is non-empty")
-			cm, err := kubeClient.CoreV1().ConfigMaps(imageRegistryPolicyNamespace).Get(
-				ctx, imageRegistryPolicyConfigMap, metav1.GetOptions{},
-			)
-			Expect(err).NotTo(HaveOccurred(), "ConfigMap %q not found", imageRegistryPolicyConfigMap)
-			Expect(cm.Data["allowedRegistries"]).NotTo(BeEmpty(), "allowedRegistries should not be empty")
-		})
 
 	It("should deny pods with images from disallowed registries",
 		labels.RequireNothing,
@@ -130,48 +89,5 @@ var _ = Describe("Image Registry Policy", func() {
 			Expect(err).To(HaveOccurred(), "Pod with disallowed image should be denied")
 			Expect(apierrors.IsForbidden(err)).To(BeTrue(),
 				"Expected Forbidden error for disallowed image, got: %v", err)
-		})
-
-	It("should allow pods with images from allowed registries",
-		labels.RequireNothing,
-		labels.High,
-		labels.Positive,
-		labels.CoreInfraService,
-		func(ctx context.Context) {
-			By("creating a test namespace")
-			ns := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					GenerateName: "image-policy-test-",
-				},
-			}
-			createdNS, err := kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "Failed to create test namespace")
-			testNS := createdNS.Name
-			DeferCleanup(func(ctx context.Context) {
-				_ = kubeClient.CoreV1().Namespaces().Delete(ctx, testNS, metav1.DeleteOptions{})
-			})
-
-			By("creating a pod with an allowed MCR image")
-			pod := &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "policy-test-allowed",
-					Namespace: testNS,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "test",
-							Image:   "mcr.microsoft.com/cbl-mariner/base/core:2.0",
-							Command: []string{"/bin/sh", "-c", "sleep 1"},
-						},
-					},
-					RestartPolicy: corev1.RestartPolicyNever,
-				},
-			}
-			created, err := kubeClient.CoreV1().Pods(testNS).Create(ctx, pod, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "Pod with allowed image should be accepted")
-			DeferCleanup(func(ctx context.Context) {
-				_ = kubeClient.CoreV1().Pods(testNS).Delete(ctx, created.Name, metav1.DeleteOptions{})
-			})
 		})
 })

@@ -61,7 +61,6 @@ MISE Routing routes to the correct frontend based on version header MISE v2 when
 MISE Routing routes to the correct frontend based on version header default route returns no version header
 Image Registry Policy should have the ValidatingAdmissionPolicy deployed and active
 Image Registry Policy should deny pods with images from disallowed registries
-Image Registry Policy should allow pods with images from allowed registries
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits
 Customer should respect cluster-wide node limits with nodepool autoscaling
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled

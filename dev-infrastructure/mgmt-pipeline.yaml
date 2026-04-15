@@ -374,6 +374,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -465,6 +467,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -493,6 +497,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -519,6 +525,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -633,6 +641,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output

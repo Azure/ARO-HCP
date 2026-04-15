@@ -13,5 +13,5 @@ spec:
   {{- end }}
   paramRef:
     name: "image-registry-allowlist-config"
-    namespace: '{{ .Values.namespace }}'
+    namespace: '{{ .Release.Namespace }}'
     parameterNotFoundAction: Deny
