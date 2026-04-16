@@ -103,6 +103,7 @@ param msiRefresherServiceAccountName = '{{ .msiCredentialsRefresher.k8s.serviceA
 
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
+param serviceKeyVaultSubscription = '__serviceKeyVaultSubscription__'
 
 param adminApiMIName = '{{ .adminApi.managedIdentityName }}'
 param adminApiNamespace = '{{ .adminApi.k8s.namespace }}'

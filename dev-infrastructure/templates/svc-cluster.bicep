@@ -264,6 +264,9 @@ param serviceKeyVaultName string
 @description('The name of the resourcegroup for the service keyvault')
 param serviceKeyVaultResourceGroup string = resourceGroup().name
 
+@description('The subscription ID where the service keyvault resource group lives. Defaults to the current subscription. Set when the keyvault is shared across subscriptions.')
+param serviceKeyVaultSubscription string = subscription().subscriptionId
+
 @description('OIDC Storage Account name')
 param oidcStorageAccountName string
 
@@ -458,7 +461,7 @@ param sessiongateIngressCertIssuer string
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
 }
 
 //
@@ -798,6 +801,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     mqttClientName: maestroServerMqttClientName
     certKeyVaultName: serviceKeyVaultName
     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
+    certKeyVaultSubscription: serviceKeyVaultSubscription
     keyVaultOfficerManagedIdentityName: globalMSIId
     maestroCertificateDomain: effectiveMaestroCertDomain
     maestroCertificateIssuer: maestroCertIssuer
@@ -874,7 +878,7 @@ module cs '../modules/cluster-service.bicep' = {
 
 module serviceKeyVaultSecretsUserAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'kv-sec-user-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
@@ -884,7 +888,7 @@ module serviceKeyVaultSecretsUserAccess '../modules/keyvault/keyvault-secret-acc
 
 module serviceKeyVaultCertUserAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'kv-cert-user-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Certificate User'
@@ -987,7 +991,7 @@ var frontendDnsFQDN = '${frontendDnsName}.${regionalSvcDNSZoneName}'
 
 module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'frontend-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     subjectName: 'CN=${frontendDnsFQDN}'
@@ -1002,7 +1006,7 @@ module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
 
 module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aks-svc-kv-access-${frontendIngressCertName}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
@@ -1031,7 +1035,7 @@ var adminApiDnsFQDN = '${adminApiDnsName}.${regionalSvcDNSZoneName}'
 
 module adminApiCert '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'admin-api-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     subjectName: 'CN=${adminApiDnsFQDN}'
@@ -1046,7 +1050,7 @@ module adminApiCert '../modules/keyvault/key-vault-cert.bicep' = {
 
 module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aks-svc-kv-access-${adminApiIngressCertName}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
@@ -1076,7 +1080,7 @@ var sessiongateDnsFQDN = '${sessiongateDnsName}.${regionalSvcDNSZoneName}'
 
 module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
   name: 'sessiongate-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     subjectName: 'CN=${sessiongateDnsFQDN}'
@@ -1091,7 +1095,7 @@ module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
 
 module sessiongateIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aksSPCRead-${sessiongateIngressCertName}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Secrets User'
@@ -1119,7 +1123,7 @@ var fpaCertificateSNI = '${fpaCertificateName}.${svcDNSZoneName}'
 
 module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpaCertificate) {
   name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     subjectName: 'CN=${fpaCertificateSNI}'
@@ -1138,7 +1142,7 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
 
 module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
   name: 'geneva-rp-certificate-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId

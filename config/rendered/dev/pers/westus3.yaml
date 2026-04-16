@@ -814,6 +814,8 @@ serviceKeyVault:
   region: westus3
   rg: global
   softDelete: true
+  subscription:
+    key: ARO Hosted Control Planes (EA Subscription 1)
   tagKey: aroHCPPurpose
   tagValue: service
 sessiongate:
