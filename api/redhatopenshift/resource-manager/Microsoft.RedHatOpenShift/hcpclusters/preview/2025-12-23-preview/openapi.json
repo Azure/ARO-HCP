@@ -2596,6 +2596,15 @@
             "create"
           ]
         },
+        "vaultResourceId": {
+          "type": "string",
+          "format": "arm-id",
+          "description": "The Azure Resource ID of the keyvault.",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "visibility": {
           "$ref": "#/definitions/KeyVaultVisibility",
           "description": "visibility of the keyvault that contains the secret.",
@@ -2615,6 +2624,7 @@
       },
       "required": [
         "vaultName",
+        "vaultResourceId",
         "visibility",
         "activeKey"
       ]

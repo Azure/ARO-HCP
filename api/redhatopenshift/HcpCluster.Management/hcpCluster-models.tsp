@@ -587,6 +587,11 @@ model KmsEncryptionProfile {
   @added(Versions.v2025_12_23_preview)
   vaultName: string;
 
+  /** The Azure Resource ID of the keyvault. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @added(Versions.v2025_12_23_preview)
+  vaultResourceId: Azure.Core.armResourceIdentifier;
+
   /** visibility of the keyvault that contains the secret. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @added(Versions.v2025_12_23_preview)
