@@ -110,6 +110,14 @@ for SUBSCRIPTION_NAME in "${SUBSCRIPTIONS[@]}"; do
         --condition-version "2.0" \
         --description "Allow user to assign all roles except privileged administrator roles Owner, UAA, RBAC (Recommended)" 2>/dev/null || echo "    (already assigned)"
 
+    # Assign AKS RBAC Cluster Admin for templatize Shell steps that need
+    # kubeconfig access on freshly-created AKS clusters
+    echo "  Assigning Azure Kubernetes Service RBAC Cluster Admin role..."
+    az role assignment create \
+        --assignee "${APP_ID}" \
+        --role "Azure Kubernetes Service RBAC Cluster Admin" \
+        --scope "/subscriptions/${SUBSCRIPTION_ID}" 2>/dev/null || echo "    (already assigned)"
+
     if [[ "${SUBSCRIPTION_NAME}" == "${GLOBAL_SUBSCRIPTION_NAME}" ]]; then
         GLOBAL_SUBSCRIPTION_ID="${SUBSCRIPTION_ID}"
     fi

@@ -2906,6 +2906,18 @@
         "tagKey": {
           "type": "string"
         },
+        "subscription": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "key"
+          ]
+        },
         "tagValue": {
           "type": "string"
         }
@@ -2917,6 +2929,7 @@
         "region",
         "rg",
         "softDelete",
+        "subscription",
         "tagKey",
         "tagValue"
       ]
