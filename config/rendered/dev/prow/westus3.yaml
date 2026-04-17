@@ -88,9 +88,9 @@ auditLogsEventHub:
   authRuleName: SendRule
   enabled: true
   kustoConsumerGroupName: AuditLogsToKusto
-  kustoDataConnectionName: prow-westus3-auditlogs
+  kustoDataConnectionName: prow-6fdd6b-auditlogs
   name: aks-auditlogs
-  namespace: hcp-prow-westus3-auditlogs-eh
+  namespace: hcp-prow-6fdd6b-auditlogs-eh
   rg: westus3-shared-resources
 automationDryRun: false
 azureGeoShortId: us
@@ -447,8 +447,8 @@ kusto:
   enableAutoScale: true
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us-2
-  location: westus3
-  manageInstance: false
+  location: eastus2
+  manageInstance: true
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
   sku: Standard_E8ads_v5
@@ -543,7 +543,7 @@ mgmt:
       name: infra
       osDiskSizeGB: 64
       poolCount: 2
-      vmSize: Standard_D4ds_v5
+      vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.34.4
@@ -558,7 +558,7 @@ mgmt:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D4ds_v5
+      vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
@@ -568,7 +568,7 @@ mgmt:
       osDiskSizeGB: 100
       poolCount: 3
       secondaryNicCount: 7
-      vmSize: Standard_D16ds_v5
+      vmSize: Standard_D16ds_v6
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
@@ -635,7 +635,7 @@ mgmt:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
     displayName: Azure Red Hat OpenShift HCP - West US 3 - MGMT - 1
-    key: ARO Hosted Control Planes (EA Subscription 1)
+    key: ARO HCP E2E Infrastructure (EA Subscription)
     providers:
       Microsoft.Compute:
         features:
@@ -846,7 +846,7 @@ svc:
       name: infra
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D4ds_v5
+      vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.34.4
@@ -861,16 +861,16 @@ svc:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D2s_v3
+      vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
       maxCount: 3
       minCount: 1
-      name: u64d8dsv5
+      name: u64d8dsv6
       osDiskSizeGB: 64
       poolCount: 3
-      vmSize: Standard_D8ds_v5
+      vmSize: Standard_D8ds_v6
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
@@ -941,7 +941,7 @@ svc:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
     displayName: Azure Red Hat OpenShift HCP - West US 3 - SVC
-    key: ARO Hosted Control Planes (EA Subscription 1)
+    key: ARO HCP E2E Infrastructure (EA Subscription)
     providers:
       Microsoft.Compute:
         features:
