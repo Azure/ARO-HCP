@@ -112,6 +112,7 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "lastTransitionTime")...)                                                      // operations
 			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "startTime")...)                                                               // operations
 			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "operationId")...)                                                             // operations
+			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "phaseTimestamps")...)                                                         // operations - per-phase entry timestamps, non-deterministic
 			unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "internalState", "internalAPI", "serviceProviderProperties", "clusterUID")...) // cluster - UUID generated
 
 			for _, nestedPossiblePrepend := range []string{"", "intermediateResourceDoc"} {

@@ -385,6 +385,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
+	clusterCreateOperation.RecordPhaseEntry(clusterCreateOperation.Status, clusterCreateOperation.LastTransitionTime)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
 	_, err = f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterCreateOperation, nil)
 	if err != nil {
@@ -672,6 +673,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
+	clusterUpdateOperation.RecordPhaseEntry(clusterUpdateOperation.Status, clusterUpdateOperation.LastTransitionTime)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterUpdateOperation.NotificationURI, clusterUpdateOperation.OperationID))
 	_, err = f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterUpdateOperation, nil)
 	if err != nil {
@@ -812,6 +814,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		"",
 		"",
 		correlationData)
+	operationDoc.RecordPhaseEntry(operationDoc.Status, operationDoc.LastTransitionTime)
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.

@@ -311,6 +311,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
+	createExternalAuthOperation.RecordPhaseEntry(createExternalAuthOperation.Status, createExternalAuthOperation.LastTransitionTime)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createExternalAuthOperation.NotificationURI, createExternalAuthOperation.OperationID))
 	_, err = f.dbClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createExternalAuthOperation, nil)
 	if err != nil {
@@ -517,6 +518,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
+	externalAuthUpdateOperation.RecordPhaseEntry(externalAuthUpdateOperation.Status, externalAuthUpdateOperation.LastTransitionTime)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, externalAuthUpdateOperation.NotificationURI, externalAuthUpdateOperation.OperationID))
 	_, err = f.dbClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, externalAuthUpdateOperation, nil)
 	if err != nil {
@@ -654,6 +656,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		"",
 		"",
 		correlationData)
+	operationDoc.RecordPhaseEntry(operationDoc.Status, operationDoc.LastTransitionTime)
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.

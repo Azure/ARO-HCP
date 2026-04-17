@@ -98,6 +98,7 @@ func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction datab
 		operationToWrite := operation.DeepCopy()
 		operationToWrite.LastTransitionTime = now
 		operationToWrite.Status = arm.ProvisioningStateCanceled
+		operationToWrite.RecordPhaseEntry(operationToWrite.Status, operationToWrite.LastTransitionTime)
 		operationToWrite.Error = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeCanceled,
 			Message: "This operation was superseded by another",

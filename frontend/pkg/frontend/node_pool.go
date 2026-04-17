@@ -324,6 +324,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
+	createNodePoolOperation.RecordPhaseEntry(createNodePoolOperation.Status, createNodePoolOperation.LastTransitionTime)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createNodePoolOperation.NotificationURI, createNodePoolOperation.OperationID))
 	_, err = f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
 	if err != nil {
@@ -607,6 +608,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
+	nodePoolUpdateOperation.RecordPhaseEntry(nodePoolUpdateOperation.Status, nodePoolUpdateOperation.LastTransitionTime)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, nodePoolUpdateOperation.NotificationURI, nodePoolUpdateOperation.OperationID))
 	_, err = f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
 	if err != nil {
@@ -744,6 +746,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		"",
 		"",
 		correlationData)
+	operationDoc.RecordPhaseEntry(operationDoc.Status, operationDoc.LastTransitionTime)
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
