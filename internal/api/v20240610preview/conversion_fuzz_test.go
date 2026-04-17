@@ -90,6 +90,18 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ClusterServiceID = ocm.InternalID{}
 			j.ExistingCosmosUID = ""
 		},
+		// Status.Conditions does not roundtrip through the external type because it is purely an internal detail.
+		// The NodePool/ExternalAuth zeroers are kept in sync with v20251223preview even though v20240610preview
+		// does not currently convert those resources, so a future conversion addition does not silently regress.
+		func(j *api.HCPOpenShiftClusterStatus, c randfill.Continue) {
+			*j = api.HCPOpenShiftClusterStatus{}
+		},
+		func(j *api.HCPOpenShiftClusterNodePoolStatus, c randfill.Continue) {
+			*j = api.HCPOpenShiftClusterNodePoolStatus{}
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuthStatus, c randfill.Continue) {
+			*j = api.HCPOpenShiftClusterExternalAuthStatus{}
+		},
 		func(j *api.CustomerPlatformProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// VnetIntegrationSubnetID was added in v2025_12_23_preview and does not exist in v2024_06_10_preview

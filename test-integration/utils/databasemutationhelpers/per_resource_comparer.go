@@ -122,7 +122,11 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "systemData", "lastModifiedAt")...)...)
 			}
 
-			// for controllers
+			// Strip lastTransitionTime from status.conditions so integration test fixtures
+			// remain stable across runs. When new fluctuating fields are added to the
+			// Condition type (e.g. ObservedGeneration derived from Cosmos _etag, or
+			// producer-supplied Reason strings that embed a timestamp), extend this block
+			// to strip them as well.
 			for _, nestedPossiblePrepend := range []string{"", "internalState"} {
 				expectedConditions, found, err := unstructured.NestedSlice(currMap, prepend(possiblePrepend, prepend(nestedPossiblePrepend, "status", "conditions")...)...)
 				if found && err == nil {

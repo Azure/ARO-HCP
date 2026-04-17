@@ -28,7 +28,12 @@ type HCPOpenShiftCluster struct {
 
 	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
+	// Status is backend-owned. It is populated by the backend condition-writer controller
+	// and never accepted from request bodies; CopyReadOnly* helpers overwrite any client-
+	// supplied value with the stored one. Internal-only: fuzz-zeroed in all preview
+	// conversions so it cannot be serialized across the ARM boundary.
+	Status   HCPOpenShiftClusterStatus   `json:"status,omitzero"`
+	Identity *arm.ManagedServiceIdentity `json:"identity,omitempty"`
 	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
 	// populated on DB read via the CosmosToInternalCluster() conversion function.
 	// We carry it across the API boundary between HCPCluster (the direct cosmos db type) and HCPOpenShiftCluster (this)
@@ -62,7 +67,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	ImageDigestMirrors      []ImageDigestMirror         `json:"imageDigestMirrors,omitempty"`
 }
 
-// HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
+// HCPOpenShiftClusterServiceProviderProperties represents the internal property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
 	ExistingCosmosUID            string                         `json:"-"`
 	ProvisioningState            arm.ProvisioningState          `json:"provisioningState,omitempty"`
@@ -91,6 +96,13 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// associated with this cluster. It is set when the billing document is created
 	// and used to avoid redundant creation attempts.
 	BillingDocumentCosmosID string `json:"billingDocumentCosmosID,omitempty"`
+}
+
+// HCPOpenShiftClusterStatus contains controller-written status for a cluster.
+type HCPOpenShiftClusterStatus struct {
+	// Conditions tracks semantic status such as Progressing, Degraded, and
+	// Installed. Provisioning states and operation requests are not conditions.
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

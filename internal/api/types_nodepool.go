@@ -33,7 +33,12 @@ type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
+	// Status is backend-owned. It is populated by the backend condition-writer controller
+	// and never accepted from request bodies; CopyReadOnly* helpers overwrite any client-
+	// supplied value with the stored one. Internal-only: fuzz-zeroed in all preview
+	// conversions so it cannot be serialized across the ARM boundary.
+	Status   HCPOpenShiftClusterNodePoolStatus `json:"status,omitzero"`
+	Identity *arm.ManagedServiceIdentity       `json:"identity,omitempty"`
 	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
 	// populated on DB read via the CosmosToInternalNodePool() conversion function.
 	// We carry it across the API boundary between NodePool (the direct cosmos db type) and HCPOpenShiftClusterNodePool (this)
@@ -71,6 +76,13 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	ExistingCosmosUID string     `json:"-"`
 	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
+}
+
+// HCPOpenShiftClusterNodePoolStatus contains controller-written status for a node pool.
+type HCPOpenShiftClusterNodePoolStatus struct {
+	// Conditions tracks semantic status such as Progressing and Degraded.
+	// Provisioning states and operation requests are not conditions.
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

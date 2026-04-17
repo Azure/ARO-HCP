@@ -30,6 +30,11 @@ type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	// Status is backend-owned. It is populated by the backend condition-writer controller
+	// and never accepted from request bodies; CopyReadOnly* helpers overwrite any client-
+	// supplied value with the stored one. Internal-only: fuzz-zeroed in all preview
+	// conversions so it cannot be serialized across the ARM boundary.
+	Status HCPOpenShiftClusterExternalAuthStatus `json:"status,omitzero"`
 	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
 	// populated on DB read via the CosmosToInternalExternalAuth() conversion function.
 	// We carry it across the API boundary between ExternalAuth (the direct cosmos db type) and HCPOpenShiftClusterExternalAuth (this)
@@ -79,8 +84,20 @@ type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	ActiveOperationID string     `json:"activeOperationId,omitempty"`
 }
 
-// Condition defines an observation of the external auth state.
-// Visibility for the entire struct is "read".
+// HCPOpenShiftClusterExternalAuthStatus contains controller-written status for an external auth.
+type HCPOpenShiftClusterExternalAuthStatus struct {
+	// Conditions tracks semantic status such as Progressing and Degraded.
+	// Provisioning states and operation requests are not conditions.
+	Conditions []Condition `json:"conditions,omitempty"`
+}
+
+// ExternalAuthCondition is the ARM-surface condition type for ExternalAuth
+// resources. It is narrower than and distinct from api.Condition (used in
+// Status.Conditions across all three HCP resource types for internal backend
+// health signal) — this one is serialized over ARM and uses the
+// ExternalAuthConditionType enum, while api.Condition is internal-only
+// (fuzz-zeroed in preview conversions) and uses the generic ConditionStatus
+// vocabulary. Do not conflate the two.
 type ExternalAuthCondition struct {
 	Type               ExternalAuthConditionType `json:"type"`
 	Status             ConditionStatusType       `json:"status"`
