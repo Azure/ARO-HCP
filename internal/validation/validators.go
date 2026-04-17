@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
@@ -34,6 +36,33 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
+
+func immutableByCompare[T comparable](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+	if value == nil && oldValue == nil {
+		return nil
+	}
+	if value == nil || oldValue == nil || *value != *oldValue {
+		return field.ErrorList{
+			field.Forbidden(fldPath, "field is immutable"),
+		}
+	}
+	return nil
+}
+
+func immutableByReflect[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue T) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+	if !equality.Semantic.DeepEqual(value, oldValue) {
+		return field.ErrorList{
+			field.Forbidden(fldPath, "field is immutable"),
+		}
+	}
+	return nil
+}
 
 func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
