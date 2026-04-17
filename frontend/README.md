@@ -31,8 +31,10 @@ See [ARO-23882](https://issues.redhat.com/browse/ARO-23882) for the tracking tic
 
 ## Available endpoints
 
-> Note: If you need a test cluster.json file or node_pool.json for some of the below API calls, you can generate one using [utils/create.go](./utils/create.go)
+> Note: If you need a test cluster.json file, external_auth.json or node_pool.json for some of the below API calls, you can generate one using [utils/create.go](./utils/create.go)
 > `go run utils/create.go -type cluster`
+> or
+> `go run utils/create.go -type external_auth`
 > or
 > `go run utils/create.go -type node_pool`
 > Any Create/Get/Delete cluster calls below will expect a running CS in order to function for now
