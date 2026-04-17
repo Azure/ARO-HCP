@@ -448,7 +448,7 @@ func decodeDesiredExternalAuthPatch(ctx context.Context, oldInternalExternalAuth
 	// TODO find a way to represent the desired change without starting from internal state here (very confusing)
 	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
 	newExternalExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(oldInternalExternalAuth)
-	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalExternalAuth); err != nil {
+	if err := api.ApplyPatchRequestBody(body, newExternalExternalAuth); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	newInternalExternalAuth, err := newExternalExternalAuth.ConvertToInternal(oldInternalExternalAuth)

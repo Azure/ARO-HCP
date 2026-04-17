@@ -1,0 +1,16 @@
+{
+    "_etag": "0d101fe3-51b4-4e22-91c2-1b8a5b95576a",
+    "id": "2f2d4ba3-1ee6-57b6-bde9-b61d09eaf989",
+    "partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+    "properties": {
+        "cosmosMetadata": {
+            "resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7"
+        },
+        "properties": null,
+        "registrationDate": "2025-12-19T19:53:15+00:00",
+        "resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
+        "state": "Registered"
+    },
+    "resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
+    "resourceType": "Microsoft.Resources/subscriptions"
+}

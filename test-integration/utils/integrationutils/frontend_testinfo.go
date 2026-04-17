@@ -22,9 +22,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/admin/server/server"
@@ -33,7 +31,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type StorageIntegrationTestInfo interface {
@@ -59,33 +56,6 @@ type IntegrationTestInfo struct {
 	adminAPIListener net.Listener
 
 	KubernetesClientSets *KubernetesClientSets
-}
-
-func Get20240610ClientFactory(frontendURL string, subscriptionID string) *hcpsdk20240610preview.ClientFactory {
-	return api.Must(
-		hcpsdk20240610preview.NewClientFactory(subscriptionID, nil,
-			&azcorearm.ClientOptions{
-				ClientOptions: azcore.ClientOptions{
-					Retry: policy.RetryOptions{
-						MaxRetries: -1, // no retries
-					},
-					Cloud: cloud.Configuration{
-						//ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
-						Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-							cloud.ResourceManager: {
-								Audience: "https://management.core.windows.net/",
-								Endpoint: frontendURL,
-							},
-						},
-					},
-					InsecureAllowCredentialWithHTTP: true,
-					PerCallPolicies: []policy.Policy{
-						emptySystemData{},
-					},
-				},
-			},
-		),
-	)
 }
 
 var (

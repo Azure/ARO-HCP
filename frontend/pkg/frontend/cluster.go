@@ -546,7 +546,7 @@ func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPO
 	// TODO find a way to represent the desired change without starting from internal state here (very confusing)
 	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
 	var newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(oldInternalCluster)
-	if err := api.ApplyRequestBody(http.MethodPatch, body, newExternalCluster); err != nil {
+	if err := api.ApplyPatchRequestBody(body, newExternalCluster); err != nil {
 		return nil, utils.TrackError(err)
 	}
 	newInternalCluster, err := newExternalCluster.ConvertToInternal(oldInternalCluster)
