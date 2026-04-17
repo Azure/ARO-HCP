@@ -81,7 +81,7 @@ func NewKubernetesClientSets(sessionNamespace string) *KubernetesClientSets {
 	decoder := codecs.UniversalDeserializer()
 
 	// Standard kubernetes fake client
-	fc := fake.NewSimpleClientset()
+	fc := fake.NewSimpleClientset() //nolint:staticcheck // NewClientset requires apply configurations which break informer cache sync in tests
 
 	// Sessiongate fake client
 	sf := sessiongatefake.NewSimpleClientset()
