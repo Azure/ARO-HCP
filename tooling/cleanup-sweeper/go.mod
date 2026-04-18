@@ -17,7 +17,7 @@ require (
 	github.com/microsoft/kiota-authentication-azure-go v1.3.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.69.0
 	github.com/spf13/cobra v1.10.2
-	k8s.io/apimachinery v0.34.3
+	k8s.io/apimachinery v0.35.1
 	sigs.k8s.io/yaml v1.6.0
 )
 
