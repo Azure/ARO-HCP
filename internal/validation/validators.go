@@ -27,6 +27,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/api/validate/constraints"
@@ -39,6 +40,33 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
+
+func immutableByCompare[T comparable](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+	if value == nil && oldValue == nil {
+		return nil
+	}
+	if value == nil || oldValue == nil || *value != *oldValue {
+		return field.ErrorList{
+			field.Forbidden(fldPath, "field is immutable"),
+		}
+	}
+	return nil
+}
+
+func immutableByReflect[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue T) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+	if !equality.Semantic.DeepEqual(value, oldValue) {
+		return field.ErrorList{
+			field.Forbidden(fldPath, "field is immutable"),
+		}
+	}
+	return nil
+}
 
 func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
