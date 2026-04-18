@@ -93,6 +93,7 @@ func (tlsConfig TLSCertificatesConfig) validateCertificatesGenerationSource(
 ) field.ErrorList {
 	return validate.Enum(ctx, op, fldPath,
 		&tlsConfig.CertificatesGenerationSource, nil, validCertificatesGenerationSources,
+		nil,
 	)
 }
 
@@ -101,7 +102,7 @@ func (tlsConfig TLSCertificatesConfig) validateIssuer(
 ) field.ErrorList {
 	var errs field.ErrorList
 
-	errs = append(errs, validate.Enum(ctx, op, fldPath, &tlsConfig.Issuer, nil, validIssuerTypes)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath, &tlsConfig.Issuer, nil, validIssuerTypes, nil)...)
 
 	if tlsConfig.CertificatesGenerationSource == CertificatesGenerationSourceHypershift && len(tlsConfig.Issuer) > 0 {
 		errs = append(errs, field.Forbidden(fldPath,
