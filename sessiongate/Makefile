@@ -20,7 +20,7 @@ SESSION_GATE_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'g
 LDFLAGS = -ldflags ""
 
 # K8S Codegen
-KUBE_CODEGEN_TAG=v0.34.3
+KUBE_CODEGEN_TAG=v0.35.1
 KUBE_CODEGEN_SH=hack/kube-codegen.sh
 
 # Default target

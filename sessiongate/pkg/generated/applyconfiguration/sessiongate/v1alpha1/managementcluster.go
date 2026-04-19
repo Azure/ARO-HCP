@@ -17,7 +17,13 @@ package v1alpha1
 
 // ManagementClusterApplyConfiguration represents a declarative configuration of the ManagementCluster type for use
 // with apply.
+//
+// ManagementCluster identifies an Azure Kubernetes Service (AKS) management cluster that hosts
+// one or more Hypershift Hosted Control Planes. The management cluster runs the HCP control plane
+// components and is the target for session resource provisioning.
 type ManagementClusterApplyConfiguration struct {
+	// resourceId is the fully Azure Resource Manager (ARM) resource ID of the management
+	// cluster. This ID uniquely identifies the AKS cluster within the Azure subscription.
 	ResourceID *string `json:"resourceId,omitempty"`
 }
 

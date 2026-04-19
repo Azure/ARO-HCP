@@ -17,9 +17,18 @@ package v1alpha1
 
 // HostedControlPlaneApplyConfiguration represents a declarative configuration of the HostedControlPlane type for use
 // with apply.
+//
+// HostedControlPlane identifies a Hypershift Hosted Control Plane running on a management cluster.
+// The HCP represents a customer's OpenShift control plane whose Kubernetes API server the session
+// will provide access to.
 type HostedControlPlaneApplyConfiguration struct {
+	// resourceId is the qualified Azure Resource Manager (ARM) resource ID of the hosted
+	// cluster resource. This ID uniquely identifies the ARO-HCP cluster within the Azure subscription.
 	ResourceID *string `json:"resourceId,omitempty"`
-	Namespace  *string `json:"namespace,omitempty"`
+	// namespace is the Kubernetes namespace on the management cluster where the HostedControlPlane
+	// custom resource is located. This namespace contains the HCP's control plane components
+	// and is used by the controller to locate the target HCP resources.
+	Namespace *string `json:"namespace,omitempty"`
 }
 
 // HostedControlPlaneApplyConfiguration constructs a declarative configuration of the HostedControlPlane type for use with
