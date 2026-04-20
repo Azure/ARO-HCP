@@ -856,24 +856,6 @@ defaults:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
       digest: sha256:91864b4571d431dbc0502d7a5cf9229c8d64fe3f85f60f1df92cddfcce3918f1 # 001af75eb0332efa7b58c33cd43193bd3cf222be (2026-04-01 06:41)
-  # PKO
-  pko:
-    managedIdentityName: package-operator
-    k8s:
-      namespace: package-operator-system
-      serviceAccountName: package-operator
-    imagePackage:
-      registry: quay.io
-      repository: package-operator/package-operator-package
-      digest: sha256:6dc4ef7c2ac37438636fd18cda973f53440478c91f580fa5e15c6377f41d60c6 # v1.18.3 (2025-12-03 16:28)
-    imageManager:
-      registry: quay.io
-      repository: package-operator/package-operator-manager
-      digest: sha256:e9f66a19bc9dcfcf2a9e6ba14f61395806b65813a89385a2f943fe5148b29142 # v1.18.3 (2025-12-03 16:28)
-    remotePhaseManager:
-      registry: quay.io
-      repository: package-operator/remote-phase-manager
-      digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45 # v1.18.3 (2025-12-03 16:28)
   # ACM
   acm:
     operator:

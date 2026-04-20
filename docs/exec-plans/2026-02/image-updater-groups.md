@@ -12,7 +12,6 @@ The image updater config (`tooling/image-updater/config.yaml`) has ~30 image ent
 | `cs` | clusters-service |
 | `aro-deps` | backplaneAPI, imageSync |
 | `hypershift-stack` | hypershift, maestro, maestro-agent-sidecar, acm-operator, acm-mce |
-| `pko` | pko-package, pko-manager, pko-remote-phase-manager |
 | `prom-stack` | prometheus-operator, prometheus, prometheus-config-reloader, kube-state-metrics, kube-webhook-certgen |
 | `obs-agents` | arobit-forwarder, arobit-mdsd, kubeEvents |
 | `velero` | velero-server, velero-azure-plugin, velero-hypershift-plugin |

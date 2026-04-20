@@ -32,34 +32,6 @@ images:
     targets:
     - jsonPath: defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
-  # PKO imagess
-  pko-package:
-    group: pko
-    source:
-      image: quay.io/package-operator/package-operator-package
-      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      tag: "v1.18.3" # Current image is failing, we needed to rollback
-    targets:
-    - jsonPath: defaults.pko.imagePackage.digest
-      filePath: ../../config/config.yaml
-  pko-manager:
-    group: pko
-    source:
-      image: quay.io/package-operator/package-operator-manager
-      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      tag: "v1.18.3" # Current image is failing, we needed to rollback
-    targets:
-    - jsonPath: defaults.pko.imageManager.digest
-      filePath: ../../config/config.yaml
-  pko-remote-phase-manager:
-    group: pko
-    source:
-      image: quay.io/package-operator/remote-phase-manager
-      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      tag: "v1.18.3" # Current image is failing, we needed to rollback
-    targets:
-    - jsonPath: defaults.pko.remotePhaseManager.digest
-      filePath: ../../config/config.yaml
   # Clusters Service image
   clusters-service:
     group: cs

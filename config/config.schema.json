@@ -1082,34 +1082,6 @@
         "mce"
       ]
     },
-    "pko": {
-      "type": "object",
-      "properties": {
-        "imagePackage": {
-          "$ref": "#/definitions/containerImage"
-        },
-        "imageManager": {
-          "$ref": "#/definitions/containerImage"
-        },
-        "remotePhaseManager": {
-          "$ref": "#/definitions/containerImage"
-        },
-        "managedIdentityName": {
-          "type": "string"
-        },
-        "k8s": {
-          "$ref": "#/definitions/k8sDeployment"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "managedIdentityName",
-        "k8s",
-        "imagePackage",
-        "imageManager",
-        "remotePhaseManager"
-      ]
-    },
     "clustersService": {
       "type": "object",
       "properties": {

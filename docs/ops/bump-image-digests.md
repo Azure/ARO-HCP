@@ -14,9 +14,6 @@ Each service component defines its image digest in the [configuration](../config
 | Maestro                       | `maestro.image.digest`                            |
 | Hypershift Operator           | `hypershift.image.digest`                         |
 | Backplane API                 | `backplaneAPI.image.digest`                       |
-| PKO Image Manager             | `pko.imageManager.digest`                         |
-| PKO Image Package             | `pko.imagePackage.digest`                         |
-| PKO Remote Phase Manager      | `pko.remotePhaseManager.digest`                   |
 | ACR Pull                      | `acrPull.image.digest`                            |
 | Image Sync (oc-mirror)        | `imageSync.ocMirror.image.digest`                 |
 | Prometheus Operator (SVC)     | `svc.prometheus.prometheusOperator.image.digest`  |

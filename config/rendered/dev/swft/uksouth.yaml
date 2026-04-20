@@ -769,23 +769,6 @@ oidc:
     privateLinkLocation: uksouth
     public: true
     zoneRedundantMode: Auto
-pko:
-  imageManager:
-    digest: sha256:e9f66a19bc9dcfcf2a9e6ba14f61395806b65813a89385a2f943fe5148b29142
-    registry: quay.io
-    repository: package-operator/package-operator-manager
-  imagePackage:
-    digest: sha256:6dc4ef7c2ac37438636fd18cda973f53440478c91f580fa5e15c6377f41d60c6
-    registry: quay.io
-    repository: package-operator/package-operator-package
-  k8s:
-    namespace: package-operator-system
-    serviceAccountName: package-operator
-  managedIdentityName: package-operator
-  remotePhaseManager:
-    digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45
-    registry: quay.io
-    repository: package-operator/remote-phase-manager
 region: uksouth
 regionRG: hcp-underlay-swft-lnstest
 routeMonitorOperator:

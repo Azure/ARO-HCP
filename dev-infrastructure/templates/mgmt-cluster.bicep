@@ -203,15 +203,6 @@ param genevaCertificateDomain string
 @description('Should geneva certificates be managed')
 param genevaManageCertificates bool
 
-@description('Name of the MSI for the PKO')
-param pkoMIName string
-
-@description('Namespace of the PKO')
-param pkoNamespace string
-
-@description('Service account name of the PKO')
-param pkoServiceAccountName string
-
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
 
@@ -238,11 +229,6 @@ var workloadIdentities = items({
     uamiName: logsMSI
     namespace: logsNamespace
     serviceAccountName: logsServiceAccount
-  }
-  pko_wi: {
-    uamiName: pkoMIName
-    namespace: pkoNamespace
-    serviceAccountName: pkoServiceAccountName
   }
   prom_wi: {
     uamiName: 'prometheus'

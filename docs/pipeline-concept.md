@@ -178,7 +178,7 @@ The pipeline format, with its resource group and subscription references and the
 
 Within the Red Hat development tenant for ARO HCP, we have two primary use cases for deployments.
 
-Developers and SREs deploy their personal development ARO HCP instances using Makefile targets, such as `make entrypoint/Global` or `make pipeline/PKO`. Use your shell's tab-completion to view the available options for these targets. Behind the scenes, this executes the steps in a pipeline or under an entrypoint using a custom pipeline runner that interprets the pipeline files and takes actions accordingly, adhering to the defined expectations described in the [Step execution context](#step-execution-context) section.
+Developers and SREs deploy their personal development ARO HCP instances using Makefile targets, such as `make entrypoint/Global` or `make pipeline/Maestro.Agent`. Use your shell's tab-completion to view the available options for these targets. Behind the scenes, this executes the steps in a pipeline or under an entrypoint using a custom pipeline runner that interprets the pipeline files and takes actions accordingly, adhering to the defined expectations described in the [Step execution context](#step-execution-context) section.
 
 In addition, some shared ARO HCP instances are continuously reconciled on each change in the ARO-HCP repository using GitHub Actions. These actions leverage the same Makefile targets and the same pipeline executor as developers and SREs.
 
