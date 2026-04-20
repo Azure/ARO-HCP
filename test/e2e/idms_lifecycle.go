@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -37,105 +38,20 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-// updateClusterWithRetry attempts to update a cluster up to 3 times, handling state conflicts.
-// It checks if updates already applied when encountering 4XX errors.
-func updateClusterWithRetry(
-	ctx context.Context,
-	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
-	resourceGroupName string,
-	clusterName string,
-	update hcpsdk20251223preview.HcpOpenShiftClusterUpdate,
-) (*hcpsdk20251223preview.HcpOpenShiftCluster, error) {
-	const maxRetries = 3
-	var lastErr error
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		GinkgoLogr.Info("Attempting cluster update", "attempt", attempt, "maxRetries", maxRetries)
-
-		result, err := framework.UpdateHCPCluster20251223(
-			ctx,
-			hcpClient,
-			resourceGroupName,
-			clusterName,
-			update,
-			10*time.Minute,
-		)
-
-		if err == nil {
-			return result, nil
-		}
-
-		lastErr = err
-
-		// Check if it's a state conflict error (ARO-25884: HTTP 500 from Cosmos failure, or 4XX from state conflict)
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && (respErr.StatusCode == http.StatusInternalServerError || respErr.StatusCode == http.StatusBadRequest || respErr.StatusCode == http.StatusConflict) {
-			// ARO-25884: After 500/400/409, check if update already started or completed
-			GinkgoLogr.Info("Got error that may indicate state conflict, checking cluster state",
-				"statusCode", respErr.StatusCode, "attempt", attempt)
-
-			cluster, getErr := hcpClient.Get(ctx, resourceGroupName, clusterName, nil)
-			if getErr == nil && cluster.Properties != nil && cluster.Properties.ProvisioningState != nil {
-				state := *cluster.Properties.ProvisioningState
-
-				// If updating, wait before retrying
-				if state == hcpsdk20251223preview.ProvisioningStateUpdating {
-					GinkgoLogr.Info("Cluster is updating, waiting before retry", "attempt", attempt, "state", state)
-					if attempt < maxRetries {
-						select {
-						case <-ctx.Done():
-							return nil, ctx.Err()
-						case <-time.After(1 * time.Minute):
-						}
-						continue
-					}
-				}
-
-				// If succeeded, check if update already applied (idempotent check)
-				if state == hcpsdk20251223preview.ProvisioningStateSucceeded {
-					if hasDesiredMirrors(cluster.Properties.ImageDigestMirrors, update.Properties.ImageDigestMirrors) {
-						GinkgoLogr.Info("Update already applied despite error", "attempt", attempt, "statusCode", respErr.StatusCode)
-						return &cluster.HcpOpenShiftCluster, nil
-					}
-				}
-			}
-		}
-
-		if attempt < maxRetries {
-			GinkgoLogr.Info("Update failed, waiting before retry", "attempt", attempt, "error", err.Error())
-			time.Sleep(1 * time.Minute)
-		}
-	}
-
-	return nil, fmt.Errorf("update failed after %d attempts: %w", maxRetries, lastErr)
-}
-
-// hasDesiredMirrors checks if actual mirrors match desired mirrors (proper idempotent check)
-// Compares both count and actual source values to ensure the right configuration is present
-func hasDesiredMirrors(actual, desired []*hcpsdk20251223preview.ImageDigestMirror) bool {
-	if len(actual) != len(desired) {
+// isStateConflictError detects transient errors from ARO-25884 scenario:
+// - HTTP 500: Cosmos DB ETag conflict after cluster-service commit
+// - HTTP 409: Conflict
+// Note: HTTP 400 is NOT retried - cluster needs time to return to "ready" state
+func isStateConflictError(err error) bool {
+	if err == nil {
 		return false
 	}
-
-	// Build set of desired sources for O(1) lookup
-	desiredSources := make(map[string]bool)
-	for _, d := range desired {
-		if d.Source != nil {
-			desiredSources[*d.Source] = true
-		}
+	var responseError *azcore.ResponseError
+	if !errors.As(err, &responseError) {
+		return false
 	}
-
-	// Check all actual sources are in desired set
-	for _, a := range actual {
-		if a.Source == nil {
-			return false
-		}
-		if !desiredSources[*a.Source] {
-			return false
-		}
-	}
-
-	return true
+	return responseError.StatusCode == http.StatusInternalServerError ||
+		responseError.StatusCode == http.StatusConflict
 }
 
 var _ = Describe("Customer", func() {
@@ -270,19 +186,23 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
+			// ARO-25884 backoff: 3 retries with exponential backoff
+			aro25884Backoff := wait.Backoff{
+				Steps:    3,
+				Duration: 1 * time.Minute,
+				Factor:   2.0,
+				Jitter:   0.0,
+			}
+
 			// When the frontend updates a cluster, it:
 			// 1. Calls cluster-service synchronously ==> cluster-service commits state change to its database
 			// 2. Then attempts Cosmos DB update ==> fails with 412 Precondition Failed (ETag conflict from concurrent updates)
 			// 3. Frontend returns HTTP 500 to client
 			// 4. No rollback occurs ==> cluster stuck in pending_update state
 			// 5. Client retry gets HTTP 400 "can't update cluster in pending_update state"
-			// The hotfix for this test is retry up to 3 times if the update fails
-			updateAddResp, err := updateClusterWithRetry(
-				ctx,
-				hcpClient,
-				*resourceGroup.Name,
-				customerClusterName,
-				updateAdd,
+			// The fix uses framework.UpdateHCPCluster20251223WithRetry with Kubernetes-style retry pattern
+			updateAddResp, err := framework.UpdateHCPCluster20251223WithRetry(
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, 10*time.Minute, aro25884Backoff, isStateConflictError,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -336,14 +256,9 @@ var _ = Describe("Customer", func() {
 			// 3. Frontend returns HTTP 500 to client
 			// 4. No rollback occurs ==> cluster stuck in pending_update state
 			// 5. Client retry gets HTTP 400 "can't update cluster in pending_update state"
-			// The fix for this behaviour is moving cluster-service calls to async backend pattern ARO-24384
-			// The hotfix for this test is retry up to 3 times if the update fails
-			updateRemoveResp, err := updateClusterWithRetry(
-				ctx,
-				hcpClient,
-				*resourceGroup.Name,
-				customerClusterName,
-				updateRemove,
+			// The fix uses framework.UpdateHCPCluster20251223WithRetry with Kubernetes-style retry pattern
+			updateRemoveResp, err := framework.UpdateHCPCluster20251223WithRetry(
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, 10*time.Minute, aro25884Backoff, isStateConflictError,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

@@ -41,10 +41,12 @@ import (
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -320,25 +322,66 @@ func UpdateHCPCluster20251223(
 	update hcpsdk20251223preview.HcpOpenShiftClusterUpdate,
 	timeout time.Duration,
 ) (*hcpsdk20251223preview.HcpOpenShiftCluster, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20251223 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	noRetry := wait.Backoff{Steps: 1}
+	neverRetry := func(error) bool { return false }
+
+	return UpdateHCPCluster20251223WithRetry(ctx, hcpClient, resourceGroupName, hcpClusterName, update, timeout,
+		noRetry, neverRetry)
+}
+
+func UpdateHCPCluster20251223WithRetry(
+	ctx context.Context,
+	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	update hcpsdk20251223preview.HcpOpenShiftClusterUpdate,
+	timeout time.Duration,
+	backoff wait.Backoff,
+	retryPredicate func(error) bool, // determines which errors should trigger a retry
+) (*hcpsdk20251223preview.HcpOpenShiftCluster, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20251223WithRetry for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
-	poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
-	if err != nil {
-		return nil, err
-	}
+	var hcpOpenShiftCluster *hcpsdk20251223preview.HcpOpenShiftCluster
+	attempt := 0
 
-	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: StandardPollInterval,
-	})
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+	err := retry.OnError(backoff, retryPredicate, func() error {
+		attempt++
+		if attempt > 1 {
+			ginkgo.GinkgoLogr.Info("Retrying cluster update due to state conflict",
+				"cluster", hcpClusterName,
+				"resourceGroup", resourceGroupName,
+				"attempt", attempt)
 		}
-		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
+
+		poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
+		if err != nil {
+			return err
+		}
+
+		operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+			Frequency: StandardPollInterval,
+		})
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
+		}
+
+		hcpOpenShiftCluster = &operationResult.HcpOpenShiftCluster
+		return nil
+	})
+
+	if err != nil && attempt > 1 {
+		ginkgo.GinkgoLogr.Info("Cluster update failed after retries",
+			"cluster", hcpClusterName,
+			"resourceGroup", resourceGroupName,
+			"attempts", attempt,
+			"error", err.Error())
 	}
 
-	return &operationResult.HcpOpenShiftCluster, nil
+	return hcpOpenShiftCluster, err
 }
 
 // GetHCPCluster fetches an HCP cluster
