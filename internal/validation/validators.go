@@ -240,6 +240,10 @@ var (
 	nodePoolResourceNameRegex       = regexp.MustCompile(nodePoolResourceName)
 	nodePoolResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
+	externalAuthResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$`
+	externalAuthResourceNameRegex       = regexp.MustCompile(externalAuthResourceName)
+	externalAuthResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
+
 	// resourceGroupName See https://learn.microsoft.com/en-gb/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
 	resourceGroupName            = `^[\p{L}\p{N}_\-.()]{0,89}[\p{L}\p{N}_\-()]$`
 	resourceGroupNameRegex       = regexp.MustCompile(resourceGroupName)

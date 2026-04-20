@@ -341,6 +341,120 @@ func TestValidateExternalAuth(t *testing.T) {
 				{fieldPath: "properties.clients[0].type", message: "supported values"},
 			},
 		},
+		// ExternalAuth resource naming (id leaf name): MaxLen + MatchesRegex on field "id"
+		{
+			name: "invalid external auth resource name - special character",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.ID.Name = "$"
+				obj.Name = "$"
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "id", message: "must be a valid DNS RFC 1035 label"},
+			},
+		},
+		{
+			name: "invalid external auth resource name - starts with hyphen",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.ID.Name = "-abcde"
+				obj.Name = "-abcde"
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "id", message: "must be a valid DNS RFC 1035 label"},
+			},
+		},
+		{
+			name: "invalid external auth resource name - starts with number",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.ID.Name = "1externalauth"
+				obj.Name = "1externalauth"
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "id", message: "must be a valid DNS RFC 1035 label"},
+			},
+		},
+		{
+			name: "invalid external auth resource name - ends with hyphen",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.ID.Name = "my-auth-"
+				obj.Name = "my-auth-"
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "id", message: "must be a valid DNS RFC 1035 label"},
+			},
+		},
+		{
+			name: "invalid external auth resource name - too long",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				long := "07B4gc00vjA2C8KL3Ns4No9fi"
+				obj.ID.Name = long
+				obj.Name = long
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "id", message: "may not be more than 15 bytes"},
+				{fieldPath: "id", message: "must be a valid DNS RFC 1035 label"},
+			},
+		},
+		{
+			name: "invalid external auth resource name - too short",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.ID.Name = "a"
+				obj.Name = "a"
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "id", message: "must be a valid DNS RFC 1035 label"},
+			},
+		},
+		{
+			name: "valid external auth resource name - minimum length",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.ID.Name = "abc"
+				obj.Name = "abc"
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
+		{
+			name: "valid external auth resource name - with hyphens",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.ID.Name = "my-auth-1"
+				obj.Name = "my-auth-1"
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
+		{
+			name: "valid external auth resource name - maximum length",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.ID.Name = "myExternalAuth1" // 15 chars — max for this pattern
+				obj.Name = "myExternalAuth1"
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
 		{
 			name: "immutable provisioning state on update",
 			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
