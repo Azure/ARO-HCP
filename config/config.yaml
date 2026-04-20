@@ -692,7 +692,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:ec9a72dc798899ef873e2290cfd8502657f08a39715e851ed59fc53bdf108506 # f922a86 (2026-04-17 21:13)
+      digest: sha256:3c5415486d9a5cbf0d10d97790326fe0fbbc99daa74b81efd268de479b9c4a8d # 2749f4a (2026-04-20 02:36)
     tracing:
       address: ""
       exporter: ""
