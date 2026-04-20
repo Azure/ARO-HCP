@@ -54,7 +54,8 @@ image: Dockerfile $(BACKEND_SOURCES) Makefile
 		--tag ${BACKEND_TAGGED_IMAGE}
 
 build-and-push: image $(ORAS)
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	@TOKEN=$$(az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --query accessToken -o tsv) && \
+	$(CONTAINER_ENGINE) login ${ARO_HCP_IMAGE_REGISTRY} -u 00000000-0000-0000-0000-000000000000 -p "$$TOKEN"
 	$(CONTAINER_ENGINE) push ${BACKEND_TAGGED_IMAGE}
 .PHONY: build-and-push
 
