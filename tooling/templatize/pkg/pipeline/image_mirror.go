@@ -38,7 +38,6 @@ func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.Im
 		Digest:         resolvedVars["DIGEST"],
 		PullSecretKV:   resolvedVars["PULL_SECRET_KV"],
 		PullSecretName: resolvedVars["PULL_SECRET"],
-		DryRun:         options.DryRun,
 	}
 
 	return opts.Run(ctx)
