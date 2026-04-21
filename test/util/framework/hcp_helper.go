@@ -329,6 +329,14 @@ func UpdateHCPCluster20251223(
 		noRetry, neverRetry)
 }
 
+// StateConflictBackoff is the default retry config for ARO-25884 state conflicts.
+var StateConflictBackoff = wait.Backoff{
+	Steps:    3,             // up to 3 attempts total
+	Duration: 1 * time.Minute, // initial wait before first retry
+	Factor:   2.0,           // double the wait each retry (1m, 2m)
+	Jitter:   0.1,           // ±10% randomization to avoid thundering herd
+}
+
 // IsStateConflictError detects transient errors from the ARO-25884 scenario:
 //   - HTTP 500: Cosmos DB ETag conflict after cluster-service commit
 //   - HTTP 409: Conflict

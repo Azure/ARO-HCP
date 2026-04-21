@@ -23,7 +23,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -169,23 +168,9 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			// ARO-25884 backoff: 3 retries with exponential backoff
-			aro25884Backoff := wait.Backoff{
-				Steps:    3,
-				Duration: 1 * time.Minute,
-				Factor:   2.0,
-				Jitter:   0.0,
-			}
-
-			// When the frontend updates a cluster, it:
-			// 1. Calls cluster-service synchronously ==> cluster-service commits state change to its database
-			// 2. Then attempts Cosmos DB update ==> fails with 412 Precondition Failed (ETag conflict from concurrent updates)
-			// 3. Frontend returns HTTP 500 to client
-			// 4. No rollback occurs ==> cluster stuck in pending_update state
-			// 5. Client retry gets HTTP 400 "can't update cluster in pending_update state"
-			// The fix uses framework.UpdateHCPCluster20251223WithRetry with Kubernetes-style retry pattern
 			updateAddResp, err := framework.UpdateHCPCluster20251223WithRetry(
-				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, 10*time.Minute, aro25884Backoff, framework.IsStateConflictError,
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, 10*time.Minute,
+				framework.StateConflictBackoff, framework.IsStateConflictError,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -233,15 +218,9 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			// When the frontend updates a cluster, it:
-			// 1. Calls cluster-service synchronously ==> cluster-service commits state change to its database
-			// 2. Then attempts Cosmos DB update ==> fails with 412 Precondition Failed (ETag conflict from concurrent updates)
-			// 3. Frontend returns HTTP 500 to client
-			// 4. No rollback occurs ==> cluster stuck in pending_update state
-			// 5. Client retry gets HTTP 400 "can't update cluster in pending_update state"
-			// The fix uses framework.UpdateHCPCluster20251223WithRetry with Kubernetes-style retry pattern
 			updateRemoveResp, err := framework.UpdateHCPCluster20251223WithRetry(
-				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, 10*time.Minute, aro25884Backoff, framework.IsStateConflictError,
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, 10*time.Minute,
+				framework.StateConflictBackoff, framework.IsStateConflictError,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
