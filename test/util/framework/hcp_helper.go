@@ -371,9 +371,16 @@ func UpdateHCPCluster20251223WithRetry(
 	err := retry.OnError(backoff, retryPredicate, func() error {
 		attempt++
 		if attempt > 1 {
-			ginkgo.GinkgoLogr.Info("Retrying cluster update due to state conflict",
+			ginkgo.GinkgoLogr.Info("Waiting for cluster to leave transitional state before retry",
 				"cluster", hcpClusterName,
-				"resourceGroup", resourceGroupName,
+				"attempt", attempt)
+			if waitErr := waitForClusterReady(ctx, hcpClient, resourceGroupName, hcpClusterName); waitErr != nil {
+				ginkgo.GinkgoLogr.Info("Cluster did not return to ready state",
+					"cluster", hcpClusterName,
+					"error", waitErr.Error())
+			}
+			ginkgo.GinkgoLogr.Info("Retrying cluster update",
+				"cluster", hcpClusterName,
 				"attempt", attempt)
 		}
 
@@ -405,6 +412,28 @@ func UpdateHCPCluster20251223WithRetry(
 	}
 
 	return hcpOpenShiftCluster, err
+}
+
+// waitForClusterReady polls until the cluster's provisioningState is no longer
+// a transitional state (Updating, Creating), or until the context is cancelled.
+func waitForClusterReady(
+	ctx context.Context,
+	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+) error {
+	return wait.PollUntilContextCancel(ctx, 15*time.Second, true, func(ctx context.Context) (bool, error) {
+		resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+		if err != nil {
+			return false, nil
+		}
+		if resp.Properties == nil || resp.Properties.ProvisioningState == nil {
+			return false, nil
+		}
+		state := string(*resp.Properties.ProvisioningState)
+		ginkgo.GinkgoLogr.Info("Cluster provisioning state", "cluster", hcpClusterName, "state", state)
+		return state != "Updating" && state != "Creating", nil
+	})
 }
 
 // GetHCPCluster fetches an HCP cluster
