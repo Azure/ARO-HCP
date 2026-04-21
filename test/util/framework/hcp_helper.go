@@ -329,6 +329,21 @@ func UpdateHCPCluster20251223(
 		noRetry, neverRetry)
 }
 
+// IsStateConflictError detects transient errors from the ARO-25884 scenario:
+//   - HTTP 500: Cosmos DB ETag conflict after cluster-service commit
+//   - HTTP 409: Conflict
+func IsStateConflictError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var responseError *azcore.ResponseError
+	if !errors.As(err, &responseError) {
+		return false
+	}
+	return responseError.StatusCode == http.StatusInternalServerError ||
+		responseError.StatusCode == http.StatusConflict
+}
+
 func UpdateHCPCluster20251223WithRetry(
 	ctx context.Context,
 	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,

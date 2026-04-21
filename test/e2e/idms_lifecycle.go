@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -37,22 +36,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
-
-// isStateConflictError detects transient errors from ARO-25884 scenario:
-// - HTTP 500: Cosmos DB ETag conflict after cluster-service commit
-// - HTTP 409: Conflict
-// Note: HTTP 400 is NOT retried - cluster needs time to return to "ready" state
-func isStateConflictError(err error) bool {
-	if err == nil {
-		return false
-	}
-	var responseError *azcore.ResponseError
-	if !errors.As(err, &responseError) {
-		return false
-	}
-	return responseError.StatusCode == http.StatusInternalServerError ||
-		responseError.StatusCode == http.StatusConflict
-}
 
 var _ = Describe("Customer", func() {
 
@@ -202,7 +185,7 @@ var _ = Describe("Customer", func() {
 			// 5. Client retry gets HTTP 400 "can't update cluster in pending_update state"
 			// The fix uses framework.UpdateHCPCluster20251223WithRetry with Kubernetes-style retry pattern
 			updateAddResp, err := framework.UpdateHCPCluster20251223WithRetry(
-				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, 10*time.Minute, aro25884Backoff, isStateConflictError,
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, 10*time.Minute, aro25884Backoff, framework.IsStateConflictError,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -258,7 +241,7 @@ var _ = Describe("Customer", func() {
 			// 5. Client retry gets HTTP 400 "can't update cluster in pending_update state"
 			// The fix uses framework.UpdateHCPCluster20251223WithRetry with Kubernetes-style retry pattern
 			updateRemoveResp, err := framework.UpdateHCPCluster20251223WithRetry(
-				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, 10*time.Minute, aro25884Backoff, isStateConflictError,
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, 10*time.Minute, aro25884Backoff, framework.IsStateConflictError,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
