@@ -1,0 +1,4 @@
+tables:
+  - name: t
+    databases: [db]
+    extra: bad

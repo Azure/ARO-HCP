@@ -1,0 +1,3 @@
+- mapping: $.extra
+  name: extra
+  type: string

@@ -1,0 +1,14 @@
+definitions:
+  - name: common
+    columns:
+      - {name: timestamp, type: datetime, mapping: "$.timestamp"}
+      - {name: tag, type: string, mapping: "$.tag"}
+  - name: kubernetes
+    columns:
+      - {name: host, type: string, mapping: "$.log.kubernetes.host"}
+tables:
+  - name: myTable
+    databases: [test]
+    definitions: [common, kubernetes]
+    columns:
+      - {name: extra, type: string, mapping: "$.extra"}

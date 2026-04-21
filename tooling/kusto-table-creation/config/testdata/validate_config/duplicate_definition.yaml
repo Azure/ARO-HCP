@@ -1,0 +1,7 @@
+definitions:
+  - name: common
+    columns:
+      - {name: ts, type: datetime, mapping: "$.ts"}
+  - name: common
+    columns:
+      - {name: x, type: string, mapping: "$.x"}

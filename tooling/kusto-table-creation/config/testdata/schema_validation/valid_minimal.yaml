@@ -1,0 +1,5 @@
+tables:
+  - name: t
+    databases: [db]
+    columns:
+      - {name: c, type: string, mapping: "$.c"}
