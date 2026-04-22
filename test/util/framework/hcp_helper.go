@@ -414,15 +414,19 @@ func UpdateHCPCluster20251223WithRetry(
 	return hcpOpenShiftCluster, err
 }
 
+const waitForClusterReadyTimeout = 5 * time.Minute
+
 // waitForClusterReady polls until the cluster's provisioningState is no longer
-// a transitional state (Updating, Creating), or until the context is cancelled.
+// a transitional state (Updating, Creating), or until the timeout is reached.
+// The timeout is bounded to prevent hanging indefinitely when a cluster is
+// stuck, letting the retry loop decide whether to try again or give up.
 func waitForClusterReady(
 	ctx context.Context,
 	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
 ) error {
-	return wait.PollUntilContextCancel(ctx, 15*time.Second, true, func(ctx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 15*time.Second, waitForClusterReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
 		if err != nil {
 			return false, nil
