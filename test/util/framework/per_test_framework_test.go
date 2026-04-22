@@ -123,7 +123,51 @@ func TestIsIgnorableResourceGroupCleanupError(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "429 Too Many Requests returns true",
+			name: "429 Too Many Requests is not ignorable (retried instead)",
+			err:  &azcore.ResponseError{StatusCode: http.StatusTooManyRequests},
+			want: false,
+		},
+		{
+			name: "joined 404s all ignorable returns true",
+			err:  errors.Join(&azcore.ResponseError{StatusCode: http.StatusNotFound}, &azcore.ResponseError{StatusCode: http.StatusNotFound, ErrorCode: "ResourceGroupNotFound"}),
+			want: true,
+		},
+		{
+			name: "joined 404 with non-ignorable returns false",
+			err:  errors.Join(&azcore.ResponseError{StatusCode: http.StatusNotFound}, &azcore.ResponseError{StatusCode: http.StatusForbidden}),
+			want: false,
+		},
+		{
+			name: "403 Forbidden returns false",
+			err:  &azcore.ResponseError{StatusCode: http.StatusForbidden},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isIgnorableResourceGroupCleanupError(tt.err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestIsOnlyThrottledErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil returns false",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "429 returns true",
 			err:  &azcore.ResponseError{StatusCode: http.StatusTooManyRequests},
 			want: true,
 		},
@@ -139,22 +183,27 @@ func TestIsIgnorableResourceGroupCleanupError(t *testing.T) {
 		},
 		{
 			name: "wrapped 429 returns true",
-			err:  fmt.Errorf("cleanup failed: %w", &azcore.ResponseError{StatusCode: http.StatusTooManyRequests}),
+			err:  fmt.Errorf("cleanup: %w", &azcore.ResponseError{StatusCode: http.StatusTooManyRequests}),
 			want: true,
 		},
 		{
-			name: "joined errors all ignorable returns true",
-			err:  errors.Join(&azcore.ResponseError{StatusCode: http.StatusNotFound}, &azcore.ResponseError{StatusCode: http.StatusTooManyRequests}),
+			name: "joined all throttled returns true",
+			err:  errors.Join(&azcore.ResponseError{StatusCode: http.StatusTooManyRequests}, &azcore.ResponseError{ErrorCode: "SubscriptionRequestsThrottled"}),
 			want: true,
 		},
 		{
-			name: "joined errors with non-ignorable returns false",
+			name: "joined throttled with 404 returns false",
+			err:  errors.Join(&azcore.ResponseError{StatusCode: http.StatusTooManyRequests}, &azcore.ResponseError{StatusCode: http.StatusNotFound}),
+			want: false,
+		},
+		{
+			name: "joined throttled with 403 returns false",
 			err:  errors.Join(&azcore.ResponseError{StatusCode: http.StatusTooManyRequests}, &azcore.ResponseError{StatusCode: http.StatusForbidden}),
 			want: false,
 		},
 		{
-			name: "403 Forbidden returns false",
-			err:  &azcore.ResponseError{StatusCode: http.StatusForbidden},
+			name: "non-ResponseError returns false",
+			err:  fmt.Errorf("something else"),
 			want: false,
 		},
 	}
@@ -162,7 +211,7 @@ func TestIsIgnorableResourceGroupCleanupError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := isIgnorableResourceGroupCleanupError(tt.err)
+			got := isOnlyThrottledErrors(tt.err)
 			assert.Equal(t, tt.want, got)
 		})
 	}

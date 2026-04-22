@@ -226,11 +226,18 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		CleanupWorkflow:    CleanupWorkflowStandard,
 		ThrottleMaxRetries: 5,
 	}
+	maxRetries := opts.ThrottleMaxRetries
+	if maxRetries <= 0 {
+		maxRetries = 1
+	}
 	var errCleanupResourceGroups error
 retryLoop:
-	for attempt := 1; attempt <= opts.ThrottleMaxRetries; attempt++ {
+	for attempt := 1; attempt <= maxRetries; attempt++ {
 		errCleanupResourceGroups = tc.CleanupResourceGroups(ctx, opts)
 		if errCleanupResourceGroups == nil || !isOnlyThrottledErrors(errCleanupResourceGroups) {
+			break
+		}
+		if attempt == maxRetries {
 			break
 		}
 		delay := time.Duration(attempt*30) * time.Second
@@ -258,10 +265,10 @@ retryLoop:
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
 	// Register error to ginkgo reporter to ensure the test fails if any
-	// errors occur, except for transient/ignorable ones (404 not found,
-	// 429 throttling) which are handled by the automated cleanup job.
+	// errors occur, except for not-found errors (404) which indicate the
+	// resource group was already cleaned up.
 	if isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
-		ginkgo.GinkgoLogr.Info("ignoring transient cleanup error", "error", errCleanupResourceGroups)
+		ginkgo.GinkgoLogr.Info("ignoring cleanup error (resource already deleted)", "error", errCleanupResourceGroups)
 	} else {
 		gomega.Expect(errCleanupResourceGroups).ToNot(gomega.HaveOccurred())
 	}
@@ -320,9 +327,9 @@ func isOnlyThrottledErrors(err error) bool {
 }
 
 // isIgnorableResourceGroupCleanupError returns true when every error in a
-// (possibly joined) error tree is ignorable — either a 404 not-found or a
-// 429 throttling response. This prevents a single ignorable error from
-// masking a real failure in the same errors.Join set.
+// (possibly joined) error tree is a 404 not-found. Throttling errors are
+// NOT ignorable — they are retried, and if retries are exhausted the test
+// fails so deletion regressions remain visible.
 func isIgnorableResourceGroupCleanupError(err error) bool {
 	if err == nil {
 		return false
@@ -335,7 +342,7 @@ func isIgnorableResourceGroupCleanupError(err error) bool {
 		}
 		return true
 	}
-	return isResourceGroupNotFoundError(err) || isThrottledError(err)
+	return isResourceGroupNotFoundError(err)
 }
 
 type CleanupWorkflow string
