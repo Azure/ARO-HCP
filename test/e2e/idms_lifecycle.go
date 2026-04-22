@@ -168,9 +168,8 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			updateAddResp, err := framework.UpdateHCPCluster20251223WithRetry(
+			updateAddResp, err := framework.UpdateHCPCluster20251223(
 				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, 10*time.Minute,
-				framework.StateConflictBackoff, framework.IsStateConflictError,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -218,9 +217,8 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			updateRemoveResp, err := framework.UpdateHCPCluster20251223WithRetry(
+			updateRemoveResp, err := framework.UpdateHCPCluster20251223(
 				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, 10*time.Minute,
-				framework.StateConflictBackoff, framework.IsStateConflictError,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

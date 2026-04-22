@@ -313,34 +313,18 @@ func UpdateHCPCluster(
 	}
 }
 
-// UpdateHCPCluster20251223 updates an HCP cluster using the v20251223preview SDK and waits for the operation to complete
-func UpdateHCPCluster20251223(
-	ctx context.Context,
-	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
-	resourceGroupName string,
-	hcpClusterName string,
-	update hcpsdk20251223preview.HcpOpenShiftClusterUpdate,
-	timeout time.Duration,
-) (*hcpsdk20251223preview.HcpOpenShiftCluster, error) {
-	noRetry := wait.Backoff{Steps: 1}
-	neverRetry := func(error) bool { return false }
-
-	return UpdateHCPCluster20251223WithRetry(ctx, hcpClient, resourceGroupName, hcpClusterName, update, timeout,
-		noRetry, neverRetry)
-}
-
-// StateConflictBackoff is the default retry config for ARO-25884 state conflicts.
-var StateConflictBackoff = wait.Backoff{
+// stateConflictBackoff is the retry config for transient state conflicts (ARO-25884).
+var stateConflictBackoff = wait.Backoff{
 	Steps:    3,               // up to 3 attempts total
 	Duration: 1 * time.Minute, // initial wait before first retry
 	Factor:   2.0,             // double the wait each retry (1m, 2m)
 	Jitter:   0.1,             // ±10% randomization to avoid thundering herd
 }
 
-// IsStateConflictError detects transient errors from the ARO-25884 scenario:
-//   - HTTP 500: Cosmos DB ETag conflict after cluster-service commit
+// isTransientUpdateError detects errors worth retrying during cluster updates:
+//   - HTTP 500: e.g. Cosmos DB ETag conflict after cluster-service commit
 //   - HTTP 409: Conflict
-func IsStateConflictError(err error) bool {
+func isTransientUpdateError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -352,23 +336,23 @@ func IsStateConflictError(err error) bool {
 		responseError.StatusCode == http.StatusConflict
 }
 
-func UpdateHCPCluster20251223WithRetry(
+// UpdateHCPCluster20251223 updates an HCP cluster using the v20251223preview SDK and waits for the operation to complete.
+// Transient 500 and 409 errors are retried automatically with exponential backoff.
+func UpdateHCPCluster20251223(
 	ctx context.Context,
 	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	update hcpsdk20251223preview.HcpOpenShiftClusterUpdate,
 	timeout time.Duration,
-	backoff wait.Backoff,
-	retryPredicate func(error) bool, // determines which errors should trigger a retry
 ) (*hcpsdk20251223preview.HcpOpenShiftCluster, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20251223WithRetry for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster20251223 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
 	var hcpOpenShiftCluster *hcpsdk20251223preview.HcpOpenShiftCluster
 	attempt := 0
 
-	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
+	err := wait.ExponentialBackoffWithContext(ctx, stateConflictBackoff, func(ctx context.Context) (bool, error) {
 		attempt++
 		if attempt > 1 {
 			ginkgo.GinkgoLogr.Info("Waiting for cluster to reach terminal state before retry",
@@ -386,7 +370,7 @@ func UpdateHCPCluster20251223WithRetry(
 
 		poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
 		if err != nil {
-			if retryPredicate(err) {
+			if isTransientUpdateError(err) {
 				return false, nil
 			}
 			return false, err
@@ -396,7 +380,7 @@ func UpdateHCPCluster20251223WithRetry(
 			Frequency: StandardPollInterval,
 		})
 		if err != nil {
-			if retryPredicate(err) {
+			if isTransientUpdateError(err) {
 				return false, nil
 			}
 			if errors.Is(err, context.DeadlineExceeded) {
