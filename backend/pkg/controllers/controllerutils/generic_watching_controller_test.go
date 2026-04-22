@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/go-logr/logr"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -37,18 +38,24 @@ const (
 	testNodePoolARMID = testClusterARMID + "/nodePools/np1"
 )
 
+type loggableString string
+
+func (s loggableString) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues("key", string(s))
+}
+
 type stringSyncer struct {
 	cooldown CooldownChecker
 }
 
-func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) string {
+func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) loggableString {
 	if rid == nil {
 		return ""
 	}
-	return rid.String()
+	return loggableString(rid.String())
 }
 
-func (s *stringSyncer) SyncOnce(context.Context, string) error { return nil }
+func (s *stringSyncer) SyncOnce(context.Context, loggableString) error { return nil }
 
 func (s *stringSyncer) CooldownChecker() CooldownChecker {
 	if s.cooldown == nil {
@@ -65,7 +72,7 @@ type neverAllowCooldown struct{}
 
 func (neverAllowCooldown) CanSync(context.Context, any) bool { return false }
 
-func newTestWatchingController() (*genericWatchingController[string], *azcorearm.ResourceID, *azcorearm.ResourceID) {
+func newTestWatchingController() (*genericWatchingController[loggableString], *azcorearm.ResourceID, *azcorearm.ResourceID) {
 	clusterID := api.Must(azcorearm.ParseResourceID(testClusterARMID))
 	npID := api.Must(azcorearm.ParseResourceID(testNodePoolARMID))
 	syncer := &stringSyncer{}
@@ -73,8 +80,8 @@ func newTestWatchingController() (*genericWatchingController[string], *azcorearm
 	return c, clusterID, npID
 }
 
-func popAllQueue(c *genericWatchingController[string]) []string {
-	var keys []string
+func popAllQueue(c *genericWatchingController[loggableString]) []loggableString {
+	var keys []loggableString
 	for c.queue.Len() > 0 {
 		k, shutdown := c.queue.Get()
 		if shutdown {
@@ -96,7 +103,7 @@ func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
 		resource *azcorearm.ResourceID
 		changed  bool
 		maxDepth int
-		wantKeys []string
+		wantKeys []loggableString
 	}{
 		{
 			name:     "nil resource",
@@ -109,7 +116,7 @@ func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
 			resource: clusterID,
 			changed:  true,
 			maxDepth: 0,
-			wantKeys: []string{clusterID.String()},
+			wantKeys: []loggableString{loggableString(clusterID.String())},
 		},
 		{
 			name:     "node pool maxDepth 0 does not walk parent",
@@ -123,14 +130,14 @@ func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
 			resource: npID,
 			changed:  true,
 			maxDepth: 1,
-			wantKeys: []string{clusterID.String()},
+			wantKeys: []loggableString{loggableString(clusterID.String())},
 		},
 		{
 			name:     "node pool negative maxDepth enqueues cluster",
 			resource: npID,
 			changed:  true,
 			maxDepth: -1,
-			wantKeys: []string{clusterID.String()},
+			wantKeys: []loggableString{loggableString(clusterID.String())},
 		},
 	}
 
@@ -164,7 +171,7 @@ func TestEnqueueResourceIDAddWithMaxDepth_changedAndCooldown(t *testing.T) {
 			got := popAllQueue(c)
 			require.Len(t, got, testCase.wantNumElems)
 			if testCase.wantNumElems == 1 {
-				require.Equal(t, clusterID.String(), got[0])
+				require.Equal(t, loggableString(clusterID.String()), got[0])
 			}
 		})
 	}
@@ -175,34 +182,34 @@ func TestEnqueueCosmosWithMaxDepth(t *testing.T) {
 
 	tests := []struct {
 		name string
-		run  func(*genericWatchingController[string])
-		want []string
+		run  func(*genericWatchingController[loggableString])
+		want []loggableString
 	}{
 		{
 			name: "add from node pool metadata",
-			run: func(c *genericWatchingController[string]) {
+			run: func(c *genericWatchingController[loggableString]) {
 				c.enqueueCosmosAddWithMaxDepth(&arm.CosmosMetadata{ResourceID: npID}, 1)
 			},
-			want: []string{clusterID.String()},
+			want: []loggableString{loggableString(clusterID.String())},
 		},
 		{
 			name: "update same etag uses unchanged path",
-			run: func(c *genericWatchingController[string]) {
+			run: func(c *genericWatchingController[loggableString]) {
 				etag := azcore.ETag("e1")
 				oldObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: etag}
 				newObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: etag}
 				c.enqueueCosmosUpdateWithMaxDepth(oldObj, newObj, 1)
 			},
-			want: []string{clusterID.String()},
+			want: []loggableString{loggableString(clusterID.String())},
 		},
 		{
 			name: "update different etag",
-			run: func(c *genericWatchingController[string]) {
+			run: func(c *genericWatchingController[loggableString]) {
 				oldObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("a")}
 				newObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("b")}
 				c.enqueueCosmosUpdateWithMaxDepth(oldObj, newObj, 1)
 			},
-			want: []string{clusterID.String()},
+			want: []loggableString{loggableString(clusterID.String())},
 		},
 	}
 
@@ -235,24 +242,24 @@ func TestQueueForInformersWithMaxDepth(t *testing.T) {
 
 	tests := []struct {
 		name string
-		run  func(t *testing.T, c *genericWatchingController[string], n *capturingNotifier)
+		run  func(t *testing.T, c *genericWatchingController[loggableString], n *capturingNotifier)
 	}{
 		{
 			name: "Add handler respects maxDepth",
-			run: func(t *testing.T, c *genericWatchingController[string], n *capturingNotifier) {
+			run: func(t *testing.T, c *genericWatchingController[loggableString], n *capturingNotifier) {
 				require.NotNil(t, n.addFunc)
 				n.addFunc(&arm.CosmosMetadata{ResourceID: npID})
-				require.Equal(t, []string{clusterID.String()}, popAllQueue(c))
+				require.Equal(t, []loggableString{loggableString(clusterID.String())}, popAllQueue(c))
 			},
 		},
 		{
 			name: "Update handler respects maxDepth",
-			run: func(t *testing.T, c *genericWatchingController[string], n *capturingNotifier) {
+			run: func(t *testing.T, c *genericWatchingController[loggableString], n *capturingNotifier) {
 				require.NotNil(t, n.updateFunc)
 				oldObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("a")}
 				newObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("b")}
 				n.updateFunc(oldObj, newObj)
-				require.Equal(t, []string{clusterID.String()}, popAllQueue(c))
+				require.Equal(t, []loggableString{loggableString(clusterID.String())}, popAllQueue(c))
 			},
 		},
 	}
