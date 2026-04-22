@@ -34,8 +34,7 @@ verify: ## Verify versions are consistent across config files
 build: verify ## Build the CI image
 	$(CONTAINER_ENGINE) build --platform=$(PLATFORM) \
 		$(foreach v,$(VERSION_ARGS),--build-arg $(v)=$($(v))) \
-		-f Dockerfile \
-		-t $(IMAGE_NAME) ../..
+		-t $(IMAGE_NAME) .
 
 ##@ Test
 
@@ -51,8 +50,4 @@ test: build ## Build and smoke-test all tools in the image
 		echo "promtool:  $$(promtool --version 2>&1 | head -1)" && \
 		echo "make:      $$(make --version | head -1)" && \
 		echo "git:       $$(git --version)" && \
-		echo "helm:      $$(helm version --short 2>&1)" && \
-		echo "yq:        $$(yq --version 2>&1)" && \
-		echo "jq:        $$(jq --version 2>&1)" && \
-		echo "oras:      $$(oras version 2>&1 | head -1)" && \
 		echo "=== All tools OK ==="'

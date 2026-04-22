@@ -3,8 +3,6 @@ USER root
 WORKDIR /opt/app-root/src/github.com/Azure/ARO-HCP
 COPY . .
 ENV GOFLAGS='-mod=readonly'
-RUN make build-hcpctl && \
-    make -C tooling/templatize templatize && \
-    make -C test/ build && \
-    go clean -cache -modcache && rm -f go.work.sum
+RUN make -C test/ build && go clean -cache -modcache && rm -f go.work.sum
 RUN chmod 777 /opt/app-root/src/github.com/Azure/ARO-HCP
+

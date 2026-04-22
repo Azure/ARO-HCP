@@ -34,9 +34,3 @@ RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     mv prometheus-${PROMTOOL_VERSION}.linux-${ARCH}/promtool /usr/local/bin/promtool && \
     chmod +x /usr/local/bin/promtool && \
     rm -rf prometheus-${PROMTOOL_VERSION}.linux-${ARCH}
-# Install Go-based development tools (bingo-managed)
-COPY . /tmp/aro-hcp
-RUN cd /tmp/aro-hcp && \
-    GOFLAGS='-mod=readonly' GOBIN=/usr/local/bin make install-tools && \
-    go clean -cache -modcache && \
-    rm -rf /tmp/aro-hcp
