@@ -46,7 +46,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	"k8s.io/client-go/util/retry"
+
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -368,10 +368,10 @@ func UpdateHCPCluster20251223WithRetry(
 	var hcpOpenShiftCluster *hcpsdk20251223preview.HcpOpenShiftCluster
 	attempt := 0
 
-	err := retry.OnError(backoff, retryPredicate, func() error {
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		attempt++
 		if attempt > 1 {
-			ginkgo.GinkgoLogr.Info("Waiting for cluster to leave transitional state before retry",
+			ginkgo.GinkgoLogr.Info("Waiting for cluster to reach terminal state before retry",
 				"cluster", hcpClusterName,
 				"attempt", attempt)
 			if waitErr := waitForClusterReady(ctx, hcpClient, resourceGroupName, hcpClusterName); waitErr != nil {
@@ -386,21 +386,27 @@ func UpdateHCPCluster20251223WithRetry(
 
 		poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
 		if err != nil {
-			return err
+			if retryPredicate(err) {
+				return false, nil
+			}
+			return false, err
 		}
 
 		operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
 			Frequency: StandardPollInterval,
 		})
 		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			if retryPredicate(err) {
+				return false, nil
 			}
-			return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return false, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return false, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
 		}
 
 		hcpOpenShiftCluster = &operationResult.HcpOpenShiftCluster
-		return nil
+		return true, nil
 	})
 
 	if err != nil && attempt > 1 {
