@@ -242,9 +242,11 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
-	// Register error to ginkgo reporter to ensure the test fails if any errors occur except for not found resource group or resource.
+	// Register error to ginkgo reporter to ensure the test fails if any
+	// errors occur, except for transient/ignorable ones (404 not found,
+	// 429 throttling) which are handled by the automated cleanup job.
 	if isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
-		ginkgo.GinkgoLogr.Info("ignoring not found resource group or resource cleanup error")
+		ginkgo.GinkgoLogr.Info("ignoring transient cleanup error", "error", errCleanupResourceGroups)
 	} else {
 		gomega.Expect(errCleanupResourceGroups).ToNot(gomega.HaveOccurred())
 	}
@@ -271,11 +273,37 @@ func isResourceGroupNotFoundError(err error) bool {
 	return false
 }
 
+func isThrottledError(err error) bool {
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) {
+		if responseErr.StatusCode == http.StatusTooManyRequests {
+			return true
+		}
+		switch responseErr.ErrorCode {
+		case "SubscriptionRequestsThrottled", "RequestsThrottled":
+			return true
+		}
+	}
+	return false
+}
+
+// isIgnorableResourceGroupCleanupError returns true when every error in a
+// (possibly joined) error tree is ignorable — either a 404 not-found or a
+// 429 throttling response. This prevents a single ignorable error from
+// masking a real failure in the same errors.Join set.
 func isIgnorableResourceGroupCleanupError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return isResourceGroupNotFoundError(err)
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range joined.Unwrap() {
+			if !isIgnorableResourceGroupCleanupError(e) {
+				return false
+			}
+		}
+		return true
+	}
+	return isResourceGroupNotFoundError(err) || isThrottledError(err)
 }
 
 type CleanupWorkflow string
