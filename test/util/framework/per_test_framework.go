@@ -227,14 +227,19 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		ThrottleMaxRetries: 5,
 	}
 	var errCleanupResourceGroups error
+retryLoop:
 	for attempt := 1; attempt <= opts.ThrottleMaxRetries; attempt++ {
 		errCleanupResourceGroups = tc.CleanupResourceGroups(ctx, opts)
-		if errCleanupResourceGroups == nil || !isThrottledError(errCleanupResourceGroups) {
+		if errCleanupResourceGroups == nil || !isOnlyThrottledErrors(errCleanupResourceGroups) {
 			break
 		}
 		delay := time.Duration(attempt*30) * time.Second
 		ginkgo.GinkgoLogr.Info("cleanup throttled by ARM, retrying", "attempt", attempt, "retryIn", delay, "error", errCleanupResourceGroups)
-		time.Sleep(delay)
+		select {
+		case <-ctx.Done():
+			break retryLoop
+		case <-time.After(delay):
+		}
 	}
 	if errCleanupResourceGroups != nil {
 		if !isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
@@ -295,6 +300,23 @@ func isThrottledError(err error) bool {
 		}
 	}
 	return false
+}
+
+// isOnlyThrottledErrors returns true when every error in a (possibly joined)
+// error tree is a throttling error. Used to decide whether retrying is useful.
+func isOnlyThrottledErrors(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range joined.Unwrap() {
+			if !isOnlyThrottledErrors(e) {
+				return false
+			}
+		}
+		return true
+	}
+	return isThrottledError(err)
 }
 
 // isIgnorableResourceGroupCleanupError returns true when every error in a
