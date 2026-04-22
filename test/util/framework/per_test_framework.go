@@ -224,8 +224,18 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		ResourceGroupNames: resourceGroupNames,
 		Timeout:            60 * time.Minute,
 		CleanupWorkflow:    CleanupWorkflowStandard,
+		ThrottleMaxRetries: 5,
 	}
-	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, opts)
+	var errCleanupResourceGroups error
+	for attempt := 1; attempt <= opts.ThrottleMaxRetries; attempt++ {
+		errCleanupResourceGroups = tc.CleanupResourceGroups(ctx, opts)
+		if errCleanupResourceGroups == nil || !isThrottledError(errCleanupResourceGroups) {
+			break
+		}
+		delay := time.Duration(attempt*30) * time.Second
+		ginkgo.GinkgoLogr.Info("cleanup throttled by ARM, retrying", "attempt", attempt, "retryIn", delay, "error", errCleanupResourceGroups)
+		time.Sleep(delay)
+	}
 	if errCleanupResourceGroups != nil {
 		if !isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
 			ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete")
@@ -316,6 +326,7 @@ const (
 type CleanupResourceGroupsOptions struct {
 	ResourceGroupNames []string
 	Timeout            time.Duration
+	ThrottleMaxRetries int
 	CleanupWorkflow    CleanupWorkflow
 }
 
