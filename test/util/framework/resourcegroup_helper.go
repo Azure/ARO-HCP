@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -120,6 +121,62 @@ func ListAllExpiredResourceGroups(
 	}
 
 	return expiredResourceGroups, nil
+}
+
+// ListOrphanedManagedResourceGroups returns managed resource groups whose
+// managedBy references an HCP cluster in a parent resource group that no
+// longer exists. These are leftovers from e2e runs where the parent was
+// deleted but the managed RG was not.
+func ListOrphanedManagedResourceGroups(
+	ctx context.Context,
+	resourceGroupsClient *armresources.ResourceGroupsClient,
+) ([]*armresources.ResourceGroup, error) {
+	allResourceGroups := []*armresources.ResourceGroup{}
+	pager := resourceGroupsClient.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed listing resource groups: %w", err)
+		}
+		allResourceGroups = append(allResourceGroups, page.Value...)
+	}
+
+	// Index all resource group names for parent lookup
+	existingRGs := map[string]bool{}
+	for _, rg := range allResourceGroups {
+		existingRGs[strings.ToLower(*rg.Name)] = true
+	}
+
+	// Find managed RGs whose parent no longer exists, using the same
+	// managedBy matching as findManagedResourceGroups
+	orphanedResourceGroups := []*armresources.ResourceGroup{}
+	for i := range allResourceGroups {
+		rg := allResourceGroups[i]
+		if rg.ManagedBy == nil {
+			continue
+		}
+
+		// Match HCP-managed resource groups
+		managedByLower := strings.ToLower(*rg.ManagedBy)
+		rgIdx := strings.Index(managedByLower, "/resourcegroups/")
+		providerIdx := strings.Index(managedByLower, "/providers/microsoft.redhatopenshif")
+		if rgIdx < 0 || providerIdx < 0 || providerIdx <= rgIdx {
+			continue
+		}
+
+		// Extract the parent resource group name
+		parentStart := rgIdx + len("/resourcegroups/")
+		parentRG := managedByLower[parentStart:providerIdx]
+		if parentRG == "" {
+			continue
+		}
+
+		if !existingRGs[parentRG] {
+			orphanedResourceGroups = append(orphanedResourceGroups, rg)
+		}
+	}
+
+	return orphanedResourceGroups, nil
 }
 
 // DeleteResourceGroup deletes a resource group and waits for the operation to complete

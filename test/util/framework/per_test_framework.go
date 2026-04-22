@@ -417,6 +417,31 @@ func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Cont
 	return managedResourceGroups, nil
 }
 
+// isResourceGroupExpiredBeyond checks whether the resource group's deleteAfter
+// tag indicates it has been expired for longer than the given duration.
+func (tc *perItOrDescribeTestContext) isResourceGroupExpiredBeyond(ctx context.Context, resourceGroupName string, duration time.Duration) bool {
+	clientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return false
+	}
+	rg, err := clientFactory.NewResourceGroupsClient().Get(ctx, resourceGroupName, nil)
+	if err != nil {
+		return false
+	}
+	if rg.Tags == nil {
+		return false
+	}
+	deleteAfterStr, ok := rg.Tags["deleteAfter.aro-hcp-ci.redhat.com"]
+	if !ok || deleteAfterStr == nil {
+		return false
+	}
+	deleteAfter, err := time.Parse(time.RFC3339, *deleteAfterStr)
+	if err != nil {
+		return false
+	}
+	return time.Now().After(deleteAfter.Add(duration))
+}
+
 // waitForManagedResourceGroupsDeletion polls findManagedResourceGroups until no managed resource groups remain for the given parent resource group
 // This handles the case where managed RGs are still being deleted (e.g. because the HCP cluster was already in a deleting state prior to cleanup)
 // Returns the remaining managed resource groups (empty if all were deleted)
@@ -486,10 +511,20 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		ginkgo.GinkgoLogr.Info("managed resource groups still present, waiting for deletion",
 			"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
 		managedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
-		if err != nil {
-			if len(managedResourceGroups) > 0 {
+		if err != nil && len(managedResourceGroups) > 0 {
+			if tc.isResourceGroupExpiredBeyond(ctx, resourceGroupName, 7*24*time.Hour) {
+				ginkgo.GinkgoLogr.Info("managed resource groups stuck for over a week, falling back to direct cleanup",
+					"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
+				noRPOpts := cleanupengine.WorkflowOptions{Wait: false, ContinueOnError: true}
+				for _, managedRG := range managedResourceGroups {
+					if cleanupErr := tc.runOrderedResourceGroupCleanup(ctx, managedRG, timeout, noRPOpts); cleanupErr != nil {
+						return fmt.Errorf("failed to force-cleanup managed resource group %q: %w", managedRG, cleanupErr)
+					}
+				}
+			} else {
 				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
 			}
+		} else if err != nil {
 			return fmt.Errorf("failed waiting for managed resource group deletion in %s: %w", resourceGroupName, err)
 		}
 	} else {

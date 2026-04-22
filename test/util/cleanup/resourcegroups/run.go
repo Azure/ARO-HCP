@@ -89,6 +89,15 @@ func (o *Options) Run(ctx context.Context) error {
 		for _, rg := range resourceGroupsToDelete {
 			fmt.Println(rg)
 		}
+		if o.DeleteExpired {
+			orphanedManagedRGs, err := framework.ListOrphanedManagedResourceGroups(ctx, resourceGroupsClient)
+			if err != nil {
+				return fmt.Errorf("failed to list orphaned managed resource groups: %w", err)
+			}
+			for _, rg := range orphanedManagedRGs {
+				fmt.Printf("%s (orphaned managed)\n", *rg.Name)
+			}
+		}
 		return nil
 	}
 
@@ -111,6 +120,33 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	logger.Info("All resource groups successfully deleted", "count", len(resourceGroupsToDelete))
+
+	// Clean up orphaned managed resource groups whose parent no longer exists
+	if o.DeleteExpired {
+		orphanedManagedRGs, err := framework.ListOrphanedManagedResourceGroups(ctx, resourceGroupsClient)
+		if err != nil {
+			logger.Error(err, "Failed to list orphaned managed resource groups")
+			return err
+		}
+		if len(orphanedManagedRGs) > 0 {
+			orphanedNames := make([]string, 0, len(orphanedManagedRGs))
+			for _, rg := range orphanedManagedRGs {
+				orphanedNames = append(orphanedNames, *rg.Name)
+			}
+			logger.Info("Found orphaned managed resource groups, cleaning up", "count", len(orphanedNames), "resourceGroups", orphanedNames)
+			orphanedOpts := framework.CleanupResourceGroupsOptions{
+				ResourceGroupNames: orphanedNames,
+				Timeout:            o.Timeout,
+				CleanupWorkflow:    framework.CleanupWorkflowNoRP,
+			}
+			if err := tc.CleanupResourceGroups(ctx, orphanedOpts); err != nil {
+				logger.Error(err, "Failed to delete some orphaned managed resource groups")
+				return err
+			}
+			logger.Info("All orphaned managed resource groups successfully deleted", "count", len(orphanedNames))
+		}
+	}
+
 	return nil
 }
 
