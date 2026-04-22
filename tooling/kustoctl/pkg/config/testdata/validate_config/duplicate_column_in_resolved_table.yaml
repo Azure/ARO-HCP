@@ -1,0 +1,11 @@
+definitions:
+  - name: a
+    columns:
+      - {name: ts, type: datetime, mapping: "$.ts"}
+  - name: b
+    columns:
+      - {name: ts, type: string, mapping: "$.ts2"}
+tables:
+  - name: myTable
+    databases: [ServiceLogs]
+    definitions: [a, b]

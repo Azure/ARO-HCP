@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/kustoctl/cmd/generate"
 	"github.com/Azure/ARO-HCP/tooling/kustoctl/cmd/validate"
 )
 
@@ -56,6 +57,13 @@ Kusto-related operational tasks.`,
 	}
 
 	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
+
+	generateCmd, err := generate.NewGenerateCommand()
+	if err != nil {
+		logger.Error(err, "failed to create generate command")
+		os.Exit(1)
+	}
+	cmd.AddCommand(generateCmd)
 
 	validateCmd, err := validate.NewValidateCommand()
 	if err != nil {

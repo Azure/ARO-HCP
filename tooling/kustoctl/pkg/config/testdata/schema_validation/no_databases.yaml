@@ -1,0 +1,4 @@
+tables:
+  - name: t
+    columns:
+      - {name: c, type: string, mapping: "$.c"}

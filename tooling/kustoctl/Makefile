@@ -19,3 +19,8 @@ test:
 clean:
 	rm -f $(BINARY)
 .PHONY: clean
+
+generate:
+	go run . generate table --input ../../observability/kusto/tables.yaml \
+	--output-dir ../../dev-infrastructure/modules/logs/kusto/tables
+.PHONY: generate

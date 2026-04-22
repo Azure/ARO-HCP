@@ -36,7 +36,7 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
-generate: deepcopy mocks fmt record-nonlocal-e2e all-tidy
+generate: deepcopy mocks fmt record-nonlocal-e2e all-tidy generate-kql
 
 verify-generate: generate
 	./hack/verify.sh generate
@@ -59,6 +59,10 @@ json-format: $(	JQ)
 verify-json-format: $(JQ)
 	hack/verify-json-format.sh $(JQ)
 .PHONY: verify-json-format
+
+generate-kql:
+	make -C observability generate-kql
+.PHONY: generate-kql
 
 verify-kql:
 	hack/kql-verify.sh

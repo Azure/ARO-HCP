@@ -1,0 +1,5 @@
+name: testTable
+columns:
+  - {name: timestamp, type: datetime, mapping: "$.timestamp"}
+  - {name: log, type: dynamic, mapping: "$.log.log"}
+  - {name: tag, type: string, mapping: "$.tag"}

@@ -29,3 +29,7 @@ recording-rules:
 verify:
 	go run ../tooling/grafanactl/main.go verify dashboards --config-file observability.yaml
 .PHONY: verify
+
+generate-kql:
+	make -C ../tooling/kustoctl generate
+.PHONY: generate-kql
