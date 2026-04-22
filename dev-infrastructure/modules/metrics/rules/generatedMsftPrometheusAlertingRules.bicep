@@ -238,33 +238,6 @@ resource msftKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2
             }
           }
         ]
-        alert: 'KubeVersionMismatch'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'KubeVersionMismatch/{{ $labels.cluster }}'
-          description: 'There are {{ $value }} different semantic versions of Kubernetes components running.'
-          info: 'There are {{ $value }} different semantic versions of Kubernetes components running.'
-          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeversionmismatch'
-          summary: 'Different semantic versions of Kubernetes components running.'
-          title: 'Different semantic versions of Kubernetes components running.'
-        }
-        expression: 'count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"},"git_version","$1","git_version","(v[0-9]*.[0-9]*).*"))) > 1'
-        for: 'PT15M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
         alert: 'KubeClientErrors'
         enabled: true
         labels: {
@@ -1337,33 +1310,6 @@ resource msftPrometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
         for: 'PT5M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'PrometheusOperatorRejectedResources'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'PrometheusOperatorRejectedResources/{{ $labels.cluster }}/{{ $labels.controller }}/{{ $labels.namespace }}/{{ $labels.resource }}'
-          description: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
-          info: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
-          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources'
-          summary: 'Resources rejected by Prometheus operator'
-          title: 'Resources rejected by Prometheus operator'
-        }
-        expression: 'min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0'
-        for: 'PT20M'
         severity: 3
       }
     ]

@@ -27,7 +27,6 @@ prometheusRules:
   - groupName: kubernetes-system
     alerts:
     - KubeClientErrors
-    - KubeVersionMismatch
   - groupName: kubernetes-system-apiserver
     alerts:
     - KubeAPIDown
@@ -69,7 +68,6 @@ prometheusRules:
   - groupName: prometheus-operator-rules
     alerts:
     - PrometheusOperatorNotReady
-    - PrometheusOperatorRejectedResources
   - groupName: mise
     alerts:
     - MiseEnvoyScrapeDown
