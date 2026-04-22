@@ -15,6 +15,7 @@ use (
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater
+	./tooling/kustoctl
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
