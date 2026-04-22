@@ -15,6 +15,7 @@
 package framework
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -120,6 +121,41 @@ func TestIsIgnorableResourceGroupCleanupError(t *testing.T) {
 			name: "ResourceGroupNotFound returns true",
 			err:  &azcore.ResponseError{StatusCode: http.StatusConflict, ErrorCode: "ResourceGroupNotFound"},
 			want: true,
+		},
+		{
+			name: "429 Too Many Requests returns true",
+			err:  &azcore.ResponseError{StatusCode: http.StatusTooManyRequests},
+			want: true,
+		},
+		{
+			name: "SubscriptionRequestsThrottled returns true",
+			err:  &azcore.ResponseError{ErrorCode: "SubscriptionRequestsThrottled"},
+			want: true,
+		},
+		{
+			name: "RequestsThrottled returns true",
+			err:  &azcore.ResponseError{ErrorCode: "RequestsThrottled"},
+			want: true,
+		},
+		{
+			name: "wrapped 429 returns true",
+			err:  fmt.Errorf("cleanup failed: %w", &azcore.ResponseError{StatusCode: http.StatusTooManyRequests}),
+			want: true,
+		},
+		{
+			name: "joined errors all ignorable returns true",
+			err:  errors.Join(&azcore.ResponseError{StatusCode: http.StatusNotFound}, &azcore.ResponseError{StatusCode: http.StatusTooManyRequests}),
+			want: true,
+		},
+		{
+			name: "joined errors with non-ignorable returns false",
+			err:  errors.Join(&azcore.ResponseError{StatusCode: http.StatusTooManyRequests}, &azcore.ResponseError{StatusCode: http.StatusForbidden}),
+			want: false,
+		},
+		{
+			name: "403 Forbidden returns false",
+			err:  &azcore.ResponseError{StatusCode: http.StatusForbidden},
+			want: false,
 		},
 	}
 
