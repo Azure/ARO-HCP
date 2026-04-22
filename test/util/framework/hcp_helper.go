@@ -416,10 +416,10 @@ func UpdateHCPCluster20251223WithRetry(
 
 const waitForClusterReadyTimeout = 5 * time.Minute
 
-// waitForClusterReady polls until the cluster's provisioningState is no longer
-// a transitional state (Updating, Creating), or until the timeout is reached.
-// The timeout is bounded to prevent hanging indefinitely when a cluster is
-// stuck, letting the retry loop decide whether to try again or give up.
+// waitForClusterReady polls until the cluster reaches a terminal provisioning
+// state (Succeeded, Failed, Canceled), or until the timeout is reached. The
+// timeout is bounded to prevent hanging indefinitely when a cluster is stuck,
+// letting the retry loop decide whether to try again or give up.
 func waitForClusterReady(
 	ctx context.Context,
 	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
@@ -429,14 +429,23 @@ func waitForClusterReady(
 	return wait.PollUntilContextTimeout(ctx, 15*time.Second, waitForClusterReadyTimeout, true, func(ctx context.Context) (bool, error) {
 		resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
 		if err != nil {
+			ginkgo.GinkgoLogr.Info("Failed to get cluster state, will retry",
+				"cluster", hcpClusterName, "error", err.Error())
 			return false, nil
 		}
 		if resp.Properties == nil || resp.Properties.ProvisioningState == nil {
 			return false, nil
 		}
-		state := string(*resp.Properties.ProvisioningState)
+		state := *resp.Properties.ProvisioningState
 		ginkgo.GinkgoLogr.Info("Cluster provisioning state", "cluster", hcpClusterName, "state", state)
-		return state != "Updating" && state != "Creating", nil
+		switch state {
+		case hcpsdk20251223preview.ProvisioningStateSucceeded,
+			hcpsdk20251223preview.ProvisioningStateFailed,
+			hcpsdk20251223preview.ProvisioningStateCanceled:
+			return true, nil
+		default:
+			return false, nil
+		}
 	})
 }
 
