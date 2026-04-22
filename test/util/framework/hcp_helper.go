@@ -355,14 +355,6 @@ func UpdateHCPCluster20251223(
 	err := wait.ExponentialBackoffWithContext(ctx, stateConflictBackoff, func(ctx context.Context) (bool, error) {
 		attempt++
 		if attempt > 1 {
-			ginkgo.GinkgoLogr.Info("Waiting for cluster to reach terminal state before retry",
-				"cluster", hcpClusterName,
-				"attempt", attempt)
-			if waitErr := waitForClusterReady(ctx, hcpClient, resourceGroupName, hcpClusterName); waitErr != nil {
-				ginkgo.GinkgoLogr.Info("Cluster did not return to ready state",
-					"cluster", hcpClusterName,
-					"error", waitErr.Error())
-			}
 			ginkgo.GinkgoLogr.Info("Retrying cluster update",
 				"cluster", hcpClusterName,
 				"attempt", attempt)
@@ -402,41 +394,6 @@ func UpdateHCPCluster20251223(
 	}
 
 	return hcpOpenShiftCluster, err
-}
-
-const waitForClusterReadyTimeout = 5 * time.Minute
-
-// waitForClusterReady polls until the cluster reaches a terminal provisioning
-// state (Succeeded, Failed, Canceled), or until the timeout is reached. The
-// timeout is bounded to prevent hanging indefinitely when a cluster is stuck,
-// letting the retry loop decide whether to try again or give up.
-func waitForClusterReady(
-	ctx context.Context,
-	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
-	resourceGroupName string,
-	hcpClusterName string,
-) error {
-	return wait.PollUntilContextTimeout(ctx, 15*time.Second, waitForClusterReadyTimeout, true, func(ctx context.Context) (bool, error) {
-		resp, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
-		if err != nil {
-			ginkgo.GinkgoLogr.Info("Failed to get cluster state, will retry",
-				"cluster", hcpClusterName, "error", err.Error())
-			return false, nil
-		}
-		if resp.Properties == nil || resp.Properties.ProvisioningState == nil {
-			return false, nil
-		}
-		state := *resp.Properties.ProvisioningState
-		ginkgo.GinkgoLogr.Info("Cluster provisioning state", "cluster", hcpClusterName, "state", state)
-		switch state {
-		case hcpsdk20251223preview.ProvisioningStateSucceeded,
-			hcpsdk20251223preview.ProvisioningStateFailed,
-			hcpsdk20251223preview.ProvisioningStateCanceled:
-			return true, nil
-		default:
-			return false, nil
-		}
-	})
 }
 
 // GetHCPCluster fetches an HCP cluster
