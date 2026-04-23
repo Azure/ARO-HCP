@@ -17,6 +17,8 @@ package e2e
 import (
 	"context"
 	"net/http"
+	"os"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -59,6 +61,13 @@ func (p *miseVersionCapture) Do(req *policy.Request) (*http.Response, error) {
 // rules are always evaluated.
 var _ = Describe("MISE Routing", func() {
 	defer GinkgoRecover()
+
+	BeforeEach(func() {
+		suiteName := strings.ToLower(os.Getenv("ARO_HCP_SUITE_NAME"))
+		if strings.Contains(suiteName, "prod") || strings.Contains(suiteName, "stage") {
+			Skip("Skipping MISE routing test in production or staging environment")
+		}
+	})
 
 	DescribeTable("routes to the correct frontend based on version header",
 		labels.RequireNothing,
