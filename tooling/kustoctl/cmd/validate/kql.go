@@ -124,13 +124,7 @@ func validateFile(ctx context.Context, logger logr.Logger, client *azkustodata.C
 	logQuery(logger, database, cmd)
 	dataset, err := client.Mgmt(ctx, database, unsafeStmt(cmd))
 	if err != nil {
-		if strings.Contains(err.Error(), "not supported") ||
-			strings.Contains(err.Error(), "Unknown") ||
-			strings.Contains(err.Error(), "unrecognized") {
-			logger.Info("  .execute database script not supported, falling back to individual commands")
-			return validateFileIndividual(ctx, logger, client, database, string(content))
-		}
-		return err
+		return fmt.Errorf("executing command: %w", err)
 	}
 	logDataset(logger, dataset)
 
@@ -158,50 +152,6 @@ func checkScriptResults(dataset v1.Dataset) error {
 		}
 	}
 	return nil
-}
-
-func validateFileIndividual(ctx context.Context, logger logr.Logger, client *azkustodata.Client, database, content string) error {
-	commands := splitCommands(content)
-	for i, cmd := range commands {
-		logQuery(logger, database, cmd)
-		ds, err := client.Mgmt(ctx, database, unsafeStmt(cmd))
-		if err != nil {
-			return fmt.Errorf("command %d: %w", i+1, err)
-		}
-		logDataset(logger, ds)
-	}
-	return nil
-}
-
-// splitCommands splits a KQL file into individual management commands.
-// Each command starts with '.' at column 0.
-func splitCommands(content string) []string {
-	lines := strings.Split(content, "\n")
-	var commands []string
-	var current strings.Builder
-
-	for _, line := range lines {
-		if len(line) > 0 && line[0] == '.' && current.Len() > 0 {
-			cmd := strings.TrimSpace(current.String())
-			if cmd != "" {
-				commands = append(commands, cmd)
-			}
-			current.Reset()
-		}
-		if current.Len() > 0 {
-			current.WriteString("\n")
-		}
-		current.WriteString(line)
-	}
-
-	if current.Len() > 0 {
-		cmd := strings.TrimSpace(current.String())
-		if cmd != "" {
-			commands = append(commands, cmd)
-		}
-	}
-
-	return commands
 }
 
 func showTables(ctx context.Context, logger logr.Logger, client *azkustodata.Client, database string) ([]string, error) {
