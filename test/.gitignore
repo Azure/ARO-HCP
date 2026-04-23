@@ -3,3 +3,4 @@ e2e.test
 /aro-hcp-tests
 /e2e/test-artifacts/generated-test-artifacts/
 /prow-job-executor
+/test/

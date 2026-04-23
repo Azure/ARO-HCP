@@ -345,10 +345,11 @@ var stateConflictBackoff = wait.Backoff{
 	Jitter:   0.1,             // ±10% randomization to avoid thundering herd
 }
 
-// isTransientUpdateError detects errors worth retrying during cluster updates:
+// isTransientUpdateError detects errors worth retrying during cluster or nodepool updates:
 //   - HTTP 500: e.g. Cosmos DB ETag conflict after cluster-service commit
 //   - HTTP 409: Conflict
-//   - HTTP 400: cluster-service "can't update" when cluster is in a transitional state
+//   - HTTP 429: Too Many Requests (rate limiting)
+//   - HTTP 400: cluster-service "can't update" when cluster/nodepool is in a transitional state
 func isTransientUpdateError(err error) bool {
 	if err == nil {
 		return false
@@ -358,7 +359,8 @@ func isTransientUpdateError(err error) bool {
 		return false
 	}
 	if responseError.StatusCode == http.StatusInternalServerError ||
-		responseError.StatusCode == http.StatusConflict {
+		responseError.StatusCode == http.StatusConflict ||
+		responseError.StatusCode == http.StatusTooManyRequests {
 		return true
 	}
 	if responseError.StatusCode == http.StatusBadRequest &&
@@ -593,6 +595,7 @@ func GetNodePool(
 
 // UpdateNodePoolAndWait sends a PATCH (BeginUpdate) request for a nodepool and waits for completion
 // within the provided timeout. It returns the final update response or an error.
+// Transient 500, 429, 409, and 400 "can't update" errors are retried automatically with exponential backoff.
 func UpdateNodePoolAndWait(
 	ctx context.Context,
 	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
@@ -605,38 +608,68 @@ func UpdateNodePoolAndWait(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
 
-	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
-	if err != nil {
-		return nil, err
-	}
+	var nodePool *hcpsdk20240610preview.NodePool
+	attempt := 0
 
-	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: StandardPollInterval,
-	})
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+	err := wait.ExponentialBackoffWithContext(ctx, stateConflictBackoff, func(ctx context.Context) (bool, error) {
+		attempt++
+		if attempt > 1 {
+			ginkgo.GinkgoLogr.Info("Retrying nodepool update",
+				"nodePool", nodePoolName,
+				"cluster", hcpClusterName,
+				"attempt", attempt)
 		}
-		return nil, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
-	}
 
-	switch m := any(operationResult).(type) {
-	case hcpsdk20240610preview.NodePoolsClientUpdateResponse:
-		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
 		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				return nil, fmt.Errorf("failed getting nodepool=%q in cluster=%q resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			if isTransientUpdateError(err) {
+				return false, nil
 			}
-			return nil, err
+			return false, err
 		}
-		err = checkOperationResult(&expect.NodePool, &m.NodePool)
+
+		operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+			Frequency: StandardPollInterval,
+		})
 		if err != nil {
-			return nil, err
+			if isTransientUpdateError(err) {
+				return false, nil
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				return false, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return false, fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish updating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 		}
-		return &m.NodePool, nil
-	default:
-		return nil, fmt.Errorf("unknown type %T", m)
+
+		switch m := any(operationResult).(type) {
+		case hcpsdk20240610preview.NodePoolsClientUpdateResponse:
+			expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					return false, fmt.Errorf("failed getting nodepool=%q in cluster=%q resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+				}
+				return false, err
+			}
+			if err := checkOperationResult(&expect.NodePool, &m.NodePool); err != nil {
+				return false, err
+			}
+			nodePool = &m.NodePool
+			return true, nil
+		default:
+			return false, fmt.Errorf("unknown type %T", m)
+		}
+	})
+
+	if err != nil && attempt > 1 {
+		ginkgo.GinkgoLogr.Info("Nodepool update failed after retries",
+			"nodePool", nodePoolName,
+			"cluster", hcpClusterName,
+			"resourceGroup", resourceGroupName,
+			"attempts", attempt,
+			"error", err.Error())
 	}
+
+	return nodePool, err
 }
 
 // CreateOrUpdateExternalAuthAndWait creates or updates an external auth on an HCP cluster and waits
