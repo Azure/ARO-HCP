@@ -339,9 +339,9 @@ func UpdateHCPCluster(
 
 // stateConflictBackoff is the retry config for transient state conflicts (ARO-25884).
 var stateConflictBackoff = wait.Backoff{
-	Steps:    3,               // up to 3 attempts total
+	Steps:    5,               // up to 5 attempts total
 	Duration: 1 * time.Minute, // initial wait before first retry
-	Factor:   2.0,             // double the wait each retry (1m, 2m)
+	Factor:   2.0,             // double the wait each retry (1m, 2m, 4m, 8m)
 	Jitter:   0.1,             // ±10% randomization to avoid thundering herd
 }
 
