@@ -10,16 +10,3 @@ spec:
   portLevelMtls:
     8081:
       mode: PERMISSIVE
----
-apiVersion: security.istio.io/v1beta1
-kind: PeerAuthentication
-metadata:
-  name: aro-hcp-frontend-v2-metrics
-  namespace: '{{ .Release.Namespace }}'
-spec:
-  selector:
-    matchLabels:
-      app: aro-hcp-frontend-v2
-  portLevelMtls:
-    8081:
-      mode: PERMISSIVE
