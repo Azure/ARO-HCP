@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -28,6 +27,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -158,18 +159,20 @@ func (p *correlationRequestIDPolicy) Do(req *policy.Request) (*http.Response, er
 //
 // All other requests pass through unmodified.
 type lroPollerRetryDeploymentNotFoundPolicy struct {
-	MaxRetries     int
-	BaseBackoff    time.Duration
-	MaxBackoff     time.Duration
-	MaxRetryWindow time.Duration
+	backoff        wait.Backoff
+	maxRetryWindow time.Duration
 }
 
 func NewLROPollerRetryDeploymentNotFoundPolicy() *lroPollerRetryDeploymentNotFoundPolicy {
 	return &lroPollerRetryDeploymentNotFoundPolicy{
-		MaxRetries:     5,
-		BaseBackoff:    2 * time.Second,
-		MaxBackoff:     10 * time.Second,
-		MaxRetryWindow: 90 * time.Second,
+		backoff: wait.Backoff{
+			Duration: 2 * time.Second,
+			Factor:   2,
+			Jitter:   0.5,
+			Steps:    5,
+			Cap:      10 * time.Second,
+		},
+		maxRetryWindow: 90 * time.Second,
 	}
 }
 
@@ -183,48 +186,37 @@ func (p *lroPollerRetryDeploymentNotFoundPolicy) Do(req *policy.Request) (*http.
 	}
 
 	start := time.Now()
-	attempt := 0
+	backoff := p.backoff
 
-	for {
+	for attempt := 0; ; attempt++ {
+		retryReq := req.Clone(req.Raw().Context())
+		if err := retryReq.RewindBody(); err != nil {
+			return nil, err
+		}
 
-		resp, err, retry := func(req *policy.Request) (resp *http.Response, err error, retry bool) {
-			retryReq := req.Clone(req.Raw().Context())
-			if err := retryReq.RewindBody(); err != nil {
-				return nil, err, false
-			}
+		resp, err := retryReq.Next()
+		if err == nil {
+			return resp, nil
+		}
 
-			resp, err = retryReq.Next()
-			if err == nil {
-				return resp, nil, false
-			}
-			defer func(resp *http.Response) {
-				if resp != nil {
-					if err := resp.Body.Close(); err != nil {
-						ginkgo.GinkgoLogr.Error(err, "failed to close response body")
-					}
-				}
-			}(resp)
-
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) &&
-				respErr.StatusCode == http.StatusNotFound &&
-				strings.EqualFold(respErr.ErrorCode, "DeploymentNotFound") {
-				return nil, err, true
-			}
-			// don't retry on any other error
-			return nil, err, false
-		}(req)
-
-		if !retry {
+		var respErr *azcore.ResponseError
+		if !errors.As(err, &respErr) ||
+			respErr.StatusCode != http.StatusNotFound ||
+			!strings.EqualFold(respErr.ErrorCode, "DeploymentNotFound") {
 			return resp, err
 		}
 
-		if attempt >= p.MaxRetries || time.Since(start) >= p.MaxRetryWindow {
-			err := fmt.Errorf("max retries or max retry window reached: %w", err)
-			return resp, err
+		if resp != nil {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				ginkgo.GinkgoLogr.Error(closeErr, "failed to close response body")
+			}
 		}
 
-		sleep := p.backoff(attempt)
+		if attempt >= backoff.Steps || time.Since(start) >= p.maxRetryWindow {
+			return resp, fmt.Errorf("max retries or max retry window reached: %w", err)
+		}
+
+		sleep := backoff.Step()
 
 		ginkgo.GinkgoLogr.Info("transient 404 DeploymentNotFound on operationStatuses",
 			"attempt", attempt+1,
@@ -233,19 +225,10 @@ func (p *lroPollerRetryDeploymentNotFoundPolicy) Do(req *policy.Request) (*http.
 
 		select {
 		case <-time.After(sleep):
-			// retry
 		case <-req.Raw().Context().Done():
 			return nil, req.Raw().Context().Err()
 		}
-
-		attempt++
 	}
-}
-
-func (p *lroPollerRetryDeploymentNotFoundPolicy) backoff(attempt int) time.Duration {
-	sleep := min(p.BaseBackoff<<attempt, p.MaxBackoff)
-	jitter := time.Duration(rand.Int63n(int64(max(p.BaseBackoff/2, time.Millisecond))))
-	return sleep + jitter
 }
 
 // throttleRetryPolicy is an outer PerCallPolicy that retries 429 (Too Many
@@ -257,23 +240,26 @@ func (p *lroPollerRetryDeploymentNotFoundPolicy) backoff(attempt int) time.Durat
 // ensuring we never retry faster than ARM asks and that delays grow across
 // successive attempts.
 type throttleRetryPolicy struct {
-	MaxRetries     int
-	BaseBackoff    time.Duration
-	MaxBackoff     time.Duration
-	MaxRetryWindow time.Duration
+	backoff        wait.Backoff
+	maxRetryWindow time.Duration
 }
 
 func NewThrottleRetryPolicy() *throttleRetryPolicy {
 	return &throttleRetryPolicy{
-		MaxRetries:     6,
-		BaseBackoff:    4 * time.Second,
-		MaxBackoff:     5 * time.Minute,
-		MaxRetryWindow: 2 * time.Minute,
+		backoff: wait.Backoff{
+			Duration: 4 * time.Second,
+			Factor:   2,
+			Jitter:   0.5,
+			Steps:    6,
+			Cap:      5 * time.Minute,
+		},
+		maxRetryWindow: 2 * time.Minute,
 	}
 }
 
 func (p *throttleRetryPolicy) Do(req *policy.Request) (*http.Response, error) {
 	start := time.Now()
+	backoff := p.backoff
 
 	for attempt := 0; ; attempt++ {
 		retryReq := req.Clone(req.Raw().Context())
@@ -287,13 +273,12 @@ func (p *throttleRetryPolicy) Do(req *policy.Request) (*http.Response, error) {
 			return resp, err
 		}
 
-		if attempt >= p.MaxRetries || time.Since(start) >= p.MaxRetryWindow {
+		if attempt >= backoff.Steps || time.Since(start) >= p.maxRetryWindow {
 			return resp, err
 		}
 
 		retryAfter := parseRetryAfter(resp)
-		backoff := p.backoff(attempt)
-		delay := max(backoff, retryAfter)
+		delay := max(backoff.Step(), retryAfter)
 		runtime.Drain(resp)
 
 		ginkgo.GinkgoLogr.Info("429 throttled, backing off",
@@ -308,12 +293,6 @@ func (p *throttleRetryPolicy) Do(req *policy.Request) (*http.Response, error) {
 			return nil, req.Raw().Context().Err()
 		}
 	}
-}
-
-func (p *throttleRetryPolicy) backoff(attempt int) time.Duration {
-	sleep := min(p.BaseBackoff<<attempt, p.MaxBackoff)
-	jitter := time.Duration(rand.Int63n(int64(max(p.BaseBackoff/2, time.Millisecond))))
-	return sleep + jitter
 }
 
 // parseRetryAfter extracts the delay from Retry-After-Ms, x-ms-retry-after-ms,
