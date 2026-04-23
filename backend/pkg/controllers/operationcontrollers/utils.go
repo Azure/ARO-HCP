@@ -25,7 +25,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"k8s.io/utils/clock"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -42,8 +42,6 @@ import (
 const (
 	InflightChecksFailedProvisionErrorCode = "OCM4001"
 )
-
-var localClock clock.Clock = clock.RealClock{}
 
 type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operation) error
 
@@ -78,7 +76,7 @@ const (
 //
 // In all of these cases the operation document is still persisted and ARM is
 // notified, so the operation reaches its terminal state and does not get stuck.
-func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, cosmosClient database.DBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 	if existingOperation == nil {
 		return nil
@@ -89,7 +87,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 	}
 
 	updatedOperation := existingOperation.DeepCopy()
-	updatedOperation.LastTransitionTime = localClock.Now()
+	updatedOperation.LastTransitionTime = clock.Now()
 	updatedOperation.Status = newOperationStatus
 	if newOperationError != nil {
 		updatedOperation.Error = newOperationError
@@ -284,7 +282,7 @@ func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.Pr
 }
 
 // patchOperation patches the status and error fields of an OperationDocument.
-func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func patchOperation(ctx context.Context, clock utilsclock.PassiveClock, dbClient database.DBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
@@ -294,7 +292,7 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 	}
 
 	operationToWrite := oldOperation.DeepCopy()
-	operationToWrite.LastTransitionTime = localClock.Now()
+	operationToWrite.LastTransitionTime = clock.Now()
 	operationToWrite.Status = newOperationStatus
 	if newOperationError != nil {
 		operationToWrite.Error = newOperationError
@@ -484,6 +482,7 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 // Service to info for an Azure async operation status endpoint.
 func pollNodePoolStatus(
 	ctx context.Context,
+	clock utilsclock.PassiveClock,
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	operation *api.Operation,
@@ -508,7 +507,7 @@ func pollNodePoolStatus(
 	logger.Info("new status", "newStatus", newOperationStatus)
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
+	err = UpdateOperationStatus(ctx, clock, cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -566,6 +565,7 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 // Service to info for an Azure async operation status endpoint.
 func pollExternalAuthStatus(
 	ctx context.Context,
+	clock utilsclock.PassiveClock,
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	operation *api.Operation,
@@ -587,7 +587,7 @@ func pollExternalAuthStatus(
 	logger.Info("new status", "newStatus", newOperationStatus)
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, cosmosClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
+	err = UpdateOperationStatus(ctx, clock, cosmosClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -660,7 +660,7 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 }
 
 // setDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
-func SetDeleteOperationAsCompleted(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.PassiveClock, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	// Delete the resource document first. If it fails the backend will retry
 	// by virtue of the operation document still having a non-terminal status.
 	untypedCRUD, err := cosmosClient.UntypedCRUD(*operation.ExternalID)
@@ -702,7 +702,7 @@ func SetDeleteOperationAsCompleted(ctx context.Context, cosmosClient database.DB
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = patchOperation(ctx, cosmosClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
+	err = patchOperation(ctx, clock, cosmosClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
 	if err != nil {
 		return utils.TrackError(err)
 	}

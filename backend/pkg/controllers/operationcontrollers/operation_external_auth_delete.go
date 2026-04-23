@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/cache"
+	utilsclock "k8s.io/utils/clock"
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -34,6 +35,7 @@ import (
 )
 
 type operationExternalAuthDelete struct {
+	clock                utilsclock.PassiveClock
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
@@ -54,12 +56,14 @@ type operationExternalAuthDelete struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationExternalAuthDeleteController(
+	clock utilsclock.PassiveClock,
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationExternalAuthDelete{
+		clock:                clock,
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
@@ -109,7 +113,7 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	if err != nil && errors.As(err, &ocmGetExternalAuthError) && ocmGetExternalAuthError.Status() == http.StatusNotFound {
 		logger.Info("external auth was deleted")
 
-		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.clock, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}

@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	utilsclock "k8s.io/utils/clock"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -97,6 +99,7 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			mockCSClient := tt.setupMock(ctrl, fixture)
 
 			controller := &operationExternalAuthCreate{
+				clock:                utilsclock.RealClock{},
 				cosmosClient:         mockDB,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,

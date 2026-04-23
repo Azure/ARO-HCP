@@ -58,6 +58,7 @@ import (
 )
 
 type Backend struct {
+	clock   utilsclock.PassiveClock
 	options *BackendOptions
 }
 
@@ -125,6 +126,7 @@ func (o *BackendOptions) metricsGatherer() prometheus.Gatherer {
 
 func NewBackend(options *BackendOptions) *Backend {
 	return &Backend{
+		clock:   utilsclock.RealClock{},
 		options: options,
 	}
 }
@@ -316,18 +318,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	billingDumpController := datadumpcontrollers.NewBillingDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers)
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
 	dispatchRequestCredentialController := operationcontrollers.NewDispatchRequestCredentialController(
-		utilsclock.RealClock{},
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
 	dispatchRevokeCredentialsController := operationcontrollers.NewDispatchRevokeCredentialsController(
-		utilsclock.RealClock{},
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
 	operationClusterCreateController := operationcontrollers.NewOperationClusterCreateController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
@@ -335,60 +338,70 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	operationClusterUpdateController := operationcontrollers.NewOperationClusterUpdateController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationClusterDeleteController := operationcontrollers.NewOperationClusterDeleteController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationNodePoolCreateController := operationcontrollers.NewOperationNodePoolCreateController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationNodePoolUpdateController := operationcontrollers.NewOperationNodePoolUpdateController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationNodePoolDeleteController := operationcontrollers.NewOperationNodePoolDeleteController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationExternalAuthCreateController := operationcontrollers.NewOperationExternalAuthCreateController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationExternalAuthUpdateController := operationcontrollers.NewOperationExternalAuthUpdateController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationExternalAuthDeleteController := operationcontrollers.NewOperationExternalAuthDeleteController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationRequestCredentialController := operationcontrollers.NewOperationRequestCredentialController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
 	operationRevokeCredentialsController := operationcontrollers.NewOperationRevokeCredentialsController(
+		b.clock,
 		b.options.CosmosDBClient,
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
@@ -397,7 +410,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterServiceMatchingClusterController := mismatchcontrollers.NewClusterServiceClusterMatchingController(b.options.CosmosDBClient, subscriptionLister, b.options.ClustersServiceClient)
 	cosmosMatchingNodePoolController := mismatchcontrollers.NewCosmosNodePoolMatchingController(b.options.CosmosDBClient, b.options.ClustersServiceClient, backendInformers)
 	cosmosMatchingExternalAuthController := mismatchcontrollers.NewCosmosExternalAuthMatchingController(b.options.CosmosDBClient, b.options.ClustersServiceClient, backendInformers)
-	cosmosMatchingClusterController := mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, b.options.CosmosDBClient, b.options.ClustersServiceClient, backendInformers)
+	cosmosMatchingClusterController := mismatchcontrollers.NewCosmosClusterMatchingController(b.clock, b.options.CosmosDBClient, b.options.ClustersServiceClient, backendInformers)
 	alwaysSuccessClusterValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAlwaysSuccessValidation(),
 		activeOperationLister,
@@ -407,11 +420,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	deleteOrphanedCosmosResourcesController := mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
 	backfillClusterUIDController := controllerutils.NewClusterWatchingController(
 		"BackfillClusterUID", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
-		mismatchcontrollers.NewBackfillClusterUIDController(utilsclock.RealClock{}, b.options.CosmosDBClient, clusterLister))
-	orphanedBillingCleanupController := billingcontrollers.NewOrphanedBillingCleanupController(utilsclock.RealClock{}, b.options.CosmosDBClient, clusterLister, billingLister)
+		mismatchcontrollers.NewBackfillClusterUIDController(b.clock, b.options.CosmosDBClient, clusterLister))
+	orphanedBillingCleanupController := billingcontrollers.NewOrphanedBillingCleanupController(b.clock, b.options.CosmosDBClient, clusterLister, billingLister)
 	createBillingDocController := controllerutils.NewClusterWatchingController(
 		"CreateBillingDoc", b.options.CosmosDBClient, backendInformers, 60*time.Second,
-		billingcontrollers.NewCreateBillingDocController(utilsclock.RealClock{}, b.options.AzureLocation, b.options.CosmosDBClient, clusterLister, billingLister))
+		billingcontrollers.NewCreateBillingDocController(b.clock, b.options.AzureLocation, b.options.CosmosDBClient, clusterLister, billingLister))
 	controlPlaneActiveVersionController := upgradecontrollers.NewControlPlaneActiveVersionController(
 		b.options.CosmosDBClient,
 		activeOperationLister,
