@@ -7,7 +7,6 @@ ignore:
 - 'admin/deploy/templates/ext-authz.authorizationpolicy.yaml'
 - 'admin/deploy/templates/admin.deployment.yaml'
 - 'frontend/deploy/templates/ext-authz.authorizationpolicy.yaml'
-- 'frontend/deploy/templates/ext-authz-misev2.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/allow-ingress.authorizationpolicy.yaml'
 - 'frontend/deploy/templates/frontend.deployment.yaml'
 - 'istio/deploy/templates/istio-shared-configmap.yml'
