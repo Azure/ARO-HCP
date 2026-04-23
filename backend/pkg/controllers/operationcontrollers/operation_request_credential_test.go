@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	utilsclock "k8s.io/utils/clock"
+
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -187,6 +189,7 @@ func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 			}
 
 			controller := &operationRequestCredential{
+				clock:                 utilsclock.RealClock{},
 				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}
