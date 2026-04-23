@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/goleak"
 
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/set"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
@@ -183,7 +184,7 @@ func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient databa
 		if operation.ExternalID.Name != resourceName {
 			continue
 		}
-		err := operationcontrollers.UpdateOperationStatus(ctx, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
+		err := operationcontrollers.UpdateOperationStatus(ctx, utilsclock.RealClock{}, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
 		if err != nil {
 			return err
 		}

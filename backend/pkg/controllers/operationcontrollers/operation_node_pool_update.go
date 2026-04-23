@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/cache"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -31,6 +32,7 @@ import (
 )
 
 type operationNodePoolUpdate struct {
+	clock                utilsclock.PassiveClock
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
@@ -51,12 +53,14 @@ type operationNodePoolUpdate struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationNodePoolUpdateController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationNodePoolUpdate{
+		clock:                clock,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
@@ -101,5 +105,5 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	return pollNodePoolStatus(ctx, c.resourcesDBClient, c.clusterServiceClient, operation, c.notificationClient)
+	return pollNodePoolStatus(ctx, c.clock, c.resourcesDBClient, c.clusterServiceClient, operation, c.notificationClient)
 }
