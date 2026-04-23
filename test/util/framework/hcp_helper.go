@@ -348,6 +348,7 @@ var stateConflictBackoff = wait.Backoff{
 // isTransientUpdateError detects errors worth retrying during cluster updates:
 //   - HTTP 500: e.g. Cosmos DB ETag conflict after cluster-service commit
 //   - HTTP 409: Conflict
+//   - HTTP 400: cluster-service "can't update" when cluster is in a transitional state
 func isTransientUpdateError(err error) bool {
 	if err == nil {
 		return false
@@ -356,8 +357,15 @@ func isTransientUpdateError(err error) bool {
 	if !errors.As(err, &responseError) {
 		return false
 	}
-	return responseError.StatusCode == http.StatusInternalServerError ||
-		responseError.StatusCode == http.StatusConflict
+	if responseError.StatusCode == http.StatusInternalServerError ||
+		responseError.StatusCode == http.StatusConflict {
+		return true
+	}
+	if responseError.StatusCode == http.StatusBadRequest &&
+		strings.Contains(responseError.Error(), "can't update") {
+		return true
+	}
+	return false
 }
 
 // UpdateHCPCluster20251223 updates an HCP cluster using the v20251223preview SDK and waits for the operation to complete.
