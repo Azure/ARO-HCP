@@ -52,10 +52,10 @@ type DeleteOrphanedStepConfig struct {
 	AzureCredential       azcore.TokenCredential
 	SubscriptionID        string
 
-	Name                        string
-	Retries                     int
-	ContinueOnTargetDeleteError bool
-	Verify                      runner.VerifyFn
+	Name            string
+	Retries         int
+	ContinueOnError bool
+	Verify          runner.VerifyFn
 }
 
 type deleteOrphanedStep struct {
@@ -89,7 +89,7 @@ func NewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) (runner.Step, error) {
 		cfg:             cfg,
 		name:            stepName,
 		retries:         cfg.Retries,
-		continueOnError: cfg.ContinueOnTargetDeleteError,
+		continueOnError: cfg.ContinueOnError,
 		verify:          cfg.Verify,
 	}, nil
 }

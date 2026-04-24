@@ -53,12 +53,15 @@ func RoleAssignmentsSweeperWorkflow(
 		Wait:        opts.Wait,
 		Steps: []runner.Step{
 			roleassignmentsteps.MustNewDeleteOrphanedStep(roleassignmentsteps.DeleteOrphanedStepConfig{
-				RoleAssignmentsClient:       roleAssignmentsClient,
-				AzureCredential:             credential,
-				SubscriptionID:              subscriptionID,
-				Name:                        "Delete orphaned role assignments",
-				Retries:                     orphanedRoleAssignmentStepRetries,
-				ContinueOnTargetDeleteError: true,
+				RoleAssignmentsClient: roleAssignmentsClient,
+				AzureCredential:       credential,
+				SubscriptionID:        subscriptionID,
+				Name:                  "Delete orphaned role assignments",
+				Retries:               orphanedRoleAssignmentStepRetries,
+				// Keep fail-closed behavior: this step enforces a mandatory Graph
+				// visibility preflight, and turning ContinueOnError on would swallow
+				// that safety failure instead of stopping the run.
+				ContinueOnError: false,
 			}),
 		},
 	}, nil

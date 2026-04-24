@@ -48,7 +48,7 @@ func TestNewDeleteOrphanedStep_ExecutionOptions(t *testing.T) {
 	customCfg := validDeleteOrphanedStepConfig()
 	customCfg.Name = "custom-name"
 	customCfg.Retries = 3
-	customCfg.ContinueOnTargetDeleteError = true
+	customCfg.ContinueOnError = true
 	customStep, err := NewDeleteOrphanedStep(customCfg)
 	if err != nil {
 		t.Fatalf("expected constructor to succeed, got error: %v", err)

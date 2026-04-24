@@ -74,10 +74,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 			opts.SubscriptionID,
 			opts.AzureCredential,
 			cleanupengine.WorkflowOptions{
-				DryRun:          opts.DryRun,
-				Wait:            opts.Wait,
-				Parallelism:     opts.Parallelism,
-				ContinueOnError: true,
+				DryRun:      opts.DryRun,
+				Wait:        opts.Wait,
+				Parallelism: opts.Parallelism,
 			},
 		)
 		if err != nil {

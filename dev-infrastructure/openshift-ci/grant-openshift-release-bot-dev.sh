@@ -65,30 +65,6 @@ grant_api_permission() {
     --api-permissions "${permission}=${type}"
 }
 
-get_graph_permission_id() {
-  local permission_value="$1"
-  local permission_type="$2" # "Scope" or "Role"
-
-  if [[ "${permission_type}" == "Scope" ]]; then
-    az ad sp show \
-      --id "${GRAPH_APP_ID}" \
-      --query "oauth2PermissionScopes[?value=='${permission_value}'].id | [0]" \
-      -o tsv
-    return
-  fi
-
-  if [[ "${permission_type}" == "Role" ]]; then
-    az ad sp show \
-      --id "${GRAPH_APP_ID}" \
-      --query "appRoles[?value=='${permission_value}' && contains(allowedMemberTypes, 'Application')].id | [0]" \
-      -o tsv
-    return
-  fi
-
-  echo "ERROR: Unsupported permission type '${permission_type}'" >&2
-  return 1
-}
-
 if [[ -z "${APP_ID}" ]]; then
     header "Creating or update application ${APPLICATION_NAME}"
     SP_OUTPUT=$(az ad sp create-for-rbac \
@@ -165,25 +141,7 @@ az role assignment create \
 header "Grant API Permissions"
 
 echo "Grant API Permissions - delegated permission: User.Read"
-USER_READ_SCOPE_ID="$(get_graph_permission_id "User.Read" "Scope")"
-if [[ -z "${USER_READ_SCOPE_ID}" || "${USER_READ_SCOPE_ID}" == "null" ]]; then
-  echo "ERROR: Could not resolve Microsoft Graph permission ID for User.Read (Scope)"
-  exit 1
-fi
-grant_api_permission "${APP_ID}" "${USER_READ_SCOPE_ID}" "Scope"
+grant_api_permission "${APP_ID}" "e1fe6dd8-ba31-4d61-89e7-88639da4683d" "Scope"
 
 echo "Grant API Permissions - application permission: Application.ReadWrite.OwnedBy"
-APP_RW_OWNEDBY_ROLE_ID="$(get_graph_permission_id "Application.ReadWrite.OwnedBy" "Role")"
-if [[ -z "${APP_RW_OWNEDBY_ROLE_ID}" || "${APP_RW_OWNEDBY_ROLE_ID}" == "null" ]]; then
-  echo "ERROR: Could not resolve Microsoft Graph permission ID for Application.ReadWrite.OwnedBy (Role)"
-  exit 1
-fi
-grant_api_permission "${APP_ID}" "${APP_RW_OWNEDBY_ROLE_ID}" "Role"
-
-echo "Grant API Permissions - application permission: Directory.Read.All"
-DIRECTORY_READ_ALL_ROLE_ID="$(get_graph_permission_id "Directory.Read.All" "Role")"
-if [[ -z "${DIRECTORY_READ_ALL_ROLE_ID}" || "${DIRECTORY_READ_ALL_ROLE_ID}" == "null" ]]; then
-  echo "ERROR: Could not resolve Microsoft Graph permission ID for Directory.Read.All (Role)"
-  exit 1
-fi
-grant_api_permission "${APP_ID}" "${DIRECTORY_READ_ALL_ROLE_ID}" "Role"
+grant_api_permission "${APP_ID}" "18a4783c-866b-4cc7-a460-3d5e5662c884" "Role"

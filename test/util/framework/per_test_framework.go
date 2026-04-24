@@ -53,7 +53,6 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
-	cleanupengine "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine"
 )
 
 type perItOrDescribeTestContext struct {
@@ -459,15 +458,25 @@ func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx c
 }
 
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
-// 1. delete all HCP clusters via the RP and wait for success
-// 2. wait for any managed resource groups to be deleted
-// 3. run the ordered cleanup workflow on the customer resource group
+// 1. delete all HCP clusters and wait for success
+// 2. check if any managed resource groups are left behind
+// 3. delete the resource group and wait for success
 func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
 		tc.RecordTestStep(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
 	}()
+
+	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
+	networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
+	if err != nil {
+		return err
+	}
 
 	hcpClientFactory, err := tc.Get20240610ClientFactory(ctx)
 	if err != nil {
@@ -506,8 +515,8 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
 	}
 
-	ginkgo.GinkgoLogr.Info("running ordered cleanup for resource group", "resourceGroup", resourceGroupName)
-	if err := tc.runOrderedResourceGroupCleanup(ctx, resourceGroupName, timeout, cleanupengine.WorkflowOptions{Wait: true}); err != nil {
+	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
+	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
@@ -515,18 +524,12 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	return nonConformantErr
 }
 
-// cleanupResourceGroupNoRP performs best-effort cleanup when the resource
-// provider is not available. This is used to clean up personal dev e2e test
-// runs, where the infra is already gone so there's no RP to call for HCP
-// deletion. The workflow runs with ContinueOnError so per-target deletion
-// failures (e.g. VNets blocked by platform-managed serviceAssociationLinks)
-// are logged and skipped. Discovery errors still propagate because they
-// indicate broken code rather than transient platform state.
-//
-//  1. discovers any "managed" resource groups whose ManagedBy references a
-//     resource in the parent resource group and runs the ordered cleanup
-//     workflow on each.
-//  2. runs the ordered cleanup workflow on the parent resource group.
+// cleanupResourceGroupNoRP performs cleanup when the resource provider is not available.
+// This is used to cleanup personal dev e2e test runs, where the infra is already gone so there's no
+// RP to call for HCP deletion.
+//  1. discovers any "managed" resource groups whose ManagedBy references a resource in the parent
+//     resource group and deletes them (using 'force' to speed up VM/VMSS deletion).
+//  2. deletes the parent resource group itself.
 func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
@@ -534,63 +537,40 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 		tc.recordTestStepUnlocked(fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime)
 	}()
 
-	noRPOpts := cleanupengine.WorkflowOptions{Wait: false, ContinueOnError: true}
+	errs := []error{}
 
 	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
 	if err != nil {
 		return fmt.Errorf("failed to search for managed resource groups: %w", err)
 	}
 
+	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
+	networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
+	if err != nil {
+		return err
+	}
+
 	for _, managedRG := range managedResourceGroups {
-		ginkgo.GinkgoLogr.Info("running ordered cleanup for managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
-		if err := tc.runOrderedResourceGroupCleanup(ctx, managedRG, timeout, noRPOpts); err != nil {
-			return fmt.Errorf("failed to cleanup managed resource group %q: %w", managedRG, err)
+		ginkgo.GinkgoLogr.Info("deleting managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
+		if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout); err != nil {
+			if isIgnorableResourceGroupCleanupError(err) {
+				ginkgo.GinkgoLogr.Info("ignoring not found resource group", "resourceGroup", managedRG)
+			} else {
+				return fmt.Errorf("failed to cleanup managed resource group %q: %w", managedRG, err)
+			}
 		}
 	}
 
-	ginkgo.GinkgoLogr.Info("running ordered cleanup for resource group", "resourceGroup", resourceGroupName)
-	if err := tc.runOrderedResourceGroupCleanup(ctx, resourceGroupName, timeout, noRPOpts); err != nil {
+	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
+	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	return nil
-}
-
-// runOrderedResourceGroupCleanup runs the cleanup-sweeper's ordered resource
-// group cleanup workflow, which handles resource deletion in proper dependency
-// order (private endpoints, DNS, VNets, NSGs, etc.) before deleting the
-// resource group itself.
-func (tc *perItOrDescribeTestContext) runOrderedResourceGroupCleanup(ctx context.Context, resourceGroupName string, timeout time.Duration, opts cleanupengine.WorkflowOptions) error {
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout,
-		fmt.Errorf("timeout '%f' minutes exceeded during ordered cleanup for resource group %s", timeout.Minutes(), resourceGroupName))
-	defer cancel()
-
-	credential, err := tc.AzureCredential()
-	if err != nil {
-		return fmt.Errorf("failed to get Azure credential for ordered cleanup: %w", err)
-	}
-
-	tc.contextLock.Lock()
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	tc.contextLock.Unlock()
-	if err != nil {
-		return fmt.Errorf("failed to resolve subscription ID for ordered cleanup: %w", err)
-	}
-
-	ctx = logr.NewContext(ctx, ginkgo.GinkgoLogr)
-
-	workflow, err := cleanupengine.ResourceGroupOrderedCleanupWorkflow(
-		ctx, resourceGroupName, subscriptionID, credential, opts,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create ordered cleanup workflow for %s: %w", resourceGroupName, err)
-	}
-
-	if err := workflow.Run(ctx); err != nil {
-		return fmt.Errorf("ordered cleanup workflow failed for %s: %w", resourceGroupName, err)
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx context.Context, resourceGroupName string) error {

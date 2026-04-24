@@ -51,10 +51,9 @@ func (d *resourceGroupDeleter) execute(ctx context.Context) error {
 		d.subscriptionID,
 		d.credential,
 		cleanupengine.WorkflowOptions{
-			Wait:            d.wait,
-			DryRun:          d.dryRun,
-			Parallelism:     d.parallelism,
-			ContinueOnError: true,
+			Wait:        d.wait,
+			DryRun:      d.dryRun,
+			Parallelism: d.parallelism,
 		},
 	)
 	if err != nil {
