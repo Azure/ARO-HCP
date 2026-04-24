@@ -17,6 +17,7 @@ package admission
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -68,17 +69,117 @@ func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmis
 	return errs
 }
 
-// AdmitNodePool performs non-static checks of nodepool.  Checks that require more information than is contained inside of
-// of the nodepool instance itself.
-func AdmitNodePool(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) field.ErrorList {
+// admitNodePoolVersionOnCreate validates node pool version constraints against the cluster and control plane versions.
+func admitNodePoolVersionOnCreate(np *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster) field.ErrorList {
+	if len(np.Properties.Version.ID) == 0 {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+	fieldPath := field.NewPath("properties", "version", "id")
+
+	// Validate against cluster desired version with n-2 skew
+	errs = append(errs, validateNodePoolDesiredMinorSkew(np.Properties.Version.ID, cluster.CustomerProperties.Version.ID, 2, fieldPath)...)
+
+	lowestClusterVersion, highestClusterVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+
+	if lowestClusterVersion == nil || highestClusterVersion == nil {
+		return errs
+	}
+
+	// Node pool can trail by at most 2 minors from the highest active version (n-2)
+	errs = append(errs, validateNodePoolDesiredMinorSkew(np.Properties.Version.ID, highestClusterVersion.String(), 2, fieldPath)...)
+	return errs
+}
+
+// validateNodePoolDesiredMinorSkew checks that the node pool OpenShift version fits the cluster version it is tied to:
+//   - Same major: node pool must not be newer than the cluster line; it may trail by at most the number of minors given as the skew parameter.
+//   - Cross-major (nodepool → allowed cluster minor lines) is checked based on the skew parameter against the allowlist.
+//   - Any other cross-major combination is rejected (the allowlist may grow with product policy).
+func validateNodePoolDesiredMinorSkew(nodePoolVersionID, clusterVersionID string, skew int, fieldPath *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+
+	parsedNodePoolVersion, err := semver.ParseTolerant(nodePoolVersionID)
+	if err != nil {
+		errs = append(errs, field.Invalid(fieldPath, nodePoolVersionID, fmt.Sprintf("invalid nodepool version format: %v", err)))
+	}
+
+	parsedClusterVersion, err := semver.ParseTolerant(clusterVersionID)
+	if err != nil {
+		errs = append(errs, field.Invalid(fieldPath, clusterVersionID, fmt.Sprintf("invalid cluster version format: %v", err)))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	nodePoolMinorReleaseLine := fmt.Sprintf("%d.%d", parsedNodePoolVersion.Major, parsedNodePoolVersion.Minor)
+	clusterMinorReleaseLine := fmt.Sprintf("%d.%d", parsedClusterVersion.Major, parsedClusterVersion.Minor)
+	nodePoolMinorReleaseVersion, err := semver.ParseTolerant(nodePoolMinorReleaseLine)
+	if err != nil {
+		errs = append(errs, field.Invalid(fieldPath, nodePoolMinorReleaseLine, fmt.Sprintf("invalid nodepool minor release line: %v", err)))
+	}
+	clusterMinorReleaseVersion, err := semver.ParseTolerant(clusterMinorReleaseLine)
+	if err != nil {
+		errs = append(errs, field.Invalid(fieldPath, clusterMinorReleaseLine, fmt.Sprintf("invalid cluster minor release line: %v", err)))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	// Same minor version is always valid
+	if nodePoolMinorReleaseVersion.EQ(clusterMinorReleaseVersion) {
+		return nil
+	}
+
+	// Same major version: check skew
+	if parsedNodePoolVersion.Major == parsedClusterVersion.Major {
+		// Node pool cannot be newer than cluster
+		if nodePoolMinorReleaseVersion.GT(clusterMinorReleaseVersion) {
+			return field.ErrorList{field.Invalid(fieldPath, nodePoolVersionID,
+				fmt.Sprintf("node pool minor version %s must not exceed cluster minor version %s", nodePoolMinorReleaseLine, clusterMinorReleaseLine),
+			)}
+		}
+
+		calculatedMin := uint64(max(int64(0), int64(parsedClusterVersion.Minor)-int64(skew)))
+
+		if int64(parsedNodePoolVersion.Minor) >= int64(calculatedMin) {
+			return nil
+		}
+		return field.ErrorList{field.Invalid(fieldPath, nodePoolVersionID, fmt.Sprintf("node pool minor version '%s' cannot be more than %d minors below '%s'",
+			nodePoolMinorReleaseLine, skew, clusterMinorReleaseLine),
+		)}
+	}
+
+	// Cross-major: check allowlist with skew
+	allowedClusterVersions := api.AllowControlPlaneNodePoolMajorVersionSkew[nodePoolMinorReleaseLine]
+
+	// Find cluster version in allowlist
+	i := slices.Index(allowedClusterVersions, clusterMinorReleaseLine)
+
+	// Check if cluster version is found and within skew range
+	// i == -1: cluster version not in allowlist for this nodepool
+	// i >= skew: cluster version found but exceeds allowed skew
+	//   e.g., skew=1 means only index 0 allowed (strictest), skew=2 means index 0,1 allowed
+	if i == -1 || i >= skew {
+		errs = append(errs, field.Invalid(fieldPath, nodePoolVersionID, fmt.Sprintf("node pool minor version %s is not compatible with cluster minor version %s",
+			nodePoolMinorReleaseLine, clusterMinorReleaseLine)))
+	}
+
+	return errs
+}
+
+// admitNodePoolCommon performs admission checks that depend on the parent cluster (channel group, subnet/VNet).
+// These checks apply to both create and update operations.
+func admitNodePoolCommon(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster,
+	op operation.Operation) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Check only if it is a creating nodepool or a change in the channelGroup
-	if (oldNodePool == nil || newNodePool.Properties.Version.ChannelGroup != oldNodePool.Properties.Version.ChannelGroup) &&
-		newNodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
-		errs = append(errs, field.Invalid(
-			field.NewPath("properties", "version", "channelGroup"),
-			newNodePool.Properties.Version.ChannelGroup,
+	channelGroupChanged := op.Type == operation.Create || newNodePool.Properties.Version.ChannelGroup != oldNodePool.Properties.Version.ChannelGroup
+	if channelGroupChanged && newNodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
+		errs = append(errs, field.Invalid(field.NewPath("properties", "version", "channelGroup"), newNodePool.Properties.Version.ChannelGroup,
 			fmt.Sprintf("must be the same as control plane channel group '%s'", cluster.CustomerProperties.Version.ChannelGroup),
 		))
 	}
@@ -92,7 +193,7 @@ func AdmitNodePool(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cl
 			oldSubnetID = oldNodePool.Properties.Platform.SubnetID.String()
 		}
 		newSubnetID := newNodePool.Properties.Platform.SubnetID.String()
-		if oldNodePool == nil || !strings.EqualFold(newSubnetID, oldSubnetID) {
+		if op.Type == operation.Create || oldNodePool == nil || !strings.EqualFold(newSubnetID, oldSubnetID) {
 			clusterVNet := cluster.CustomerProperties.Platform.SubnetID.Parent.String()
 			nodePoolVNet := newNodePool.Properties.Platform.SubnetID.Parent.String()
 			if !strings.EqualFold(nodePoolVNet, clusterVNet) {
@@ -108,29 +209,41 @@ func AdmitNodePool(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cl
 	return errs
 }
 
+// AdmitNodePoolCreate runs create-time admission that depends on the parent cluster and service-provider cluster data.
+func AdmitNodePoolCreate(np *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster,
+	op operation.Operation) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// Channel group matches cluster; node pool subnet is on the cluster VNet.
+	errs = append(errs, admitNodePoolCommon(np, nil, cluster, op)...)
+	errs = append(errs, admitNodePoolVersionOnCreate(np, cluster, spCluster)...)
+
+	return errs
+}
+
 // AdmitNodePoolUpdate performs update-specific validation that requires both the old and new node pool states.
-// It includes all validations from AdmitNodePool plus version upgrade constraints.
+// It includes all validations from admitNodePoolCommon plus version upgrade constraints.
 // The spNodePool and spCluster parameters provide the service provider state for version validation.
 func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster,
 	spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// Include all standard node pool admission checks
-	errs = append(errs, AdmitNodePool(newNodePool, oldNodePool, cluster)...)
+	errs = append(errs, admitNodePoolCommon(newNodePool, oldNodePool, cluster, op)...)
 
 	// Add update-specific version upgrade validation
-	errs = append(errs, validateNodePoolVersionUpgrade(newNodePool, oldNodePool, spNodePool, spCluster, op)...)
+	errs = append(errs, validateNodePoolVersionUpgrade(newNodePool, oldNodePool, spNodePool, cluster, spCluster, op)...)
 
 	return errs
 }
 
 // validateNodePoolVersionUpgrade validates that a node pool version change is a valid upgrade.
 // It checks:
-//   - No downgrade: new version >= old version
+//   - No downgrade: new version >= desired version
 //   - No major version change: new major == old major (unless FeatureExperimentalReleaseFeatures is registered)
 //   - No skipping minor versions: new minor <= old minor + 1
-//   - Cannot exceed cluster version: new version <= cluster version
-func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
+//   - Within n-2 minor version skew of cluster's desired version
+func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, spNodePool *api.ServiceProviderNodePool,
+	cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
 
 	// Skip validation if no version is specified or version didn't change
 	if len(newNodePool.Properties.Version.ID) == 0 || newNodePool.Properties.Version.ID == oldNodePool.Properties.Version.ID {
@@ -138,11 +251,14 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 	}
 
 	errs := field.ErrorList{}
-	fldPath := field.NewPath("properties", "version", "id")
+	fieldPath := field.NewPath("properties", "version", "id")
+
+	// Validate against cluster desired version with n-2 skew
+	errs = append(errs, validateNodePoolDesiredMinorSkew(newNodePool.Properties.Version.ID, cluster.CustomerProperties.Version.ID, 2, fieldPath)...)
 
 	newVersion, err := semver.Parse(newNodePool.Properties.Version.ID)
 	if err != nil {
-		errs = append(errs, field.Invalid(fldPath, newNodePool.Properties.Version.ID, fmt.Sprintf("invalid node pool version format: %s", err.Error())))
+		errs = append(errs, field.Invalid(fieldPath, newNodePool.Properties.Version.ID, fmt.Sprintf("invalid node pool version format: %s", err.Error())))
 		// Return early, it cannot validate an unparseable version
 		return errs
 	}
@@ -154,11 +270,11 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 
 	lowestCPVersion, _ := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
 	if err := validation.ValidateNodePoolUpgrade(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
-		errs = append(errs, field.Invalid(fldPath, newNodePool.Properties.Version.ID, err.Error()))
+		errs = append(errs, field.Invalid(fieldPath, newNodePool.Properties.Version.ID, err.Error()))
 	}
 
 	if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil && newVersion.LE(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
-		errs = append(errs, field.Invalid(fldPath, newNodePool.Properties.Version.ID, fmt.Sprintf("cannot downgrade from version %s to %s", spNodePool.Spec.NodePoolVersion.DesiredVersion.String(), newVersion.String())))
+		errs = append(errs, field.Invalid(fieldPath, newNodePool.Properties.Version.ID, fmt.Sprintf("cannot downgrade from version %s to %s", spNodePool.Spec.NodePoolVersion.DesiredVersion.String(), newVersion.String())))
 	}
 	return errs
 }

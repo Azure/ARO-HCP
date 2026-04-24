@@ -147,41 +147,50 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 		return np
 	}
 
+	createOperation := operation.Operation{Type: operation.Create}
+	updateOperation := operation.Operation{Type: operation.Update}
+
 	tests := []struct {
 		name      string
 		newObj    *api.HCPOpenShiftClusterNodePool
 		oldObj    *api.HCPOpenShiftClusterNodePool
+		op        operation.Operation
 		expectErr string
 	}{
 		{
 			name:   "create: subnet matches cluster subnet (same cluster reuse allowed)",
 			newObj: nodePoolWithSubnet(clusterSubnet),
+			op:     createOperation,
 		},
 		{
 			name:   "create: subnet in same VNet allowed",
 			newObj: nodePoolWithSubnet(sameVNetSubnet),
+			op:     createOperation,
 		},
 		{
 			name:      "create: subnet in different VNet rejected",
 			newObj:    nodePoolWithSubnet(differentVNetSubnet),
+			op:        createOperation,
 			expectErr: "must belong to the same VNet as the parent cluster VNet",
 		},
 		{
 			name:   "update: unchanged subnet in different VNet not re-validated",
 			oldObj: nodePoolWithSubnet(differentVNetSubnet),
 			newObj: nodePoolWithSubnet(differentVNetSubnet),
+			op:     updateOperation,
 		},
 		{
 			name:      "update: subnet changed to different VNet rejected",
 			oldObj:    nodePoolWithSubnet(sameVNetSubnet),
 			newObj:    nodePoolWithSubnet(differentVNetSubnet),
 			expectErr: "must belong to the same VNet as the parent cluster VNet",
+			op:        updateOperation,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := AdmitNodePool(tt.newObj, tt.oldObj, cluster)
+			errs := admitNodePoolCommon(tt.newObj, tt.oldObj, cluster, tt.op)
 			if tt.expectErr == "" {
 				assert.Empty(t, errs)
 				return
@@ -311,27 +320,11 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			expectError:     "skipping minor versions is not allowed",
 		},
 		{
-			name:            "cannot exceed cluster version",
-			activeVersions:  []string{"4.17.0"},
-			newVersion:      "4.18.0",
-			clusterVersions: []string{"4.17.5"},
-			desiredVersion:  "4.17.0",
-			expectError:     "cannot exceed control plane version",
-		},
-		{
 			name:            "empty active versions allows any valid new version",
 			activeVersions:  []string{},
 			newVersion:      "4.18.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "",
-		},
-		{
-			name:            "empty active versions still validates against cluster",
-			activeVersions:  []string{},
-			newVersion:      "4.19.0",
-			clusterVersions: []string{"4.18.0"},
-			desiredVersion:  "",
-			expectError:     "cannot exceed control plane version",
 		},
 		{
 			name:            "empty new version skips validation",
@@ -347,7 +340,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			clusterVersions:  []string{"4.18.0"},
 			desiredVersion:   "4.18.0",
 			expectError:      "cannot downgrade",
-			expectErrorCount: 2,
+			expectErrorCount: 3,
 		},
 		{
 			name:            "version already in active versions skips validation",
@@ -403,10 +396,17 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 					},
 				},
 			}
+
+			// Use cluster version from test case's clusterVersions if cross-major upgrade
+			clusterVersion := "4.18"
+			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+				clusterVersion = tt.clusterVersions[0]
+			}
+
 			cluster := &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.18",
+						ID:           clusterVersion,
 						ChannelGroup: "stable",
 					},
 				},
@@ -450,19 +450,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 				},
 			}
 
-			// Build ServiceProviderCluster with active versions
-			var clusterActiveVersions []api.HCPClusterActiveVersion
-			for _, v := range tt.clusterVersions {
-				ver := semver.MustParse(v)
-				clusterActiveVersions = append(clusterActiveVersions, api.HCPClusterActiveVersion{Version: &ver})
-			}
-			spCluster := &api.ServiceProviderCluster{
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-						ActiveVersions: clusterActiveVersions,
-					},
-				},
-			}
+			spCluster := serviceProviderClusterWithVersions(t, tt.clusterVersions)
 
 			errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster, op)
 
@@ -535,14 +523,7 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 		},
 	}
 
-	clusterVer := semver.MustParse("4.18.0")
-	spCluster := &api.ServiceProviderCluster{
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{{Version: &clusterVer}},
-			},
-		},
-	}
+	spCluster := serviceProviderClusterWithVersions(t, []string{"4.18.0"})
 
 	// Empty update operation (no experimental features)
 	op := operation.Operation{Type: operation.Update}
@@ -562,5 +543,198 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected channel group mismatch error, got %v", errs)
+	}
+}
+
+func serviceProviderClusterWithVersions(t *testing.T, versions []string) *api.ServiceProviderCluster {
+	t.Helper()
+	var active []api.HCPClusterActiveVersion
+	for _, s := range versions {
+		v := semver.MustParse(s)
+		active = append(active, api.HCPClusterActiveVersion{Version: &v})
+	}
+	return &api.ServiceProviderCluster{
+		Status: api.ServiceProviderClusterStatus{
+			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+				ActiveVersions: active,
+			},
+		},
+	}
+}
+
+func TestAdmitNodePoolCreate(t *testing.T) {
+	t.Parallel()
+	const (
+		clusterVNetSubnetARM = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/snet"
+		otherVNetSubnetARM   = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/other-vnet/subnets/snet"
+	)
+	clusterSubnetID := api.Must(azcorearm.ParseResourceID(clusterVNetSubnetARM))
+
+	generateCluster := func(versionID string) *api.HCPOpenShiftCluster {
+		return &api.HCPOpenShiftCluster{
+			CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+				Version: api.VersionProfile{
+					ID:           versionID,
+					ChannelGroup: "stable",
+				},
+				Platform: api.CustomerPlatformProfile{
+					SubnetID: clusterSubnetID,
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name             string
+		clusterVersionID string
+		versionID        string
+		channelGroup     string
+		nodePoolSubnetID *azcorearm.ResourceID
+		spCluster        *api.ServiceProviderCluster
+		wantErr          bool
+		errSubstring     string
+	}{
+		{
+			name:             "node pool version within n-2 skew is valid",
+			clusterVersionID: "4.18",
+			versionID:        "4.17.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "node pool version exceeding n-2 skew is invalid",
+			clusterVersionID: "4.18",
+			versionID:        "4.15.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "cannot be more than 2 minors below",
+		},
+		{
+			name:             "node pool version cannot exceed cluster version",
+			clusterVersionID: "4.18",
+			versionID:        "4.19.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "must not exceed cluster minor version",
+		},
+		{
+			name:             "cross-major 5.0 allows 4.22",
+			clusterVersionID: "5.0",
+			versionID:        "4.22.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+		{
+			name:             "cross-major 5.0 rejects 4.20",
+			clusterVersionID: "5.0",
+			versionID:        "4.20.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          true,
+			errSubstring:     "is not compatible with cluster minor version",
+		},
+		{
+			name:             "cross-major 5.2 allows 4.23",
+			clusterVersionID: "5.2",
+			versionID:        "4.23.0",
+			channelGroup:     "stable",
+			nodePoolSubnetID: clusterSubnetID,
+			wantErr:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			c := generateCluster(tt.clusterVersionID)
+			nodePool := &api.HCPOpenShiftClusterNodePool{
+				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+					Version: api.NodePoolVersionProfile{ID: tt.versionID, ChannelGroup: tt.channelGroup},
+					Platform: api.NodePoolPlatformProfile{
+						SubnetID: tt.nodePoolSubnetID,
+					},
+				},
+			}
+			spCluster := tt.spCluster
+			if spCluster == nil {
+				spCluster = &api.ServiceProviderCluster{}
+			}
+			errs := AdmitNodePoolCreate(nodePool, c, spCluster, operation.Operation{Type: operation.Create})
+			if !tt.wantErr {
+				assert.Empty(t, errs)
+				return
+			}
+			assert.NotEmpty(t, errs)
+			assert.NotEmpty(t, tt.errSubstring, "errSubstring is required when wantErr is true")
+			assert.Contains(t, errs.ToAggregate().Error(), tt.errSubstring)
+		})
+	}
+}
+
+func TestAdmitNodePoolCreate_UpgradingControlPlane(t *testing.T) {
+	t.Parallel()
+	const clusterVNetSubnetARM = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/snet"
+	clusterSubnetID := api.Must(azcorearm.ParseResourceID(clusterVNetSubnetARM))
+
+	generateCluster := func(versionID string) *api.HCPOpenShiftCluster {
+		return &api.HCPOpenShiftCluster{
+			CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+				Version: api.VersionProfile{
+					ID:           versionID,
+					ChannelGroup: "stable",
+				},
+				Platform: api.CustomerPlatformProfile{
+					SubnetID: clusterSubnetID,
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name             string
+		clusterVersionID string
+		nodePoolVersion  string
+		cpVersions       []string
+		wantErr          bool
+		errSubstring     string
+	}{
+		{
+			name:             "upgrading CP: node pool at lowest active is valid",
+			clusterVersionID: "4.21",
+			nodePoolVersion:  "4.20.9",
+			cpVersions:       []string{"4.20.9", "4.21.0"},
+			wantErr:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cluster := generateCluster(tt.clusterVersionID)
+			nodePool := &api.HCPOpenShiftClusterNodePool{
+				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+					Version: api.NodePoolVersionProfile{
+						ID:           tt.nodePoolVersion,
+						ChannelGroup: "stable",
+					},
+					Platform: api.NodePoolPlatformProfile{
+						SubnetID: clusterSubnetID,
+					},
+				},
+			}
+			spCluster := serviceProviderClusterWithVersions(t, tt.cpVersions)
+			errs := AdmitNodePoolCreate(nodePool, cluster, spCluster, operation.Operation{Type: operation.Create})
+			if !tt.wantErr {
+				assert.Empty(t, errs, "unexpected errors: %v", errs)
+				return
+			}
+			assert.NotEmpty(t, errs)
+			assert.NotEmpty(t, tt.errSubstring, "errSubstring is required when wantErr is true")
+			assert.Contains(t, errs.ToAggregate().Error(), tt.errSubstring)
+		})
 	}
 }

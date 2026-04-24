@@ -1,0 +1,19 @@
+{
+	"name": "test-np",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"max": 5,
+			"min": 1
+		},
+		"platform": {
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+			"vmSize": "large"
+		},
+		"version": {
+			"channelGroup": "stable",
+			"id": "4.19.7"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}
