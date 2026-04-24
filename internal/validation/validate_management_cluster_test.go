@@ -17,7 +17,9 @@ package validation
 import (
 	"context"
 	"testing"
-	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -37,21 +39,15 @@ func validManagementCluster(t *testing.T) *api.ManagementCluster {
 			SchedulingPolicy: api.ManagementClusterSchedulingPolicySchedulable,
 		},
 		Status: api.ManagementClusterStatus{
-			AKSResourceID:                            api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/pers-westus3-mgmt-1")),
-			PublicDNSZoneResourceID:                  api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
-			CXSecretsKeyVaultURL:                     "https://kv-cx-secrets.vault.azure.net",
-			CXManagedIdentitiesKeyVaultURL:           "https://kv-cx-mi.vault.azure.net",
-			CXSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-			CSProvisionShardID:                       api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")),
-			MaestroConfig: api.MaestroConfig{
-				ConsumerName: "hcp-underlay-westus3-mgmt-1",
-				RESTAPIConfig: api.MaestroRESTAPIConfig{
-					URL: "http://maestro.maestro.svc.cluster.local:8000",
-				},
-				GRPCAPIConfig: api.MaestroGRPCAPIConfig{
-					URL: "maestro-grpc.maestro.svc.cluster.local:8090",
-				},
-			},
+			AKSResourceID:                                        api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/pers-westus3-mgmt-1")),
+			PublicDNSZoneResourceID:                              api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Network/dnszones/example.com")),
+			HostedClustersSecretsKeyVaultURL:                     "https://kv-cx-secrets.vault.azure.net",
+			HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-cx-mi.vault.azure.net",
+			HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
+			ClusterServiceProvisionShardID:                       ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
+			MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
+			MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
+			MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
 		},
 	}
 }
@@ -115,20 +111,20 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			expectErrors: nil,
 		},
 		{
-			name: "invalid cxSecretsKeyVaultManagedIdentityClientID",
+			name: "invalid hostedClustersSecretsKeyVaultManagedIdentityClientID",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.CXSecretsKeyVaultManagedIdentityClientID = "not-a-uuid"
+				mc.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID = "not-a-uuid"
 			},
 			expectErrors: []expectedError{
-				{fieldPath: "status.cxSecretsKeyVaultManagedIdentityClientID", message: "invalid"},
+				{fieldPath: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", message: "invalid"},
 			},
 		},
 		// Ready condition cross-field validation
 		{
 			name: "Ready=True with complete status accepted",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.Conditions = []api.Condition{
-					{Type: string(api.ManagementClusterConditionReady), Status: api.ConditionTrue, LastTransitionTime: time.Now()},
+				mc.Status.Conditions = []metav1.Condition{
+					{Type: string(api.ManagementClusterConditionReady), Status: metav1.ConditionTrue, LastTransitionTime: metav1.Now()},
 				}
 			},
 			expectErrors: nil,
@@ -137,8 +133,8 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "Ready=False with empty status accepted",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
 				mc.Status = api.ManagementClusterStatus{
-					Conditions: []api.Condition{
-						{Type: string(api.ManagementClusterConditionReady), Status: api.ConditionFalse, LastTransitionTime: time.Now()},
+					Conditions: []metav1.Condition{
+						{Type: string(api.ManagementClusterConditionReady), Status: metav1.ConditionFalse, LastTransitionTime: metav1.Now()},
 					},
 				}
 			},
@@ -148,29 +144,29 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			name: "Ready=True with empty status rejected",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
 				mc.Status = api.ManagementClusterStatus{
-					Conditions: []api.Condition{
-						{Type: string(api.ManagementClusterConditionReady), Status: api.ConditionTrue, LastTransitionTime: time.Now()},
+					Conditions: []metav1.Condition{
+						{Type: string(api.ManagementClusterConditionReady), Status: metav1.ConditionTrue, LastTransitionTime: metav1.Now()},
 					},
 				}
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "status.conditions[Ready]", message: "status.aksResourceID"},
 				{fieldPath: "status.conditions[Ready]", message: "status.publicDNSZoneResourceID"},
-				{fieldPath: "status.conditions[Ready]", message: "status.cxSecretsKeyVaultURL"},
-				{fieldPath: "status.conditions[Ready]", message: "status.cxManagedIdentitiesKeyVaultURL"},
-				{fieldPath: "status.conditions[Ready]", message: "status.cxSecretsKeyVaultManagedIdentityClientID"},
-				{fieldPath: "status.conditions[Ready]", message: "status.csProvisionShardID"},
-				{fieldPath: "status.conditions[Ready]", message: "status.maestroConfig.consumerName"},
-				{fieldPath: "status.conditions[Ready]", message: "status.maestroConfig.restAPIConfig.url"},
-				{fieldPath: "status.conditions[Ready]", message: "status.maestroConfig.grpcAPIConfig.url"},
+				{fieldPath: "status.conditions[Ready]", message: "status.hostedClustersSecretsKeyVaultURL"},
+				{fieldPath: "status.conditions[Ready]", message: "status.hostedClustersManagedIdentitiesKeyVaultURL"},
+				{fieldPath: "status.conditions[Ready]", message: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID"},
+				{fieldPath: "status.conditions[Ready]", message: "status.clusterServiceProvisionShardID"},
+				{fieldPath: "status.conditions[Ready]", message: "status.maestroConsumerName"},
+				{fieldPath: "status.conditions[Ready]", message: "status.maestroRESTAPIURL"},
+				{fieldPath: "status.conditions[Ready]", message: "status.maestroGRPCTarget"},
 			},
 		},
 		{
 			name: "Ready=True with missing aksResourceID rejected",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
 				mc.Status.AKSResourceID = nil
-				mc.Status.Conditions = []api.Condition{
-					{Type: string(api.ManagementClusterConditionReady), Status: api.ConditionTrue, LastTransitionTime: time.Now()},
+				mc.Status.Conditions = []metav1.Condition{
+					{Type: string(api.ManagementClusterConditionReady), Status: metav1.ConditionTrue, LastTransitionTime: metav1.Now()},
 				}
 			},
 			expectErrors: []expectedError{
@@ -230,66 +226,66 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "cxSecretsKeyVaultURL changed",
+			name: "hostedClustersSecretsKeyVaultURL changed",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.CXSecretsKeyVaultURL = "https://kv-other.vault.azure.net"
+				mc.Status.HostedClustersSecretsKeyVaultURL = "https://kv-other.vault.azure.net"
 			},
 			expectErrors: []expectedError{
-				{fieldPath: "status.cxSecretsKeyVaultURL", message: "immutable"},
+				{fieldPath: "status.hostedClustersSecretsKeyVaultURL", message: "immutable"},
 			},
 		},
 		{
-			name: "cxManagedIdentitiesKeyVaultURL changed",
+			name: "hostedClustersManagedIdentitiesKeyVaultURL changed",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.CXManagedIdentitiesKeyVaultURL = "https://kv-other.vault.azure.net"
+				mc.Status.HostedClustersManagedIdentitiesKeyVaultURL = "https://kv-other.vault.azure.net"
 			},
 			expectErrors: []expectedError{
-				{fieldPath: "status.cxManagedIdentitiesKeyVaultURL", message: "immutable"},
+				{fieldPath: "status.hostedClustersManagedIdentitiesKeyVaultURL", message: "immutable"},
 			},
 		},
 		{
-			name: "cxSecretsKeyVaultManagedIdentityClientID changed",
+			name: "hostedClustersSecretsKeyVaultManagedIdentityClientID changed",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.CXSecretsKeyVaultManagedIdentityClientID = "99999999-9999-9999-9999-999999999999"
+				mc.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID = "99999999-9999-9999-9999-999999999999"
 			},
 			expectErrors: []expectedError{
-				{fieldPath: "status.cxSecretsKeyVaultManagedIdentityClientID", message: "immutable"},
+				{fieldPath: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", message: "immutable"},
 			},
 		},
 		{
-			name: "csProvisionShardID changed",
+			name: "clusterServiceProvisionShardID changed",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.CSProvisionShardID = api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555"))
+				mc.Status.ClusterServiceProvisionShardID = ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555")))
 			},
 			expectErrors: []expectedError{
-				{fieldPath: "status.csProvisionShardID", message: "immutable"},
+				{fieldPath: "status.clusterServiceProvisionShardID", message: "immutable"},
 			},
 		},
 		{
-			name: "maestroConfig consumerName changed",
+			name: "maestroConsumerName changed",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.MaestroConfig.ConsumerName = "different-consumer"
+				mc.Status.MaestroConsumerName = "different-consumer"
 			},
 			expectErrors: []expectedError{
-				{fieldPath: "status.maestroConfig.consumerName", message: "immutable"},
+				{fieldPath: "status.maestroConsumerName", message: "immutable"},
 			},
 		},
 		{
-			name: "maestroConfig REST API URL changed",
+			name: "maestroRESTAPIURL changed",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.MaestroConfig.RESTAPIConfig.URL = "http://different:8000"
+				mc.Status.MaestroRESTAPIURL = "http://different:8000"
 			},
 			expectErrors: []expectedError{
-				{fieldPath: "status.maestroConfig.restAPIConfig.url", message: "immutable"},
+				{fieldPath: "status.maestroRESTAPIURL", message: "immutable"},
 			},
 		},
 		{
-			name: "maestroConfig GRPC API URL changed",
+			name: "maestroGRPCTarget changed",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.MaestroConfig.GRPCAPIConfig.URL = "different:8090"
+				mc.Status.MaestroGRPCTarget = "different:8090"
 			},
 			expectErrors: []expectedError{
-				{fieldPath: "status.maestroConfig.grpcAPIConfig.url", message: "immutable"},
+				{fieldPath: "status.maestroGRPCTarget", message: "immutable"},
 			},
 		},
 		{

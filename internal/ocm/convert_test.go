@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -1589,15 +1590,16 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 				require.NotNil(t, mc.Status.AKSResourceID)
 				assert.Equal(t, "test-westus3-mgmt-1", mc.Status.AKSResourceID.Name)
 				require.NotNil(t, mc.Status.PublicDNSZoneResourceID)
-				assert.Equal(t, "https://cx-kv.vault.azure.net/", mc.Status.CXSecretsKeyVaultURL)
-				assert.Equal(t, "https://mi-kv.vault.azure.net/", mc.Status.CXManagedIdentitiesKeyVaultURL)
-				assert.Equal(t, "c2bde1aa-d904-48cd-a728-9de33e3ddca9", mc.Status.CXSecretsKeyVaultManagedIdentityClientID)
-				assert.Equal(t, api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")), mc.Status.CSProvisionShardID)
+				assert.Equal(t, "https://cx-kv.vault.azure.net/", mc.Status.HostedClustersSecretsKeyVaultURL)
+				assert.Equal(t, "https://mi-kv.vault.azure.net/", mc.Status.HostedClustersManagedIdentitiesKeyVaultURL)
+				assert.Equal(t, "c2bde1aa-d904-48cd-a728-9de33e3ddca9", mc.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID)
+				require.NotNil(t, mc.Status.ClusterServiceProvisionShardID)
+				assert.Equal(t, api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")), *mc.Status.ClusterServiceProvisionShardID)
 
 				// Maestro config
-				assert.Equal(t, "test-consumer", mc.Status.MaestroConfig.ConsumerName)
-				assert.Equal(t, "http://maestro.maestro.svc.cluster.local:8000", mc.Status.MaestroConfig.RESTAPIConfig.URL)
-				assert.Equal(t, "maestro-grpc.maestro.svc.cluster.local:8090", mc.Status.MaestroConfig.GRPCAPIConfig.URL)
+				assert.Equal(t, "test-consumer", mc.Status.MaestroConsumerName)
+				assert.Equal(t, "http://maestro.maestro.svc.cluster.local:8000", mc.Status.MaestroRESTAPIURL)
+				assert.Equal(t, "maestro-grpc.maestro.svc.cluster.local:8090", mc.Status.MaestroGRPCTarget)
 			},
 		},
 		{
@@ -1611,7 +1613,7 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 				assert.Equal(t, api.ManagementClusterSchedulingPolicyUnschedulable, mc.Spec.SchedulingPolicy, "maintenance shard should be unschedulable")
 				require.Len(t, mc.Status.Conditions, 1)
 				assert.Equal(t, string(api.ManagementClusterConditionReady), mc.Status.Conditions[0].Type)
-				assert.Equal(t, api.ConditionFalse, mc.Status.Conditions[0].Status)
+				assert.Equal(t, metav1.ConditionFalse, mc.Status.Conditions[0].Status)
 				assert.Equal(t, string(api.ManagementClusterConditionReasonProvisionShardMaintenance), mc.Status.Conditions[0].Reason)
 				assert.Contains(t, mc.Status.Conditions[0].Message, "maintenance")
 			},
@@ -1627,7 +1629,7 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 				assert.Equal(t, api.ManagementClusterSchedulingPolicyUnschedulable, mc.Spec.SchedulingPolicy, "offline shard should be unschedulable")
 				require.Len(t, mc.Status.Conditions, 1)
 				assert.Equal(t, string(api.ManagementClusterConditionReady), mc.Status.Conditions[0].Type)
-				assert.Equal(t, api.ConditionFalse, mc.Status.Conditions[0].Status)
+				assert.Equal(t, metav1.ConditionFalse, mc.Status.Conditions[0].Status)
 				assert.Equal(t, string(api.ManagementClusterConditionReasonProvisionShardOffline), mc.Status.Conditions[0].Reason)
 				assert.Contains(t, mc.Status.Conditions[0].Message, "offline")
 			},
@@ -1643,7 +1645,7 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 				assert.Equal(t, api.ManagementClusterSchedulingPolicyUnschedulable, mc.Spec.SchedulingPolicy, "unknown status shard should be unschedulable")
 				require.Len(t, mc.Status.Conditions, 1)
 				assert.Equal(t, string(api.ManagementClusterConditionReady), mc.Status.Conditions[0].Type)
-				assert.Equal(t, api.ConditionUnknown, mc.Status.Conditions[0].Status)
+				assert.Equal(t, metav1.ConditionUnknown, mc.Status.Conditions[0].Status)
 				assert.Equal(t, string(api.ManagementClusterConditionReasonProvisionShardStatusUnknown), mc.Status.Conditions[0].Reason)
 				assert.Contains(t, mc.Status.Conditions[0].Message, "some-new-status")
 			},

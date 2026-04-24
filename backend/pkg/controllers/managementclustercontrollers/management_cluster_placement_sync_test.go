@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -104,7 +106,7 @@ func newTestManagementCluster() *api.ManagementCluster {
 		},
 		ResourceID: resourceID,
 		Status: api.ManagementClusterStatus{
-			CSProvisionShardID: api.Must(api.NewInternalID(testProvisionShardHREF(testProvisionShardIDStr))),
+			ClusterServiceProvisionShardID: ptr.To(api.Must(api.NewInternalID(testProvisionShardHREF(testProvisionShardIDStr)))),
 		},
 	}
 }

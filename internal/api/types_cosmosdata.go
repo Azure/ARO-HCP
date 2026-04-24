@@ -25,14 +25,6 @@ import (
 
 type CosmosMetadata = arm.CosmosMetadata
 
-func ToSubscriptionResourceIDString(subscriptionID string) string {
-	return strings.ToLower(path.Join("/subscriptions", subscriptionID))
-}
-
-func ToSubscriptionResourceID(subscriptionID string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(ToSubscriptionResourceIDString(subscriptionID))
-}
-
 func ToResourceGroupResourceIDString(subscriptionName, resourceGroupName string) string {
 	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourceGroupName))
 }

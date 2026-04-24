@@ -278,7 +278,7 @@ func (l *SliceManagementClusterLister) Get(ctx context.Context, subscriptionID, 
 func (l *SliceManagementClusterLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*api.ManagementCluster, error) {
 	var matches []*api.ManagementCluster
 	for _, mc := range l.ManagementClusters {
-		if mc.Status.CSProvisionShardID.ID() == shardID {
+		if mc.Status.ClusterServiceProvisionShardID != nil && mc.Status.ClusterServiceProvisionShardID.ID() == shardID {
 			matches = append(matches, mc)
 		}
 	}

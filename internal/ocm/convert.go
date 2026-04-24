@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -1408,28 +1409,28 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 		return nil, fmt.Errorf("management cluster %q has no maestro GRPC API config", shardID)
 	}
 
-	cxSecretsKeyVaultURL := azureShard.CxSecretsKeyVaultUrl()
-	cxManagedIdentitiesKeyVaultURL := azureShard.CxManagedIdentitiesKeyVaultUrl()
-	cxSecretsKeyVaultManagedIdentityClientID := azureShard.CxSecretsKeyVaultManagedIdentityClientId()
+	hostedClustersSecretsKeyVaultURL := azureShard.CxSecretsKeyVaultUrl()
+	hostedClustersManagedIdentitiesKeyVaultURL := azureShard.CxManagedIdentitiesKeyVaultUrl()
+	hostedClustersSecretsKeyVaultManagedIdentityClientID := azureShard.CxSecretsKeyVaultManagedIdentityClientId()
 
-	readyCondition := api.Condition{
+	readyCondition := metav1.Condition{
 		Type:               string(api.ManagementClusterConditionReady),
-		LastTransitionTime: time.Now(),
+		LastTransitionTime: metav1.Now(),
 	}
 	switch csShard.Status() {
 	case csProvisioningShardStatusActive:
-		readyCondition.Status = api.ConditionTrue
+		readyCondition.Status = metav1.ConditionTrue
 		readyCondition.Reason = string(api.ManagementClusterConditionReasonProvisionShardActive)
 	case csProvisioningShardStatusMaintenance:
-		readyCondition.Status = api.ConditionFalse
+		readyCondition.Status = metav1.ConditionFalse
 		readyCondition.Reason = string(api.ManagementClusterConditionReasonProvisionShardMaintenance)
 		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
 	case csProvisioningShardStatusOffline:
-		readyCondition.Status = api.ConditionFalse
+		readyCondition.Status = metav1.ConditionFalse
 		readyCondition.Reason = string(api.ManagementClusterConditionReasonProvisionShardOffline)
 		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
 	default:
-		readyCondition.Status = api.ConditionUnknown
+		readyCondition.Status = metav1.ConditionUnknown
 		readyCondition.Reason = string(api.ManagementClusterConditionReasonProvisionShardStatusUnknown)
 		readyCondition.Message = fmt.Sprintf("provision shard has unrecognized status %q", csShard.Status())
 	}
@@ -1452,22 +1453,16 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 			SchedulingPolicy: convertShardStatusToSchedulingPolicy(csShard.Status()),
 		},
 		Status: api.ManagementClusterStatus{
-			AKSResourceID:                            managementClusterAKSResourceID,
-			PublicDNSZoneResourceID:                  publicDNSZoneResourceID,
-			CXSecretsKeyVaultURL:                     cxSecretsKeyVaultURL,
-			CXManagedIdentitiesKeyVaultURL:           cxManagedIdentitiesKeyVaultURL,
-			CXSecretsKeyVaultManagedIdentityClientID: cxSecretsKeyVaultManagedIdentityClientID,
-			CSProvisionShardID:                       shardID,
-			MaestroConfig: api.MaestroConfig{
-				ConsumerName: maestroConfig.ConsumerName(),
-				RESTAPIConfig: api.MaestroRESTAPIConfig{
-					URL: restConfig.Url(),
-				},
-				GRPCAPIConfig: api.MaestroGRPCAPIConfig{
-					URL: grpcConfig.Url(),
-				},
-			},
-			Conditions: []api.Condition{readyCondition},
+			AKSResourceID:                                        managementClusterAKSResourceID,
+			PublicDNSZoneResourceID:                              publicDNSZoneResourceID,
+			HostedClustersSecretsKeyVaultURL:                     hostedClustersSecretsKeyVaultURL,
+			HostedClustersManagedIdentitiesKeyVaultURL:           hostedClustersManagedIdentitiesKeyVaultURL,
+			HostedClustersSecretsKeyVaultManagedIdentityClientID: hostedClustersSecretsKeyVaultManagedIdentityClientID,
+			MaestroConsumerName:                                  maestroConfig.ConsumerName(),
+			MaestroRESTAPIURL:                                    restConfig.Url(),
+			MaestroGRPCTarget:                                    grpcConfig.Url(),
+			ClusterServiceProvisionShardID:                       &shardID,
+			Conditions:                                           []metav1.Condition{readyCondition},
 		},
 	}
 

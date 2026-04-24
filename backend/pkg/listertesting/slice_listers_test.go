@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -509,7 +511,7 @@ func newTestManagementCluster(name, shardID string) *api.ManagementCluster {
 		},
 		ResourceID: resourceID,
 		Status: api.ManagementClusterStatus{
-			CSProvisionShardID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + shardID)),
+			ClusterServiceProvisionShardID: ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/" + shardID))),
 		},
 	}
 }

@@ -15,6 +15,7 @@
 package api
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -89,8 +90,11 @@ type ManagementCluster struct {
 	// it will be the ManagementClusterResourceTypeName
 	CosmosMetadata `json:"cosmosMetadata"`
 
-	// resourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
+	// ResourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
 	// at which point we will stop using properties.resourceId in our queries. That will be about a month from now.
+	// Example: "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.redhatopenshiftmanagement/hcpmanagementclusters/pers-westus3-mgmt-1"
+	//
+	// +required, immutable once set.
 	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 
 	// Spec contains the desired state of the management cluster
@@ -122,27 +126,6 @@ type ManagementClusterSpec struct {
 
 // ManagementClusterStatus contains the observed state of a management cluster.
 type ManagementClusterStatus struct {
-	// AKSResourceID is the Azure resource ID of the AKS management cluster.
-	AKSResourceID *azcorearm.ResourceID `json:"aksResourceID,omitempty"`
-
-	// PublicDNSZoneResourceID is the Azure resource ID of the public DNS zone for the management cluster.
-	PublicDNSZoneResourceID *azcorearm.ResourceID `json:"publicDNSZoneResourceID,omitempty"`
-
-	// CXSecretsKeyVaultURL is the URL of the key vault containing CX (customer related) secrets for the management cluster.
-	CXSecretsKeyVaultURL string `json:"cxSecretsKeyVaultURL,omitempty"`
-
-	// CXManagedIdentitiesKeyVaultURL is the URL of the key vault containing customer managed identity backing certificates
-	CXManagedIdentitiesKeyVaultURL string `json:"cxManagedIdentitiesKeyVaultURL,omitempty"`
-
-	// CXSecretsKeyVaultManagedIdentityClientID is the client ID of the managed identity for the management cluster.
-	CXSecretsKeyVaultManagedIdentityClientID string `json:"cxSecretsKeyVaultManagedIdentityClientID,omitempty"`
-
-	// MaestroConfig contains the Maestro connectivity configuration for the management cluster.
-	MaestroConfig MaestroConfig `json:"maestroConfig,omitempty"`
-
-	// CSProvisionShardID is the Cluster Service provision shard HREF for this management cluster.
-	CSProvisionShardID InternalID `json:"csProvisionShardID,omitempty"`
-
 	// Conditions is a list of conditions tracking the lifecycle of the management cluster.
 	// Known condition types are defined as ManagementClusterConditionType constants:
 	// Ready.
@@ -150,34 +133,72 @@ type ManagementClusterStatus struct {
 	// Conditions are added on first evaluation and never removed. Status is toggled
 	// between True/False/Unknown. Absence of a condition means "not yet evaluated."
 	// Each condition type is owned by exactly one controller to avoid write conflicts.
-	Conditions []Condition `json:"conditions,omitempty"`
-}
+	//
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-// MaestroConfig contains the Maestro configuration for the management cluster
-// that includes the connectivity configuration and the consumer name.
-type MaestroConfig struct {
-	// RESTAPIConfig contains the connectivity configuration for the Maestro REST API
-	RESTAPIConfig MaestroRESTAPIConfig `json:"restAPIConfig"`
+	// AKSResourceID is the Azure resource ID of the AKS management cluster.
+	// Example: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/clustername"
+	//
+	// +optional, validated as a well-formed ARM resource ID, immutable once set.
+	// Required when Ready condition is True.
+	AKSResourceID *azcorearm.ResourceID `json:"aksResourceID,omitempty"`
 
-	// GRPCAPIConfig contains the connectivity configuration for the Maestro GRPC API
-	GRPCAPIConfig MaestroGRPCAPIConfig `json:"grpcAPIConfig"`
+	// PublicDNSZoneResourceID is the Azure resource ID of the public DNS zone for the management cluster.
+	// Example: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"
+	//
+	// +optional, validated as a well-formed ARM resource ID, immutable once set.
+	// Required when Ready condition is True.
+	PublicDNSZoneResourceID *azcorearm.ResourceID `json:"publicDNSZoneResourceID,omitempty"`
 
-	// ConsumerName is the consumer name of the management cluster in Maestro.
+	// HostedClustersSecretsKeyVaultURL is the URL of the key vault containing secrets for hosted clusters on this management cluster.
+	// Example: "https://kv-hc-secrets.vault.azure.net"
+	//
+	// +optional, validated as a well-formed URL, immutable once set.
+	// Required when Ready condition is True.
+	HostedClustersSecretsKeyVaultURL string `json:"hostedClustersSecretsKeyVaultURL,omitempty"`
+
+	// HostedClustersManagedIdentitiesKeyVaultURL is the URL of the key vault containing managed identity backing certificates for hosted clusters.
+	// Example: "https://kv-hc-mi.vault.azure.net"
+	//
+	// +optional, validated as a well-formed URL, immutable once set.
+	// Required when Ready condition is True.
+	HostedClustersManagedIdentitiesKeyVaultURL string `json:"hostedClustersManagedIdentitiesKeyVaultURL,omitempty"`
+
+	// HostedClustersSecretsKeyVaultManagedIdentityClientID is the client ID of the managed identity
+	// used to access the hosted clusters secrets key vault.
+	// Example: "12345678-1234-1234-1234-123456789012"
+	//
+	// +optional, validated as a UUID, immutable once set.
+	// Required when Ready condition is True.
+	HostedClustersSecretsKeyVaultManagedIdentityClientID string `json:"hostedClustersSecretsKeyVaultManagedIdentityClientID,omitempty"`
+
+	// MaestroConsumerName is the consumer name of the management cluster in Maestro.
 	// Typically derived from the management cluster stamp identifier.
 	// Example: "hcp-underlay-westus3-mgmt-1"
-	ConsumerName string `json:"consumerName"`
-}
+	//
+	// +optional, immutable once set.
+	// Required when Ready condition is True.
+	MaestroConsumerName string `json:"maestroConsumerName,omitempty"`
 
-// MaestroRESTAPIConfig contains the connectivity configuration for the Maestro REST API
-type MaestroRESTAPIConfig struct {
-	// URL is the URL of the Maestro REST API.
+	// MaestroRESTAPIURL is the URL of the Maestro REST API.
 	// Example: "http://maestro.maestro.svc.cluster.local:8000"
-	URL string `json:"url"`
-}
+	//
+	// +optional, validated as a well-formed URL, immutable once set.
+	// Required when Ready condition is True.
+	MaestroRESTAPIURL string `json:"maestroRESTAPIURL,omitempty"`
 
-// MaestroGRPCAPIConfig contains the connectivity configuration for the Maestro GRPC API
-type MaestroGRPCAPIConfig struct {
-	// URL is the URL of the Maestro GRPC API.
+	// MaestroGRPCTarget is the gRPC dial target (host:port) of the Maestro GRPC API.
 	// Example: "maestro-grpc.maestro.svc.cluster.local:8090"
-	URL string `json:"url"`
+	//
+	// +optional, immutable once set.
+	// Required when Ready condition is True.
+	MaestroGRPCTarget string `json:"maestroGRPCTarget,omitempty"`
+
+	// ClusterServiceProvisionShardID is the Cluster Service provision shard HREF for this management cluster.
+	// Example: "/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	//
+	// +optional, immutable once set.
+	// Required when Ready condition is True.
+	ClusterServiceProvisionShardID *InternalID `json:"clusterServiceProvisionShardID,omitempty"`
 }

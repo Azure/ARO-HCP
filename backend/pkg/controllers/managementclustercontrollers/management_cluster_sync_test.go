@@ -26,6 +26,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -40,15 +43,15 @@ import (
 )
 
 const (
-	testSubscriptionID        = "00000000-0000-0000-0000-000000000000"
-	testResourceGroup         = "rg"
-	testDNSResourceGroup      = "dns-rg"
-	testDNSZone               = "test.example.com"
-	testCXSecretsKVURL        = "https://cx-kv.vault.azure.net/"
-	testCXManagedIdentitiesKV = "https://mi-kv.vault.azure.net/"
-	testCXMIClientID          = "c2bde1aa-d904-48cd-a728-9de33e3ddca9"
-	testMaestroRestURL        = "http://maestro.maestro.svc.cluster.local:8000"
-	testMaestroGRPCURL        = "maestro-grpc.maestro.svc.cluster.local:8090"
+	testSubscriptionID                                       = "00000000-0000-0000-0000-000000000000"
+	testResourceGroup                                        = "rg"
+	testDNSResourceGroup                                     = "dns-rg"
+	testDNSZone                                              = "test.example.com"
+	testHostedClustersSecretsKeyVaultURL                     = "https://cx-kv.vault.azure.net/"
+	testHostedClustersManagedIdentitiesKeyVaultURL           = "https://mi-kv.vault.azure.net/"
+	testHostedClustersSecretsKeyVaultManagedIdentityClientID = "c2bde1aa-d904-48cd-a728-9de33e3ddca9"
+	testMaestroRestURL                                       = "http://maestro.maestro.svc.cluster.local:8000"
+	testMaestroGRPCURL                                       = "maestro-grpc.maestro.svc.cluster.local:8090"
 
 	testShardID  = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 	testShardID2 = "11111111-2222-3333-4444-555555555555"
@@ -69,7 +72,7 @@ func testPublicDNSZoneResourceIDString() string {
 var managementClusterCmpOptions = append(
 	api.CmpDiffOptions,
 	cmpopts.IgnoreFields(api.ManagementCluster{}, "CosmosMetadata", "ResourceID"),
-	cmpopts.IgnoreFields(api.Condition{}, "LastTransitionTime"),
+	cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime"),
 )
 
 // assertManagementClusterEqual compares two ManagementCluster objects ignoring
@@ -101,25 +104,19 @@ func buildExpectedManagementCluster(t *testing.T, shardID, consumerName, aksName
 			SchedulingPolicy: api.ManagementClusterSchedulingPolicySchedulable,
 		},
 		Status: api.ManagementClusterStatus{
-			AKSResourceID:                            aksResourceID,
-			PublicDNSZoneResourceID:                  publicDNSZoneResourceID,
-			CXSecretsKeyVaultURL:                     testCXSecretsKVURL,
-			CXManagedIdentitiesKeyVaultURL:           testCXManagedIdentitiesKV,
-			CXSecretsKeyVaultManagedIdentityClientID: testCXMIClientID,
-			CSProvisionShardID:                       api.Must(api.NewInternalID(testProvisionShardHREF(shardID))),
-			MaestroConfig: api.MaestroConfig{
-				ConsumerName: consumerName,
-				RESTAPIConfig: api.MaestroRESTAPIConfig{
-					URL: testMaestroRestURL,
-				},
-				GRPCAPIConfig: api.MaestroGRPCAPIConfig{
-					URL: testMaestroGRPCURL,
-				},
-			},
-			Conditions: []api.Condition{
+			AKSResourceID:                                        aksResourceID,
+			PublicDNSZoneResourceID:                              publicDNSZoneResourceID,
+			HostedClustersSecretsKeyVaultURL:                     testHostedClustersSecretsKeyVaultURL,
+			HostedClustersManagedIdentitiesKeyVaultURL:           testHostedClustersManagedIdentitiesKeyVaultURL,
+			HostedClustersSecretsKeyVaultManagedIdentityClientID: testHostedClustersSecretsKeyVaultManagedIdentityClientID,
+			ClusterServiceProvisionShardID:                       ptr.To(api.Must(api.NewInternalID(testProvisionShardHREF(shardID)))),
+			MaestroConsumerName:                                  consumerName,
+			MaestroRESTAPIURL:                                    testMaestroRestURL,
+			MaestroGRPCTarget:                                    testMaestroGRPCURL,
+			Conditions: []metav1.Condition{
 				{
 					Type:   string(api.ManagementClusterConditionReady),
-					Status: api.ConditionTrue,
+					Status: metav1.ConditionTrue,
 					Reason: string(api.ManagementClusterConditionReasonProvisionShardActive),
 				},
 			},
@@ -148,9 +145,9 @@ func buildTestProvisionShard(t *testing.T, shardID, consumerName, aksName, statu
 		AzureShard(arohcpv1alpha1.NewAzureShard().
 			AksManagementClusterResourceId(testAKSResourceIDString(aksName)).
 			PublicDnsZoneResourceId(testPublicDNSZoneResourceIDString()).
-			CxSecretsKeyVaultUrl(testCXSecretsKVURL).
-			CxManagedIdentitiesKeyVaultUrl(testCXManagedIdentitiesKV).
-			CxSecretsKeyVaultManagedIdentityClientId(testCXMIClientID),
+			CxSecretsKeyVaultUrl(testHostedClustersSecretsKeyVaultURL).
+			CxManagedIdentitiesKeyVaultUrl(testHostedClustersManagedIdentitiesKeyVaultURL).
+			CxSecretsKeyVaultManagedIdentityClientId(testHostedClustersSecretsKeyVaultManagedIdentityClientID),
 		).
 		MaestroConfig(
 			arohcpv1alpha1.NewProvisionShardMaestroConfig().
@@ -291,9 +288,9 @@ func TestSyncOnce(t *testing.T) {
 					AzureShard(arohcpv1alpha1.NewAzureShard().
 						AksManagementClusterResourceId(testAKSResourceIDString("test-westus3-mgmt-bad")).
 						PublicDnsZoneResourceId(testPublicDNSZoneResourceIDString()).
-						CxSecretsKeyVaultUrl(testCXSecretsKVURL).
-						CxManagedIdentitiesKeyVaultUrl(testCXManagedIdentitiesKV).
-						CxSecretsKeyVaultManagedIdentityClientId(testCXMIClientID),
+						CxSecretsKeyVaultUrl(testHostedClustersSecretsKeyVaultURL).
+						CxManagedIdentitiesKeyVaultUrl(testHostedClustersManagedIdentitiesKeyVaultURL).
+						CxSecretsKeyVaultManagedIdentityClientId(testHostedClustersSecretsKeyVaultManagedIdentityClientID),
 					).
 					Build()
 				require.NoError(t, err)
@@ -398,7 +395,7 @@ func TestSyncOnce(t *testing.T) {
 				doc := getManagementCluster(t, ctx, dbClient, "test-westus3-mgmt-1")
 				assert.Equal(t, api.ManagementClusterSchedulingPolicySchedulable, doc.Spec.SchedulingPolicy, "should be schedulable")
 				// Verify Ready condition transitioned to True
-				var readyCond *api.Condition
+				var readyCond *metav1.Condition
 				for i := range doc.Status.Conditions {
 					if doc.Status.Conditions[i].Type == string(api.ManagementClusterConditionReady) {
 						readyCond = &doc.Status.Conditions[i]
@@ -406,7 +403,7 @@ func TestSyncOnce(t *testing.T) {
 					}
 				}
 				require.NotNil(t, readyCond, "Ready condition must exist")
-				assert.Equal(t, api.ConditionTrue, readyCond.Status, "Ready condition should be True")
+				assert.Equal(t, metav1.ConditionTrue, readyCond.Status, "Ready condition should be True")
 				assert.Equal(t, string(api.ManagementClusterConditionReasonProvisionShardActive), readyCond.Reason)
 			},
 		},

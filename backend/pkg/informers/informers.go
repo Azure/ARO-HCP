@@ -770,8 +770,8 @@ func managementClusterClusterServiceProvisionShardIDIndexFunc(obj interface{}) (
 	if !ok {
 		return nil, utils.TrackError(fmt.Errorf("expected *api.ManagementCluster, got %T", obj))
 	}
-	if len(mc.Status.CSProvisionShardID.ID()) == 0 {
+	if mc.Status.ClusterServiceProvisionShardID == nil || len(mc.Status.ClusterServiceProvisionShardID.ID()) == 0 {
 		return nil, nil
 	}
-	return []string{mc.Status.CSProvisionShardID.ID()}, nil
+	return []string{mc.Status.ClusterServiceProvisionShardID.ID()}, nil
 }

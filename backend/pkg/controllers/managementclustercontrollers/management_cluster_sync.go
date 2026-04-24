@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
@@ -143,7 +144,7 @@ func (c *managementClusterSyncController) syncProvisionShard(ctx context.Context
 	// via Geneva Action, this controller will be removed.
 	managementClusterToWrite.Spec.SchedulingPolicy = convertedManagementCluster.Spec.SchedulingPolicy
 	for _, cond := range convertedManagementCluster.Status.Conditions {
-		controllerutils.SetCondition(&managementClusterToWrite.Status.Conditions, cond)
+		apimeta.SetStatusCondition(&managementClusterToWrite.Status.Conditions, cond)
 	}
 	if equality.Semantic.DeepEqual(existing, managementClusterToWrite) {
 		logger.V(1).Info("management cluster unchanged, skipping update")
