@@ -536,7 +536,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			clusterVersions: []string{"5.0.1"},
 			desiredVersion:  "5.0.1",
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
+				{FieldPath: "properties.version.id", Message: "cross-major version operations are not supported"},
 			},
 		},
 		{
@@ -778,7 +778,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			clusterVersions: []string{"5.0.1"},
 			desiredVersion:  "4.22.0",
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
+				{FieldPath: "properties.version.id", Message: "cross-major version operations are not supported"},
 			},
 		},
 		// Multi-version CP: N-2 skew uses highest CP version
@@ -868,10 +868,17 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 					},
 				},
 			}
+
+			// Use cluster version from test case's clusterVersions if cross-major upgrade
+			clusterVersion := "4.18"
+			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+				clusterVersion = tt.clusterVersions[0]
+			}
+
 			cluster := &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.18",
+						ID:           clusterVersion,
 						ChannelGroup: "stable",
 					},
 				},
@@ -915,19 +922,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 				},
 			}
 
-			// Build ServiceProviderCluster with active versions
-			var clusterActiveVersions []api.HCPClusterActiveVersion
-			for _, v := range tt.clusterVersions {
-				ver := semver.MustParse(v)
-				clusterActiveVersions = append(clusterActiveVersions, api.HCPClusterActiveVersion{Version: &ver})
-			}
-			spCluster := &api.ServiceProviderCluster{
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-						ActiveVersions: clusterActiveVersions,
-					},
-				},
-			}
+			spCluster := serviceProviderClusterWithVersions(t, tt.clusterVersions)
 
 			errs := AdmitNodePool(context.Background(), &NodePoolAdmissionContext{
 				Cluster:                 cluster,
@@ -971,14 +966,7 @@ func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.
 		},
 	}
 
-	clusterVer := semver.MustParse("4.18.0")
-	spCluster := &api.ServiceProviderCluster{
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{{Version: &clusterVer}},
-			},
-		},
-	}
+	spCluster := serviceProviderClusterWithVersions(t, []string{"4.18.0"})
 
 	op := operation.Operation{Type: operation.Create}
 
@@ -1056,5 +1044,21 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 			errs := AdmitNodePoolOnDelete(ctx, admissionContext, tt.nodePoolBeingDeleted)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
+	}
+}
+
+func serviceProviderClusterWithVersions(t *testing.T, versions []string) *api.ServiceProviderCluster {
+	t.Helper()
+	var active []api.HCPClusterActiveVersion
+	for _, s := range versions {
+		v := semver.MustParse(s)
+		active = append(active, api.HCPClusterActiveVersion{Version: &v})
+	}
+	return &api.ServiceProviderCluster{
+		Status: api.ServiceProviderClusterStatus{
+			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+				ActiveVersions: active,
+			},
+		},
 	}
 }
