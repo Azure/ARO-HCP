@@ -18,7 +18,6 @@ import (
 	"context"
 	"testing"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -102,13 +101,32 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			},
 			expectErrors: nil,
 		},
-		// Status — entirely optional on create
+		// Status — all fields required
 		{
-			name: "empty status accepted",
+			name: "empty status rejected",
 			modify: func(t *testing.T, mc *api.ManagementCluster) {
 				mc.Status = api.ManagementClusterStatus{}
 			},
-			expectErrors: nil,
+			expectErrors: []expectedError{
+				{fieldPath: "status.aksResourceID", message: "Required"},
+				{fieldPath: "status.publicDNSZoneResourceID", message: "Required"},
+				{fieldPath: "status.hostedClustersSecretsKeyVaultURL", message: "Required"},
+				{fieldPath: "status.hostedClustersManagedIdentitiesKeyVaultURL", message: "Required"},
+				{fieldPath: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", message: "Required"},
+				{fieldPath: "status.clusterServiceProvisionShardID", message: "Required"},
+				{fieldPath: "status.maestroConsumerName", message: "Required"},
+				{fieldPath: "status.maestroRESTAPIURL", message: "Required"},
+				{fieldPath: "status.maestroGRPCTarget", message: "Required"},
+			},
+		},
+		{
+			name: "missing aksResourceID rejected",
+			modify: func(t *testing.T, mc *api.ManagementCluster) {
+				mc.Status.AKSResourceID = nil
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.aksResourceID", message: "Required"},
+			},
 		},
 		{
 			name: "invalid hostedClustersSecretsKeyVaultManagedIdentityClientID",
@@ -117,60 +135,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", message: "invalid"},
-			},
-		},
-		// Ready condition cross-field validation
-		{
-			name: "Ready=True with complete status accepted",
-			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.Conditions = []metav1.Condition{
-					{Type: string(api.ManagementClusterConditionReady), Status: metav1.ConditionTrue, LastTransitionTime: metav1.Now()},
-				}
-			},
-			expectErrors: nil,
-		},
-		{
-			name: "Ready=False with empty status accepted",
-			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status = api.ManagementClusterStatus{
-					Conditions: []metav1.Condition{
-						{Type: string(api.ManagementClusterConditionReady), Status: metav1.ConditionFalse, LastTransitionTime: metav1.Now()},
-					},
-				}
-			},
-			expectErrors: nil,
-		},
-		{
-			name: "Ready=True with empty status rejected",
-			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status = api.ManagementClusterStatus{
-					Conditions: []metav1.Condition{
-						{Type: string(api.ManagementClusterConditionReady), Status: metav1.ConditionTrue, LastTransitionTime: metav1.Now()},
-					},
-				}
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.conditions[Ready]", message: "status.aksResourceID"},
-				{fieldPath: "status.conditions[Ready]", message: "status.publicDNSZoneResourceID"},
-				{fieldPath: "status.conditions[Ready]", message: "status.hostedClustersSecretsKeyVaultURL"},
-				{fieldPath: "status.conditions[Ready]", message: "status.hostedClustersManagedIdentitiesKeyVaultURL"},
-				{fieldPath: "status.conditions[Ready]", message: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID"},
-				{fieldPath: "status.conditions[Ready]", message: "status.clusterServiceProvisionShardID"},
-				{fieldPath: "status.conditions[Ready]", message: "status.maestroConsumerName"},
-				{fieldPath: "status.conditions[Ready]", message: "status.maestroRESTAPIURL"},
-				{fieldPath: "status.conditions[Ready]", message: "status.maestroGRPCTarget"},
-			},
-		},
-		{
-			name: "Ready=True with missing aksResourceID rejected",
-			modify: func(t *testing.T, mc *api.ManagementCluster) {
-				mc.Status.AKSResourceID = nil
-				mc.Status.Conditions = []metav1.Condition{
-					{Type: string(api.ManagementClusterConditionReady), Status: metav1.ConditionTrue, LastTransitionTime: metav1.Now()},
-				}
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.conditions[Ready]", message: "status.aksResourceID"},
 			},
 		},
 	}

@@ -16,12 +16,10 @@ package validation
 
 import (
 	"context"
-	"slices"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -52,16 +50,13 @@ func validateManagementCluster(ctx context.Context, op operation.Operation, newO
 
 	// ResourceID (top-level, mirrors CosmosMetadata.ResourceID)
 	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
+	errs = append(errs, immutableByReflect(ctx, op, field.NewPath("resourceId"), newObj.ResourceID, safe.Field(oldObj, toManagementClusterResourceID))...)
 
 	// Spec
 	errs = append(errs, validateManagementClusterSpec(ctx, op, field.NewPath("spec"), &newObj.Spec, safe.Field(oldObj, toManagementClusterSpec))...)
 
 	// Status
 	errs = append(errs, validateManagementClusterStatus(ctx, op, field.NewPath("status"), &newObj.Status, safe.Field(oldObj, toManagementClusterStatus))...)
-
-	// Cross-field: Ready=True requires all status fields to be populated
-	errs = append(errs, validateReadyConditionRequiresCompleteStatus(newObj)...)
 
 	return errs
 }
@@ -77,7 +72,7 @@ func validateManagementClusterSpec(ctx context.Context, op operation.Operation, 
 
 	// SchedulingPolicy — required, must be a valid value
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("schedulingPolicy"), &newObj.SchedulingPolicy, safe.Field(oldObj, toManagementClusterSpecSchedulingPolicy))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("schedulingPolicy"), &newObj.SchedulingPolicy, safe.Field(oldObj, toManagementClusterSpecSchedulingPolicy), api.ValidManagementClusterSchedulingPolicies)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("schedulingPolicy"), &newObj.SchedulingPolicy, safe.Field(oldObj, toManagementClusterSpecSchedulingPolicy), api.ValidManagementClusterSchedulingPolicies, nil)...)
 
 	return errs
 }
@@ -109,83 +104,47 @@ var (
 func validateManagementClusterStatus(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ManagementClusterStatus) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// AKSResourceID — optional, but validated and immutable once set
+	// AKSResourceID — required, validated as AKS resource type, immutable
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("aksResourceID"), newObj.AKSResourceID, safe.Field(oldObj, toManagementClusterStatusAKSResourceID))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("aksResourceID"), newObj.AKSResourceID, safe.Field(oldObj, toManagementClusterStatusAKSResourceID), "Microsoft.ContainerService/managedClusters")...)
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("aksResourceID"), newObj.AKSResourceID, safe.Field(oldObj, toManagementClusterStatusAKSResourceID))...)
+	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("aksResourceID"), newObj.AKSResourceID, safe.Field(oldObj, toManagementClusterStatusAKSResourceID))...)
 
-	// PublicDNSZoneResourceID — optional, but validated and immutable once set
+	// PublicDNSZoneResourceID — required, validated as DNS zone resource type, immutable
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("publicDNSZoneResourceID"), newObj.PublicDNSZoneResourceID, safe.Field(oldObj, toManagementClusterStatusPublicDNSZoneResourceID))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("publicDNSZoneResourceID"), newObj.PublicDNSZoneResourceID, safe.Field(oldObj, toManagementClusterStatusPublicDNSZoneResourceID), "Microsoft.Network/dnszones")...)
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("publicDNSZoneResourceID"), newObj.PublicDNSZoneResourceID, safe.Field(oldObj, toManagementClusterStatusPublicDNSZoneResourceID))...)
+	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("publicDNSZoneResourceID"), newObj.PublicDNSZoneResourceID, safe.Field(oldObj, toManagementClusterStatusPublicDNSZoneResourceID))...)
 
-	// HostedClustersSecretsKeyVaultURL — optional, but validated and immutable once set
+	// HostedClustersSecretsKeyVaultURL — required, validated as URL, immutable
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultURL"), &newObj.HostedClustersSecretsKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultURL))...)
 	errs = append(errs, URL(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultURL"), &newObj.HostedClustersSecretsKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultURL))...)
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultURL"), &newObj.HostedClustersSecretsKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultURL))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultURL"), &newObj.HostedClustersSecretsKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultURL))...)
 
-	// HostedClustersManagedIdentitiesKeyVaultURL — optional, but validated and immutable once set
+	// HostedClustersManagedIdentitiesKeyVaultURL — required, validated as URL, immutable
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("hostedClustersManagedIdentitiesKeyVaultURL"), &newObj.HostedClustersManagedIdentitiesKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL))...)
 	errs = append(errs, URL(ctx, op, fldPath.Child("hostedClustersManagedIdentitiesKeyVaultURL"), &newObj.HostedClustersManagedIdentitiesKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL))...)
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("hostedClustersManagedIdentitiesKeyVaultURL"), &newObj.HostedClustersManagedIdentitiesKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("hostedClustersManagedIdentitiesKeyVaultURL"), &newObj.HostedClustersManagedIdentitiesKeyVaultURL, safe.Field(oldObj, toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL))...)
 
-	// HostedClustersSecretsKeyVaultManagedIdentityClientID — optional, but validated and immutable once set
+	// HostedClustersSecretsKeyVaultManagedIdentityClientID — required, validated as UUID, immutable
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
 	errs = append(errs, ValidateUUID(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
 
-	// ClusterServiceProvisionShardID — optional, but immutable once set
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
+	// ClusterServiceProvisionShardID — required, immutable
+	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
+	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
 
-	// MaestroConsumerName — optional, but immutable once set
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
+	// MaestroConsumerName — required, immutable
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
 
-	// MaestroRESTAPIURL — optional, but validated and immutable once set
+	// MaestroRESTAPIURL — required, validated as URL, immutable
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
 	errs = append(errs, URL(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
 
-	// MaestroGRPCTarget — optional, immutable once set
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
-
-	return errs
-}
-
-// validateReadyConditionRequiresCompleteStatus checks that if the Ready condition
-// is True, all status fields required for a functioning management cluster are populated.
-func validateReadyConditionRequiresCompleteStatus(mc *api.ManagementCluster) field.ErrorList {
-	readyConditionTrue := slices.ContainsFunc(mc.Status.Conditions, func(c metav1.Condition) bool {
-		return c.Type == string(api.ManagementClusterConditionReady) && c.Status == metav1.ConditionTrue
-	})
-
-	if !readyConditionTrue {
-		return nil
-	}
-
-	errs := field.ErrorList{}
-	condPath := field.NewPath("status", "conditions").Key("Ready")
-
-	if mc.Status.AKSResourceID == nil {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.aksResourceID to be set"))
-	}
-	if mc.Status.PublicDNSZoneResourceID == nil {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.publicDNSZoneResourceID to be set"))
-	}
-	if len(mc.Status.HostedClustersSecretsKeyVaultURL) == 0 {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.hostedClustersSecretsKeyVaultURL to be set"))
-	}
-	if len(mc.Status.HostedClustersManagedIdentitiesKeyVaultURL) == 0 {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.hostedClustersManagedIdentitiesKeyVaultURL to be set"))
-	}
-	if len(mc.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID) == 0 {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.hostedClustersSecretsKeyVaultManagedIdentityClientID to be set"))
-	}
-	if mc.Status.ClusterServiceProvisionShardID == nil || len(mc.Status.ClusterServiceProvisionShardID.Path()) == 0 {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.clusterServiceProvisionShardID to be set"))
-	}
-	if len(mc.Status.MaestroConsumerName) == 0 {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.maestroConsumerName to be set"))
-	}
-	if len(mc.Status.MaestroRESTAPIURL) == 0 {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.maestroRESTAPIURL to be set"))
-	}
-	if len(mc.Status.MaestroGRPCTarget) == 0 {
-		errs = append(errs, field.Invalid(condPath, "True", "Ready condition requires status.maestroGRPCTarget to be set"))
-	}
+	// MaestroGRPCTarget — required, immutable
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 
 	return errs
 }
