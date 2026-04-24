@@ -739,7 +739,7 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
 			expectError:          true,
-			errorContains:        "major version changes are not supported",
+			errorContains:        "cross-major version operations are not supported",
 		},
 		{
 			name:                 "valid major downgrade 5.0 to 4.22",
@@ -879,7 +879,7 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			activeVersions:       []string{"4.22.0"},
 			controlPlaneVersions: []string{"5.0.1"},
 			expectError:          true,
-			errorContains:        "major version changes are not supported",
+			errorContains:        "cross-major version operations are not supported",
 		},
 		// Multi-version CP: N-2 skew uses highest CP version
 		{

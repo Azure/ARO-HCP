@@ -1,3 +1,7 @@
+{
+  "error": {
     "code": "InvalidRequestContent",
-    "message": "Invalid value: \"4.23.0\": invalid upgrade path from 4.20.8 to 4.23.0: skipping more than 2 minor versions is not allowed",
+    "message": "Invalid value: \"4.25.0\": invalid upgrade path from 4.22.0 to 4.25.0: skipping more than 2 minor versions is not allowed",
     "target": "properties.version.id"
+  }
+}
