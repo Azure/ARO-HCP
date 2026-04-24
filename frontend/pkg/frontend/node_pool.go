@@ -227,19 +227,18 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 // The spCluster and spNodePool parameters provide service provider state needed for
 // admission checks that depend on runtime state (e.g., version upgrade validation).
 // For UPDATE operations, these parameters are required and the function will fail if they're nil.
-// For CREATE operations, these can be nil since no prior state exists.
+// For CREATE operations, spNodePool should be nil (no prior state exists), and spCluster is to be provided
 func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster, spNodePool *api.ServiceProviderNodePool) (*admission.NodePoolAdmissionContext, error) {
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster is required for admission context")
 	}
 
-	if op.Type == operation.Update {
-		if spCluster == nil {
-			return nil, fmt.Errorf("serviceProviderCluster is required for UPDATE operations")
-		}
-		if spNodePool == nil {
-			return nil, fmt.Errorf("serviceProviderNodePool is required for UPDATE operations")
-		}
+	if spCluster == nil && op.Type == operation.Update {
+		return nil, fmt.Errorf("serviceProviderCluster is required for %v operations", op.Type)
+	}
+
+	if spNodePool == nil && op.Type == operation.Update {
+		return nil, fmt.Errorf("serviceProviderNodePool is required for %v operations", op.Type)
 	}
 
 	return &admission.NodePoolAdmissionContext{
@@ -286,11 +285,16 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
+	serviceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, resourceID.Parent)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	restOperation := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, nil, nil)
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, serviceProviderCluster, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
