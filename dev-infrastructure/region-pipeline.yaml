@@ -54,6 +54,7 @@ resourceGroups:
     action: GrafanaDatasources
     omitFromServiceGroupCompletion: true
     grafanaName: "{{ .monitoring.grafanaName }}"
+    skipSync: "{{ .monitoring.grafanaDatasourceSkipSync }}"
     identityFrom:
       resourceGroup: global
       step: output

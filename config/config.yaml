@@ -322,6 +322,7 @@ defaults:
     maxEventsPerMinute: 2000000
     alertRuleOwningTeamTag: ""
     alertsEnabled: false
+    grafanaDatasourceSkipSync: false
     icm:
       manageConnection: true
       connectionName: ""
@@ -1525,6 +1526,8 @@ clouds:
             manageInstance: false
           auditLogsEventHub:
             enabled: true
+          monitoring:
+            grafanaDatasourceSkipSync: true
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
