@@ -89,8 +89,12 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 	}
 
 	updatedOperation := existingOperation.DeepCopy()
+	statusChanged := existingOperation.Status != newOperationStatus
 	updatedOperation.LastTransitionTime = localClock.Now()
 	updatedOperation.Status = newOperationStatus
+	if statusChanged {
+		updatedOperation.RecordPhaseEntry(updatedOperation.Status, updatedOperation.LastTransitionTime)
+	}
 	if newOperationError != nil {
 		updatedOperation.Error = newOperationError
 	}
@@ -294,8 +298,12 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 	}
 
 	operationToWrite := oldOperation.DeepCopy()
+	statusChanged := oldOperation.Status != newOperationStatus
 	operationToWrite.LastTransitionTime = localClock.Now()
 	operationToWrite.Status = newOperationStatus
+	if statusChanged {
+		operationToWrite.RecordPhaseEntry(operationToWrite.Status, operationToWrite.LastTransitionTime)
+	}
 	if newOperationError != nil {
 		operationToWrite.Error = newOperationError
 	}

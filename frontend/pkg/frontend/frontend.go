@@ -386,6 +386,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
+	operationDoc.RecordPhaseEntry(operationDoc.Status, operationDoc.LastTransitionTime)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.dbClient.Operations(clusterResourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
@@ -496,6 +497,11 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	//     Because the credentials revocation has already been dispatched here,
 	//     set the initial operation status to "Deleting".
 	operationDoc.Status = arm.ProvisioningStateDeleting
+	// Record the phase entry AFTER the override above so the revoke-credentials
+	// operation records Deleting (the only phase its persisted document will ever
+	// be seen in) rather than a phantom Accepted that never existed in any stored
+	// state.
+	operationDoc.RecordPhaseEntry(operationDoc.Status, operationDoc.LastTransitionTime)
 
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)

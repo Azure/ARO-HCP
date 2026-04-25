@@ -150,8 +150,12 @@ func PatchOperationDocument(ctx context.Context, dbClient DBClient, oldOperation
 	}
 
 	operationToWrite := oldOperation.DeepCopy()
+	statusChanged := oldOperation.Status != newOperationStatus
 	operationToWrite.LastTransitionTime = localClock.Now()
 	operationToWrite.Status = newOperationStatus
+	if statusChanged {
+		operationToWrite.RecordPhaseEntry(operationToWrite.Status, operationToWrite.LastTransitionTime)
+	}
 	if newOperationError != nil {
 		operationToWrite.Error = newOperationError
 	}

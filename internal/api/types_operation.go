@@ -74,6 +74,52 @@ type Operation struct {
 	Status arm.ProvisioningState `json:"status,omitempty"`
 	// Error is an OData error, present when Status is "Failed" or "Canceled"
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
+
+	// PhaseTimestamps records the first time the operation entered each
+	// provisioning-state phase. Writes are first-entry-wins, so a retry that
+	// re-enters the same phase does not shift the recorded timestamp. This is
+	// internal-only (Cosmos-backed) and never exposed on the ARM surface; it
+	// exists to drive per-phase duration metrics from a durable source rather
+	// than from current-state gauges whose series disappear on transition.
+	PhaseTimestamps PhaseTimestampMap `json:"phaseTimestamps,omitempty"`
+}
+
+// PhaseTimestampMap records when the operation first entered each
+// provisioning-state phase. It is a named type so deepcopy-gen produces a
+// correct DeepCopy for the map-of-time.Time value (deepcopy-gen otherwise
+// emits a call to time.Time.DeepCopy, which does not exist on the stdlib
+// type).
+type PhaseTimestampMap map[arm.ProvisioningState]time.Time
+
+// DeepCopy returns a deep copy of the map. time.Time is a value type with no
+// internal pointers, so copying the value is sufficient.
+func (in PhaseTimestampMap) DeepCopy() PhaseTimestampMap {
+	if in == nil {
+		return nil
+	}
+	out := make(PhaseTimestampMap, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+// RecordPhaseEntry records the first time the operation entered phase.
+// Subsequent calls for the same phase are no-ops so retries and reconcile
+// loops do not shift the recorded timestamp. Callers pass phase and at
+// explicitly to avoid ordering bugs: every mutation site assigns
+// LastTransitionTime before Status, so a helper that read o.Status at call
+// time would record the previous phase.
+func (o *Operation) RecordPhaseEntry(phase arm.ProvisioningState, at time.Time) {
+	if phase == "" || at.IsZero() {
+		return
+	}
+	if o.PhaseTimestamps == nil {
+		o.PhaseTimestamps = PhaseTimestampMap{}
+	}
+	if _, ok := o.PhaseTimestamps[phase]; !ok {
+		o.PhaseTimestamps[phase] = at
+	}
 }
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {

@@ -278,7 +278,7 @@ func TestOperationControllerSyncResource_DeletesMetricsWhenOperationRemoved(t *t
 	require.NoError(t, indexer.Delete(op))
 	require.NoError(t, controller.syncResource(context.Background(), key))
 
-	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_resource_operation_phase_info", "backend_resource_operation_start_time_seconds", "backend_resource_operation_last_transition_time_seconds"))
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(""), "backend_resource_operation_phase_info", "backend_resource_operation_start_time_seconds", "backend_resource_operation_last_transition_time_seconds", "backend_resource_operation_phase_enter_time_seconds"))
 }
 
 func TestResourceIDStoreKeyForObject_MatchesMetaNamespaceKeyFuncForOperation(t *testing.T) {
@@ -396,4 +396,106 @@ func TestOperationPhaseMetricsHandler_VerifiesLabelValues(t *testing.T) {
 backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
 `, resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_info"))
+}
+
+func TestOperationPhaseMetricsHandler_EmitsPhaseEnterTime(t *testing.T) {
+	t0 := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	op := newTestOperation(
+		t,
+		"op-1",
+		api.OperationRequestCreate,
+		arm.ProvisioningStateProvisioning,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		t0,
+		t0.Add(30*time.Second),
+	)
+	op.PhaseTimestamps = api.PhaseTimestampMap{
+		arm.ProvisioningStateAccepted:     t0,
+		arm.ProvisioningStateProvisioning: t0.Add(30 * time.Second),
+	}
+
+	handler, reg := newTestOperationHandler(t)
+	handler.Sync(context.Background(), op)
+
+	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseEnterTime))
+
+	resourceID := resourceIDMetricLabel(op.GetResourceID())
+	subscriptionID := subscriptionIDMetricLabel(op.GetResourceID())
+	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_enter_time_seconds Unix timestamp when the operation first entered each phase. One series per phase visited.
+# TYPE backend_resource_operation_phase_enter_time_seconds gauge
+backend_resource_operation_phase_enter_time_seconds{operation_type="create",phase="accepted",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} %d
+backend_resource_operation_phase_enter_time_seconds{operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} %d
+`, resourceID, subscriptionID, t0.Unix(), resourceID, subscriptionID, t0.Add(30*time.Second).Unix())
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected), "backend_resource_operation_phase_enter_time_seconds"))
+}
+
+func TestOperationPhaseMetricsHandler_EmitsAdditionalPhaseEnterTimeOnTransition(t *testing.T) {
+	t0 := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	op := newTestOperation(
+		t,
+		"op-1",
+		api.OperationRequestCreate,
+		arm.ProvisioningStateAccepted,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		t0,
+		t0,
+	)
+	op.PhaseTimestamps = api.PhaseTimestampMap{arm.ProvisioningStateAccepted: t0}
+
+	handler, _ := newTestOperationHandler(t)
+	handler.Sync(context.Background(), op)
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseEnterTime))
+
+	op.Status = arm.ProvisioningStateSucceeded
+	op.LastTransitionTime = t0.Add(5 * time.Minute)
+	op.PhaseTimestamps[arm.ProvisioningStateSucceeded] = t0.Add(5 * time.Minute)
+	handler.Sync(context.Background(), op)
+
+	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseEnterTime))
+}
+
+func TestOperationPhaseMetricsHandler_PhaseEnterTimeSkipsZeroValues(t *testing.T) {
+	t0 := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	op := newTestOperation(
+		t,
+		"op-1",
+		api.OperationRequestCreate,
+		arm.ProvisioningStateAccepted,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		t0,
+		t0,
+	)
+	op.PhaseTimestamps = api.PhaseTimestampMap{
+		arm.ProvisioningStateAccepted:     t0,
+		arm.ProvisioningStateProvisioning: time.Time{},
+	}
+
+	handler, _ := newTestOperationHandler(t)
+	handler.Sync(context.Background(), op)
+
+	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseEnterTime))
+}
+
+func TestOperationPhaseMetricsHandler_DeleteRemovesPhaseEnterTime(t *testing.T) {
+	t0 := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	op := newTestOperation(
+		t,
+		"op-1",
+		api.OperationRequestCreate,
+		arm.ProvisioningStateSucceeded,
+		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
+		t0,
+		t0.Add(5*time.Minute),
+	)
+	op.PhaseTimestamps = api.PhaseTimestampMap{
+		arm.ProvisioningStateAccepted:  t0,
+		arm.ProvisioningStateSucceeded: t0.Add(5 * time.Minute),
+	}
+
+	handler, _ := newTestOperationHandler(t)
+	handler.Sync(context.Background(), op)
+	require.Equal(t, 2, testutil.CollectAndCount(handler.phaseEnterTime))
+
+	handler.Delete(resourceIDMetricLabel(op.GetResourceID()))
+	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseEnterTime))
 }

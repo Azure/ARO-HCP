@@ -29,6 +29,9 @@ type operationPhaseMetricsHandler struct {
 	phaseInfo          *prometheus.GaugeVec
 	startTime          *prometheus.GaugeVec
 	lastTransitionTime *prometheus.GaugeVec
+	// phaseEnterTime preserves one series per phase an operation has visited,
+	// in contrast to the gauges above which only carry the current phase.
+	phaseEnterTime *prometheus.GaugeVec
 }
 
 // NewOperationPhaseMetricsHandler creates a metrics handler for operation metrics.
@@ -46,8 +49,12 @@ func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*api.Opera
 			Name: "backend_resource_operation_last_transition_time_seconds",
 			Help: "Unix timestamp when the operation last changed phase.",
 		}, operationMetricLabelNames),
+		phaseEnterTime: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "backend_resource_operation_phase_enter_time_seconds",
+			Help: "Unix timestamp when the operation first entered each phase. One series per phase visited.",
+		}, operationMetricLabelNames),
 	}
-	r.MustRegister(h.phaseInfo, h.startTime, h.lastTransitionTime)
+	r.MustRegister(h.phaseInfo, h.startTime, h.lastTransitionTime, h.phaseEnterTime)
 	return h
 }
 
@@ -82,6 +89,24 @@ func (h *operationPhaseMetricsHandler) Sync(_ context.Context, op *api.Operation
 	if !op.LastTransitionTime.IsZero() {
 		h.lastTransitionTime.With(labels).Set(float64(op.LastTransitionTime.Unix()))
 	}
+
+	// Emit one series per recorded phase so duration queries can subtract
+	// timestamps across phases. The phase label here reflects the recorded
+	// phase, not the current one, so these series intentionally diverge from
+	// phaseInfo above.
+	for phase, at := range op.PhaseTimestamps {
+		if at.IsZero() {
+			continue
+		}
+		phaseLabels := prometheus.Labels{
+			"resource_id":     resourceID,
+			"subscription_id": subscriptionID,
+			"resource_type":   resourceIDToTypeMetricLabel(op.ExternalID),
+			"operation_type":  operationTypeMetricLabel(op.Request),
+			"phase":           phaseMetricLabel(phase),
+		}
+		h.phaseEnterTime.With(phaseLabels).Set(float64(at.Unix()))
+	}
 }
 
 func (h *operationPhaseMetricsHandler) Delete(key string) {
@@ -93,6 +118,7 @@ func (h *operationPhaseMetricsHandler) Delete(key string) {
 	h.phaseInfo.DeletePartialMatch(deleteSelector)
 	h.startTime.DeletePartialMatch(deleteSelector)
 	h.lastTransitionTime.DeletePartialMatch(deleteSelector)
+	h.phaseEnterTime.DeletePartialMatch(deleteSelector)
 }
 
 func operationTypeMetricLabel(request api.OperationRequest) string {
