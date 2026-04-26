@@ -344,21 +344,19 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
-    # AROSLSRE-718: inputVariables for geneva-output and mise-output temporarily
-    # disabled. Re-enable with the steps above.
-    # inputVariables:
-    #   genevaActionsAppId:
-    #     resourceGroup: global
-    #     step: geneva-output
-    #     name: appId
-    #   tenantId:
-    #     resourceGroup: global
-    #     step: geneva-output
-    #     name: tenantId
-    #   miseAppId:
-    #     resourceGroup: global
-    #     step: mise-output
-    #     name: appId
+    inputVariables:
+      genevaActionsAppId:
+        resourceGroup: global
+        step: geneva-output
+        name: appId
+      tenantId:
+        resourceGroup: global
+        step: geneva-output
+        name: tenantId
+      miseAppId:
+        resourceGroup: global
+        step: mise-output
+        name: appId
     automatedRetry:
       errorContainsAny:
       - "500 Internal Server Error"
