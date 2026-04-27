@@ -333,6 +333,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
 	}
 
+	backendIdentityAzureCache, err := app.NewBackendIdentityAzureCache(ctx, backendIdentityAzureClients)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure cache: %w", err))
+	}
+
 	var fpaMIDataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder
 	var checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder
 	if !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
@@ -404,6 +409,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
 		FPAClientBuilder:                   fpaClientBuilder,
 		BackendIdentityAzureClients:        backendIdentityAzureClients,
+		BackendIdentityAzureCache:          backendIdentityAzureCache,
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,

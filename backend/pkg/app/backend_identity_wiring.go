@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -63,6 +64,16 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 	clients := &azureclient.BackendIdentityAzureClients{
 		DataplaneIdentitiesOIDCConfigurationBlobStorageClient: blobStorageClient,
 		RoleDefinitionsClient: roleDefinitionsClient,
+	}
+
+	return clients, nil
+}
+
+func NewBackendIdentityAzureCache(ctx context.Context, backendIdentityClients *azureclient.BackendIdentityAzureClients) (*cachedreader.BackendIdentityAzureCache, error) {
+	roleDefinitionsCache := cachedreader.NewCachedRoleDefinitions(backendIdentityClients.RoleDefinitionsClient)
+
+	clients := &cachedreader.BackendIdentityAzureCache{
+		RoleDefinitionsCache: roleDefinitionsCache,
 	}
 
 	return clients, nil
