@@ -61,99 +61,6 @@ func okResponse() (*http.Response, error) {
 	}, nil
 }
 
-func TestParseResourceGroupFromPath(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		path       string
-		wantSubID  string
-		wantRGName string
-	}{
-		{
-			name:       "standard ARM path",
-			path:       "/subscriptions/sub-id/resourceGroups/rg-name/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster",
-			wantSubID:  "sub-id",
-			wantRGName: "rg-name",
-		},
-		{
-			name:       "uppercase segments",
-			path:       "/SUBSCRIPTIONS/sub-id/RESOURCEGROUPS/rg-name/providers/foo",
-			wantSubID:  "sub-id",
-			wantRGName: "rg-name",
-		},
-		{
-			name:       "mixed case segments",
-			path:       "/Subscriptions/sub-id/ResourceGroups/rg-name",
-			wantSubID:  "sub-id",
-			wantRGName: "rg-name",
-		},
-		{
-			name:       "no resourceGroups segment",
-			path:       "/subscriptions/sub-id/providers/Microsoft.RedHatOpenShift",
-			wantSubID:  "sub-id",
-			wantRGName: "",
-		},
-		{
-			name:       "no subscriptions segment",
-			path:       "/resourceGroups/rg-name/providers/foo",
-			wantSubID:  "",
-			wantRGName: "rg-name",
-		},
-		{
-			name:       "empty path",
-			path:       "",
-			wantSubID:  "",
-			wantRGName: "",
-		},
-		{
-			name:       "root path",
-			path:       "/",
-			wantSubID:  "",
-			wantRGName: "",
-		},
-		{
-			name:       "subscriptions keyword without trailing value",
-			path:       "/subscriptions",
-			wantSubID:  "",
-			wantRGName: "",
-		},
-		{
-			name:       "subscriptions keyword with trailing slash only",
-			path:       "/subscriptions/",
-			wantSubID:  "",
-			wantRGName: "",
-		},
-		{
-			name:       "UUID subscription ID",
-			path:       "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg",
-			wantSubID:  "00000000-0000-0000-0000-000000000000",
-			wantRGName: "my-rg",
-		},
-		{
-			name:       "resourceGroups keyword without trailing value",
-			path:       "/subscriptions/sub-id/resourceGroups",
-			wantSubID:  "sub-id",
-			wantRGName: "",
-		},
-		{
-			name:       "resourceGroups keyword with trailing slash only",
-			path:       "/subscriptions/sub-id/resourceGroups/",
-			wantSubID:  "sub-id",
-			wantRGName: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			subID, rgName := parseResourceGroupFromPath(tt.path)
-			assert.Equal(t, tt.wantSubID, subID)
-			assert.Equal(t, tt.wantRGName, rgName)
-		})
-	}
-}
-
 func TestArmSystemDataPolicy(t *testing.T) {
 	const frontendHost = "my-frontend.example.com:8443"
 	t.Setenv("FRONTEND_ADDRESS", "https://"+frontendHost)
@@ -607,4 +514,189 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 				"attempt %d: backoff should be less than base sleep + max jitter", attempt)
 		}
 	})
+}
+
+func TestParseResourceGroupFromPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		path       string
+		wantSubID  string
+		wantRGName string
+	}{
+		{
+			name:       "standard ARM path",
+			path:       "/subscriptions/sub-id/resourceGroups/rg-name/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster",
+			wantSubID:  "sub-id",
+			wantRGName: "rg-name",
+		},
+		{
+			name:       "uppercase segments",
+			path:       "/SUBSCRIPTIONS/sub-id/RESOURCEGROUPS/rg-name/providers/foo",
+			wantSubID:  "sub-id",
+			wantRGName: "rg-name",
+		},
+		{
+			name:       "mixed case segments",
+			path:       "/Subscriptions/sub-id/ResourceGroups/rg-name",
+			wantSubID:  "sub-id",
+			wantRGName: "rg-name",
+		},
+		{
+			name:       "no resourceGroups segment",
+			path:       "/subscriptions/sub-id/providers/Microsoft.RedHatOpenShift",
+			wantSubID:  "sub-id",
+			wantRGName: "",
+		},
+		{
+			name:       "no subscriptions segment",
+			path:       "/resourceGroups/rg-name/providers/foo",
+			wantSubID:  "",
+			wantRGName: "rg-name",
+		},
+		{
+			name:       "empty path",
+			path:       "",
+			wantSubID:  "",
+			wantRGName: "",
+		},
+		{
+			name:       "root path",
+			path:       "/",
+			wantSubID:  "",
+			wantRGName: "",
+		},
+		{
+			name:       "subscriptions keyword without trailing value",
+			path:       "/subscriptions",
+			wantSubID:  "",
+			wantRGName: "",
+		},
+		{
+			name:       "subscriptions keyword with trailing slash only",
+			path:       "/subscriptions/",
+			wantSubID:  "",
+			wantRGName: "",
+		},
+		{
+			name:       "UUID subscription ID",
+			path:       "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-rg",
+			wantSubID:  "00000000-0000-0000-0000-000000000000",
+			wantRGName: "my-rg",
+		},
+		{
+			name:       "resourceGroups keyword without trailing value",
+			path:       "/subscriptions/sub-id/resourceGroups",
+			wantSubID:  "sub-id",
+			wantRGName: "",
+		},
+		{
+			name:       "resourceGroups keyword with trailing slash only",
+			path:       "/subscriptions/sub-id/resourceGroups/",
+			wantSubID:  "sub-id",
+			wantRGName: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			subID, rgName := parseResourceGroupFromPath(tt.path)
+			assert.Equal(t, tt.wantSubID, subID)
+			assert.Equal(t, tt.wantRGName, rgName)
+		})
+	}
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		headers http.Header
+		want    time.Duration
+	}{
+		{
+			name:    "no retry headers",
+			headers: http.Header{},
+			want:    0,
+		},
+		{
+			name: "Retry-After-Ms takes priority",
+			headers: http.Header{
+				"Retry-After-Ms":      []string{"500"},
+				"X-Ms-Retry-After-Ms": []string{"1000"},
+				"Retry-After":         []string{"5"},
+			},
+			want: 500 * time.Millisecond,
+		},
+		{
+			name: "X-Ms-Retry-After-Ms is second priority",
+			headers: http.Header{
+				"X-Ms-Retry-After-Ms": []string{"1000"},
+				"Retry-After":         []string{"5"},
+			},
+			want: 1000 * time.Millisecond,
+		},
+		{
+			name: "Retry-After in seconds",
+			headers: http.Header{
+				"Retry-After": []string{"3"},
+			},
+			want: 3 * time.Second,
+		},
+		{
+			name: "Retry-After as HTTP-date",
+			headers: http.Header{
+				"Retry-After": []string{time.Now().Add(2 * time.Second).UTC().Format(time.RFC1123)},
+			},
+			want: 2 * time.Second,
+		},
+		{
+			name: "Retry-After-Ms with zero value falls through",
+			headers: http.Header{
+				"Retry-After-Ms": []string{"0"},
+				"Retry-After":    []string{"5"},
+			},
+			want: 5 * time.Second,
+		},
+		{
+			name: "Retry-After-Ms with negative value falls through",
+			headers: http.Header{
+				"Retry-After-Ms": []string{"-100"},
+				"Retry-After":    []string{"5"},
+			},
+			want: 5 * time.Second,
+		},
+		{
+			name: "Retry-After-Ms with non-numeric value falls through",
+			headers: http.Header{
+				"Retry-After-Ms": []string{"not-a-number"},
+				"Retry-After":    []string{"5"},
+			},
+			want: 5 * time.Second,
+		},
+		{
+			name: "Retry-After with invalid value returns zero",
+			headers: http.Header{
+				"Retry-After": []string{"not-a-number-or-date"},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			resp := &http.Response{Header: tt.headers}
+			got := parseRetryAfter(resp)
+			if tt.name == "Retry-After as HTTP-date" {
+				assert.InDelta(t, tt.want.Seconds(), got.Seconds(), 1.0,
+					"HTTP-date parsing should be within 1 second tolerance")
+			} else {
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
 }
