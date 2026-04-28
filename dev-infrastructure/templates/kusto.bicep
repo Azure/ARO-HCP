@@ -70,4 +70,4 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   }
 }
 
-output kustoUri string = manageInstance ? kusto.outputs.kustoUri : ''
+output kustoUri string = manageInstance ? kusto!.outputs.kustoUri : ''

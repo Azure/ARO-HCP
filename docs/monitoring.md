@@ -105,7 +105,7 @@ Provisioning is controlled by:
 - `monitoring.adxDatasourceEnabled`
 - `monitoring.adxDatasourceGeographies`
 
-When `adxDatasourceEnabled` is `true`, the geography pipeline creates or updates the datasource if that geography has a managed Kusto cluster (`kusto.manageInstance: true`). When `adxDatasourceGeographies` is empty, all managed Kusto geographies in the environment are included. When it is set, only the listed geography short IDs are allowed.
+When `adxDatasourceEnabled` is `true`, the geography pipeline uses `grafanactl` to create or update the datasource if that geography has a managed Kusto cluster (`kusto.manageInstance: true`). When `adxDatasourceGeographies` is empty, all managed Kusto geographies in the environment are included. When it is set, only the listed geography short IDs are allowed.
 
 During rollout, validate at least one datasource during the environment bake window with:
 
@@ -118,11 +118,9 @@ During rollout, validate at least one datasource during the environment bake win
 
 `adxDatasourceEnabled: false` is a provisioning gate, not a deletion signal. Disabling it stops future create or update attempts, but it does **not** remove an existing datasource by itself.
 
-If a geography's Kusto cluster is intentionally decommissioned through the `Microsoft.Azure.ARO.HCP.Kusto.Delete` cleanup rollout, that cleanup flow deletes the corresponding `kusto-<env>-<geoShortId>` datasource from the shared Grafana workspace.
-
 The regular geography pipeline still skips datasource changes when no `kustoUri` is available. That fail-closed behavior prevents accidental deletion caused by transient deployment or output issues during normal rollout or provisioning retries.
 
-If a datasource needs to be removed outside the cleanup flow, delete it explicitly:
+If a datasource needs to be removed, delete it explicitly:
 
 ```bash
 az grafana data-source delete \
@@ -131,7 +129,7 @@ az grafana data-source delete \
   --data-source "kusto-<env>-<geoShortId>"
 ```
 
-This manual delete is only needed for out-of-band cleanup. Normal Kusto decommission should use the cleanup rollout so the cluster teardown and datasource teardown stay aligned.
+Datasource deletion is intentionally separate from normal Kusto cleanup so disabling or decommissioning a geography cannot remove shared Grafana configuration by accident.
 
 ### Regional Azure Monitor Workspace
 
