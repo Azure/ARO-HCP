@@ -9,6 +9,7 @@ require (
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-Tools/config v0.0.0-20260426235717-a3cbc0ea0ef1
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260426235717-a3cbc0ea0ef1
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260426235717-a3cbc0ea0ef1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.11.0
