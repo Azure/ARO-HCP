@@ -18,7 +18,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/test/util/testutil"
+	"github.com/Azure/ARO-Tools/testutil"
 )
 
 func TestMainListSuitesForEachSuite(t *testing.T) {
