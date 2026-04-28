@@ -137,6 +137,15 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 				{fieldPath: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", message: "invalid"},
 			},
 		},
+		{
+			name: "invalid maestroGRPCTarget - missing port",
+			modify: func(t *testing.T, mc *api.ManagementCluster) {
+				mc.Status.MaestroGRPCTarget = "maestro-grpc.maestro.svc.cluster.local"
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.maestroGRPCTarget", message: "must be host:port"},
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -103,6 +103,21 @@ func ToManagementClusterResourceIDString(subscriptionID, resourceGroupName, clus
 	))
 }
 
+// ToManagementClusterDeploymentResourceID constructs a resource ID for a management
+// cluster deployment from a stamp identifier. The deployment is a provider-level resource
+// with no subscription or resource group scope.
+func ToManagementClusterDeploymentResourceID(stampIdentifier string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToManagementClusterDeploymentResourceIDString(stampIdentifier))
+}
+
+// ToManagementClusterDeploymentResourceIDString returns the lowercased resource ID string
+// for a management cluster deployment.
+func ToManagementClusterDeploymentResourceIDString(stampIdentifier string) string {
+	return strings.ToLower(path.Join(
+		"/providers", ManagementClusterDeploymentResourceType.String(), stampIdentifier,
+	))
+}
+
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,

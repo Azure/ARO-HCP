@@ -168,6 +168,7 @@ param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
 param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScale }}
 param billingContainerMaxScale = {{ .frontend.cosmosDB.billingContainerMaxScale }}
 param locksContainerMaxScale = {{ .frontend.cosmosDB.locksContainerMaxScale }}
+param fleetContainerMaxScale = {{ .frontend.cosmosDB.fleetContainerMaxScale }}
 
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'

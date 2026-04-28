@@ -419,6 +419,7 @@ param owningTeamTagValue string
 param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
+param fleetContainerMaxScale int
 
 @description('The name of the Exporter managed identity')
 param exporterMIName string
@@ -759,6 +760,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
     resourceContainerMaxScale: resourceContainerMaxScale
     billingContainerMaxScale: billingContainerMaxScale
     locksContainerMaxScale: locksContainerMaxScale
+    fleetContainerMaxScale: fleetContainerMaxScale
   }
 }
 

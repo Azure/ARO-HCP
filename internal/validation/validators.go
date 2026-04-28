@@ -414,6 +414,22 @@ func IPv4(_ context.Context, _ operation.Operation, fldPath *field.Path, value, 
 	return nil
 }
 
+func HostPort(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil || len(*value) == 0 {
+		return nil
+	}
+
+	host, _, err := net.SplitHostPort(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, *value, fmt.Sprintf("must be host:port: %s", err))}
+	}
+	if len(host) == 0 {
+		return field.ErrorList{field.Invalid(fldPath, *value, "host must not be empty")}
+	}
+
+	return nil
+}
+
 func URL(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil

@@ -34,8 +34,23 @@ type ManagementClusterConditionReason string
 
 const (
 	// ManagementClusterConditionReady indicates the management cluster is
-	// provisioned and operational.
+	// provisioned and operational. This is an aggregate condition: True only
+	// when both ClustersServiceRegistered and MaestroRegistered are True.
+	// Owner: ManagementClusterPromotionController.
 	ManagementClusterConditionReady ManagementClusterConditionType = "Ready"
+
+	// ManagementClusterConditionClustersServiceRegistered indicates whether the
+	// provision shard exists and is configured correctly in ClustersService.
+	// Owner: ClustersServiceRegistrationController.
+	ManagementClusterConditionClustersServiceRegistered ManagementClusterConditionType = "ClustersServiceRegistered"
+
+	// ManagementClusterConditionMaestroRegistered indicates whether the consumer
+	// exists and is configured correctly in Maestro.
+	// Owner: MaestroRegistrationController.
+	ManagementClusterConditionMaestroRegistered ManagementClusterConditionType = "MaestroRegistered"
+
+	// Legacy reasons for Ready, used by the Phase 1 ClustersServiceManagementClusterSyncController.
+	// Remove these when the sync controller is retired and Phase 2 is stable.
 
 	// ManagementClusterConditionReasonProvisionShardActive indicates the CS provision
 	// shard is active and the management cluster is ready for scheduling.
@@ -53,11 +68,25 @@ const (
 	// shard has an unknown status.
 	ManagementClusterConditionReasonProvisionShardStatusUnknown ManagementClusterConditionReason = "ProvisionShardStatusUnknown"
 
-	// Future condition types to consider:
-	// - "Upgrading": a provisioning/upgrade run is in progress (owner: provisioning controller)
-	// - "ProvisioningFailed": last provisioning attempt failed (owner: provisioning controller)
-	// - "UpgradeFailed": last upgrade attempt failed (owner: provisioning controller)
-	// - "RegisteredInClusterService": provision shard registered in CS (owner: CS-push controller)
+	// Reasons for ClustersServiceRegistered and MaestroRegistered.
+
+	// ManagementClusterConditionReasonRegistered indicates the downstream system
+	// (ClustersService or Maestro) is configured correctly.
+	ManagementClusterConditionReasonRegistered ManagementClusterConditionReason = "Registered"
+
+	// ManagementClusterConditionReasonRegistrationFailed indicates the downstream system
+	// registration failed and could not be reestablished.
+	ManagementClusterConditionReasonRegistrationFailed ManagementClusterConditionReason = "RegistrationFailed"
+
+	// Reasons for Ready (aggregate).
+
+	// ManagementClusterConditionReasonAllRegistered indicates all sub-conditions
+	// (ClustersServiceRegistered, MaestroRegistered) are True.
+	ManagementClusterConditionReasonAllRegistered ManagementClusterConditionReason = "AllRegistered"
+
+	// ManagementClusterConditionReasonRegistrationIncomplete indicates one or more
+	// sub-conditions are not True.
+	ManagementClusterConditionReasonRegistrationIncomplete ManagementClusterConditionReason = "RegistrationIncomplete"
 )
 
 // ManagementClusterSchedulingPolicy controls whether new hosted control planes
@@ -128,7 +157,7 @@ type ManagementClusterSpec struct {
 type ManagementClusterStatus struct {
 	// Conditions is a list of conditions tracking the lifecycle of the management cluster.
 	// Known condition types are defined as ManagementClusterConditionType constants:
-	// Ready.
+	// Ready, ClustersServiceRegistered, MaestroRegistered.
 	//
 	// Conditions are added on first evaluation and never removed. Status is toggled
 	// between True/False/Unknown. Absence of a condition means "not yet evaluated."

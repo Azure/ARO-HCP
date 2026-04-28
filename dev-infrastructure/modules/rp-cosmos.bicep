@@ -13,6 +13,7 @@ param private bool
 param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
+param fleetContainerMaxScale int
 
 var containers = [
   {
@@ -32,6 +33,12 @@ var containers = [
     defaultTtl: 10
     partitionKeyPaths: ['/id']
     maxThroughput: locksContainerMaxScale
+  }
+  {
+    name: 'Fleet'
+    defaultTtl: -1 // On, no default expiration
+    partitionKeyPaths: ['/partitionKey']
+    maxThroughput: fleetContainerMaxScale
   }
 ]
 

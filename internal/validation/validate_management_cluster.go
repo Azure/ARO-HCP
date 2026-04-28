@@ -142,8 +142,9 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	errs = append(errs, URL(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroRESTAPIURL"), &newObj.MaestroRESTAPIURL, safe.Field(oldObj, toManagementClusterStatusMaestroRESTAPIURL))...)
 
-	// MaestroGRPCTarget — required, immutable
+	// MaestroGRPCTarget — required, validated as host:port, immutable
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
+	errs = append(errs, HostPort(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 
 	return errs
