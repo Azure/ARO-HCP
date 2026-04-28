@@ -110,7 +110,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx c
 		partitionKey = strings.ToLower(d.parentResourceID.SubscriptionID)
 	}
 
-	return getByItemID[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, cosmosID)
+	return getByItemIDWithMetrics[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, cosmosID, d.resourceType.String())
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Context, resourceID string) (*InternalAPIType, error) {
@@ -120,12 +120,12 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx conte
 	}
 	partitionKey := strings.ToLower(completeResourceID.SubscriptionID)
 
-	return get[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, completeResourceID)
+	return getWithMetrics[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, completeResourceID)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
 	if d.parentResourceID == nil {
-		return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, "", &azcorearm.SubscriptionResourceType, nil, options, false)
+		return listWithMetrics[InternalAPIType, CosmosAPIType](ctx, d.containerClient, "", &azcorearm.SubscriptionResourceType, nil, options, false)
 	}
 
 	prefix, err := d.makeResourceIDPath("")
@@ -134,25 +134,25 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx cont
 	}
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
-	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, &d.resourceType, prefix, options, false)
+	return listWithMetrics[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, &d.resourceType, prefix, options, false)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	return addCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
+	return addCreateToTransactionWithMetrics[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
-	return addReplaceToTransaction[InternalAPIType, CosmosAPIType](ctx, d.containerClient, transaction, newObj, opts)
+	return addReplaceToTransactionWithMetrics[InternalAPIType, CosmosAPIType](ctx, d.containerClient, transaction, newObj, opts)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	partitionKey := strings.ToLower(any(newObj).(arm.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
-	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
+	return createWithMetrics[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	partitionKey := strings.ToLower(any(newObj).(arm.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
-	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
+	return replaceWithMetrics[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Context, resourceName string) error {
@@ -162,5 +162,5 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx co
 	}
 	partitionKey := strings.ToLower(completeResourceID.SubscriptionID)
 
-	return deleteResource(ctx, d.containerClient, partitionKey, completeResourceID)
+	return deleteResourceWithMetrics(ctx, d.containerClient, partitionKey, completeResourceID)
 }
