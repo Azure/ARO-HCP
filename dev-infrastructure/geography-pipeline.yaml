@@ -2,7 +2,7 @@ $schema: pipeline.schema.v1
 rolloutName: Geography Rollout
 serviceGroup: Microsoft.Azure.ARO.HCP.Geography
 resourceGroups:
-- name: global
+- name: geo-global
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   executionConstraints:
@@ -78,11 +78,11 @@ resourceGroups:
     variables:
     - name: grafanaResourceId
       input:
-        resourceGroup: global
+        resourceGroup: geo-global
         step: output
         name: grafanaResourceId
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: geo-global
       step: output
   - name: adx-datasource
     action: Shell
@@ -142,6 +142,7 @@ resourceGroups:
           --default-database "${ADX_DATABASE}" \
           --datasource-name "${DATASOURCE_NAME}" \
           --data-consistency strongconsistency
+    workingDir: .
     automatedRetry:
       errorContainsAny:
       - "grafana API POST /api/datasources request failed"
@@ -155,7 +156,7 @@ resourceGroups:
       durationBetweenRetries: 2m
     shellIdentity:
       input:
-        resourceGroup: global
+        resourceGroup: geo-global
         step: output
         name: globalMSIId
     variables:
@@ -172,7 +173,7 @@ resourceGroups:
       configRef: monitoring.grafanaName
     - name: GRAFANA_RESOURCE_ID
       input:
-        resourceGroup: global
+        resourceGroup: geo-global
         step: output
         name: grafanaResourceId
     - name: ADX_DATASOURCE_ENABLED
@@ -180,7 +181,7 @@ resourceGroups:
     - name: ADX_DATASOURCE_GEOGRAPHIES
       configRef: monitoring.adxDatasourceGeographies
     dependsOn:
-    - resourceGroup: global
+    - resourceGroup: geo-global
       step: output
     - resourceGroup: kusto-infra
       step: deploy
