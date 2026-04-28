@@ -2,36 +2,9 @@ $schema: pipeline.schema.v1
 rolloutName: Geography Rollout
 serviceGroup: Microsoft.Azure.ARO.HCP.Geography
 resourceGroups:
-- name: geo-global
+- name: global
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
-  executionConstraints:
-  - clouds:
-    - public
-    environments:
-    - int
-    regions:
-    - uksouth
-  - clouds:
-    - public
-    environments:
-    - stg
-    regions:
-    - uksouth
-  - clouds:
-    - public
-    environments:
-    - prod
-    regions:
-    - australiaeast
-    - brazilsouth
-    - canadacentral
-    - centralindia
-    - eastus2
-    - eastus2euap
-    - westeurope
-    - switzerlandnorth
-    - uksouth
   steps:
   - name: output
     action: ARM
@@ -78,11 +51,11 @@ resourceGroups:
     variables:
     - name: grafanaResourceId
       input:
-        resourceGroup: geo-global
+        resourceGroup: global
         step: output
         name: grafanaResourceId
     dependsOn:
-    - resourceGroup: geo-global
+    - resourceGroup: global
       step: output
   - name: adx-datasource
     action: Shell
@@ -156,7 +129,7 @@ resourceGroups:
       durationBetweenRetries: 2m
     shellIdentity:
       input:
-        resourceGroup: geo-global
+        resourceGroup: global
         step: output
         name: globalMSIId
     variables:
@@ -173,7 +146,7 @@ resourceGroups:
       configRef: monitoring.grafanaName
     - name: GRAFANA_RESOURCE_ID
       input:
-        resourceGroup: geo-global
+        resourceGroup: global
         step: output
         name: grafanaResourceId
     - name: ADX_DATASOURCE_ENABLED
@@ -181,7 +154,7 @@ resourceGroups:
     - name: ADX_DATASOURCE_GEOGRAPHIES
       configRef: monitoring.adxDatasourceGeographies
     dependsOn:
-    - resourceGroup: geo-global
+    - resourceGroup: global
       step: output
     - resourceGroup: kusto-infra
       step: deploy
