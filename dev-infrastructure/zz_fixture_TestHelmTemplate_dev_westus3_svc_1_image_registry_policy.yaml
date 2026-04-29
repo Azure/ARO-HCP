@@ -43,6 +43,11 @@ spec:
       operations: ["CREATE", "UPDATE"]
       resources: ["pods"]
       scope: Namespaced
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["UPDATE"]
+      resources: ["pods/ephemeralcontainers"]
+      scope: Namespaced
   variables:
   - name: allImages
     expression: >-
