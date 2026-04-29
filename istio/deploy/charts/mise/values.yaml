@@ -2,7 +2,6 @@ image:
   registry: ""
   repository: ""
   digest: ""
-  digestv2: ""
 tracing:
   address: ""
   exporter: ""
@@ -24,3 +23,7 @@ genevaActionsPolicy:
   authority: ""
   audience: ""
   applicationId: ""
+sessiongatePolicy:
+  label: ""
+  authority: ""
+  audience: ""

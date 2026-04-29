@@ -1,9 +1,9 @@
 ---
-# Source: istio/charts/mise/templates/configmap-misev2.yaml
+# Source: istio/charts/mise/templates/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: misev2-config
+  name: mise-config
   namespace: 'mise'
 data:
   appsettings.json: |-
@@ -107,13 +107,7 @@ data:
       envoyExtAuthzHttp:
         service: "mise/mise.mise.svc.cluster.local"
         port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter", "x-ms-mise-version"]
-        pathPrefix: "/v1/EnvoyValidateRequest"
-    - name: "ext-authz-misev2"
-      envoyExtAuthzHttp:
-        service: "mise/misev2.mise.svc.cluster.local"
-        port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter", "x-ms-mise-version"]
+        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter"]
         pathPrefix: "/v1/EnvoyValidateRequest"
 ---
 # Source: istio/templates/istio-shared-configmap.yml
@@ -131,13 +125,7 @@ data:
       envoyExtAuthzHttp:
         service: "mise/mise.mise.svc.cluster.local"
         port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter", "x-ms-mise-version"]
-        pathPrefix: "/v1/EnvoyValidateRequest"
-    - name: "ext-authz-misev2"
-      envoyExtAuthzHttp:
-        service: "mise/misev2.mise.svc.cluster.local"
-        port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter", "x-ms-mise-version"]
+        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter"]
         pathPrefix: "/v1/EnvoyValidateRequest"
 ---
 # Source: istio/charts/mise/templates/service.yaml
@@ -154,79 +142,6 @@ spec:
     port: 8080
     targetPort: 8080
 ---
-# Source: istio/charts/mise/templates/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: misev2
-  namespace: 'mise'
-spec:
-  selector:
-    app: misev2
-  ports:
-  - protocol: TCP
-    port: 8080
-    targetPort: 8080
----
-# Source: istio/charts/mise/templates/deployment-misev2.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: misev2
-  namespace: 'mise'
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: misev2
-  template:
-    metadata:
-      annotations:
-        checksum/config: 6ca24e11919f439f8a291fb3f3134d1383ab16a6987b7c8b6aa3c20ec2a6e8ea
-      labels:
-        app: misev2
-    spec:
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: 'topology.kubernetes.io/zone'
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app: misev2
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app: misev2
-      containers:
-      - name: misev2
-        image: "arohcpsvcdev.azurecr.io/mise-1p-container-image@sha256:1234567890"
-        ports:
-        - containerPort: 8080
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8080
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8080
-        volumeMounts:
-        - name: misev2-config
-          mountPath: /app/appsettings.json
-          subPath: appsettings.json
-          readOnly: true
-        env:
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          value: ""
-        - name: OTEL_TRACES_EXPORTER
-          value: ""
-      volumes:
-      - name: misev2-config
-        configMap:
-          name: misev2-config
----
 # Source: istio/charts/mise/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -240,6 +155,8 @@ spec:
       app: mise
   template:
     metadata:
+      annotations:
+        checksum/config: 878706b0364a1ad5f4baea54aaf81e19e2222e4c44c97f853f1cac09fad6ac70
       labels:
         app: mise
     spec:
@@ -269,61 +186,20 @@ spec:
           httpGet:
             path: /readyz
             port: 8080
+        volumeMounts:
+        - name: mise-config
+          mountPath: /app/appsettings.json
+          subPath: appsettings.json
+          readOnly: true
         env:
-        - name: EnableInboundPolicyFilter
-          value: "true"
-        - name: AzureAd__Instance
-          value: 'https://login.microsoftonline.com/'
-        - name: AzureAd__ClientId
-          value: 'b3cb2fab-15cb-4583-ad06-f91da9bfe2d1'
-        - name: AzureAd__TenantId
-          value: '33e01921-4d64-4f8c-a055-5bdaffd5e33d'
-        - name: AzureAd__Audience
-          value: "api://b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
-        - name: AzureAd__InboundPolicies__0__Label
-          value: "ARM Policy"
-        - name: AzureAd__InboundPolicies__0__Authority
-          value: "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d"
-        - name: AzureAd__InboundPolicies__0__AuthenticationSchemes__0
-          value: "PoP"
-        - name: AzureAd__InboundPolicies__0__ValidAudiences__0
-          value: 'https://management.azure.com'
-        - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
-          value: 'e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7'
-        - name: AzureAd__InboundPolicies__0__SignedHttpRequestValidationPolicy
-          value: '{"ValidateTs" : true, "ValidateM" : true, "ValidateU" : true, "ValidateP" : true }'
-        - name: AzureAd__InboundPolicies__1__Label
-          value: "Geneva Actions"
-        - name: AzureAd__InboundPolicies__1__Authority
-          value: "https://sts.windows.net/__tenantId__/"
-        - name: AzureAd__InboundPolicies__1__AuthenticationSchemes__0
-          value: "Bearer"
-        - name: AzureAd__InboundPolicies__1__ValidAudiences__0
-          value: 'https://management.azure.com'
-        - name: AzureAd__InboundPolicies__1__ValidApplicationIds__0
-          value: "__genevaActionsAppId__"
-        - name: AzureAd__InboundPolicies__2__Label
-          value: "Session Gate"
-        - name: AzureAd__InboundPolicies__2__Authority
-          value: "https://sts.windows.net/__tenantId__"
-        - name: AzureAd__InboundPolicies__2__AuthenticationSchemes__0
-          value: "Bearer"
-        - name: AzureAd__InboundPolicies__2__ValidAudiences__0
-          value: '6dae42f8-4368-4678-94ff-3960e28e3630'
-        - name: AllowedHosts
-          value: "*"
-        - name: Kestrel__Endpoints__Http__Url
-          value: "http://0.0.0.0:8080"
-        - name: Logging__LogLevel__Default
-          value: "Information"
-        - name: Logging__LogLevel__Microsoft
-          value: "Information"
-        - name: AzureAd__Logging__LogLevel
-          value: "Information"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: ""
         - name: OTEL_TRACES_EXPORTER
           value: ""
+      volumes:
+      - name: mise-config
+        configMap:
+          name: mise-config
 ---
 # Source: istio/templates/ops-ingress.gateway.yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -405,7 +281,6 @@ metadata:
 spec:
   hosts:
   - "mise.mise.svc.cluster.local"
-  - "misev2.mise.svc.cluster.local"
   endpoints:
   - address: "127.0.0.1"
   ports:
