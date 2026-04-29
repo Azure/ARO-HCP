@@ -1,3 +1,4 @@
+Put HCPOpenShiftCluster Attempts to put HCPOpenshiftCluster with non-existent Resource Group and cluster resource as nil
 Customer should be able to list available HCP OpenShift versions and validate response content
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
