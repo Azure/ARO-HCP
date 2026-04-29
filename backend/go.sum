@@ -197,8 +197,6 @@ github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea06
 github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603/go.mod h1:5HPAGcvwDreflw2OjJTEz7MicVZ/mTJQv6zYykB+f+M=
 github.com/openshift/hypershift/api v0.0.0-20260424195428-c1a8bb61ff14 h1:SPgMCz+qnXCu9mwYgch0nz3+0HmirCVhUPUChNHyXHY=
 github.com/openshift/hypershift/api v0.0.0-20260424195428-c1a8bb61ff14/go.mod h1:mC9+bqb81FmG924VOO+7P0ofKQgvY1SdPhFp0oJ9U44=
-github.com/orcaman/concurrent-map/v2 v2.0.1 h1:jOJ5Pg2w1oeB6PeDurIYf6k9PQ+aTITr/6lP/L/zp6c=
-github.com/orcaman/concurrent-map/v2 v2.0.1/go.mod h1:9Eq3TG2oBe5FirmYWQfYO5iH1q0Jv47PLaNK++uCdOM=
 github.com/pingcap/errors v0.11.4 h1:lFuQV/oaUMGcD2tqt+01ROSmJs75VG1ToEOkZIZ4nE4=
 github.com/pingcap/errors v0.11.4/go.mod h1:Oi8TUi2kEtXXLMJk9l1cGmz20kV3TaQ0usTwv5KuLY8=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=
