@@ -14,6 +14,8 @@
 
 package client
 
+//go:generate $MOCKGEN -typed -source=role_definitions_client.go -destination=mock_role_definitions_client.go -package client RoleDefinitionsClient
+
 import (
 	"context"
 
