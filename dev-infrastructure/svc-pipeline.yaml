@@ -482,6 +482,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+    - resourceGroup: service
+      step: upgrade-aks-cluster
     identityFrom:
       resourceGroup: global
       step: output
