@@ -24,7 +24,8 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	utilsclock "k8s.io/utils/clock"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -32,54 +33,50 @@ import (
 )
 
 // roleDefinitionResourceIDCacheKeyTTL defines how long a cached role definition is considered valid.
-// After this TTL (6 hours), the cached value is considered stale and will be refreshed
-// on the next GetByID request via the Azure Role Definitions API.
+// After this TTL (6 hours), the cached entry is stale and the next GetCachedByID refreshes it from Azure.
 const roleDefinitionResourceIDCacheKeyTTL = 6 * time.Hour
 
-// RoleDefinitions mirrors the method set of armauthorization.RoleDefinitionsClient.
-// Implementations may add caching; callers should use a type from this package when they
-// accept cached Azure reads.
-type RoleDefinitions interface {
-	Get(ctx context.Context, scope string, roleDefinitionName string, options *armauthorization.RoleDefinitionsClientGetOptions) (armauthorization.RoleDefinitionsClientGetResponse, error)
-	GetByID(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error)
-	NewListPager(scope string, options *armauthorization.RoleDefinitionsClientListOptions) *runtime.Pager[armauthorization.RoleDefinitionsClientListResponse]
+// RoleDefinitionsCachedReader exposes cached reads of role definitions by ARM resource ID.
+type RoleDefinitionsCachedReader interface {
+	GetCachedByID(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error)
 }
 
-// CachedRoleDefinitions implements RoleDefinitions by delegating to azureclient.RoleDefinitionsClient.
-// GetByID responses are cached in memory with a TTL and singleflight deduplication; Get and
-// NewListPager are forwarded without caching.
-type CachedRoleDefinitions struct {
+// roleDefinitionsCachedReader wraps an uncached azureclient.RoleDefinitionsClient. GetCachedByID
+// responses are cached in memory with a TTL and singleflight deduplication; other RoleDefinitionsClient
+// methods are not exposed on this type.
+type roleDefinitionsCachedReader struct {
+	// inner is the uncached Azure Role Definitions client used for live GetByID calls.
 	inner azureclient.RoleDefinitionsClient
+	// clock controls cache staleness and update timestamps.
+	clock utilsclock.PassiveClock
 
 	roleDefinitionsCacheLock sync.RWMutex
-	roleDefinitionsCache     map[string]cachedGetByIDResponse
-	sfGroup                  singleflight.Group
+	// roleDefinitionsCache maps role definition ARM resource ID -> cached GetByID payload and metadata.
+	// Keys are full resource IDs as returned by Azure, for example:
+	//   /subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+	roleDefinitionsCache map[string]cachedGetByIDResponse
+	// sfGroup deduplicates concurrent refreshes for the same role definition resource ID (see ensureCachedGetByID).
+	sfGroup singleflight.Group
 }
 
 type cachedGetByIDResponse struct {
-	response   armauthorization.RoleDefinitionsClientGetByIDResponse
+	response armauthorization.RoleDefinitionsClientGetByIDResponse
+	// lastUpdate is the wall-clock instant (UTC) when this cache entry was written, from time.Now().UTC().
+	// It is compared with time.Since for TTL / staleness checks (same interpretation as time.Now).
 	lastUpdate time.Time
 }
 
-// NewCachedRoleDefinitions returns a RoleDefinitions implementation that caches GetByID.
-func NewCachedRoleDefinitions(inner azureclient.RoleDefinitionsClient) *CachedRoleDefinitions {
-	return &CachedRoleDefinitions{
+// NewRoleDefinitionsCachedReader returns a RoleDefinitionsCachedReader that caches GetByID results from inner.
+func NewRoleDefinitionsCachedReader(inner azureclient.RoleDefinitionsClient) RoleDefinitionsCachedReader {
+	return &roleDefinitionsCachedReader{
 		inner:                inner,
+		clock:                utilsclock.RealClock{},
 		roleDefinitionsCache: make(map[string]cachedGetByIDResponse),
 	}
 }
 
-// Get forwards to the underlying client without caching.
-func (c *CachedRoleDefinitions) Get(ctx context.Context, scope string, roleDefinitionName string, options *armauthorization.RoleDefinitionsClientGetOptions) (armauthorization.RoleDefinitionsClientGetResponse, error) {
-	resp, err := c.inner.Get(ctx, scope, roleDefinitionName, options)
-	if err != nil {
-		return armauthorization.RoleDefinitionsClientGetResponse{}, utils.TrackError(err)
-	}
-	return resp, nil
-}
-
-// GetByID returns a role definition by resource ID, using the cache when the entry is fresh.
-func (c *CachedRoleDefinitions) GetByID(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
+// GetCachedByID returns a role definition by resource ID, using the cache when the entry is fresh.
+func (c *roleDefinitionsCachedReader) GetCachedByID(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
 	if err := c.ensureCachedGetByID(ctx, roleDefinitionResourceID, options); err != nil {
 		return armauthorization.RoleDefinitionsClientGetByIDResponse{}, err
 	}
@@ -89,12 +86,10 @@ func (c *CachedRoleDefinitions) GetByID(ctx context.Context, roleDefinitionResou
 	return entry.response, nil
 }
 
-// NewListPager forwards to the underlying client without caching.
-func (c *CachedRoleDefinitions) NewListPager(scope string, options *armauthorization.RoleDefinitionsClientListOptions) *runtime.Pager[armauthorization.RoleDefinitionsClientListResponse] {
-	return c.inner.NewListPager(scope, options)
-}
-
-func (c *CachedRoleDefinitions) ensureCachedGetByID(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) error {
+// ensureCachedGetByID loads a fresh role definition when missing or stale. Concurrent callers for the
+// same roleDefinitionResourceID coalesce on a single inner.GetByID via singleflight.Group.Do, so only
+// one Azure request runs while others wait on the shared result.
+func (c *roleDefinitionsCachedReader) ensureCachedGetByID(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) error {
 	c.roleDefinitionsCacheLock.RLock()
 	value, exists := c.roleDefinitionsCache[roleDefinitionResourceID]
 	c.roleDefinitionsCacheLock.RUnlock()
@@ -110,7 +105,7 @@ func (c *CachedRoleDefinitions) ensureCachedGetByID(ctx context.Context, roleDef
 		defer c.roleDefinitionsCacheLock.Unlock()
 		c.roleDefinitionsCache[roleDefinitionResourceID] = cachedGetByIDResponse{
 			response:   resp,
-			lastUpdate: time.Now().UTC(),
+			lastUpdate: c.clock.Now().UTC(),
 		}
 		return nil, nil
 	})
@@ -120,9 +115,8 @@ func (c *CachedRoleDefinitions) ensureCachedGetByID(ctx context.Context, roleDef
 	return nil
 }
 
-func (c *CachedRoleDefinitions) isStale(entry cachedGetByIDResponse) bool {
-	return time.Since(entry.lastUpdate) > roleDefinitionResourceIDCacheKeyTTL
+func (c *roleDefinitionsCachedReader) isStale(entry cachedGetByIDResponse) bool {
+	return c.clock.Since(entry.lastUpdate) > roleDefinitionResourceIDCacheKeyTTL
 }
 
-var _ RoleDefinitions = (*CachedRoleDefinitions)(nil)
-var _ RoleDefinitions = (*armauthorization.RoleDefinitionsClient)(nil)
+var _ RoleDefinitionsCachedReader = (*roleDefinitionsCachedReader)(nil)
