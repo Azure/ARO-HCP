@@ -25,6 +25,7 @@ import (
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -36,6 +37,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 	tests := []struct {
 		name                         string
 		breakGlassCredentialStatuses []cmv1.BreakGlassCredentialStatus
+		operationOverride            func(*api.Operation)
 		revokeCredentialsOperationID string
 		expectError                  bool
 		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
@@ -113,10 +115,74 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			name:                         "mismatched RevokeCredentialsOperationID is left intact",
 			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
 			revokeCredentialsOperationID: "not-our-operation-id",
+			expectError:                  false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Equal(t, "not-our-operation-id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
+			},
+		},
+		{
+			name:                         "unhandled BreakGlassCredentialStatus leads to error",
+			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{"CompleteFantasy"},
+			revokeCredentialsOperationID: testOperationName,
+			expectError:                  true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status) // no state change
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID) // no state change
+			},
+		},
+		{
+			name:                         "Terminal ProvisioningState leaves the operation as it is",
+			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
+			operationOverride:            func(o *api.Operation) { o.Status = arm.ProvisioningStateCanceled },
+			revokeCredentialsOperationID: testOperationName,
+			expectError:                  false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateCanceled, op.Status) // no state change
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID) // no state change
+			},
+		},
+		{
+			name:                         "Wrong operation request type leaves the operation as it is",
+			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
+			operationOverride:            func(o *api.Operation) { o.Request = api.OperationRequestRequestCredential },
+			revokeCredentialsOperationID: testOperationName,
+			expectError:                  false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status) // no state change
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID) // no state change
+			},
+		},
+		{
+			name:                         "ProvisioningStateAccepted leaves the operation as it is",
+			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
+			operationOverride:            func(o *api.Operation) { o.Status = arm.ProvisioningStateAccepted },
+			revokeCredentialsOperationID: testOperationName,
+			expectError:                  false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status) // no state change
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID) // no state change
 			},
 		},
 	}
@@ -133,6 +199,9 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
 			operation := fixture.newOperation(database.OperationRequestRevokeCredentials)
 			operation.Status = arm.ProvisioningStateDeleting
+			if tt.operationOverride != nil {
+				tt.operationOverride(operation)
+			}
 
 			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
@@ -151,7 +220,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 						objs = append(objs, breakGlassCredential)
 					}
 					return ocm.NewSimpleBreakGlassCredentialsListIterator(objs, nil)
-				})
+				}).MaxTimes(1)
 
 			controller := &operationRevokeCredentials{
 				cosmosClient:          mockDB,

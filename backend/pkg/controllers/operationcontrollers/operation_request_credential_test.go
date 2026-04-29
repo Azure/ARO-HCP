@@ -16,6 +16,7 @@ package operationcontrollers
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -36,6 +37,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 	tests := []struct {
 		name                       string
 		breakGlassCredentialStatus cmv1.BreakGlassCredentialStatus
+		getBreakGlassCredentialErr error
 		expectError                bool
 		verify                     func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
 	}{
@@ -70,6 +72,27 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
 			},
 		},
+		{
+			name:                       "unhandled BreakGlassCredentialStatus leads to error",
+			breakGlassCredentialStatus: "CompleteFantasy",
+			expectError:                true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status) // no state change
+			},
+		},
+		{
+			name:                       "GetBreakGlassCredential failure leads to error",
+			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusIssued,
+			getBreakGlassCredentialErr: errors.New("Something went wrong!"),
+			expectError:                true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status) // no state change
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -95,7 +118,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 
 			mockCSClient.EXPECT().
 				GetBreakGlassCredential(gomock.Any(), fixture.clusterInternalID).
-				Return(breakGlassCredential, nil)
+				Return(breakGlassCredential, tt.getBreakGlassCredentialErr)
 
 			controller := &operationRequestCredential{
 				cosmosClient:          mockDB,
