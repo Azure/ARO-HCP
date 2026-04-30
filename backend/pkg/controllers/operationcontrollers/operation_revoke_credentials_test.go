@@ -156,7 +156,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 		{
 			name:                         "Wrong operation request type leaves the operation as it is",
 			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
-			operationOverride:            func(o *api.Operation) { o.Request = api.OperationRequestRequestCredential },
+			operationOverride:            func(o *api.Operation) { o.Request = database.OperationRequestRequestCredential },
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
