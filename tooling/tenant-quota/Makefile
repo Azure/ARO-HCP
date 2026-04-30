@@ -95,8 +95,9 @@ image: Dockerfile $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum
 .PHONY: image
 
 build-and-push: image
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${TENANT_QUOTA_TAGGED_IMAGE}
+	@TOKEN=$$(az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --query accessToken -o tsv) && \
+	$(CONTAINER_ENGINE) login ${ARO_HCP_IMAGE_REGISTRY} -u 00000000-0000-0000-0000-000000000000 -p "$$TOKEN"
+	$(CONTAINER_ENGINE) push ${TENANT_QUOTA_TAGGED_IMAGE}
 	@echo ""
 	@echo "Pushed: ${TENANT_QUOTA_TAGGED_IMAGE}"
 .PHONY: build-and-push

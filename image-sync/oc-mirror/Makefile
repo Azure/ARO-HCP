@@ -16,7 +16,8 @@ image:
 .PHONY: image
 
 build-and-push: image
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	@TOKEN=$$(az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --query accessToken -o tsv) && \
+	$(CONTAINER_ENGINE) login ${ARO_HCP_IMAGE_ACR}.azurecr.io -u 00000000-0000-0000-0000-000000000000 -p "$$TOKEN"
 	$(CONTAINER_ENGINE) tag ${OC_MIRROR_IMAGE_TAGGED} ${OC_MIRROR_IMAGE}:latest
 	$(CONTAINER_ENGINE) push ${OC_MIRROR_IMAGE_TAGGED}
 	$(CONTAINER_ENGINE) push ${OC_MIRROR_IMAGE}:latest
