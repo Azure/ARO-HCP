@@ -85,7 +85,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 		{
 			name:                       "GetBreakGlassCredential failure leads to error",
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusIssued,
-			getBreakGlassCredentialErr: errors.New("Something went wrong!"),
+			getBreakGlassCredentialErr: errors.New("something went wrong"),
 			expectError:                true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
