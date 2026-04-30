@@ -120,7 +120,7 @@ spec:
   selector:
     matchLabels:
       app: maestro
-  replicas: 3
+  replicas: 1
   strategy:
     rollingUpdate:
       maxSurge: 0

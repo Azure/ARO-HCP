@@ -472,7 +472,7 @@ maestro:
     consumerName: hcp-underlay-usw3ptest-mgmt-1
     k8s:
       namespace: maestro
-      replicas: 3
+      replicas: 1
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-consumer
@@ -512,7 +512,7 @@ maestro:
   server:
     k8s:
       namespace: maestro
-      replicas: 3
+      replicas: 1
       resources:
         limits:
           memory: unlimited

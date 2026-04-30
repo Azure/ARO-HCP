@@ -814,7 +814,7 @@ defaults:
       loglevel: 2
       managedIdentityName: maestro-server
       k8s:
-        replicas: 3
+        replicas: 1
         namespace: maestro
         serviceAccountName: maestro
         resources:
@@ -828,7 +828,7 @@ defaults:
       loglevel: 2
       managedIdentityName: maestro-consumer
       k8s:
-        replicas: 3
+        replicas: 1
         namespace: maestro
         serviceAccountName: maestro
       sidecar:
