@@ -105,9 +105,9 @@ Provisioning is controlled by:
 - `monitoring.adxDatasourceEnabled`
 - `monitoring.adxDatasourceGeographies`
 
-When `adxDatasourceEnabled` is `true`, the geography pipeline uses `grafanactl` to create or update the datasource if that geography has a managed Kusto cluster (`kusto.manageInstance: true`). When `adxDatasourceGeographies` is empty, all managed Kusto geographies in the environment are included. When it is set, only the listed geography short IDs are allowed.
+When `adxDatasourceEnabled` is `true`, the geography pipeline uses the typed `GrafanaDatasources` action to create or update the datasource if that geography has a managed Kusto cluster (`kusto.manageInstance: true`). When `adxDatasourceGeographies` is empty, all managed Kusto geographies in the environment are included. When it is set, only the listed geography short IDs are allowed. Matching is case-insensitive and ignores surrounding whitespace around comma-separated entries. The same `grafanactl` reconcile path evaluates the allowlist during EV2 rollout and local templatize runs.
 
-During rollout, validate at least one datasource during the environment bake window with:
+After rollout, validate at least one datasource during the environment bake window with:
 
 1. Grafana UI
 2. Data sources
@@ -116,11 +116,11 @@ During rollout, validate at least one datasource during the environment bake win
 
 ### Kusto datasource lifecycle and teardown
 
-`adxDatasourceEnabled: false` is a provisioning gate, not a deletion signal. Disabling it stops future create or update attempts, but it does **not** remove an existing datasource by itself.
+`adxDatasourceEnabled: false` disables the ADX desired state. The typed datasource reconcile step still runs and deletes the named datasource when deletion-on-disable is enabled, so disabling ADX or removing a geography from `adxDatasourceGeographies` cleans up stale Grafana datasource configuration.
 
-The regular geography pipeline still skips datasource changes when no `kustoUri` is available. That fail-closed behavior prevents accidental deletion caused by transient deployment or output issues during normal rollout or provisioning retries.
+The regular geography pipeline still fails closed when ADX is desired but no `kustoUri` is available. That prevents accidental deletion caused by transient deployment or output issues during normal rollout or provisioning retries.
 
-If a datasource needs to be removed, delete it explicitly:
+If a datasource needs to be removed outside the desired-state rollout path, delete it explicitly:
 
 ```bash
 az grafana data-source delete \
@@ -129,7 +129,7 @@ az grafana data-source delete \
   --data-source "kusto-<env>-<geoShortId>"
 ```
 
-Datasource deletion is intentionally separate from normal Kusto cleanup so disabling or decommissioning a geography cannot remove shared Grafana configuration by accident.
+Datasource deletion is intentionally separate from normal Kusto cleanup so decommissioning Kusto infrastructure cannot remove shared Grafana configuration by accident.
 
 ### Regional Azure Monitor Workspace
 

@@ -14,7 +14,7 @@ resource database 'Microsoft.Kusto/clusters/databases@2024-04-13' existing = {
 resource grantIngest 'Microsoft.Kusto/clusters/databases/principalAssignments@2024-04-13' = [
   for id in ingestAccessPrincipalIds: {
     parent: database
-    name: 'grant-${guid(id, databaseName)}'
+    name: 'grant-ingest-${guid(id, databaseName)}'
     properties: {
       principalId: id
       principalType: 'App'
@@ -27,7 +27,7 @@ resource grantIngest 'Microsoft.Kusto/clusters/databases/principalAssignments@20
 resource grantRead 'Microsoft.Kusto/clusters/databases/principalAssignments@2024-04-13' = [
   for id in readAccessPrincipalIds: {
     parent: database
-    name: 'grant-${guid(id, databaseName)}'
+    name: 'grant-viewer-${guid(id, databaseName)}'
     properties: {
       principalId: id
       principalType: 'App'
