@@ -58,68 +58,37 @@ resourceGroups:
     - resourceGroup: global
       step: output
   - name: adx-datasource
-    action: Shell
+    action: GrafanaDatasources
     omitFromServiceGroupCompletion: true
-    command: |
-      if [ "${ADX_DATASOURCE_ENABLED}" != "true" ]; then
-          echo "ADX datasource provisioning disabled, skipping"
-          exit 0
-      fi
-
-      if [ -z "${ADX_CLUSTER_URL}" ]; then
-          echo "No Kusto cluster URI available (manageInstance is likely false), skipping"
-          exit 0
-      fi
-
-      ENVIRONMENT_NAME=$(printf '%s' "${GRAFANA_NAME}" | sed 's/^arohcp-//')
-      EXPECTED_KUSTO_PREFIX="hcp-${ENVIRONMENT_NAME}-"
-
-      case "${KUSTO_NAME}" in
-          "${EXPECTED_KUSTO_PREFIX}"*)
-              GEO_SHORT_ID=${KUSTO_NAME#"${EXPECTED_KUSTO_PREFIX}"}
-              ;;
-          *)
-              echo "ERROR: unexpected Kusto name '${KUSTO_NAME}', expected prefix '${EXPECTED_KUSTO_PREFIX}'"
-              exit 1
-              ;;
-      esac
-
-      if [ -n "${ADX_DATASOURCE_GEOGRAPHIES}" ]; then
-          NORMALIZED_GEOS=$(printf '%s' "${ADX_DATASOURCE_GEOGRAPHIES}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
-          NORMALIZED_GEO=$(printf '%s' "${GEO_SHORT_ID}" | tr '[:upper:]' '[:lower:]')
-
-          if ! printf '%s' "${NORMALIZED_GEOS}" | grep -Eq '^[a-z0-9-]+(,[a-z0-9-]+)*$'; then
-              echo "ERROR: adxDatasourceGeographies has invalid format: '${ADX_DATASOURCE_GEOGRAPHIES}'"
-              exit 1
-          fi
-
-          case ",${NORMALIZED_GEOS}," in
-              *,"${NORMALIZED_GEO}",*) ;;
-              *)
-                  echo "Geography ${GEO_SHORT_ID} not in allowlist (${NORMALIZED_GEOS}), skipping"
-                  exit 0
-                  ;;
-          esac
-      fi
-
-      DATASOURCE_NAME="kusto-${ENVIRONMENT_NAME}-${GEO_SHORT_ID}"
-
-      az resource wait \
-          --custom "properties.provisioningState=='Succeeded'" \
-          --ids "${GRAFANA_RESOURCE_ID}" \
-          --api-version 2024-10-01
-
-      go run ../tooling/grafanactl/main.go modify datasource reconcile-adx \
-          --grafana-resource-id "${GRAFANA_RESOURCE_ID}" \
-          --cluster-url "${ADX_CLUSTER_URL}" \
-          --default-database "${ADX_DATABASE}" \
-          --datasource-name "${DATASOURCE_NAME}" \
-          --data-consistency strongconsistency
-    workingDir: .
+    grafanaName: "{{ .monitoring.grafanaName }}"
+    grafanaResourceId:
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaResourceId
+    azureMonitor:
+      enabled: false
+    adx:
+      enabled:
+        value: "{{ and .monitoring.adxDatasourceEnabled .kusto.manageInstance }}"
+      deleteWhenDisabled: true
+      clusterUrl:
+        input:
+          resourceGroup: kusto-infra
+          step: deploy
+          name: kustoUri
+      defaultDatabase:
+        configRef: kusto.serviceLogsDatabase
+      datasourceName:
+        value: "kusto-{{ .environmentName }}-{{ .azureGeoShortId }}"
+      geographies:
+        configRef: monitoring.adxDatasourceGeographies
+      dataConsistency: strongconsistency
     automatedRetry:
       errorContainsAny:
-      - "grafana API POST /api/datasources request failed"
+      - "grafana API POST /api/datasources"
       - "grafana API PUT /api/datasources/"
+      - "grafana API DELETE /api/datasources/name/"
       - "failed with status 429"
       - "failed with status 500"
       - "failed with status 502"
@@ -127,32 +96,10 @@ resourceGroups:
       - "failed with status 504"
       maximumRetryCount: 5
       durationBetweenRetries: 2m
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: ADX_CLUSTER_URL
-      input:
-        resourceGroup: kusto-infra
-        step: deploy
-        name: kustoUri
-    - name: ADX_DATABASE
-      configRef: kusto.serviceLogsDatabase
-    - name: KUSTO_NAME
-      configRef: kusto.kustoName
-    - name: GRAFANA_NAME
-      configRef: monitoring.grafanaName
-    - name: GRAFANA_RESOURCE_ID
-      input:
-        resourceGroup: global
-        step: output
-        name: grafanaResourceId
-    - name: ADX_DATASOURCE_ENABLED
-      configRef: monitoring.adxDatasourceEnabled
-    - name: ADX_DATASOURCE_GEOGRAPHIES
-      configRef: monitoring.adxDatasourceGeographies
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
     dependsOn:
     - resourceGroup: global
       step: output
