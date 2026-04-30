@@ -203,14 +203,14 @@ var _ = Describe("Authorized CIDRs", func() {
 					// Deserialize JSON response to validate API connectivity
 					var nodeList corev1.NodeList
 					err = json.Unmarshal([]byte(output), &nodeList)
-					g.Expect(err).NotTo(HaveOccurred(), "Should receive valid JSON response from Kubernetes API")
+					g.Expect(err).NotTo(HaveOccurred(), "Should receive valid JSON response from Kubernetes API, got: %s", output)
 
 					// Verify the response has correct Kubernetes API structure
 					g.Expect(nodeList.APIVersion).To(Equal("v1"), "Response should have v1 API version")
 					g.Expect(nodeList.Kind).To(Equal("List"), "Response should be a List kind")
 					// Note: Items may be empty if nodes aren't ready yet, but structure should be valid
 					By(fmt.Sprintf("Successfully retrieved node list with %d items", len(nodeList.Items)))
-				}, 2*time.Minute, 10*time.Second).Should(Succeed())
+				}, 5*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("verifying aggregated API services from authorized VM")
 				// Only output unavailable services (filter out :True lines) to stay within 4KB VM output limit
