@@ -32,6 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
+const frontendHost = "my-frontend.example.com:8443"
+
 type fakeTransport struct {
 	do func(*http.Request) (*http.Response, error)
 }
@@ -155,7 +157,6 @@ func TestParseResourceGroupFromPath(t *testing.T) {
 }
 
 func TestArmSystemDataPolicy(t *testing.T) {
-	const frontendHost = "my-frontend.example.com:8443"
 	t.Setenv("FRONTEND_ADDRESS", "https://"+frontendHost)
 
 	pol := &armSystemDataPolicy{}
@@ -207,69 +208,49 @@ func TestArmSystemDataPolicy(t *testing.T) {
 }
 
 func TestArmResourceGroupValidationPolicy(t *testing.T) {
-	const frontendHost = "my-frontend.example.com:8443"
 	t.Setenv("FRONTEND_ADDRESS", "https://"+frontendHost)
 
-	t.Run("passes through for non-frontend host", func(t *testing.T) {
-		pol := &armResourceGroupValidationPolicy{cred: nil}
-		called := false
-		transport := &fakeTransport{
-			do: func(r *http.Request) (*http.Response, error) {
-				called = true
-				return okResponse()
-			},
-		}
-		pipeline := newTestPipeline(pol, transport)
-		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://other.example.com/subscriptions/sub-id/resourceGroups/rg-name")
-		require.NoError(t, err)
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{
+			name: "passes through for non-frontend host",
+			url:  "https://other.example.com/subscriptions/sub-id/resourceGroups/rg-name",
+		},
+		{
+			name: "passes through when path has no resource group",
+			url:  "https://" + frontendHost + "/providers/Microsoft.RedHatOpenShift",
+		},
+		{
+			name: "passes through when path has subscription but no resource group",
+			url:  "https://" + frontendHost + "/subscriptions/sub-id/providers/Microsoft.RedHatOpenShift",
+		},
+	}
 
-		resp, err := pipeline.Do(req)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.True(t, called, "transport should have been called")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pol := &armResourceGroupValidationPolicy{cred: nil}
+			called := false
+			transport := &fakeTransport{
+				do: func(r *http.Request) (*http.Response, error) {
+					called = true
+					return okResponse()
+				},
+			}
+			pipeline := newTestPipeline(pol, transport)
+			req, err := runtime.NewRequest(context.Background(), http.MethodGet, tt.url)
+			require.NoError(t, err)
 
-	t.Run("passes through when path has no resource group", func(t *testing.T) {
-		pol := &armResourceGroupValidationPolicy{cred: nil}
-		called := false
-		transport := &fakeTransport{
-			do: func(r *http.Request) (*http.Response, error) {
-				called = true
-				return okResponse()
-			},
-		}
-		pipeline := newTestPipeline(pol, transport)
-		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/providers/Microsoft.RedHatOpenShift")
-		require.NoError(t, err)
-
-		resp, err := pipeline.Do(req)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.True(t, called, "transport should have been called")
-	})
-
-	t.Run("passes through when path has subscription but no resource group", func(t *testing.T) {
-		pol := &armResourceGroupValidationPolicy{cred: nil}
-		called := false
-		transport := &fakeTransport{
-			do: func(r *http.Request) (*http.Response, error) {
-				called = true
-				return okResponse()
-			},
-		}
-		pipeline := newTestPipeline(pol, transport)
-		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/subscriptions/sub-id/providers/Microsoft.RedHatOpenShift")
-		require.NoError(t, err)
-
-		resp, err := pipeline.Do(req)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.True(t, called, "transport should have been called")
-	})
+			resp, err := pipeline.Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.True(t, called, "transport should have been called")
+		})
+	}
 }
 
 func TestCorrelationRequestIDPolicy(t *testing.T) {
-	const frontendHost = "my-frontend.example.com:8443"
 	t.Setenv("FRONTEND_ADDRESS", "https://"+frontendHost)
 
 	pol := &correlationRequestIDPolicy{}
