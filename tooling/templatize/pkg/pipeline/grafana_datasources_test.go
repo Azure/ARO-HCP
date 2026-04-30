@@ -25,12 +25,12 @@ import (
 
 func testGrafanaDatasourceConfig() configtypes.Configuration {
 	return configtypes.Configuration{
-		"azureGeoShortId": "uks",
+		"azureGeoShortId": "uk",
 		"kusto": map[string]any{
 			"serviceLogsDatabase": "ServiceLogs",
 		},
 		"monitoring": map[string]any{
-			"adxDatasourceGeographies": " UKS, eus2 ",
+			"adxDatasourceGeographies": " UK, eus2 ",
 		},
 	}
 }
@@ -59,7 +59,7 @@ func TestResolveGrafanaADXOptionsEnabledAndAllowed(t *testing.T) {
 			Name:           "kustoUri",
 		}},
 		DefaultDatabase: types.Value{ConfigRef: "kusto.serviceLogsDatabase"},
-		DatasourceName:  types.Value{Value: "kusto-int-uks"},
+		DatasourceName:  types.Value{Value: "kusto-int-uk"},
 		Geographies:     types.Value{ConfigRef: "monitoring.adxDatasourceGeographies"},
 		DataConsistency: "strongconsistency",
 	}
@@ -80,13 +80,13 @@ func TestResolveGrafanaADXOptionsEnabledAndAllowed(t *testing.T) {
 	if resolved.DefaultDatabase != "ServiceLogs" {
 		t.Fatalf("expected default database to resolve, got %q", resolved.DefaultDatabase)
 	}
-	if resolved.DatasourceName != "kusto-int-uks" {
+	if resolved.DatasourceName != "kusto-int-uk" {
 		t.Fatalf("expected datasource name to resolve, got %q", resolved.DatasourceName)
 	}
-	if resolved.Geographies != "UKS, eus2" {
+	if resolved.Geographies != "UK, eus2" {
 		t.Fatalf("expected geographies to resolve, got %q", resolved.Geographies)
 	}
-	if resolved.CurrentGeography != "uks" {
+	if resolved.CurrentGeography != "uk" {
 		t.Fatalf("expected current geography to resolve, got %q", resolved.CurrentGeography)
 	}
 }
@@ -99,7 +99,7 @@ func TestResolveGrafanaADXOptionsDisabledWhenGeographyNotAllowed(t *testing.T) {
 	adx := &types.GrafanaADXDatasource{
 		Enabled:            types.Value{Value: "true"},
 		DeleteWhenDisabled: true,
-		DatasourceName:     types.Value{Value: "kusto-int-uks"},
+		DatasourceName:     types.Value{Value: "kusto-int-uk"},
 		Geographies:        types.Value{ConfigRef: "monitoring.adxDatasourceGeographies"},
 	}
 
@@ -107,7 +107,7 @@ func TestResolveGrafanaADXOptionsDisabledWhenGeographyNotAllowed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveGrafanaADXOptions returned error: %v", err)
 	}
-	if resolved.DatasourceName != "kusto-int-uks" {
+	if resolved.DatasourceName != "kusto-int-uk" {
 		t.Fatalf("expected datasource name to stay available for delete path, got %q", resolved.DatasourceName)
 	}
 
@@ -140,7 +140,7 @@ func TestResolveGrafanaADXOptionsDisabledByConfigRef(t *testing.T) {
 	adx := &types.GrafanaADXDatasource{
 		Enabled:            types.Value{ConfigRef: "monitoring.adxDatasourceEnabled"},
 		DeleteWhenDisabled: true,
-		DatasourceName:     types.Value{Value: "kusto-int-uks"},
+		DatasourceName:     types.Value{Value: "kusto-int-uk"},
 		Geographies:        types.Value{ConfigRef: "monitoring.adxDatasourceGeographies"},
 	}
 
@@ -171,7 +171,7 @@ func TestResolveGrafanaADXOptionsDisabledByConfigRef(t *testing.T) {
 func TestResolveGrafanaADXOptionsRejectsInvalidGeographyAllowlist(t *testing.T) {
 	cfg := testGrafanaDatasourceConfig()
 	cfg["monitoring"] = map[string]any{
-		"adxDatasourceGeographies": "uks,!",
+		"adxDatasourceGeographies": "uk,!",
 	}
 	adx := &types.GrafanaADXDatasource{
 		Enabled:     types.Value{Value: "true"},
@@ -209,7 +209,7 @@ func TestResolveGrafanaADXOptionsFailsClosedOnMissingKustoURI(t *testing.T) {
 			Name:           "kustoUri",
 		}},
 		DefaultDatabase: types.Value{Value: "ServiceLogs"},
-		DatasourceName:  types.Value{Value: "kusto-int-uks"},
+		DatasourceName:  types.Value{Value: "kusto-int-uk"},
 	}
 
 	resolved, err := resolveGrafanaADXOptions("Microsoft.Azure.ARO.HCP.Geography", adx, testGrafanaDatasourceConfig(), testGrafanaDatasourceOutputs(""))
