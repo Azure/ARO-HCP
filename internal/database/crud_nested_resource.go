@@ -146,12 +146,12 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToT
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	partitionKey := strings.ToLower(any(newObj).(arm.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
+	partitionKey := any(newObj).(arm.CosmosPersistable).GetCosmosData().GetPartitionKey()
 	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	partitionKey := strings.ToLower(any(newObj).(arm.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
+	partitionKey := any(newObj).(arm.CosmosPersistable).GetCosmosData().GetPartitionKey()
 	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
 }
 

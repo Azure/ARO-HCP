@@ -16,7 +16,6 @@ package database
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -34,16 +33,23 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", internalObj)
 	}
 
+	partitionKey := metadata.GetPartitionKey()
 	cosmosObj := &GenericDocument[InternalAPIType]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
 				ID: metadata.GetCosmosUID(),
 			},
-			PartitionKey: strings.ToLower(metadata.GetResourceID().SubscriptionID),
+			PartitionKey: partitionKey,
 			ResourceID:   metadata.GetResourceID(),
 			ResourceType: metadata.GetResourceID().ResourceType.String(),
 		},
 		Content: *internalObj,
+	}
+	// Mirror the envelope's partitionKey into the inner cosmosMetadata copy so the on-disk
+	// representation has both fields in sync. We mutate the value-copy in cosmosObj.Content
+	// rather than the caller-supplied internalObj.
+	if cm, ok := any(&cosmosObj.Content).(arm.CosmosMetadataAccessor); ok {
+		cm.SetPartitionKey(partitionKey)
 	}
 
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
@@ -68,6 +74,9 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 	cosmosData := ret.(arm.CosmosPersistable).GetCosmosData()
 	cosmosData.ExistingCosmosUID = cosmosObj.ID
 	ret.SetEtag(cosmosObj.CosmosETag)
+	// Round-trip the envelope's partitionKey back into the metadata so callers
+	// can read it without re-deriving from ResourceID.SubscriptionID.
+	ret.SetPartitionKey(cosmosObj.PartitionKey)
 
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
 	switch castObj := any(ret).(type) {

@@ -5,6 +5,7 @@
 	"properties": {
 		"cosmosMetadata": {
 			"etag": "\"00000000-0000-0000-7121-fcdc980501dc\"",
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7"
 		},
 		"properties": null,

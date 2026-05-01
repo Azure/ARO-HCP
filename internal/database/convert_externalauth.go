@@ -16,7 +16,6 @@ package database
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -28,18 +27,20 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 		return nil, nil
 	}
 
+	partitionKey := internalObj.GetCosmosData().GetPartitionKey()
 	cosmosObj := &ExternalAuth{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
-			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
+			PartitionKey: partitionKey,
 			ResourceID:   internalObj.ID,
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		ExternalAuthProperties: ExternalAuthProperties{
 			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: internalObj.ID,
+				ResourceID:   internalObj.ID,
+				PartitionKey: partitionKey,
 			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
