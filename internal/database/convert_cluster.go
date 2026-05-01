@@ -39,6 +39,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		HCPClusterProperties: HCPClusterProperties{
+			HCPOpenShiftCluster: *internalObj,
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
@@ -47,7 +48,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.ServiceProviderProperties.ProvisioningState,
-				Identity:          toCosmosIdentity(internalObj.Identity),
+				Identity:          internalObj.Identity.DeepCopy(),
 				SystemData:        internalObj.SystemData,
 				Tags:              copyTags(internalObj.Tags),
 			},
@@ -57,50 +58,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 		},
 	}
 
-	// some pieces of data in the internalCluster conflict with ResourceDocument fields.  We may evolve over time, but for
-	// now avoid persisting those.
-	cosmosObj.InternalState.InternalAPI.TrackedResource = arm.TrackedResource{
-		Location: internalObj.Location, // this is the only TrackedResource value not present elsewhere in ResourceDcoument
-	}
-	cosmosObj.InternalState.InternalAPI.Identity = nil
-	cosmosObj.InternalState.InternalAPI.SystemData = nil
-	cosmosObj.InternalState.InternalAPI.Tags = nil
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
-	// we do this to keep serialization the same so that we can go to n-1 where this field isn't a pointer.
-	// on the reading side, we handle the pointer as expected.
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = &api.InternalID{}
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
-
 	return cosmosObj, nil
-}
-
-func toCosmosIdentity(src *arm.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
-	if src == nil {
-		return nil
-	}
-	tempIdentity := *src
-	if src.UserAssignedIdentities != nil {
-		tempIdentity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity, len(src.UserAssignedIdentities))
-		for k, v := range src.UserAssignedIdentities {
-			if v != nil {
-				tempIdentity.UserAssignedIdentities[k] = v.DeepCopy()
-			} else {
-				tempIdentity.UserAssignedIdentities[k] = nil
-			}
-		}
-	}
-	return &tempIdentity
-}
-
-func toInternalIdentity(src *arm.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
-	if src == nil {
-		return nil
-	}
-
-	// at this point we still haven't restored the UserAssignedIdentities values, only the keys. The values are looked up on azure somehow in the frontend
-	// this means that backend reads lack this data
-	tempIdentity := *src
-	return &tempIdentity
 }
 
 func copyTags(src map[string]string) map[string]string {
@@ -141,8 +99,8 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	// we carry over the CosmosETag from the cosmos object to the internal object into a
 	// temporary field until we have inlined and serialized CosmosMetadata in
 	// HCPOpenShiftCluster.
-	internalObj.CosmosETag = cosmosObj.CosmosETag
-	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
+	internalObj.CosmosETag = cosmosObj.BaseDocument.CosmosETag
+	internalObj.Identity = resourceDoc.Identity.DeepCopy()
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)
 	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
