@@ -376,12 +376,22 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
+	azCoreClientOptions := *azureConfig.CloudEnvironment.AZCoreClientOptions()
+
 	cosmosDBClient, err := app.NewCosmosDBClient(
 		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
-		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
+		azCoreClientOptions,
 	)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create cosmos db client: %w", err))
+	}
+
+	fleetDBClient, err := app.NewFleetDBClient(
+		f.AzureCosmosDBURL, f.AzureCosmosDBName,
+		azCoreClientOptions,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create fleet db client: %w", err))
 	}
 
 	clustersServiceClient, err := app.NewClustersServiceClient(ctx, f.ClustersServiceURL, f.ClustersServiceTLSInsecure)
@@ -397,6 +407,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		AzureLocation:                      f.AzureLocation,
 		LeaderElectionLock:                 leaderElectionLock,
 		CosmosDBClient:                     cosmosDBClient,
+		FleetDBClient:                      fleetDBClient,
 		ClustersServiceClient:              clustersServiceClient,
 		MetricsServerListenAddress:         f.MetricsServerListenAddress,
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,

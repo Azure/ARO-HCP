@@ -41,3 +41,21 @@ func NewCosmosDBClient(ctx context.Context, cosmosDBURL string, cosmosDBName str
 
 	return dbClient, nil
 }
+
+func NewFleetDBClient(cosmosDBURL string, cosmosDBName string, azCoreClientOptions azcore.ClientOptions) (database.FleetDBClient, error) {
+	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
+		cosmosDBURL,
+		cosmosDBName,
+		azCoreClientOptions,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create Azure Cosmos database client: %w", err))
+	}
+
+	fleetClient, err := database.NewFleetDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create Fleet DBClient: %w", err))
+	}
+
+	return fleetClient, nil
+}

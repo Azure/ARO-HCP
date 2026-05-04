@@ -16,12 +16,15 @@ package listertesting
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 )
 
 // SliceClusterLister implements listers.ClusterLister backed by a slice.
@@ -309,6 +312,44 @@ func (l *SliceManagementClusterContentLister) ListForNodePool(ctx context.Contex
 		}
 	}
 	return result, nil
+}
+
+// SliceManagementClusterLister implements dblisters.ManagementClusterLister backed by a slice.
+type SliceManagementClusterLister struct {
+	ManagementClusters []*fleet.ManagementCluster
+}
+
+var _ dblisters.ManagementClusterLister = &SliceManagementClusterLister{}
+
+func (l *SliceManagementClusterLister) List(ctx context.Context) ([]*fleet.ManagementCluster, error) {
+	return l.ManagementClusters, nil
+}
+
+func (l *SliceManagementClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, name string) (*fleet.ManagementCluster, error) {
+	key := fleet.ToManagementClusterResourceIDString(subscriptionID, resourceGroupName, name)
+	for _, mc := range l.ManagementClusters {
+		if mc.ResourceID != nil && strings.EqualFold(mc.ResourceID.String(), key) {
+			return mc, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+func (l *SliceManagementClusterLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleet.ManagementCluster, error) {
+	var matches []*fleet.ManagementCluster
+	for _, mc := range l.ManagementClusters {
+		if mc.Status.ClusterServiceProvisionShardID != nil && mc.Status.ClusterServiceProvisionShardID.ID() == shardID {
+			matches = append(matches, mc)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, database.NewNotFoundError()
+	case 1:
+		return matches[0], nil
+	default:
+		return nil, fmt.Errorf("expected at most 1 management cluster for CS provision shard ID %q, got %d", shardID, len(matches))
+	}
 }
 
 // SliceSubscriptionLister implements listers.SubscriptionLister backed by a slice.

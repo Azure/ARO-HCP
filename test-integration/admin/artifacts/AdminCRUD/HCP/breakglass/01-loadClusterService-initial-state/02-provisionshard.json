@@ -13,8 +13,8 @@
 		"kind": "CloudProvider"
 	},
 	"creation_timestamp": "2026-02-02T10:21:43.084787Z",
-	"href": "/api/aro_hcp/v1alpha1/provision_shards/fixed-shard-value",
-	"id": "fixed-shard-value",
+	"href": "/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+	"id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
 	"kind": "ProvisionShard",
 	"maestro_config": {
 		"consumer_name": "hcp-underlay-usw3gobe-mgmt-1",
