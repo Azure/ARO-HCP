@@ -348,6 +348,46 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
   }
 }
 
+resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'mise'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MiseEnvoyScrapeDown'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'MiseEnvoyScrapeDown/{{ $labels.cluster }}'
+          description: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
+          info: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/mise-tsg.html'
+          summary: 'Envoy scrape target down for namespace=mise'
+          title: 'Envoy scrape target down for namespace=mise'
+        }
+        expression: 'group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"}) unless on(cluster) group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)'
+        for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'frontend'
   location: location
@@ -379,7 +419,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -406,7 +446,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '(sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -433,7 +473,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h])) ) > 0.05'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -460,192 +500,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"} == 1'
         for: 'PT5M'
-        severity: 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_cs_slo_availability_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long: '6h'
-          severity: 'warning'
-          short: '30m'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
-          info: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'Cluster Service API availability error budget burn rate is too high'
-          title: 'Cluster Service API availability error budget burn rate is too high'
-        }
-        expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) )'
-        for: 'PT5M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPIAvailability6hto3dErrorBudgetBurn'
-        enabled: true
-        labels: {
-          severity: 'warning'
-          slo: 'api-availability'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPIAvailability6hto3dErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
-          title: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
-        }
-        expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
-        for: 'PT30M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long: '6h'
-          severity: 'warning'
-          short: '30m'
-          slo: 'api-latency-p99'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
-          info: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'Cluster Service API P99 latency error budget burn rate is too high'
-          title: 'Cluster Service API P99 latency error budget burn rate is too high'
-        }
-        expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) )'
-        for: 'PT5M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          severity: 'warning'
-          slo: 'api-latency-p99'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
-          title: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
-        }
-        expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
-        for: 'PT30M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long: '6h'
-          severity: 'warning'
-          short: '30m'
-          slo: 'api-latency-p90'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
-          info: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'Cluster Service API P90 latency error budget burn rate is too high'
-          title: 'Cluster Service API P90 latency error budget burn rate is too high'
-        }
-        expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.90)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.90)) )'
-        for: 'PT5M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          severity: 'warning'
-          slo: 'api-latency-p90'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
-          title: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
-        }
-        expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.90))'
-        for: 'PT30M'
         severity: 3
       }
     ]
@@ -749,6 +603,73 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   }
 }
 
+resource backendNodepool 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'backend-nodepool'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendNodePoolOperationErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'BackendNodePoolOperationErrorRate/{{ $labels.cluster }}'
+          description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/operations_scanner.go.'
+          info: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/operations_scanner.go.'
+          runbook_url: 'TBD'
+          summary: 'High error rate on Backend Node Pool operations'
+          title: 'High error rate on Backend Node Pool operations'
+        }
+        expression: '(sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h]))) / (sum by (cluster) (rate(backend_operations_total{type="poll_node_pool"}[1h]))) > 0.05'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendNodePoolScalingDuration'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'BackendNodePoolScalingDuration/{{ $labels.cluster }}'
+          description: 'The 95th percentile of node pool poll operation duration has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
+          info: 'The 95th percentile of node pool poll operation duration has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
+          runbook_url: 'TBD'
+          summary: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
+          title: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
+        }
+        expression: 'histogram_quantile(0.95, sum by (le, cluster) (rate(backend_operations_duration_seconds_bucket{type="poll_node_pool"}[1h]))) > 2'
+        for: 'PT15M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'admin-api'
   location: location
@@ -780,7 +701,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h])) ) > 0.05'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -807,127 +728,6 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"} == 1'
         for: 'PT5M'
-        severity: 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'maestro'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroGRPCSourceClientExcessConnections'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroGRPCSourceClientExcessConnections/{{ $labels.cluster }}'
-          description: 'Maestro gRPC server has {{ $value }} registered source clients, which is unusually high. Only clusters-service and backend are expected as source clients. This may indicate a connection leak or clients failing to unregister.'
-          info: 'Maestro gRPC server has {{ $value }} registered source clients, which is unusually high. Only clusters-service and backend are expected as source clients. This may indicate a connection leak or clients failing to unregister.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro has too many gRPC source client connections'
-          title: 'Maestro has too many gRPC source client connections'
-        }
-        expression: 'sum(grpc_server_registered_source_clients{namespace="maestro"}) > 100'
-        for: 'PT10M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroRESTAPIErrorRate'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroRESTAPIErrorRate/{{ $labels.cluster }}'
-          description: 'Maestro REST API 5xx error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro REST API 5xx error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro REST API error rate is high'
-          title: 'Maestro REST API error rate is high'
-        }
-        expression: 'sum(rate(rest_api_inbound_request_count{namespace="maestro", code=~"5.."}[5m])) / sum(rate(rest_api_inbound_request_count{namespace="maestro"}[5m])) > 0.05'
-        for: 'PT5M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroGRPCServerErrorRate'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroGRPCServerErrorRate/{{ $labels.cluster }}'
-          description: 'Maestro gRPC server error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro gRPC server error rate is above 5% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro gRPC server error rate is high'
-          title: 'Maestro gRPC server error rate is high'
-        }
-        expression: 'sum(rate(grpc_server_processed_total{namespace="maestro", code!="OK"}[5m])) / sum(rate(grpc_server_processed_total{namespace="maestro"}[5m])) > 0.05'
-        for: 'PT5M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MaestroSpecControllerReconcileErrors'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'MaestroSpecControllerReconcileErrors/{{ $labels.cluster }}'
-          description: 'Maestro spec controller reconcile error rate is above 10% for the last 10 minutes. Resources may not be reaching management clusters. Current value: {{ $value | humanizePercentage }}.'
-          info: 'Maestro spec controller reconcile error rate is above 10% for the last 10 minutes. Resources may not be reaching management clusters. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-          summary: 'Maestro spec controller reconcile error rate is high'
-          title: 'Maestro spec controller reconcile error rate is high'
-        }
-        expression: 'sum(rate(spec_controller_event_reconcile_total{namespace="maestro", status="error"}[5m])) / sum(rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])) > 0.1'
-        for: 'PT10M'
         severity: 3
       }
     ]
@@ -1173,7 +973,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-customerapi"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1202,7 +1002,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-svc"} / 18 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1231,7 +1031,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-cx"} / 8 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1260,7 +1060,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-svc"} / 18 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1289,7 +1089,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region!="uswest2"} / 64 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1318,7 +1118,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region="uswest2"} / 128 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1347,7 +1147,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-cx"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1376,7 +1176,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-svc"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1405,7 +1205,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-cx"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1433,170 +1233,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-svc"} / 32 > 0.8'
-        for: 'PT15M'
-        severity: 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-deletion-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'HCPClusterStuckDeleting'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}/{{ $labels.exported_namespace }}'
-          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
-This may indicate that finalizers are stuck or resources are failing to cleanup.
-'''
-          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
-This may indicate that finalizers are stuck or resources are failing to cleanup.
-'''
-          runbook_url: 'TBD'
-          summary: 'Cluster {{ $labels.exported_namespace }} stuck deleting'
-          title: 'Cluster {{ $labels.exported_namespace }} stuck deleting'
-        }
-        expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
-        for: 'PT5M'
-        severity: 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kube-container-oom-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'KubeContainerOOMKilled'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'KubeContainerOOMKilled/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.namespace }}/{{ $labels.pod }}'
-          description: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} on cluster {{ $labels.cluster }} has been OOMKilled. This indicates the container exceeded its memory limit and was terminated by the kernel.'
-          info: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} on cluster {{ $labels.cluster }} has been OOMKilled. This indicates the container exceeded its memory limit and was terminated by the kernel.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/service-lifecycle.html'
-          summary: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled'
-          title: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled'
-        }
-        expression: 'kube_pod_container_status_last_terminated_reason{reason="OOMKilled", job="kube-state-metrics"} == 1'
-        severity: 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kube-node-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'KubeMemoryPressure'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'KubeMemoryPressure/{{ $labels.cluster }}/{{ $labels.node }}'
-          description: 'Node {{ $labels.node }} is reporting MemoryPressure condition'
-          info: 'Node {{ $labels.node }} is reporting MemoryPressure condition'
-          summary: 'Node under memory pressure'
-          title: 'Node under memory pressure'
-        }
-        expression: 'kube_node_status_condition{condition="MemoryPressure",status="true"} == 1'
-        for: 'PT5M'
-        severity: 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kusto-logs-age-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'KustoLogsDataStale'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'KustoLogsDataStale/{{ $labels.cluster }}/{{ $labels.kusto_cluster }}/{{ $labels.table }}'
-          description: '''Kusto log data for table {{ $labels.table }} on cluster {{ $labels.cluster }} (Kusto cluster {{ $labels.kusto_cluster }}) is stale. Check the ingestion pipeline.
-'''
-          info: '''Kusto log data for table {{ $labels.table }} on cluster {{ $labels.cluster }} (Kusto cluster {{ $labels.kusto_cluster }}) is stale. Check the ingestion pipeline.
-'''
-          runbook_url: 'TBD'
-          summary: 'Kusto log data is stale for {{ $labels.table }} on {{ $labels.cluster }}.'
-          title: 'Kusto log data is stale for {{ $labels.table }} on {{ $labels.cluster }}.'
-        }
-        expression: 'kusto_logs_age_in_seconds > 3600'
         for: 'PT15M'
         severity: 3
       }
