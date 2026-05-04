@@ -1,0 +1,133 @@
+rule_files:
+- nodepool-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: BackendNodePoolResizeSuccessRate above 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
+    values: "0 6x10" # 6 failures per minute → 6 / 100 = 6%
+  - series: 'backend_operations_total{type="poll_node_pool"}'
+    values: "0 100x10" # 100 operations per minute
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendNodePoolResizeSuccessRate
+    exp_alerts:
+    - exp_labels:
+        severity: info
+      exp_annotations:
+        description: 'The Backend node pool resize operation error rate is above 5% for the last hour. Current value: 6%.'
+        runbook_url: 'TBD'
+        summary: 'High error rate on Backend Node Pool Resize operations'
+# Test: BackendNodePoolResizeSuccessRate below 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
+    values: "0 2x10" # 2 failures per minute → 2 / 100 = 2%
+  - series: 'backend_operations_total{type="poll_node_pool"}'
+    values: "0 100x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendNodePoolResizeSuccessRate
+    exp_alerts: []
+# Test: BackendNodePoolScalingDuration above 2 seconds (all requests > 5s, in +Inf bucket)
+- interval: 1m
+  input_series:
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool"}'
+    values: '0x20' # no requests finish within 0.25s
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool"}'
+    values: '0+100x20' # 100 requests per minute, all taking > 5s → p95 = +Inf > 2s
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendNodePoolScalingDuration
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        type: poll_node_pool
+      exp_annotations:
+        description: 'The 95th percentile of node pool scaling operation duration has exceeded 2 seconds over the past hour.'
+        runbook_url: 'TBD'
+        summary: 'Node pool scaling operations are taking too long: 95th percentile exceeds 2 seconds'
+# Test: BackendNodePoolScalingDuration below 2 seconds (all requests < 0.25s)
+- interval: 1m
+  input_series:
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool"}'
+    values: '0+100x20' # all requests complete within 0.25s → p95 ≈ 0.24s < 2s
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool"}'
+    values: '0+100x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendNodePoolScalingDuration
+    exp_alerts: []
+# Test: BackendNodePoolAdjustSuccessRate above 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
+    values: "0 6x10"
+  - series: 'backend_operations_total{type="poll_node_pool"}'
+    values: "0 100x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendNodePoolAdjustSuccessRate
+    exp_alerts:
+    - exp_labels:
+        severity: info
+      exp_annotations:
+        description: 'The Backend node pool adjust operation error rate is above 5% for the last hour. Current value: 6%.'
+        runbook_url: 'TBD'
+        summary: 'High error rate on Backend Node Pool Adjust operations'
+# Test: BackendNodePoolAdjustSuccessRate below 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
+    values: "0 2x10"
+  - series: 'backend_operations_total{type="poll_node_pool"}'
+    values: "0 100x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendNodePoolAdjustSuccessRate
+    exp_alerts: []
+# Test: BackendNodePoolDeleteSuccessRate above 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
+    values: "0 6x10"
+  - series: 'backend_operations_total{type="poll_node_pool"}'
+    values: "0 100x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendNodePoolDeleteSuccessRate
+    exp_alerts:
+    - exp_labels:
+        severity: info
+      exp_annotations:
+        description: 'The Backend node pool delete operation error rate is above 5% for the last hour. Current value: 6%.'
+        runbook_url: 'TBD'
+        summary: 'High error rate on Backend Node Pool Delete operations'
+# Test: BackendNodePoolDeleteSuccessRate below 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
+    values: "0 2x10"
+  - series: 'backend_operations_total{type="poll_node_pool"}'
+    values: "0 100x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendNodePoolDeleteSuccessRate
+    exp_alerts: []

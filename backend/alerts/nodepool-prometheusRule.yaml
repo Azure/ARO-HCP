@@ -1,0 +1,63 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: backend-nodepool-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: backend-nodepool
+    rules:
+    - alert: BackendNodePoolResizeSuccessRate
+      expr: |
+        (sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h])))
+        /
+        (sum by (cluster) (rate(backend_operations_total{type="poll_node_pool"}[1h])))
+        > 0.05
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        description: 'The Backend node pool resize operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        runbook_url: 'TBD'
+        summary: 'High error rate on Backend Node Pool Resize operations'
+    - alert: BackendNodePoolScalingDuration
+      expr: |
+        histogram_quantile(0.95, rate(backend_operations_duration_seconds_bucket{type="poll_node_pool"}[1h])) > 2
+      for: 15m
+      labels:
+        severity: info
+      annotations:
+        description: 'The 95th percentile of node pool scaling operation duration has exceeded 2 seconds over the past hour.'
+        runbook_url: 'TBD'
+        summary: 'Node pool scaling operations are taking too long: 95th percentile exceeds 2 seconds'
+    - alert: BackendNodePoolAdjustSuccessRate
+      expr: |
+        (sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h])))
+        /
+        (sum by (cluster) (rate(backend_operations_total{type="poll_node_pool"}[1h])))
+        > 0.05
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        description: 'The Backend node pool adjust operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        runbook_url: 'TBD'
+        summary: 'High error rate on Backend Node Pool Adjust operations'
+    - alert: BackendNodePoolDeleteSuccessRate
+      expr: |
+        (sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h])))
+        /
+        (sum by (cluster) (rate(backend_operations_total{type="poll_node_pool"}[1h])))
+        > 0.05
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        description: 'The Backend node pool delete operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        runbook_url: 'TBD'
+        summary: 'High error rate on Backend Node Pool Delete operations'
