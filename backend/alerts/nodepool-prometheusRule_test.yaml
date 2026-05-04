@@ -1,4 +1,101 @@
 rule_files:
 - nodepool-prometheusRule.yaml
 evaluation_interval: 1m
-tests: []
+tests:
+# Test: BackendNodePoolOperationErrorRate above 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
+    values: "0 6x10" # 6 failures per minute → 6 / 100 = 6%
+  - series: 'backend_operations_total{type="poll_node_pool"}'
+    values: "0 100x10" # 100 operations per minute
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendNodePoolOperationErrorRate
+    exp_alerts:
+    - exp_labels:
+        severity: info
+      exp_annotations:
+        description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: 6%. Metrics emitted from backend/operations_scanner.go.'
+        runbook_url: 'TBD'
+        summary: 'High error rate on Backend Node Pool operations'
+# Test: BackendNodePoolOperationErrorRate below 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
+    values: "0 2x10" # 2 failures per minute → 2 / 100 = 2%
+  - series: 'backend_operations_total{type="poll_node_pool"}'
+    values: "0 100x10"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: BackendNodePoolOperationErrorRate
+    exp_alerts: []
+# Test: BackendNodePoolScalingDuration above 2 seconds (multi-pod: all requests > 5s)
+- interval: 1m
+  input_series:
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+60x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+60x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendNodePoolScalingDuration
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        cluster: cl1
+      exp_annotations:
+        description: 'The 95th percentile of node pool poll operation duration has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
+        runbook_url: 'TBD'
+        summary: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
+# Test: BackendNodePoolScalingDuration below 2 seconds (multi-pod: all requests < 0.25s)
+- interval: 1m
+  input_series:
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendNodePoolScalingDuration
+    exp_alerts: []
