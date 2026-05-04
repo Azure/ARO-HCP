@@ -1,14 +1,18 @@
 prometheusRules:
   rulesFolders:
   - ../observability/alerts/prometheus-prometheusRule.yaml
-  - ../frontend/alerts/mise-prometheusRule.yaml
   - ../frontend/alerts/frontend-prometheusRule.yaml
-  #- ../cluster-service/alerts/cluster-service-slo-rules.yaml
+  - ../cluster-service/alerts/cluster-service-slo-rules.yaml
   - ../backend/alerts/backend-prometheusRule.yaml
   - ../backend/alerts/nodepool-prometheusRule.yaml
   - ../admin/alerts/admin-prometheusRule.yaml
+  - ../maestro/alerts/maestro-prometheusRule.yaml
   - ../observability/alerts/arobit-prometheusRule.yaml
   - alerts/service-tag-public-ip-usage.yaml
+  - ../observability/alerts/HCPdeletionStuck-prometheusRule.yaml
+  - ../observability/alerts/kubeContainerOOM-prometheusRule.yaml
+  - ../observability/alerts/kubeNode-prometheusRule.yaml
+  - alerts/kusto-logs-age-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
   prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b
@@ -49,3 +53,5 @@ grafana-dashboards:
     path: ./grafana-dashboards/perfscale-dashboards
   - name: HCP Kube API Server
     path: ./grafana-dashboards/kas-monitor
+  - name: HCP Kube API Server KSM
+    path: ./grafana-dashboards/kas-ksm-monitor
