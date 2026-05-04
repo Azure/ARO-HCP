@@ -11,27 +11,4 @@ metadata:
 spec:
   groups:
   - name: backend-nodepool
-    rules:
-    - alert: BackendNodePoolOperationErrorRate
-      expr: |
-        (sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h])))
-        /
-        (sum by (cluster) (rate(backend_operations_total{type="poll_node_pool"}[1h])))
-        > 0.05
-      for: 5m
-      labels:
-        severity: info
-      annotations:
-        description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
-        runbook_url: 'TBD'
-        summary: 'High error rate on Backend Node Pool operations'
-    - alert: BackendNodePoolScalingDuration
-      expr: |
-        histogram_quantile(0.95, sum by (le, cluster) (rate(backend_operations_duration_seconds_bucket{type="poll_node_pool"}[1h]))) > 2
-      for: 15m
-      labels:
-        severity: info
-      annotations:
-        description: 'The 95th percentile of node pool scaling operation duration has exceeded 2 seconds over the past hour.'
-        runbook_url: 'TBD'
-        summary: 'Node pool scaling operations are taking too long: 95th percentile exceeds 2 seconds'
+    rules: []

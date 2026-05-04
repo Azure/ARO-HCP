@@ -1,4 +1,5 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - ../backend/alerts/nodepool-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep
