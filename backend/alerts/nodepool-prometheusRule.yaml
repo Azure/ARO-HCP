@@ -37,7 +37,7 @@ spec:
         summary: 'Node pool scaling operations are taking too long: 95th percentile exceeds 2 seconds'
     - alert: BackendNodePoolUpdateRetryRate
       expr: |
-        rate(workqueue_retries_total{name="OperationNodePoolUpdate"}[30m]) > 0.05
+        sum by (cluster, name) (rate(workqueue_retries_total{name="OperationNodePoolUpdate"}[30m])) > 0.05
       for: 10m
       labels:
         severity: info
@@ -47,7 +47,7 @@ spec:
         summary: 'High retry rate on node pool update (resize/adjust) operations'
     - alert: BackendNodePoolDeleteRetryRate
       expr: |
-        rate(workqueue_retries_total{name="OperationNodePoolDelete"}[30m]) > 0.05
+        sum by (cluster, name) (rate(workqueue_retries_total{name="OperationNodePoolDelete"}[30m])) > 0.05
       for: 10m
       labels:
         severity: info
