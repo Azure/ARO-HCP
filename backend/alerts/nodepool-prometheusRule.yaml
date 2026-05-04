@@ -27,7 +27,7 @@ spec:
         summary: 'High error rate on Backend Node Pool operations'
     - alert: BackendNodePoolScalingDuration
       expr: |
-        histogram_quantile(0.95, rate(backend_operations_duration_seconds_bucket{type="poll_node_pool"}[1h])) > 2
+        histogram_quantile(0.95, sum by (le, cluster) (rate(backend_operations_duration_seconds_bucket{type="poll_node_pool"}[1h]))) > 2
       for: 15m
       labels:
         severity: info

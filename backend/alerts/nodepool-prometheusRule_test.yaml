@@ -30,46 +30,73 @@ tests:
   - eval_time: 10m
     alertname: BackendNodePoolOperationErrorRate
     exp_alerts: []
-# Test: BackendNodePoolScalingDuration above 2 seconds (all requests > 5s, in +Inf bucket)
+# Test: BackendNodePoolScalingDuration above 2 seconds (multi-pod: all requests > 5s)
+# Both pod-1 and pod-2 only put requests in +Inf bucket, so after sum by (le, cluster)
+# the aggregated p95 = +Inf > 2s
 - interval: 1m
   input_series:
-  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool"}'
-    values: '0x20' # no requests finish within 0.25s
-  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
     values: '0x20'
-  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
     values: '0x20'
-  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
     values: '0x20'
-  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
     values: '0x20'
-  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool"}'
-    values: '0+100x20' # 100 requests per minute, all taking > 5s → p95 = +Inf > 2s
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+60x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+60x20'
   alert_rule_test:
   - eval_time: 20m
     alertname: BackendNodePoolScalingDuration
     exp_alerts:
     - exp_labels:
         severity: info
-        type: poll_node_pool
+        cluster: cl1
       exp_annotations:
         description: 'The 95th percentile of node pool scaling operation duration has exceeded 2 seconds over the past hour.'
         runbook_url: 'TBD'
         summary: 'Node pool scaling operations are taking too long: 95th percentile exceeds 2 seconds'
-# Test: BackendNodePoolScalingDuration below 2 seconds (all requests < 0.25s)
+# Test: BackendNodePoolScalingDuration below 2 seconds (multi-pod: all requests < 0.25s)
+# Both pods put all requests in le="0.25" bucket, aggregated p95 ≈ 0.24s < 2s
 - interval: 1m
   input_series:
-  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool"}'
-    values: '0+100x20' # all requests complete within 0.25s → p95 ≈ 0.24s < 2s
-  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
     values: '0+100x20'
-  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
     values: '0+100x20'
-  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
     values: '0+100x20'
-  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
     values: '0+100x20'
-  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool"}'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="0.5",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="1",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="2",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="5",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
+    values: '0+100x20'
+  - series: 'backend_operations_duration_seconds_bucket{le="+Inf",type="poll_node_pool",pod="pod-2",cluster="cl1"}'
     values: '0+100x20'
   alert_rule_test:
   - eval_time: 20m
