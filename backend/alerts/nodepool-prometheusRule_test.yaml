@@ -2,7 +2,7 @@ rule_files:
 - nodepool-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: BackendNodePoolResizeSuccessRate above 5%
+# Test: BackendNodePoolOperationErrorRate above 5%
 - interval: 1m
   input_series:
   - series: 'backend_failed_operations_total{type="poll_node_pool"}'
@@ -11,15 +11,15 @@ tests:
     values: "0 100x10" # 100 operations per minute
   alert_rule_test:
   - eval_time: 10m
-    alertname: BackendNodePoolResizeSuccessRate
+    alertname: BackendNodePoolOperationErrorRate
     exp_alerts:
     - exp_labels:
         severity: info
       exp_annotations:
-        description: 'The Backend node pool resize operation error rate is above 5% for the last hour. Current value: 6%.'
+        description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: 6%.'
         runbook_url: 'TBD'
-        summary: 'High error rate on Backend Node Pool Resize operations'
-# Test: BackendNodePoolResizeSuccessRate below 5%
+        summary: 'High error rate on Backend Node Pool operations'
+# Test: BackendNodePoolOperationErrorRate below 5%
 - interval: 1m
   input_series:
   - series: 'backend_failed_operations_total{type="poll_node_pool"}'
@@ -28,7 +28,7 @@ tests:
     values: "0 100x10"
   alert_rule_test:
   - eval_time: 10m
-    alertname: BackendNodePoolResizeSuccessRate
+    alertname: BackendNodePoolOperationErrorRate
     exp_alerts: []
 # Test: BackendNodePoolScalingDuration above 2 seconds (all requests > 5s, in +Inf bucket)
 - interval: 1m
@@ -75,59 +75,53 @@ tests:
   - eval_time: 20m
     alertname: BackendNodePoolScalingDuration
     exp_alerts: []
-# Test: BackendNodePoolAdjustSuccessRate above 5%
+# Test: BackendNodePoolUpdateRetryRate above threshold (resize/adjust operations retrying)
 - interval: 1m
   input_series:
-  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
-    values: "0 6x10"
-  - series: 'backend_operations_total{type="poll_node_pool"}'
-    values: "0 100x10"
+  - series: 'workqueue_retries_total{name="OperationNodePoolUpdate"}'
+    values: "0+10x40" # 10 retries per minute = 0.167/s > 0.05/s threshold
   alert_rule_test:
-  - eval_time: 10m
-    alertname: BackendNodePoolAdjustSuccessRate
+  - eval_time: 40m
+    alertname: BackendNodePoolUpdateRetryRate
     exp_alerts:
     - exp_labels:
         severity: info
+        name: OperationNodePoolUpdate
       exp_annotations:
-        description: 'The Backend node pool adjust operation error rate is above 5% for the last hour. Current value: 6%.'
+        description: 'The OperationNodePoolUpdate controller retry rate has exceeded 3 retries/minute over the last 30 minutes, indicating repeated failures processing node pool resize or adjust operations.'
         runbook_url: 'TBD'
-        summary: 'High error rate on Backend Node Pool Adjust operations'
-# Test: BackendNodePoolAdjustSuccessRate below 5%
+        summary: 'High retry rate on node pool update (resize/adjust) operations'
+# Test: BackendNodePoolUpdateRetryRate below threshold
 - interval: 1m
   input_series:
-  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
-    values: "0 2x10"
-  - series: 'backend_operations_total{type="poll_node_pool"}'
-    values: "0 100x10"
+  - series: 'workqueue_retries_total{name="OperationNodePoolUpdate"}'
+    values: "0+1x40" # 1 retry per minute = 0.017/s < 0.05/s threshold
   alert_rule_test:
-  - eval_time: 10m
-    alertname: BackendNodePoolAdjustSuccessRate
+  - eval_time: 40m
+    alertname: BackendNodePoolUpdateRetryRate
     exp_alerts: []
-# Test: BackendNodePoolDeleteSuccessRate above 5%
+# Test: BackendNodePoolDeleteRetryRate above threshold
 - interval: 1m
   input_series:
-  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
-    values: "0 6x10"
-  - series: 'backend_operations_total{type="poll_node_pool"}'
-    values: "0 100x10"
+  - series: 'workqueue_retries_total{name="OperationNodePoolDelete"}'
+    values: "0+10x40" # 10 retries per minute = 0.167/s > 0.05/s threshold
   alert_rule_test:
-  - eval_time: 10m
-    alertname: BackendNodePoolDeleteSuccessRate
+  - eval_time: 40m
+    alertname: BackendNodePoolDeleteRetryRate
     exp_alerts:
     - exp_labels:
         severity: info
+        name: OperationNodePoolDelete
       exp_annotations:
-        description: 'The Backend node pool delete operation error rate is above 5% for the last hour. Current value: 6%.'
+        description: 'The OperationNodePoolDelete controller retry rate has exceeded 3 retries/minute over the last 30 minutes, indicating repeated failures processing node pool delete operations.'
         runbook_url: 'TBD'
-        summary: 'High error rate on Backend Node Pool Delete operations'
-# Test: BackendNodePoolDeleteSuccessRate below 5%
+        summary: 'High retry rate on node pool delete operations'
+# Test: BackendNodePoolDeleteRetryRate below threshold
 - interval: 1m
   input_series:
-  - series: 'backend_failed_operations_total{type="poll_node_pool"}'
-    values: "0 2x10"
-  - series: 'backend_operations_total{type="poll_node_pool"}'
-    values: "0 100x10"
+  - series: 'workqueue_retries_total{name="OperationNodePoolDelete"}'
+    values: "0+1x40" # 1 retry per minute = 0.017/s < 0.05/s threshold
   alert_rule_test:
-  - eval_time: 10m
-    alertname: BackendNodePoolDeleteSuccessRate
+  - eval_time: 40m
+    alertname: BackendNodePoolDeleteRetryRate
     exp_alerts: []

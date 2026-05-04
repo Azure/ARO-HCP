@@ -12,7 +12,7 @@ spec:
   groups:
   - name: backend-nodepool
     rules:
-    - alert: BackendNodePoolResizeSuccessRate
+    - alert: BackendNodePoolOperationErrorRate
       expr: |
         (sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h])))
         /
@@ -22,9 +22,9 @@ spec:
       labels:
         severity: info
       annotations:
-        description: 'The Backend node pool resize operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'TBD'
-        summary: 'High error rate on Backend Node Pool Resize operations'
+        summary: 'High error rate on Backend Node Pool operations'
     - alert: BackendNodePoolScalingDuration
       expr: |
         histogram_quantile(0.95, rate(backend_operations_duration_seconds_bucket{type="poll_node_pool"}[1h])) > 2
@@ -35,29 +35,23 @@ spec:
         description: 'The 95th percentile of node pool scaling operation duration has exceeded 2 seconds over the past hour.'
         runbook_url: 'TBD'
         summary: 'Node pool scaling operations are taking too long: 95th percentile exceeds 2 seconds'
-    - alert: BackendNodePoolAdjustSuccessRate
+    - alert: BackendNodePoolUpdateRetryRate
       expr: |
-        (sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h])))
-        /
-        (sum by (cluster) (rate(backend_operations_total{type="poll_node_pool"}[1h])))
-        > 0.05
-      for: 5m
+        rate(workqueue_retries_total{name="OperationNodePoolUpdate"}[30m]) > 0.05
+      for: 10m
       labels:
         severity: info
       annotations:
-        description: 'The Backend node pool adjust operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        description: 'The OperationNodePoolUpdate controller retry rate has exceeded 3 retries/minute over the last 30 minutes, indicating repeated failures processing node pool resize or adjust operations.'
         runbook_url: 'TBD'
-        summary: 'High error rate on Backend Node Pool Adjust operations'
-    - alert: BackendNodePoolDeleteSuccessRate
+        summary: 'High retry rate on node pool update (resize/adjust) operations'
+    - alert: BackendNodePoolDeleteRetryRate
       expr: |
-        (sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h])))
-        /
-        (sum by (cluster) (rate(backend_operations_total{type="poll_node_pool"}[1h])))
-        > 0.05
-      for: 5m
+        rate(workqueue_retries_total{name="OperationNodePoolDelete"}[30m]) > 0.05
+      for: 10m
       labels:
         severity: info
       annotations:
-        description: 'The Backend node pool delete operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        description: 'The OperationNodePoolDelete controller retry rate has exceeded 3 retries/minute over the last 30 minutes, indicating repeated failures processing node pool delete operations.'
         runbook_url: 'TBD'
-        summary: 'High error rate on Backend Node Pool Delete operations'
+        summary: 'High retry rate on node pool delete operations'
