@@ -10,7 +10,7 @@
     "@typespec/openapi3": "~1.11.0",
     "@typespec/rest": "~0.81.0",
     "@typespec/versioning": "~0.81.0",
-    "oav": "^4.0.2"
+    "oav": "^4.0.4"
   },
   "engines": {
     "node": ">=20.12.0"
