@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
@@ -34,6 +35,7 @@ import (
 //   - *arm.Subscription
 //   - *api.Controller
 //   - *api.ManagementClusterContent
+//   - *fleet.ManagementCluster
 //
 // Returns an error if any resource cannot be created or if an unsupported type is encountered.
 func NewMockDBClientWithResources(ctx context.Context, resources []any) (*MockDBClient, error) {
@@ -69,6 +71,10 @@ func (m *MockDBClient) addResource(ctx context.Context, resource any) error {
 		return m.addController(ctx, r)
 	case *api.ManagementClusterContent:
 		return m.addManagementClusterContent(ctx, r)
+	case *fleet.ManagementCluster:
+		return m.addManagementCluster(ctx, r)
+	case *fleet.ManagementClusterDeployment:
+		return m.addManagementClusterDeployment(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type: %T", resource)
 	}
@@ -157,6 +163,23 @@ func (m *MockDBClient) addSubscription(ctx context.Context, subscription *arm.Su
 	}
 	subCRUD := m.Subscriptions()
 	_, err := subCRUD.Create(ctx, subscription, nil)
+	return err
+}
+
+func (m *MockDBClient) addManagementCluster(ctx context.Context, managementCluster *fleet.ManagementCluster) error {
+	resourceID := managementCluster.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("management cluster is missing resource ID")
+	}
+	parentResourceID := api.Must(api.ToResourceGroupResourceID(resourceID.SubscriptionID, resourceID.ResourceGroupName))
+	managementClusterCRUD := newMockManagementClusterCRUD(m, parentResourceID)
+	_, err := managementClusterCRUD.Create(ctx, managementCluster, nil)
+	return err
+}
+
+func (m *MockDBClient) addManagementClusterDeployment(ctx context.Context, deployment *fleet.ManagementClusterDeployment) error {
+	managementClusterDeploymentCRUD := newMockManagementClusterDeploymentCRUD(m)
+	_, err := managementClusterDeploymentCRUD.Create(ctx, deployment, nil)
 	return err
 }
 

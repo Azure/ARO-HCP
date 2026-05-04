@@ -21,6 +21,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -92,6 +93,12 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 
 	case *api.HCPOpenShiftClusterNodePool:
 		cosmosObj, err = InternalToCosmosNodePool(internalObj)
+
+	case *fleet.ManagementCluster:
+		cosmosObj, err = InternalToCosmosFleet[fleet.ManagementCluster](internalObj)
+
+	case *fleet.ManagementClusterDeployment:
+		cosmosObj, err = InternalToCosmosFleet[fleet.ManagementClusterDeployment](internalObj)
 
 	case *TypedDocument:
 		var expectedObj CosmosAPIType

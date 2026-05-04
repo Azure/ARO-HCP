@@ -1430,6 +1430,9 @@
             "locksContainerMaxScale": {
               "type": "integer"
             },
+            "fleetContainerMaxScale": {
+              "type": "integer"
+            },
             "zoneRedundantMode": {
               "$ref": "#/definitions/zoneRedundantMode"
             }

@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -108,6 +109,27 @@ func (g *mockGlobalListers) BillingDocs() database.GlobalLister[database.Billing
 	return &mockBillingGlobalLister{client: g.client}
 }
 
+// mockFleetGlobalListers implements database.FleetGlobalListers for the mock client.
+type mockFleetGlobalListers struct {
+	client mockDocumentStore
+}
+
+var _ database.FleetGlobalListers = &mockFleetGlobalListers{}
+
+func (g *mockFleetGlobalListers) ManagementClusters() database.GlobalLister[fleet.ManagementCluster] {
+	return &mockTypedGlobalLister[fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]]{
+		client:       g.client,
+		resourceType: fleet.ManagementClusterResourceType,
+	}
+}
+
+func (g *mockFleetGlobalListers) ManagementClusterDeployments() database.GlobalLister[fleet.ManagementClusterDeployment] {
+	return &mockTypedGlobalLister[fleet.ManagementClusterDeployment, database.GenericDocument[fleet.ManagementClusterDeployment]]{
+		client:       g.client,
+		resourceType: fleet.ManagementClusterDeploymentResourceType,
+	}
+}
+
 // mockSubscriptionGlobalLister lists all subscriptions across all partitions.
 type mockSubscriptionGlobalLister struct {
 	client *MockDBClient
@@ -140,7 +162,7 @@ func (l *mockSubscriptionGlobalLister) List(ctx context.Context, options *databa
 // mockTypedGlobalLister is a generic mock global lister that lists all resources
 // of a given type across all partitions.
 type mockTypedGlobalLister[InternalAPIType, CosmosAPIType any] struct {
-	client       *MockDBClient
+	client       mockDocumentStore
 	resourceType azcorearm.ResourceType
 }
 

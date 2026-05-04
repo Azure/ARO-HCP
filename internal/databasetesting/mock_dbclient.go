@@ -314,6 +314,36 @@ func (m *MockDBClient) GetBillingDocuments() map[string]*database.BillingDocumen
 
 var _ database.DBClient = &MockDBClient{}
 
+// MockFleetDBClient implements the database.FleetDBClient interface for unit testing.
+// It shares the same in-memory document store as MockDBClient.
+type MockFleetDBClient struct {
+	mockDB *MockDBClient
+}
+
+// NewMockFleetDBClient creates a new mock FleetDBClient backed by the given MockDBClient.
+func NewMockFleetDBClient(mockDB *MockDBClient) *MockFleetDBClient {
+	return &MockFleetDBClient{mockDB: mockDB}
+}
+
+// ManagementClusters returns a CRUD interface for management cluster resources
+// scoped to the given subscription and resource group.
+func (m *MockFleetDBClient) ManagementClusters(subscriptionID, resourceGroupName string) database.ManagementClusterCRUD {
+	parentResourceID := api.Must(api.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+	return newMockManagementClusterCRUD(m.mockDB, parentResourceID)
+}
+
+// ManagementClusterDeployments returns a CRUD interface for management cluster deployment resources.
+func (m *MockFleetDBClient) ManagementClusterDeployments() database.ManagementClusterDeploymentCRUD {
+	return newMockManagementClusterDeploymentCRUD(m.mockDB)
+}
+
+// GlobalListers returns interfaces for listing fleet resources across all partitions.
+func (m *MockFleetDBClient) GlobalListers() database.FleetGlobalListers {
+	return &mockFleetGlobalListers{client: m.mockDB}
+}
+
+var _ database.FleetDBClient = &MockFleetDBClient{}
+
 // mockTransaction implements database.DBTransaction for the mock client.
 type mockTransaction struct {
 	pk        string

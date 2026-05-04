@@ -261,6 +261,7 @@ frontend:
     billingContainerMaxScale: 4000
     deploy: true
     disableLocalAuth: true
+    fleetContainerMaxScale: 4000
     locksContainerMaxScale: 4000
     name: arohcpperf-rp-usw3ptest
     private: true

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -66,21 +68,24 @@ const (
 
 	// The OCM SDK does not provide these constants.
 
-	csCustomerManagedEncryptionTypeKms  string = "kms"
-	csEncryptionAtHostStateDisabled     string = "disabled"
-	csEncryptionAtHostStateEnabled      string = "enabled"
-	csImageRegistryStateDisabled        string = "disabled"
-	csImageRegistryStateEnabled         string = "enabled"
-	csKeyManagementModeCustomerManaged  string = "customer_managed"
-	csKeyManagementModePlatformManaged  string = "platform_managed"
-	csNodeDrainGracePeriodUnit          string = "minutes"
-	csOutboundType                      string = "load_balancer"
-	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
-	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
-	csOsDiskPersistencePersistent       string = "persistent"
-	csOsDiskPersistenceEphemeral        string = "ephemeral"
+	csCustomerManagedEncryptionTypeKms   string = "kms"
+	csEncryptionAtHostStateDisabled      string = "disabled"
+	csEncryptionAtHostStateEnabled       string = "enabled"
+	csImageRegistryStateDisabled         string = "disabled"
+	csImageRegistryStateEnabled          string = "enabled"
+	csKeyManagementModeCustomerManaged   string = "customer_managed"
+	csKeyManagementModePlatformManaged   string = "platform_managed"
+	csNodeDrainGracePeriodUnit           string = "minutes"
+	csOutboundType                       string = "load_balancer"
+	csUsernameClaimPrefixPolicyNoPrefix  string = "NoPrefix"
+	csUsernameClaimPrefixPolicyPrefix    string = "Prefix"
+	csCIDRBlockAllowAccessModeAllowAll   string = "allow_all"
+	csCIDRBlockAllowAccessModeAllowList  string = "allow_list"
+	csOsDiskPersistencePersistent        string = "persistent"
+	csOsDiskPersistenceEphemeral         string = "ephemeral"
+	csProvisioningShardStatusActive      string = "active"
+	csProvisioningShardStatusMaintenance string = "maintenance"
+	csProvisioningShardStatusOffline     string = "offline"
 )
 
 // Sentinel error for use with errors.Is
@@ -1359,4 +1364,118 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 	}
 
 	return arm.NewInternalServerError()
+}
+
+// ConvertCSManagementClusterToInternal converts a Cluster Service ProvisionShard
+// to the internal ManagementCluster representation.
+func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard) (*fleet.ManagementCluster, error) {
+	if csShard == nil {
+		return nil, fmt.Errorf("provision shard is nil")
+	}
+
+	shardHREF := csShard.HREF()
+	if len(shardHREF) == 0 {
+		return nil, fmt.Errorf("provision shard has empty HREF")
+	}
+	shardID, err := api.NewInternalID(shardHREF)
+	if err != nil {
+		return nil, fmt.Errorf("provision shard has invalid HREF %q: %w", shardHREF, err)
+	}
+
+	azureShard := csShard.AzureShard()
+	if azureShard == nil {
+		return nil, fmt.Errorf("provision shard %q has no azure shard", shardID)
+	}
+
+	managementClusterAKSResourceID, err := azcorearm.ParseResourceID(azureShard.AksManagementClusterResourceId())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse management cluster AKS resource ID %q: %w", azureShard.AksManagementClusterResourceId(), err)
+	}
+
+	publicDNSZoneResourceID, err := azcorearm.ParseResourceID(azureShard.PublicDnsZoneResourceId())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public DNS zone resource ID %q: %w", azureShard.PublicDnsZoneResourceId(), err)
+	}
+
+	maestroConfig := csShard.MaestroConfig()
+	if maestroConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro config", shardID)
+	}
+	restConfig := maestroConfig.RestApiConfig()
+	if restConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro REST API config", shardID)
+	}
+	grpcConfig := maestroConfig.GrpcApiConfig()
+	if grpcConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro GRPC API config", shardID)
+	}
+
+	hostedClustersSecretsKeyVaultURL := azureShard.CxSecretsKeyVaultUrl()
+	hostedClustersManagedIdentitiesKeyVaultURL := azureShard.CxManagedIdentitiesKeyVaultUrl()
+	hostedClustersSecretsKeyVaultManagedIdentityClientID := azureShard.CxSecretsKeyVaultManagedIdentityClientId()
+
+	readyCondition := metav1.Condition{
+		Type:               string(fleet.ManagementClusterConditionReady),
+		LastTransitionTime: metav1.Now(),
+	}
+	switch csShard.Status() {
+	case csProvisioningShardStatusActive:
+		readyCondition.Status = metav1.ConditionTrue
+		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardActive)
+	case csProvisioningShardStatusMaintenance:
+		readyCondition.Status = metav1.ConditionFalse
+		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardMaintenance)
+		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
+	case csProvisioningShardStatusOffline:
+		readyCondition.Status = metav1.ConditionFalse
+		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardOffline)
+		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
+	default:
+		readyCondition.Status = metav1.ConditionUnknown
+		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardStatusUnknown)
+		readyCondition.Message = fmt.Sprintf("provision shard has unrecognized status %q", csShard.Status())
+	}
+
+	resourceID, err := fleet.ToManagementClusterResourceID(
+		managementClusterAKSResourceID.SubscriptionID,
+		managementClusterAKSResourceID.ResourceGroupName,
+		managementClusterAKSResourceID.Name,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct management cluster resource ID from AKS resource ID: %w", err)
+	}
+
+	mc := &fleet.ManagementCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
+		ResourceID: resourceID,
+		Spec: fleet.ManagementClusterSpec{
+			StampIdentifier:  managementClusterAKSResourceID.Name,
+			SchedulingPolicy: convertShardStatusToSchedulingPolicy(csShard.Status()),
+		},
+		Status: fleet.ManagementClusterStatus{
+			AKSResourceID:                                        managementClusterAKSResourceID,
+			PublicDNSZoneResourceID:                              publicDNSZoneResourceID,
+			HostedClustersSecretsKeyVaultURL:                     hostedClustersSecretsKeyVaultURL,
+			HostedClustersManagedIdentitiesKeyVaultURL:           hostedClustersManagedIdentitiesKeyVaultURL,
+			HostedClustersSecretsKeyVaultManagedIdentityClientID: hostedClustersSecretsKeyVaultManagedIdentityClientID,
+			MaestroConsumerName:                                  maestroConfig.ConsumerName(),
+			MaestroRESTAPIURL:                                    restConfig.Url(),
+			MaestroGRPCTarget:                                    grpcConfig.Url(),
+			ClusterServiceProvisionShardID:                       &shardID,
+			Conditions:                                           []metav1.Condition{readyCondition},
+		},
+	}
+
+	return mc, nil
+}
+
+// convertShardStatusToSchedulingPolicy maps a Cluster Service provision shard
+// status to a ManagementClusterSchedulingPolicy.
+func convertShardStatusToSchedulingPolicy(status string) fleet.ManagementClusterSchedulingPolicy {
+	if status == csProvisioningShardStatusActive {
+		return fleet.ManagementClusterSchedulingPolicySchedulable
+	}
+	return fleet.ManagementClusterSchedulingPolicyUnschedulable
 }
