@@ -88,7 +88,7 @@ tests:
         severity: info
         name: OperationNodePoolUpdate
       exp_annotations:
-        description: 'The OperationNodePoolUpdate controller retry rate has exceeded 3 retries/minute over the last 30 minutes, indicating repeated failures processing node pool resize or adjust operations.'
+        description: 'The OperationNodePoolUpdate controller retry rate has exceeded 3 retries/minute over the last 30 minutes. This affects RESIZE (replica count changes) and ADJUST (labels/taints/drain grace period) operations.'
         runbook_url: 'TBD'
         summary: 'High retry rate on node pool update (resize/adjust) operations'
 # Test: BackendNodePoolUpdateRetryRate below threshold
@@ -113,7 +113,7 @@ tests:
         severity: info
         name: OperationNodePoolDelete
       exp_annotations:
-        description: 'The OperationNodePoolDelete controller retry rate has exceeded 3 retries/minute over the last 30 minutes, indicating repeated failures processing node pool delete operations.'
+        description: 'The OperationNodePoolDelete controller retry rate has exceeded 3 retries/minute over the last 30 minutes. This affects node pool DELETE operations.'
         runbook_url: 'TBD'
         summary: 'High retry rate on node pool delete operations'
 # Test: BackendNodePoolDeleteRetryRate below threshold
