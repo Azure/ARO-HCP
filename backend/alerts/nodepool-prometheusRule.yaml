@@ -35,23 +35,3 @@ spec:
         description: 'The 95th percentile of node pool scaling operation duration has exceeded 2 seconds over the past hour.'
         runbook_url: 'TBD'
         summary: 'Node pool scaling operations are taking too long: 95th percentile exceeds 2 seconds'
-    - alert: BackendNodePoolUpdateRetryRate
-      expr: |
-        sum by (cluster, name) (rate(workqueue_retries_total{name="OperationNodePoolUpdate"}[30m])) > 0.05
-      for: 10m
-      labels:
-        severity: info
-      annotations:
-        description: 'The OperationNodePoolUpdate controller retry rate has exceeded 3 retries/minute over the last 30 minutes. This affects RESIZE (replica count changes) and ADJUST (labels/taints/drain grace period) operations.'
-        runbook_url: 'TBD'
-        summary: 'High retry rate on node pool update (resize/adjust) operations'
-    - alert: BackendNodePoolDeleteRetryRate
-      expr: |
-        sum by (cluster, name) (rate(workqueue_retries_total{name="OperationNodePoolDelete"}[30m])) > 0.05
-      for: 10m
-      labels:
-        severity: info
-      annotations:
-        description: 'The OperationNodePoolDelete controller retry rate has exceeded 3 retries/minute over the last 30 minutes. This affects node pool DELETE operations.'
-        runbook_url: 'TBD'
-        summary: 'High retry rate on node pool delete operations'
