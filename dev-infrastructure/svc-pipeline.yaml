@@ -62,7 +62,7 @@ resourceGroups:
     outputOnly: true
 - name: svcKV
   resourceGroup: '{{ .serviceKeyVault.rg }}'
-  subscription: '{{ if .serviceKeyVault.subscription.key }}{{ .serviceKeyVault.subscription.key }}{{ else }}{{ .svc.subscription.key }}{{ end }}'
+  subscription: '{{ with index .serviceKeyVault "subscription" }}{{ .key }}{{ else }}{{ $.svc.subscription.key }}{{ end }}'
   steps:
   - name: output
     action: ARM
