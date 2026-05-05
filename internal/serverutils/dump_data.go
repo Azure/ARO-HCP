@@ -36,7 +36,7 @@ func DumpDataToLogger(ctx context.Context, cosmosClient database.DBClient, resou
 	}
 	startingCosmosRecord, err := cosmosCRUD.Get(ctx, resourceID)
 	if database.IsNotFoundError(err) {
-		logger.Info(fmt.Sprintf("dumping resourceID %v — document not found, dumping sub-documents only", resourceID),
+		logger.Info(fmt.Sprintf("dumping resourceID %v - document not found, dumping sub-documents only", resourceID),
 			"currentResourceID", resourceID.String(),
 		)
 	} else if err != nil {
