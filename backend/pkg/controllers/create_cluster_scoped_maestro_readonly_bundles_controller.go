@@ -124,30 +124,9 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.C
 		api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 	}
 
-	var maestroBundlesToSync []api.MaestroBundleInternalName
-	// We first check if there's any recognized Maestro Bundle reference that needs to be synced.
-	for _, maestroBundleInternalName := range recognizedMaestroBundles {
-		currentMaestroBundleReference, err := existingServiceProviderCluster.Status.MaestroReadonlyBundles.Get(maestroBundleInternalName)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to get Maestro Bundle reference: %w", err))
-		}
-
-		if currentMaestroBundleReference == nil {
-			maestroBundlesToSync = append(maestroBundlesToSync, maestroBundleInternalName)
-			continue
-		}
-		if len(currentMaestroBundleReference.MaestroAPIMaestroBundleName) == 0 {
-			maestroBundlesToSync = append(maestroBundlesToSync, maestroBundleInternalName)
-			continue
-		}
-		if len(currentMaestroBundleReference.MaestroAPIMaestroBundleID) == 0 {
-			maestroBundlesToSync = append(maestroBundlesToSync, maestroBundleInternalName)
-			continue
-		}
-	}
-	if len(maestroBundlesToSync) == 0 {
-		return nil
-	}
+	// We always sync all recognized Maestro Bundles every cycle. This ensures that
+	// if a bundle is deleted from the Maestro API side, it gets recreated.
+	maestroBundlesToSync := recognizedMaestroBundles
 
 	serviceProviderClustersDBClient := c.cosmosClient.ServiceProviderClusters(
 		key.SubscriptionID,
@@ -267,8 +246,15 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 		return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to get or create Maestro Bundle: %w", err))
 	}
 
-	// If the Maestro API MaestroBundle ID is not set we store the returned Maestro Bundle ID in the corresponding Maestro Bundle reference of the ServiceProviderCluster in Cosmos.
-	if len(existingMaestroBundleRef.MaestroAPIMaestroBundleID) == 0 {
+	// If the stored Maestro Bundle ID differs from the one returned by the Maestro API, update it.
+	// This handles initial creation (empty -> new UID) and recreation after external deletion (old UID -> new UID).
+	if existingMaestroBundleRef.MaestroAPIMaestroBundleID != string(resultMaestroBundle.UID) {
+		// If the Maestro Bundle we retrieved from the Maestro API is not managed by the controller, we return an error.
+		if resultMaestroBundle.Labels[readonlyBundleManagedByK8sLabelKey] != readonlyBundleManagedByK8sLabelValueClusterScoped {
+			return lastPersistedSPC, utils.TrackError(
+				fmt.Errorf("maestro readonly bundle retrieved from maestro API with maestro bundle name '%s' and maestro bundle UID '%s' is not managed by the controller", maestroBundleNamespacedName.Name, resultMaestroBundle.UID),
+			)
+		}
 		bundleID := string(resultMaestroBundle.UID)
 		existingMaestroBundleRef.MaestroAPIMaestroBundleID = bundleID
 		err = existingServiceProviderCluster.Status.MaestroReadonlyBundles.Set(existingMaestroBundleRef)

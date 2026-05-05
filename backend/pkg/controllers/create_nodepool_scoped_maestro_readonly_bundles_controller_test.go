@@ -221,7 +221,14 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *t
 			},
 			maestroClientSetupMock: func(m *maestro.MockClient) {
 				createdBundle := &workv1.ManifestWork{
-					ObjectMeta: metav1.ObjectMeta{Name: "existing-bundle-name", Namespace: "test-consumer", UID: "new-bundle-uid"},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "existing-bundle-name",
+						Namespace: "test-consumer",
+						UID:       "new-bundle-uid",
+						Labels: map[string]string{
+							readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueNodePoolScoped,
+						},
+					},
 				}
 				m.EXPECT().Get(gomock.Any(), "existing-bundle-name", gomock.Any()).Return(nil, k8serrors.NewNotFound(schema.GroupResource{}, "not-found"))
 				m.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(createdBundle, nil)
@@ -272,6 +279,47 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *t
 			},
 		},
 		{
+			name: "bundle deleted and recreated - UID updated",
+			initialSPNP: &api.ServiceProviderNodePool{
+				CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
+				ResourceID:     *spnpResourceID,
+				Status: api.ServiceProviderNodePoolStatus{
+					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
+						{
+							Name:                        bundleInternalName,
+							MaestroAPIMaestroBundleName: "recreated-bundle-name",
+							MaestroAPIMaestroBundleID:   "old-bundle-uid",
+						},
+					},
+				},
+			},
+			maestroClientSetupMock: func(m *maestro.MockClient) {
+				m.EXPECT().Get(gomock.Any(), "recreated-bundle-name", gomock.Any()).Return(nil, k8serrors.NewNotFound(schema.GroupResource{}, "not-found"))
+				recreatedBundle := &workv1.ManifestWork{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "recreated-bundle-name",
+						Namespace: "test-consumer",
+						UID:       "new-recreated-uid",
+						Labels: map[string]string{
+							readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueNodePoolScoped,
+						},
+					},
+				}
+				m.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(recreatedBundle, nil)
+			},
+			wantServiceProviderNodePool: &api.ServiceProviderNodePool{
+				Status: api.ServiceProviderNodePoolStatus{
+					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
+						{
+							Name:                        bundleInternalName,
+							MaestroAPIMaestroBundleName: "recreated-bundle-name",
+							MaestroAPIMaestroBundleID:   "new-recreated-uid",
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "multiple refs - only synced ref is updated, other refs unchanged",
 			initialSPNP: &api.ServiceProviderNodePool{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
@@ -293,7 +341,14 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *t
 			},
 			maestroClientSetupMock: func(m *maestro.MockClient) {
 				createdBundle := &workv1.ManifestWork{
-					ObjectMeta: metav1.ObjectMeta{Name: "nodepool-bundle-name", Namespace: "test-consumer", UID: "nodepool-bundle-uid"},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "nodepool-bundle-name",
+						Namespace: "test-consumer",
+						UID:       "nodepool-bundle-uid",
+						Labels: map[string]string{
+							readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueNodePoolScoped,
+						},
+					},
 				}
 				m.EXPECT().Get(gomock.Any(), "nodepool-bundle-name", gomock.Any()).Return(nil, k8serrors.NewNotFound(schema.GroupResource{}, "not-found"))
 				m.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(createdBundle, nil)
@@ -359,7 +414,14 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *t
 			maestroClientSetupMock: func(m *maestro.MockClient) {
 				deterministicName := syncMaestroBundleTestDeterministicUUID.String()
 				createdBundle := &workv1.ManifestWork{
-					ObjectMeta: metav1.ObjectMeta{Name: deterministicName, Namespace: "test-consumer", UID: "new-bundle-uid"},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      deterministicName,
+						Namespace: "test-consumer",
+						UID:       "new-bundle-uid",
+						Labels: map[string]string{
+							readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueNodePoolScoped,
+						},
+					},
 				}
 				m.EXPECT().Get(gomock.Any(), deterministicName, gomock.Any()).Return(nil, k8serrors.NewNotFound(schema.GroupResource{}, "not-found"))
 				m.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
@@ -412,6 +474,88 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *t
 			wantErr:       true,
 			wantErrSubstr: "failed to get or create Maestro Bundle",
 		},
+		{
+			name: "bundle from API has wrong managed-by label - rejects UID update",
+			initialSPNP: &api.ServiceProviderNodePool{
+				CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
+				ResourceID:     *spnpResourceID,
+				Status: api.ServiceProviderNodePoolStatus{
+					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
+						{
+							Name:                        bundleInternalName,
+							MaestroAPIMaestroBundleName: "wrong-label-bundle",
+							MaestroAPIMaestroBundleID:   "",
+						},
+					},
+				},
+			},
+			maestroClientSetupMock: func(m *maestro.MockClient) {
+				existingBundle := &workv1.ManifestWork{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "wrong-label-bundle",
+						Namespace: "test-consumer",
+						UID:       "foreign-uid",
+						Labels: map[string]string{
+							readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueClusterScoped,
+						},
+					},
+				}
+				m.EXPECT().Get(gomock.Any(), "wrong-label-bundle", gomock.Any()).Return(existingBundle, nil)
+			},
+			wantServiceProviderNodePool: &api.ServiceProviderNodePool{
+				Status: api.ServiceProviderNodePoolStatus{
+					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
+						{
+							Name:                        bundleInternalName,
+							MaestroAPIMaestroBundleName: "wrong-label-bundle",
+							MaestroAPIMaestroBundleID:   "",
+						},
+					},
+				},
+			},
+			wantErr:       true,
+			wantErrSubstr: "not managed by the controller",
+		},
+		{
+			name: "bundle from API has no managed-by label - rejects UID update",
+			initialSPNP: &api.ServiceProviderNodePool{
+				CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
+				ResourceID:     *spnpResourceID,
+				Status: api.ServiceProviderNodePoolStatus{
+					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
+						{
+							Name:                        bundleInternalName,
+							MaestroAPIMaestroBundleName: "no-managed-by-label-bundle",
+							MaestroAPIMaestroBundleID:   "",
+						},
+					},
+				},
+			},
+			maestroClientSetupMock: func(m *maestro.MockClient) {
+				existingBundle := &workv1.ManifestWork{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "no-managed-by-label-bundle",
+						Namespace: "test-consumer",
+						UID:       "unlabeled-uid",
+						Labels:    nil,
+					},
+				}
+				m.EXPECT().Get(gomock.Any(), "no-managed-by-label-bundle", gomock.Any()).Return(existingBundle, nil)
+			},
+			wantServiceProviderNodePool: &api.ServiceProviderNodePool{
+				Status: api.ServiceProviderNodePoolStatus{
+					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
+						{
+							Name:                        bundleInternalName,
+							MaestroAPIMaestroBundleName: "no-managed-by-label-bundle",
+							MaestroAPIMaestroBundleID:   "",
+						},
+					},
+				},
+			},
+			wantErr:       true,
+			wantErrSubstr: "not managed by the controller",
+		},
 	}
 
 	for _, tt := range tests {
@@ -455,7 +599,8 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *t
 			)
 
 			assert.Equal(t, tt.wantErr, err != nil)
-			if tt.wantErr {
+			if tt.wantErr && tt.wantErrSubstr != "" {
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrSubstr)
 			}
 			require.NotNil(t, result)
@@ -609,11 +754,19 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_GetServicePro
 }
 
 func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_AllBundlesAlreadySynced(t *testing.T) {
+	ctrl := gomock.NewController(t)
 	ctx := context.Background()
+
 	mockDBClient := databasetesting.NewMockDBClient()
+	mockClusterService := ocm.NewMockClusterServiceClientSpec(ctrl)
+	mockMaestroBuilder := maestro.NewMockMaestroClientBuilder(ctrl)
+	mockMaestroClient := maestro.NewMockClient(ctrl)
+
 	syncer := &createNodePoolScopedMaestroReadonlyBundlesSyncer{
 		cooldownChecker:                      &alwaysSyncCooldownChecker{},
 		cosmosClient:                         mockDBClient,
+		clusterServiceClient:                 mockClusterService,
+		maestroClientBuilder:                 mockMaestroBuilder,
 		maestroSourceEnvironmentIdentifier:   "test-env",
 		maestroAPIMaestroBundleNameGenerator: maestro.NewMaestroAPIMaestroBundleNameGenerator(),
 	}
@@ -660,9 +813,44 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_AllBundlesAlr
 	_, err = spnpCRUD.Create(ctx, spnp, nil)
 	require.NoError(t, err)
 
-	// Since all bundles are synced, no cluster service or maestro calls should be made
+	// Even though all bundles are synced, the controller now reconciles every cycle
+	provisionShard := buildTestProvisionShard("test-consumer")
+	mockClusterService.EXPECT().
+		GetClusterProvisionShard(gomock.Any(), nodepool.ServiceProviderProperties.ClusterServiceID).
+		Return(provisionShard, nil)
+
+	csCluster, err := arohcpv1alpha1.NewCluster().
+		DomainPrefix("test-domain").
+		Build()
+	require.NoError(t, err)
+	mockClusterService.EXPECT().
+		GetCluster(gomock.Any(), nodepool.ServiceProviderProperties.ClusterServiceID).
+		Return(csCluster, nil)
+
+	restEndpoint := provisionShard.MaestroConfig().RestApiConfig().Url()
+	grpcEndpoint := provisionShard.MaestroConfig().GrpcApiConfig().Url()
+	consumerName := provisionShard.MaestroConfig().ConsumerName()
+	sourceID := maestro.GenerateMaestroSourceID("test-env", provisionShard.ID())
+	mockMaestroBuilder.EXPECT().
+		NewClient(gomock.Any(), restEndpoint, grpcEndpoint, consumerName, sourceID).
+		Return(mockMaestroClient, nil)
+
+	// Bundle already exists in Maestro with matching UID - steady state, no DB write
+	existingBundle := &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{Name: "bundle-name", Namespace: "test-consumer", UID: "bundle-id"},
+	}
+	mockMaestroClient.EXPECT().Get(gomock.Any(), "bundle-name", gomock.Any()).Return(existingBundle, nil)
+
 	err = syncer.SyncOnce(ctx, key)
 	assert.NoError(t, err)
+
+	// Verify SPNP is unchanged (no DB write for matching UID)
+	updatedSPNP, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err)
+	bundleRef, err := updatedSPNP.Status.MaestroReadonlyBundles.Get(bundleInternalName)
+	require.NoError(t, err)
+	assert.Equal(t, "bundle-name", bundleRef.MaestroAPIMaestroBundleName)
+	assert.Equal(t, "bundle-id", bundleRef.MaestroAPIMaestroBundleID)
 }
 
 func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_SyncLoopExecutesWithBundleCreation(t *testing.T) {
@@ -747,6 +935,9 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_SyncLoopExecu
 			Name:      "new-bundle-name",
 			Namespace: "test-consumer",
 			UID:       "new-bundle-id",
+			Labels: map[string]string{
+				readonlyBundleManagedByK8sLabelKey: readonlyBundleManagedByK8sLabelValueNodePoolScoped,
+			},
 		},
 	}
 	mockMaestroClient.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(createdBundle, nil)
