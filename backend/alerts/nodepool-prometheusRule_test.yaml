@@ -30,7 +30,7 @@ tests:
   - eval_time: 10m
     alertname: BackendNodePoolOperationErrorRate
     exp_alerts: []
-# Test: BackendNodePoolScalingDuration above 2 seconds (multi-pod: all requests > 5s)
+# Test: BackendNodePoolPollLatency above 2 seconds (multi-pod: all requests > 5s)
 - interval: 1m
   input_series:
   - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
@@ -59,16 +59,16 @@ tests:
     values: '0+60x20'
   alert_rule_test:
   - eval_time: 20m
-    alertname: BackendNodePoolScalingDuration
+    alertname: BackendNodePoolPollLatency
     exp_alerts:
     - exp_labels:
         severity: info
         cluster: cl1
       exp_annotations:
-        description: 'The 95th percentile of node pool poll operation duration has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
+        description: 'The 95th percentile of node pool poll operation latency has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
         summary: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
-# Test: BackendNodePoolScalingDuration below 2 seconds (multi-pod: all requests < 0.25s)
+# Test: BackendNodePoolPollLatency below 2 seconds (multi-pod: all requests < 0.25s)
 - interval: 1m
   input_series:
   - series: 'backend_operations_duration_seconds_bucket{le="0.25",type="poll_node_pool",pod="pod-1",cluster="cl1"}'
@@ -97,5 +97,5 @@ tests:
     values: '0+100x20'
   alert_rule_test:
   - eval_time: 20m
-    alertname: BackendNodePoolScalingDuration
+    alertname: BackendNodePoolPollLatency
     exp_alerts: []

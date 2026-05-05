@@ -25,13 +25,13 @@ spec:
         description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/operations_scanner.go.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
         summary: 'High error rate on Backend Node Pool operations'
-    - alert: BackendNodePoolScalingDuration
+    - alert: BackendNodePoolPollLatency
       expr: |
         histogram_quantile(0.95, sum by (le, cluster) (rate(backend_operations_duration_seconds_bucket{type="poll_node_pool"}[1h]))) > 2
       for: 15m
       labels:
         severity: info
       annotations:
-        description: 'The 95th percentile of node pool poll operation duration has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
+        description: 'The 95th percentile of node pool poll operation latency has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
         summary: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
