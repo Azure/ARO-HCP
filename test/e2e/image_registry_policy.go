@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	disallowedImage = "quay.io/library/nginx:latest"
+	disallowedImage = "ghcr.io/library/nginx:latest"
 )
 
 var _ = Describe("Image Registry Policy", func() {
