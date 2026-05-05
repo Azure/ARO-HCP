@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/name: image-registry-policy
     app.kubernetes.io/managed-by: Helm
 data:
-  allowedRegistries: 'arohcpsvcdev.azurecr.io,arohcpocpdev.azurecr.io,mcr.microsoft.com,kubernetesshared.azurecr.io,docker.io,quay.io,registry.k8s.io,registry.redhat.io,jaegertracing,grafana,otel'
+  allowedRegistries: 'arohcpsvcdev.azurecr.io,arohcpocpdev.azurecr.io,mcr.microsoft.com,kubernetesshared.azurecr.io,docker.io,jaegertracing,grafana,otel'
 ---
 # Source: image-registry-policy/templates/validatingadmissionpolicy.yaml
 # This policy enforces FSI image sourcing requirements by restricting all pod

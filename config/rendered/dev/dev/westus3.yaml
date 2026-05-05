@@ -411,9 +411,6 @@ hypershift:
 imageRegistryPolicy:
   extraAllowedRegistries:
   - docker.io
-  - quay.io
-  - registry.k8s.io
-  - registry.redhat.io
   - jaegertracing
   - grafana
   - otel
