@@ -35,13 +35,18 @@ func DumpDataToLogger(ctx context.Context, cosmosClient database.DBClient, resou
 		return utils.TrackError(err)
 	}
 	startingCosmosRecord, err := cosmosCRUD.Get(ctx, resourceID)
-	if err != nil {
+	if database.IsNotFoundError(err) {
+		logger.Info(fmt.Sprintf("dumping resourceID %v — document not found, dumping sub-documents only", resourceID),
+			"currentResourceID", resourceID.String(),
+		)
+	} else if err != nil {
 		return utils.TrackError(err)
+	} else {
+		logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
+			"currentResourceID", startingCosmosRecord.ResourceID.String(),
+			"content", startingCosmosRecord,
+		)
 	}
-	logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
-		"currentResourceID", startingCosmosRecord.ResourceID.String(),
-		"content", startingCosmosRecord,
-	)
 
 	allCosmosRecords, err := cosmosCRUD.ListRecursive(ctx, nil)
 	if err != nil {
