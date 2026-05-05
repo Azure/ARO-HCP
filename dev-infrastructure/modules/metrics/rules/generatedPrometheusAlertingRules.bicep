@@ -772,8 +772,8 @@ resource backendNodepool 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         annotations: {
           correlationId: 'BackendNodePoolOperationErrorRate/{{ $labels.cluster }}'
-          description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/operations_scanner.go.'
-          info: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/operations_scanner.go.'
+          description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/pkg/controllers/controllerutils/operations_metrics.go.'
+          info: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/pkg/controllers/controllerutils/operations_metrics.go.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'High error rate on Backend Node Pool operations'
           title: 'High error rate on Backend Node Pool operations'
@@ -799,8 +799,8 @@ resource backendNodepool 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         annotations: {
           correlationId: 'BackendNodePoolPollLatency/{{ $labels.cluster }}'
-          description: 'The 95th percentile of node pool poll operation latency has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
-          info: 'The 95th percentile of node pool poll operation latency has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/operations_scanner.go.'
+          description: 'The 95th percentile of node pool poll operation latency has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/pkg/controllers/controllerutils/operations_metrics.go.'
+          info: 'The 95th percentile of node pool poll operation latency has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/pkg/controllers/controllerutils/operations_metrics.go.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
           title: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
