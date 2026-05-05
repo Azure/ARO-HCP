@@ -76,16 +76,21 @@ func CompareWithFixture(t *testing.T, output interface{}, opts ...option) {
 		t.Fatalf("failed to read testdata file: %v", err)
 	}
 	if diff := cmp.Diff(string(expected), string(serializedOutput)); diff != "" {
-		t.Errorf("got diff between expected and actual result:\nfile: %s\ndiff:\n%s\n\nIf this is expected, re-run the test with `UPDATE=true go test ./...` to update the fixtures.", golden, diff)
+		if options.DiffMessage != "" {
+			t.Errorf("%s\n\nfile: %s\ndiff:\n%s", options.DiffMessage, golden, diff)
+		} else {
+			t.Errorf("got diff between expected and actual result:\nfile: %s\ndiff:\n%s\n\nIf this is expected, re-run the test with `UPDATE=true go test ./...` to update the fixtures.", golden, diff)
+		}
 	}
 }
 
 type options struct {
-	Prefix    string
-	Suffix    string
-	Extension string
-	SubDir    string
-	GoldenDir string
+	Prefix      string
+	Suffix      string
+	Extension   string
+	SubDir      string
+	GoldenDir   string
+	DiffMessage string
 }
 
 type option func(*options)
@@ -117,6 +122,12 @@ func WithSubDir(subDir string) option {
 func WithGoldenDir(goldenDir string) option {
 	return func(opts *options) {
 		opts.GoldenDir = goldenDir
+	}
+}
+
+func WithDiffMessage(msg string) option {
+	return func(opts *options) {
+		opts.DiffMessage = msg
 	}
 }
 
