@@ -18,6 +18,8 @@ import "time"
 
 // When updating timeouts, please refer to test/e2e/README.md for instructions.
 // Provisioning timeouts
-const ClusterCreationTimeout = 20 * time.Minute
-const NodePoolCreationTimeout = 20 * time.Minute
-const ExternalAuthCreationTimeout = 15 * time.Minute
+const (
+	ClusterCreationTimeout      = 20 * time.Minute
+	NodePoolCreationTimeout     = 20 * time.Minute
+	ExternalAuthCreationTimeout = 15 * time.Minute
+)
