@@ -113,7 +113,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				*expectedExternalAuth.Name,
 				expectedExternalAuth,
-				15*time.Minute,
+				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create external auth config on cluster %s", clusterName)
 
@@ -137,7 +137,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				*anotherExternalAuth.Name,
 				anotherExternalAuth,
-				15*time.Minute,
+				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).To(HaveOccurred(), "expected error when creating a second external auth config on cluster %s", clusterName)
 
@@ -185,7 +185,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				*expectedExternalAuth.Name,
 				expectedExternalAuth,
-				15*time.Minute,
+				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update external auth config prefix on cluster %s", clusterName)
 
