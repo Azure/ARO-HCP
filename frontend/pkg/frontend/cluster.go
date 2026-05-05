@@ -303,7 +303,6 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// that represents an existing resource to be updated.
 
 	ctx := request.Context()
-	logger := utils.LoggerFromContext(ctx)
 
 	subscription, err := SubscriptionFromContext(ctx)
 	if err != nil {
@@ -343,44 +342,13 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// TODO this is bad, see above TODOs. We want to validate what we store.
 	newInternalCluster.Identity.UserAssignedIdentities = nil
 
-	var tenantID string
-	if subscription.Properties != nil && subscription.Properties.TenantId != nil {
-		tenantID = *subscription.Properties.TenantId
-	}
-
-	initialClusterProperties := map[string]string{}
-	if len(f.clusterServiceProvisionShard) != 0 {
-		initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard
-	}
-	if f.clusterServiceNoopProvision {
-		initialClusterProperties[ocm.CSPropertyNoopProvision] = ocm.CSPropertyEnabled
-	}
-	if f.clusterServiceNoopDeprovision {
-		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
-	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	csID, err := api.NewInternalID(resultingClusterServiceCluster.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	newInternalCluster.ServiceProviderProperties.ClusterServiceID = &csID
-
 	transaction := f.dbClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
 
 	// TODO extract to straight instance creation and then validation.
 	clusterCreateOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalCluster.ID,
-		ptr.Deref(newInternalCluster.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -419,6 +387,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalCluster)
 	}
 
+	var resultingClusterServiceCluster *arohcpv1alpha1.Cluster // TODO remove this once we moved read from CS
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
 	resultingInternalCluster, err = mergeToInternalCluster(resultingClusterServiceCluster, resultingInternalCluster, f.azureLocation)
 	if err != nil {
