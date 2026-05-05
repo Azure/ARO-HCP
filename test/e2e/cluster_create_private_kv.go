@@ -99,12 +99,6 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				clusterResource,
 				45*time.Minute,
 			)
-			if isAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20251223preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying cluster was created with private keyvault visibility")
@@ -164,20 +158,9 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying the cluster is viable and pod logs can be fetched")
-			logVerifier := verifiers.VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")
-			var previousError string
-			Eventually(func() error {
-				err := logVerifier.Verify(ctx, adminRESTConfig)
-				if err != nil {
-					currentError := err.Error()
-					if currentError != previousError {
-						GinkgoLogr.Info("Verifier check", "name", logVerifier.Name(), "status", "failed", "error", currentError)
-						previousError = currentError
-					}
-				}
-				return err
-			}, 10*time.Minute, 30*time.Second).Should(Succeed(), "router-default deployment logs should be fetchable")
+			By("verifying the cluster is viable: nodes ready and pod logs can be fetched")
+			err = verifiers.VerifyNodeViability().Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "nodes should be ready and router-default deployment logs should be fetchable")
 
 		})
 })

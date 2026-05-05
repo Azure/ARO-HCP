@@ -21,11 +21,14 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/onsi/ginkgo/v2"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/set"
@@ -362,4 +365,58 @@ func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) strin
 		}
 	}
 	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, currentImgs)
+}
+
+type verifyNodeViability struct{}
+
+func (v verifyNodeViability) Name() string {
+	return "VerifyNodeViability"
+}
+
+func (v verifyNodeViability) Verify(ctx context.Context, restConfig *rest.Config) error {
+	logger := ginkgo.GinkgoLogr
+
+	nodesVerifier := VerifyNodesReady()
+	logsVerifier := VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")
+
+	var lastErr error
+	var previousError string
+	err := wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (bool, error) {
+		if err := nodesVerifier.Verify(ctx, restConfig); err != nil {
+			lastErr = err
+			currentError := err.Error()
+			if currentError != previousError {
+				logger.Info("Verifier check", "name", nodesVerifier.Name(), "status", "failed", "error", currentError)
+				previousError = currentError
+			}
+			return false, nil
+		}
+		if err := logsVerifier.Verify(ctx, restConfig); err != nil {
+			lastErr = err
+			currentError := err.Error()
+			if currentError != previousError {
+				logger.Info("Verifier check", "name", logsVerifier.Name(), "status", "failed", "error", currentError)
+				previousError = currentError
+			}
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		if lastErr != nil {
+			return fmt.Errorf("%s timed out: %w", v.Name(), lastErr)
+		}
+		return fmt.Errorf("%s: %w", v.Name(), err)
+	}
+
+	logger.Info("Node viability verified")
+	return nil
+}
+
+// VerifyNodeViability returns a verifier that polls until all nodes are ready
+// and pod logs can be fetched from the openshift-ingress/router-default deployment,
+// proving the cluster is functional. It polls every 30s for up to 10 minutes
+// with delta-only logging.
+func VerifyNodeViability() HostedClusterVerifier {
+	return verifyNodeViability{}
 }
