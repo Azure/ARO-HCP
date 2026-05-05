@@ -124,7 +124,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to begin creation of second cluster %q", customerClusterName2)
 
 			By("waiting for first cluster to complete creation")
-			pollCtx, pollCancel := context.WithTimeout(ctx, 45*time.Minute)
+			pollCtx, pollCancel := context.WithTimeout(ctx, framework.ClusterCreationTimeout)
 			defer pollCancel()
 			_, err = poller1.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 				Frequency: framework.StandardPollInterval,
