@@ -415,7 +415,7 @@ imageRegistryPolicy:
   - grafana
   - otel
   validationActions:
-  - Deny
+  - Audit
 imageSync:
   environmentName: aro-hcp-image-sync
   ocMirror:

@@ -70,7 +70,7 @@ metadata:
 spec:
   policyName: "image-registry-allowlist-policy"
   validationActions:
-  - Deny
+  - Audit
   paramRef:
     name: "image-registry-allowlist-config"
     namespace: 'image-registry-policy'

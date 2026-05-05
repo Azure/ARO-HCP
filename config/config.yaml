@@ -1197,7 +1197,7 @@ clouds:
         - grafana
         - otel
         validationActions:
-        - Deny
+        - Audit
       # ACRs
       acr:
         svc:
