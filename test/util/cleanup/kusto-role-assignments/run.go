@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
@@ -74,8 +75,12 @@ func pageAssignmentsAndDeleteInvalid(ctx context.Context, pager *runtime.Pager[a
 				if err != nil {
 					return fmt.Errorf("failed to delete role assignment: %w", err)
 				}
+				pollCtx, pollCancel := context.WithTimeout(ctx, 5*time.Minute)
+				defer pollCancel()
 				var resp any
-				if resp, err = poller.PollUntilDone(ctx, nil); err != nil {
+				if resp, err = poller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+					Frequency: 10 * time.Second,
+				}); err != nil {
 					return fmt.Errorf("failed to delete role assignment: %w", err)
 				}
 				switch m := resp.(type) {
