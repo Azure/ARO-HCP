@@ -184,9 +184,15 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying count and ready status of nodes from the ephemeral nodepool")
-			Expect(verifiers.VerifyNodeCount(customerClusterName, int(nodePoolParams.Replicas)).Verify(ctx, adminRESTConfig)).To(Succeed())
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
+			By("verifying count, readiness, schedulability, and viability of nodes from the ephemeral nodepool")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.NodePoolVerifiers(
+					tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+					*resourceGroup.Name,
+					customerClusterName,
+				)...,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying Azure VMs actually have ephemeral OS disks")
 			computeFactory := tc.GetARMComputeClientFactoryOrDie(ctx)

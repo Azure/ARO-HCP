@@ -158,9 +158,15 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying the cluster is viable: nodes ready and pod logs can be fetched")
-			err = verifiers.VerifyNodeViability().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "nodes should be ready and router-default deployment logs should be fetchable")
+			By("verifying the cluster is viable: node pool counts, readiness, schedulability, and pod logs")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.NodePoolVerifiers(
+					tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+					*resourceGroup.Name,
+					customerClusterName,
+				)...,
+			)
+			Expect(err).NotTo(HaveOccurred(), "nodes should be ready, schedulable, and router-default deployment logs should be fetchable")
 
 		})
 })

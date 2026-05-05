@@ -188,8 +188,17 @@ var _ = Describe("Customer", func() {
 			// We delay checking the error on purpose to get more details
 			// about the issue by running the verifiers.
 
-			By("verifying nodes become Ready with Cilium CNI")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))
+			By("verifying nodes are ready, schedulable, and viable with Cilium CNI")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				append(
+					verifiers.NodePoolVerifiers(
+						tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+						*resourceGroup.Name,
+						customerClusterName,
+					),
+					verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"),
+				)...,
+			)
 			Expect(errors.Join(err, nodePoolErr)).NotTo(HaveOccurred())
 
 			By("verifying a simple web app can run with cilium")
