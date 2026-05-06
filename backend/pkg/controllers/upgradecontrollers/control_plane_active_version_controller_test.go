@@ -286,6 +286,9 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 	require.NoError(t, err)
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,

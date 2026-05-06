@@ -68,13 +68,17 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 			foo := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
 			j.ClusterServiceID = &foo
 		},
+		func(j *api.CosmosMetadata, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
+			j.ExistingCosmosUID = ""
+			j.CosmosETag = ""
+		},
 		func(j *api.HCPOpenShiftCluster, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
 			}
-			j.ServiceProviderProperties.ExistingCosmosUID = ""
-			j.CosmosETag = ""
 			// Canonical defaults are applied on Cosmos read, so ensure
 			// defaulted fields are never zero during round-trip testing.
 			if len(j.CustomerProperties.Network.NetworkType) == 0 {
@@ -136,7 +140,7 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 	// this value is set during conversion, so we need clear for comparison
 	switch cast := any(final).(type) {
 	case *api.HCPOpenShiftCluster:
-		cast.ServiceProviderProperties.ExistingCosmosUID = ""
+		cast.ExistingCosmosUID = ""
 	case *api.HCPOpenShiftClusterNodePool:
 		cast.ServiceProviderProperties.ExistingCosmosUID = ""
 	case *api.HCPOpenShiftClusterExternalAuth:
@@ -180,6 +184,11 @@ func TestCosmosToInternalClusterPreservesETag(t *testing.T) {
 			},
 		},
 		HCPClusterProperties: HCPClusterProperties{
+			HCPOpenShiftCluster: api.HCPOpenShiftCluster{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: resourceID,
+				},
+			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID: resourceID,
 			},
