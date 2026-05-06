@@ -7,22 +7,28 @@
 # to clean up child resources. Once all CRs are gone, remove the CRDs.
 #
 # Idempotent — safe to run on clusters that never had PKO installed.
+# Best-effort — logs errors but always exits 0 so it never blocks rollouts.
 #
-# Tracks: ARO-23308 / AROSLSRE-686
+# Tracks: AROSLSRE-782
 
-set -o errexit
 set -o nounset
 set -o pipefail
 
+ERRORS=0
 TIMEOUT="${PKO_CLEANUP_TIMEOUT:-120s}"
 
-echo "=== Package Operator CR + CRD cleanup ==="
+log_error() {
+  echo "ERROR: $*" >&2
+  ERRORS=$((ERRORS + 1))
+}
+
+echo "=== Package Operator CR + CRD cleanup (best-effort) ==="
 
 # 1. Discover all CRDs in the package-operator.run group, extracting
 #    plural name, full API group, and scope from each CRD's spec.
 mapfile -t PKO_CRD_INFO < <(
   kubectl get crds -o jsonpath='{range .items[*]}{.metadata.name} {.spec.names.plural} {.spec.group} {.spec.scope}{"\n"}{end}' \
-    | grep ' \(.*\.\)\{0,1\}package-operator\.run ' || true
+    2>/dev/null | grep ' \(.*\.\)\{0,1\}package-operator\.run ' || true
 )
 
 if [[ ${#PKO_CRD_INFO[@]} -eq 0 ]]; then
@@ -40,9 +46,9 @@ delete_crs() {
   echo ""
   echo "--- Deleting all ${resource} CRs (${scope}) ---"
   if [[ "${scope}" == "Namespaced" ]]; then
-    kubectl delete "${resource}" --all-namespaces --all --timeout="${TIMEOUT}" 2>/dev/null || true
+    kubectl delete "${resource}" --all-namespaces --all --timeout="${TIMEOUT}" 2>/dev/null || log_error "Failed to delete ${resource} (namespaced)"
   else
-    kubectl delete "${resource}" --all --timeout="${TIMEOUT}" 2>/dev/null || true
+    kubectl delete "${resource}" --all --timeout="${TIMEOUT}" 2>/dev/null || log_error "Failed to delete ${resource} (cluster-scoped)"
   fi
 }
 
@@ -52,14 +58,16 @@ count_crs() {
   local output
 
   if [[ "${scope}" == "Namespaced" ]]; then
-    output=$(kubectl get "${resource}" --all-namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}') || {
-      echo "ERROR: kubectl get ${resource} --all-namespaces failed" >&2
-      return 1
+    output=$(kubectl get "${resource}" --all-namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null) || {
+      log_error "kubectl get ${resource} --all-namespaces failed"
+      echo 0
+      return
     }
   else
-    output=$(kubectl get "${resource}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}') || {
-      echo "ERROR: kubectl get ${resource} failed" >&2
-      return 1
+    output=$(kubectl get "${resource}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null) || {
+      log_error "kubectl get ${resource} failed"
+      echo 0
+      return
     }
   fi
 
@@ -82,7 +90,7 @@ strip_finalizers() {
       name=$(echo "${entry}" | cut -d' ' -f2)
       echo "  Patching finalizers on ${resource}/${name} -n ${ns}"
       kubectl patch "${resource}" "${name}" -n "${ns}" \
-        --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || true
+        --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || log_error "Failed to patch finalizers on ${resource}/${name} -n ${ns}"
     done < <(kubectl get "${resource}" --all-namespaces \
                -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' 2>/dev/null || true)
   else
@@ -90,7 +98,7 @@ strip_finalizers() {
       [[ -z "${name}" ]] && continue
       echo "  Patching finalizers on ${resource}/${name}"
       kubectl patch "${resource}" "${name}" \
-        --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || true
+        --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || log_error "Failed to patch finalizers on ${resource}/${name}"
     done < <(kubectl get "${resource}" \
                -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
   fi
@@ -148,10 +156,10 @@ if [[ $remaining -gt 0 ]]; then
   done
 
   if [[ $final_remaining -gt 0 ]]; then
-    echo "ERROR: ${final_remaining} CR(s) still remain after finalizer removal."
-    exit 1
+    log_error "${final_remaining} CR(s) still remain after finalizer removal"
+  else
+    echo "All stuck CRs removed."
   fi
-  echo "All stuck CRs removed."
 fi
 
 # 5. Delete the CRDs themselves
@@ -160,8 +168,14 @@ echo "Removing package-operator.run CRDs..."
 for info in "${PKO_CRD_INFO[@]}"; do
   read -r crd _plural _group _scope <<< "${info}"
   echo "  Deleting CRD: ${crd}"
-  kubectl delete crd "${crd}" --timeout="${TIMEOUT}" --ignore-not-found
+  kubectl delete crd "${crd}" --timeout="${TIMEOUT}" --ignore-not-found 2>/dev/null || log_error "Failed to delete CRD ${crd}"
 done
 
 echo ""
-echo "=== PKO resource cleanup complete ==="
+if [[ $ERRORS -gt 0 ]]; then
+  echo "=== PKO cleanup completed with ${ERRORS} error(s) (best-effort, not blocking rollout) ==="
+else
+  echo "=== PKO resource cleanup complete ==="
+fi
+
+exit 0
