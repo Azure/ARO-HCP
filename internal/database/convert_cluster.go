@@ -21,7 +21,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster, error) {
@@ -29,22 +28,26 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 		return nil, nil
 	}
 
+	// CosmosMetadata.ResourceID is the canonical identifier for cosmos-side
+	// concerns (partitioning, document UID, resource-type indexing). Use it
+	// instead of the TrackedResource.ID, which is an ARM-surface concern.
+	cosmosResourceID := internalObj.GetCosmosData().ResourceID
+	if cosmosResourceID == nil {
+		return nil, fmt.Errorf("internalObj is missing CosmosMetadata.ResourceID")
+	}
 	cosmosObj := &HCPCluster{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
-			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
-			ResourceID:   internalObj.ID,
-			ResourceType: internalObj.ID.ResourceType.String(),
+			PartitionKey: strings.ToLower(cosmosResourceID.SubscriptionID),
+			ResourceID:   cosmosResourceID,
+			ResourceType: cosmosResourceID.ResourceType.String(),
 		},
 		HCPClusterProperties: HCPClusterProperties{
 			HCPOpenShiftCluster: *internalObj,
-			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: internalObj.ID,
-			},
 			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        internalObj.ID,
+				ResourceID:        cosmosResourceID,
 				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.ServiceProviderProperties.ProvisioningState,
@@ -57,6 +60,8 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 			},
 		},
 	}
+
+	cosmosObj.InternalState.InternalAPI.CosmosMetadata = api.CosmosMetadata{}
 
 	return cosmosObj, nil
 }
@@ -77,42 +82,17 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	if cosmosObj == nil {
 		return nil, nil
 	}
-	resourceDoc := cosmosObj.IntermediateResourceDoc
-	if resourceDoc == nil {
-		return nil, fmt.Errorf("resource document cannot be nil")
-	}
 
-	tempInternalAPI := cosmosObj.InternalState.InternalAPI
-	internalObj := &tempInternalAPI
-
-	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
-	internalObj.TrackedResource = arm.TrackedResource{
-		Resource: arm.Resource{
-			ID:         resourceDoc.ResourceID,
-			Name:       resourceDoc.ResourceID.Name,
-			Type:       resourceDoc.ResourceID.ResourceType.String(),
-			SystemData: resourceDoc.SystemData,
-		},
-		Location: cosmosObj.InternalState.InternalAPI.Location,
-		Tags:     resourceDoc.Tags,
+	internalObj := cosmosObj.DeepCopy()
+	internalObj.ExistingCosmosUID = cosmosObj.ID
+	internalObj.SetEtag(cosmosObj.CosmosETag)
+	if internalObj.GetResourceID() == nil {
+		if cosmosObj.ResourceID != nil {
+			internalObj.SetResourceID(cosmosObj.ResourceID)
+		} else {
+			return nil, fmt.Errorf("internalObj is missing a resourceID: %T: %q", cosmosObj, cosmosObj.ID)
+		}
 	}
-	// we carry over the CosmosETag from the cosmos object to the internal object into a
-	// temporary field until we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftCluster.
-	internalObj.CosmosETag = cosmosObj.BaseDocument.CosmosETag
-	internalObj.Identity = resourceDoc.Identity.DeepCopy()
-	internalObj.SystemData = resourceDoc.SystemData
-	internalObj.Tags = copyTags(resourceDoc.Tags)
-	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
-	internalObj.ServiceProviderProperties.ProvisioningState = resourceDoc.ProvisioningState
-
-	if len(resourceDoc.InternalID.String()) == 0 {
-		// preserve the nil on read
-		internalObj.ServiceProviderProperties.ClusterServiceID = nil
-	} else {
-		internalObj.ServiceProviderProperties.ClusterServiceID = &resourceDoc.InternalID
-	}
-	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
 	internalObj.EnsureDefaults()
 
