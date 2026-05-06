@@ -58,7 +58,6 @@ var _ = Describe("Customer", func() {
 				ingressName          = "custom"
 				ingressNamespace     = "openshift-ingress"
 				ingressOperatorNS    = "openshift-ingress-operator"
-				csiDriverOperatorNS  = "openshift-cluster-csi-drivers"
 			)
 
 			tc := framework.NewTestContext()
@@ -215,97 +214,14 @@ var _ = Describe("Customer", func() {
 
 			// ── 4. CSI Secrets Store Driver ──
 
+			By("installing CSI Secrets Store Driver and Azure Key Vault Provider")
+			csiInstaller := verifiers.CSISecretsStoreInstaller{AzureProviderVersion: "1.5.4"}
+			err = csiInstaller.Install(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+
 			adminClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 			dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("installing the Secrets Store CSI Driver Operator via OLM")
-			subscriptionGVR := schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "subscriptions"}
-			operatorGroupGVR := schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1", Resource: "operatorgroups"}
-
-			_, err = adminClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{Name: csiDriverOperatorNS},
-			}, metav1.CreateOptions{})
-			if err != nil {
-				GinkgoWriter.Printf("Namespace %s may already exist: %v\n", csiDriverOperatorNS, err)
-			}
-
-			og := &unstructured.Unstructured{Object: map[string]any{
-				"apiVersion": "operators.coreos.com/v1",
-				"kind":       "OperatorGroup",
-				"metadata": map[string]any{
-					"name":      "csi-driver-og",
-					"namespace": csiDriverOperatorNS,
-				},
-				"spec": map[string]any{
-					"targetNamespaces": []any{csiDriverOperatorNS},
-				},
-			}}
-			_, err = dynamicClient.Resource(operatorGroupGVR).Namespace(csiDriverOperatorNS).Create(ctx, og, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
-
-			sub := &unstructured.Unstructured{Object: map[string]any{
-				"apiVersion": "operators.coreos.com/v1alpha1",
-				"kind":       "Subscription",
-				"metadata": map[string]any{
-					"name":      "secrets-store-csi-driver-operator",
-					"namespace": csiDriverOperatorNS,
-				},
-				"spec": map[string]any{
-					"channel":         "preview",
-					"name":            "secrets-store-csi-driver-operator",
-					"source":          "redhat-operators",
-					"sourceNamespace": "openshift-marketplace",
-				},
-			}}
-			_, err = dynamicClient.Resource(subscriptionGVR).Namespace(csiDriverOperatorNS).Create(ctx, sub, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
-
-			By("waiting for the CSI driver DaemonSet to be ready")
-			daemonSetGVR := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "daemonsets"}
-			err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 10*time.Minute, true, func(ctx context.Context) (bool, error) {
-				ds, err := dynamicClient.Resource(daemonSetGVR).Namespace(csiDriverOperatorNS).Get(ctx, "secrets-store-csi-driver-node", metav1.GetOptions{})
-				if err != nil {
-					return false, nil
-				}
-				desired, _, _ := unstructured.NestedInt64(ds.Object, "status", "desiredNumberScheduled")
-				ready, _, _ := unstructured.NestedInt64(ds.Object, "status", "numberReady")
-				return desired > 0 && ready == desired, nil
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			By("installing the Azure Key Vault Provider via Helm")
-			kubeconfigContent, err := framework.GenerateKubeconfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
-			azureProviderValues := map[string]any{
-				"secrets-store-csi-driver": map[string]any{
-					"install": false,
-				},
-				"linux": map[string]any{
-					"privileged": true,
-				},
-			}
-			err = framework.InstallHelmChart(ctx, framework.HelmChartConfig{
-				ReleaseName: "csi-secrets-store-provider-azure",
-				RepoURL:     "https://azure.github.io/secrets-store-csi-driver-provider-azure/charts",
-				ChartName:   "csi-secrets-store-provider-azure",
-				Version:     "1.5.4",
-				Namespace:   "kube-system",
-				Values:      azureProviderValues,
-			}, kubeconfigContent)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("waiting for the Azure KV Provider DaemonSet to be ready")
-			err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 10*time.Minute, true, func(ctx context.Context) (bool, error) {
-				ds, err := dynamicClient.Resource(daemonSetGVR).Namespace("kube-system").Get(ctx, "csi-secrets-store-provider-azure", metav1.GetOptions{})
-				if err != nil {
-					return false, nil
-				}
-				desired, _, _ := unstructured.NestedInt64(ds.Object, "status", "desiredNumberScheduled")
-				ready, _, _ := unstructured.NestedInt64(ds.Object, "status", "numberReady")
-				return desired > 0 && ready == desired, nil
-			})
 			Expect(err).NotTo(HaveOccurred())
 
 			// ── 5. Custom IngressController ──
