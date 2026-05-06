@@ -17,7 +17,6 @@ package frontend
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -29,8 +28,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -673,20 +670,6 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	err = f.clusterServiceClient.DeleteNodePool(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
-	var ocmError *ocmerrors.Error
-	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-		// StatusNotFound means we have stale data in Cosmos DB.
-		// This can happen in test environments if a user bypasses
-		// the RP to delete a resource (e.g. "ocm delete"). It can
-		// also happen if an asynchronous deletion operation fails.
-		// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
-		// leaking data related to the resource, like controller status.
-		logger.Info("clusterService nodepool missing, trying to clean up", "err", err)
-	} else if err != nil {
-		return utils.TrackError(err)
-	}
-
 	transaction := f.dbClient.NewTransaction(nodePool.ID.SubscriptionID)
 	if err := f.addDeleteNodePoolToTransaction(ctx, writer, request, transaction, nodePool); err != nil {
 		return utils.TrackError(err)
@@ -720,7 +703,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		nodePool.ID,
-		nodePool.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		"",
 		"",

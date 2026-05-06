@@ -61,7 +61,7 @@ func (c *dispatchNodePoolDelete) ShouldProcess(ctx context.Context, operation *a
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestUpdate {
+	if operation.Request != database.OperationRequestDelete {
 		return false
 	}
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
