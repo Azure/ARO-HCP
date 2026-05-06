@@ -64,7 +64,7 @@ func (i CSISecretsStoreInstaller) Install(ctx context.Context, adminRESTConfig *
 	}
 
 	if err := waitForDaemonSet(ctx, dynClient, csiDriverOperatorNS, csiDriverDaemonSetName); err != nil {
-		return fmt.Errorf("CSI driver DaemonSet never became ready: %w", err)
+		return fmt.Errorf("csi driver DaemonSet never became ready: %w", err)
 	}
 
 	if err := i.installAzureProvider(ctx, adminRESTConfig); err != nil {
@@ -72,7 +72,7 @@ func (i CSISecretsStoreInstaller) Install(ctx context.Context, adminRESTConfig *
 	}
 
 	if err := waitForDaemonSet(ctx, dynClient, azureProviderNS, azureProviderDaemonSet); err != nil {
-		return fmt.Errorf("Azure KV provider DaemonSet never became ready: %w", err)
+		return fmt.Errorf("azure KV provider DaemonSet never became ready: %w", err)
 	}
 
 	return nil
