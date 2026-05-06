@@ -593,22 +593,6 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and update interaction with CS is moved to the backend: If an update arrives after the node pool
-	// has been created in Cosmos but before it exists in CS, or before its ClusterServiceID has been persisted in Cosmos, return an error.
-	if oldInternalNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(oldInternalNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to update a node pool"))
-	}
-
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	logger.Info(fmt.Sprintf("updating resource %s", oldInternalNodePool.ID))
-	_, err = f.clusterServiceClient.UpdateNodePool(ctx, *oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	// The cosmos representation the new desired version
 	// The controllers will take care of handle the upgrade
 
@@ -623,7 +607,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	nodePoolUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,
-		ptr.Deref(newInternalNodePool.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
