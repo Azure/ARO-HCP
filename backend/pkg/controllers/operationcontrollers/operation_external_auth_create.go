@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/cache"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -31,6 +32,7 @@ import (
 )
 
 type operationExternalAuthCreate struct {
+	clock                utilsclock.PassiveClock
 	cosmosClient         database.DBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
@@ -51,12 +53,14 @@ type operationExternalAuthCreate struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationExternalAuthCreateController(
+	clock utilsclock.PassiveClock,
 	cosmosClient database.DBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationExternalAuthCreate{
+		clock:                clock,
 		cosmosClient:         cosmosClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
@@ -101,5 +105,5 @@ func (c *operationExternalAuthCreate) SynchronizeOperation(ctx context.Context, 
 		return nil // no work to do
 	}
 
-	return pollExternalAuthStatus(ctx, c.cosmosClient, c.clusterServiceClient, operation, c.notificationClient)
+	return pollExternalAuthStatus(ctx, c.clock, c.cosmosClient, c.clusterServiceClient, operation, c.notificationClient)
 }
