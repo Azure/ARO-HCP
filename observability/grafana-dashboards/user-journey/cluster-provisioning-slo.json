@@ -40,7 +40,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Cluster Provisioning SLO - Fleet Wide\n\nFleet-wide view of HCP cluster provisioning health from backend create-operation and cluster provisioning-state metrics.\n\n**SLO targets**\n- `Success SLO: Successful Creates` target is **95%** successful completed creates in the selected lookback window.\n- Create latency target is **p95 within 20 minutes** for successful creates.\n\n**How the time range works**\n- The dashboard time picker is the lookback window (default `last 24 hours`).\n- `Completed`, `Successful`, `Failed / Canceled`, `Success SLO`, `Timeliness SLO`, and `Create Duration p50/p95/p99` use cluster `operation_type=create` attempts that reached a terminal phase within the selected window.\n- `Successful` means `phase=\"succeeded\"`; `Failed / Canceled` means `phase=~\"failed|canceled\"`.\n- `24h` is the normal default; `7d` is the practical upper bound for the current retained operation history.\n\n**Top-level panels**\n- The first row shows the lookback SLO inputs and outcomes: completed attempts, successful attempts, failed/canceled attempts, success rate, timeliness, and duration percentiles.\n- `Clusters by Provisioning State` shows the current cluster fleet mix over time.\n- `Create Ops Stuck > 20 min` highlights in-flight create operations that may be hung.\n- `Subscription Breakdown` highlights where failed or canceled attempts are concentrated.\n- `Detail Tables` provides the exact terminal and active create operations behind the summary panels.\n\n**Datasource**\n- Select a single service-cluster Prometheus datasource from the top bar.\n- Metrics come from backend service clusters (`Managed_Prometheus_services-*`).",
+        "content": "### Cluster Provisioning SLO - Fleet Wide\n\nFleet-wide view of HCP cluster provisioning health from backend create-operation and cluster provisioning-state metrics.\n\n**SLO targets**\n- `Success SLO: Successful Creates` target is **95%** successful completed creates in the selected lookback window.\n- `Timeliness SLO: Successful Creates Within 20m` target is **95%** of successful creates completing within 20 minutes.\n- Create latency target is **p95 within 20 minutes** for successful creates.\n\n**How the time range works**\n- The dashboard time picker is the lookback window (default `last 24 hours`).\n- `Completed`, `Successful`, `Failed / Canceled`, `Success SLO`, `Timeliness SLO`, and `Create Duration p50/p95/p99` use cluster `operation_type=create` attempts that reached a terminal phase within the selected window.\n- `Successful` means `phase=\"succeeded\"`; `Failed / Canceled` means `phase=~\"failed|canceled\"`.\n- `24h` is the normal default; `7d` is the practical upper bound for the current retained operation history.\n\n**Top-level panels**\n- The top summary rows show fleet size, completed attempts, failed/canceled attempts, fleet-weighted success and timeliness SLOs, and create-duration percentiles.\n- `Clusters by Provisioning State` shows the current cluster fleet mix over time.\n- `Create Ops Stuck > 20 min` highlights in-flight create operations that may be hung.\n- `Subscription Breakdown` highlights where failed or canceled attempts are concentrated.\n- `Detail Tables` provides the exact terminal and active create operations behind the summary panels.\n\n**Datasource**\n- Select a single service-cluster Prometheus datasource from the top bar, or choose `All` to fan out across all matching service-cluster datasources.\n- Top-level fleet SLO panels sum raw counts across the selected datasources before calculating ratios.\n- Metrics come from backend service clusters (`Managed_Prometheus_services-*`).",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -157,7 +157,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Terminal cluster create/install attempts that completed within the selected dashboard time window. This is the denominator for the lookback SLO panels.",
+      "description": "Terminal cluster create attempts that completed within the selected dashboard time window. This is the denominator for the lookback SLO panels.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -237,13 +237,14 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Success SLO: succeeded / terminal create attempts. Note: shows per-datasource ratio (not weighted fleet average). For accurate fleet-wide SLO, recording rules are needed.",
+      "description": "Fleet-weighted Success SLO: successful terminal create attempts divided by all terminal create attempts across the selected service-cluster datasources.",
       "fieldConfig": {
         "defaults": {
           "decimals": 1,
           "mappings": [],
           "max": 100,
           "min": 0,
+          "noValue": "No terminal creates",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -295,25 +296,79 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "(count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s))) / (count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}) < $__range_s))) * 100",
+          "editorMode": "code",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s)) * 100",
           "instant": true,
-          "legendFormat": "Success SLO %",
+          "legendFormat": "Successful x100",
           "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=~\"succeeded|failed|canceled\"}) < $__range_s))",
+          "instant": true,
+          "legendFormat": "Completed",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "Success SLO: Successful Creates",
       "transformations": [
         {
-          "id": "merge",
+          "id": "seriesToRows",
           "options": {}
         },
         {
-          "id": "reduce",
+          "id": "groupBy",
           "options": {
-            "reducers": [
-              "max"
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
             ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Success SLO %",
+            "binary": {
+              "left": "Successful x100",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Completed"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
           }
         }
       ],
@@ -324,7 +379,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Failed or canceled cluster create/install attempts that completed within the selected dashboard time window. Any non-zero value means there were unsuccessful installs in the window.",
+      "description": "Failed or canceled cluster create attempts that completed within the selected dashboard time window. Any non-zero value means there were unsuccessful creates in the window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -421,13 +476,14 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Timeliness SLO: successful creates within 20 min / total succeeded. Note: shows per-datasource ratio. For accurate fleet-wide SLO, recording rules are needed.",
+      "description": "Fleet-weighted Timeliness SLO: successful creates under 20 minutes divided by all successful creates across the selected service-cluster datasources.",
       "fieldConfig": {
         "defaults": {
           "decimals": 1,
           "mappings": [],
           "max": 100,
           "min": 0,
+          "noValue": "No successful creates",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -479,25 +535,79 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "(count((((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < 1200) and (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s)))) / (count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s))) * 100",
+          "editorMode": "code",
+          "expr": "count((((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < 1200) and (backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s))) * 100",
           "instant": true,
-          "legendFormat": "Timeliness SLO %",
+          "legendFormat": "Timely x100",
           "range": false,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s))",
+          "instant": true,
+          "legendFormat": "Successful",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "Timeliness SLO: Successful Creates Within 20m",
       "transformations": [
         {
-          "id": "merge",
+          "id": "seriesToRows",
           "options": {}
         },
         {
-          "id": "reduce",
+          "id": "groupBy",
           "options": {
-            "reducers": [
-              "max"
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              {
+                "fieldName": "Metric",
+                "handlerKey": "field.name"
+              },
+              {
+                "fieldName": "Value (sum)",
+                "handlerKey": "field.value"
+              }
             ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Timeliness SLO %",
+            "binary": {
+              "left": "Timely x100",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "Successful"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
           }
         }
       ],
@@ -508,7 +618,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "p50 create duration in minutes for successful create attempts that completed within the selected dashboard time window.",
+      "description": "Fleet p50 create duration in minutes for successful create attempts that completed within the selected dashboard time window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -517,6 +627,7 @@
           "decimals": 1,
           "mappings": [],
           "min": 0,
+          "noValue": "No successful creates",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -544,9 +655,9 @@
         "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
-            "lastNotNull"
+            "p50"
           ],
-          "fields": "",
+          "fields": "Value",
           "values": false
         },
         "showPercentChange": false,
@@ -561,7 +672,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.50, (((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s))) or vector(0)",
+          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s)",
           "instant": true,
           "legendFormat": "p50",
           "range": false,
@@ -571,16 +682,8 @@
       "title": "Create Duration p50 (min)",
       "transformations": [
         {
-          "id": "merge",
+          "id": "seriesToRows",
           "options": {}
-        },
-        {
-          "id": "reduce",
-          "options": {
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
         }
       ],
       "type": "stat"
@@ -590,7 +693,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "p95 create duration in minutes for successful create attempts that completed within the selected dashboard time window.",
+      "description": "Fleet p95 create duration in minutes for successful create attempts that completed within the selected dashboard time window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -599,6 +702,7 @@
           "decimals": 1,
           "mappings": [],
           "min": 0,
+          "noValue": "No successful creates",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -626,9 +730,9 @@
         "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
-            "lastNotNull"
+            "p95"
           ],
-          "fields": "",
+          "fields": "Value",
           "values": false
         },
         "showPercentChange": false,
@@ -643,7 +747,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, (((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s))) or vector(0)",
+          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s)",
           "instant": true,
           "legendFormat": "p95",
           "range": false,
@@ -653,16 +757,8 @@
       "title": "Create Duration p95 (min)",
       "transformations": [
         {
-          "id": "merge",
+          "id": "seriesToRows",
           "options": {}
-        },
-        {
-          "id": "reduce",
-          "options": {
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
         }
       ],
       "type": "stat"
@@ -672,7 +768,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "p99 create duration in minutes for successful create attempts that completed within the selected dashboard time window.",
+      "description": "Fleet p99 create duration in minutes for successful create attempts that completed within the selected dashboard time window.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -681,6 +777,7 @@
           "decimals": 1,
           "mappings": [],
           "min": 0,
+          "noValue": "No successful creates",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -708,9 +805,9 @@
         "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
-            "lastNotNull"
+            "p99"
           ],
-          "fields": "",
+          "fields": "Value",
           "values": false
         },
         "showPercentChange": false,
@@ -725,7 +822,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "quantile(0.99, (((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s))) or vector(0)",
+          "expr": "((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < $__range_s)",
           "instant": true,
           "legendFormat": "p99",
           "range": false,
@@ -735,16 +832,8 @@
       "title": "Create Duration p99 (min)",
       "transformations": [
         {
-          "id": "merge",
+          "id": "seriesToRows",
           "options": {}
-        },
-        {
-          "id": "reduce",
-          "options": {
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
         }
       ],
       "type": "stat"
@@ -920,7 +1009,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Number of create/install operations stuck in a non-terminal phase (accepted, awaitingsecret, provisioning, updating, deleting) for more than 20 minutes. Target: 0. Indicates operations that may be hung.",
+      "description": "Number of create operations stuck in a non-terminal phase (accepted, awaitingsecret, provisioning, updating, deleting) for more than 20 minutes, summed across the selected service-cluster datasources. Target: 0. Indicates operations that may be hung.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -996,7 +1085,7 @@
           "id": "reduce",
           "options": {
             "reducers": [
-              "lastNotNull"
+              "sum"
             ]
           }
         }
@@ -1021,7 +1110,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Failed or canceled create/install attempts that completed within the selected dashboard time window, grouped by subscription.",
+      "description": "Failed or canceled create attempts that completed within the selected dashboard time window, grouped by subscription and summed across the selected service-cluster datasources.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1108,8 +1197,25 @@
       "title": "Failed / Canceled Attempts by Subscription (Window)",
       "transformations": [
         {
-          "id": "merge",
+          "id": "seriesToRows",
           "options": {}
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Metric": {
+                "operation": "groupby",
+                "aggregations": []
+              },
+              "Value": {
+                "operation": "aggregate",
+                "aggregations": [
+                  "sum"
+                ]
+              }
+            }
+          }
         }
       ],
       "type": "barchart"
@@ -1132,7 +1238,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Terminal cluster create/install attempts that completed within the selected dashboard time window. Shows resource ID, subscription, operation ID when available, and terminal phase.",
+      "description": "Terminal cluster create attempts that completed within the selected dashboard time window. Shows resource ID, subscription, and terminal phase.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1301,7 +1407,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "All active create/install operations across the fleet. Shows resource ID, subscription, operation ID when available, and current phase.",
+      "description": "All active create operations across the fleet. Shows resource ID, subscription, and current phase.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1467,7 +1573,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Rolling 1h successful install duration percentiles. Red line = 20m SLO target.",
+      "description": "Rolling 1h successful create duration percentiles. With datasource=All, each selected service-cluster datasource computes its own percentiles; use the top-level duration stat panels for the fleet snapshot. Red line = 20m SLO target.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1532,7 +1638,7 @@
           },
           "editorMode": "code",
           "expr": "quantile(0.50, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < 3600)) or vector(0)",
-          "legendFormat": "p50",
+          "legendFormat": "p50 (per datasource)",
           "refId": "A"
         },
         {
@@ -1542,7 +1648,7 @@
           },
           "editorMode": "code",
           "expr": "quantile(0.90, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < 3600)) or vector(0)",
-          "legendFormat": "p90",
+          "legendFormat": "p90 (per datasource)",
           "refId": "B"
         },
         {
@@ -1552,11 +1658,11 @@
           },
           "editorMode": "code",
           "expr": "quantile(0.99, ((backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} - backend_resource_operation_start_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) / 60) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < 3600)) or vector(0)",
-          "legendFormat": "p99",
+          "legendFormat": "p99 (per datasource)",
           "refId": "C"
         }
       ],
-      "title": "Install Duration Over Time (Rolling 1h)",
+      "title": "Create Duration by Service Cluster (Rolling 1h)",
       "transformations": [],
       "type": "timeseries"
     },
@@ -1565,7 +1671,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Rolling 1h: failed / (succeeded + failed). Canceled excluded.",
+      "description": "Rolling 1h: failed / (succeeded + failed), with canceled operations excluded. With datasource=All, each selected service-cluster datasource computes its own ratio; use top-level panels for fleet reporting.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1634,11 +1740,11 @@
           },
           "editorMode": "code",
           "expr": "((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"failed\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"failed\"}) < 3600)) or vector(0)) / clamp_min(((count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"succeeded\"}) < 3600)) or vector(0)) + (count((backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"failed\"} == 1) and ((time() - backend_resource_operation_last_transition_time_seconds{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=\"create\", phase=\"failed\"}) < 3600)) or vector(0))), 1)) * 100",
-          "legendFormat": "Failure Ratio",
+          "legendFormat": "Failure Ratio (per datasource)",
           "refId": "A"
         }
       ],
-      "title": "Failure Ratio Over Time (Rolling 1h)",
+      "title": "Failure Ratio by Service Cluster (Rolling 1h)",
       "transformations": [],
       "type": "timeseries"
     },
@@ -1718,16 +1824,8 @@
       "title": "Fleet Cluster Age Distribution",
       "transformations": [
         {
-          "id": "merge",
+          "id": "seriesToRows",
           "options": {}
-        },
-        {
-          "id": "reduce",
-          "options": {
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
         }
       ],
       "type": "histogram"
