@@ -157,7 +157,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:b64f3deef6f6d5de0cae249b99e15c79567894c0d343b1ea9496da78a0bd87c2 # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:f1079f374f9396f8d02cfb3825dd80edf9beefd42051a656936700239dbb682c # 1492cfe (2026-05-06 03:47)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -624,7 +624,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:3b40f64a59175658e284d637d0b4b039d551668b0f406e6b42d560b88583fa2d # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:18319291661d9ecdad401494d4d009b85fd68ecc0759bde80c75712854a736be # 1492cfe (2026-05-06 03:46)
     tracing:
       address: ""
       exporter: ""
@@ -653,7 +653,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:71fe6df96d6377d001da16ed0e0e4386f8ab839d997c8cdfd97ab14ebc832a9e # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:71bae0af771440ef5fb6c6438b4c61f9e2c70d75792300d0225cb15889d7214d # 1492cfe (2026-05-06 03:47)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -672,7 +672,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: sha256:dcec29bfc4a82ae9183b747a1196cad423427e7234638dd640cf20a5de7624b2 # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:5f67b4ba44626d23c5b5d2dc8190ff91b76bb3854ffdd5f43d8193bd2dfad784 # 1492cfe (2026-05-06 03:47)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
@@ -697,7 +697,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:f29fdde9ad6694ce60d5d11423c0f55967d18fb84ddad2ef09b3c2ccd68307b8 # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:07954e8734638bf6afee99f02669f0567635e4790658e4551c1ed02285828a1a # 1492cfe (2026-05-06 03:47)
     tracing:
       address: ""
       exporter: ""
@@ -869,7 +869,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:e9ceec5df27628c0519176e174c35a8dd40b3ccb30529c433615e87af2bbd94d # v2.16.1-392 (2026-05-05 10:39)
+        digest: sha256:49e745f252cfa72b47e68f169d41ae01e815b3099001ac5ce897828bbb590551 # v2.16.1-394 (2026-05-06 05:12)
     mce:
       bundle:
         registry: quay.io
@@ -940,7 +940,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:53d0040bd10e320658093e1ec54579ac43f472b48fce63598370b4cd5b8cc673 # 2c8efd8 (2026-05-05 20:42)
+        digest: sha256:bfbd674ffe5de0153c19190ddaf1c54d677d8612d1247594c1775d5e6573a85c # 1492cfe (2026-05-06 03:47)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21"
   # Automation Account
