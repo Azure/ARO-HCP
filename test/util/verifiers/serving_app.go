@@ -139,36 +139,9 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	if err != nil {
 		return fmt.Errorf("failed to create service: %w", err)
 	}
-	routeYAML := must(staticFiles.ReadFile("artifacts/serving_app/route.yaml"))
-	if v.config.routeLabels != nil || len(v.config.routeHost) > 0 {
-		var routeMap map[string]any
-		if err := yaml.Unmarshal(routeYAML, &routeMap); err != nil {
-			return fmt.Errorf("failed to unmarshal route YAML: %w", err)
-		}
-
-		if v.config.routeLabels != nil {
-			if metadata, ok := routeMap["metadata"].(map[string]any); ok {
-				existing, _ := metadata["labels"].(map[string]any)
-				if existing == nil {
-					existing = make(map[string]any)
-				}
-				for k, val := range v.config.routeLabels {
-					existing[k] = val
-				}
-				metadata["labels"] = existing
-			}
-		}
-
-		if len(v.config.routeHost) > 0 {
-			if spec, ok := routeMap["spec"].(map[string]any); ok {
-				spec["host"] = v.config.routeHost
-			}
-		}
-
-		routeYAML, err = yaml.Marshal(routeMap)
-		if err != nil {
-			return fmt.Errorf("failed to marshal modified route: %w", err)
-		}
+	routeYAML, err := buildRouteYAML(v.config.routeLabels, v.config.routeHost)
+	if err != nil {
+		return fmt.Errorf("failed to build route YAML: %w", err)
 	}
 	route, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, routeYAML)
 	if err != nil {
@@ -354,6 +327,39 @@ func VerifySimpleWebApp(opts ...WebAppOption) HostedClusterVerifier {
 		opt(&cfg)
 	}
 	return verifySimpleWebApp{config: cfg}
+}
+
+func buildRouteYAML(routeLabels map[string]string, routeHost string) ([]byte, error) {
+	routeYAML := must(staticFiles.ReadFile("artifacts/serving_app/route.yaml"))
+	if routeLabels == nil && len(routeHost) == 0 {
+		return routeYAML, nil
+	}
+
+	var routeMap map[string]any
+	if err := yaml.Unmarshal(routeYAML, &routeMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal route YAML: %w", err)
+	}
+
+	if routeLabels != nil {
+		if metadata, ok := routeMap["metadata"].(map[string]any); ok {
+			existing, _ := metadata["labels"].(map[string]any)
+			if existing == nil {
+				existing = make(map[string]any)
+			}
+			for k, val := range routeLabels {
+				existing[k] = val
+			}
+			metadata["labels"] = existing
+		}
+	}
+
+	if len(routeHost) > 0 {
+		if spec, ok := routeMap["spec"].(map[string]any); ok {
+			spec["host"] = routeHost
+		}
+	}
+
+	return yaml.Marshal(routeMap)
 }
 
 func must[T any](v T, err error) T {
