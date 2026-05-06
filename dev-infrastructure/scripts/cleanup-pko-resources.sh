@@ -20,7 +20,11 @@ echo "=== Package Operator CR + CRD cleanup ==="
 
 # 1. Discover all CRDs in the package-operator.run group, extracting
 #    plural name, full API group, and scope from each CRD's spec.
-mapfile -t PKO_CRD_INFO < <(
+PKO_CRD_INFO=()
+while IFS= read -r line; do
+  [[ -z "${line}" ]] && continue
+  PKO_CRD_INFO+=("$line")
+done < <(
   kubectl get crds -o jsonpath='{range .items[*]}{.metadata.name} {.spec.names.plural} {.spec.group} {.spec.scope}{"\n"}{end}' \
     | grep ' \(.*\.\)\{0,1\}package-operator\.run ' || true
 )
