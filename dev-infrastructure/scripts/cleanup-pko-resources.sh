@@ -59,15 +59,15 @@ count_crs() {
 
   if [[ "${scope}" == "Namespaced" ]]; then
     output=$(kubectl get "${resource}" --all-namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null) || {
-      log_error "kubectl get ${resource} --all-namespaces failed"
+      echo "ERROR: kubectl get ${resource} --all-namespaces failed" >&2
       echo 0
-      return
+      return 1
     }
   else
     output=$(kubectl get "${resource}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null) || {
-      log_error "kubectl get ${resource} failed"
+      echo "ERROR: kubectl get ${resource} failed" >&2
       echo 0
-      return
+      return 1
     }
   fi
 
@@ -120,7 +120,7 @@ while [[ $elapsed -lt $max_wait ]]; do
   remaining=0
   for info in "${PKO_CRD_INFO[@]}"; do
     read -r _crd plural group scope <<< "${info}"
-    count=$(count_crs "${plural}" "${group}" "${scope}")
+    count=$(count_crs "${plural}" "${group}" "${scope}") || ERRORS=$((ERRORS + 1))
     remaining=$((remaining + count))
   done
 
@@ -151,7 +151,7 @@ if [[ $remaining -gt 0 ]]; then
   final_remaining=0
   for info in "${PKO_CRD_INFO[@]}"; do
     read -r _crd plural group scope <<< "${info}"
-    count=$(count_crs "${plural}" "${group}" "${scope}")
+    count=$(count_crs "${plural}" "${group}" "${scope}") || ERRORS=$((ERRORS + 1))
     final_remaining=$((final_remaining + count))
   done
 
