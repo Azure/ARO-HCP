@@ -425,6 +425,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
+	dispatchClusterCreateController := operationcontrollers.NewDispatchClusterCreateController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationInformer,
+	)
 	operationClusterCreateController := operationcontrollers.NewOperationClusterCreateController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -704,6 +709,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go doNothingController.Run(ctx, 20)
 				go dispatchRequestCredentialController.Run(ctx, 20)
 				go dispatchRevokeCredentialsController.Run(ctx, 20)
+				go dispatchClusterCreateController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)
 				go operationClusterUpdateController.Run(ctx, 20)
 				go operationClusterDeleteController.Run(ctx, 20)
