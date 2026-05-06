@@ -362,32 +362,32 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 			ResourceID:   resourceID,
 		},
 		HCPClusterProperties: HCPClusterProperties{
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
-			},
-			InternalState: ClusterInternalState{
-				InternalAPI: api.HCPOpenShiftCluster{
-					CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-						Etcd: api.EtcdProfile{
-							DataEncryption: api.EtcdDataEncryptionProfile{
-								KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-								CustomerManaged: &api.CustomerManagedEncryptionProfile{
-									EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-									Kms: &api.KmsEncryptionProfile{
-										ActiveKey: api.KmsKey{
-											Name:      "test-key",
-											VaultName: "test-vault",
-											Version:   "v1",
-										},
-										// Visibility intentionally not set (empty string)
-										Visibility: "",
+			HCPOpenShiftCluster: api.HCPOpenShiftCluster{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: resourceID,
+				},
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &api.CustomerManagedEncryptionProfile{
+								EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+								Kms: &api.KmsEncryptionProfile{
+									ActiveKey: api.KmsKey{
+										Name:      "test-key",
+										VaultName: "test-vault",
+										Version:   "v1",
 									},
+									// Visibility intentionally not set (empty string)
+									Visibility: "",
 								},
 							},
 						},
 					},
+				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ClusterServiceID:  ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
+					ProvisioningState: arm.ProvisioningStateSucceeded,
 				},
 			},
 		},
