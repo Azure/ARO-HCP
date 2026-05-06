@@ -18,7 +18,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -45,7 +45,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -72,7 +72,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -99,7 +99,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -126,7 +126,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -153,7 +153,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -180,7 +180,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -207,7 +207,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -234,7 +234,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -261,7 +261,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -288,7 +288,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -315,7 +315,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -342,7 +342,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -368,7 +368,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -395,7 +395,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -422,7 +422,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -462,7 +462,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -489,7 +489,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -516,7 +516,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -543,7 +543,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -570,7 +570,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -597,7 +597,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -624,7 +624,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -651,7 +651,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -691,7 +691,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -718,7 +718,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -745,7 +745,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -772,7 +772,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -799,7 +799,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -839,7 +839,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -866,7 +866,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -906,7 +906,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -935,7 +935,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -964,7 +964,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -993,7 +993,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1035,7 +1035,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1062,7 +1062,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1089,7 +1089,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1115,7 +1115,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1142,7 +1142,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1169,7 +1169,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1209,7 +1209,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1236,7 +1236,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1263,7 +1263,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1290,7 +1290,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1317,7 +1317,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1344,7 +1344,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1371,7 +1371,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1397,7 +1397,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1423,7 +1423,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1449,7 +1449,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1475,7 +1475,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1502,7 +1502,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1529,7 +1529,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1569,7 +1569,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1609,7 +1609,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1649,7 +1649,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1677,7 +1677,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1705,7 +1705,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1733,7 +1733,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1761,7 +1761,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1803,7 +1803,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1832,7 +1832,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1874,7 +1874,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1902,7 +1902,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1930,7 +1930,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1958,7 +1958,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -1999,7 +1999,7 @@ resource hcpClusterHealthRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
