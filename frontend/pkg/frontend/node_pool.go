@@ -509,8 +509,6 @@ func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Reque
 }
 
 func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalNodePool, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	subscription, err := f.dbClient.Subscriptions().Get(ctx, oldInternalNodePool.ID.SubscriptionID)
 	if err != nil {
 		return err
@@ -563,17 +561,6 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	logger.Info(fmt.Sprintf("updating resource %s", oldInternalNodePool.ID))
-	_, err = f.clusterServiceClient.UpdateNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	// The cosmos representation the new desired version
 	// The controllers will take care of handle the upgrade
 
@@ -588,7 +575,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	nodePoolUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,
-		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
