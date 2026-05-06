@@ -43,6 +43,9 @@ func TestDumpBillingToLogger(t *testing.T) {
 
 	// Create HCP clusters
 	cluster1 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: cluster1ResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster1ResourceID,
@@ -57,6 +60,9 @@ func TestDumpBillingToLogger(t *testing.T) {
 	}
 
 	cluster2 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: cluster2ResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster2ResourceID,
@@ -120,6 +126,9 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 
 	// Create HCP clusters with ClusterUIDs
 	cluster1 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: cluster1ResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster1ResourceID,
@@ -134,6 +143,9 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 	}
 
 	cluster2 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: cluster2ResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster2ResourceID,
@@ -148,6 +160,9 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 	}
 
 	cluster3 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: cluster3ResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster3ResourceID,
