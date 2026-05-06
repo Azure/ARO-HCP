@@ -232,6 +232,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	}
 	// TrackedResource info doesn't appear to come from the external resource information
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
+	newInternalCluster.SetResourceID(resourceID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -839,8 +840,11 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	if !strings.EqualFold(internalCluster.ID.String(), resourceID.String()) {
-		return nil, fmt.Errorf("unexpected resourceID: %s", internalCluster.ID.String())
+	if internalCluster.ResourceID == nil {
+		return nil, fmt.Errorf("stored cluster document is missing cosmosMetadata.resourceID")
+	}
+	if !strings.EqualFold(internalCluster.ResourceID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalCluster.ResourceID.String())
 	}
 	internalCluster.ID = resourceID
 
