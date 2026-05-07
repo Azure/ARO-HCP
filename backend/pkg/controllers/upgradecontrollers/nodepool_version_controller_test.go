@@ -635,20 +635,33 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		{
-			name:                 "desired less than highest active (partial downgrade) - fail",
+			name:                 "z-stream downgrade within skew succeeds",
 			desiredVersion:       "4.19.8",
 			activeVersions:       []string{"4.19.10"},
 			controlPlaneVersions: []string{"4.19.10"},
-			expectError:          true,
-			errorContains:        "cannot downgrade",
+			expectError:          false,
 		},
 		{
-			name:                 "desired lower minor than highest active - fail",
+			name:                 "y-stream downgrade succeeds",
 			desiredVersion:       "4.18.15",
 			activeVersions:       []string{"4.19.10"},
 			controlPlaneVersions: []string{"4.19.10"},
+			expectError:          false,
+		},
+		{
+			name:                 "multi-minor downgrade succeeds",
+			desiredVersion:       "4.18.3",
+			activeVersions:       []string{"4.21.5"},
+			controlPlaneVersions: []string{"4.21.5"},
+			expectError:          false,
+		},
+		{
+			name:                 "cross-major downgrade fails",
+			desiredVersion:       "4.22.0",
+			activeVersions:       []string{"5.0.1"},
+			controlPlaneVersions: []string{"5.0.1"},
 			expectError:          true,
-			errorContains:        "cannot downgrade",
+			errorContains:        "major version downgrades are not supported",
 		},
 	}
 
@@ -1024,22 +1037,21 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	assert.Contains(t, err.Error(), "not found in Cincinnati")
 }
 
-func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
+func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
 	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
+	mockCincinnati := cincinnati.NewMockClient(ctrl)
 
-	// Create node pool with desired version 4.19.5 (downgrade from 4.19.10)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.5")
+	// Create node pool with desired version 4.19.3 (downgrade, does not exist in Cincinnati)
+	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.3")
 
 	// Create ServiceProviderCluster with control plane at 4.20.0
 	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
 
-	// Create ServiceProviderNodePool with active version 4.19.10 (higher than desired)
+	// Create ServiceProviderNodePool with active version 4.19.10
 	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
 
 	// CS returns node pool with current version 4.19.10
@@ -1048,6 +1060,20 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
 		GetNodePool(gomock.Any(), gomock.Any()).
 		Return(csNodePool, nil).
 		Times(1)
+
+	// Cincinnati returns VersionNotFound for the downgrade target
+	mockCincinnati.EXPECT().
+		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.3"))).
+		Return(
+			configv1.Release{},
+			nil,
+			nil,
+			&cvocincinnati.Error{Reason: "VersionNotFound", Message: "version 4.19.3 not found"},
+		).
+		Times(1)
+
+	mockClientCache := cincinnati.NewMockClientCache(ctrl)
+	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
 		cooldownChecker:                       &alwaysSyncCooldownChecker{},
@@ -1068,7 +1094,75 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
 	err := syncer.SyncOnce(ctx, testKey)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot downgrade")
+	assert.Contains(t, err.Error(), "not found in Cincinnati")
+}
+
+func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+	mockCincinnati := cincinnati.NewMockClient(ctrl)
+
+	// Create node pool with desired version 4.19.5 (z-stream downgrade from 4.19.10)
+	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.5")
+
+	// Create ServiceProviderCluster with control plane at 4.20.0
+	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
+
+	// Create ServiceProviderNodePool with active version 4.19.10
+	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
+
+	// CS returns node pool with current version 4.19.10
+	csNodePool := newCSNodePoolWithVersion(t, "4.19.10")
+	mockCS.EXPECT().
+		GetNodePool(gomock.Any(), gomock.Any()).
+		Return(csNodePool, nil).
+		Times(1)
+
+	// Cincinnati: version exists
+	mockCincinnati.EXPECT().
+		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.5"))).
+		Return(
+			configv1.Release{Version: "4.19.5"},
+			[]configv1.Release{},
+			nil,
+			nil,
+		).
+		Times(1)
+
+	mockClientCache := cincinnati.NewMockClientCache(ctrl)
+	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
+
+	syncer := &nodePoolVersionSyncer{
+		cooldownChecker:                       &alwaysSyncCooldownChecker{},
+		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
+		resourcesDBClient:                     mockResourcesDBClient,
+		clusterServiceClient:                  mockCS,
+		cincinnatiClientCache:                 mockClientCache,
+	}
+
+	testKey := controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	}
+
+	ctx = utils.ContextWithLogger(ctx, logr.Discard())
+	err := syncer.SyncOnce(ctx, testKey)
+
+	require.NoError(t, err)
+
+	// Verify the ServiceProviderNodePool DesiredVersion was updated to the downgrade target
+	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
+		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
+	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err)
+	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion)
+	expectedDesiredVersion := semver.MustParse("4.19.5")
+	require.True(t, expectedDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion))
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {

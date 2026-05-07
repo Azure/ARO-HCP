@@ -891,7 +891,7 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 }
 
 // ValidateNodePoolUpgrade performs common node pool version upgrade validation:
-// - No downgrades from highest active version
+// - Downgrades allowed (no cross-major downgrades)
 // - Cannot exceed lowest control plane version
 // - No major version changes without AFEC (uses existing ValidateMajorUpgrade)
 // - Minor version upgrades limited to +2
@@ -905,12 +905,16 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 
-	// No partial downgrades: desiredVersion >= highest active version
+	// Downgrade handling: HCP nodepools use Replace strategy (nodes are recreated),
+	// so downgrades are operationally identical to upgrades. Only cross-major
+	// downgrades are blocked.
 	if highest != nil && desiredVersion.LT(*highest) {
-		return fmt.Errorf(
-			"invalid node pool version %s: cannot downgrade from current version %s",
-			desiredVersion.String(), highest.String(),
-		)
+		if desiredVersion.Major < highest.Major {
+			return fmt.Errorf(
+				"invalid node pool version %s: major version downgrades are not supported",
+				desiredVersion.String(),
+			)
+		}
 	}
 
 	// Check if the desiredVersion <= control plane versions

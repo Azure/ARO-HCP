@@ -124,10 +124,10 @@ func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePo
 	return errs
 }
 
-// validateNodePoolVersionUpgrade validates that a node pool version change is a valid upgrade.
+// validateNodePoolVersionUpgrade validates that a node pool version change is valid.
 // It checks:
-//   - No downgrade: new version >= old version
-//   - No major version change: new major == old major (unless FeatureExperimentalReleaseFeatures is registered)
+//   - Downgrades allowed (no cross-major downgrades)
+//   - No major version change without FeatureExperimentalReleaseFeatures
 //   - Minor version upgrades limited to +2: new minor <= old minor + 2
 //   - Cannot exceed cluster version: new version <= cluster version
 func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
@@ -157,8 +157,5 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 		errs = append(errs, field.Invalid(fldPath, newNodePool.Properties.Version.ID, err.Error()))
 	}
 
-	if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil && newVersion.LE(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
-		errs = append(errs, field.Invalid(fldPath, newNodePool.Properties.Version.ID, fmt.Sprintf("cannot downgrade from version %s to %s", spNodePool.Spec.NodePoolVersion.DesiredVersion.String(), newVersion.String())))
-	}
 	return errs
 }
