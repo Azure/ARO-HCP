@@ -86,6 +86,11 @@ func (c *operationNodePoolDelete) ShouldProcess(ctx context.Context, operation *
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
 		return false
 	}
+
+	if len(operation.InternalID.String()) == 0 {
+		return false
+	}
+
 	return true
 }
 
