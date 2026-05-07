@@ -16,7 +16,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/microsoft/go-otel-audit v0.2.2
 	github.com/microsoft/kiota-abstractions-go v1.9.3
-	github.com/microsoft/kiota-http-go v1.5.4
+	github.com/microsoft/kiota-http-go v1.5.5
 	github.com/microsoft/kiota-serialization-form-go v1.1.2
 	github.com/microsoft/kiota-serialization-json-go v1.1.2
 	github.com/microsoft/kiota-serialization-multipart-go v1.1.2
