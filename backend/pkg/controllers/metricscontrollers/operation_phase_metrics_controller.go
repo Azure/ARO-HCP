@@ -90,7 +90,7 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 		// alerting a hook.
 		logger := utils.LoggerFromContext(ctx)
 		logger.Info("operation has no ExternalID; skipping metric emission",
-			"operation_resource_id", resourceIDMetricLabel(op.GetResourceID()))
+			"cosmos_doc_id", resourceIDMetricLabel(op.GetResourceID()))
 		return
 	}
 	subscriptionID := subscriptionIDMetricLabel(op.MetricResourceID())
@@ -113,7 +113,7 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 	labels := prometheus.Labels{
 		"resource_id":     resourceID,
 		"subscription_id": subscriptionID,
-		"resource_type":   resourceIDToTypeMetricLabel(op.ExternalID),
+		"resource_type":   resourceIDToTypeMetricLabel(op.MetricResourceID()),
 		"operation_type":  operationTypeMetricLabel(op.Request),
 		"phase":           phaseMetricLabel(op.Status),
 	}
@@ -129,12 +129,16 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 
 // Delete is intentionally a no-op for operation phase metrics.
 //
-// Multiple operation documents can share one resource_id label (the
-// ARM resource id from op.ExternalID), so deleting by resource_id
-// when one operation is removed would also blank any sibling
-// operation's currently-emitted series. Sync's pre-emit
-// DeletePartialMatch implicitly cleans up obsolete labels whenever
-// any operation for a resource is processed.
+// The controller framework calls handler.Delete with the indexer key,
+// which for Operations is the lowercased Cosmos document id. That key
+// no longer matches the resource_id metric label after this PR
+// (resource_id is now derived from op.ExternalID, the ARM resource id).
+// Deleting by the cosmos key would not find any series; deleting by
+// resource_id would blank any sibling operation's currently-emitted
+// series for the same ARM resource (multiple operation documents can
+// share one resource_id label). Sync's pre-emit DeletePartialMatch
+// implicitly cleans up obsolete labels whenever any operation for
+// a resource is processed, so explicit Delete is unnecessary.
 //
 // The trade-off: when the LAST operation for a resource ages out of
 // the Cosmos TTL with no surviving sibling, the series persists in

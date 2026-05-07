@@ -90,8 +90,7 @@ func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 // operation targets, rather than the synthetic cosmos doc id stored
 // in op.ResourceID. Centralizing the choice here means metric handlers
 // do not need to know the cosmos-vs-ARM distinction inline. Returns
-// nil when ExternalID is unset; callers should handle that as the
-// "skip emission" case (see operation_phase_metrics_controller.go).
+// nil when ExternalID is unset; nil means no metric should be emitted.
 func (o *Operation) MetricResourceID() *azcorearm.ResourceID {
 	return o.ExternalID
 }
