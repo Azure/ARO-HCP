@@ -26,12 +26,55 @@ import (
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestOperationRequestCredential_ShouldProcess(t *testing.T) {
+	tests := []struct {
+		name              string
+		operationOverride func(*api.Operation)
+		expectedResult    bool
+	}{
+		{
+			name:              "Accepted status should be processed",
+			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateAccepted },
+			expectedResult:    true,
+		},
+		{
+			name:              "Terminal ProvisioningState should not be processed",
+			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateSucceeded },
+			expectedResult:    false,
+		},
+		{
+			name:              "Wrong operation request type should not be processed",
+			operationOverride: func(o *api.Operation) { o.Request = database.OperationRequestRevokeCredentials },
+			expectedResult:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
+
+			fixture := newClusterTestFixture()
+			operation := fixture.newOperation(database.OperationRequestRequestCredential)
+			operation.Status = arm.ProvisioningStateAccepted
+			if tt.operationOverride != nil {
+				tt.operationOverride(operation)
+			}
+
+			controller := &operationRequestCredential{}
+			result := controller.ShouldProcess(ctx, operation)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
 
 func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 	tests := []struct {
