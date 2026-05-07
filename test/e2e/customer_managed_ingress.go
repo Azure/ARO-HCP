@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
 
@@ -143,17 +142,7 @@ var _ = Describe("Customer", func() {
 			By("granting Key Vault Secrets User role to the managed identity")
 			kvSecretsUserRoleID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6", subscriptionID)
 			kvScope := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.KeyVault/vaults/%s", subscriptionID, *resourceGroup.Name, clusterParams.KeyVaultName)
-			raClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			assignmentName := fmt.Sprintf("e2e-cmi-kv-%s", clusterParams.KeyVaultName)
-			_, err = raClient.Create(ctx, kvScope, assignmentName, armauthorization.RoleAssignmentCreateParameters{
-				Properties: &armauthorization.RoleAssignmentProperties{
-					PrincipalID:      to.Ptr(principalID),
-					RoleDefinitionID: to.Ptr(kvSecretsUserRoleID),
-					PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
-				},
-			}, nil)
+			err = tc.AssignRoleAtScope(ctx, subscriptionID, kvScope, principalID, kvSecretsUserRoleID)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a federated identity credential for the CSI driver service account")
