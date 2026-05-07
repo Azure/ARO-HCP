@@ -25,22 +25,10 @@ type HCPCluster struct {
 }
 
 type HCPClusterProperties struct {
-	// HCPOpenShiftCluster is the inline serialization that mirrors GenericDocument[api.HCPOpenShiftCluster]
-	// (the destination shape for cluster documents). The reading path now uses these inline fields as the
-	// source of truth; the IntermediateResourceDoc/InternalState siblings are still written for compatibility
-	// with old readers, but will be removed once all readers have migrated.
+	// HCPOpenShiftCluster is inlined directly. The on-disk shape now matches
+	// GenericDocument[api.HCPOpenShiftCluster] and HCPCluster only exists as a
+	// distinct type while the migration to that generic surface completes.
 	api.HCPOpenShiftCluster `json:",inline"`
-
-	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
-	// embed the InternalAPIType which has colliding serialization fields.
-	IntermediateResourceDoc *ResourceDocument `json:"intermediateResourceDoc"`
-
-	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
-	InternalState ClusterInternalState `json:"internalState"`
-}
-
-type ClusterInternalState struct {
-	InternalAPI api.HCPOpenShiftCluster `json:"internalAPI"`
 }
 
 func (o *HCPCluster) GetTypedDocument() *TypedDocument {

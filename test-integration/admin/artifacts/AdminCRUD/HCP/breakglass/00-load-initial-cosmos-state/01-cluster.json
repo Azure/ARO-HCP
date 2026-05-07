@@ -9,38 +9,6 @@
 		"identity": {
 			"type": "UserAssigned"
 		},
-		"intermediateResourceDoc": {
-			"identity": {
-				"type": "UserAssigned"
-			},
-			"internalId": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
-			"provisioningState": "Succeeded",
-			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
-			"systemData": {},
-			"tags": {
-				"foo": "bar"
-			}
-		},
-		"internalState": {
-			"internalAPI": {
-				"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
-				"identity": {
-					"type": "UserAssigned"
-				},
-				"location": "eastus",
-				"name": "some-hcp-cluster",
-				"serviceProviderProperties": {
-					"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
-					"provisioningState": "Succeeded",
-					"usesNewClusterDeletionApproach": false
-				},
-				"status": {},
-				"tags": {
-					"foo": "bar"
-				},
-				"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-			}
-		},
 		"location": "eastus",
 		"name": "some-hcp-cluster",
 		"serviceProviderProperties": {
@@ -48,7 +16,6 @@
 			"provisioningState": "Succeeded",
 			"usesNewClusterDeletionApproach": false
 		},
-		"status": {},
 		"tags": {
 			"foo": "bar"
 		},

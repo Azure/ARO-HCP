@@ -211,16 +211,16 @@ func TestPreExistingDataCluster(t *testing.T) {
 			ResourceID:   resourceID,
 		},
 		HCPClusterProperties: HCPClusterProperties{
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
-			},
-			InternalState: ClusterInternalState{
-				InternalAPI: api.HCPOpenShiftCluster{
-					// All canonically-defaulted fields are intentionally zero-valued:
-					// NetworkType, Visibility, OutboundType,
-					// ClusterImageRegistry.State, Etcd.DataEncryption.KeyManagementMode
+			HCPOpenShiftCluster: api.HCPOpenShiftCluster{
+				// All canonically-defaulted fields are intentionally zero-valued:
+				// NetworkType, Visibility, OutboundType,
+				// ClusterImageRegistry.State, Etcd.DataEncryption.KeyManagementMode
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: resourceID,
+				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ClusterServiceID:  ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
+					ProvisioningState: arm.ProvisioningStateSucceeded,
 				},
 			},
 		},

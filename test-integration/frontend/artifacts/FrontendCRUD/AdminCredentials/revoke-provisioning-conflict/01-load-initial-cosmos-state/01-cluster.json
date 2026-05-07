@@ -9,49 +9,6 @@
 		"identity": {
 			"type": "UserAssigned"
 		},
-		"intermediateResourceDoc": {
-			"identity": {
-				"type": "UserAssigned"
-			},
-			"internalId": "/api/clusters_mgmt/v1/clusters/fixed-value",
-			"provisioningState": "Provisioning",
-			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
-			"systemData": {
-				"createdBy": "Unknown-ARO-HCP-frontend",
-				"createdByType": "Application",
-				"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-				"lastModifiedByType": "Application"
-			},
-			"tags": {
-				"foo": "bar"
-			}
-		},
-		"internalState": {
-			"internalAPI": {
-				"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
-				"identity": {
-					"type": "UserAssigned"
-				},
-				"location": "eastus",
-				"name": "some-hcp-cluster",
-				"serviceProviderProperties": {
-					"clusterServiceID": "/api/clusters_mgmt/v1/clusters/fixed-value",
-					"provisioningState": "Provisioning",
-					"usesNewClusterDeletionApproach": false
-				},
-				"status": {},
-				"systemData": {
-					"createdBy": "Unknown-ARO-HCP-frontend",
-					"createdByType": "Application",
-					"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-					"lastModifiedByType": "Application"
-				},
-				"tags": {
-					"foo": "bar"
-				},
-				"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-			}
-		},
 		"location": "eastus",
 		"name": "some-hcp-cluster",
 		"serviceProviderProperties": {
@@ -59,7 +16,6 @@
 			"provisioningState": "Provisioning",
 			"usesNewClusterDeletionApproach": false
 		},
-		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",
