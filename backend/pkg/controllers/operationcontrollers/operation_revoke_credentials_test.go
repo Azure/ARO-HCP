@@ -80,12 +80,14 @@ func TestOperationRevokeCredentials_ShouldProcess(t *testing.T) {
 	}
 }
 
-func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
+func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name                         string
+		operationOverride            func(*api.Operation)
 		breakGlassCredentialStatuses []cmv1.BreakGlassCredentialStatus
 		revokeCredentialsOperationID string
 		expectError                  bool
+		expectCSMockCalled           bool
 		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
 	}{
 		{
@@ -93,6 +95,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
+			expectCSMockCalled:           true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -111,6 +114,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
+			expectCSMockCalled:           true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -130,6 +134,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
+			expectCSMockCalled:           true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -147,6 +152,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
+			expectCSMockCalled:           true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -162,6 +168,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
 			revokeCredentialsOperationID: "not-our-operation-id",
 			expectError:                  false,
+			expectCSMockCalled:           true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
@@ -173,10 +180,27 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{"CompleteFantasy"},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  true,
+			expectCSMockCalled:           true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status) // no state change
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID) // no state change
+			},
+		},
+		{
+			name:                         "ShouldProcess returns false for terminal status and no state change occurs",
+			operationOverride:            func(o *api.Operation) { o.Status = arm.ProvisioningStateSucceeded },
+			revokeCredentialsOperationID: testOperationName,
+			expectError:                  false,
+			expectCSMockCalled:           false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status) // no state change
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
@@ -197,25 +221,30 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
 			operation := fixture.newOperation(database.OperationRequestRevokeCredentials)
 			operation.Status = arm.ProvisioningStateDeleting
+			if tt.operationOverride != nil {
+				tt.operationOverride(operation)
+			}
 
 			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
-			mockCSClient.EXPECT().
-				ListBreakGlassCredentials(fixture.clusterInternalID, "").
-				DoAndReturn(func(_ ocm.InternalID, _ string) ocm.BreakGlassCredentialListIterator {
-					var objs []*cmv1.BreakGlassCredential
-					for _, status := range tt.breakGlassCredentialStatuses {
-						breakGlassCredential, err := cmv1.NewBreakGlassCredential().
-							Status(status).
-							Build()
-						require.NoError(t, err)
-						objs = append(objs, breakGlassCredential)
-					}
-					return ocm.NewSimpleBreakGlassCredentialsListIterator(objs, nil)
-				}).MaxTimes(1)
+			if tt.expectCSMockCalled {
+				mockCSClient.EXPECT().
+					ListBreakGlassCredentials(fixture.clusterInternalID, "").
+					DoAndReturn(func(_ ocm.InternalID, _ string) ocm.BreakGlassCredentialListIterator {
+						var objs []*cmv1.BreakGlassCredential
+						for _, status := range tt.breakGlassCredentialStatuses {
+							breakGlassCredential, err := cmv1.NewBreakGlassCredential().
+								Status(status).
+								Build()
+							require.NoError(t, err)
+							objs = append(objs, breakGlassCredential)
+						}
+						return ocm.NewSimpleBreakGlassCredentialsListIterator(objs, nil)
+					}).MaxTimes(1)
+			}
 
 			controller := &operationRevokeCredentials{
 				cosmosClient:          mockDB,

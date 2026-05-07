@@ -76,18 +76,21 @@ func TestOperationRequestCredential_ShouldProcess(t *testing.T) {
 	}
 }
 
-func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
+func TestOperationRequestCredential_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name                       string
+		operationOverride          func(*api.Operation)
 		breakGlassCredentialStatus cmv1.BreakGlassCredentialStatus
 		getBreakGlassCredentialErr error
 		expectError                bool
+		expectCSMockCalled         bool
 		verify                     func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name:                       "created credential updates operation status to provisioning",
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusCreated,
 			expectError:                false,
+			expectCSMockCalled:         true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -98,6 +101,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			name:                       "failed credential updates operation status to failed",
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusFailed,
 			expectError:                false,
+			expectCSMockCalled:         true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -109,6 +113,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			name:                       "issued credential updates operation status to succeeded",
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusIssued,
 			expectError:                false,
+			expectCSMockCalled:         true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -119,6 +124,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			name:                       "unhandled BreakGlassCredentialStatus leads to error",
 			breakGlassCredentialStatus: "CompleteFantasy",
 			expectError:                true,
+			expectCSMockCalled:         true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -130,10 +136,22 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusIssued,
 			getBreakGlassCredentialErr: errors.New("something went wrong"),
 			expectError:                true,
+			expectCSMockCalled:         true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status) // no state change
+			},
+		},
+		{
+			name:               "ShouldProcess returns false for terminal status and no state change occurs",
+			operationOverride:  func(o *api.Operation) { o.Status = arm.ProvisioningStateSucceeded },
+			expectError:        false,
+			expectCSMockCalled: false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status) // no state change
 			},
 		},
 	}
@@ -148,20 +166,25 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			fixture := newClusterTestFixture()
 			cluster := fixture.newCluster(nil)
 			operation := fixture.newOperation(database.OperationRequestRequestCredential)
+			if tt.operationOverride != nil {
+				tt.operationOverride(operation)
+			}
 
 			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
-			breakGlassCredential, err := cmv1.NewBreakGlassCredential().
-				Status(tt.breakGlassCredentialStatus).
-				Build()
-			require.NoError(t, err)
+			if tt.expectCSMockCalled {
+				breakGlassCredential, err := cmv1.NewBreakGlassCredential().
+					Status(tt.breakGlassCredentialStatus).
+					Build()
+				require.NoError(t, err)
 
-			mockCSClient.EXPECT().
-				GetBreakGlassCredential(gomock.Any(), fixture.clusterInternalID).
-				Return(breakGlassCredential, tt.getBreakGlassCredentialErr)
+				mockCSClient.EXPECT().
+					GetBreakGlassCredential(gomock.Any(), fixture.clusterInternalID).
+					Return(breakGlassCredential, tt.getBreakGlassCredentialErr)
+			}
 
 			controller := &operationRequestCredential{
 				cosmosClient:          mockDB,
