@@ -1282,6 +1282,8 @@ clouds:
               targetVersion: "asm-1-28"
               versions: "asm-1-26,asm-1-28"
             aks:
+              # Temporary override: revert to 1.34.4 until asm-1-26 is removed
+              kubernetesVersion: 1.34.4
               # MC AKS nodepools
               # big enough for multiple CS instances during PR checks
               userAgentPool:
