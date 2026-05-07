@@ -38,7 +38,7 @@ func (g *mockResourcesGlobalListers) Subscriptions() database.GlobalLister[arm.S
 }
 
 func (g *mockResourcesGlobalListers) Clusters() database.GlobalLister[api.HCPOpenShiftCluster] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftCluster, database.HCPCluster]{
+	return &mockTypedGlobalLister[api.HCPOpenShiftCluster, database.GenericDocument[api.HCPOpenShiftCluster]]{
 		client:       g.client,
 		resourceType: api.ClusterResourceType,
 	}
