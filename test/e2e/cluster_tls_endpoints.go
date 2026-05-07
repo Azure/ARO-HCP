@@ -94,8 +94,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("ensuring the API TLS certificate is signed by a trusted Azure CA")
+			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			Eventually(func() error {
-				clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				clusterResp, err := clusterClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 				if err != nil {
 					return fmt.Errorf("failed to get cluster: %w", err)
 				}
@@ -107,12 +108,16 @@ var _ = Describe("Customer", func() {
 				apiServerURL := clusterResp.Properties.API.URL
 				actualAPICerts, err := tlsCertsFromURL(ctx, *apiServerURL)
 				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "error fetching API cert: %v\n", err)
-					return err
+					return fmt.Errorf("failed to fetch TLS certificate from %s: %w", *apiServerURL, err)
 				}
 
 				fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICerts[0].Issuer)
-				return verifyCertChain(actualAPICerts, trustedCAs)
+				err = verifyCertChain(actualAPICerts, trustedCAs)
+				if err != nil {
+					return fmt.Errorf("certificate verification failed for %s (issuer: %v): %w",
+						*apiServerURL, actualAPICerts[0].Issuer, err)
+				}
+				return nil
 			}).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect API certificate to be signed by a trusted Azure CA")
 
