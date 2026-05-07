@@ -32,6 +32,7 @@ type QueryOptions struct {
 	TimestampMin      time.Time
 	TimestampMax      time.Time
 	Limit             int
+	SplitByPod        bool
 }
 
 // Query represents a ready-to-execute KQL query with all its metadata.
@@ -106,6 +107,7 @@ type TemplateData struct {
 	ClusterId          string
 	ClusterIds         string
 	HCPNamespacePrefix string
+	SplitByPod         bool
 }
 
 type TemplateDataOptions func(*TemplateData)
@@ -164,6 +166,7 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 		Limit:              max(queryOptions.Limit, 0),
 		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", queryOptions.SubscriptionId, queryOptions.ResourceGroupName),
 		ResourceGroupName:  queryOptions.ResourceGroupName,
+		SplitByPod:         queryOptions.SplitByPod,
 	}
 	defaults := []TemplateDataOptions{
 		WithClusterName(queryOptions.InfraClusterName),

@@ -135,6 +135,14 @@ What is gathered?
 hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
 ```
 
+To split output files by pod name (useful for investigating timing and concurrency issues), add `--split-by-pod`:
+
+```bash
+hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group --split-by-pod
+```
+
+Without this flag, logs from all pods of the same container are written to a single file (e.g. `cluster_namespace_container.jsonl`). With `--split-by-pod`, each pod gets its own file (e.g. `cluster_namespace_container_pod.jsonl`).
+
 If you get an error like, limit execeeded try reducing the amount of data by setting either limit or timestamps, i.e.:
 
 Set `--limit` fetch the first `$limit` number of rows.
