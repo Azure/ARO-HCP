@@ -1,0 +1,18 @@
+{
+  "error": {
+    "code": "MultipleErrorsOccurred",
+    "message": "2 errors occurred",
+    "details": [
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"4.19.7\": must be at least 4.20.8",
+        "target": "properties.version.id"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"4.19.7\": node pool minor version '4.19' cannot be more than 2 minors below '4.22'",
+        "target": "properties.version.id"
+      }
+    ]
+  }
+}

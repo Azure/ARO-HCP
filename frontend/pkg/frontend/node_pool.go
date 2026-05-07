@@ -267,6 +267,11 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
+		return utils.TrackError(err)
+	}
+
 	restOperation := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
@@ -275,17 +280,18 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
+	serviceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, f.dbClient, resourceID.Parent)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
 	validationErrs := validation.ValidateNodePool(ctx, restOperation, newInternalNodePool, nil)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, nil, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePoolCreate(newInternalNodePool, cluster, serviceProviderCluster, restOperation)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
 
-	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
-		return utils.TrackError(err)
-	}
 	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, false)
 	if err != nil {
 		return utils.TrackError(err)
