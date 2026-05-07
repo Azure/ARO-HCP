@@ -189,9 +189,6 @@ func TestCosmosToInternalClusterPreservesETag(t *testing.T) {
 					ResourceID: resourceID,
 				},
 			},
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID: resourceID,
-			},
 		},
 	}
 
