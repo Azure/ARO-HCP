@@ -1,14 +1,14 @@
-# WARNING: Changes to this file indicate HyperShift operator config changes
-# that WILL trigger customer worker node replacements across all hosted
-# clusters in affected regions.
+# WARNING: Changes to this file indicate HyperShift operator install flag
+# changes that WILL trigger customer worker node replacements across all
+# hosted clusters in affected regions.
 #
 # Before updating:
 # 1. Document impact analysis in your PR description
 # 2. Coordinate rollout scheduling with SRE
-# 3. Run: UPDATE=true make -C tooling/helmtest update
+# 3. Run: UPDATE_NODE_ROLLOUT_FIXTURE=true go test -run TestNodeRolloutConfig -count=1 ./...
 additionalInstallArgs:
 - --enable-cpo-overrides
-hypershiftImage: arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890
+- --metrics-set=SRE
 registryOverrides:
 - quay.io/openshift-release-dev/ocp-release-nightly=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release-nightly
 - quay.io/openshift-release-dev/ocp-release=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release

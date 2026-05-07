@@ -15,7 +15,10 @@
 package testrunner
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -24,40 +27,82 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"sigs.k8s.io/yaml"
+	batchv1 "k8s.io/api/batch/v1"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
+
+	sigsyaml "sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )
 
-var knownSafeFlags = map[string]bool{
-	"--enable-conversion-webhook":         true,
-	"--managed-service":                   true,
-	"--aro-hcp-key-vault-users-client-id": true,
-	"--platform-monitoring":               true,
-	"--metrics-set":                       true,
-	"--enable-size-tagging":               true,
-	"--limit-crd-install":                 true,
+// flagEffect classifies how a HyperShift operator install flag or environment
+// variable affects worker node configuration.
+type flagEffect int
+
+const (
+	// flagSafe indicates the flag does not affect worker node configuration.
+	// It controls operator-level behavior only (webhooks, monitoring, CRD
+	// management) and will be silently ignored by this test.
+	flagSafe flagEffect = iota
+
+	// flagNodeAffecting indicates the flag affects worker node configuration
+	// and is tracked in a dedicated NodeRolloutConfig field. Changes to these
+	// flags will appear in the golden fixture diff.
+	flagNodeAffecting
+)
+
+// flagCategories is the single source of truth for classifying HyperShift
+// operator install flags. Every flag passed to `hypershift install` must
+// appear here. Flags NOT listed will surface in AdditionalInstallArgs in the
+// golden fixture, forcing an explicit classification decision during review.
+//
+// To determine whether a flag is safe or node-affecting, review the HyperShift
+// install command source code and verify:
+//  1. The flag does not modify any NodePool, Machine, or MachineSet spec
+//  2. The flag does not change container images used by worker nodes
+//  3. The flag does not alter registry overrides or image pull configuration
+//
+// If uncertain, do NOT add the flag here -- leaving it unclassified causes the
+// test to surface it for review, which is the safer default.
+var flagCategories = map[string]flagEffect{
+	// Safe: only affect operator-level behavior, no node impact
+	"--enable-conversion-webhook":         flagSafe,
+	"--managed-service":                   flagSafe,
+	"--aro-hcp-key-vault-users-client-id": flagSafe,
+	"--platform-monitoring":               flagSafe,
+	"--enable-size-tagging":               flagSafe,
+	"--limit-crd-install":                 flagSafe,
+	"--hypershift-image":                  flagSafe,
+
+	// Node-affecting: tracked in dedicated NodeRolloutConfig fields
+	"--registry-overrides": flagNodeAffecting,
 }
 
-var knownSafeEnvVars = map[string]bool{
-	"SHARED_INGRESS_AZURE_PIP_IP_TAGS": true,
+// envVarCategories is the single source of truth for classifying HyperShift
+// operator environment variables set via --additional-operator-env-vars.
+// Same classification rules as flagCategories.
+var envVarCategories = map[string]flagEffect{
+	// Safe: only affect operator-level behavior, no node impact
+	"SHARED_INGRESS_AZURE_PIP_IP_TAGS": flagSafe,
+
+	// Node-affecting: tracked in dedicated NodeRolloutConfig fields
+	"IMAGE_SHARED_INGRESS_HAPROXY": flagNodeAffecting,
 }
 
 type NodeRolloutConfig struct {
 	RegistryOverrides         []string `json:"registryOverrides" yaml:"registryOverrides"`
-	HypershiftImage           string   `json:"hypershiftImage" yaml:"hypershiftImage"`
 	SharedIngressHAProxyImage string   `json:"sharedIngressHAProxyImage,omitempty" yaml:"sharedIngressHAProxyImage,omitempty"`
 	AdditionalInstallArgs     []string `json:"additionalInstallArgs,omitempty" yaml:"additionalInstallArgs,omitempty"`
 }
 
-const nodeRolloutWarningHeader = `# WARNING: Changes to this file indicate HyperShift operator config changes
-# that WILL trigger customer worker node replacements across all hosted
-# clusters in affected regions.
+const nodeRolloutWarningHeader = `# WARNING: Changes to this file indicate HyperShift operator install flag
+# changes that WILL trigger customer worker node replacements across all
+# hosted clusters in affected regions.
 #
 # Before updating:
 # 1. Document impact analysis in your PR description
 # 2. Coordinate rollout scheduling with SRE
-# 3. Run: UPDATE=true make -C tooling/helmtest update
+# 3. Run: UPDATE_NODE_ROLLOUT_FIXTURE=true go test -run TestNodeRolloutConfig -count=1 ./...
 `
 
 const nodeRolloutDiffMessage = `Node rollout configuration has changed!
@@ -66,22 +111,20 @@ Changes to these values will trigger customer worker node replacement
 across all hosted clusters in affected regions.
 
 Before updating, document the impact in your PR description and coordinate with SRE.
-If this change is intentional, re-run with: UPDATE=true make -C tooling/helmtest update`
+If this change is intentional, re-run with: UPDATE_NODE_ROLLOUT_FIXTURE=true go test -run TestNodeRolloutConfig -count=1 ./...`
 
 func RunTestNodeRolloutConfig(t *testing.T, settingsPath string) {
 	settings, err := internal.LoadSettings(settingsPath)
 	assert.NoError(t, err)
 	assert.NotNil(t, settings)
 
-	helmSteps, err := internal.FindHelmSteps(settings.TopologyDir, settings.ConfigPath)
+	helmSteps, err := internal.FindHelmStepsByReleaseName(settings.TopologyDir, settings.ConfigPath, "hypershift")
 	assert.NoError(t, err)
-	assert.NotNil(t, helmSteps)
+	if len(helmSteps) == 0 {
+		t.Fatal("no HyperShift operator helm steps found; if the service was renamed or moved, update the release name filter in this test")
+	}
 
 	for _, helmStep := range helmSteps {
-		if !strings.Contains(helmStep.PipelinePath, "hypershiftoperator/") {
-			continue
-		}
-
 		testName := fmt.Sprintf("%s-%s", helmStep.AKSCluster, helmStep.HelmStep.ReleaseName)
 		testCase := internal.TestCase{
 			Name:         testName,
@@ -101,7 +144,7 @@ func RunTestNodeRolloutConfig(t *testing.T, settingsPath string) {
 				t.Fatalf("failed to extract node rollout config: %v", err)
 			}
 
-			configYAML, err := yaml.Marshal(config)
+			configYAML, err := sigsyaml.Marshal(config)
 			if err != nil {
 				t.Fatalf("failed to marshal node rollout config: %v", err)
 			}
@@ -110,8 +153,12 @@ func RunTestNodeRolloutConfig(t *testing.T, settingsPath string) {
 			outputDir := filepath.Join(settings.TopologyDir, filepath.Dir(helmStep.PipelinePath))
 			CompareWithFixture(t, output,
 				WithGoldenDir(outputDir),
-				WithDiffMessage(nodeRolloutDiffMessage),
+				WithUpdateEnv("UPDATE_NODE_ROLLOUT_FIXTURE"),
 			)
+
+			if t.Failed() {
+				t.Log(nodeRolloutDiffMessage)
+			}
 		})
 	}
 }
@@ -130,10 +177,6 @@ func extractNodeRolloutConfig(manifest string) (*NodeRolloutConfig, error) {
 		config.RegistryOverrides = entries
 	}
 
-	if image, ok := extractFlag(script, "hypershift-image"); ok {
-		config.HypershiftImage = image
-	}
-
 	if haproxy := extractEnvVar(script, "IMAGE_SHARED_INGRESS_HAPROXY"); haproxy != "" {
 		config.SharedIngressHAProxyImage = haproxy
 	}
@@ -148,29 +191,17 @@ func extractNodeRolloutConfig(manifest string) (*NodeRolloutConfig, error) {
 }
 
 func extractInstallScript(manifest string) (string, error) {
-	docs := strings.Split(manifest, "\n---\n")
-	for _, doc := range docs {
-		doc = strings.TrimSpace(doc)
-		if doc == "" {
+	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(manifest)), 4096)
+	for {
+		var job batchv1.Job
+		if err := decoder.Decode(&job); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			continue
 		}
-		if !strings.Contains(doc, "kind: Job") || !strings.Contains(doc, "name: install-hypershift") {
+		if job.Kind != "Job" || job.Name != "install-hypershift" {
 			continue
-		}
-
-		var job struct {
-			Spec struct {
-				Template struct {
-					Spec struct {
-						Containers []struct {
-							Command []string `yaml:"command"`
-						} `yaml:"containers"`
-					} `yaml:"spec"`
-				} `yaml:"template"`
-			} `yaml:"spec"`
-		}
-		if err := yaml.Unmarshal([]byte(doc), &job); err != nil {
-			return "", fmt.Errorf("failed to parse install-hypershift Job: %w", err)
 		}
 		if len(job.Spec.Template.Spec.Containers) == 0 {
 			return "", fmt.Errorf("install-hypershift Job has no containers")
@@ -210,11 +241,6 @@ func collectUnknownFlags(script string) []string {
 	lines := strings.Split(script, "\n")
 	var unknown []string
 
-	knownNodeAffecting := map[string]bool{
-		"--registry-overrides": true,
-		"--hypershift-image":   true,
-	}
-
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		line = strings.TrimSuffix(line, `\`)
@@ -230,10 +256,7 @@ func collectUnknownFlags(script string) []string {
 			}
 			envAssignment := strings.TrimSpace(parts[1])
 			envName := strings.SplitN(envAssignment, "=", 2)[0]
-			if envName == "IMAGE_SHARED_INGRESS_HAPROXY" {
-				continue
-			}
-			if knownSafeEnvVars[envName] {
+			if _, classified := envVarCategories[envName]; classified {
 				continue
 			}
 			unknown = append(unknown, line)
@@ -249,10 +272,7 @@ func collectUnknownFlags(script string) []string {
 			flagName = line[:idx]
 		}
 
-		if knownSafeFlags[flagName] {
-			continue
-		}
-		if knownNodeAffecting[flagName] {
+		if _, classified := flagCategories[flagName]; classified {
 			continue
 		}
 
