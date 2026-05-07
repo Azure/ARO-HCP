@@ -27,8 +27,8 @@ import (
 )
 
 type clusterRecursiveDataDump struct {
-	cooldownChecker controllerutils.CooldownChecker
-	cosmosClient    database.DBClient
+	cooldownChecker   controllerutils.CooldownChecker
+	resourcesDBClient database.ResourcesDBClient
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
 	nextDataDumpChecker controllerutils.CooldownChecker
@@ -36,19 +36,19 @@ type clusterRecursiveDataDump struct {
 
 // NewClusterRecursiveDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
 func NewClusterRecursiveDataDumpController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &clusterRecursiveDataDump{
 		cooldownChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:        cosmosClient,
+		resourcesDBClient:   resourcesDBClient,
 		nextDataDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
 		"DataDump",
-		cosmosClient,
+		resourcesDBClient,
 		backendInformers,
 		1*time.Minute,
 		syncer,
@@ -64,7 +64,7 @@ func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controlleru
 
 	logger := utils.LoggerFromContext(ctx)
 
-	if err := serverutils.DumpDataToLogger(ctx, c.cosmosClient, key.GetResourceID()); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, c.resourcesDBClient, key.GetResourceID()); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}

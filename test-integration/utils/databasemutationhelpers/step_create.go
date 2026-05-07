@@ -60,7 +60,7 @@ func (l *createStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *createStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
 	for _, resource := range l.resources {
 		_, err := resourceCRUDClient.Create(ctx, resource, nil)

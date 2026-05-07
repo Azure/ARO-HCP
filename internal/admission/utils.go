@@ -33,14 +33,14 @@ import (
 // using the same skew rules (n-2 minor, cross-major allowlist) for:
 //   - the customer node pool properties.version.id (when non-empty),
 //   - the service provider node pool lowest and highest active versions when they exist.
-func ValidateClusterNodePoolsMinorVersionSkew(ctx context.Context, dbClient database.DBClient, clusterResourceID *azcorearm.ResourceID, clusterVersion semver.Version) error {
-	nodePoolIterator, err := dbClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
+func ValidateClusterNodePoolsMinorVersionSkew(ctx context.Context, resourcesDBClient database.ResourcesDBClient, clusterResourceID *azcorearm.ResourceID, clusterVersion semver.Version) error {
+	nodePoolIterator, err := resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
 	if err != nil {
 		return errors.New("cannot validate node pool skew")
 	}
 	var errs []error
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		serviceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, dbClient, nodePool.ID)
+		serviceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, resourcesDBClient, nodePool.ID)
 		if err != nil {
 			errs = append(errs, errors.New("cannot validate node pool skew"))
 			continue

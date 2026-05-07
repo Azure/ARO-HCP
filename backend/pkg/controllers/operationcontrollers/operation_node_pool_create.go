@@ -31,19 +31,33 @@ import (
 )
 
 type operationNodePoolCreate struct {
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
 
+// NewOperationNodePoolCreateController returns a new Controller instance that
+// follows an asynchronous node pool creation operation to completion and updates
+// the corresponding operation document in Cosmos DB.
+//
+// Operation documents relevant to this controller will have the following values:
+//
+//	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools
+//	     Request: Create
+//	      Status: any non-terminal value
+//
+// Note that "to completion" does not imply success. An operation is considered
+// complete when its status field reaches what Azure defines as a terminal value;
+// any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
+// a terminal value, there will be no further updates to the operation document.
 func NewOperationNodePoolCreateController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationNodePoolCreate{
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
 	}
@@ -53,7 +67,7 @@ func NewOperationNodePoolCreateController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -76,7 +90,7 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -87,5 +101,5 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	return pollNodePoolStatus(ctx, c.cosmosClient, c.clusterServiceClient, operation, c.notificationClient)
+	return pollNodePoolStatus(ctx, c.resourcesDBClient, c.clusterServiceClient, operation, c.notificationClient)
 }

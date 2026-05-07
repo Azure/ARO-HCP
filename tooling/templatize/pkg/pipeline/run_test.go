@@ -150,6 +150,9 @@ func TestMockedPipelineRun(t *testing.T) {
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
+		TopoDirLookupFunc: func(_ string) (string, error) {
+			return ".", nil
+		},
 	}, executor); err != nil {
 		t.Error(err)
 	}
@@ -305,6 +308,9 @@ func TestMockedPipelineRunError(t *testing.T) {
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
+		TopoDirLookupFunc: func(_ string) (string, error) {
+			return ".", nil
+		},
 	}, executor); err == nil {
 		t.Errorf("expected an error, got none")
 	}
@@ -369,6 +375,9 @@ func TestPipelineRun(t *testing.T) {
 		Stamp:       "1",
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
+		},
+		TopoDirLookupFunc: func(_ string) (string, error) {
+			return ".", nil
 		},
 	}, RunStep)
 

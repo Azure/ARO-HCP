@@ -197,64 +197,6 @@ func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 	})
 }
 
-// TestCSToRPDefaultsConsistencyCluster verifies that when Cluster Service
-// returns the default values for canonically-defaulted fields, the CS→RP
-// conversion produces the same values as canonical defaults.
-// See docs/api-version-defaults-and-storage.md.
-func TestCSToRPDefaultsConsistencyCluster(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
-	))
-
-	// Build a CS cluster with the default values for each canonically-defaulted field.
-	// These are the CS-side representations of the default values.
-	csCluster, err := arohcpv1alpha1.NewCluster().
-		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(arohcpv1alpha1.ListeningMethodExternal)).
-		Network(arohcpv1alpha1.NewNetwork().
-			Type("OVNKubernetes")).
-		Azure(arohcpv1alpha1.NewAzure().
-			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-				OutboundType("load_balancer")).
-			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
-				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-					KeyManagementMode("platform_managed")))).
-		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-			State("enabled")).
-		Build()
-	if err != nil {
-		t.Fatalf("failed to build CS cluster: %v", err)
-	}
-
-	rpCluster, err := ocm.LegacyCreateInternalClusterFromClusterService(resourceID, "eastus", csCluster)
-	if err != nil {
-		t.Fatalf("LegacyCreateInternalClusterFromClusterService failed: %v", err)
-	}
-
-	ensuredDefault := &api.HCPOpenShiftCluster{}
-	ensuredDefault.EnsureDefaults()
-
-	checks := []struct {
-		name         string
-		csToRPVal    string
-		canonicalVal string
-	}{
-		{"NetworkType", string(rpCluster.CustomerProperties.Network.NetworkType), string(ensuredDefault.CustomerProperties.Network.NetworkType)},
-		{"Visibility", string(rpCluster.CustomerProperties.API.Visibility), string(ensuredDefault.CustomerProperties.API.Visibility)},
-		{"OutboundType", string(rpCluster.CustomerProperties.Platform.OutboundType), string(ensuredDefault.CustomerProperties.Platform.OutboundType)},
-		{"ClusterImageRegistry.State", string(rpCluster.CustomerProperties.ClusterImageRegistry.State), string(ensuredDefault.CustomerProperties.ClusterImageRegistry.State)},
-		{"Etcd.DataEncryption.KeyManagementMode", string(rpCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode), string(ensuredDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode)},
-		{"Version.ID", rpCluster.CustomerProperties.Version.ID, ensuredDefault.CustomerProperties.Version.ID},
-	}
-	for _, c := range checks {
-		t.Run(c.name, func(t *testing.T) {
-			if c.csToRPVal != c.canonicalVal {
-				t.Errorf("CS→RP default = %q, canonical default = %q", c.csToRPVal, c.canonicalVal)
-			}
-		})
-	}
-}
-
 // TestCSToRPDefaultsConsistencyNodePool verifies that when Cluster Service
 // returns the default value for DiskStorageAccountType, the CS→RP conversion
 // produces the same value as the canonical default.

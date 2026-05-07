@@ -128,16 +128,16 @@ func (o *ValidatedInspectOptions) Complete(ctx context.Context) (*InspectOptions
 func (o *InspectOptions) RunInspect(ctx context.Context) error {
 	return pipeline.Inspect(
 		o.PipelineOptions.Pipeline, ctx, &pipeline.InspectOptions{
-			Scope:          o.Scope,
-			ScopeFunctions: pipeline.NewStepInspectScopes(o.PipelineOptions.RolloutOptions.Subscriptions),
-			Format:         o.Format,
-			Step:           o.PipelineOptions.Step,
-			Region:         o.PipelineOptions.RolloutOptions.Region,
-			Configuration:  o.PipelineOptions.RolloutOptions.Config,
-			TopologyDir:    o.PipelineOptions.TopologyDir,
-			Service:        o.PipelineOptions.Service,
-			OutputFile:     o.OutputFile,
-			Concurrency:    o.PipelineOptions.RolloutOptions.Concurrency,
+			Scope:             o.Scope,
+			ScopeFunctions:    pipeline.NewStepInspectScopes(o.PipelineOptions.RolloutOptions.Subscriptions),
+			Format:            o.Format,
+			Step:              o.PipelineOptions.Step,
+			Region:            o.PipelineOptions.RolloutOptions.Region,
+			Configuration:     o.PipelineOptions.RolloutOptions.Config,
+			TopoDirLookupFunc: o.PipelineOptions.TopoDirLookupFunc,
+			Service:           o.PipelineOptions.Service,
+			OutputFile:        o.OutputFile,
+			Concurrency:       o.PipelineOptions.RolloutOptions.Concurrency,
 		},
 	)
 }

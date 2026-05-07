@@ -38,6 +38,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 )
 
 type perBinaryInvocationTestContext struct {
@@ -149,29 +151,20 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 }
 
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
+	clientOpts.Retry = azureRetryOptions
+	clientOpts.PerCallPolicies = []policy.Policy{
+		NewLROPollerRetryDeploymentNotFoundPolicy(),
+		&sanitizeAuthHeaderPolicy{},
+	}
 	if tc.isDevelopmentEnvironment {
-		return &azcorearm.ClientOptions{
-			ClientOptions: azcore.ClientOptions{
-				Retry: azureRetryOptions,
-				Transport: &proxiedConnectionTransporter{
-					delegate: tc.defaultTransport,
-				},
-				PerCallPolicies: []policy.Policy{
-					&correlationRequestIDPolicy{},
-					NewLROPollerRetryDeploymentNotFoundPolicy(),
-					&sanitizeAuthHeaderPolicy{},
-				},
-			},
+		clientOpts.Transport = &proxiedConnectionTransporter{
+			delegate: tc.defaultTransport,
 		}
+		clientOpts.PerCallPolicies = append([]policy.Policy{&correlationRequestIDPolicy{}}, clientOpts.PerCallPolicies...)
 	}
 	return &azcorearm.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: azureRetryOptions,
-			PerCallPolicies: []policy.Policy{
-				NewLROPollerRetryDeploymentNotFoundPolicy(),
-				&sanitizeAuthHeaderPolicy{},
-			},
-		},
+		ClientOptions: clientOpts,
 	}
 }
 
@@ -181,38 +174,38 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 		if tc.skipCertVerification {
 			transport.TLSClientConfig.InsecureSkipVerify = true
 		}
-		return &azcorearm.ClientOptions{
-			ClientOptions: azcore.ClientOptions{
-				Retry: azureRetryOptions,
-				Cloud: cloud.Configuration{
-					ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
-					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-						cloud.ResourceManager: {
-							Audience: "https://management.core.windows.net/",
-							Endpoint: tc.frontendAddress,
-						},
-					},
-				},
-				Transport: &proxiedConnectionTransporter{
-					delegate: transport,
-				},
-				InsecureAllowCredentialWithHTTP: true,
-				PerCallPolicies: []policy.Policy{
-					&correlationRequestIDPolicy{},
-					&armSystemDataPolicy{},
-					&armResourceGroupValidationPolicy{cred: tc.azureCredentials},
-					&sanitizeAuthHeaderPolicy{},
+		clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
+		clientOpts.Retry = azureRetryOptions
+		clientOpts.Cloud = cloud.Configuration{
+			ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+				cloud.ResourceManager: {
+					Audience: "https://management.core.windows.net/",
+					Endpoint: tc.frontendAddress,
 				},
 			},
 		}
+		clientOpts.Transport = &proxiedConnectionTransporter{
+			delegate: transport,
+		}
+		clientOpts.InsecureAllowCredentialWithHTTP = true
+		clientOpts.PerCallPolicies = []policy.Policy{
+			&correlationRequestIDPolicy{},
+			&armSystemDataPolicy{},
+			&armResourceGroupValidationPolicy{cred: tc.azureCredentials},
+			&sanitizeAuthHeaderPolicy{},
+		}
+		return &azcorearm.ClientOptions{
+			ClientOptions: clientOpts,
+		}
+	}
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
+	clientOpts.Retry = azureRetryOptions
+	clientOpts.PerCallPolicies = []policy.Policy{
+		&sanitizeAuthHeaderPolicy{},
 	}
 	return &azcorearm.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: azureRetryOptions,
-			PerCallPolicies: []policy.Policy{
-				&sanitizeAuthHeaderPolicy{},
-			},
-		},
+		ClientOptions: clientOpts,
 	}
 }
 

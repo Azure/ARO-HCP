@@ -322,37 +322,6 @@ If you need to request quota increases for new regions or resources:
 4. Find the quota you need to increase (e.g., "Total Regional vCPUs")
 5. Click the pencil icon and request a new limit
 
-### Entra ID Directory Object Limits
-
-High-volume E2E testing can hit the Entra ID directory object limit (500,000) due to soft-deleted objects counting towards the quota. 
-
-> **TODO**: Consider reusing Managed Service Identities (MSI) where possible to reduce the number of directory objects created.
-
-## Automated Cleanup
-
-Both STAGE and PROD subscriptions have automated cleanup enabled to prevent resource accumulation and quota limits.
-
-### Prow Periodic Cleanup Jobs
-
-Cleanup now runs via `cleanup-sweeper` periodic Prow jobs (not Azure Automation runbooks):
-
-- **RG ordered cleanup**:
-  - Job: `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-sweeper-rg-ordered`
-  - Purpose: resource-group cleanup across subscriptions using the policy workflow
-- **Shared leftovers cleanup**:
-  - Job: `periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-sweeper-shared-leftovers`
-  - Purpose: remove shared leftovers such as orphaned role assignments
-
-Job configuration lives in [`openshift/release` → `ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml`](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml), and the reusable step is in [`openshift/release` → `ci-operator/step-registry/aro-hcp/deprovision/cleanup-sweeper/`](https://github.com/openshift/release/tree/master/ci-operator/step-registry/aro-hcp/deprovision/cleanup-sweeper).
-
-### Manual Testing
-
-To manually test cleanup behavior:
-
-1. Trigger the relevant periodic-style job from a PR with `/test` (or run locally with the same `cleanup-sweeper` workflow and flags).
-2. Monitor Prow job output in the test logs.
-3. Verify target subscriptions/resource groups after the run.
-
 ## Troubleshooting
 
 ### Issue: "Subscription not found"

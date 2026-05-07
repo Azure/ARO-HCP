@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/otel"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
@@ -376,12 +377,14 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
-	cosmosDBClient, err := app.NewCosmosDBClient(
-		ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName,
+	resourcesCosmosDBClient, billingDBClient, err := app.NewCosmosDBClients(
+		ctx,
+		f.AzureCosmosDBURL,
+		f.AzureCosmosDBName,
 		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
 	)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create cosmos db client: %w", err))
+		return nil, utils.TrackError(err)
 	}
 
 	clustersServiceClient, err := app.NewClustersServiceClient(ctx, f.ClustersServiceURL, f.ClustersServiceTLSInsecure)
@@ -396,7 +399,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		AppVersion:                         cmd.Version,
 		AzureLocation:                      f.AzureLocation,
 		LeaderElectionLock:                 leaderElectionLock,
-		CosmosDBClient:                     cosmosDBClient,
+		ResourcesDBClient:                  resourcesCosmosDBClient,
+		BillingDBClient:                    billingDBClient,
 		ClustersServiceClient:              clustersServiceClient,
 		MetricsServerListenAddress:         f.MetricsServerListenAddress,
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,
@@ -409,6 +413,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		SMIClientBuilder:                   smiClientBuilder,
 		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
 		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
+		MetricsRegisterer:                  legacyregistry.Registerer(),
+		MetricsGatherer:                    legacyregistry.DefaultGatherer,
 	}
 
 	return backendOptions, nil

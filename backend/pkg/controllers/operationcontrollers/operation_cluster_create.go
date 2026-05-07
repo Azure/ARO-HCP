@@ -45,14 +45,27 @@ import (
 type operationClusterCreate struct {
 	clusterLister                         listers.ClusterLister
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
-	cosmosClient                          database.DBClient
+	resourcesDBClient                     database.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	notificationClient                    *http.Client
 }
 
-// NewOperationClusterCreateController periodically lists all clusters and for each out when the cluster was created and its state.
+// NewOperationClusterCreateController returns a new Controller instance that
+// follows an asynchronous cluster creation operation to completion and updates
+// the corresponding operation document in Cosmos DB.
+//
+// Operation documents relevant to this controller will have the following values:
+//
+//	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
+//	     Request: Create
+//	      Status: any non-terminal value
+//
+// Note that "to completion" does not imply success. An operation is considered
+// complete when its status field reaches what Azure defines as a terminal value;
+// any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
+// a terminal value, there will be no further updates to the operation document.
 func NewOperationClusterCreateController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
@@ -63,7 +76,7 @@ func NewOperationClusterCreateController(
 	syncer := &operationClusterCreate{
 		clusterLister:                         clusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
-		cosmosClient:                          cosmosClient,
+		resourcesDBClient:                     resourcesDBClient,
 		clusterServiceClient:                  clusterServiceClient,
 		notificationClient:                    notificationClient,
 	}
@@ -73,7 +86,7 @@ func NewOperationClusterCreateController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -96,7 +109,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -138,59 +151,12 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	return nil
-}
-
-type operationState struct {
-	provisioningState arm.ProvisioningState
-	message           string
-}
-
-func newOperationState(provisioningState arm.ProvisioningState, message string) *operationState {
-	return &operationState{
-		provisioningState: provisioningState,
-		message:           message,
-	}
-}
-
-// provisioningStatePriority is a logical merge order that decides what the most important state to return is.
-// for instance, if one check is succeeded, one is failed, and one is accepted, then failed is the most
-// reasonable state for the operation.
-var provisioningStatePriority = map[arm.ProvisioningState]int{
-	"":                                  -1, // causes an error
-	arm.ProvisioningStateFailed:         00, // always first if present in list
-	arm.ProvisioningStateCanceled:       10,
-	arm.ProvisioningStateDeleting:       20,
-	arm.ProvisioningStateProvisioning:   30,
-	arm.ProvisioningStateAwaitingSecret: 35,
-	arm.ProvisioningStateUpdating:       40,
-	arm.ProvisioningStateAccepted:       50,
-	arm.ProvisioningStateSucceeded:      100, // hardest to get if present
-}
-
-func compareOperationState(lhs, rhs *operationState) int {
-	if lhs == nil && rhs == nil {
-		return 0
-	}
-	if lhs == nil {
-		return -1
-	}
-	if rhs == nil {
-		return 1
-	}
-
-	if provisioningStatePriority[lhs.provisioningState] < provisioningStatePriority[rhs.provisioningState] {
-		return -1
-	}
-	if provisioningStatePriority[lhs.provisioningState] > provisioningStatePriority[rhs.provisioningState] {
-		return 1
-	}
-	return strings.Compare(lhs.message, rhs.message)
 }
 
 func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
@@ -217,19 +183,19 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	if len(operationStates) == 0 {
 		return nil, errors.New("no operation states")
 	}
-
 	slices.SortStableFunc(operationStates, compareOperationState)
+
 	if operationStates[0] == nil {
 		return nil, errors.New("nil operation state")
 	}
-	if len(operationStates[0].provisioningState) == 0 {
-		return nil, errors.New("empty provisioning state")
+	logger.Info("determined cluster create operation status", "operationStates", operationStates)
+
+	picked, err := pickWorstOperationState(operationStates)
+	if err != nil {
+		return nil, utils.TrackError(err)
 	}
-	logger.Info("determined operation status", "operationStates", operationStates)
-
-	// TODO, do a nicer job of combining different states with the same provisioningState
-
-	return operationStates[0], nil
+	logger.Info("picked cluster create operation status", "provisioningState", picked.provisioningState, "message", picked.message)
+	return picked, nil
 }
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {

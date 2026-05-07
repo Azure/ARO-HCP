@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -54,7 +54,7 @@ var _ = Describe("Customer", func() {
 			installVersion, hasUpgradePath, err := framework.GetLatestVersionInMinorWithUpgradePathTo(ctx, channelGroup,
 				previousMinor.String(),
 				targetVer.String())
-			if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 				Skip(fmt.Sprintf("Cincinnati returned version not found for previous minor %s or target minor %s on channel %s: %v",
 					previousMinor.String(),
 					targetVer.String(),

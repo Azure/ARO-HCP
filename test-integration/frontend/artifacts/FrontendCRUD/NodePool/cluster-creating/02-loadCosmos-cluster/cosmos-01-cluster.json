@@ -2,7 +2,6 @@
 	"id": "d9dc2060-758a-540b-bb6e-bab0900ea591",
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
-		"customerDesiredState": null,
 		"intermediateResourceDoc": {
 			"identity": {
 				"principalId": "the-principal",
@@ -16,7 +15,15 @@
 				"foo": "bar"
 			}
 		},
-		"serviceProviderState": null
+		"internalState": {
+			"internalAPI": {
+				"customerProperties": {
+					"version": {
+						"channelGroup": "stable"
+					}
+				}
+			}
+		}
 	},
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
 	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters"

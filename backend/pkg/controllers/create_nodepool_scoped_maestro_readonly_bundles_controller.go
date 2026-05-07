@@ -55,7 +55,7 @@ type createNodePoolScopedMaestroReadonlyBundlesSyncer struct {
 
 	activeOperationLister listers.ActiveOperationLister
 
-	cosmosClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -70,7 +70,7 @@ var _ controllerutils.NodePoolSyncer = (*createNodePoolScopedMaestroReadonlyBund
 
 func NewCreateNodePoolScopedMaestroReadonlyBundlesController(
 	activeOperationLister listers.ActiveOperationLister,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers informers.BackendInformers,
 	maestroSourceEnvironmentIdentifier string,
@@ -79,7 +79,7 @@ func NewCreateNodePoolScopedMaestroReadonlyBundlesController(
 
 	syncer := &createNodePoolScopedMaestroReadonlyBundlesSyncer{
 		cooldownChecker:                      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:                         cosmosClient,
+		resourcesDBClient:                    resourcesDBClient,
 		clusterServiceClient:                 clusterServiceClient,
 		activeOperationLister:                activeOperationLister,
 		maestroSourceEnvironmentIdentifier:   maestroSourceEnvironmentIdentifier,
@@ -89,7 +89,7 @@ func NewCreateNodePoolScopedMaestroReadonlyBundlesController(
 
 	controller := controllerutils.NewNodePoolWatchingController(
 		"CreateNodePoolScopedMaestroReadonlyBundles",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		1*time.Minute,
 		syncer,
@@ -99,7 +99,7 @@ func NewCreateNodePoolScopedMaestroReadonlyBundlesController(
 }
 
 func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
-	existingNodePool, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
+	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
 		return nil // nodepool doesn't exist, no work to do
 	}
@@ -111,7 +111,7 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}
@@ -148,7 +148,7 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.
 		return nil
 	}
 
-	serviceProviderNodePoolsDBClient := c.cosmosClient.ServiceProviderNodePools(
+	serviceProviderNodePoolsDBClient := c.resourcesDBClient.ServiceProviderNodePools(
 		key.SubscriptionID,
 		key.ResourceGroupName,
 		key.HCPClusterName,

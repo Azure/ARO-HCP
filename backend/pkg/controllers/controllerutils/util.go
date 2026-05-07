@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"runtime/debug"
-	"slices"
 
 	"github.com/go-logr/logr"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 type Controller interface {
@@ -219,9 +219,11 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 	}
 }
 
-type initialControllerFunc func(controllerName string) *api.Controller
+// InitialControllerFunc builds a new api.Controller for the given logical controller name
+// (for example HCPClusterKey.InitialController).
+type InitialControllerFunc func(controllerName string) *api.Controller
 
-func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn initialControllerFunc) func(interface{}) {
+func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn InitialControllerFunc) func(interface{}) {
 	return func(panicVal interface{}) {
 		stack := debug.Stack()
 		err := WriteController(ctx, controllerCRUD, controllerName, initialControllerFn, ReportSyncError(fmt.Errorf("panic caught:\n%v\n\n%s", panicVal, stack)))
@@ -232,42 +234,118 @@ func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database
 	}
 }
 
+func controllerCRUDForParent(resourcesDBClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID) (database.ResourceCRUD[api.Controller], error) {
+	subscriptionID := parentResourceID.SubscriptionID
+	resourceGroupName := parentResourceID.ResourceGroupName
+	hcp := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
+
+	switch {
+	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, api.ClusterResourceType):
+		return hcp.Controllers(parentResourceID.Name), nil
+	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, api.NodePoolResourceType):
+		if parentResourceID.Parent == nil {
+			return nil, fmt.Errorf("node pool resource ID is missing parent cluster ID")
+		}
+		clusterName := parentResourceID.Parent.Name
+		return hcp.NodePools(clusterName).Controllers(parentResourceID.Name), nil
+	case armhelpers.ResourceTypeEqual(parentResourceID.ResourceType, api.ExternalAuthResourceType):
+		if parentResourceID.Parent == nil {
+			return nil, fmt.Errorf("external auth resource ID is missing parent cluster ID")
+		}
+		clusterName := parentResourceID.Parent.Name
+		return hcp.ExternalAuth(clusterName).Controllers(parentResourceID.Name), nil
+	default:
+		return nil, fmt.Errorf("unsupported parent resource type for controllers: %s", parentResourceID.ResourceType)
+	}
+}
+
+// getOrCreateControllerDocument returns the controller document from Cosmos, creating it with
+// initialControllerFn if missing. On create conflict (HTTP 409), it re-reads and returns the
+// existing document (same pattern as database.GetOrCreateServiceProviderCluster).
+func getOrCreateControllerDocument(
+	ctx context.Context,
+	controllerCRUD database.ResourceCRUD[api.Controller],
+	controllerName string,
+	initialControllerFn InitialControllerFunc,
+) (*api.Controller, error) {
+	if initialControllerFn == nil {
+		return nil, fmt.Errorf("initialControllerFn is required")
+	}
+
+	existingController, err := controllerCRUD.Get(ctx, controllerName)
+	if err == nil && existingController != nil {
+		return existingController, nil
+	}
+	if err == nil {
+		err = database.NewNotFoundError()
+	}
+
+	if !database.IsNotFoundError(err) {
+		return nil, fmt.Errorf("failed to get existing controller state: %w", err)
+	}
+
+	existingController, err = controllerCRUD.Create(ctx, initialControllerFn(controllerName), nil)
+	if err == nil {
+		if existingController == nil {
+			return nil, fmt.Errorf("create returned success with nil controller")
+		}
+		return existingController, nil
+	}
+
+	if !database.IsConflictError(err) {
+		return nil, fmt.Errorf("failed to create existing controller state: %w", err)
+	}
+
+	existingController, err = controllerCRUD.Get(ctx, controllerName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing controller state after create conflict: %w", err)
+	}
+	if existingController == nil {
+		return nil, fmt.Errorf("failed to get existing controller state after create conflict: document missing")
+	}
+
+	return existingController, nil
+}
+
+// GetOrCreateController gets the named Controller document under the given parent resource
+// (cluster, node pool, or external auth). If it does not exist, it creates one using initialControllerFn.
+// On create conflict (HTTP 409), it re-reads and returns the existing document (same pattern as
+// database.GetOrCreateServiceProviderCluster).
+func GetOrCreateController(
+	ctx context.Context, resourcesDBClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID,
+	controllerName string, initialControllerFn InitialControllerFunc,
+) (*api.Controller, error) {
+	controllerCRUD, err := controllerCRUDForParent(resourcesDBClient, parentResourceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	doc, err := getOrCreateControllerDocument(ctx, controllerCRUD, controllerName, initialControllerFn)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	return doc, nil
+}
+
 // WriteController will read the existing value, call the mutations in order, then write the result.  It only tries *once*.
 // If it fails, then the an error is returned.  This detail is important, it doesn't even retry conflicts.  This is so that
 // if a failure happens the control-loop will re-run and restablish the information it was trying to write as valid.
 // This prevents accidental recreation of controller instances in cosmos during a delete.
-func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn initialControllerFunc, mutationFns ...controllerMutationFunc) error {
+func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn InitialControllerFunc, mutationFns ...controllerMutationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	existingController, err := controllerCRUD.Get(ctx, controllerName)
-	if err != nil && !database.IsNotFoundError(err) {
-		return fmt.Errorf("failed to get existing controller state: %w", err)
+	existingController, err := getOrCreateControllerDocument(ctx, controllerCRUD, controllerName, initialControllerFn)
+	if err != nil {
+		return err
 	}
 
-	var desiredController *api.Controller
-	if existingController == nil { // fill in for conveniently avoiding NPEs
-		desiredController = initialControllerFn(controllerName)
-	} else {
-		// TODO we'd prefer a DeepCopy, but we don't have one yet.
-		temp := *existingController
-		desiredController = &temp
-		desiredController.Status.Conditions = slices.Clone(existingController.Status.Conditions)
-	}
+	desiredController := existingController.DeepCopy()
 	for _, mutationFn := range mutationFns {
 		mutationFn(desiredController)
 	}
 
 	if equality.Semantic.DeepEqual(existingController, desiredController) {
 		// nothing to report.
-		return nil
-	}
-
-	if existingController == nil {
-		_, createErr := controllerCRUD.Create(ctx, desiredController, nil)
-		if createErr != nil {
-			logger.Error(createErr, "failed to create")
-			return fmt.Errorf("failed to create existing controller state: %w", createErr)
-		}
 		return nil
 	}
 

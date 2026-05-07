@@ -37,7 +37,7 @@ type externalAuthWatchingController struct {
 	name   string
 	syncer ExternalAuthSyncer
 
-	cosmosClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 }
 
 // NewExternalAuthWatchingController periodically looks up all ExternalAuths and queues them
@@ -47,16 +47,16 @@ type externalAuthWatchingController struct {
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 func NewExternalAuthWatchingController(
 	name string,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer ExternalAuthSyncer,
 ) Controller {
 
 	externalAuthController := &externalAuthWatchingController{
-		name:         name,
-		cosmosClient: cosmosClient,
-		syncer:       syncer,
+		name:              name,
+		resourcesDBClient: resourcesDBClient,
+		syncer:            syncer,
 	}
 
 	externalAuthGenericWatchingController := newGenericWatchingController(name, api.ExternalAuthResourceType, externalAuthController)
@@ -76,7 +76,7 @@ func NewExternalAuthWatchingController(
 func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPExternalAuthKey) error {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).Controllers(key.HCPExternalAuthName),
+		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).Controllers(key.HCPExternalAuthName),
 		c.name,
 		key.InitialController))
 
@@ -84,7 +84,7 @@ func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPEx
 
 	controllerWriteErr := WriteController(
 		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).Controllers(key.HCPExternalAuthName),
+		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).Controllers(key.HCPExternalAuthName),
 		c.name,
 		key.InitialController,
 		ReportSyncError(syncErr),

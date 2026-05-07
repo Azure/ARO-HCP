@@ -35,8 +35,8 @@ type subscription struct {
 }
 
 type SubscriptionCollector struct {
-	dbClient database.DBClient
-	location string
+	resourcesDBClient database.ResourcesDBClient
+	location          string
 
 	errCounter               prometheus.Counter
 	refreshCounter           prometheus.Counter
@@ -58,10 +58,10 @@ const (
 	subscriptionLastUpdatedName  = "frontend_lifecycle_last_update_timestamp_seconds"
 )
 
-func NewSubscriptionCollector(r prometheus.Registerer, dbClient database.DBClient, location string) *SubscriptionCollector {
+func NewSubscriptionCollector(r prometheus.Registerer, resourcesDBClient database.ResourcesDBClient, location string) *SubscriptionCollector {
 	sc := &SubscriptionCollector{
-		dbClient: dbClient,
-		location: location,
+		resourcesDBClient: resourcesDBClient,
+		location:          location,
 
 		errCounter: promauto.With(r).NewCounter(
 			prometheus.CounterOpts{
@@ -151,7 +151,7 @@ func (sc *SubscriptionCollector) refresh(ctx context.Context) {
 func (sc *SubscriptionCollector) updateCache(ctx context.Context) error {
 	subscriptions := make(map[string]subscription)
 
-	iter, err := sc.dbClient.Subscriptions().List(ctx, nil)
+	iter, err := sc.resourcesDBClient.Subscriptions().List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}

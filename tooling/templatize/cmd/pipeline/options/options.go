@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-Tools/pipelines/types"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func DefaultOptions() *RawPipelineOptions {
@@ -39,7 +40,7 @@ func BindOptions(opts *RawPipelineOptions, cmd *cobra.Command) error {
 		return fmt.Errorf("failed to bind options: %w", err)
 	}
 	cmd.Flags().StringVar(&opts.ServiceGroup, "service-group", opts.ServiceGroup, "Service group identifying the pipeline.")
-	cmd.Flags().StringVar(&opts.TopologyFile, "topology-file", opts.TopologyFile, "Path to the topology configuration.")
+	cmd.Flags().StringArrayVar(&opts.TopologyFiles, "topology-file", opts.TopologyFiles, "Path to a topology configuration file. Can be specified multiple times.")
 	cmd.Flags().StringVar(&opts.Step, "step", opts.Step, "run only a specific step in the pipeline")
 
 	for _, flag := range []string{"topology-file"} {
@@ -57,7 +58,7 @@ func BindOptions(opts *RawPipelineOptions, cmd *cobra.Command) error {
 type RawPipelineOptions struct {
 	RolloutOptions *options.RawRolloutOptions
 	ServiceGroup   string
-	TopologyFile   string
+	TopologyFiles  []string
 	Step           string
 }
 
@@ -74,11 +75,11 @@ type ValidatedPipelineOptions struct {
 
 // completedPipelineOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedPipelineOptions struct {
-	RolloutOptions *options.RolloutOptions
-	Service        *topology.Service
-	Pipeline       *types.Pipeline
-	Step           string
-	TopologyDir    string
+	RolloutOptions    *options.RolloutOptions
+	Service           *topology.Service
+	Pipeline          *types.Pipeline
+	Step              string
+	TopoDirLookupFunc pipeline.TopoDirLookup
 }
 
 type PipelineOptions struct {
@@ -106,9 +107,9 @@ func (o *ValidatedPipelineOptions) Complete(ctx context.Context) (*PipelineOptio
 		return nil, err
 	}
 
-	t, err := topology.Load(o.TopologyFile)
+	t, err := topology.LoadCombined(o.TopologyFiles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load topology file: %w", err)
+		return nil, fmt.Errorf("failed to load topology files: %w", err)
 	}
 	if err := t.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate topology: %w", err)
@@ -118,7 +119,11 @@ func (o *ValidatedPipelineOptions) Complete(ctx context.Context) (*PipelineOptio
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve service group: %w", err)
 	}
-	pipelinePath := filepath.Join(filepath.Dir(o.TopologyFile), service.PipelinePath)
+	topologyDir, err := t.GetTopologyDirForServiceGroup(o.ServiceGroup)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get topology dir for service group: %w", err)
+	}
+	pipelinePath := filepath.Join(topologyDir, service.PipelinePath)
 
 	pipeline, err := types.NewPipelineFromFile(pipelinePath, completed.Config)
 	if err != nil {
@@ -127,11 +132,11 @@ func (o *ValidatedPipelineOptions) Complete(ctx context.Context) (*PipelineOptio
 
 	return &PipelineOptions{
 		completedPipelineOptions: &completedPipelineOptions{
-			RolloutOptions: completed,
-			Pipeline:       pipeline,
-			Service:        service,
-			Step:           o.Step,
-			TopologyDir:    filepath.Dir(o.TopologyFile),
+			RolloutOptions:    completed,
+			Pipeline:          pipeline,
+			Service:           service,
+			Step:              o.Step,
+			TopoDirLookupFunc: t.GetTopologyDirForServiceGroup,
 		},
 	}, nil
 }

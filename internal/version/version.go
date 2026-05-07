@@ -13,5 +13,6 @@
 // limitations under the License.
 package version
 
-// CommitSHA is the SHA of the current HEAD. Populated at build-time.
-var CommitSHA string
+// CommitSHA is the SHA of the current HEAD. It defaults to "development"
+// when not set at build-time via ldflags.
+var CommitSHA string = "development"

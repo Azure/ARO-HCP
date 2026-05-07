@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // CustomError is a custom error type for testing errors.As functionality
@@ -40,10 +42,10 @@ func TestReturningNilForNil(t *testing.T) {
 
 func TestLineTrackingError_Error(t *testing.T) {
 	originalErr := errors.New("database connection failed")
-	wrappedErr := TrackError(originalErr) // This is line 55
+	wrappedErr := TrackError(originalErr) // This is line 45
 
 	errorMsg := wrappedErr.Error()
-	expectedMsg := "(wrapped at line_tracking_error_test.go:43) database connection failed"
+	expectedMsg := "(wrapped at line_tracking_error_test.go:45) database connection failed"
 
 	if errorMsg != expectedMsg {
 		t.Errorf("expected exact error message:\n%q\nbut got:\n%q", expectedMsg, errorMsg)
@@ -117,11 +119,11 @@ func TestLineTrackingError_MultipleWrapping(t *testing.T) {
 
 	t.Run("double wrapping shows both wrap locations", func(t *testing.T) {
 		originalErr := errors.New("base error")
-		firstWrap := TrackError(originalErr) // This is line 120
-		secondWrap := TrackError(firstWrap)  // This is line 121
+		firstWrap := TrackError(originalErr) // This is line 122
+		secondWrap := TrackError(firstWrap)  // This is line 123
 
 		errorMsg := secondWrap.Error()
-		expectedMsg := "(wrapped at line_tracking_error_test.go:121) (wrapped at line_tracking_error_test.go:120) base error"
+		expectedMsg := "(wrapped at line_tracking_error_test.go:123) (wrapped at line_tracking_error_test.go:122) base error"
 
 		if errorMsg != expectedMsg {
 			t.Errorf("Expected exact double-wrapped error message:\n%q\nbut got:\n%q", expectedMsg, errorMsg)
@@ -132,4 +134,24 @@ func TestLineTrackingError_MultipleWrapping(t *testing.T) {
 			t.Error("expected errors.Is to work through double wrapping")
 		}
 	})
+}
+
+func TestErrorMessageWithoutLineTracking(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "nil", err: nil, want: ""},
+		{name: "unwraps single TrackError", err: TrackError(errors.New("root cause")), want: "root cause"},
+		{name: "unwraps nested TrackError", err: TrackError(TrackError(errors.New("base"))), want: "base"},
+		{name: "plain error unchanged", err: errors.New("plain"), want: "plain"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, ErrorMessageWithoutLineTracking(tt.err))
+		})
+	}
 }

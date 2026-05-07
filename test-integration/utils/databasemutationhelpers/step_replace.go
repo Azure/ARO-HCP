@@ -70,7 +70,7 @@ func (l *replaceStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 
 	for _, resource := range l.resources {
 		_, err := resourceCRUDClient.Replace(ctx, resource, nil)

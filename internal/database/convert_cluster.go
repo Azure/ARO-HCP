@@ -79,12 +79,14 @@ func toCosmosIdentity(src *arm.ManagedServiceIdentity) *arm.ManagedServiceIdenti
 		return nil
 	}
 	tempIdentity := *src
-	// we only keep the keys of the UserAssignedIdentities.
-	// the values are looked up on azure somehow on demand
 	if src.UserAssignedIdentities != nil {
-		tempIdentity.UserAssignedIdentities = map[string]*arm.UserAssignedIdentity{}
-		for k := range src.UserAssignedIdentities {
-			tempIdentity.UserAssignedIdentities[k] = nil
+		tempIdentity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity, len(src.UserAssignedIdentities))
+		for k, v := range src.UserAssignedIdentities {
+			if v != nil {
+				tempIdentity.UserAssignedIdentities[k] = v.DeepCopy()
+			} else {
+				tempIdentity.UserAssignedIdentities[k] = nil
+			}
 		}
 	}
 	return &tempIdentity

@@ -39,7 +39,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 		name        string
 		setupMock   func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture)
+		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture)
 	}{
 		{
 			name: "node pool not found marks operation succeeded and removes node pool",
@@ -52,7 +52,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -75,7 +75,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
@@ -99,7 +99,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				// When node pool is Ready during delete, operation stays at Accepted
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -151,13 +151,13 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			nodePool := fixture.newNodePool()
 			operation := fixture.newOperation(database.OperationRequestDelete)
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, nodePool, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, nodePool, operation})
 			require.NoError(t, err)
 
 			mockCSClient := tt.setupMock(ctrl, fixture)
 
 			controller := &operationNodePoolDelete{
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
 			}
@@ -171,7 +171,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

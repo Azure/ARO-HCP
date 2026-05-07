@@ -47,7 +47,7 @@ func testDoNothingController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return controllers.NewDoNothingExampleController(input.CosmosClient, input.SubscriptionLister), map[string]any{}
+				return controllers.NewDoNothingExampleController(input.ResourcesDBClient, input.SubscriptionLister), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 			},
@@ -61,7 +61,7 @@ func testDoNothingController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return controllers.NewDoNothingExampleController(input.CosmosClient, input.SubscriptionLister), map[string]any{}
+				return controllers.NewDoNothingExampleController(input.ResourcesDBClient, input.SubscriptionLister), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 			},

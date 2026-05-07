@@ -47,8 +47,8 @@ type InspectOptions struct {
 	OutputFile     io.Writer
 	Concurrency    int
 
-	Service     *topology.Service
-	TopologyDir string
+	Service           *topology.Service
+	TopoDirLookupFunc TopoDirLookup
 }
 
 func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) error {
@@ -135,7 +135,7 @@ func acquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *
 			Step:                  depStep,
 			SubsciptionLookupFunc: LookupSubscriptionID(subscriptions),
 			Concurrency:           options.Concurrency,
-			TopologyDir:           options.TopologyDir,
+			TopoDirLookupFunc:     options.TopoDirLookupFunc,
 		}
 		outputs, err := RunPipeline(options.Service, pipeline, ctx, runOptions, RunStep)
 		if err != nil {

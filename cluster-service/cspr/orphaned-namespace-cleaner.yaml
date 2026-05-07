@@ -9,8 +9,8 @@ parameters:
 - name: ORPHANED_NAMESPACE_CLEANER_CLUSTERROLE_NAME
   value: orphaned-namespace-cleaner
 - name: KUBECTL_IMAGE
-  description: An image which have the `kubectl` binary in it.
-  value: quay.io/rhn_support_ansverma/ubi8-minimal-kubectl:latest
+  description: An image which has the `kubectl` binary in it.
+  value: mcr.microsoft.com/aks/command/runtime@sha256:a249d179ee44de7951020ebf0f141e689dadd7207c228b355734b35b772c3333
 objects:
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRole

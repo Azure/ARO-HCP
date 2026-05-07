@@ -21,20 +21,20 @@ import (
 )
 
 // MigrateCosmosOrDie if migration fails, we panic and exit the process.  This makes it very detectable.
-func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
+func MigrateCosmosOrDie(ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 	// This is a temporary change. Once deployed to production, we will remove this content and leave it empty
 	// for the next small migration we need to do.  Once datasets are large, we will start doing this inside of the backend.
 
-	subscriptionIterator, err := cosmosClient.Subscriptions().List(ctx, nil)
+	subscriptionIterator, err := resourcesDBClient.Subscriptions().List(ctx, nil)
 	if err != nil {
 		panic(err)
 	}
 	for _, subscription := range subscriptionIterator.Items(ctx) {
-		currSubscription, err := cosmosClient.Subscriptions().Get(ctx, subscription.ResourceID.Name)
+		currSubscription, err := resourcesDBClient.Subscriptions().Get(ctx, subscription.ResourceID.Name)
 		if err != nil {
 			panic(err)
 		}
-		_, err = cosmosClient.Subscriptions().Replace(ctx, currSubscription, nil)
+		_, err = resourcesDBClient.Subscriptions().Replace(ctx, currSubscription, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -43,27 +43,27 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 		panic(err)
 	}
 
-	subscriptionIterator, err = cosmosClient.Subscriptions().List(ctx, nil)
+	subscriptionIterator, err = resourcesDBClient.Subscriptions().List(ctx, nil)
 	if err != nil {
 		panic(err)
 	}
 	for _, subscription := range subscriptionIterator.Items(ctx) {
-		clusterIterator, err := cosmosClient.HCPClusters(subscription.ResourceID.Name, "").List(ctx, nil)
+		clusterIterator, err := resourcesDBClient.HCPClusters(subscription.ResourceID.Name, "").List(ctx, nil)
 		if err != nil {
 			panic(err)
 		}
 		for _, cluster := range clusterIterator.Items(ctx) {
-			currCluster, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Get(ctx, cluster.ID.Name)
+			currCluster, err := resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Get(ctx, cluster.ID.Name)
 			if err != nil {
 				panic(err)
 			}
-			_, err = cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Replace(ctx, currCluster, nil)
+			_, err = resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Replace(ctx, currCluster, nil)
 			if err != nil {
 				panic(err)
 			}
 
 			{ // prevent variable escape
-				controllerCRUD := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Controllers(cluster.ID.Name)
+				controllerCRUD := resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).Controllers(cluster.ID.Name)
 				controllersIterator, err := controllerCRUD.List(ctx, nil)
 				if err != nil {
 					panic(err)
@@ -84,21 +84,21 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 			}
 
 			{ // prevent variable escape
-				nodePoolIterator, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
+				nodePoolIterator, err := resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
 				if err != nil {
 					panic(err)
 				}
 				for _, nodePool := range nodePoolIterator.Items(ctx) {
-					currNodePool, err := cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Get(ctx, nodePool.ID.Name)
+					currNodePool, err := resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Get(ctx, nodePool.ID.Name)
 					if err != nil {
 						panic(err)
 					}
-					_, err = cosmosClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Replace(ctx, currNodePool, nil)
+					_, err = resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Replace(ctx, currNodePool, nil)
 					if err != nil {
 						panic(err)
 					}
 
-					controllerCRUD := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Controllers(nodePool.ID.Name)
+					controllerCRUD := resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).Controllers(nodePool.ID.Name)
 					controllersIterator, err := controllerCRUD.List(ctx, nil)
 					if err != nil {
 						panic(err)
@@ -123,21 +123,21 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 			}
 
 			{ // prevent variable escape
-				externalAuthIterator, err := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
+				externalAuthIterator, err := resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
 				if err != nil {
 					panic(err)
 				}
 				for _, externalAuth := range externalAuthIterator.Items(ctx) {
-					currExternalAuth, err := cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Get(ctx, externalAuth.ID.Name)
+					currExternalAuth, err := resourcesDBClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Get(ctx, externalAuth.ID.Name)
 					if err != nil {
 						panic(err)
 					}
-					_, err = cosmosClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Replace(ctx, currExternalAuth, nil)
+					_, err = resourcesDBClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Replace(ctx, currExternalAuth, nil)
 					if err != nil {
 						panic(err)
 					}
 
-					controllerCRUD := cosmosClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Controllers(externalAuth.ID.Name)
+					controllerCRUD := resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).Controllers(externalAuth.ID.Name)
 					controllersIterator, err := controllerCRUD.List(ctx, nil)
 					if err != nil {
 						panic(err)
@@ -165,12 +165,12 @@ func MigrateCosmosOrDie(ctx context.Context, cosmosClient database.DBClient) {
 			panic(err)
 		}
 
-		operationIterator, err := cosmosClient.Operations(subscription.ResourceID.Name).List(ctx, nil)
+		operationIterator, err := resourcesDBClient.Operations(subscription.ResourceID.Name).List(ctx, nil)
 		if err != nil {
 			panic(err)
 		}
 		for _, operation := range operationIterator.Items(ctx) {
-			_, err := cosmosClient.Operations(operation.ResourceID.SubscriptionID).Get(ctx, operation.ResourceID.Name)
+			_, err := resourcesDBClient.Operations(operation.ResourceID.SubscriptionID).Get(ctx, operation.ResourceID.Name)
 			if err != nil {
 				panic(err)
 			}

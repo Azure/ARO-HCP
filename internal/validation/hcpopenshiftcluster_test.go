@@ -831,10 +831,6 @@ func TestClusterValidate(t *testing.T) {
 					message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
 					fieldPath: "customerProperties.platform.vnetIntegrationSubnetId",
 				},
-				{
-					message:   "must not be the same resource group name: \"MRG\"",
-					fieldPath: "customerProperties.platform.subnetId",
-				},
 			},
 		},
 		{

@@ -36,7 +36,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -58,7 +58,7 @@ var _ = Describe("Customer", func() {
 			if nodePoolMinorVersion.EQ(targetMinorVersion) {
 				// z-stream: same y.z line — older patch on node pool, cluster on latest patch.
 				nodePoolInitialVersion, hasUpgradePath, err = framework.GetInstallVersionForZStreamUpgrade(ctx, channelGroup, targetMinor)
-				if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 					Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s", targetMinor, channelGroup))
 				}
 				Expect(err).NotTo(HaveOccurred())
@@ -70,7 +70,7 @@ var _ = Describe("Customer", func() {
 				Expect(nodePoolMinorVersion.LT(targetMinorVersion)).To(BeTrue(),
 					"when nodePoolMinor and targetMinor differ, node pool minor must be less than target minor (y-stream)")
 				nodePoolInitialVersion, hasUpgradePath, err = framework.GetLatestVersionInMinorWithUpgradePathTo(ctx, channelGroup, nodePoolMinor, targetMinor)
-				if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 					Skip(fmt.Sprintf("Cincinnati returned version not found for node pool minor %s on channel %s", nodePoolMinor, channelGroup))
 				}
 				Expect(err).NotTo(HaveOccurred())
@@ -97,7 +97,7 @@ var _ = Describe("Customer", func() {
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = clusterName
 			clusterInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
-			if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 				Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s", targetMinor, channelGroup))
 			}
 			Expect(err).NotTo(HaveOccurred())

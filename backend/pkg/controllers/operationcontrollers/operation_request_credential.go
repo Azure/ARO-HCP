@@ -33,19 +33,34 @@ import (
 )
 
 type operationRequestCredential struct {
-	cosmosClient          database.DBClient
+	resourcesDBClient     database.ResourcesDBClient
 	clustersServiceClient ocm.ClusterServiceClientSpec
 	notificationClient    *http.Client
 }
 
+// NewOperationRequestCredentialController returns a new Controller instance that
+// follows an asynchronous admin credential request operation to completion and
+// updates the corresponding operation document in Cosmos DB.
+//
+// Operation documents relevant to this controller will have the following values:
+//
+//	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
+//	     Request: RequestCredential
+//	      Status: any non-terminal value
+//	  InternalID: a Clusters Service HREF value
+//
+// Note that "to completion" does not imply success. An operation is considered
+// complete when its status field reaches what Azure defines as a terminal value;
+// any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
+// a terminal value, there will be no further updates to the operation document.
 func NewOperationRequestCredentialController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationRequestCredential{
-		cosmosClient:          cosmosClient,
+		resourcesDBClient:     resourcesDBClient,
 		clustersServiceClient: clustersServiceClient,
 		notificationClient:    notificationClient,
 	}
@@ -55,7 +70,7 @@ func NewOperationRequestCredentialController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -68,6 +83,9 @@ func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, ope
 	if operation.Request != database.OperationRequestRequestCredential {
 		return false
 	}
+	if len(operation.InternalID.String()) == 0 {
+		return false
+	}
 	return true
 }
 
@@ -75,7 +93,7 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	oldOperation, err := opsync.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	oldOperation, err := opsync.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -115,7 +133,7 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 		return nil
 	}
 
-	err = patchOperation(ctx, opsync.cosmosClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
+	err = patchOperation(ctx, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

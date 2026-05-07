@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -103,16 +104,18 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 		result, err = c.graphClient.Applications().ByApplicationId(appID).AddPassword().Post(ctx, reqBody, nil)
 		if err != nil {
 			lastErr = err
-			// Only retry on transient errors (404, 429, 5xx)
+			// Retry on known transient errors (404, 429, 5xx). For unknown
+			// error shapes returned by the Graph SDK, also retry to tolerate
+			// eventual-consistency propagation delays.
 			var odataErr *odataerrors.ODataError
 			if errors.As(err, &odataErr) {
 				code := odataErr.ResponseStatusCode
-				if code == 404 || code == 429 || code >= 500 {
-					return false, nil
+				if code != http.StatusNotFound && code != http.StatusTooManyRequests && code < http.StatusInternalServerError {
+					// Non-transient typed OData error, stop retrying.
+					return false, err
 				}
 			}
-			// Non-transient or unknown error, stop retrying
-			return false, err
+			return false, nil
 		}
 		return true, nil
 	})

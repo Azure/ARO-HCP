@@ -25,6 +25,7 @@ import (
 )
 
 type SubscriptionLookup func(ctx context.Context, subscriptionName string) (string, error)
+type TopoDirLookup func(serviceGroup string) (string, error)
 
 func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 	return func(ctx context.Context, subscriptionName string) (string, error) {

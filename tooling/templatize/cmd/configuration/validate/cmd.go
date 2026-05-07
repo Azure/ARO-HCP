@@ -26,13 +26,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
-func NewCommand(centralRemoteUrl string) (*cobra.Command, error) {
+func NewCommand(centralRemoteUrls ...string) (*cobra.Command, error) {
 	scratchDir := filepath.Join(os.TempDir(), "config-"+rand.String(8))
 	if err := os.MkdirAll(scratchDir, os.ModePerm); err != nil {
 		return nil, fmt.Errorf("failed to create scratch directory: %w", err)
 	}
 
-	opts := DefaultOptions(scratchDir, centralRemoteUrl)
+	opts := DefaultOptions(scratchDir, centralRemoteUrls)
 	cmd := &cobra.Command{
 		Use:           "validate",
 		Short:         "Validate rendered configurations for all clouds, environments, and regions.",

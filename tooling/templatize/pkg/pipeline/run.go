@@ -63,8 +63,8 @@ type PipelineRunOptions struct {
 	Stamp                 string
 	SubsciptionLookupFunc SubscriptionLookup
 
-	TopologyDir string
-	Concurrency int
+	TopoDirLookupFunc TopoDirLookup
+	Concurrency       int
 
 	TimingOutputFile string
 	JUnitOutputFile  string
@@ -240,9 +240,17 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 		return nil, err
 	}
 
+	if options.TopoDirLookupFunc == nil {
+		return nil, errors.New("TopoDirLookupFunc is required in PipelineRunOptions")
+	}
+
 	// Execute build step if defined
 	if pipeline.BuildStep != nil {
-		pipelineDir := filepath.Join(options.TopologyDir, filepath.Dir(service.PipelinePath))
+		topologyDir, err := options.TopoDirLookupFunc(service.ServiceGroup)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get topology dir for %s: %w", service.ServiceGroup, err)
+		}
+		pipelineDir := filepath.Join(topologyDir, filepath.Dir(service.PipelinePath))
 		logger.Info("Running build step.", "serviceGroup", service.ServiceGroup, "directory", pipelineDir)
 		if err := runBuildStep(ctx, *pipeline.BuildStep, service.ServiceGroup, pipelineDir); err != nil {
 			return nil, fmt.Errorf("build step execution failed for %s: %w", service.ServiceGroup, err)
@@ -263,10 +271,14 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	return runGraph(ctx, logger, executionGraph, options, executor)
 }
 
-func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pipelines map[string]*types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+func RunEntrypoint(topo *topology.CombinedTopology, entrypoint *topology.Entrypoint, pipelines map[string]*types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	if options.TopoDirLookupFunc == nil {
+		return nil, errors.New("TopoDirLookupFunc is required in PipelineRunOptions")
 	}
 
 	// Execute build steps for all pipelines in the service tree
@@ -274,12 +286,12 @@ func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pip
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup service group %s: %w", entrypoint.Identifier, err)
 	}
-	if err := runBuildStepsForService(ctx, service, options.TopologyDir, pipelines); err != nil {
+	if err := runBuildStepsForService(ctx, service, options.TopoDirLookupFunc, pipelines); err != nil {
 		return nil, err
 	}
 
 	logger.Info("Generating execution graph.")
-	executionGraph, err := graph.ForEntrypoint(topo, entrypoint, pipelines)
+	executionGraph, err := graph.ForEntrypoint(&topo.Topology, entrypoint, pipelines)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
 	}
@@ -293,10 +305,14 @@ func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pip
 }
 
 // runBuildStepsForService recursively executes build steps for all pipelines in the service tree.
-func runBuildStepsForService(ctx context.Context, service *topology.Service, topologyDir string, pipelines map[string]*types.Pipeline) error {
+func runBuildStepsForService(ctx context.Context, service *topology.Service, topoDirLookup TopoDirLookup, pipelines map[string]*types.Pipeline) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	pipe, ok := pipelines[service.ServiceGroup]
 	if ok && pipe.BuildStep != nil {
+		topologyDir, err := topoDirLookup(service.ServiceGroup)
+		if err != nil {
+			return fmt.Errorf("failed to get topology dir for service group %s: %w", service.ServiceGroup, err)
+		}
 		pipelineDir := filepath.Join(topologyDir, filepath.Dir(service.PipelinePath))
 		logger.Info("Running build step.", "serviceGroup", service.ServiceGroup, "directory", pipelineDir)
 		if err := runBuildStep(ctx, *pipe.BuildStep, service.ServiceGroup, pipelineDir); err != nil {
@@ -305,7 +321,7 @@ func runBuildStepsForService(ctx context.Context, service *topology.Service, top
 	}
 
 	for _, child := range service.Children {
-		if err := runBuildStepsForService(ctx, &child, topologyDir, pipelines); err != nil {
+		if err := runBuildStepsForService(ctx, &child, topoDirLookup, pipelines); err != nil {
 			return err
 		}
 	}
@@ -675,10 +691,16 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		output = nil
 		stepRunErr = nil
 	} else {
+		var pipelineDirectory string
+		topoDir, err := options.TopoDirLookupFunc(node.ServiceGroup)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get topology dir for %s: %w", node.ServiceGroup, err)
+		}
+		pipelineDirectory = filepath.Join(topoDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath))
 		for shouldExecuteStep(step, runCount) {
 			output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
 				BaseRunOptions:    options.BaseRunOptions,
-				PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
+				PipelineDirectory: pipelineDirectory,
 				RetryAttempt:      runCount,
 				Environment:       options.Environment,
 				Stamp:             options.Stamp,

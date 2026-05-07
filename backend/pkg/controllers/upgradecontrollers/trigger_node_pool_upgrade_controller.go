@@ -35,7 +35,7 @@ import (
 // triggerNodePoolUpgradeSyncer is a NodePool syncer that triggers node pool upgrades
 type triggerNodePoolUpgradeSyncer struct {
 	cooldownChecker      controllerutils.CooldownChecker
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -45,20 +45,20 @@ var _ controllerutils.NodePoolSyncer = (*triggerNodePoolUpgradeSyncer)(nil)
 // It monitors node pools where the desired version differs from the actual version and creates
 // a NodePoolUpgradePolicy in Cluster Service to initiate the upgrade.
 func NewTriggerNodePoolUpgradeController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &triggerNodePoolUpgradeSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
 		"TriggerNodePoolUpgrade",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		5*time.Minute,
 		syncer,
@@ -78,7 +78,7 @@ func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutils.Cooldow
 //  2. Check if desiredVersion differs from latest actual version
 //  3. If different, create a NodePoolUpgradePolicy to trigger upgrade
 func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
-	existingNodePool, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
+	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
 		return nil // node pool doesn't exist, no work to do
@@ -87,7 +87,7 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}

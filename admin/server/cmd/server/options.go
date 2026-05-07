@@ -33,13 +33,13 @@ import (
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/certificate"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
@@ -136,7 +136,8 @@ type completedOptions struct {
 	Port                    int
 	MetricsPort             int
 	Location                string
-	DBClient                database.DBClient
+	ResourcesDBClient       database.ResourcesDBClient
+	BillingDBClient         database.BillingDBClient
 	ClusterServiceClient    ocm.ClusterServiceClientSpec
 	KustoClient             *kusto.Client
 	FpaCredentialRetriever  fpa.FirstPartyApplicationTokenCredentialRetriever
@@ -200,21 +201,25 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 	csClient := ocm.NewClusterServiceClient(csConnection)
 
-	// Create the database client.
+	// Create Cosmos async database and data-plane clients (Resources, Billing; Locks are frontend-only).
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentAdmin)
+	// FIXME Cloud should be determined by other means.
+	clientOpts.Cloud = cloud.AzurePublic
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		o.CosmosURL,
 		o.CosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud: cloud.AzurePublic,
-		},
+		clientOpts,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
-	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
+	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create the database client: %w", err)
+		return nil, fmt.Errorf("failed to create the resources DB client: %w", err)
+	}
+	billingDBClient, err := database.NewBillingDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the billing database client: %w", err)
 	}
 
 	// Create Kusto client
@@ -237,7 +242,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to run certificate reader: %w", err)
 	}
-	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(o.FpaClientID, certReader, azcore.ClientOptions{})
+	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(o.FpaClientID, certReader, azsdk.NewClientOptions(azsdk.ComponentAdmin))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
@@ -283,7 +288,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			Port:                    o.Port,
 			MetricsPort:             o.MetricsPort,
 			Location:                o.Location,
-			DBClient:                dbClient,
+			ResourcesDBClient:       resourcesDBClient,
+			BillingDBClient:         billingDBClient,
 			ClusterServiceClient:    csClient,
 			KustoClient:             kustoClient,
 			FpaCredentialRetriever:  fpaCredentialRetriever,
@@ -337,7 +343,8 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.Location,
 		listener,
 		metricsListener,
-		opts.DBClient,
+		opts.ResourcesDBClient,
+		opts.BillingDBClient,
 		opts.ClusterServiceClient,
 		opts.KustoClient,
 		opts.FpaCredentialRetriever,

@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -293,7 +294,9 @@ var _ = Describe("Customer", func() {
 			resourceID := clusterResourceID(subscriptionID, *resourceGroup.Name, customerClusterName)
 			logSettings := shoeboxDiagnosticLogSettings()
 
-			diagnosticsClient, err := armmonitor.NewDiagnosticSettingsClient(creds, &azcorearm.ClientOptions{})
+			diagnosticsClient, err := armmonitor.NewDiagnosticSettingsClient(creds, &azcorearm.ClientOptions{
+				ClientOptions: azsdk.NewClientOptions(azsdk.ComponentE2E),
+			})
 			if err != nil {
 				GinkgoLogr.Error(err, "failed to create diagnostics client")
 				return

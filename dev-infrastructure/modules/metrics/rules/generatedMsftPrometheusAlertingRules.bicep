@@ -1384,7 +1384,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           correlationId: 'ClusterCredentialExpiringSoon/{{ $labels.cluster }}'
           description: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} are expiring in less than 30 days.'
           info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} are expiring in less than 30 days.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/doc/tsgs/credential-refresher-expiring-cert'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
           summary: 'Customer cluster credential expiring in less than 30 days'
           title: 'Customer cluster credential expiring in less than 30 days'
         }
@@ -1411,7 +1411,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           correlationId: 'ClusterCredentialExpired/{{ $labels.cluster }}'
           description: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} have expired.'
           info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} have expired.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/doc/tsgs/credential-refresher-expiring-cert'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
           summary: 'Customer cluster credential has expired'
           title: 'Customer cluster credential has expired'
         }

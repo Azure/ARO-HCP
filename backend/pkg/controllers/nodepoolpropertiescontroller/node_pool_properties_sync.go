@@ -34,7 +34,7 @@ import (
 type nodePoolPropertiesSyncer struct {
 	cooldownChecker      controllerutils.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -43,7 +43,7 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolPropertiesSyncer)(nil)
 // NewNodePoolPropertiesSyncController creates a new controller that synchronizes
 // node pool properties from Cluster Service to Cosmos DB.
 func NewNodePoolPropertiesSyncController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
@@ -52,13 +52,13 @@ func NewNodePoolPropertiesSyncController(
 	syncer := &nodePoolPropertiesSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:       nodePoolLister,
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
 		"NodePoolPropertiesSync",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		time.Hour,
 		syncer,
@@ -97,7 +97,7 @@ func (c *nodePoolPropertiesSyncer) SyncOnce(ctx context.Context, key controlleru
 		return nil
 	}
 
-	nodePoolCRUD := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
+	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	existingNodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
 		return nil

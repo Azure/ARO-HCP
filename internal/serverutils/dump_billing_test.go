@@ -71,13 +71,14 @@ func TestDumpBillingToLogger(t *testing.T) {
 	}
 
 	// Create mock DB with clusters
-	mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster1, cluster2})
+	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2})
 	require.NoError(t, err)
+	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
 
 	// Create billing doc for cluster-1 (active)
 	billingDoc1 := database.NewBillingDocument("billing-doc-1", cluster1ResourceID)
 	billingDoc1.CreationTime = time.Now().UTC()
-	err = mockDB.BillingDocs(cluster1ResourceID.SubscriptionID).Create(ctx, billingDoc1)
+	err = mockBillingDBClient.BillingDocs(cluster1ResourceID.SubscriptionID).Create(ctx, billingDoc1)
 	require.NoError(t, err)
 
 	// Create billing doc for cluster-2 (deleted)
@@ -85,21 +86,21 @@ func TestDumpBillingToLogger(t *testing.T) {
 	billingDoc2.CreationTime = time.Now().UTC().Add(-1 * time.Hour)
 	deletionTime := time.Now().UTC()
 	billingDoc2.DeletionTime = &deletionTime
-	err = mockDB.BillingDocs(cluster2ResourceID.SubscriptionID).Create(ctx, billingDoc2)
+	err = mockBillingDBClient.BillingDocs(cluster2ResourceID.SubscriptionID).Create(ctx, billingDoc2)
 	require.NoError(t, err)
 
 	// Test: Dump billing for cluster-1 should find the billing document
-	err = DumpBillingToLogger(ctx, mockDB, cluster1ResourceID)
+	err = DumpBillingToLogger(ctx, mockResourcesDBClient, mockBillingDBClient, cluster1ResourceID)
 	require.NoError(t, err)
 
 	// Test: Dump billing for cluster-2 should skip deleted billing document
-	err = DumpBillingToLogger(ctx, mockDB, cluster2ResourceID)
+	err = DumpBillingToLogger(ctx, mockResourcesDBClient, mockBillingDBClient, cluster2ResourceID)
 	require.NoError(t, err)
 
 	// Test: Dump billing for non-existent cluster should not error (best effort)
 	nonExistentResourceID, err := azcorearm.ParseResourceID("/subscriptions/sub-3/resourceGroups/rg-3/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-3")
 	require.NoError(t, err)
-	err = DumpBillingToLogger(ctx, mockDB, nonExistentResourceID)
+	err = DumpBillingToLogger(ctx, mockResourcesDBClient, mockBillingDBClient, nonExistentResourceID)
 	require.NoError(t, err)
 }
 
@@ -160,19 +161,20 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 		},
 	}
 
-	mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
+	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster1, cluster2, cluster3})
 	require.NoError(t, err)
+	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
 
 	// Create billing docs for all three clusters
 	for i, resourceID := range []*azcorearm.ResourceID{cluster1ResourceID, cluster2ResourceID, cluster3ResourceID} {
 		doc := database.NewBillingDocument(resourceID.Name+"-billing-"+string(rune('1'+i)), resourceID)
 		doc.CreationTime = time.Now().UTC()
-		err = mockDB.BillingDocs(resourceID.SubscriptionID).Create(ctx, doc)
+		err = mockBillingDBClient.BillingDocs(resourceID.SubscriptionID).Create(ctx, doc)
 		require.NoError(t, err)
 	}
 
 	// Dump cluster-1: should only query sub-1 partition (not sub-2)
 	// This verifies partition-scoped query works correctly
-	err = DumpBillingToLogger(ctx, mockDB, cluster1ResourceID)
+	err = DumpBillingToLogger(ctx, mockResourcesDBClient, mockBillingDBClient, cluster1ResourceID)
 	require.NoError(t, err)
 }

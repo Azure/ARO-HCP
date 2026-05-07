@@ -82,8 +82,8 @@ param subnetId string = ''
 param vnetId string = ''
 
 @secure()
-@description('The administrator login password (required for server creation).')
-param administratorLoginPassword string = ''
+@description('The administrator login password. Nullable to avoid sending an empty string on updates, which triggers an FSPG RP bug in some regions (AROSLSRE-636).')
+param administratorLoginPassword string?
 
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' = {
   name: name

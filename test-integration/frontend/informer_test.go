@@ -106,16 +106,16 @@ type informerIntegrationTestCase struct {
 	name string
 
 	// seedDB populates the database with initial items.
-	seedDB func(t *testing.T, ctx context.Context, dbClient database.DBClient)
+	seedDB func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient)
 
 	// createInformer creates the SharedIndexInformer under test.
-	createInformer func(dbClient database.DBClient) cache.SharedIndexInformer
+	createInformer func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer
 
 	// expectedInitialAdds is the number of Add events expected from the initial list.
 	expectedInitialAdds int
 
 	// mutateDB modifies the database after initial sync.
-	mutateDB func(t *testing.T, ctx context.Context, dbClient database.DBClient)
+	mutateDB func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient)
 
 	// verifyMutationEvents checks events after mutation and relist.
 	verifyMutationEvents func(t *testing.T, tracker *objectEventTracker)
@@ -148,7 +148,7 @@ func testInformerEvents(t *testing.T, withMock bool) {
 			require.NoError(t, err)
 			defer storageInfo.Cleanup(context.Background())
 
-			dbClient := storageInfo.CosmosClient()
+			dbClient := storageInfo.ResourcesDBClient()
 			tc.seedDB(t, ctx, dbClient)
 
 			informer := tc.createInformer(dbClient)
@@ -210,7 +210,7 @@ func testInformerResync(t *testing.T, withMock bool) {
 			require.NoError(t, err)
 			defer storageInfo.Cleanup(context.Background())
 
-			dbClient := storageInfo.CosmosClient()
+			dbClient := storageInfo.ResourcesDBClient()
 			tc.seedDB(t, ctx, dbClient)
 
 			informer := tc.createInformer(dbClient)
@@ -254,7 +254,7 @@ func testInformerResync(t *testing.T, withMock bool) {
 func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 	return informerIntegrationTestCase{
 		name: "subscription",
-		seedDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
 			sub1 := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
@@ -270,16 +270,16 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
 				State:      arm.SubscriptionStateRegistered,
 			}
-			_, err := dbClient.Subscriptions().Create(ctx, sub1, nil)
+			_, err := resourcesDBClient.Subscriptions().Create(ctx, sub1, nil)
 			require.NoError(t, err)
-			_, err = dbClient.Subscriptions().Create(ctx, sub2, nil)
+			_, err = resourcesDBClient.Subscriptions().Create(ctx, sub2, nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(dbClient database.DBClient) cache.SharedIndexInformer {
-			return informers.NewSubscriptionInformerWithRelistDuration(dbClient.GlobalListers().Subscriptions(), 5*time.Second)
+		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
+			return informers.NewSubscriptionInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Subscriptions(), 5*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
 			sub1Updated := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
@@ -288,7 +288,7 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				State:      arm.SubscriptionStateWarned,
 			}
-			_, err := dbClient.Subscriptions().Replace(ctx, sub1Updated, nil)
+			_, err := resourcesDBClient.Subscriptions().Replace(ctx, sub1Updated, nil)
 			require.NoError(t, err)
 
 			sub3 := &arm.Subscription{
@@ -298,10 +298,10 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
 				State:      arm.SubscriptionStateRegistered,
 			}
-			_, err = dbClient.Subscriptions().Create(ctx, sub3, nil)
+			_, err = resourcesDBClient.Subscriptions().Create(ctx, sub3, nil)
 			require.NoError(t, err)
 
-			err = dbClient.Subscriptions().Delete(ctx, "sub-2")
+			err = resourcesDBClient.Subscriptions().Delete(ctx, "sub-2")
 			require.NoError(t, err)
 		},
 		verifyMutationEvents: func(t *testing.T, tracker *objectEventTracker) {
@@ -376,21 +376,21 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 
 	return informerIntegrationTestCase{
 		name: "cluster",
-		seedDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
-			clusterCRUD := dbClient.HCPClusters(subscriptionID, resourceGroupName)
+			clusterCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
 			_, err := clusterCRUD.Create(ctx, newCluster(t, "cluster-1", arm.ProvisioningStateSucceeded), nil)
 			require.NoError(t, err)
 			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-2", arm.ProvisioningStateSucceeded), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(dbClient database.DBClient) cache.SharedIndexInformer {
-			return informers.NewClusterInformerWithRelistDuration(dbClient.GlobalListers().Clusters(), 5*time.Second)
+		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
+			return informers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), 5*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
-			clusterCRUD := dbClient.HCPClusters(subscriptionID, resourceGroupName)
+			clusterCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
 			_, err := clusterCRUD.Replace(ctx, newCluster(t, "cluster-1", arm.ProvisioningStateDeleting), nil)
 			require.NoError(t, err)
 
@@ -477,7 +477,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 
 	return informerIntegrationTestCase{
 		name: "nodePool",
-		seedDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
 			// Create parent cluster first.
 			clusterResourceID := mustParseResourceID(t,
@@ -500,22 +500,22 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 					ClusterServiceID:  &internalID,
 				},
 			}
-			_, err = dbClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
+			_, err = resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
 
-			npCRUD := dbClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
+			npCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
 			_, err = npCRUD.Create(ctx, newNodePool(t, "np-1", 3), nil)
 			require.NoError(t, err)
 			_, err = npCRUD.Create(ctx, newNodePool(t, "np-2", 5), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(dbClient database.DBClient) cache.SharedIndexInformer {
-			return informers.NewNodePoolInformerWithRelistDuration(dbClient.GlobalListers().NodePools(), 5*time.Second)
+		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
+			return informers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), 5*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
-			npCRUD := dbClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
+			npCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
 
 			_, err := npCRUD.Replace(ctx, newNodePool(t, "np-1", 10), nil)
 			require.NoError(t, err)
@@ -597,21 +597,21 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 
 	return informerIntegrationTestCase{
 		name: "activeOperation",
-		seedDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
+		seedDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
-			opCRUD := dbClient.Operations(subscriptionID)
+			opCRUD := resourcesDBClient.Operations(subscriptionID)
 			_, err := opCRUD.Create(ctx, newOperation(t, "op-1", arm.ProvisioningStateAccepted), nil)
 			require.NoError(t, err)
 			_, err = opCRUD.Create(ctx, newOperation(t, "op-2", arm.ProvisioningStateProvisioning), nil)
 			require.NoError(t, err)
 		},
-		createInformer: func(dbClient database.DBClient) cache.SharedIndexInformer {
-			return informers.NewActiveOperationInformerWithRelistDuration(dbClient.GlobalListers().ActiveOperations(), 5*time.Second)
+		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
+			return informers.NewActiveOperationInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().ActiveOperations(), 5*time.Second)
 		},
 		expectedInitialAdds: 2,
-		mutateDB: func(t *testing.T, ctx context.Context, dbClient database.DBClient) {
+		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
-			opCRUD := dbClient.Operations(subscriptionID)
+			opCRUD := resourcesDBClient.Operations(subscriptionID)
 
 			// Transition op-1 to terminal state — should appear as deletion.
 			_, err := opCRUD.Replace(ctx, newOperation(t, "op-1", arm.ProvisioningStateSucceeded), nil)

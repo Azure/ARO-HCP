@@ -37,13 +37,13 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 		name                       string
 		breakGlassCredentialStatus cmv1.BreakGlassCredentialStatus
 		expectError                bool
-		verify                     func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
+		verify                     func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name:                       "created credential updates operation status to provisioning",
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusCreated,
 			expectError:                false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
@@ -53,7 +53,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			name:                       "failed credential updates operation status to failed",
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusFailed,
 			expectError:                false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -64,7 +64,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			name:                       "issued credential updates operation status to succeeded",
 			breakGlassCredentialStatus: cmv1.BreakGlassCredentialStatusIssued,
 			expectError:                false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -83,7 +83,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			cluster := fixture.newCluster(nil)
 			operation := fixture.newOperation(database.OperationRequestRequestCredential)
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -98,7 +98,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 				Return(breakGlassCredential, nil)
 
 			controller := &operationRequestCredential{
-				cosmosClient:          mockDB,
+				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}
 
@@ -111,7 +111,7 @@ func TestOperationRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

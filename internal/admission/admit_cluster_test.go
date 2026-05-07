@@ -538,7 +538,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			for _, serviceProviderNodePool := range tt.serviceProviderNodePools {
 				resources = append(resources, serviceProviderNodePool)
 			}
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			assert.NoError(t, err)
 
 			oldCluster := &api.HCPOpenShiftCluster{
@@ -554,7 +554,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 				},
 			}
 
-			errs := AdmitClusterOnUpdate(ctx, operation.Operation{Type: operation.Update}, mockDB, oldCluster, newCluster)
+			errs := AdmitClusterOnUpdate(ctx, operation.Operation{Type: operation.Update}, mockResourcesDBClient, oldCluster, newCluster)
 
 			if tt.wantError {
 				assert.NotEmpty(t, errs, "expected field errors containing %q", tt.expectError)

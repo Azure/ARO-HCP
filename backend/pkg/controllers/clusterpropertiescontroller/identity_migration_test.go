@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -37,6 +39,7 @@ const (
 	testIdentityResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
 	testClientID           = "client-id-123"
 	testPrincipalID        = "principal-id-456"
+	testLocation           = "test-location"
 )
 
 func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
@@ -65,6 +68,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 						},
 					},
 				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
+				}
 			}),
 			existingCluster: newTestClusterForIdentityMigration(func(c *api.HCPOpenShiftCluster) {
 				c.Identity = &arm.ManagedServiceIdentity{
@@ -74,6 +80,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 							PrincipalID: stringPtr(testPrincipalID),
 						},
 					},
+				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
 				}
 			}),
 			expectCosmosGet:             false,
@@ -97,6 +106,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 						},
 					},
 				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
+				}
 			}),
 			expectCosmosGet:             true,
 			expectCSCall:                false,
@@ -116,6 +128,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 							PrincipalID: stringPtr(testPrincipalID),
 						},
 					},
+				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
 				}
 			}),
 			expectCosmosGet:             false,
@@ -190,10 +205,10 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 			defer ctrl.Finish()
 
 			// Setup mock DB
-			mockDB := databasetesting.NewMockDBClient()
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 
 			// Create the cluster in the mock DB (cosmos)
-			clusterCRUD := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName)
+			clusterCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName)
 			_, err := clusterCRUD.Create(ctx, tc.existingCluster, nil)
 			require.NoError(t, err)
 
@@ -220,7 +235,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 			syncer := &identityMigrationSyncer{
 				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				clusterLister:        sliceClusterLister,
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 			}
 

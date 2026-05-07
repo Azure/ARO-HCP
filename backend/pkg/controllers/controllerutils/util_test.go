@@ -50,7 +50,7 @@ func (f *fakeControllerCRUD) Get(ctx context.Context, resourceID string) (*api.C
 	if c, ok := f.controllers[resourceID]; ok {
 		return c, nil
 	}
-	return nil, nil
+	return nil, database.NewNotFoundError()
 }
 
 func (f *fakeControllerCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[api.Controller], error) {

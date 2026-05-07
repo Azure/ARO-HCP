@@ -37,10 +37,10 @@ import (
 )
 
 func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_ClusterNotFound(t *testing.T) {
-	mockDBClient := databasetesting.NewMockDBClient()
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
-		cooldownChecker: &alwaysSyncCooldownChecker{},
-		cosmosClient:    mockDBClient,
+		cooldownChecker:   &alwaysSyncCooldownChecker{},
+		resourcesDBClient: mockResourcesDBClient,
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -56,7 +56,7 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_GetServiceProviderClusterError(t *testing.T) {
 	ctx := context.Background()
 
-	baseMockDB := databasetesting.NewMockDBClient()
+	baseMockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 
 	key := controllerutils.HCPClusterKey{
 		SubscriptionID:    "test-sub",
@@ -73,22 +73,22 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 	}
 
 	// Add the cluster to the database
-	clustersCRUD := baseMockDB.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	clustersCRUD := baseMockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	_, err := clustersCRUD.Create(ctx, cluster, nil)
 	require.NoError(t, err)
 
 	// Use error-injecting wrapper to simulate SPC Get error
 	expectedError := fmt.Errorf("database error")
-	mockDBClient := &errorInjectingDBClient{
-		MockDBClient: baseMockDB,
+	mockResourcesDBClient := &errorInjectingResourcesDBClient{
+		MockResourcesDBClient: baseMockResourcesDBClient,
 		spcCRUD: &errorInjectingSPCCRUD{
 			getErr: expectedError,
 		},
 	}
 
 	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
-		cooldownChecker: &alwaysSyncCooldownChecker{},
-		cosmosClient:    mockDBClient,
+		cooldownChecker:   &alwaysSyncCooldownChecker{},
+		resourcesDBClient: mockResourcesDBClient,
 	}
 
 	err = syncer.SyncOnce(ctx, key)
@@ -98,10 +98,10 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 
 func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce_NoMaestroReadonlyBundlesRefs(t *testing.T) {
 	ctx := context.Background()
-	mockDBClient := databasetesting.NewMockDBClient()
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
-		cooldownChecker: &alwaysSyncCooldownChecker{},
-		cosmosClient:    mockDBClient,
+		cooldownChecker:   &alwaysSyncCooldownChecker{},
+		resourcesDBClient: mockResourcesDBClient,
 	}
 
 	key := controllerutils.HCPClusterKey{
@@ -117,7 +117,7 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111"))),
 		},
 	}
-	clustersCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	clustersCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	_, err := clustersCRUD.Create(ctx, cluster, nil)
 	require.NoError(t, err)
 
@@ -126,7 +126,7 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
 		ResourceID:     *spcResourceID,
 	}
-	spcCRUD := mockDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = spcCRUD.Create(ctx, spc, nil)
 	require.NoError(t, err)
 
@@ -138,12 +138,12 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 
-	mockDBClient := databasetesting.NewMockDBClient()
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	mockClusterService := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker:      &alwaysSyncCooldownChecker{},
-		cosmosClient:         mockDBClient,
+		resourcesDBClient:    mockResourcesDBClient,
 		clusterServiceClient: mockClusterService,
 	}
 
@@ -160,7 +160,7 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111"))),
 		},
 	}
-	clustersCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	clustersCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	_, err := clustersCRUD.Create(ctx, cluster, nil)
 	require.NoError(t, err)
 
@@ -174,7 +174,7 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 			},
 		},
 	}
-	spcCRUD := mockDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = spcCRUD.Create(ctx, spc, nil)
 	require.NoError(t, err)
 
@@ -191,14 +191,14 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 
-	mockDBClient := databasetesting.NewMockDBClient()
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	mockClusterService := ocm.NewMockClusterServiceClientSpec(ctrl)
 	mockMaestroBuilder := maestro.NewMockMaestroClientBuilder(ctrl)
 	mockMaestroClient := maestro.NewMockClient(ctrl)
 
 	syncer := &readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker:                    &alwaysSyncCooldownChecker{},
-		cosmosClient:                       mockDBClient,
+		resourcesDBClient:                  mockResourcesDBClient,
 		clusterServiceClient:               mockClusterService,
 		maestroClientBuilder:               mockMaestroBuilder,
 		maestroSourceEnvironmentIdentifier: "test-env",
@@ -217,7 +217,7 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/11111111111111111111111111111111"))),
 		},
 	}
-	clustersCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	clustersCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	_, err := clustersCRUD.Create(ctx, cluster, nil)
 	require.NoError(t, err)
 
@@ -231,7 +231,7 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 			},
 		},
 	}
-	spcCRUD := mockDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = spcCRUD.Create(ctx, spc, nil)
 	require.NoError(t, err)
 
@@ -255,7 +255,7 @@ func TestReadAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer_SyncOnce
 	err = syncer.SyncOnce(ctx, key)
 	require.NoError(t, err)
 
-	mccCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ManagementClusterContents(key.HCPClusterName)
+	mccCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ManagementClusterContents(key.HCPClusterName)
 	got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 	require.NoError(t, err)
 	require.NotNil(t, got)

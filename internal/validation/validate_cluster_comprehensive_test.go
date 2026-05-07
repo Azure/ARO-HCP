@@ -745,7 +745,6 @@ func TestValidateClusterCreate(t *testing.T) {
 				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.subnetId"},
 				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.managedResourceGroup"},
-				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.subnetId"},
 				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 			},
 		},
