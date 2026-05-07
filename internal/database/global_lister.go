@@ -72,7 +72,7 @@ func (g *cosmosResourcesGlobalListers) Subscriptions() GlobalLister[arm.Subscrip
 }
 
 func (g *cosmosResourcesGlobalListers) Clusters() GlobalLister[api.HCPOpenShiftCluster] {
-	return &cosmosGlobalLister[api.HCPOpenShiftCluster, HCPCluster]{
+	return &cosmosGlobalLister[api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]]{
 		containerClient: g.resources,
 		resourceType:    api.ClusterResourceType,
 	}

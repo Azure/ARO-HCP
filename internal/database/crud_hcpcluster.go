@@ -128,7 +128,7 @@ func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID
 	parentResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 
 	return &hcpClusterCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](containerClient, parentResourceID, api.ClusterResourceType),
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](containerClient, parentResourceID, api.ClusterResourceType),
 	}
 }
 
@@ -144,7 +144,7 @@ type ExternalAuthsCRUD interface {
 }
 
 type hcpClusterCRUD struct {
-	*nestedCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster]
+	*nestedCosmosResourceCRUD[api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]]
 }
 
 var _ HCPClusterCRUD = &hcpClusterCRUD{}

@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"math/rand"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -28,11 +27,7 @@ import (
 
 	"sigs.k8s.io/randfill"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // fuzzerFor can randomly populate api objects that are destined for version.
@@ -43,88 +38,6 @@ func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
 	}
 	f.Funcs(funcs...)
 	return f
-}
-
-func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
-	seed := rand.Int63()
-	t.Logf("seed: %d", seed)
-
-	fuzzer := fuzzerFor([]interface{}{
-		func(j *azcorearm.ResourceID, c randfill.Continue) {
-			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
-		},
-		func(j *arm.Resource, c randfill.Continue) {
-			c.FillNoCustom(j)
-			j.ID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
-			j.Name = "change-channel"
-			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-		},
-		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
-			c.FillNoCustom(j)
-			if j == nil {
-				return
-			}
-			// we must always have an internal ID
-			foo := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
-			j.ClusterServiceID = &foo
-		},
-		func(j *api.CosmosMetadata, c randfill.Continue) {
-			c.FillNoCustom(j)
-			j.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
-			j.ExistingCosmosUID = ""
-			j.CosmosETag = ""
-		},
-		func(j *api.HCPOpenShiftCluster, c randfill.Continue) {
-			c.FillNoCustom(j)
-			if j == nil {
-				return
-			}
-			// Canonical defaults are applied on Cosmos read, so ensure
-			// defaulted fields are never zero during round-trip testing.
-			if len(j.CustomerProperties.Network.NetworkType) == 0 {
-				j.CustomerProperties.Network.NetworkType = api.NetworkTypeOVNKubernetes
-			}
-			if len(j.CustomerProperties.API.Visibility) == 0 {
-				j.CustomerProperties.API.Visibility = api.VisibilityPublic
-			}
-			if len(j.CustomerProperties.Platform.OutboundType) == 0 {
-				j.CustomerProperties.Platform.OutboundType = api.OutboundTypeLoadBalancer
-			}
-			if len(j.CustomerProperties.ClusterImageRegistry.State) == 0 {
-				j.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryStateEnabled
-			}
-			if len(j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
-				j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
-			}
-			if j.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
-				j.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
-				len(j.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
-				j.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = api.KeyVaultVisibilityPublic
-			}
-			for i := range j.CustomerProperties.ImageDigestMirrors {
-				if len(j.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy) == 0 {
-					j.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = api.MirrorSourcePolicyAllowContactingSource
-				}
-			}
-		},
-		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
-			c.FillNoCustom(j)
-
-			// we only round trip keys, so only fill in keys
-			if j != nil && j.UserAssignedIdentities != nil {
-				for k := range j.UserAssignedIdentities {
-					j.UserAssignedIdentities[k] = nil
-				}
-			}
-		},
-	}, rand.NewSource(seed))
-
-	// Try a few times, since runTest uses random values.
-	for i := 0; i < 20; i++ {
-		original := &api.HCPOpenShiftCluster{}
-		fuzzer.Fill(original)
-		roundTripInternalToCosmosToInternal[api.HCPOpenShiftCluster, HCPCluster](t, original)
-	}
 }
 
 func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *testing.T, original *InternalAPIType) {
@@ -171,30 +84,6 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 		t.Logf("intermediateAfter\n%s", string(intermediateAfterJSON))
 		t.Errorf("intermediate was modified: %v", cmp.Diff(intermediateBeforeJSON, intermediateAfterJSON))
 	}
-}
-
-func TestCosmosToInternalClusterPreservesETag(t *testing.T) {
-	expectedETag := azcore.ETag("test-etag-value-12345")
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster"))
-
-	cosmosObj := &HCPCluster{
-		TypedDocument: TypedDocument{
-			BaseDocument: BaseDocument{
-				CosmosETag: expectedETag,
-			},
-		},
-		HCPClusterProperties: HCPClusterProperties{
-			HCPOpenShiftCluster: api.HCPOpenShiftCluster{
-				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: resourceID,
-				},
-			},
-		},
-	}
-
-	internalObj, err := CosmosToInternalCluster(cosmosObj)
-	require.NoError(t, err)
-	require.Equal(t, expectedETag, internalObj.GetCosmosData().CosmosETag)
 }
 
 func TestClusterEnsureDefaults(t *testing.T) {

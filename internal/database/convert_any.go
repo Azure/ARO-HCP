@@ -33,9 +33,6 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	case *ExternalAuth:
 		internalObj, err = CosmosToInternalExternalAuth(cosmosObj)
 
-	case *HCPCluster:
-		internalObj, err = CosmosToInternalCluster(cosmosObj)
-
 	case *NodePool:
 		internalObj, err = CosmosToInternalNodePool(cosmosObj)
 
@@ -88,9 +85,6 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 	switch internalObj := any(obj).(type) {
 	case *api.HCPOpenShiftClusterExternalAuth:
 		cosmosObj, err = InternalToCosmosExternalAuth(internalObj)
-
-	case *api.HCPOpenShiftCluster:
-		cosmosObj, err = InternalToCosmosCluster(internalObj)
 
 	case *api.HCPOpenShiftClusterNodePool:
 		cosmosObj, err = InternalToCosmosNodePool(internalObj)
