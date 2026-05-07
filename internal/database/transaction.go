@@ -206,7 +206,7 @@ func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {
 
 	switch strings.ToLower(typedDoc.ResourceType) {
 	case strings.ToLower(api.ClusterResourceType.String()):
-		return getCastResult[api.HCPOpenShiftCluster, HCPCluster](r, cosmosUID)
+		return getCastResult[api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](r, cosmosUID)
 	case strings.ToLower(api.NodePoolResourceType.String()):
 		return getCastResult[api.HCPOpenShiftClusterNodePool, NodePool](r, cosmosUID)
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
