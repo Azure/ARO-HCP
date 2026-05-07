@@ -21,10 +21,35 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 var operationMetricLabelNames = []string{"resource_id", "subscription_id", "resource_type", "operation_type", "phase"}
 
+// operationPhaseMetricsHandler emits and clears the
+// backend_resource_operation_* metric family.
+//
+// resource_id derivation:
+//
+// resource_id is the lowercased ARM resource id of the cluster /
+// nodepool / external auth this operation targets (op.ExternalID, via
+// op.MetricResourceID()). It is NOT the cosmos doc id stored in
+// op.ResourceID, which exists only for unique cosmos addressing and
+// has no meaning to operators correlating metrics with customer ARM
+// resources. This matches the format already used by the sibling
+// backend_resource_provision_state metric family.
+//
+// Multiple operations on the same ARM resource id collapse to one
+// series. On the AllOperations() informer's unordered iteration
+// (every relist / resync, or backend restart) whichever operation
+// is processed last wins for that resource_id; this may temporarily
+// or persistently reflect an older terminal op until a later emit
+// for that resource supersedes it. If the resource is idle, the stale
+// labels can persist indefinitely. Separate limitation: when the
+// last operation for a resource ages out of the Cosmos TTL, its
+// series persists until process restart (Delete is a no-op; see
+// Delete doc-comment for the rationale). Resource-level conditions
+// are the longer-term direction.
 type operationPhaseMetricsHandler struct {
 	phaseInfo          *prometheus.GaugeVec
 	startTime          *prometheus.GaugeVec
@@ -51,21 +76,39 @@ func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*api.Opera
 	return h
 }
 
-func (h *operationPhaseMetricsHandler) Sync(_ context.Context, op *api.Operation) {
-	resourceID := resourceIDMetricLabel(op.GetResourceID())
+func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operation) {
+	resourceID := resourceIDMetricLabel(op.MetricResourceID())
 	if len(resourceID) == 0 {
+		// op.ExternalID is expected to always be populated for production
+		// operations (every frontend construction site passes the target
+		// resource ID into database.NewOperation). Surface a warning when
+		// the invariant breaks so an operator notices instead of staring
+		// at a silently missing metric. This logs once per Sync event
+		// for the offending op; if an operation persists with nil
+		// ExternalID across resyncs the log will repeat per reconcile,
+		// which is bounded by the op count and gives count-based
+		// alerting a hook.
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("operation has no ExternalID; skipping metric emission",
+			"operation_resource_id", resourceIDMetricLabel(op.GetResourceID()))
 		return
 	}
-	subscriptionID := subscriptionIDMetricLabel(op.GetResourceID())
+	subscriptionID := subscriptionIDMetricLabel(op.MetricResourceID())
 	if op.OperationID == nil {
-		h.Delete(resourceID)
+		// Implicit operation (e.g. child-resource cleanup along with
+		// parent). Don't emit a metric series for it, and don't
+		// deleteByResourceID either: a sibling operation with the
+		// same ExternalID may already own the emitted series for
+		// this resource_id and we must not blank it. Same rationale
+		// as Delete being a no-op (see Delete doc-comment).
 		return
 	}
 
 	// Clear any previous series for this resource before writing the current labels.
 	// Phase and operation labels are part of the metric identity, so updates would
-	// otherwise leave stale series behind for older label combinations.
-	h.Delete(resourceID)
+	// otherwise leave stale series behind for older label combinations. Multiple
+	// operations sharing this resource_id collapse to the latest-emitted labels.
+	h.deleteByResourceID(resourceID)
 
 	labels := prometheus.Labels{
 		"resource_id":     resourceID,
@@ -84,12 +127,34 @@ func (h *operationPhaseMetricsHandler) Sync(_ context.Context, op *api.Operation
 	}
 }
 
+// Delete is intentionally a no-op for operation phase metrics.
+//
+// Multiple operation documents can share one resource_id label (the
+// ARM resource id from op.ExternalID), so deleting by resource_id
+// when one operation is removed would also blank any sibling
+// operation's currently-emitted series. Sync's pre-emit
+// DeletePartialMatch implicitly cleans up obsolete labels whenever
+// any operation for a resource is processed.
+//
+// The trade-off: when the LAST operation for a resource ages out of
+// the Cosmos TTL with no surviving sibling, the series persists in
+// the in-memory prom registry until process restart / pod replacement;
+// affects only resources that go fully idle. The alternative
+// (per-resource active-op counting) reintroduces handler-local
+// bookkeeping, which is disproportionate for an operation-phase
+// metric whose longer-term direction is resource-level conditions.
 func (h *operationPhaseMetricsHandler) Delete(key string) {
-	if len(key) == 0 {
+	// no-op; see doc-comment above
+}
+
+// deleteByResourceID is used by Sync to clear stale labels before
+// writing new ones. Delete intentionally does not call this; see
+// the Delete doc-comment.
+func (h *operationPhaseMetricsHandler) deleteByResourceID(resourceID string) {
+	if len(resourceID) == 0 {
 		return
 	}
-
-	deleteSelector := prometheus.Labels{"resource_id": key}
+	deleteSelector := prometheus.Labels{"resource_id": resourceID}
 	h.phaseInfo.DeletePartialMatch(deleteSelector)
 	h.startTime.DeletePartialMatch(deleteSelector)
 	h.lastTransitionTime.DeletePartialMatch(deleteSelector)

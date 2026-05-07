@@ -133,9 +133,9 @@ func TestBackendExposesMetrics(t *testing.T) {
 		)
 		operationMetricLine := fmt.Sprintf(
 			`backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="%s",resource_type="%s",subscription_id="%s"} 1`,
-			strings.ToLower(operation.GetResourceID().String()),
+			strings.ToLower(operation.MetricResourceID().String()),
 			strings.ToLower(clusterResourceID.ResourceType.String()),
-			strings.ToLower(operation.GetResourceID().SubscriptionID),
+			strings.ToLower(operation.MetricResourceID().SubscriptionID),
 		)
 
 		require.Eventually(t, func() bool {

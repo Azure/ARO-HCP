@@ -83,3 +83,15 @@ func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
 				o.OperationID.Name,
 			))))
 }
+
+// MetricResourceID returns the ARM resource id used as the resource_id
+// label on this operation's Prometheus metrics. It is op.ExternalID,
+// the ARM resource id of the cluster / nodepool / external auth this
+// operation targets, rather than the synthetic cosmos doc id stored
+// in op.ResourceID. Centralizing the choice here means metric handlers
+// do not need to know the cosmos-vs-ARM distinction inline. Returns
+// nil when ExternalID is unset; callers should handle that as the
+// "skip emission" case (see operation_phase_metrics_controller.go).
+func (o *Operation) MetricResourceID() *azcorearm.ResourceID {
+	return o.ExternalID
+}
