@@ -60,6 +60,16 @@ resourceGroups:
     parameters: configurations/output-audit-logs-eventhub.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: svcKV
+  resourceGroup: '{{ .serviceKeyVault.rg }}'
+  subscription: '{{ if .serviceKeyVault.subscription.key }}{{ .serviceKeyVault.subscription.key }}{{ else }}{{ .svc.subscription.key }}{{ end }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -86,6 +96,11 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    - name: serviceKeyVaultSubscription
+      input:
+        resourceGroup: svcKV
+        step: output
+        name: subscriptionId
   - name: infra-output
     action: ARM
     template: templates/svc-infra-lookup.bicep
@@ -95,6 +110,12 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: infra
+    variables:
+    - name: serviceKeyVaultSubscription
+      input:
+        resourceGroup: svcKV
+        step: output
+        name: subscriptionId
   # Configure certificate issuers for the SVC KV
   - name: oncert-private-kv-issuer
     action: SetCertificateIssuer
@@ -163,6 +184,11 @@ resourceGroups:
         resourceGroup: auditLogs
         step: output
         name: auditLogsEventHubAuthRuleId
+    - name: serviceKeyVaultSubscription
+      input:
+        resourceGroup: svcKV
+        step: output
+        name: subscriptionId
     dependsOn:
     - resourceGroup: service
       step: oncert-private-kv-issuer

@@ -985,6 +985,8 @@ defaults:
   serviceKeyVault:
     name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
     rg: "{{ .ctx.region }}-shared-resources"
+    subscription:
+      key: ""
     region: "{{ .ctx.region }}"
     softDelete: false
     private: false
@@ -1133,6 +1135,8 @@ clouds:
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
         rg: 'global'
+        subscription:
+          key: ARO Hosted Control Planes (EA Subscription 1)
         region: 'westus3'
         softDelete: true
       # MSI Credentials Refresher
@@ -1479,9 +1483,12 @@ clouds:
       prow:
         defaults:
           kusto:
-            manageInstance: false
+            manageInstance: true
+            location: eastus2
           auditLogsEventHub:
             enabled: true
+            namespace: "hcp-prow-6fdd6b-auditlogs-eh"
+            kustoDataConnectionName: "prow-6fdd6b-auditlogs"
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
@@ -1533,21 +1540,23 @@ clouds:
               exporter: "otlp"
           # MC
           mgmt:
+            subscription:
+              key: ARO HCP E2E Infrastructure (EA Subscription)
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D4ds_v5
+                vmSize: Standard_D4ds_v6
               userAgentPool:
                 maxCount: 14
                 minCount: 3
                 osDiskSizeGB: 100
-                vmSize: Standard_D16ds_v5
+                vmSize: Standard_D16ds_v6
                 secondaryNicCount: 7
               infraAgentPool:
-                vmSize: Standard_D4ds_v5
+                vmSize: Standard_D4ds_v6
                 osDiskSizeGB: 64
               enableSwiftV2Nodepools: true
               enableSwiftV2Vnet: true
@@ -1556,15 +1565,19 @@ clouds:
             applyKubeletFixes: false
           # SVC
           svc:
+            subscription:
+              key: ARO HCP E2E Infrastructure (EA Subscription)
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              systemAgentPool:
+                vmSize: Standard_D4ds_v6
               userAgentPool:
-                name: 'u64d8dsv5'
-                vmSize: 'Standard_D8ds_v5'
+                name: 'u64d8dsv6'
+                vmSize: Standard_D8ds_v6
                 osDiskSizeGB: 64
               infraAgentPool:
-                vmSize: Standard_D4ds_v5
+                vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
         regions:
