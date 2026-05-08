@@ -2,53 +2,51 @@
 	"id": "f7583c84-ae03-56f3-b91d-55bbb849164d",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
-		"intermediateResourceDoc": {
-			"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
-			"identity": {
-				"type": "UserAssigned"
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct"
+		},
+		"customerProperties": {
+			"api": {
+				"visibility": "Public"
 			},
-			"internalId": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
-			"provisioningState": "Accepted",
-			"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
-			"systemData": {
-				"createdBy": "Unknown-ARO-HCP-frontend",
-				"createdByType": "Application",
-				"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-				"lastModifiedByType": "Application"
+			"network": {
+				"hostPrefix": 23,
+				"machineCidr": "10.0.0.0/16",
+				"networkType": "OVNKubernetes",
+				"podCidr": "10.128.0.0/14",
+				"serviceCidr": "172.30.0.0/16"
+			},
+			"platform": {
+				"managedResourceGroup": "uprightPairing",
+				"outboundType": "LoadBalancer",
+				"subnetId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			},
+			"version": {
+				"channelGroup": "stable"
 			}
 		},
-		"internalState": {
-			"internalAPI": {
-				"customerProperties": {
-					"api": {
-						"visibility": "Public"
-					},
-					"network": {
-						"hostPrefix": 23,
-						"machineCidr": "10.0.0.0/16",
-						"networkType": "OVNKubernetes",
-						"podCidr": "10.128.0.0/14",
-						"serviceCidr": "172.30.0.0/16"
-					},
-					"platform": {
-						"managedResourceGroup": "uprightPairing",
-						"outboundType": "LoadBalancer",
-						"subnetId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
-					},
-					"version": {
-						"channelGroup": "stable"
-					}
-				},
-				"location": "fake-location",
-				"serviceProviderProperties": {
-					"api": {},
-					"clusterServiceID": "",
-					"console": {},
-					"dns": {},
-					"platform": {}
-				}
-			}
-		}
+		"id": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
+		"identity": {
+			"type": "UserAssigned"
+		},
+		"location": "fake-location",
+		"name": "monstrousPrecinct",
+		"serviceProviderProperties": {
+			"activeOperationId": "6aeeebf8-f771-4d4e-9097-45b972cb96e4",
+			"api": {},
+			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
+			"console": {},
+			"dns": {},
+			"platform": {},
+			"provisioningState": "Accepted"
+		},
+		"systemData": {
+			"createdBy": "Unknown-ARO-HCP-frontend",
+			"createdByType": "Application",
+			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+			"lastModifiedByType": "Application"
+		},
+		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 	},
 	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

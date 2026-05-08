@@ -435,12 +435,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 
 // mockHCPClusterCRUD implements database.HCPClusterCRUD.
 type mockHCPClusterCRUD struct {
-	*mockResourceCRUD[api.HCPOpenShiftCluster, database.HCPCluster]
+	*mockResourceCRUD[api.HCPOpenShiftCluster, database.GenericDocument[api.HCPOpenShiftCluster]]
 }
 
 func newMockHCPClusterCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockHCPClusterCRUD {
 	return &mockHCPClusterCRUD{
-		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftCluster, database.HCPCluster](client, parentResourceID, api.ClusterResourceType),
+		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftCluster, database.GenericDocument[api.HCPOpenShiftCluster]](client, parentResourceID, api.ClusterResourceType),
 	}
 }
 

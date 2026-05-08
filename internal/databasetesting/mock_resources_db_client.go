@@ -359,11 +359,11 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 
 	switch strings.ToLower(typedDoc.ResourceType) {
 	case strings.ToLower(api.ClusterResourceType.String()):
-		var cosmosObj database.HCPCluster
+		var cosmosObj database.GenericDocument[api.HCPOpenShiftCluster]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
-		return database.CosmosToInternalCluster(&cosmosObj)
+		return database.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(api.NodePoolResourceType.String()):
 		var cosmosObj database.NodePool
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {

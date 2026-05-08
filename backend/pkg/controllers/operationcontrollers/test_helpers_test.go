@@ -82,6 +82,9 @@ func newClusterTestFixture() *clusterTestFixture {
 
 func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: f.clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,
@@ -163,6 +166,9 @@ func newNodePoolTestFixture() *nodePoolTestFixture {
 
 func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: f.clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,
@@ -257,6 +263,9 @@ func newExternalAuthTestFixture() *externalAuthTestFixture {
 
 func (f *externalAuthTestFixture) newCluster() *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: f.clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,

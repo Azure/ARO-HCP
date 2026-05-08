@@ -298,28 +298,26 @@ func TestPreExistingDataCluster(t *testing.T) {
 	// Simulate a pre-existing Cosmos document: all canonically-defaulted fields
 	// are zero-valued (empty strings), as if the document was created before
 	// these fields were added to the API.
-	preExistingDoc := &HCPCluster{
+	preExistingDoc := &GenericDocument[api.HCPOpenShiftCluster]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		HCPClusterProperties: HCPClusterProperties{
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
+		Content: api.HCPOpenShiftCluster{
+			// All canonically-defaulted fields are intentionally zero-valued:
+			// NetworkType, Visibility, OutboundType,
+			// ClusterImageRegistry.State, Etcd.DataEncryption.KeyManagementMode
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: resourceID,
 			},
-			InternalState: ClusterInternalState{
-				InternalAPI: api.HCPOpenShiftCluster{
-					// All canonically-defaulted fields are intentionally zero-valued:
-					// NetworkType, Visibility, OutboundType,
-					// ClusterImageRegistry.State, Etcd.DataEncryption.KeyManagementMode
-				},
+			ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+				ClusterServiceID:  ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
+				ProvisioningState: arm.ProvisioningStateSucceeded,
 			},
 		},
 	}
 
-	internalCluster, err := CosmosToInternalCluster(preExistingDoc)
+	internalCluster, err := CosmosGenericToInternal(preExistingDoc)
 	if err != nil {
 		t.Fatalf("CosmosToInternalCluster failed: %v", err)
 	}
@@ -356,44 +354,42 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 
 	// Simulate a cluster created via v2024_06_10_preview with KMS encryption
 	// but no visibility field (since that version doesn't have it).
-	preExistingDoc := &HCPCluster{
+	preExistingDoc := &GenericDocument[api.HCPOpenShiftCluster]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		HCPClusterProperties: HCPClusterProperties{
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
+		Content: api.HCPOpenShiftCluster{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: resourceID,
 			},
-			InternalState: ClusterInternalState{
-				InternalAPI: api.HCPOpenShiftCluster{
-					CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-						Etcd: api.EtcdProfile{
-							DataEncryption: api.EtcdDataEncryptionProfile{
-								KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-								CustomerManaged: &api.CustomerManagedEncryptionProfile{
-									EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-									Kms: &api.KmsEncryptionProfile{
-										ActiveKey: api.KmsKey{
-											Name:      "test-key",
-											VaultName: "test-vault",
-											Version:   "v1",
-										},
-										// Visibility intentionally not set (empty string)
-										Visibility: "",
-									},
+			CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+				Etcd: api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v1",
 								},
+								// Visibility intentionally not set (empty string)
+								Visibility: "",
 							},
 						},
 					},
 				},
 			},
+			ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+				ClusterServiceID:  ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster"))),
+				ProvisioningState: arm.ProvisioningStateSucceeded,
+			},
 		},
 	}
 
-	internalCluster, err := CosmosToInternalCluster(preExistingDoc)
+	internalCluster, err := CosmosGenericToInternal(preExistingDoc)
 	if err != nil {
 		t.Fatalf("CosmosToInternalCluster failed: %v", err)
 	}

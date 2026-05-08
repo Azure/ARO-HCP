@@ -516,6 +516,9 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []any {
 	clusterResourceId := api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceId,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceId,
@@ -909,6 +912,9 @@ func createTestHCPClusterWithCustomerVersion(t *testing.T, ctx context.Context, 
 	clusterInternalID, err := api.NewInternalID(testCSClusterIDStr)
 	require.NoError(t, err)
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
