@@ -78,12 +78,17 @@ func (q *templateQuery) String() string {
 	return q.query.String()
 }
 
+// kqlEscStr escapes a single string as a KQL string literal to avoid KQL injection
+func kqlEscStr(str string) string {
+	return strings.ReplaceAll(str, "'", "''")
+}
+
 // kqlEscStrList escapes each element of a string slice as a KQL string literal
 // and joins them with commas, suitable for use in has_any() or similar operators.
 func kqlEscStrList(items []string) string {
 	quoted := make([]string, len(items))
 	for i, item := range items {
-		quoted[i] = "'" + strings.ReplaceAll(item, "'", "''") + "'"
+		quoted[i] = "'" + kqlEscStr(item) + "'"
 	}
 	return strings.Join(quoted, ", ")
 }
@@ -121,7 +126,7 @@ func WithTable(table string) TemplateDataOptions {
 
 func WithClusterId(clusterId string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.ClusterId = clusterId
+		d.ClusterId = kqlEscStr(clusterId)
 	}
 }
 
@@ -133,13 +138,13 @@ func WithClusterIds(clusterIds []string) TemplateDataOptions {
 
 func WithHCPNamespacePrefix(hcpNamespacePrefix string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.HCPNamespacePrefix = hcpNamespacePrefix
+		d.HCPNamespacePrefix = kqlEscStr(hcpNamespacePrefix)
 	}
 }
 
 func WithClusterName(clusterName string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.ClusterName = clusterName
+		d.ClusterName = kqlEscStr(clusterName)
 	}
 }
 
@@ -165,8 +170,8 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 	templateData := TemplateData{
 		NoTruncation:       queryOptions.Limit < 0,
 		Limit:              max(queryOptions.Limit, 0),
-		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", queryOptions.SubscriptionId, queryOptions.ResourceGroupName),
-		ResourceGroupName:  queryOptions.ResourceGroupName,
+		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", kqlEscStr(queryOptions.SubscriptionId), kqlEscStr(queryOptions.ResourceGroupName)),
+		ResourceGroupName:  kqlEscStr(queryOptions.ResourceGroupName),
 		SplitByPod:         queryOptions.SplitByPod,
 	}
 	defaults := []TemplateDataOptions{
