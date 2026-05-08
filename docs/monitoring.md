@@ -94,7 +94,7 @@ A single **Azure Managed Grafana** instance is deployed globally and configured 
 
 Managed Grafana can also expose Azure Data Explorer datasources for ARO-HCP Kusto clusters. These datasources follow the same single-workspace-per-environment model as the Azure Monitor datasources above.
 
-- **Provisioning scope**: Geography pipeline, once per managed Kusto cluster
+- **Provisioning scope**: Region pipeline, gated per-region by `kusto.manageInstance` (one region per `geoShortId` owns the cluster)
 - **Datasource name**: `kusto-<env>-<geoShortId>` (for example `kusto-int-uk`)
 - **Target database**: `ServiceLogs`
 - **Authentication**: Grafana workspace system-assigned managed identity
@@ -105,7 +105,7 @@ Provisioning is controlled by:
 - `monitoring.adxDatasourceEnabled`
 - `monitoring.adxDatasourceGeographies`
 
-When `adxDatasourceEnabled` is `true`, the geography pipeline uses the typed `GrafanaDatasources` action to create or update the datasource if that geography has a managed Kusto cluster (`kusto.manageInstance: true`). When `adxDatasourceGeographies` is empty, all managed Kusto geographies in the environment are included. When it is set, only the listed geography short IDs are allowed. Matching is case-insensitive and ignores surrounding whitespace around comma-separated entries. The same `grafanactl` reconcile path evaluates the allowlist during EV2 rollout and local templatize runs.
+When `adxDatasourceEnabled` is `true`, the region pipeline's existing `add-grafana-datasource` step uses the typed `GrafanaDatasources` action to create or update the datasource. The step runs in every region the regional pipeline touches, but the runtime gate `adxDatasourceEnabled && kusto.manageInstance && arobit.kusto.enabled` limits actual reconciliation to the region that owns the geography's managed Kusto cluster. `clusterUrl` is sourced from the regional `kusto-lookup.bicep` output, which `existing`s the cluster the geography pipeline already created. When `adxDatasourceGeographies` is empty, all managed Kusto geographies in the environment are included. When it is set, only the listed geography short IDs are allowed. Matching is case-insensitive and ignores surrounding whitespace around comma-separated entries. The same `grafanactl` reconcile path evaluates the allowlist during EV2 rollout and local templatize runs.
 
 After rollout, validate at least one datasource during the environment bake window with:
 
