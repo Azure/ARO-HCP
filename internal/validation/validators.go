@@ -890,11 +890,13 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 	return nil
 }
 
-// ValidateNodePoolUpgrade performs common node pool version upgrade validation:
-// - Downgrades allowed (no cross-major downgrades)
-// - Cannot exceed lowest control plane version
-// - No major version changes without AFEC (uses existing ValidateMajorUpgrade)
-// - Minor version upgrades limited to +2
+// ValidateNodePoolUpgrade performs common node pool version change validation.
+// Downgrades are allowed (HCP nodepools use Replace strategy — nodes are recreated,
+// so downgrades are operationally identical to upgrades). Validation is symmetric:
+//   - Upper bound: cannot exceed lowest control plane version
+//   - Lower bound: must be within 2 minor versions of control plane (N-2 skew)
+//   - No cross-major changes without AFEC FeatureExperimentalReleaseFeatures
+//   - Minor version upgrades limited to +2
 func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
 	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
@@ -905,20 +907,14 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 
-	// Downgrade handling: HCP nodepools use Replace strategy (nodes are recreated),
-	// so downgrades are operationally identical to upgrades. Only cross-major
-	// downgrades are blocked.
-	if highest != nil && desiredVersion.LT(*highest) {
-		if desiredVersion.Major < highest.Major {
-			return fmt.Errorf(
-				"invalid node pool version %s: major version downgrades are not supported",
-				desiredVersion.String(),
-			)
+	// Cross-major downgrade: gated by the same feature flag as cross-major upgrades.
+	if highest != nil && desiredVersion.LT(*highest) && desiredVersion.Major < highest.Major {
+		if !allowMajorUpgrade {
+			return fmt.Errorf("major version changes are not supported")
 		}
 	}
 
-	// Check if the desiredVersion <= control plane versions
-	// TODO: We may relax this constraint in the future
+	// Upper bound: desiredVersion must not exceed control plane version.
 	if lowestCPVersion != nil && desiredVersion.GT(*lowestCPVersion) {
 		return fmt.Errorf(
 			"invalid node pool version %s: cannot exceed control plane version %s",
@@ -926,7 +922,18 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 		)
 	}
 
-	// No major version change unless FeatureExperimentalReleaseFeatures is registered
+	// Lower bound (N-2 skew): node pool must be within 2 minor versions of control plane.
+	// Analogous to the upper-bound check above; together they define the allowed version window.
+	// Same-major only — cross-major skew is governed by AllowControlPlaneNodePoolMajorVersionSkew.
+	if lowestCPVersion != nil && desiredVersion.Major == lowestCPVersion.Major &&
+		lowestCPVersion.Minor-desiredVersion.Minor > 2 {
+		return fmt.Errorf(
+			"invalid node pool version %s: must be within 2 minor versions of control plane version %s",
+			desiredVersion.String(), lowestCPVersion.String(),
+		)
+	}
+
+	// No major version upgrade unless FeatureExperimentalReleaseFeatures is registered
 	if lowest != nil && desiredVersion.Major > lowest.Major {
 		if !allowMajorUpgrade {
 			return fmt.Errorf("major version changes are not supported")
@@ -934,8 +941,8 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 		return ValidateMajorUpgrade(*lowest, desiredVersion)
 	}
 
-	// Minor skip validation
-	if lowest != nil && desiredVersion.Minor > lowest.Minor+2 {
+	// Minor skip validation (same-major upgrades only)
+	if lowest != nil && desiredVersion.Major == lowest.Major && desiredVersion.Minor > lowest.Minor+2 {
 		return fmt.Errorf(
 			"invalid upgrade path from %s to %s: skipping more than 2 minor versions is not allowed",
 			lowest.String(), desiredVersion.String(),

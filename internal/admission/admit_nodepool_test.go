@@ -414,6 +414,23 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			desiredVersion:  "4.18.0",
 		},
 		{
+			name:            "downgrade at N-2 boundary succeeds",
+			activeVersions:  []string{"4.23.0"},
+			newVersion:      "4.21.0",
+			clusterVersions: []string{"4.23.0"},
+			desiredVersion:  "4.23.0",
+		},
+		{
+			name:            "downgrade beyond N-2 skew fails",
+			activeVersions:  []string{"4.23.0"},
+			newVersion:      "4.20.0",
+			clusterVersions: []string{"4.23.0"},
+			desiredVersion:  "4.23.0",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must be within 2 minor versions of control plane"},
+			},
+		},
+		{
 			name:            "version already in active versions skips validation",
 			activeVersions:  []string{"4.18.0", "4.17.0"},
 			newVersion:      "4.18.0",
