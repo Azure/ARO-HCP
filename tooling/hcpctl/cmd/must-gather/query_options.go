@@ -31,13 +31,14 @@ import (
 // RawQueryOptions represents the initial, unvalidated configuration for query operations.
 type RawQueryOptions struct {
 	BaseGatherOptions
-	SubscriptionID             string // Subscription ID
-	ResourceGroup              string // Resource group
-	ResourceId                 string // Resource ID
-	SkipHostedControlPlaneLogs bool   // Skip hosted control plane logs
-	SkipKubernetesEventsLogs   bool   // Skip Kubernetes events logs
-	CollectSystemdLogs         bool   // Collect Systemd logs
-	SkipCustomLogs             bool   // Skip Custom logs
+	SubscriptionID             string   // Subscription ID
+	ResourceGroup              string   // Resource group
+	ResourceId                 string   // Resource ID
+	ClusterIds                 []string // Explicit HCP cluster IDs to filter on
+	SkipHostedControlPlaneLogs bool     // Skip hosted control plane logs
+	SkipKubernetesEventsLogs   bool     // Skip Kubernetes events logs
+	CollectSystemdLogs         bool     // Collect Systemd logs
+	SkipCustomLogs             bool     // Skip Custom logs
 }
 
 // DefaultQueryOptions returns a new RawQueryOptions struct initialized with sensible defaults.
@@ -56,6 +57,7 @@ func BindQueryOptions(opts *RawQueryOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
 	cmd.Flags().StringVar(&opts.ResourceId, "resource-id", opts.ResourceId, "resource ID")
+	cmd.Flags().StringArrayVar(&opts.ClusterIds, "cluster-id", opts.ClusterIds, "filter by HCP cluster ID (repeatable; narrows HCP-specific and service log queries, but shared infrastructure queries may still be resource-group scoped)")
 	cmd.Flags().BoolVar(&opts.SkipHostedControlPlaneLogs, "skip-hcp-logs", opts.SkipHostedControlPlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().BoolVar(&opts.SkipKubernetesEventsLogs, "skip-kubernetes-events-logs", opts.SkipKubernetesEventsLogs, "Do not gather Kubernetes events logs")
 	cmd.Flags().BoolVar(&opts.CollectSystemdLogs, "collect-systemd-logs", opts.CollectSystemdLogs, "Collect Systemd logs")
@@ -95,6 +97,12 @@ func (o *RawQueryOptions) Validate(ctx context.Context) (*ValidatedQueryOptions,
 		logger.Info("warning: both resource-id and resource-group/subscription-id are provided, will use resource-id to gather cluster ID")
 	}
 
+	for _, id := range o.ClusterIds {
+		if id == "" {
+			return nil, fmt.Errorf("--cluster-id was specified with an empty value")
+		}
+	}
+
 	subscriptionID := o.SubscriptionID
 	resourceGroupName := o.ResourceGroup
 
@@ -113,6 +121,7 @@ func (o *RawQueryOptions) Validate(ctx context.Context) (*ValidatedQueryOptions,
 		QueryOptions: kusto.QueryOptions{
 			SubscriptionId:    subscriptionID,
 			ResourceGroupName: resourceGroupName,
+			ClusterIds:        o.ClusterIds,
 			TimestampMin:      o.TimestampMin,
 			TimestampMax:      o.TimestampMax,
 			Limit:             o.Limit,

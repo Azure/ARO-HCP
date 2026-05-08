@@ -29,6 +29,7 @@ type QueryOptions struct {
 	SubscriptionId    string
 	ResourceGroupName string
 	InfraClusterName  string
+	ClusterIds        []string
 	TimestampMin      time.Time
 	TimestampMax      time.Time
 	Limit             int
