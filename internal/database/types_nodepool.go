@@ -25,22 +25,10 @@ type NodePool struct {
 }
 
 type NodePoolProperties struct {
-	// HCPOpenShiftClusterNodePool is the inline serialization that mirrors GenericDocument[api.HCPOpenShiftClusterNodePool]
-	// (the destination shape for nodepool documents). The reading path now uses these inline fields as the
-	// source of truth; the IntermediateResourceDoc/InternalState siblings are still written for compatibility
-	// with old readers, but will be removed once all readers have migrated.
+	// HCPOpenShiftClusterNodePool is inlined directly. The on-disk shape now matches
+	// GenericDocument[api.HCPOpenShiftClusterNodePool] and NodePool only exists as a
+	// distinct type while the migration to that generic surface completes.
 	api.HCPOpenShiftClusterNodePool `json:",inline"`
-
-	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
-	// embed the InternalAPIType which has colliding serialization fields.
-	IntermediateResourceDoc *ResourceDocument `json:"intermediateResourceDoc"`
-
-	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
-	InternalState NodePoolInternalState `json:"internalState"`
-}
-
-type NodePoolInternalState struct {
-	InternalAPI api.HCPOpenShiftClusterNodePool `json:"internalAPI"`
 }
 
 func (o *NodePool) GetTypedDocument() *TypedDocument {
