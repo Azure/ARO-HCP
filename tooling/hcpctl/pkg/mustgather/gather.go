@@ -332,24 +332,29 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	logger.V(1).Info("Query options", "queryOptions", g.GetQueryOptions())
 
-	// First, get all cluster IDs
-	clusterIds := make([]string, 0)
-	clusterIdDef, err := queryFactory.GetBuiltinQueryDefinition("clusterId")
-	if err != nil {
-		return fmt.Errorf("failed to get cluster id query definition: %w", err)
+	// Get cluster IDs: use explicit IDs if provided, otherwise discover them
+	var clusterIds []string
+	if len(g.opts.QueryOptions.ClusterIds) > 0 {
+		clusterIds = g.opts.QueryOptions.ClusterIds
+		logger.V(1).Info("Using explicitly provided clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
+	} else {
+		clusterIdDef, err := queryFactory.GetBuiltinQueryDefinition("clusterId")
+		if err != nil {
+			return fmt.Errorf("failed to get cluster id query definition: %w", err)
+		}
+		clusterIdQueries, err := queryFactory.Build(*clusterIdDef, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
+		if err != nil {
+			return fmt.Errorf("failed to build cluster id query: %w", err)
+		}
+		allClusterIds, err := executeQueryAndConvert[ClusterIdRow](ctx, g, clusterIdQueries[0])
+		if err != nil {
+			return fmt.Errorf("failed to execute cluster id query: %w", err)
+		}
+		for _, row := range allClusterIds {
+			clusterIds = append(clusterIds, row.ClusterId)
+		}
+		logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	}
-	clusterIdQueries, err := queryFactory.Build(*clusterIdDef, kusto.NewTemplateDataFromOptions(g.GetQueryOptions()))
-	if err != nil {
-		return fmt.Errorf("failed to build cluster id query: %w", err)
-	}
-	allClusterIds, err := executeQueryAndConvert[ClusterIdRow](ctx, g, clusterIdQueries[0])
-	if err != nil {
-		return fmt.Errorf("failed to execute cluster id query: %w", err)
-	}
-	for _, row := range allClusterIds {
-		clusterIds = append(clusterIds, row.ClusterId)
-	}
-	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 
 	// Gather service logs
 	servicesQueries, err := serviceLogs(queryFactory, "serviceLogs", g.GetQueryOptions(), clusterIds)
