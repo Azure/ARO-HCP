@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/utils/ptr"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -46,22 +44,8 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 		},
 		NodePoolProperties: NodePoolProperties{
 			HCPOpenShiftClusterNodePool: *internalObj,
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        cosmosResourceID,
-				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
-				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
-				ProvisioningState: internalObj.Properties.ProvisioningState,
-				Identity:          internalObj.Identity.DeepCopy(),
-				SystemData:        internalObj.SystemData,
-				Tags:              copyTags(internalObj.Tags),
-			},
-			InternalState: NodePoolInternalState{
-				InternalAPI: *internalObj,
-			},
 		},
 	}
-
-	cosmosObj.InternalState.InternalAPI.CosmosMetadata = api.CosmosMetadata{}
 
 	return cosmosObj, nil
 }
