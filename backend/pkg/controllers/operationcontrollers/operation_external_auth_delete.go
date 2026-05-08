@@ -34,7 +34,7 @@ import (
 )
 
 type operationExternalAuthDelete struct {
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
@@ -54,13 +54,13 @@ type operationExternalAuthDelete struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationExternalAuthDeleteController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationExternalAuthDelete{
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
 	}
@@ -70,7 +70,7 @@ func NewOperationExternalAuthDeleteController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -93,7 +93,7 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -109,7 +109,7 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	if err != nil && errors.As(err, &ocmGetExternalAuthError) && ocmGetExternalAuthError.Status() == http.StatusNotFound {
 		logger.Info("external auth was deleted")
 
-		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}

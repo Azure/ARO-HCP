@@ -29,11 +29,11 @@ type OperationAccessor interface {
 }
 
 type operationAccessor struct {
-	dbClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 }
 
-func newOperationAccessor(dbClient database.DBClient) *operationAccessor {
-	return &operationAccessor{dbClient: dbClient}
+func newOperationAccessor(resourcesDBClient database.ResourcesDBClient) *operationAccessor {
+	return &operationAccessor{resourcesDBClient: resourcesDBClient}
 }
 
 var _ OperationAccessor = &operationAccessor{}
@@ -44,10 +44,10 @@ func (c operationAccessor) CompleteOperation(ctx context.Context, resourceIDStri
 		return utils.TrackError(err)
 	}
 
-	if err := integrationutils.MarkOperationsCompleteForName(ctx, c.dbClient, resourceID.SubscriptionID, resourceID.Name); err != nil {
+	if err := integrationutils.MarkOperationsCompleteForName(ctx, c.resourcesDBClient, resourceID.SubscriptionID, resourceID.Name); err != nil {
 		if database.IsPreconditionFailedError(err) {
 			// to handle the migration case, we need to retry like a controller will.  We only retry once though.
-			err = integrationutils.MarkOperationsCompleteForName(ctx, c.dbClient, resourceID.SubscriptionID, resourceID.Name)
+			err = integrationutils.MarkOperationsCompleteForName(ctx, c.resourcesDBClient, resourceID.SubscriptionID, resourceID.Name)
 		}
 
 		if err != nil {

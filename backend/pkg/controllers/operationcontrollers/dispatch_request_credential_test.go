@@ -40,12 +40,12 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 		name                         string
 		revokeCredentialsOperationID string
 		expectError                  bool
-		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
+		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name:        "successful dispatch records a break-glass credential ID",
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, testBreakGlassCredentialIDStr, op.InternalID.String())
@@ -55,7 +55,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			name:                         "in-progress revocation cancels operation",
 			revokeCredentialsOperationID: "test-revoke-operation-id",
 			expectError:                  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateCanceled, op.Status)
@@ -76,7 +76,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			operation := fixture.newOperation(database.OperationRequestRequestCredential)
 			operation.InternalID = api.InternalID{}
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -94,7 +94,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 
 			controller := &dispatchRequestCredential{
 				clock:                 utilsclock.RealClock{},
-				cosmosClient:          mockDB,
+				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}
 
@@ -107,7 +107,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

@@ -3,8 +3,8 @@ module github.com/Azure/ARO-HCP/tooling/helmtest
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260504102536-3b3cadd6820a
+	github.com/Azure/ARO-Tools/config v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260506174442-621e0b33dfa1
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	helm.sh/helm/v4 v4.1.4
@@ -14,9 +14,9 @@ require (
 require (
 	cel.dev/expr v0.25.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260504102536-3b3cadd6820a // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260504102536-3b3cadd6820a // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260504102536-3b3cadd6820a // indirect
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260506174442-621e0b33dfa1 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260506174442-621e0b33dfa1 // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260506174442-621e0b33dfa1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
@@ -109,8 +109,7 @@ require (
 	github.com/tetratelabs/wazero v1.11.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 // indirect
-	go.opentelemetry.io/otel v1.43.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.19.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0 // indirect
@@ -121,10 +120,7 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.19.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.43.0 // indirect
-	go.opentelemetry.io/otel/metric v1.43.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.19.0 // indirect
-	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect

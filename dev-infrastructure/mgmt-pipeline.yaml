@@ -503,20 +503,7 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  # TODO: Remove these PKO cleanup steps once all management clusters have been cleaned up (ARO-23308)
-  - name: cleanup-pko-resources
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./scripts/cleanup-pko-resources.sh
-    workingDir: .
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: management
-      step: cluster
+  # TODO: Remove this step once all management clusters have been cleaned up (ARO-23308)
   - name: cleanup-pko
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell

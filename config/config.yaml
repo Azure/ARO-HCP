@@ -76,6 +76,11 @@ defaults:
       tagKey: aroHCPPurpose
       tagValue: global
       encryptionKeyName: secretSyncKey
+    managementGroup:
+      id: "empty-sentinel"
+    groupQuota:
+      id: "empty-sentinel"
+      displayName: "empty-sentinel"
   # ACR
   acr:
     svc:
@@ -124,7 +129,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:bda1e3e68b1da236426661e1f77daebf34243dd29c2b29f78ce77cb1713ac114 # 1.41.1-20260428-1 (2026-04-28 23:35)
+        digest: sha256:3c8bc4980d6c602f8f1ffb852fa1dd6becb12f12581f3e7eecabd7a6b911d0b8 # 1.41.1-20260506-1 (2026-05-06 20:23)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -157,7 +162,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:b64f3deef6f6d5de0cae249b99e15c79567894c0d343b1ea9496da78a0bd87c2 # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:2a09e619593b66ec89a722b92eafbb2f247b06b22b5257d6255e1e8281d83df7 # 8085265 (2026-05-07 05:12)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -275,7 +280,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:7c9d8a1c94f1b49d07b71d40edb4f68cebd9243ad34f5ef9133281a89bd3d0cf # effd75432d795fdecd36e5f254f6da235de079d7 (2026-05-05 21:52)
+      digest: sha256:545d39ab5f3a6abc8caf3249b5e9c123532c777f1a5b54cfd6e57076e10e5e12 # 76d06fa5b9e4d183af308cf02f13392bce4d0f8d (2026-05-07 00:24)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -629,7 +634,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:3b40f64a59175658e284d637d0b4b039d551668b0f406e6b42d560b88583fa2d # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:a2d4091d0e41f9f745f4ea1d6989e31af3f5de0c6f2e67323bc6e7aad263d17c # 8085265 (2026-05-07 05:12)
     tracing:
       address: ""
       exporter: ""
@@ -658,7 +663,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:71fe6df96d6377d001da16ed0e0e4386f8ab839d997c8cdfd97ab14ebc832a9e # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:34dae332d86c0592838963950e68ca1282dd54f4eefdf675dbed5c78009eb458 # 8085265 (2026-05-07 05:12)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -677,7 +682,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: sha256:dcec29bfc4a82ae9183b747a1196cad423427e7234638dd640cf20a5de7624b2 # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:6afdcf3c1c83c041870df639dc0e6163776ef9ff6b34536dba73b47984d2c67c # 8085265 (2026-05-07 05:12)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
@@ -702,7 +707,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:f29fdde9ad6694ce60d5d11423c0f55967d18fb84ddad2ef09b3c2ccd68307b8 # 2c8efd8 (2026-05-05 20:42)
+      digest: sha256:20684d4502475ba4054bbdc67a8405de39bf7a0331a82d1b55023963e1b4991d # 8085265 (2026-05-07 05:12)
     tracing:
       address: ""
       exporter: ""
@@ -874,18 +879,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:e9ceec5df27628c0519176e174c35a8dd40b3ccb30529c433615e87af2bbd94d # v2.16.1-392 (2026-05-05 10:39)
+        digest: sha256:9d8ce3630ead7c22b495db3295ea3eb9680fb40dbc1bc0e6a718a9fd6a60068c # v2.16.2-396 (2026-05-06 22:21)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:e28783efffea050d686b756270ea5ec9ae92402e7b5fa032e8605075dd1d89ad # v2.11.1-438 (2026-05-05 22:21)
+        digest: sha256:ba5f1c8aa7fe214006df15030fed39871238defa38e57891548b6e0041d12a9c # v2.11.2-441 (2026-05-07 05:10)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:7aa79ff0c835089a9afb2beeca84aa07e81e4cdc1486a4a5f3a90a09e20b8250 # 17cb903a006927548ac39c860479a382cf06fb3b (2026-05-04 14:35)
+      digest: sha256:8ab0246038cbe1dfdca7bdf82f1ff27795402268caad9cdc6e040ab46a8e06e7 # e2d2136cbc1d8bd348ba989d1419576949717565 (2026-05-06 13:30)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -945,7 +950,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:53d0040bd10e320658093e1ec54579ac43f472b48fce63598370b4cd5b8cc673 # 2c8efd8 (2026-05-05 20:42)
+        digest: sha256:11cad5de9e799329f66ad52264e8efc3e1768ffff3668640665274353dca2cd4 # 8085265 (2026-05-07 05:12)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21"
   # Automation Account
@@ -985,6 +990,9 @@ defaults:
   serviceKeyVault:
     name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
     rg: "{{ .ctx.region }}-shared-resources"
+    subscription:
+      key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
+      displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - SVC"
     region: "{{ .ctx.region }}"
     softDelete: false
     private: false
@@ -1133,6 +1141,9 @@ clouds:
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
         rg: 'global'
+        subscription:
+          key: ARO Hosted Control Planes (EA Subscription 1)
+          displayName: ARO Hosted Control Planes (EA Subscription 1)
         region: 'westus3'
         softDelete: true
       # MSI Credentials Refresher
@@ -1226,11 +1237,6 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
-          svc:
-            # Temporary override during the asm-1-28 rollout; remove once versions is asm-1-28 only.
-            istio:
-              targetVersion: "asm-1-28"
-              versions: "asm-1-26,asm-1-28"
           mgmt:
             aks:
               systemAgentPool:
@@ -1277,10 +1283,6 @@ clouds:
             svcWorkspaceName: 'services-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
             hcpWorkspaceName: 'hcps-{{ .ctx.environment }}-{{ .ctx.regionShort }}'
           svc:
-            # Temporary override during the asm-1-28 rollout; remove once versions is asm-1-28 only.
-            istio:
-              targetVersion: "asm-1-28"
-              versions: "asm-1-26,asm-1-28"
             aks:
               # MC AKS nodepools
               # big enough for multiple CS instances during PR checks
@@ -1455,10 +1457,6 @@ clouds:
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
-            # Temporary override during the asm-1-28 rollout; remove once versions is asm-1-28 only.
-            istio:
-              targetVersion: "asm-1-28"
-              versions: "asm-1-26,asm-1-28"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
           mgmt:
@@ -1565,6 +1563,103 @@ clouds:
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D4ds_v5
+            jaeger:
+              deploy: true
+        regions:
+          monitoring:
+            alertsEnabled: true
+      ci01:
+        # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
+        defaults:
+          # Service Key Vault
+          serviceKeyVault:
+            assignNSP: false
+          # Cluster Service
+          clustersService:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          # Geneva
+          geneva:
+            logs:
+              manageCertificates: false
+          # DNS
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}'
+          # Maestro
+          maestro:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+            server:
+              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+              tracing:
+                address: "http://ingest.observability:4318"
+                exporter: "otlp"
+          # Backend
+          backend:
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          # Frontend
+          frontend:
+            audit:
+              connectSocket: false
+            cosmosDB:
+              private: false
+              zoneRedundantMode: 'Disabled'
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          # MC
+          mgmt:
+            subscription:
+              key: ARO HCP E2E Infrastructure (EA Subscription)
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+              systemAgentPool:
+                maxCount: 4
+                osDiskSizeGB: 32
+                vmSize: Standard_D4ds_v6
+              userAgentPool:
+                maxCount: 14
+                minCount: 3
+                osDiskSizeGB: 100
+                vmSize: Standard_D16ds_v6
+                secondaryNicCount: 7
+              infraAgentPool:
+                vmSize: Standard_D4ds_v6
+                osDiskSizeGB: 64
+              enableSwiftV2Nodepools: true
+              enableSwiftV2Vnet: true
+            jaeger:
+              deploy: false
+            applyKubeletFixes: false
+          # SVC
+          svc:
+            subscription:
+              key: ARO HCP E2E Infrastructure (EA Subscription)
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              systemAgentPool:
+                vmSize: Standard_D4ds_v6
+              userAgentPool:
+                name: 'u64d8dsv6'
+                vmSize: Standard_D8ds_v6
+                osDiskSizeGB: 64
+              infraAgentPool:
+                vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
         regions:

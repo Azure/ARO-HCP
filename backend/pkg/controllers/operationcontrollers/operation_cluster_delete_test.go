@@ -44,7 +44,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 		name        string
 		setupMock   func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
+		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name: "cluster not found marks billing as deleted and removes cluster",
@@ -57,7 +57,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				// Verify operation succeeded
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
@@ -105,7 +105,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				// When cluster is Ready during delete, operation stays at Accepted
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -164,16 +164,18 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			billingDoc.Location = testAzureLocation
 			billingDoc.TenantID = testTenantID
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
-			err = mockDB.BillingDocs(fixture.clusterResourceID.SubscriptionID).Create(ctx, billingDoc)
+			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+			err = mockBillingDBClient.BillingDocs(fixture.clusterResourceID.SubscriptionID).Create(ctx, billingDoc)
 			require.NoError(t, err)
 
 			mockCSClient := tt.setupMock(ctrl, fixture)
 
 			controller := &operationClusterDelete{
 				clock:                clocktesting.NewFakePassiveClock(fixedTime),
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
+				billingDBClient:      mockBillingDBClient,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
 			}
@@ -187,7 +189,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

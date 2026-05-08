@@ -34,7 +34,8 @@ import (
 )
 
 type ControllerInitializationInput struct {
-	CosmosClient         database.DBClient
+	ResourcesDBClient    database.ResourcesDBClient
+	BillingDBClient      database.BillingDBClient
 	SubscriptionLister   listers.SubscriptionLister
 	ClusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -109,7 +110,8 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	}
 
 	controllerInput := &ControllerInitializationInput{
-		CosmosClient:         storageIntegrationTestInfo.CosmosClient(),
+		ResourcesDBClient:    storageIntegrationTestInfo.ResourcesDBClient(),
+		BillingDBClient:      storageIntegrationTestInfo.BillingDBClient(),
 		ClusterServiceClient: clusterServiceMockInfo.MockClusterServiceClient,
 	}
 

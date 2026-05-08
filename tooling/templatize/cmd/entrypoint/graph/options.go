@@ -137,7 +137,7 @@ func (o *Options) Run(ctx context.Context) error {
 			return fmt.Errorf("service group only had %d parts: %s", len(parts), o.Entrypoint.Identifier)
 		}
 		title = fmt.Sprintf("entrypoint/%s", strings.Join(parts[4:], "."))
-		executionGraph, err = graph.ForEntrypoint(o.Topo, o.Entrypoint, o.Pipelines)
+		executionGraph, err = graph.ForEntrypoint(&o.Topo.Topology, o.Entrypoint, o.Pipelines)
 	} else {
 		parts := strings.Split(o.Service.ServiceGroup, ".")
 		if len(parts) < 5 {

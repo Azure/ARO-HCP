@@ -197,16 +197,19 @@ func infraClusterNames() (svcCluster, mgmtCluster string) {
 		return "", ""
 	}
 
-	// regionShort = "j" + last 7 chars of BUILD_ID
+	deployEnv := os.Getenv("DEPLOY_ENV")
+	if deployEnv == "" {
+		deployEnv = "prow"
+	}
+
 	suffix := buildID
 	if len(suffix) > 7 {
 		suffix = suffix[len(suffix)-7:]
 	}
 	regionShort := "j" + suffix
 
-	// naming convention from config/config.yaml lines 1468/1488
-	svcCluster = fmt.Sprintf("prow-%s-svc", regionShort)
-	mgmtCluster = fmt.Sprintf("prow-%s-mgmt-1", regionShort)
+	svcCluster = fmt.Sprintf("%s-%s-svc", deployEnv, regionShort)
+	mgmtCluster = fmt.Sprintf("%s-%s-mgmt-1", deployEnv, regionShort)
 	return svcCluster, mgmtCluster
 }
 

@@ -32,12 +32,12 @@ const (
 )
 
 type middlewareValidateSubscriptionState struct {
-	dbClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 }
 
-func newMiddlewareValidateSubscriptionState(dbClient database.DBClient) *middlewareValidateSubscriptionState {
+func newMiddlewareValidateSubscriptionState(resourcesDBClient database.ResourcesDBClient) *middlewareValidateSubscriptionState {
 	return &middlewareValidateSubscriptionState{
-		dbClient: dbClient,
+		resourcesDBClient: resourcesDBClient,
 	}
 }
 
@@ -57,7 +57,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		return
 	}
 
-	subscription, err := h.dbClient.Subscriptions().Get(ctx, subscriptionId)
+	subscription, err := h.resourcesDBClient.Subscriptions().Get(ctx, subscriptionId)
 	if err != nil {
 		logger.Error(err, "failed to get subscription document", "subscriptionId", subscriptionId)
 

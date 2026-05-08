@@ -15,12 +15,9 @@
 package internal
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/config"
 	"github.com/Azure/ARO-Tools/config/ev2config"
@@ -62,14 +59,9 @@ func TestStepsWellFormed(t *testing.T) {
 	}
 
 	topologyFile := filepath.Join(repoRootDir, "topology.yaml")
-	rawTopology, err := os.ReadFile(topologyFile)
+	topo, err := topology.LoadCombined([]string{topologyFile})
 	if err != nil {
-		t.Fatalf("failed to read input file %s: %v", topologyFile, err)
-	}
-
-	var topo topology.Topology
-	if err := yaml.Unmarshal(rawTopology, &topo); err != nil {
-		t.Fatalf("failed to unmarshal topology: %v", err)
+		t.Fatalf("failed to load topology from %s: %v", topologyFile, err)
 	}
 
 	if err := topo.Validate(); err != nil {
@@ -84,11 +76,11 @@ func TestStepsWellFormed(t *testing.T) {
 			}
 
 			pipelines := map[string]*types.Pipeline{}
-			if err := entrypointutils.LoadPipelines(service, repoRootDir, pipelines, cfg); err != nil {
+			if err := entrypointutils.LoadPipelines(service, topo, pipelines, cfg); err != nil {
 				t.Fatalf("failed to load pipelines: %v", err)
 			}
 
-			executionGraph, graphConstructionErr := graph.ForEntrypoint(&topo, &entrypoint, pipelines)
+			executionGraph, graphConstructionErr := graph.ForEntrypoint(&topo.Topology, &entrypoint, pipelines)
 			if graphConstructionErr != nil {
 				t.Fatalf("failed to construct graph: %v", graphConstructionErr)
 			}

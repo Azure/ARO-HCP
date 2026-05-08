@@ -107,7 +107,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -128,7 +128,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				customerClusterName,
 				customerNodePoolName,
 				nodePool,
-				framework.NodePoolCreationTimeout,
+				45*time.Minute,
 			)
 			if isAPINotDeployedError(err) {
 				if time.Now().Before(timeBombDeadline) {

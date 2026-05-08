@@ -39,7 +39,7 @@ import (
 //   - CustomerProperties.DNS.BaseDomainPrefix
 type clusterPropertiesSyncer struct {
 	cooldownChecker      controllerutils.CooldownChecker
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -50,20 +50,20 @@ var _ controllerutils.ClusterSyncer = (*clusterPropertiesSyncer)(nil)
 // It periodically checks each cluster and populates the Console.URL, DNS.BaseDomain,
 // ManagedIdentitiesDataPlaneIdentityURL, Platform.IssuerURL, and DNS.BaseDomainPrefix fields if they are not set.
 func NewClusterPropertiesSyncController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &clusterPropertiesSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
 		"ClusterPropertiesSync",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		5*time.Minute, // Check every 5 minutes
 		syncer,
@@ -84,7 +84,7 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	logger := utils.LoggerFromContext(ctx)
 
 	// Get the cluster from Cosmos
-	clusterCRUD := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do

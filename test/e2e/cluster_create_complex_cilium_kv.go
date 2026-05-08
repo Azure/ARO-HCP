@@ -99,7 +99,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				customerClusterName,
 				clusterResource,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -183,7 +183,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				nodePool,
-				framework.NodePoolCreationTimeout,
+				45*time.Minute,
 			)
 			// We delay checking the error on purpose to get more details
 			// about the issue by running the verifiers.

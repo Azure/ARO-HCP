@@ -82,7 +82,7 @@ var _ = Describe("Engineering", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 			subscriptionID, err := tc.SubscriptionID(ctx)

@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:e28783efffea050d686b756270ea5ec9ae92402e7b5fa032e8605075dd1d89ad
+      digest: sha256:ba5f1c8aa7fe214006df15030fed39871238defa38e57891548b6e0041d12a9c
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:e9ceec5df27628c0519176e174c35a8dd40b3ccb30529c433615e87af2bbd94d
+      digest: sha256:9d8ce3630ead7c22b495db3295ea3eb9680fb40dbc1bc0e6a718a9fd6a60068c
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-dev-usw3
   image:
-    digest: sha256:71fe6df96d6377d001da16ed0e0e4386f8ab839d997c8cdfd97ab14ebc832a9e
+    digest: sha256:34dae332d86c0592838963950e68ca1282dd54f4eefdf675dbed5c78009eb458
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -81,7 +81,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:bda1e3e68b1da236426661e1f77daebf34243dd29c2b29f78ce77cb1713ac114
+      digest: sha256:3c8bc4980d6c602f8f1ffb852fa1dd6becb12f12581f3e7eecabd7a6b911d0b8
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -102,7 +102,7 @@ backend:
     roleSetName: dev
   exitOnPanic: true
   image:
-    digest: sha256:3b40f64a59175658e284d637d0b4b039d551668b0f406e6b42d560b88583fa2d
+    digest: sha256:a2d4091d0e41f9f745f4ea1d6989e31af3f5de0c6f2e67323bc6e7aad263d17c
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -162,7 +162,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:7aa79ff0c835089a9afb2beeca84aa07e81e4cdc1486a4a5f3a90a09e20b8250
+    digest: sha256:8ab0246038cbe1dfdca7bdf82f1ff27795402268caad9cdc6e040ab46a8e06e7
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -205,7 +205,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:b64f3deef6f6d5de0cae249b99e15c79567894c0d343b1ea9496da78a0bd87c2
+    digest: sha256:2a09e619593b66ec89a722b92eafbb2f247b06b22b5257d6255e1e8281d83df7
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -268,7 +268,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:f29fdde9ad6694ce60d5d11423c0f55967d18fb84ddad2ef09b3c2ccd68307b8
+    digest: sha256:20684d4502475ba4054bbdc67a8405de39bf7a0331a82d1b55023963e1b4991d
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -350,6 +350,9 @@ global:
     digest: placeholder
     rg: placeholder
   globalMSIName: global-rollout-identity
+  groupQuota:
+    displayName: empty-sentinel
+    id: empty-sentinel
   keyVault:
     encryptionKeyName: secretSyncKey
     name: arohcpdev-global
@@ -357,6 +360,8 @@ global:
     softDelete: true
     tagKey: aroHCPPurpose
     tagValue: global
+  managementGroup:
+    id: empty-sentinel
   nsp:
     accessMode: Learning
     name: nsp-global
@@ -398,7 +403,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:7c9d8a1c94f1b49d07b71d40edb4f68cebd9243ad34f5ef9133281a89bd3d0cf
+    digest: sha256:545d39ab5f3a6abc8caf3249b5e9c123532c777f1a5b54cfd6e57076e10e5e12
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -413,7 +418,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:53d0040bd10e320658093e1ec54579ac43f472b48fce63598370b4cd5b8cc673
+      digest: sha256:11cad5de9e799329f66ad52264e8efc3e1768ffff3668640665274353dca2cd4
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -815,6 +820,9 @@ serviceKeyVault:
   region: westus3
   rg: global
   softDelete: true
+  subscription:
+    displayName: ARO Hosted Control Planes (EA Subscription 1)
+    key: ARO Hosted Control Planes (EA Subscription 1)
   tagKey: aroHCPPurpose
   tagValue: service
 sessiongate:
@@ -822,7 +830,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-dev-usw3
   image:
-    digest: sha256:dcec29bfc4a82ae9183b747a1196cad423427e7234638dd640cf20a5de7624b2
+    digest: sha256:6afdcf3c1c83c041870df639dc0e6163776ef9ff6b34536dba73b47984d2c67c
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
@@ -879,7 +887,7 @@ svc:
     istioctlVersion: 1.29.2
     tag: prod-stable
     targetVersion: asm-1-28
-    versions: asm-1-26,asm-1-28
+    versions: asm-1-28
   nsp:
     accessMode: Learning
     name: nsp-usw3-svc

@@ -59,10 +59,10 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 		},
 	}
 
-	mockDB := databasetesting.NewMockDBClient()
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	controller := NewClusterWatchingController(
 		"test-controller",
-		mockDB,
+		mockResourcesDBClient,
 		nil, // nil informers for unit testing
 		time.Minute,
 		mockSyncer,

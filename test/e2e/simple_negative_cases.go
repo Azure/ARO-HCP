@@ -105,7 +105,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -157,7 +157,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				clusterParams.ClusterName,
 				nodePoolParams,
-				framework.NodePoolCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

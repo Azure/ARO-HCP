@@ -102,7 +102,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				clusterParams,
 				imageDigestMirrors,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 
 			var respErr *azcore.ResponseError

@@ -17,12 +17,8 @@ package entrypointutils
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
-
-	"sigs.k8s.io/yaml"
 
 	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/ARO-Tools/pipelines/topology"
@@ -56,7 +52,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	if err := rollout.BindRolloutOptions(opts.RawRolloutOptions, cmd); err != nil {
 		return err
 	}
-	cmd.Flags().StringVar(&opts.TopologyFile, "topology-config", opts.TopologyFile, "Path to the topology configuration file. The directory holding this file will become the root of the Ev2 content archive.")
+	cmd.Flags().StringArrayVar(&opts.TopologyFiles, "topology-config", opts.TopologyFiles, "Path to a topology configuration file. Can be specified multiple times.")
 	cmd.Flags().StringVar(&opts.Entrypoint, "entrypoint", opts.Entrypoint, "Name of the entrypoint to create Ev2 manifests for. Exclusive with --service-group.")
 	cmd.Flags().StringVar(&opts.ServiceGroup, "service-group", opts.ServiceGroup, "Name of the service group to create Ev2 manifests for. Exclusive with --entrypoint.")
 
@@ -71,9 +67,9 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 type RawOptions struct {
 	*rollout.RawRolloutOptions
 
-	TopologyFile string
-	Entrypoint   string
-	ServiceGroup string
+	TopologyFiles []string
+	Entrypoint    string
+	ServiceGroup  string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -89,8 +85,7 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Topo       *topology.Topology
-	TopoDir    string
+	Topo       *topology.CombinedTopology
 	Service    *topology.Service
 	Entrypoint *topology.Entrypoint
 	Pipelines  map[string]*types.Pipeline
@@ -104,16 +99,8 @@ type Options struct {
 }
 
 func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
-	for _, item := range []struct {
-		flag  string
-		name  string
-		value *string
-	}{
-		{flag: "topology-config", name: "topology configuration file", value: &o.TopologyFile},
-	} {
-		if item.value == nil || *item.value == "" {
-			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
-		}
+	if len(o.TopologyFiles) == 0 {
+		return nil, fmt.Errorf("the topology configuration file must be provided with --topology-config")
 	}
 
 	if o.ServiceGroup == "" && o.Entrypoint == "" {
@@ -143,14 +130,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, err
 	}
 
-	rawTopology, err := os.ReadFile(o.TopologyFile)
+	t, err := topology.LoadCombined(o.TopologyFiles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read input file %s: %w", o.TopologyFile, err)
-	}
-
-	var t topology.Topology
-	if err := yaml.Unmarshal(rawTopology, &t); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal topology: %w", err)
+		return nil, fmt.Errorf("failed to load topology: %w", err)
 	}
 
 	if err := t.Validate(); err != nil {
@@ -184,14 +166,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	pipelines := map[string]*types.Pipeline{}
-	if err := LoadPipelines(service, filepath.Dir(o.TopologyFile), pipelines, completed.Config); err != nil {
-		return nil, fmt.Errorf("failed to load pipelines from %s: %w", o.TopologyFile, err)
+	if err := LoadPipelines(service, t, pipelines, completed.Config); err != nil {
+		return nil, fmt.Errorf("failed to load pipelines: %w", err)
 	}
 
 	return &Options{
 		completedOptions: &completedOptions{
-			Topo:       &t,
-			TopoDir:    filepath.Dir(o.TopologyFile),
+			Topo:       t,
 			Entrypoint: e,
 			Service:    service,
 			Pipelines:  pipelines,

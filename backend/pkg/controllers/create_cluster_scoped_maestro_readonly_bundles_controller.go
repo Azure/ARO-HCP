@@ -55,7 +55,7 @@ type createClusterScopedMaestroReadonlyBundlesSyncer struct {
 
 	activeOperationLister listers.ActiveOperationLister
 
-	cosmosClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -70,7 +70,7 @@ var _ controllerutils.ClusterSyncer = (*createClusterScopedMaestroReadonlyBundle
 
 func NewCreateClusterScopedMaestroReadonlyBundlesController(
 	activeOperationLister listers.ActiveOperationLister,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers informers.BackendInformers,
 	maestroSourceEnvironmentIdentifier string,
@@ -79,7 +79,7 @@ func NewCreateClusterScopedMaestroReadonlyBundlesController(
 
 	syncer := &createClusterScopedMaestroReadonlyBundlesSyncer{
 		cooldownChecker:                      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:                         cosmosClient,
+		resourcesDBClient:                    resourcesDBClient,
 		clusterServiceClient:                 clusterServiceClient,
 		activeOperationLister:                activeOperationLister,
 		maestroSourceEnvironmentIdentifier:   maestroSourceEnvironmentIdentifier,
@@ -89,7 +89,7 @@ func NewCreateClusterScopedMaestroReadonlyBundlesController(
 
 	controller := controllerutils.NewClusterWatchingController(
 		"CreateClusterScopedMaestroReadonlyBundles",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		1*time.Minute,
 		syncer,
@@ -99,7 +99,7 @@ func NewCreateClusterScopedMaestroReadonlyBundlesController(
 }
 
 func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -112,7 +112,7 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.C
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
@@ -149,7 +149,7 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.C
 		return nil
 	}
 
-	serviceProviderClustersDBClient := c.cosmosClient.ServiceProviderClusters(
+	serviceProviderClustersDBClient := c.resourcesDBClient.ServiceProviderClusters(
 		key.SubscriptionID,
 		key.ResourceGroupName,
 		key.HCPClusterName,

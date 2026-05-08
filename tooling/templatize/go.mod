@@ -4,15 +4,15 @@ go 1.25.7
 
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
-	github.com/Azure/ARO-Tools/config v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260504102536-3b3cadd6820a
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260504102536-3b3cadd6820a
+	github.com/Azure/ARO-Tools/config v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260506174442-621e0b33dfa1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
@@ -49,7 +49,7 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.56.0 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260504102536-3b3cadd6820a // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260506174442-621e0b33dfa1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0 // indirect
@@ -180,7 +180,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mattn/go-zglob v0.0.2 // indirect
 	github.com/microsoft/kiota-abstractions-go v1.9.3 // indirect
-	github.com/microsoft/kiota-http-go v1.5.4 // indirect
+	github.com/microsoft/kiota-http-go v1.5.5 // indirect
 	github.com/microsoft/kiota-serialization-form-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-json-go v1.1.2 // indirect
 	github.com/microsoft/kiota-serialization-multipart-go v1.1.2 // indirect
@@ -236,7 +236,7 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.39.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.19.0 // indirect

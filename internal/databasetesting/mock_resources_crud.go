@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import (
 
 // mockResourceCRUD is a generic mock implementation of database.ResourceCRUD.
 type mockResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
-	client           *MockDBClient
+	client           *MockResourcesDBClient
 	parentResourceID *azcorearm.ResourceID
 	resourceType     azcorearm.ResourceType
 	// makeResourceIDPath constructs the full resource ID path from a resource name.
@@ -48,7 +48,7 @@ type mockResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 }
 
 func newMockResourceCRUD[InternalAPIType, CosmosAPIType any](
-	client *MockDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockResourceCRUD[InternalAPIType, CosmosAPIType] {
+	client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockResourceCRUD[InternalAPIType, CosmosAPIType] {
 
 	m := &mockResourceCRUD[InternalAPIType, CosmosAPIType]{
 		client:           client,
@@ -438,7 +438,7 @@ type mockHCPClusterCRUD struct {
 	*mockResourceCRUD[api.HCPOpenShiftCluster, database.HCPCluster]
 }
 
-func newMockHCPClusterCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockHCPClusterCRUD {
+func newMockHCPClusterCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockHCPClusterCRUD {
 	return &mockHCPClusterCRUD{
 		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftCluster, database.HCPCluster](client, parentResourceID, api.ClusterResourceType),
 	}
@@ -557,13 +557,13 @@ type mockOperationCRUD struct {
 	*mockResourceCRUD[api.Operation, database.GenericDocument[api.Operation]]
 }
 
-func newMockOperationCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockOperationCRUD {
+func newMockOperationCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockOperationCRUD {
 	return &mockOperationCRUD{
 		mockResourceCRUD: newMockResourceCRUD[api.Operation, database.GenericDocument[api.Operation]](client, parentResourceID, api.OperationStatusResourceType),
 	}
 }
 
-func (m *mockOperationCRUD) ListActiveOperations(options *database.DBClientListActiveOperationDocsOptions) database.DBClientIterator[api.Operation] {
+func (m *mockOperationCRUD) ListActiveOperations(options *database.ResourcesDBClientListActiveOperationDocsOptions) database.DBClientIterator[api.Operation] {
 	allDocs := m.client.GetAllDocuments()
 
 	var ids []string
@@ -638,7 +638,7 @@ type mockSubscriptionCRUD struct {
 	*mockResourceCRUD[arm.Subscription, database.GenericDocument[arm.Subscription]]
 }
 
-func newMockSubscriptionCRUD(client *MockDBClient) *mockSubscriptionCRUD {
+func newMockSubscriptionCRUD(client *MockResourcesDBClient) *mockSubscriptionCRUD {
 	base := newMockResourceCRUD[arm.Subscription, database.GenericDocument[arm.Subscription]](
 		client, nil, azcorearm.SubscriptionResourceType)
 
@@ -664,7 +664,7 @@ type mockServiceProviderClusterCRUD struct {
 	*mockResourceCRUD[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]]
 }
 
-func newMockServiceProviderClusterCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderClusterCRUD {
+func newMockServiceProviderClusterCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderClusterCRUD {
 	return &mockServiceProviderClusterCRUD{
 		mockResourceCRUD: newMockResourceCRUD[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]](
 			client, parentResourceID, api.ServiceProviderClusterResourceType),
@@ -678,7 +678,7 @@ type mockServiceProviderNodePoolCRUD struct {
 	*mockResourceCRUD[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]]
 }
 
-func newMockServiceProviderNodePoolCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderNodePoolCRUD {
+func newMockServiceProviderNodePoolCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderNodePoolCRUD {
 	return &mockServiceProviderNodePoolCRUD{
 		mockResourceCRUD: newMockResourceCRUD[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]](
 			client, parentResourceID, api.ServiceProviderNodePoolResourceType),
@@ -692,7 +692,7 @@ type mockManagementClusterContentCRUD struct {
 	*mockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]
 }
 
-func newMockManagementClusterContentCRUD(client *MockDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockManagementClusterContentCRUD {
+func newMockManagementClusterContentCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockManagementClusterContentCRUD {
 	return &mockManagementClusterContentCRUD{
 		mockResourceCRUD: newMockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]](
 			client, parentResourceID, resourceType),
@@ -703,11 +703,11 @@ var _ database.ManagementClusterContentCRUD = &mockManagementClusterContentCRUD{
 
 // mockUntypedCRUD implements database.UntypedResourceCRUD.
 type mockUntypedCRUD struct {
-	client           *MockDBClient
+	client           *MockResourcesDBClient
 	parentResourceID azcorearm.ResourceID
 }
 
-func newMockUntypedCRUD(client *MockDBClient, parentResourceID azcorearm.ResourceID) *mockUntypedCRUD {
+func newMockUntypedCRUD(client *MockResourcesDBClient, parentResourceID azcorearm.ResourceID) *mockUntypedCRUD {
 	return &mockUntypedCRUD{
 		client:           client,
 		parentResourceID: parentResourceID,

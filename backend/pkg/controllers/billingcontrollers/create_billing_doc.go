@@ -32,24 +32,26 @@ import (
 )
 
 type createBillingDoc struct {
-	clock           utilsclock.PassiveClock
-	cooldownChecker controllerutils.CooldownChecker
-	azureLocation   string
-	clusterLister   listers.ClusterLister
-	billingLister   listers.BillingLister
-	cosmosClient    database.DBClient
+	clock             utilsclock.PassiveClock
+	cooldownChecker   controllerutils.CooldownChecker
+	azureLocation     string
+	clusterLister     listers.ClusterLister
+	billingLister     listers.BillingLister
+	resourcesDBClient database.ResourcesDBClient
+	billingDBClient   database.BillingDBClient
 }
 
 // NewCreateBillingDocController creates a controller that ensures a billing document
 // exists for clusters that have a ClusterUID and are in the Succeeded provisioning state.
-func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, cosmosClient database.DBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.ClusterSyncer {
+func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.ClusterSyncer {
 	return &createBillingDoc{
-		clock:           clock,
-		cooldownChecker: controllerutils.NewTimeBasedCooldownChecker(60 * time.Second),
-		azureLocation:   azureLocation,
-		clusterLister:   clusterLister,
-		billingLister:   billingLister,
-		cosmosClient:    cosmosClient,
+		clock:             clock,
+		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(60 * time.Second),
+		azureLocation:     azureLocation,
+		clusterLister:     clusterLister,
+		billingLister:     billingLister,
+		resourcesDBClient: resourcesDBClient,
+		billingDBClient:   billingDBClient,
 	}
 }
 
@@ -89,7 +91,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		return nil
 	}
 
-	clusterCRUD := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName)
+	clusterCRUD := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
@@ -106,7 +108,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		"clusterUID", existingCluster.ServiceProviderProperties.ClusterUID,
 	)
 
-	billingDocCRUD := c.cosmosClient.BillingDocs(existingCluster.ID.SubscriptionID)
+	billingDocCRUD := c.billingDBClient.BillingDocs(existingCluster.ID.SubscriptionID)
 	clusterUID := existingCluster.ServiceProviderProperties.ClusterUID
 
 	// Try cache first
@@ -126,7 +128,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 	// doc will be non-nil if it was found in either the cache or the database. If it wasn't found in either place, we'll create it.
 	if doc == nil {
 		// Billing document doesn't exist yet, create it
-		subscription, err := c.cosmosClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
+		subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 		if err != nil {
 			return utils.TrackError(err)
 		}

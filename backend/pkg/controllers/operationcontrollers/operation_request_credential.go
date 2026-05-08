@@ -33,7 +33,7 @@ import (
 )
 
 type operationRequestCredential struct {
-	cosmosClient          database.DBClient
+	resourcesDBClient     database.ResourcesDBClient
 	clustersServiceClient ocm.ClusterServiceClientSpec
 	notificationClient    *http.Client
 }
@@ -54,13 +54,13 @@ type operationRequestCredential struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationRequestCredentialController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationRequestCredential{
-		cosmosClient:          cosmosClient,
+		resourcesDBClient:     resourcesDBClient,
 		clustersServiceClient: clustersServiceClient,
 		notificationClient:    notificationClient,
 	}
@@ -70,7 +70,7 @@ func NewOperationRequestCredentialController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -93,7 +93,7 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	oldOperation, err := opsync.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	oldOperation, err := opsync.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -133,7 +133,7 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 		return nil
 	}
 
-	err = patchOperation(ctx, opsync.cosmosClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
+	err = patchOperation(ctx, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

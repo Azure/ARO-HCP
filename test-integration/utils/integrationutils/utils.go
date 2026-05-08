@@ -131,7 +131,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	}
 	fakeAuditClient := &FakeOTELClient{}
 	metricsRegistry := prometheus.NewRegistry()
-	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, storageIntegrationTestInfo.CosmosClient(), clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", "", false, false, true)
+	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, storageIntegrationTestInfo.ResourcesDBClient(), storageIntegrationTestInfo.LocksDBClient(), clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", "", false, false, true)
 
 	// admin api setup
 	adminListener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -147,7 +147,8 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		"fake-location",
 		adminListener,
 		adminMetricsListener,
-		storageIntegrationTestInfo.CosmosClient(),
+		storageIntegrationTestInfo.ResourcesDBClient(),
+		storageIntegrationTestInfo.BillingDBClient(),
 		clusterServiceMockInfo.MockClusterServiceClient,
 		nil,
 		nil,
@@ -176,13 +177,13 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	return testInfo, nil
 }
 
-func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClient, subscriptionID, resourceName string) error {
-	operationsIterator := dbClient.Operations(subscriptionID).ListActiveOperations(nil)
+func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient database.ResourcesDBClient, subscriptionID, resourceName string) error {
+	operationsIterator := resourcesDBClient.Operations(subscriptionID).ListActiveOperations(nil)
 	for _, operation := range operationsIterator.Items(ctx) {
 		if operation.ExternalID.Name != resourceName {
 			continue
 		}
-		err := operationcontrollers.UpdateOperationStatus(ctx, dbClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
+		err := operationcontrollers.UpdateOperationStatus(ctx, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
 		if err != nil {
 			return err
 		}

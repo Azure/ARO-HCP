@@ -53,14 +53,14 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		clusterState arohcpv1alpha1.ClusterState
 		createdAt    *time.Time
 		expectError  bool
-		verify       func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
+		verify       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name:         "successful create updates operation to succeeded",
 			clusterState: arohcpv1alpha1.ClusterStateReady,
 			createdAt:    &createdAt,
 			expectError:  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -71,7 +71,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			clusterState: arohcpv1alpha1.ClusterStateInstalling,
 			createdAt:    nil,
 			expectError:  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
@@ -90,7 +90,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			cluster := fixture.newCluster(tt.createdAt)
 			operation := fixture.newOperation(database.OperationRequestCreate)
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -123,7 +123,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			})
 
 			controller := &operationClusterCreate{
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
 				clusterLister: &listertesting.SliceClusterLister{
@@ -143,7 +143,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

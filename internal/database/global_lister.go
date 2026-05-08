@@ -33,9 +33,9 @@ type GlobalLister[T any] interface {
 	List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error)
 }
 
-// GlobalListers provides access to global listers for each resource type.
+// ResourcesGlobalListers provides access to global listers for each resource type.
 // These are intended to feed SharedInformers via ListerWatchers.
-type GlobalListers interface {
+type ResourcesGlobalListers interface {
 	Subscriptions() GlobalLister[arm.Subscription]
 	Clusters() GlobalLister[api.HCPOpenShiftCluster]
 	NodePools() GlobalLister[api.HCPOpenShiftClusterNodePool]
@@ -49,67 +49,64 @@ type GlobalListers interface {
 	ManagementClusterContents() GlobalLister[api.ManagementClusterContent]
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
-	BillingDocs() GlobalLister[BillingDocument]
 }
 
-// cosmosGlobalListers implements GlobalListers using a Cosmos DB container client.
-type cosmosGlobalListers struct {
+// cosmosResourcesGlobalListers implements ResourcesGlobalListers using the Resources Cosmos container.
+type cosmosResourcesGlobalListers struct {
 	resources *azcosmos.ContainerClient
-	billing   *azcosmos.ContainerClient
 }
 
-var _ GlobalListers = &cosmosGlobalListers{}
+var _ ResourcesGlobalListers = &cosmosResourcesGlobalListers{}
 
-func NewCosmosGlobalListers(resources *azcosmos.ContainerClient, billing *azcosmos.ContainerClient) GlobalListers {
-	return &cosmosGlobalListers{
+func NewCosmosResourcesGlobalListers(resources *azcosmos.ContainerClient) ResourcesGlobalListers {
+	return &cosmosResourcesGlobalListers{
 		resources: resources,
-		billing:   billing,
 	}
 }
 
-func (g *cosmosGlobalListers) Subscriptions() GlobalLister[arm.Subscription] {
+func (g *cosmosResourcesGlobalListers) Subscriptions() GlobalLister[arm.Subscription] {
 	return &cosmosGlobalLister[arm.Subscription, GenericDocument[arm.Subscription]]{
 		containerClient: g.resources,
 		resourceType:    azcorearm.SubscriptionResourceType,
 	}
 }
 
-func (g *cosmosGlobalListers) Clusters() GlobalLister[api.HCPOpenShiftCluster] {
+func (g *cosmosResourcesGlobalListers) Clusters() GlobalLister[api.HCPOpenShiftCluster] {
 	return &cosmosGlobalLister[api.HCPOpenShiftCluster, HCPCluster]{
 		containerClient: g.resources,
 		resourceType:    api.ClusterResourceType,
 	}
 }
 
-func (g *cosmosGlobalListers) NodePools() GlobalLister[api.HCPOpenShiftClusterNodePool] {
+func (g *cosmosResourcesGlobalListers) NodePools() GlobalLister[api.HCPOpenShiftClusterNodePool] {
 	return &cosmosGlobalLister[api.HCPOpenShiftClusterNodePool, NodePool]{
 		containerClient: g.resources,
 		resourceType:    api.NodePoolResourceType,
 	}
 }
 
-func (g *cosmosGlobalListers) ExternalAuths() GlobalLister[api.HCPOpenShiftClusterExternalAuth] {
+func (g *cosmosResourcesGlobalListers) ExternalAuths() GlobalLister[api.HCPOpenShiftClusterExternalAuth] {
 	return &cosmosGlobalLister[api.HCPOpenShiftClusterExternalAuth, ExternalAuth]{
 		containerClient: g.resources,
 		resourceType:    api.ExternalAuthResourceType,
 	}
 }
 
-func (g *cosmosGlobalListers) ServiceProviderClusters() GlobalLister[api.ServiceProviderCluster] {
+func (g *cosmosResourcesGlobalListers) ServiceProviderClusters() GlobalLister[api.ServiceProviderCluster] {
 	return &cosmosGlobalLister[api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]]{
 		containerClient: g.resources,
 		resourceType:    api.ServiceProviderClusterResourceType,
 	}
 }
 
-func (g *cosmosGlobalListers) ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool] {
+func (g *cosmosResourcesGlobalListers) ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool] {
 	return &cosmosGlobalLister[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]]{
 		containerClient: g.resources,
 		resourceType:    api.ServiceProviderNodePoolResourceType,
 	}
 }
 
-func (g *cosmosGlobalListers) Controllers() GlobalLister[api.Controller] {
+func (g *cosmosResourcesGlobalListers) Controllers() GlobalLister[api.Controller] {
 	return &cosmosControllerGlobalLister{
 		containerClient: g.resources,
 		controllerResourceTypes: []azcorearm.ResourceType{
@@ -120,7 +117,7 @@ func (g *cosmosGlobalListers) Controllers() GlobalLister[api.Controller] {
 	}
 }
 
-func (g *cosmosGlobalListers) ManagementClusterContents() GlobalLister[api.ManagementClusterContent] {
+func (g *cosmosResourcesGlobalListers) ManagementClusterContents() GlobalLister[api.ManagementClusterContent] {
 	return &cosmosManagementClusterContentGlobalLister{
 		containerClient: g.resources,
 		managementClusterContentResourceTypes: []azcorearm.ResourceType{
@@ -130,22 +127,16 @@ func (g *cosmosGlobalListers) ManagementClusterContents() GlobalLister[api.Manag
 	}
 }
 
-func (g *cosmosGlobalListers) Operations() GlobalLister[api.Operation] {
+func (g *cosmosResourcesGlobalListers) Operations() GlobalLister[api.Operation] {
 	return &cosmosGlobalLister[api.Operation, GenericDocument[api.Operation]]{
 		containerClient: g.resources,
 		resourceType:    api.OperationStatusResourceType,
 	}
 }
 
-func (g *cosmosGlobalListers) ActiveOperations() GlobalLister[api.Operation] {
+func (g *cosmosResourcesGlobalListers) ActiveOperations() GlobalLister[api.Operation] {
 	return &cosmosActiveOperationsGlobalLister{
 		containerClient: g.resources,
-	}
-}
-
-func (g *cosmosGlobalListers) BillingDocs() GlobalLister[BillingDocument] {
-	return &cosmosBillingGlobalLister{
-		containerClient: g.billing,
 	}
 }
 

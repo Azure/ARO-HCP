@@ -35,7 +35,7 @@ import (
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	cooldownChecker      controllerutils.CooldownChecker
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
@@ -49,20 +49,20 @@ var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
 //   - If desiredVersion == current cluster version: NOOP
 //   - Otherwise: Initiate the upgrade to desiredVersion
 func NewTriggerControlPlaneUpgradeController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
 		"TriggerControlPlaneUpgrade",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		5*time.Minute,
 		syncer,
@@ -83,7 +83,7 @@ func (c *triggerControlPlaneUpgradeSyncer) CooldownChecker() controllerutils.Coo
 //  3. If different, call version service API to trigger upgrade
 //  4. The version service API is idempotent and handles the actual upgrade orchestration
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -95,7 +95,7 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}

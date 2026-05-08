@@ -17,18 +17,13 @@ package upgradecontrollers
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/blang/semver/v4"
-	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/api/operation"
-
-	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
@@ -36,7 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -50,11 +45,10 @@ import (
 type nodePoolVersionSyncer struct {
 	cooldownChecker                       controllerutils.CooldownChecker
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
-	cosmosClient                          database.DBClient
+	resourcesDBClient                     database.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 
-	cincinnatiClientLock      sync.RWMutex
-	clusterToCincinnatiClient *lru.Cache
+	cincinnatiClientCache cincinnati.ClientCache
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
@@ -63,7 +57,7 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 // from Cluster Service.
 // TODO: improve this description
 func NewNodePoolVersionController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
@@ -72,14 +66,14 @@ func NewNodePoolVersionController(
 	syncer := &nodePoolVersionSyncer{
 		cooldownChecker:                       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
-		cosmosClient:                          cosmosClient,
+		resourcesDBClient:                     resourcesDBClient,
 		clusterServiceClient:                  clusterServiceClient,
-		clusterToCincinnatiClient:             lru.New(100000),
+		cincinnatiClientCache:                 cincinnati.NewClientCache(),
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
 		"NodePoolVersion",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		5*time.Minute, // Check for upgrades every 5 minutes
 		syncer,
@@ -114,7 +108,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	logger := utils.LoggerFromContext(ctx)
 
 	// Get node pool from Cosmos to get CS internal ID
-	nodePool, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
+	nodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 
 	if database.IsNotFoundError(err) {
@@ -124,20 +118,20 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cosmos: %w", err))
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}
 
 	// Get the ServiceProviderCluster for control plane version validation
 	clusterResourceID := api.Must(api.ToClusterResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName))
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.cosmosClient, clusterResourceID)
+	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterResourceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
 	// Get the cluster for Cincinnati client initialization
-	cluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -160,12 +154,6 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	clusterKey := controllerutils.HCPClusterKey{
-		SubscriptionID:    key.SubscriptionID,
-		ResourceGroupName: key.ResourceGroupName,
-		HCPClusterName:    key.HCPClusterName,
-	}
-
 	// Read node pool from Cluster Service
 	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
@@ -184,7 +172,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	oldActiveVersions := existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
 	existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions = prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
 
-	serviceProviderCosmosNodePoolClient := c.cosmosClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	serviceProviderCosmosNodePoolClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	// check if actualVersion from node pool in clusterService is different that the active versions in serviceProviderNodePool
 	// if it is different update the ActualVersion in the serviceProviderNodePool
 	// TODO: This is a simple gathering of the node pool versions. We should implement this to get the correct information.
@@ -214,13 +202,13 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	subscription, err := c.cosmosClient.Subscriptions().Get(ctx, cluster.ID.SubscriptionID)
+	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, cluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get subscription: %w", err))
 	}
 
 	// Validate the customer's desired version before setting it
-	if err := c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, existingServiceProviderNodePool, existingServiceProviderCluster, subscription, nodePool.Properties.Version.ChannelGroup, clusterKey, clusterUUID); err != nil {
+	if err := c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, existingServiceProviderNodePool, existingServiceProviderCluster, subscription, nodePool.Properties.Version.ChannelGroup, clusterUUID); err != nil {
 		return utils.TrackError(fmt.Errorf("invalid desired version: %w", err))
 	}
 
@@ -274,7 +262,6 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 	spCluster *api.ServiceProviderCluster,
 	subscription *arm.Subscription,
 	channelGroup string,
-	clusterKey controllerutils.HCPClusterKey,
 	clusterUUID uuid.UUID,
 ) error {
 	if desiredVersion == nil {
@@ -301,7 +288,7 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 	// Validate upgrade path exists in Cincinnati for ALL active node pool versions
 	for _, activeVersion := range nodePoolActiveVersions {
 		if activeVersion.Version != nil && !desiredVersion.EQ(*activeVersion.Version) {
-			if err := c.validateUpgradePathAvailable(ctx, activeVersion.Version, desiredVersion, channelGroup, clusterKey, clusterUUID); err != nil {
+			if err := c.validateUpgradePathAvailable(ctx, activeVersion.Version, desiredVersion, channelGroup, clusterUUID); err != nil {
 				return fmt.Errorf("no valid upgrade path from active version %s: %w", activeVersion.Version.String(), err)
 			}
 		}
@@ -315,10 +302,9 @@ func (c *nodePoolVersionSyncer) validateUpgradePathAvailable(
 	ctx context.Context,
 	currentVersion, desiredVersion *semver.Version,
 	channelGroup string,
-	clusterKey controllerutils.HCPClusterKey,
 	clusterUUID uuid.UUID,
 ) error {
-	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
+	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 	if err != nil {
 		return fmt.Errorf("failed to get Cincinnati URI: %w", err)
 	}
@@ -326,7 +312,7 @@ func (c *nodePoolVersionSyncer) validateUpgradePathAvailable(
 	targetMinorString := fmt.Sprintf("%d.%d", desiredVersion.Major, desiredVersion.Minor)
 	cincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, targetMinorString)
 
-	cincinnatiClient := c.getCincinnatiClient(clusterKey, clusterUUID)
+	cincinnatiClient := c.cincinnatiClientCache.GetOrCreateClient(clusterUUID)
 	// Get updates for the current version
 	// TODO: for nodePools we should use the arch of that nodePool
 	_, candidates, _, err := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, *currentVersion)
@@ -342,31 +328,4 @@ func (c *nodePoolVersionSyncer) validateUpgradePathAvailable(
 	}
 
 	return utils.TrackError(fmt.Errorf("no upgrade path available from %s to %s in channel %s", currentVersion, desiredVersion, cincinnatiChannel))
-}
-
-// getCincinnatiClient returns a Cincinnati client for the given cluster, using a cache.
-// The clusterUUID is the external ID of the parent cluster from Cluster Service.
-func (c *nodePoolVersionSyncer) getCincinnatiClient(key controllerutils.HCPClusterKey, clusterUUID uuid.UUID) cincinatti.Client {
-	// Fast path: check cache with read lock
-	c.cincinnatiClientLock.RLock()
-	client, ok := c.clusterToCincinnatiClient.Get(key)
-	c.cincinnatiClientLock.RUnlock()
-
-	if ok {
-		return client.(cincinatti.Client)
-	}
-
-	c.cincinnatiClientLock.Lock()
-	defer c.cincinnatiClientLock.Unlock()
-
-	// Double-check after acquiring write lock
-	client, ok = c.clusterToCincinnatiClient.Get(key)
-	if ok {
-		return client.(cincinatti.Client)
-	}
-
-	// Create client using the parent cluster's UUID
-	client = cincinnati.NewClient(clusterUUID, http.DefaultTransport.(*http.Transport), "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
-	c.clusterToCincinnatiClient.Add(key, client)
-	return client.(cincinatti.Client)
 }

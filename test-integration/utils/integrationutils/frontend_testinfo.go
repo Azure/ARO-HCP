@@ -41,7 +41,9 @@ type StorageIntegrationTestInfo interface {
 	DocumentLister
 
 	GetArtifactDir() string
-	CosmosClient() database.DBClient
+	ResourcesDBClient() database.ResourcesDBClient
+	BillingDBClient() database.BillingDBClient
+	LocksDBClient() database.LocksDBClient
 
 	Cleanup(ctx context.Context)
 }

@@ -37,12 +37,12 @@ import (
 //
 
 type HCPHelloWorldHandler struct {
-	dbClient database.DBClient
-	csClient ocm.ClusterServiceClientSpec
+	resourcesDBClient database.ResourcesDBClient
+	csClient          ocm.ClusterServiceClientSpec
 }
 
-func NewHCPHelloWorldHandler(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec) *HCPHelloWorldHandler {
-	return &HCPHelloWorldHandler{dbClient: dbClient, csClient: csClient}
+func NewHCPHelloWorldHandler(resourcesDBClient database.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec) *HCPHelloWorldHandler {
+	return &HCPHelloWorldHandler{resourcesDBClient: resourcesDBClient, csClient: csClient}
 }
 
 func (h *HCPHelloWorldHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
@@ -59,7 +59,7 @@ func (h *HCPHelloWorldHandler) ServeHTTP(writer http.ResponseWriter, request *ht
 	}
 
 	// load the HCP from the cosmos DB
-	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
+	hcp, err := h.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get HCP: %w", err)
 	}
@@ -87,13 +87,13 @@ func (h *HCPHelloWorldHandler) ServeHTTP(writer http.ResponseWriter, request *ht
 }
 
 type HCPDemoListLoadbalancersHandler struct {
-	dbClient               database.DBClient
+	resourcesDBClient      database.ResourcesDBClient
 	csClient               ocm.ClusterServiceClientSpec
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 }
 
-func NewHCPDemoListLoadbalancersHandler(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) *HCPDemoListLoadbalancersHandler {
-	return &HCPDemoListLoadbalancersHandler{dbClient: dbClient, csClient: csClient, fpaCredentialRetriever: fpaCredentialRetriever}
+func NewHCPDemoListLoadbalancersHandler(resourcesDBClient database.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) *HCPDemoListLoadbalancersHandler {
+	return &HCPDemoListLoadbalancersHandler{resourcesDBClient: resourcesDBClient, csClient: csClient, fpaCredentialRetriever: fpaCredentialRetriever}
 }
 
 func (h *HCPDemoListLoadbalancersHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
@@ -104,7 +104,7 @@ func (h *HCPDemoListLoadbalancersHandler) ServeHTTP(writer http.ResponseWriter, 
 	}
 
 	// load the HCP from the cosmos DB
-	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
+	hcp, err := h.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get HCP: %w", err)
 	}

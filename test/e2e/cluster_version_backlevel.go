@@ -143,7 +143,7 @@ var _ = Describe("Customer", func() {
 					*resourceGroup.Name,
 					clusterName,
 					cluster,
-					framework.ClusterCreationTimeout,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -186,7 +186,7 @@ var _ = Describe("Customer", func() {
 						clusterName,
 						nodePoolName,
 						nodePool,
-						framework.NodePoolCreationTimeout,
+						45*time.Minute,
 					)
 					Expect(err).NotTo(HaveOccurred())
 

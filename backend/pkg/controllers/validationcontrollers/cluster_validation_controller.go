@@ -34,8 +34,8 @@ import (
 // clusterValidationSyncer is a Cluster syncer that performs a Cluster
 // validation.
 type clusterValidationSyncer struct {
-	cooldownChecker controllerutils.CooldownChecker
-	cosmosClient    database.DBClient
+	cooldownChecker   controllerutils.CooldownChecker
+	resourcesDBClient database.ResourcesDBClient
 
 	// validation is the validation to perform on the cluster.
 	validation validations.ClusterValidation
@@ -48,19 +48,19 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 func NewClusterValidationController(
 	validation validations.ClusterValidation,
 	activeOperationLister listers.ActiveOperationLister,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
-		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:    cosmosClient,
-		validation:      validation,
+		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient: resourcesDBClient,
+		validation:        validation,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
 		fmt.Sprintf("ClusterValidation%s", validation.Name()),
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		1*time.Minute,
 		syncer,
@@ -70,7 +70,7 @@ func NewClusterValidationController(
 }
 
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -78,7 +78,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
@@ -87,7 +87,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	if !shouldProcess {
 		return nil // no work to do
 	}
-	subscription, err := c.cosmosClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
+	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
@@ -112,7 +112,7 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 	meta.SetStatusCondition(&existingServiceProviderCluster.Status.Validations, validationCondition)
 
-	serviceProviderClustersCosmosClient := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))

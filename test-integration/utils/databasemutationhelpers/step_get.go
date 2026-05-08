@@ -88,7 +88,7 @@ func (l *getStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *getStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 	actualResource, err := resourceCRUDClient.Get(ctx, l.key.ResourceID.Name)
 	switch {
 	case len(l.expectedError) > 0:

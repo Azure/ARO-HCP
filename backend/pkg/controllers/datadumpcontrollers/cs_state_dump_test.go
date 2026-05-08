@@ -152,14 +152,14 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			ctx := context.Background()
 
-			mockDBClient := databasetesting.NewMockDBClient()
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			syncer := &csStateDump{
-				cooldownChecker: &alwaysSyncCooldownChecker{},
-				cosmosClient:    mockDBClient,
-				csClient:        mockCSClient,
-				nextDumpChecker: &alwaysSyncCooldownChecker{},
+				cooldownChecker:   &alwaysSyncCooldownChecker{},
+				resourcesDBClient: mockResourcesDBClient,
+				csClient:          mockCSClient,
+				nextDumpChecker:   &alwaysSyncCooldownChecker{},
 			}
 
 			key := controllerutils.HCPClusterKey{
@@ -181,13 +181,13 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 					},
 				}
 
-				clustersCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+				clustersCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 				_, err := clustersCRUD.Create(ctx, cluster, nil)
 				require.NoError(t, err)
 			}
 
 			for _, np := range tt.createNodePools {
-				nodePoolsCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
+				nodePoolsCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 				_, err := nodePoolsCRUD.Create(ctx, np, nil)
 				require.NoError(t, err)
 			}

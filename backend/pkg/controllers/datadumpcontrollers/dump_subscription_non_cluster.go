@@ -27,8 +27,8 @@ import (
 )
 
 type subscriptionNonClusterDataDump struct {
-	cooldownChecker controllerutils.CooldownChecker
-	cosmosClient    database.DBClient
+	cooldownChecker   controllerutils.CooldownChecker
+	resourcesDBClient database.ResourcesDBClient
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
 	nextDataDumpChecker controllerutils.CooldownChecker
@@ -36,13 +36,13 @@ type subscriptionNonClusterDataDump struct {
 
 // NewSubscriptionNonClusterDataDumpController periodically dumps data for a subscription that is NOT related to a cluster.
 func NewSubscriptionNonClusterDataDumpController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &subscriptionNonClusterDataDump{
 		cooldownChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:        cosmosClient,
+		resourcesDBClient:   resourcesDBClient,
 		nextDataDumpChecker: controllerutils.NewTimeBasedCooldownChecker(4 * time.Minute),
 	}
 
@@ -61,7 +61,7 @@ func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key contr
 
 	logger := utils.LoggerFromContext(ctx)
 
-	cosmosCRUD, err := c.cosmosClient.UntypedCRUD(*key.GetResourceID())
+	cosmosCRUD, err := c.resourcesDBClient.UntypedCRUD(*key.GetResourceID())
 	if err != nil {
 		logger.Error(err, "failed to get cosmos CRUD")
 		return nil

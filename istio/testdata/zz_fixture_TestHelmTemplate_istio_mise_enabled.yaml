@@ -97,30 +97,6 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   labels:
-    istio.io/rev: 'asm-1-26'
-  name: istio-shared-configmap-asm-1-26
-  namespace: aks-istio-system
-data:
-  mesh: |-
-    extensionProviders:
-    - name: "ext-authz"
-      envoyExtAuthzHttp:
-        service: "mise/mise.mise.svc.cluster.local"
-        port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter", "x-ms-mise-version"]
-        pathPrefix: "/v1/EnvoyValidateRequest"
-    - name: "ext-authz-misev2"
-      envoyExtAuthzHttp:
-        service: "mise/misev2.mise.svc.cluster.local"
-        port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter", "x-ms-mise-version"]
-        pathPrefix: "/v1/EnvoyValidateRequest"
----
-# Source: istio/templates/istio-shared-configmap.yml
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  labels:
     istio.io/rev: 'asm-1-28'
   name: istio-shared-configmap-asm-1-28
   namespace: aks-istio-system

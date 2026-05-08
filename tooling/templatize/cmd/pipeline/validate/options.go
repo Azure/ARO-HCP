@@ -34,23 +34,24 @@ import (
 	"github.com/Azure/ARO-Tools/pipelines/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/validate"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func DefaultValidationOptions() *RawValidationOptions {
 	return &RawValidationOptions{
 		DevMode:          false,
 		DevRegion:        "uksouth",
-		CentralRemoteUrl: "https://github.com/Azure/ARO-HCP.git",
+		CentralRemoteUrl: []string{"https://github.com/Azure/ARO-HCP.git"},
 	}
 }
 
 func BindValidationOptions(opts *RawValidationOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ServiceConfigFile, "service-config-file", opts.ServiceConfigFile, "Path to the service configuration file.")
-	cmd.Flags().StringVar(&opts.TopologyFile, "topology-config-file", opts.TopologyFile, "Path to the topology configuration file.")
+	cmd.Flags().StringArrayVar(&opts.TopologyFiles, "topology-config-file", opts.TopologyFiles, "Path to a topology configuration file. Can be specified multiple times.")
 	cmd.Flags().BoolVar(&opts.DevMode, "dev-mode", opts.DevMode, "Validate just one region, using public production Ev2 contexts.")
 	cmd.Flags().StringVar(&opts.DevRegion, "dev-region", opts.DevRegion, "Region to use for dev mode validation.")
 	cmd.Flags().BoolVar(&opts.OnlyChanged, "only-changed", opts.OnlyChanged, "Validate only pipelines whose files have uncommitted changes.")
-	cmd.Flags().StringVar(&opts.CentralRemoteUrl, "central-remote-url", opts.CentralRemoteUrl, "Central remote URL for the repository.")
+	cmd.Flags().StringArrayVar(&opts.CentralRemoteUrl, "central-remote-url", opts.CentralRemoteUrl, "Central remote URL for the repository. Can be specified multiple times.")
 
 	for _, flag := range []string{
 		"service-config-file",
@@ -66,11 +67,11 @@ func BindValidationOptions(opts *RawValidationOptions, cmd *cobra.Command) error
 // RawValidationOptions holds input values.
 type RawValidationOptions struct {
 	ServiceConfigFile string
-	TopologyFile      string
+	TopologyFiles     []string
 	DevMode           bool
 	DevRegion         string
 	OnlyChanged       bool
-	CentralRemoteUrl  string
+	CentralRemoteUrl  []string
 }
 
 // validatedValidationOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -85,13 +86,13 @@ type ValidatedValidationOptions struct {
 
 // completedValidationOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedValidationOptions struct {
-	Topology         *topology.Topology
-	TopologyDir      string
+	TopologyFiles    []string
+	Topology         *topology.CombinedTopology
 	Config           config.ConfigProvider
 	DevMode          bool
 	DevRegion        string
 	OnlyChanged      bool
-	CentralRemoteUrl string
+	CentralRemoteUrl []string
 }
 
 type ValidationOptions struct {
@@ -106,12 +107,16 @@ func (o *RawValidationOptions) Validate() (*ValidatedValidationOptions, error) {
 		value *string
 	}{
 		{flag: "service-config-file", name: "service configuration file", value: &o.ServiceConfigFile},
-		{flag: "topology-config-file", name: "topology configuration file", value: &o.TopologyFile},
-		{flag: "central-remote-url", name: "URl for the central git remote", value: &o.CentralRemoteUrl},
 	} {
 		if item.value == nil || *item.value == "" {
 			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
 		}
+	}
+	if len(o.CentralRemoteUrl) == 0 {
+		return nil, fmt.Errorf("the URL for the central git remote must be provided with --central-remote-url")
+	}
+	if len(o.TopologyFiles) == 0 {
+		return nil, fmt.Errorf("the topology configuration file must be provided with --topology-config-file")
 	}
 
 	return &ValidatedValidationOptions{
@@ -122,7 +127,7 @@ func (o *RawValidationOptions) Validate() (*ValidatedValidationOptions, error) {
 }
 
 func (o *ValidatedValidationOptions) Complete() (*ValidationOptions, error) {
-	t, err := topology.Load(o.TopologyFile)
+	t, err := topology.LoadCombined(o.TopologyFiles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load topology: %w", err)
 	}
@@ -137,8 +142,8 @@ func (o *ValidatedValidationOptions) Complete() (*ValidationOptions, error) {
 
 	return &ValidationOptions{
 		completedValidationOptions: &completedValidationOptions{
+			TopologyFiles:    o.TopologyFiles,
 			Topology:         t,
-			TopologyDir:      filepath.Dir(o.TopologyFile),
 			Config:           c,
 			DevMode:          o.DevMode,
 			DevRegion:        o.DevRegion,
@@ -157,7 +162,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 		return true
 	}
 	if opts.OnlyChanged {
-		changedServices, err := DetermineChangedServices(ctx, opts.CentralRemoteUrl, opts.TopologyDir, opts.Topology)
+		changedServices, err := DetermineChangedServicesCombined(ctx, opts.CentralRemoteUrl, opts.TopologyFiles, opts.Topology)
 		if err != nil {
 			return fmt.Errorf("failed to determine changed services: %w", err)
 		}
@@ -231,7 +236,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 				}
 
 				for _, service := range opts.Topology.Services {
-					if err := handleService(regionLogger, prefix, group, opts.TopologyDir, service, cfg, shouldHandleService); err != nil {
+					if err := handleService(regionLogger, prefix, group, opts.Topology, service, cfg, shouldHandleService); err != nil {
 						return err
 					}
 				}
@@ -241,10 +246,14 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 	return group.Wait()
 }
 
-func handleService(logger logr.Logger, context string, group *errgroup.Group, baseDir string, service topology.Service, cfg configtypes.Configuration, shouldHandleService func(string) bool) error {
+func handleService(logger logr.Logger, context string, group *errgroup.Group, t *topology.CombinedTopology, service topology.Service, cfg configtypes.Configuration, shouldHandleService func(string) bool) error {
 	group.Go(func() error {
 		if !shouldHandleService(service.ServiceGroup) {
 			return nil
+		}
+		baseDir, err := t.GetTopologyDirForServiceGroup(service.ServiceGroup)
+		if err != nil {
+			return fmt.Errorf("%s: %s: failed to get topology dir: %w", context, service.ServiceGroup, err)
 		}
 		pipeline, err := types.NewPipelineFromFile(filepath.Join(baseDir, service.PipelinePath), cfg)
 		if err != nil {
@@ -442,7 +451,7 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 		return nil
 	})
 	for _, child := range service.Children {
-		if err := handleService(logger, context, group, baseDir, child, cfg, shouldHandleService); err != nil {
+		if err := handleService(logger, context, group, t, child, cfg, shouldHandleService); err != nil {
 			return err
 		}
 	}
@@ -450,14 +459,16 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 }
 
 // DetermineChangedServices uses `git diff` output to try to guess which services have changes in the working tree.
+// It takes a single topology directory and a *topology.Topology. For multi-topology-file support, use
+// DetermineChangedServicesCombined instead.
+//
 // Couple of notes:
 //   - the topology file itself doesn't have to be at the root of the repo
 //   - paths in the topology file are relative to its dir
 //   - `git diff` output is relative to the repo root
 //
-// Therefore, we first compute the relative path from the repo root to the topology file, so that we can prepend it
-// to the pipeline paths and figure out where each pipeline is relative to the root of the repo, so we can detect
-// diffs that touch it.
+// Therefore, we first determine the absolute path of the topology dir and the git root, then compare each
+// service's pipeline directory (as an absolute path) against the set of changed files.
 //
 // Note as well that this approach will only catch diffs that are directly in the pipeline's directory - any shared
 // files or other dependencies that change won't be captured. This approach is meant to be a nice utility and best-
@@ -465,73 +476,145 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 //
 // We may choose to improve this algorithm in the future to look for `.bicep` references to paths outside the dir
 // or relative paths in the `pipeline.yaml` itself.
-func DetermineChangedServices(ctx context.Context, centralRemoteUrl, topologyDir string, t *topology.Topology) (sets.Set[string], error) {
-	mergeBase, err := validate.DetermineMergeBase(ctx, topologyDir, centralRemoteUrl)
+func DetermineChangedServices(ctx context.Context, centralRemoteUrl string, topologyDir string, t *topology.Topology) (sets.Set[string], error) {
+	mergeBase, err := validate.DetermineMergeBase(ctx, topologyDir, []string{centralRemoteUrl})
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine merge base: %w", err)
 	}
 
-	// this will be <repo-root-path>/<topology-relative-path>/topology.yaml
+	// this will be <repo-root-path>/<topology-relative-path>
 	topologyDirAbsPath, err := filepath.Abs(topologyDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine absolute path of topology: %w", err)
 	}
 
 	// this will be <repo-root-path>
-	var gitAbsPath string
-	{
-		cmd := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel")
-		out, err := cmd.Output()
-		if err != nil {
-			return nil, fmt.Errorf("failed to run git rev-parse: %w; output: %s", err, string(out))
-		}
-		gitAbsPath = strings.TrimSpace(string(out))
-	}
-
-	topologyDirRelPath, err := filepath.Rel(gitAbsPath, topologyDirAbsPath)
+	gitAbsPath, err := getGitRoot(ctx, topologyDirAbsPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to determine relative path of topology: %w", err)
+		return nil, fmt.Errorf("failed to get git root: %w", err)
 	}
 
-	// these will be relative to the <repo-root-path>
-	var files []string
-	{
-		cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", fmt.Sprintf("%s..HEAD", mergeBase))
-		out, err := cmd.Output()
-		if err != nil {
-			return nil, fmt.Errorf("failed to run git diff: %w; output: %s", err, string(out))
-		}
-		for _, line := range strings.Split(string(out), "\n") {
-			files = append(files, strings.TrimSpace(line))
-		}
+	// these will be absolute paths
+	files, err := getGitDiff(ctx, gitAbsPath, mergeBase)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get git diff: %w", err)
 	}
 	w := walker{
-		files:              files,
-		topologyDirRelPath: topologyDirRelPath,
-		changed:            sets.New[string](),
+		files: files,
+		getTopoDirForService: func(_ string) (string, error) {
+			return topologyDirAbsPath, nil
+		},
+		changed: sets.New[string](),
 	}
 	for _, service := range t.Services {
-		w.walk(service)
+		if err := w.walk(service); err != nil {
+			return nil, err
+		}
 	}
 	return w.changed, nil
 }
 
-type walker struct {
-	files              []string
-	topologyDirRelPath string
-	changed            sets.Set[string]
-}
-
-func (w *walker) walk(service topology.Service) {
-	for _, child := range service.Children {
-		w.walk(child)
+// DetermineChangedServicesCombined uses `git diff` output to determine which services have changes in the working tree.
+// It accepts a [topology.CombinedTopology], which may aggregate services from multiple topology files across multiple git repositories.
+// For each unique git root derived from the topology files, it resolves a merge base against the provided central remote URLs,
+// collects the set of changed files, and matches them against each service's pipeline directory.
+func DetermineChangedServicesCombined(ctx context.Context, centralRemoteUrls []string, topologyFiles []string, t *topology.CombinedTopology) (sets.Set[string], error) {
+	gitRoots := sets.New[string]()
+	for _, topoFile := range topologyFiles {
+		topoDirAbs, err := filepath.Abs(filepath.Dir(topoFile))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path of %s: %w", topoFile, err)
+		}
+		gitRoot, err := getGitRoot(ctx, topoDirAbs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to run git rev-parse in %s: %w", topoDirAbs, err)
+		}
+		gitRoots.Insert(gitRoot)
 	}
 
-	serviceDir := filepath.Join(w.topologyDirRelPath, filepath.Dir(service.PipelinePath))
+	var files []string
+	for gitRoot := range gitRoots {
+		mergeBase, err := validate.DetermineMergeBase(ctx, gitRoot, centralRemoteUrls)
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine merge base in %s: %w", gitRoot, err)
+		}
+		rootFiles, err := getGitDiff(ctx, gitRoot, mergeBase)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get git diff in %s: %w", gitRoot, err)
+		}
+		files = append(files, rootFiles...)
+	}
+
+	w := walker{
+		files: files,
+		getTopoDirForService: func(serviceGroup string) (string, error) {
+			topoDir, err := t.GetTopologyDirForServiceGroup(serviceGroup)
+			if err != nil {
+				return "", fmt.Errorf("failed to get topology dir for service %s: %w", serviceGroup, err)
+			}
+			topoDirAbs, err := filepath.Abs(topoDir)
+			if err != nil {
+				return "", fmt.Errorf("failed to get absolute path of topology dir for service %s: %w", serviceGroup, err)
+			}
+			return topoDirAbs, nil
+		},
+		changed: sets.New[string](),
+	}
+	for _, service := range t.Services {
+		if err := w.walk(service); err != nil {
+			return nil, err
+		}
+	}
+	return w.changed, nil
+}
+
+func getGitRoot(ctx context.Context, path string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", path, "rev-parse", "--show-toplevel")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to run git rev-parse in %s: %w", path, err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func getGitDiff(ctx context.Context, path string, mergeBase string) ([]string, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", path, "diff", "--name-only", fmt.Sprintf("%s..HEAD", mergeBase))
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run git diff in %s: %w; output: %s", path, err, string(out))
+	}
+	var files []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			files = append(files, filepath.Join(path, line))
+		}
+	}
+	return files, nil
+}
+
+type walker struct {
+	files                []string // absolute paths
+	getTopoDirForService pipeline.TopoDirLookup
+	changed              sets.Set[string]
+}
+
+func (w *walker) walk(service topology.Service) error {
+	for _, child := range service.Children {
+		if err := w.walk(child); err != nil {
+			return err
+		}
+	}
+
+	topoDir, err := w.getTopoDirForService(service.ServiceGroup)
+	if err != nil {
+		return err
+	}
+	serviceDir := filepath.Join(topoDir, filepath.Dir(service.PipelinePath))
 
 	for _, file := range w.files {
 		if strings.HasPrefix(file, serviceDir) {
 			w.changed.Insert(service.ServiceGroup)
 		}
 	}
+	return nil
 }

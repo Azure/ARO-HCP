@@ -97,7 +97,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				*resourceGroup.Name,
 				customerClusterName,
 				clusterResource,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			if isAPINotDeployedError(err) {
 				if time.Now().Before(timeBombDeadline) {
@@ -146,7 +146,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
-				framework.NodePoolCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

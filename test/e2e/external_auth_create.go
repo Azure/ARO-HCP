@@ -88,7 +88,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -115,7 +115,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,
-				framework.NodePoolCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -168,7 +168,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, framework.ExternalAuthCreationTimeout)
+			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying ExternalAuth is in a Succeeded state")

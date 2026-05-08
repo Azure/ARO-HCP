@@ -38,17 +38,17 @@ const (
 // for debugging purposes. This endpoint allows SREs to access boot diagnostics
 // and console output from VMs in the HCP cluster's managed resource group.
 type HCPSerialConsoleHandler struct {
-	dbClient               database.DBClient
+	resourcesDBClient      database.ResourcesDBClient
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 }
 
 // NewHCPSerialConsoleHandler creates a new serial console handler with the required dependencies
 func NewHCPSerialConsoleHandler(
-	dbClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
 ) *HCPSerialConsoleHandler {
 	return &HCPSerialConsoleHandler{
-		dbClient:               dbClient,
+		resourcesDBClient:      resourcesDBClient,
 		fpaCredentialRetriever: fpaCredentialRetriever,
 	}
 }
@@ -84,12 +84,12 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		)
 	}
 
-	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
+	hcp, err := h.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HCP from database: %w", err))
 	}
 
-	subscription, err := h.dbClient.Subscriptions().Get(request.Context(), resourceID.SubscriptionID)
+	subscription, err := h.resourcesDBClient.Subscriptions().Get(request.Context(), resourceID.SubscriptionID)
 	if database.IsNotFoundError(err) {
 		return arm.NewCloudError(
 			http.StatusNotFound,

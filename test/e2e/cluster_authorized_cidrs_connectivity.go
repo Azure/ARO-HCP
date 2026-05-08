@@ -128,7 +128,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					framework.ClusterCreationTimeout,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -236,7 +236,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					*resourceGroup.Name,
 					clusterName,
 					nodePoolParams,
-					framework.NodePoolCreationTimeout,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -289,7 +289,7 @@ var _ = Describe("Authorized CIDRs", func() {
 						},
 					},
 				}
-				_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, framework.ExternalAuthCreationTimeout)
+				_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, 15*time.Minute)
 				Expect(err).NotTo(HaveOccurred())
 
 				By("verifying ExternalAuth is in a Succeeded state")

@@ -77,7 +77,7 @@ const (
 //
 // In all of these cases the operation document is still persisted and ARM is
 // notified, so the operation reaches its terminal state and does not get stuck.
-func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func UpdateOperationStatus(ctx context.Context, resourcesDBClient database.ResourcesDBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 	if existingOperation == nil {
 		return nil
@@ -98,10 +98,10 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 	// All documents in the transaction must share the same partition key. Both
 	// operation and resource documents are partitioned by subscription ID. If the
 	// partition key scheme changes the transaction creation here must be updated accordingly.
-	transaction := cosmosClient.NewTransaction(updatedOperation.OperationID.SubscriptionID)
+	transaction := resourcesDBClient.NewTransaction(updatedOperation.OperationID.SubscriptionID)
 
 	// Add the operation document replace to the transaction.
-	if _, err := cosmosClient.Operations(updatedOperation.OperationID.SubscriptionID).AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {
+	if _, err := resourcesDBClient.Operations(updatedOperation.OperationID.SubscriptionID).AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -115,7 +115,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 		logger.Info("No external ID, skipping update")
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()):
-		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName)
+		dbClient := resourcesDBClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName)
 		updated, err := getClusterForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
 			return err
@@ -128,7 +128,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 		}
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()):
-		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).NodePools(existingOperation.ExternalID.Parent.Name)
+		dbClient := resourcesDBClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).NodePools(existingOperation.ExternalID.Parent.Name)
 		updated, err := getNodePoolForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
 			return err
@@ -141,7 +141,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 		}
 
 	case strings.EqualFold(existingOperation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()):
-		dbClient := cosmosClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).ExternalAuth(existingOperation.ExternalID.Parent.Name)
+		dbClient := resourcesDBClient.HCPClusters(existingOperation.ExternalID.SubscriptionID, existingOperation.ExternalID.ResourceGroupName).ExternalAuth(existingOperation.ExternalID.Parent.Name)
 		updated, err := getExternalAuthForUpdate(ctx, logger, dbClient, existingOperation, newOperationStatus)
 		if err != nil {
 			return err
@@ -164,7 +164,7 @@ func UpdateOperationStatus(ctx context.Context, cosmosClient database.DBClient, 
 		return utils.TrackError(err)
 	}
 
-	notifyOperationOwner(ctx, cosmosClient, updatedOperation, postAsyncNotificationFn)
+	notifyOperationOwner(ctx, resourcesDBClient, updatedOperation, postAsyncNotificationFn)
 
 	return nil
 }
@@ -283,7 +283,7 @@ func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.Pr
 }
 
 // patchOperation patches the status and error fields of an OperationDocument.
-func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func patchOperation(ctx context.Context, resourcesDBClient database.ResourcesDBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
@@ -302,12 +302,12 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 	// TODO see if we want to plumb etags through to prevent stomping.  Right now this will stomp a concurrent write.
 	// we don't expect concurrent writes and the last one winning is ok.
 	logger.Info("Updating operation status", "oldStatus", oldOperation.Status, "newStatus", newOperationStatus, "operationError", newOperationError)
-	latestOperation, err := dbClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, operationToWrite, nil)
+	latestOperation, err := resourcesDBClient.Operations(operationToWrite.OperationID.SubscriptionID).Replace(ctx, operationToWrite, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	notifyOperationOwner(ctx, dbClient, latestOperation, postAsyncNotificationFn)
+	notifyOperationOwner(ctx, resourcesDBClient, latestOperation, postAsyncNotificationFn)
 
 	return nil
 }
@@ -318,7 +318,7 @@ func patchOperation(ctx context.Context, dbClient database.DBClient, oldOperatio
 // The notification URI is cleared in a separate write after the notification is
 // sent successfully. If the process crashes between sending the notification and
 // clearing the URI, the notification may be sent again on the next reconcile.
-func notifyOperationOwner(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
+func notifyOperationOwner(ctx context.Context, resourcesDBClient database.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) {
 	logger := utils.LoggerFromContext(ctx)
 
 	message := fmt.Sprintf("Updated status to '%s'", operation.Status)
@@ -370,7 +370,7 @@ func notifyOperationOwner(ctx context.Context, cosmosClient database.DBClient, o
 			// Re-read the operation to get the current ETag,
 			// since the in-memory copy may have a stale ETag
 			// from before a transactional batch commit.
-			operationsCRUD := cosmosClient.Operations(operation.OperationID.SubscriptionID)
+			operationsCRUD := resourcesDBClient.Operations(operation.OperationID.SubscriptionID)
 			currentOperation, err := operationsCRUD.Get(ctx, operation.OperationID.Name)
 			if err != nil {
 				logger.Error(err, "Failed to re-read operation to clear notification URI")
@@ -483,7 +483,7 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 // Service to info for an Azure async operation status endpoint.
 func pollNodePoolStatus(
 	ctx context.Context,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	operation *api.Operation,
 	notificationClient *http.Client) error {
@@ -507,7 +507,7 @@ func pollNodePoolStatus(
 	logger.Info("new status", "newStatus", newOperationStatus)
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
+	err = UpdateOperationStatus(ctx, resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -565,7 +565,7 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 // Service to info for an Azure async operation status endpoint.
 func pollExternalAuthStatus(
 	ctx context.Context,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	operation *api.Operation,
 	notificationClient *http.Client) error {
@@ -586,7 +586,7 @@ func pollExternalAuthStatus(
 	logger.Info("new status", "newStatus", newOperationStatus)
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, cosmosClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
+	err = UpdateOperationStatus(ctx, resourcesDBClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -659,10 +659,10 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 }
 
 // setDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
-func SetDeleteOperationAsCompleted(ctx context.Context, cosmosClient database.DBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func SetDeleteOperationAsCompleted(ctx context.Context, resourcesDBClient database.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	// Delete the resource document first. If it fails the backend will retry
 	// by virtue of the operation document still having a non-terminal status.
-	untypedCRUD, err := cosmosClient.UntypedCRUD(*operation.ExternalID)
+	untypedCRUD, err := resourcesDBClient.UntypedCRUD(*operation.ExternalID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -705,7 +705,7 @@ func SetDeleteOperationAsCompleted(ctx context.Context, cosmosClient database.DB
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = patchOperation(ctx, cosmosClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
+	err = patchOperation(ctx, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
 	if err != nil {
 		return utils.TrackError(err)
 	}

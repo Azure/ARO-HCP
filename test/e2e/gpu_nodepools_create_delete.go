@@ -93,7 +93,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					framework.ClusterCreationTimeout,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -124,7 +124,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					*resourceGroup.Name,
 					customerClusterName,
 					defaultNodePoolParams,
-					framework.NodePoolCreationTimeout,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -139,7 +139,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					*resourceGroup.Name,
 					customerClusterName,
 					gpuNodePoolParams,
-					framework.NodePoolCreationTimeout,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 

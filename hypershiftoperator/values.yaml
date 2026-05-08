@@ -4,7 +4,7 @@ description: A Helm chart to manage Hypershift Operator and dependencies for ARO
 name: aro-hcp-hypershift-operator
 image: "{{ .acr.svc.name }}.azurecr.io/{{ .hypershift.image.repository }}"
 imageDigest: "{{ .hypershift.image.digest }}"
-registryOverrides: "quay.io/openshift-release-dev/ocp-v4.0-art-dev={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev,quay.io/openshift-release-dev/ocp-v5.0-art-dev={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-v5.0-art-dev,quay.io/openshift-release-dev/ocp-release={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-release,quay.io/openshift-release-dev/ocp-release-nightly={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-release-nightly,registry.redhat.io/redhat={{ .acr.ocp.name }}.azurecr.io/redhat"
+registryOverrides: "quay.io/openshift-release-dev/ocp-v4.0-art-dev={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev,quay.io/openshift-release-dev/ocp-v5.0-art-dev={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-v5.0-art-dev,quay.io/openshift-release-dev/ocp-release={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-release,quay.io/openshift-release-dev/ocp-release-nightly={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-release-nightly,registry.redhat.io/redhat={{ .acr.ocp.name }}.azurecr.io/redhat,quay.io/redhat-user-workloads/crt-redhat-acm-tenant={{ .acr.ocp.name }}.azurecr.io/quay-cache/redhat-user-workloads/crt-redhat-acm-tenant"
 azureKeyVaultClientId: "__csiSecretStoreClientId__"
 additionalArgs: "{{ .hypershift.additionalInstallArg }}"
 operatorEnvVars:

@@ -45,7 +45,7 @@ var groupRewriteMap = map[string]string{
 // HCPBreakglassSessionCreationHandler handles requests to create breakglass sessions.
 // This endpoint is accessed exclusively via Geneva Actions. See package documentation for security model.
 type HCPBreakglassSessionCreationHandler struct {
-	dbClient                database.DBClient
+	resourcesDBClient       database.ResourcesDBClient
 	csClient                ocm.ClusterServiceClientSpec
 	sessionClient           sessiongatev1alpha1.SessionInterface
 	AllowedBreakglassGroups set.Set[string]
@@ -53,9 +53,9 @@ type HCPBreakglassSessionCreationHandler struct {
 	MaxSessionTTL           time.Duration
 }
 
-func NewHCPBreakglassSessionCreationHandler(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec, sessionClient sessiongatev1alpha1.SessionInterface, allowedBreakglassGroups set.Set[string], minSessionTTL time.Duration, maxSessionTTL time.Duration) *HCPBreakglassSessionCreationHandler {
+func NewHCPBreakglassSessionCreationHandler(resourcesDBClient database.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec, sessionClient sessiongatev1alpha1.SessionInterface, allowedBreakglassGroups set.Set[string], minSessionTTL time.Duration, maxSessionTTL time.Duration) *HCPBreakglassSessionCreationHandler {
 	return &HCPBreakglassSessionCreationHandler{
-		dbClient:                dbClient,
+		resourcesDBClient:       resourcesDBClient,
 		csClient:                csClient,
 		sessionClient:           sessionClient,
 		MinSessionTTL:           minSessionTTL,
@@ -72,7 +72,7 @@ func (h *HCPBreakglassSessionCreationHandler) ServeHTTP(writer http.ResponseWrit
 	}
 
 	// get HCP details
-	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
+	hcp, err := h.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get HCP from database: %w", err)
 	}

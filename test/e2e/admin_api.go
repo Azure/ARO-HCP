@@ -86,7 +86,7 @@ var _ = Describe("SRE", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -301,7 +301,7 @@ var _ = Describe("SRE", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -315,7 +315,7 @@ var _ = Describe("SRE", func() {
 				*resourceGroup.Name,
 				engineeringClusterName,
 				nodePoolParams,
-				framework.NodePoolCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -408,7 +408,7 @@ var _ = Describe("SRE", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				framework.ClusterCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -422,7 +422,7 @@ var _ = Describe("SRE", func() {
 				*resourceGroup.Name,
 				engineeringClusterName,
 				nodePoolParams,
-				framework.NodePoolCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

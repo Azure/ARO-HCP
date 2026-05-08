@@ -33,7 +33,7 @@ import (
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
 var (
@@ -83,7 +83,7 @@ func isRetryableVersionError(err error) bool {
 		errors.Is(err, ErrNoParseableNightlyTags) {
 		return false
 	}
-	if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+	if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 		return false
 	}
 	return true
@@ -107,7 +107,7 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 	nextMinorStr := fmt.Sprintf("%d.%d", configuredVersion.Major, configuredVersion.Minor+1)
 	maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
 	if err != nil {
-		if !cincinatti.IsCincinnatiVersionNotFoundError(err) {
+		if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
 			return "", false, err
 		}
 		// we don't have the next minor, use the max version in the current minor
@@ -135,7 +135,7 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 		return nil, fmt.Errorf("parse version %q: %w", version, err)
 	}
 
-	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
+	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 	if err != nil {
 		return nil, fmt.Errorf("get Cincinnati URI: %w", err)
 	}
@@ -143,7 +143,7 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 	if transport == nil {
 		transport = &http.Transport{}
 	}
-	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
 	channel := fmt.Sprintf("%s-%d.%d", channelGroup, fromVersion.Major, fromVersion.Minor)
 
 	possibleUpgradeCandidates, err := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
@@ -219,7 +219,7 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 	}
 	channel := fmt.Sprintf("%s-%d.%d", channelGroup, maxVer.Major, maxVer.Minor)
 
-	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
+	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 	if err != nil {
 		return nil, fmt.Errorf("get Cincinnati URI: %w", err)
 	}
@@ -227,7 +227,7 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 	if transport == nil {
 		transport = &http.Transport{}
 	}
-	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
 
 	possibleCandidates, err := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
 		_, candidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVer)

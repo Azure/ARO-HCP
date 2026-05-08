@@ -40,7 +40,7 @@ type deleteOrphanedCosmosResources struct {
 	name string
 
 	subscriptionLister listers.SubscriptionLister
-	cosmosClient       database.DBClient
+	resourcesDBClient  database.ResourcesDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -48,11 +48,11 @@ type deleteOrphanedCosmosResources struct {
 }
 
 // NewDeleteOrphanedCosmosResourcesController periodically looks for cosmos objs that don't have an owning cluster and deletes them.
-func NewDeleteOrphanedCosmosResourcesController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
+func NewDeleteOrphanedCosmosResourcesController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{
 		name:               "DeleteOrphanedCosmosResources",
 		subscriptionLister: subscriptionLister,
-		cosmosClient:       cosmosClient,
+		resourcesDBClient:  resourcesDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -71,7 +71,7 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	untypedSubscriptionCRUD, err := c.cosmosClient.UntypedCRUD(*subscriptionResourceID)
+	untypedSubscriptionCRUD, err := c.resourcesDBClient.UntypedCRUD(*subscriptionResourceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}

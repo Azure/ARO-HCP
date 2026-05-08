@@ -73,6 +73,9 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Presubmit and periodic jobs
   - How to trigger and monitor tests
   - EV2 pipeline integration
+- [Cleanup](cleanup.md)
+  - Cleanup modes: strict per-test, targeted teardown, background hygiene
+  - Design rationale and behavioral differences across environments
 
 ### Observability
 

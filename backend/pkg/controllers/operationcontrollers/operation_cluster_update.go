@@ -40,7 +40,7 @@ import (
 )
 
 type operationClusterUpdate struct {
-	cosmosClient                    database.DBClient
+	resourcesDBClient               database.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
 	notificationClient              *http.Client
 	clock                           clock.PassiveClock
@@ -62,13 +62,13 @@ type operationClusterUpdate struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationClusterUpdateController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationClusterUpdate{
-		cosmosClient:                    cosmosClient,
+		resourcesDBClient:               resourcesDBClient,
 		clusterServiceClient:            clusterServiceClient,
 		notificationClient:              notificationClient,
 		clock:                           clock.RealClock{},
@@ -80,7 +80,7 @@ func NewOperationClusterUpdateController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -103,7 +103,7 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -133,7 +133,7 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	logger.Info("updating status")
-	if err := UpdateOperationStatus(ctx, c.cosmosClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
+	if err := UpdateOperationStatus(ctx, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
 		return utils.TrackError(err)
 	}
 	return nil
@@ -175,11 +175,11 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 }
 
 func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation) (*operationState, error) {
-	existingCluster, err := c.cosmosClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
+	existingCluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	existingServiceProviderCluster, err := c.cosmosClient.ServiceProviderClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	existingServiceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -205,7 +205,7 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	}
 	controllerDoc, getControllerErr := controllerutils.GetOrCreateController(
 		ctx,
-		c.cosmosClient,
+		c.resourcesDBClient,
 		operation.ExternalID,
 		"ControlPlaneDesiredVersion",
 		clusterKey.InitialController,

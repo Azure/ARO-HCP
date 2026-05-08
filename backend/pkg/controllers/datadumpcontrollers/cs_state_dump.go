@@ -33,9 +33,9 @@ import (
 )
 
 type csStateDump struct {
-	cooldownChecker controllerutils.CooldownChecker
-	cosmosClient    database.DBClient
-	csClient        ocm.ClusterServiceClientSpec
+	cooldownChecker   controllerutils.CooldownChecker
+	resourcesDBClient database.ResourcesDBClient
+	csClient          ocm.ClusterServiceClientSpec
 
 	// nextDumpChecker ensures we don't hotloop from any source.
 	nextDumpChecker controllerutils.CooldownChecker
@@ -43,21 +43,21 @@ type csStateDump struct {
 
 // NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
 func NewCSStateDumpController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	backendInformers informers.BackendInformers,
 	csClient ocm.ClusterServiceClientSpec,
 ) controllerutils.Controller {
 	syncer := &csStateDump{
-		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:    cosmosClient,
-		csClient:        csClient,
-		nextDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient: resourcesDBClient,
+		csClient:          csClient,
+		nextDumpChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
 	return controllerutils.NewClusterWatchingController(
 		"CSStateDump",
-		cosmosClient,
+		resourcesDBClient,
 		backendInformers,
 		1*time.Minute,
 		syncer,
@@ -72,7 +72,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	logger := utils.LoggerFromContext(ctx)
 
 	// Get the cluster from cosmos to retrieve the ClusterServiceID
-	cluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		// Cluster doesn't exist in cosmos, nothing to dump
 		return nil
@@ -110,7 +110,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	)
 
 	// Fetch and dump node pools
-	allNodePools, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).List(ctx, nil)
+	allNodePools, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).List(ctx, nil)
 	if err != nil {
 		logger.Error(err, "failed to list node pools from cosmos for CS state dump")
 		// best effort, don't fail

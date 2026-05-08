@@ -47,9 +47,9 @@ func TestSubscriptionCollector(t *testing.T) {
 	}
 
 	t.Run("no subscription", func(t *testing.T) {
-		mockDBClient := databasetesting.NewMockDBClient()
+		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 		r := prometheus.NewPedanticRegistry()
-		collector := NewSubscriptionCollector(r, mockDBClient, "test")
+		collector := NewSubscriptionCollector(r, mockResourcesDBClient, "test")
 
 		// No subscriptions pre-populated
 		collector.refresh(utils.ContextWithLogger(context.Background(), logger))
@@ -67,13 +67,13 @@ frontend_subscription_collector_last_sync 1
 	})
 
 	t.Run("refresh with 1 subscription", func(t *testing.T) {
-		mockDBClient := databasetesting.NewMockDBClient()
+		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 		r := prometheus.NewPedanticRegistry()
-		collector := NewSubscriptionCollector(r, mockDBClient, "test")
+		collector := NewSubscriptionCollector(r, mockResourcesDBClient, "test")
 
 		// Pre-populate with one subscription
 		ctx := utils.ContextWithLogger(context.Background(), logger)
-		_, err := mockDBClient.Subscriptions().Create(ctx, testSub, nil)
+		_, err := mockResourcesDBClient.Subscriptions().Create(ctx, testSub, nil)
 		assert.NoError(t, err)
 
 		collector.refresh(ctx)

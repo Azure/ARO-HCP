@@ -34,7 +34,7 @@ import (
 )
 
 type operationNodePoolDelete struct {
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
@@ -54,13 +54,13 @@ type operationNodePoolDelete struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationNodePoolDeleteController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationNodePoolDelete{
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
 	}
@@ -70,7 +70,7 @@ func NewOperationNodePoolDeleteController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -93,7 +93,7 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -109,7 +109,7 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	if err != nil && errors.As(err, &ocmGetNodePoolError) && ocmGetNodePoolError.Status() == http.StatusNotFound {
 		logger.Info("node pool was deleted")
 
-		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -124,7 +124,7 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 		return utils.TrackError(err)
 	}
 
-	err = UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

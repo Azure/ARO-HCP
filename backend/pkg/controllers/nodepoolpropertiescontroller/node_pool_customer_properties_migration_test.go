@@ -100,10 +100,10 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			// Setup mock DB
-			mockDB := databasetesting.NewMockDBClient()
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 
 			// Create the nodePool in the mock DB (cosmos)
-			nodePoolCRUD := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName)
+			nodePoolCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName)
 			_, err := nodePoolCRUD.Create(ctx, tc.existingCosmosNodePool, nil)
 			require.NoError(t, err)
 
@@ -130,7 +130,7 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 			syncer := &nodePoolCustomerPropertiesMigrationController{
 				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				nodePoolLister:       sliceNodePoolLister,
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 			}
 

@@ -81,14 +81,14 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 	resourceName := request.PathValue(PathSegmentResourceName)
 
 	// Verify the parent cluster exists so we return 404 instead of an empty list for a non-existent cluster (Cosmos List is prefix-based)
-	_, err = f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
+	_, err = f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	pagedResponse := arm.NewPagedResponse()
 
-	internalExternalAuthIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(resourceName).List(ctx, dbListOptionsFromRequest(request))
+	internalExternalAuthIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(resourceName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -140,7 +140,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return utils.TrackError(err)
 	}
 
-	externalAuthCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
+	externalAuthCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
 	oldInternalExternalAuth, err := externalAuthCosmosClient.Get(ctx, resourceID.Name)
 	if err != nil && !database.IsNotFoundError(err) {
 		return utils.TrackError(err)
@@ -148,7 +148,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	updating := oldInternalExternalAuth != nil
 	if updating {
-		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalExternalAuth.ID, oldInternalExternalAuth.Properties.ProvisioningState); err != nil {
+		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestUpdate, oldInternalExternalAuth.ID, oldInternalExternalAuth.Properties.ProvisioningState); err != nil {
 			return utils.TrackError(err)
 		}
 		switch request.Method {
@@ -250,7 +250,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalExternalAuth.ID, newInternalExternalAuth.Properties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestCreate, newInternalExternalAuth.ID, newInternalExternalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
@@ -272,7 +272,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 
 	operationRequest := database.OperationRequestCreate
 
-	transaction := f.dbClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
 
 	createExternalAuthOperation := database.NewOperation(
 		operationRequest,
@@ -284,7 +284,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createExternalAuthOperation.NotificationURI, createExternalAuthOperation.OperationID))
-	_, err = f.dbClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createExternalAuthOperation, nil)
+	_, err = f.resourcesDBClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createExternalAuthOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -294,7 +294,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	newInternalExternalAuth.ServiceProviderProperties.ActiveOperationID = createExternalAuthOperation.ResourceID.Name
 	newInternalExternalAuth.Properties.ProvisioningState = createExternalAuthOperation.Status
 
-	externalAuthCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
+	externalAuthCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
 	cosmosUID, err := externalAuthCosmosClient.AddCreateToTransaction(ctx, transaction, newInternalExternalAuth, nil)
 	if err != nil {
 		return utils.TrackError(err)
@@ -481,7 +481,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID)
 
 	externalAuthUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
@@ -493,7 +493,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, externalAuthUpdateOperation.NotificationURI, externalAuthUpdateOperation.OperationID))
-	_, err = f.dbClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, externalAuthUpdateOperation, nil)
+	_, err = f.resourcesDBClient.Operations(newInternalExternalAuth.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, externalAuthUpdateOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -503,7 +503,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	newInternalExternalAuth.ServiceProviderProperties.ActiveOperationID = externalAuthUpdateOperation.ResourceID.Name
 	newInternalExternalAuth.Properties.ProvisioningState = externalAuthUpdateOperation.Status
 
-	_, err = f.dbClient.HCPClusters(newInternalExternalAuth.ID.SubscriptionID, newInternalExternalAuth.ID.ResourceGroupName).
+	_, err = f.resourcesDBClient.HCPClusters(newInternalExternalAuth.ID.SubscriptionID, newInternalExternalAuth.ID.ResourceGroupName).
 		ExternalAuth(newInternalExternalAuth.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, newInternalExternalAuth, nil)
 	if err != nil {
@@ -552,12 +552,12 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 	}
 
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, resourceID); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}
 
-	externalAuth, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	externalAuth, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
 	if database.IsNotFoundError(err) {
 		// For resource not found errors on deletion, ARM requires
 		writer.WriteHeader(http.StatusNoContent)
@@ -567,7 +567,7 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestDelete, externalAuth.ID, externalAuth.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -585,7 +585,7 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(externalAuth.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(externalAuth.ID.SubscriptionID)
 	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
 		return utils.TrackError(err)
 	}
@@ -607,7 +607,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 	// Cluster Service will take care of canceling any ongoing operations
 	// on the resource or child resources, but we need to do some database
 	// bookkeeping to reflect that.
-	_, err = database.CancelActiveOperations(ctx, f.dbClient, transaction, &database.DBClientListActiveOperationDocsOptions{
+	_, err = database.CancelActiveOperations(ctx, f.resourcesDBClient, transaction, &database.ResourcesDBClientListActiveOperationDocsOptions{
 		ExternalID:             externalAuth.ID,
 		IncludeNestedResources: true,
 	})
@@ -632,14 +632,14 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 		transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	}
-	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	_, err = f.resourcesDBClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	externalAuth.Properties.ProvisioningState = operationDoc.Status
-	_, err = f.dbClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
+	_, err = f.resourcesDBClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, externalAuth, nil)
 	if err != nil {
 		return utils.TrackError(err)
@@ -649,7 +649,7 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 }
 
 func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftClusterExternalAuth, error) {
-	internalExternalAuth, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	internalExternalAuth, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
 	if database.IsNotFoundError(err) {
 		return nil, arm.NewResourceNotFoundError(resourceID)
 	}

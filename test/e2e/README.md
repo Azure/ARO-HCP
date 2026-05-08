@@ -199,35 +199,6 @@ For instructions and best practices on creating ARO HCP E2E test cases, refer to
 
 Be sure to review these guidelines before creating or updating ARO HCP E2E test cases.
 
-## Updating Provisioning Timeouts
-Timeout constants are defined in [`test/util/framework/constants.go`](../util/framework/constants.go) and should be set to the **99th percentile** of observed provisioning durations. The decision should be based on results from all environments. To determine the appropriate values, run the following Kusto query which returns results grouped by `resource_type`. You can also adjust the `resourceType` or `controller_name` filter to narrow down to a specific resource type:
-
-```kql
-database('ServiceLogs').table('backendLogs')
-| where timestamp between (ago(7d) .. now())
-| where container_name == 'aro-hcp-backend'
-| where log.msg has 'new status'
-| where log.newStatus == 'Provisioning' or log.newStatus == 'Succeeded'
-| where log.controller_name endswith 'create'
-| project timestamp, resource_id = tostring(log.resource_id), status = tostring(log.newStatus), resource_type = tostring(log.resourceType), log.controller_name
-| summarize
-    provisioning_time = minif(timestamp, status == 'Provisioning'),
-    succeeded_time    = minif(timestamp, status == 'Succeeded')
-    by resource_id, resource_type
-| where isnotempty(provisioning_time) and isnotempty(succeeded_time)
-| extend duration = succeeded_time - provisioning_time
-| summarize
-    count  = count(),
-    avg    = avg(duration),
-    p50    = percentile(duration, 50),
-    p90    = percentile(duration, 90),
-    p95    = percentile(duration, 95),
-    p99    = percentile(duration, 99),
-    p999   = percentile(duration, 99.9),
-    p9999  = percentile(duration, 99.99)
-    by resource_type
-```
-
 ## General guidance to write E2E test with ginkgo
 
 Keep description of specs and tests informational and comprehensive so that it can be read and understood as a complete sentence, e.g. "Get HCPOpenShiftCluster: it fails to get a nonexistent cluster with a Not Found error by preparing an HCP clusters client (and) by sending a GET request for the nonexistent cluster".

@@ -35,7 +35,7 @@ type doNothingExample struct {
 	name string
 
 	subscriptionLister listers.SubscriptionLister
-	cosmosClient       database.DBClient
+	resourcesDBClient  database.ResourcesDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -45,11 +45,11 @@ type doNothingExample struct {
 }
 
 // NewDoNothingExampleController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDoNothingExampleController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
+func NewDoNothingExampleController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
 	c := &doNothingExample{
 		name:               "DoNothingExample",
 		subscriptionLister: subscriptionLister,
-		cosmosClient:       cosmosClient,
+		resourcesDBClient:  resourcesDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[controllerutils.HCPClusterKey](),
 			workqueue.TypedRateLimitingQueueConfig[controllerutils.HCPClusterKey]{
@@ -64,7 +64,7 @@ func NewDoNothingExampleController(cosmosClient database.DBClient, subscriptionL
 func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	cosmosHCPCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	cosmosHCPCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -75,7 +75,7 @@ func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key contro
 	// Check to see if you have work to do here.  You may also choose to look at state you saved for yourself for later,
 	// but this is slightly less desireable and you should always force a recheck of the actual state of the world after
 	// a certain staleness.
-	existingController, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName).Get(ctx, c.name)
+	existingController, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName).Get(ctx, c.name)
 	if err != nil && !database.IsNotFoundError(err) {
 		return fmt.Errorf("failed to get existing controller state: %w", err)
 	}
@@ -117,7 +117,7 @@ func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) error {
 
 	controllerWriteErr := controllerutils.WriteController(
 		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
 		c.name,
 		key.InitialController,
 		controllerutils.ReportSyncError(syncErr),
@@ -135,7 +135,7 @@ func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
 	}
 	for _, subscription := range allSubscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
-		allHCPClusters, err := c.cosmosClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		allHCPClusters, err := c.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 		if err != nil {
 			logger.Error(err, "unable to list HCP clusters", "subscription_id", subscription.ResourceID.SubscriptionID)
 			continue

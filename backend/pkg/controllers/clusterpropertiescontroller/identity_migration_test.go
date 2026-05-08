@@ -205,10 +205,10 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 			defer ctrl.Finish()
 
 			// Setup mock DB
-			mockDB := databasetesting.NewMockDBClient()
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 
 			// Create the cluster in the mock DB (cosmos)
-			clusterCRUD := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName)
+			clusterCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName)
 			_, err := clusterCRUD.Create(ctx, tc.existingCluster, nil)
 			require.NoError(t, err)
 
@@ -235,7 +235,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 			syncer := &identityMigrationSyncer{
 				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				clusterLister:        sliceClusterLister,
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 			}
 

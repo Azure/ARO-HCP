@@ -79,7 +79,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					framework.ClusterCreationTimeout,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -155,7 +155,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					framework.ClusterCreationTimeout,
+					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 

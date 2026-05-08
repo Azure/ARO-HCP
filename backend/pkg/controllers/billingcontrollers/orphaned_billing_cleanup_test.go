@@ -64,7 +64,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 		billingDocuments []*database.BillingDocument
 		clusters         []*api.HCPOpenShiftCluster
 		expectError      bool
-		verify           func(t *testing.T, db *databasetesting.MockDBClient)
+		verify           func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient)
 	}{
 		{
 			name: "marks orphaned billing document as deleted",
@@ -73,8 +73,8 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			},
 			clusters:    []*api.HCPOpenShiftCluster{}, // No clusters
 			expectError: false,
-			verify: func(t *testing.T, db *databasetesting.MockDBClient) {
-				billingDocs := db.GetBillingDocuments()
+			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
+				billingDocs := billingDBClient.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
 				doc := billingDocs["billing-doc-1"]
 				require.NotNil(t, doc)
@@ -90,8 +90,8 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 				newTestCluster(t, "billing-doc-1", arm.ProvisioningStateSucceeded, &createdAt),
 			},
 			expectError: false,
-			verify: func(t *testing.T, db *databasetesting.MockDBClient) {
-				billingDocs := db.GetBillingDocuments()
+			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
+				billingDocs := billingDBClient.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
 				doc := billingDocs["billing-doc-1"]
 				require.NotNil(t, doc)
@@ -105,8 +105,8 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			},
 			clusters:    []*api.HCPOpenShiftCluster{}, // No clusters
 			expectError: false,
-			verify: func(t *testing.T, db *databasetesting.MockDBClient) {
-				billingDocs := db.GetBillingDocuments()
+			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
+				billingDocs := billingDBClient.GetBillingDocuments()
 				require.Len(t, billingDocs, 1)
 				doc := billingDocs["billing-doc-1"]
 				require.NotNil(t, doc)
@@ -144,8 +144,8 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 				},
 			},
 			expectError: false,
-			verify: func(t *testing.T, db *databasetesting.MockDBClient) {
-				billingDocs := db.GetBillingDocuments()
+			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
+				billingDocs := billingDBClient.GetBillingDocuments()
 				require.Len(t, billingDocs, 3)
 
 				// billing-doc-1 should be deleted (cluster-1 doesn't exist)
@@ -172,11 +172,12 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			// Create mock DB and add billing documents
-			mockDB := databasetesting.NewMockDBClient()
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 
 			// Add billing documents directly
+			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
 			for _, doc := range tt.billingDocuments {
-				billingCRUD := mockDB.BillingDocs(doc.SubscriptionID)
+				billingCRUD := mockBillingDBClient.BillingDocs(doc.SubscriptionID)
 				err := billingCRUD.Create(ctx, doc)
 				require.NoError(t, err)
 			}
@@ -184,7 +185,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			// Add clusters
 			for _, cluster := range tt.clusters {
 				if cluster.ID != nil {
-					clusterCRUD := mockDB.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName)
+					clusterCRUD := mockResourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName)
 					_, err := clusterCRUD.Create(ctx, cluster, nil)
 					require.NoError(t, err)
 				}
@@ -199,7 +200,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 				billingLister: &listertesting.SliceBillingLister{
 					BillingDocuments: tt.billingDocuments,
 				},
-				cosmosClient: mockDB,
+				billingDBClient: mockBillingDBClient,
 			}
 
 			err := controller.SyncOnce(ctx, "default")
@@ -211,7 +212,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, mockDB)
+				tt.verify(t, mockBillingDBClient)
 			}
 		})
 	}

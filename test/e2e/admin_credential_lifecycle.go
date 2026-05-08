@@ -88,7 +88,7 @@ var _ = Describe("Customer", func() {
 
 			By("starting HCP cluster creation asynchronously")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			timeout := framework.ClusterCreationTimeout
+			timeout := 45 * time.Minute
 			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during admin credential lifecycle test", timeout.Minutes()))
 			defer deploymentCancel()
 
@@ -159,7 +159,7 @@ var _ = Describe("Customer", func() {
 
 				// Continue waiting
 				return false
-			}, framework.ClusterCreationTimeout, 30*time.Second).Should(BeTrue(), fmt.Sprintf("Cluster should become ready within '%f' minutes", framework.ClusterCreationTimeout.Minutes()))
+			}, 45*time.Minute, 30*time.Second).Should(BeTrue(), "Cluster should become ready within 45 minutes")
 
 			// Store all admin credentials for later validation
 			var credentials []*rest.Config

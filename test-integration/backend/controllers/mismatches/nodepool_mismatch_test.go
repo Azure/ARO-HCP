@@ -48,12 +48,12 @@ func testNodePoolMismatchController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/nodepool"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return mismatchcontrollers.NewCosmosNodePoolMatchingController(input.CosmosClient, input.ClusterServiceClient, nil),
+				return mismatchcontrollers.NewCosmosNodePoolMatchingController(input.ResourcesDBClient, input.ClusterServiceClient, nil),
 					map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
 				clusterResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct/nodepools/basic")))
-				crud, err := input.CosmosClient.UntypedCRUD(*clusterResourceID)
+				crud, err := input.ResourcesDBClient.UntypedCRUD(*clusterResourceID)
 				require.NoError(t, err)
 				_, err = crud.Get(ctx, clusterResourceID)
 				require.Error(t, err)
@@ -79,7 +79,7 @@ func testNodePoolMismatchController(t *testing.T, withMock bool) {
 			},
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/nodepool"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
-				return mismatchcontrollers.NewCosmosNodePoolMatchingController(input.CosmosClient, input.ClusterServiceClient, nil),
+				return mismatchcontrollers.NewCosmosNodePoolMatchingController(input.ResourcesDBClient, input.ClusterServiceClient, nil),
 					map[string]any{}
 
 			},

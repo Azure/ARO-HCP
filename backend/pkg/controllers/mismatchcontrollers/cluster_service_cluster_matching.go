@@ -37,7 +37,7 @@ type clusterServiceClusterMatching struct {
 	name string
 
 	subscriptionLister   listers.SubscriptionLister
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
@@ -46,11 +46,11 @@ type clusterServiceClusterMatching struct {
 }
 
 // NewClusterServiceClusterMatchingController periodically looks for mismatched cluster-service and cosmos clusters
-func NewClusterServiceClusterMatchingController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
+func NewClusterServiceClusterMatchingController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
 	c := &clusterServiceClusterMatching{
 		name:                 "ClusterServiceMatchingClusters",
 		subscriptionLister:   subscriptionLister,
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
@@ -73,7 +73,7 @@ func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (m
 	}
 	for _, subscription := range allSubscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
-		allHCPClusters, err := c.cosmosClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		allHCPClusters, err := c.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 		if err != nil {
 			return nil, nil, utils.TrackError(err)
 		}
