@@ -67,5 +67,6 @@ Customer should be able to update node pool labels and taints
 Customer should upgrade and update a nodepool from 4.20.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.21.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.20.z to 4.20.zLatest
+Customer should upgrade a nodepool to a version without Cincinnati upgrade edge z-stream upgrade without Cincinnati edge in 4.20
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should not be able to perform various invalid operations on cluster resources
