@@ -99,9 +99,6 @@ func TestCosmosToInternalNodePoolPreservesETag(t *testing.T) {
 					ResourceID: resourceID,
 				},
 			},
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID: resourceID,
-			},
 		},
 	}
 

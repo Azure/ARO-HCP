@@ -427,21 +427,21 @@ func TestPreExistingDataNodePool(t *testing.T) {
 			ResourceID:   resourceID,
 		},
 		NodePoolProperties: NodePoolProperties{
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/node_pools/test-np")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
-			},
-			InternalState: NodePoolInternalState{
-				InternalAPI: api.HCPOpenShiftClusterNodePool{
-					// DiskStorageAccountType is intentionally zero-valued
-					Properties: api.HCPOpenShiftClusterNodePoolProperties{
-						Platform: api.NodePoolPlatformProfile{
-							OSDisk: api.OSDiskProfile{
-								// DiskStorageAccountType: "" — simulates pre-existing document
-							},
+			HCPOpenShiftClusterNodePool: api.HCPOpenShiftClusterNodePool{
+				// DiskStorageAccountType is intentionally zero-valued
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: resourceID,
+				},
+				Properties: api.HCPOpenShiftClusterNodePoolProperties{
+					ProvisioningState: arm.ProvisioningStateSucceeded,
+					Platform: api.NodePoolPlatformProfile{
+						OSDisk: api.OSDiskProfile{
+							// DiskStorageAccountType: "" — simulates pre-existing document
 						},
 					},
+				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+					ClusterServiceID: api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/node_pools/test-np")),
 				},
 			},
 		},
