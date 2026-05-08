@@ -343,33 +343,35 @@ For background on how leases work in OpenShift CI, see:
 - [Quota and Leases](https://docs.ci.openshift.org/docs/architecture/quota-and-leases/)
 - [Step Registry – Leases](https://docs.ci.openshift.org/docs/architecture/step-registry/#leases)
 
+- **Canonical slot catalog**
+  - The E2E lease inventory now lives in [test/e2e-config/e2e-slots.yaml](../test/e2e-config/e2e-slots.yaml).
+  - The catalog defines, per environment and pool:
+    - deploy-environment aliases (`prow`, `ci01`, `int`, `stg`, `prod`),
+    - Boskos slot resource type and slot count,
+    - Azure region and subscription hash,
+    - MSI container prefix and per-slot container count.
+  - This catalog is the single maintained source of truth for:
+    - `aro-hcp-tests slot-manager apply-identity-pool`,
+    - `aro-hcp-tests slot-manager acquire|release`,
+    - the ARO-HCP-managed Boskos block in `openshift/release`.
 - **Boskos resource types**
-  - The Boskos configuration is generated from [core-services/prow/02_config/generate-boskos.py](https://github.com/openshift/release/blob/master/core-services/prow/02_config/generate-boskos.py).
-  - It defines four resource types that back the identity containers:
-    - `aro-hcp-test-msi-containers-dev`
-    - `aro-hcp-test-msi-containers-int`
-    - `aro-hcp-test-msi-containers-stg`
-    - `aro-hcp-test-msi-containers-prod`
-  - For each type, the script creates a fixed number of named resources, for example:
-    - `aro-hcp-test-msi-containers-dev-0` … `aro-hcp-test-msi-containers-dev-299`
-    - `aro-hcp-test-msi-containers-int-0` … `aro-hcp-test-msi-containers-int-149`
-    - (and similarly for `stg` and `prod`)
-  - Each Boskos resource name corresponds **1:1 to an Azure resource group** that contains the managed identities needed to create a single HCP cluster.
-- **Leases in job configuration**
-  - E2E jobs request identity container leases from Boskos via ci-operator `leases` sections, which populate `LEASED_MSI_CONTAINERS` with a space‑separated list of resource names:
-    - **Presubmit jobs** (`integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel`): leasing configuration lives in [ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml).
-    - **EV2 gating jobs** (`integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel`): leasing configuration lives in [ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml).
-    - **Dev presubmit jobs**: leasing configuration for the `aro-hcp-local-e2e` workflow lives in [ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml).
-  - A typical leasing stanza looks like:
-
-    ```yaml
-    leases:
-    - resource_type: aro-hcp-test-msi-containers-dev
-      env: LEASED_MSI_CONTAINERS
-      count: 20
-    ```
-
-  - The `LEASED_MSI_CONTAINERS` environment variable is then consumed by `newLeasedIdentityPoolState` in `identities_helper.go`; if it is empty while `POOLED_IDENTITIES=true`, the test run fails fast with a clear error.
+  - Boskos now leases **slots**, not flat MSI container resource groups.
+  - Each slot is a named Boskos resource, for example:
+    - `aro-hcp-dev-westus3-slot-00`
+    - `aro-hcp-dev-westus3-slot-01`
+    - `aro-hcp-prod-uksouth-slot-09`
+- The ARO-HCP slot tool rewrites only the managed slot sections of [core-services/prow/02_config/generate-boskos.py](https://github.com/openshift/release/blob/master/core-services/prow/02_config/generate-boskos.py); legacy Boskos types remain manually managed outside those markers. It validates the generated [_boskos.yaml](https://github.com/openshift/release/blob/master/core-services/prow/02_config/_boskos.yaml) against the slot catalog.
+- **Runtime lease flow**
+  - The release step registry keeps dedicated acquire/release steps, but they are now thin wrappers around `./test/aro-hcp-tests slot-manager acquire|release`.
+  - For temporary release-side rehearsals against an unmerged ARO-HCP commit, the lease steps also support `ARO_HCP_SLOT_MANAGER_GIT_REF`. When set, they fetch that ref from `github.com/Azure/ARO-HCP` and run `slot-manager` via `go run` instead of the built binary.
+  - Leave `ARO_HCP_SLOT_MANAGER_GIT_REF` unset for normal ARO-HCP PR jobs: the `aro-hcp-e2e-tests` image is already built from the PR source, so the override adds startup cost without improving fidelity.
+  - `slot-manager acquire` obtains one Boskos slot for the job through the ci-operator lease proxy and writes shared artifacts in the top level of `SHARED_DIR`:
+    - `aro-hcp-slot-state.yaml`: persisted slot metadata and the leased Boskos resource name.
+    - `aro-hcp-slot-env.sh`: exported runtime values for the test-suite contract only: `CUSTOMER_SUBSCRIPTION`, `LOCATION`, `LEASED_MSI_CONTAINERS`, `ARO_HCP_E2E_SLOT_NAME`, and `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`.
+  - `LEASED_MSI_CONTAINERS` remains the compatibility contract used by the E2E framework, but it is now derived from the leased slot's MSI prefix and count rather than leased directly from Boskos.
+  - `slot-manager acquire` resolves `CUSTOMER_SUBSCRIPTION` by matching `customer-*-subscription-name` Vault entries in `CLUSTER_PROFILE_DIR` against the selected slot pool before it writes `aro-hcp-slot-env.sh`.
+  - The workflows now acquire the slot before `aro-hcp-write-config`, so the rendered `config.yaml` uses the leased slot's `LOCATION`.
+  - `newLeasedIdentityPoolState` in `identities_helper.go` still treats `LEASED_MSI_CONTAINERS` as the input contract, so the pooled identity state machine inside the test framework remains unchanged.
 - **Toggling pooled vs non‑pooled identities**
   - The test steps that actually run the `aro-hcp-tests` binary define `POOLED_IDENTITIES`:
     - `aro-hcp-test-local` ([ci-operator/step-registry/aro-hcp/test/local/aro-hcp-test-local-ref.yaml](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/test/local/aro-hcp-test-local-ref.yaml)):
@@ -382,29 +384,21 @@ For background on how leases work in OpenShift CI, see:
 
 ### Managing the identity pools
 
-- **`identity-pool` CLI**
-  - The `test/cmd/aro-hcp-tests/identity-pool` subcommand is a small CLI that **creates and maintains** the identity container resource groups in each test subscription.
-  - It wraps a pre‑generated ARM template (`msi-pools.json`, built from `test/e2e-setup/bicep/msi-pools.bicep`) and applies it as an Azure **deployment stack** named `aro-hcp-msi-pool`:
-    - The `apply` command is implemented in `options.go` and `cmd.go`.
-    - It uses a per‑environment mapping (`identityPoolMapping`) that defines:
-      - The Azure location for the pool.
-      - The base name for identity container resource groups.
-      - The default **pool size** (number of containers) per environment.
-      - A `subscriptionIDHash` prefix to ensure the command is being run against the correct subscription.
+- **`slot-manager` CLI**
+  - The `test/cmd/aro-hcp-tests/slot-manager` command creates and maintains the slot-backed identity container resource groups in each test subscription, manages runtime slot leases, and keeps the ARO-HCP-managed Boskos inventory in sync with the slot catalog.
+  - It wraps a pre‑generated ARM template (`msi-pools.json`, built from `test/e2e-setup/bicep/msi-pools.bicep`) and applies it as Azure deployment stacks, one per slot:
+    - The `apply-identity-pool` command is implemented under `slot-manager/identity-pool`.
+    - It loads the canonical slot catalog, iterates every pool declared for the requested environment, and creates container RGs from each slot's prefix and count.
+    - Each pool uses the catalog-declared `subscription_name` and `region`; the command does not take `CUSTOMER_SUBSCRIPTION` or `--region` selectors.
   - Example usage (run from the `test` image or a local build):
-    - `./test/aro-hcp-tests identity-pool apply --environment dev`
-    - `./test/aro-hcp-tests identity-pool apply --environment int --pool-size 150`
-  - The CLI validates that the hash of the current subscription ID matches the expected prefix for the chosen environment, which helps prevent accidentally creating pools in the wrong subscription.
+    - `./test/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
+    - `./test/aro-hcp-tests slot-manager apply-identity-pool --environment prod`
 - **Keeping Boskos and the pool in sync**
-  - The **number of identity containers** provisioned by `identity-pool apply` must be large enough to satisfy:
-    - The **maximum number of Boskos leases** requested by all E2E jobs in that environment, and
-    - The **maximum number of containers per test** (some specs may reserve more than one container).
-  - Any time you change:
-    - The Boskos resource type counts in `generate-boskos.py`, or
-    - The pool sizing logic / defaults in `identity-pool/options.go`,
-    you must:
-    - Regenerate Boskos configuration in `openshift/release`.
-    - Re‑apply the identity pool in each affected subscription using the `identity-pool apply` CLI.
+  - Any time you change the slot catalog:
+    - rewrite the ARO-HCP-managed Boskos block in `openshift/release` with `./test/aro-hcp-tests slot-manager sync-boskos-config --release-repo <path>`,
+    - run `make update` in the `openshift/release` checkout,
+    - validate the generated inventory with `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo <path>`,
+    - re-apply the affected identity pools with `./test/aro-hcp-tests slot-manager apply-identity-pool ...`.
 
 ### Operational notes and troubleshooting
 
@@ -430,17 +424,16 @@ For background on how leases work in OpenShift CI, see:
 
 ## MSI Mock Service Principal Pool
 
-### Pooled MSI Mock SPs with Boskos
+The dev provisioning step keeps using the static Boskos lease contract
+`LEASED_MSI_MOCK_SP`. That lease is consumed only by the dev provision step in
+`openshift/release`, which reads
+[dev-infrastructure/openshift-ci/msi-mock-pool.yaml](../dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
+directly to derive `miMockClientId`, `miMockPrincipalId`, and `miMockCertName`
+for the generated override config.
 
-A pool of 20 MSI mock service principals (15 needed for max concurrent
-`e2e-parallel` jobs — 300 MSI containers / 20 per job — plus 5 spare) is
-distributed across concurrent CI jobs via Boskos leasing. Each job leases
-one SP from the pool, so ARM read traffic is spread across different actors.
-
-Personal dev environments continue using the existing single
-`miMockClientId` / `miMockPrincipalId` / `miMockCertName` config unchanged.
-Note that all personal dev CS instances share this same SP, so they share
-an ARM throttle budget.
+This keeps mock-SP selection scoped to the provision step instead of carrying it
+through the slot lease runtime contract, while preserving the existing dev
+mock-SP pool inventory and the personal-dev default config.
 
 ### Infrastructure setup
 
@@ -462,40 +455,6 @@ After creation, run [`dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`
 
 ```bash
 make populate-msi-mock-pool
-```
-
-### Boskos configuration
-
-To change the naming or number of MSI mock SPs, update [`generate-boskos.py`](https://github.com/openshift/release/blob/main/core-services/prow/02_config/generate-boskos.py) in the `openshift/release` repository:
-
-```python
-'aro-hcp-msi-mock-cs-sp-dev': {},
-# ...
-for i in range(20):
-    CONFIG['aro-hcp-msi-mock-cs-sp-dev'][f'aro-hcp-msi-mock-cs-sp-dev-{i}'] = 1
-```
-### Lease configuration
-
-To change the naming or number of MSI mock SP leases in the job
-configuration, update the
-[`aro-hcp-local-e2e` workflow](https://github.com/openshift/release/blob/main/ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml)
-in `openshift/release`. Each job requests a single lease from the pool:
-
-```yaml
-leases:
-  - resource_type: aro-hcp-msi-mock-cs-sp-dev
-    env: LEASED_MSI_MOCK_SP
-    count: 1
-```
-
-The leased SP is then consumed during environment provisioning in
-[`aro-hcp-provision-environment-commands.sh`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/provision/environment/aro-hcp-provision-environment-commands.sh),
-overriding the default mock SP values:
-
-```bash
-MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
-MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
-MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
 ```
 
 ## EV2 Pipeline Integration
