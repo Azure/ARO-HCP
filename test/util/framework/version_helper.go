@@ -41,6 +41,7 @@ var (
 	ErrNoAcceptedNightlyTags        = errors.New("no accepted nightly tags found")
 	ErrNoParseableNightlyTags       = errors.New("no parseable nightly tags found")
 	ErrVersionNotFound              = errors.New("no graph nodes found")
+	ErrNoNoEdgePairFound            = errors.New("no version pair without upgrade edge found")
 )
 
 const (
@@ -80,7 +81,8 @@ func isRetryableVersionError(err error) bool {
 	if errors.Is(err, ErrVersionNotFound) ||
 		errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
 		errors.Is(err, ErrNoAcceptedNightlyTags) ||
-		errors.Is(err, ErrNoParseableNightlyTags) {
+		errors.Is(err, ErrNoParseableNightlyTags) ||
+		errors.Is(err, ErrNoNoEdgePairFound) {
 		return false
 	}
 	if cincinnati.IsCincinnatiVersionNotFoundError(err) {
@@ -251,6 +253,98 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 		return out[i].LT(out[j])
 	})
 	return out, nil
+}
+
+// GetVersionPairWithoutUpgradeEdge finds two versions A < B in the given minor where Cincinnati
+// has no upgrade edge from A to B. This is useful for testing that nodepool upgrades succeed
+// even without a Cincinnati upgrade path (HCP nodepools use Replace strategy).
+// Returns ErrNoNoEdgePairFound if all version pairs in the minor have edges.
+func GetVersionPairWithoutUpgradeEdge(ctx context.Context, channelGroup string, minor string) (from, to semver.Version, err error) {
+	type versionPair struct {
+		from, to semver.Version
+	}
+	pair, err := retryOnTransientError(ctx, func() (versionPair, error) {
+		f, t, err := getVersionPairWithoutUpgradeEdge(ctx, channelGroup, minor)
+		return versionPair{f, t}, err
+	})
+	return pair.from, pair.to, err
+}
+
+func getVersionPairWithoutUpgradeEdge(ctx context.Context, channelGroup string, minor string) (from, to semver.Version, err error) {
+	channel := fmt.Sprintf("%s-%s", channelGroup, minor)
+	graphURL := fmt.Sprintf("https://api.openshift.com/api/upgrades_info/v1/graph?channel=%s", url.QueryEscape(channel))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, graphURL, nil)
+	if err != nil {
+		return semver.Version{}, semver.Version{}, fmt.Errorf("create graph request for %s: %w", channel, err)
+	}
+
+	client := &http.Client{Timeout: graphAPIRequestTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return semver.Version{}, semver.Version{}, fmt.Errorf("query graph for %s: %w", channel, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return semver.Version{}, semver.Version{}, fmt.Errorf("query graph for %s returned %s: %s", channel, resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Nodes []struct {
+			Version string `json:"version"`
+		} `json:"nodes"`
+		// Directed edges: [from_index, to_index] means upgrade path from nodes[from] to nodes[to].
+		Edges [][]int `json:"edges"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return semver.Version{}, semver.Version{}, fmt.Errorf("decode graph response for %s: %w", channel, err)
+	}
+	if len(payload.Nodes) < 2 {
+		return semver.Version{}, semver.Version{}, fmt.Errorf("%w: fewer than 2 nodes in %s", ErrNoNoEdgePairFound, channel)
+	}
+
+	requestedMinor, err := semver.ParseTolerant(minor)
+	if err != nil {
+		return semver.Version{}, semver.Version{}, fmt.Errorf("parse minor %q: %w", minor, err)
+	}
+
+	type indexedVersion struct {
+		index   int
+		version semver.Version
+	}
+	var versions []indexedVersion
+	for i, node := range payload.Nodes {
+		v, parseErr := semver.ParseTolerant(node.Version)
+		if parseErr != nil {
+			continue
+		}
+		if v.Major != requestedMinor.Major || v.Minor != requestedMinor.Minor {
+			continue
+		}
+		versions = append(versions, indexedVersion{index: i, version: v})
+	}
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].version.LT(versions[j].version)
+	})
+
+	edgeSet := make(map[[2]int]bool, len(payload.Edges))
+	for _, edge := range payload.Edges {
+		if len(edge) == 2 {
+			edgeSet[[2]int{edge[0], edge[1]}] = true
+		}
+	}
+
+	for i := 0; i < len(versions)-1; i++ {
+		for j := i + 1; j < len(versions); j++ {
+			if !edgeSet[[2]int{versions[i].index, versions[j].index}] {
+				return versions[i].version, versions[j].version, nil
+			}
+		}
+	}
+
+	return semver.Version{}, semver.Version{}, fmt.Errorf("%w in %s", ErrNoNoEdgePairFound, channel)
 }
 
 // GetLatestInstallVersion returns the latest install version for the given channel group and version.

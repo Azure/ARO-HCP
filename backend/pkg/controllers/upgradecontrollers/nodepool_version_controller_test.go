@@ -1064,7 +1064,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot downgrade")
 }
 
-func TestNodePoolVersionSyncer_SyncOnce_UpgradePathExistsSucceeds(t *testing.T) {
+func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
