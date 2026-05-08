@@ -34,7 +34,7 @@ var identities = {
 
 // Create N resource groups
 resource resourceGroups 'Microsoft.Resources/resourceGroups@2021-04-01' = [for i in range(0, poolSize): {
-  name: '${resourceGroupBaseName}-${i}'
+  name: '${resourceGroupBaseName}-${padLeft(string(i), 2, '0')}'
   location: location
   tags: union(commonTags, {
     'pool-index': string(i)
