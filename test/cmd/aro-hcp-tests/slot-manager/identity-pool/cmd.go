@@ -17,50 +17,27 @@ package identitypool
 import (
 	"context"
 
-	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/test/pkg/logger"
 )
 
-func NewCommand() (*cobra.Command, error) {
-	var logVerbosity int
-
-	cmd := &cobra.Command{
-		Use:           "identity-pool",
-		Short:         "Manage the pooled managed identities used by e2e tests.",
-		SilenceErrors: true,
-		SilenceUsage:  true,
-	}
-
-	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
-	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		ctx := logr.NewContext(cmd.Context(), logger.NewWithVerbosity(logVerbosity))
-		cmd.SetContext(ctx)
-	}
-	cmd.AddCommand(api.Must(newApplyCommand()))
-
-	return cmd, nil
-}
-
-func newApplyCommand() (*cobra.Command, error) {
+func NewApplyCommand() (*cobra.Command, error) {
 	opts := DefaultApplyOptions()
 
 	cmd := &cobra.Command{
-		Use:   "apply",
+		Use:   "apply-identity-pool",
 		Short: "Apply the managed identity pool ARM deployment stack.",
 		Long: `Apply the managed identity pool ARM deployment stack.
 
 This command applies the managed identity pool ARM deployment stack to the Azure subscription for the given environment
 
-An identity pool is a number of resource groups, determined by the pool size, containing the managed identities required to
-create a single HCP cluster.
+A slot-managed identity pool is a set of resource groups derived from the canonical E2E slot catalog. Each slot gets a
+slot-specific MSI container prefix, and the command provisions the per-slot containers required to create a single HCP cluster.
 
-The identity pool must be kept in sync with the Boskos leasing server configuration 
-https://github.com/openshift/release/blob/master/core-services/prow/02_config/generate-boskos.py#L687-L691
+The slot catalog is the source of truth for both the MSI pool layout in ARO-HCP and the ARO-HCP-managed section of the
+OpenShift release Boskos configuration.
 
-The identity pool is applied to the Azure subscription for the given environment.
+The identity pool is applied across every pool declared for the selected environment. Each pool uses its catalog-declared
+subscription name and region.
 `,
 		SilenceUsage: true,
 	}
@@ -76,7 +53,6 @@ The identity pool is applied to the Azure subscription for the given environment
 }
 
 func Apply(ctx context.Context, opts *RawApplyOptions) error {
-
 	validated, err := opts.Validate()
 	if err != nil {
 		return err
