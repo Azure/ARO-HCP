@@ -190,6 +190,17 @@ var _ = Describe("Customer", func() {
 					)
 					Expect(err).NotTo(HaveOccurred())
 
+					By("waiting for node pool to be ready")
+					err = framework.WaitForNodePoolReady(ctx,
+						tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+						adminRESTConfig,
+						*resourceGroup.Name,
+						clusterName,
+						nodePoolName,
+						10*time.Minute,
+					)
+					Expect(err).NotTo(HaveOccurred())
+
 					err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 					Expect(err).NotTo(HaveOccurred())
 				}

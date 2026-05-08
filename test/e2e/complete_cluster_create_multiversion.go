@@ -165,6 +165,17 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("waiting for node pool to be ready")
+			err = framework.WaitForNodePoolReady(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				adminRESTConfig,
+				*resourceGroup.Name,
+				clusterName,
+				nodePoolName,
+				10*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("verifying nodepool DiskStorageAccountType matches framework default")
 			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),

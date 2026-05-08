@@ -41,8 +41,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -579,6 +583,158 @@ func GetNodePool(
 	nodePoolName string,
 ) (hcpsdk20240610preview.NodePoolsClientGetResponse, error) {
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+}
+
+// WaitForNodePoolReady polls nodepool and cluster signals until the nodepool is considered usable:
+//  1. nodepool provisioning state is Succeeded
+//  2. router-default has at least one available replica
+//  3. openshift ingress canary route is admitted
+//  4. route.openshift.io/v1 discovery returns routes resource
+func WaitForNodePoolReady(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	adminRESTConfig *rest.Config,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout,
+		fmt.Errorf("timeout '%f' minutes exceeded during WaitForNodePoolReady for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create discovery client: %w", err)
+	}
+	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	lastState := ""
+	reportState := func(format string, args ...any) {
+		state := fmt.Sprintf(format, args...)
+		if state == lastState {
+			return
+		}
+		lastState = state
+		ginkgo.GinkgoLogr.Info("waiting for nodepool to become ready",
+			"nodePool", nodePoolName,
+			"cluster", hcpClusterName,
+			"resourceGroup", resourceGroupName,
+			"state", state,
+		)
+	}
+
+	err = wait.PollUntilContextCancel(ctx, StandardPollInterval, true, func(ctx context.Context) (bool, error) {
+		nodePoolResp, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+		if err != nil {
+			reportState("nodepool GET failed: %v", err)
+			return false, nil
+		}
+		if nodePoolResp.Properties == nil || nodePoolResp.Properties.ProvisioningState == nil {
+			reportState("nodepool provisioning state is not reported yet")
+			return false, nil
+		}
+		if *nodePoolResp.Properties.ProvisioningState != hcpsdk20240610preview.ProvisioningStateSucceeded {
+			reportState("nodepool provisioning state is %q (expected %q)",
+				*nodePoolResp.Properties.ProvisioningState, hcpsdk20240610preview.ProvisioningStateSucceeded)
+			return false, nil
+		}
+
+		routerDeployment, err := kubeClient.AppsV1().Deployments("openshift-ingress").Get(ctx, "router-default", metav1.GetOptions{})
+		if err != nil {
+			reportState("router deployment check failed: %v", err)
+			return false, nil
+		}
+		if routerDeployment.Status.AvailableReplicas < 1 {
+			reportState("router deployment has %d available replicas (expected >= 1)", routerDeployment.Status.AvailableReplicas)
+			return false, nil
+		}
+
+		canaryRoute, err := dynamicClient.Resource(schema.GroupVersionResource{
+			Group:    "route.openshift.io",
+			Version:  "v1",
+			Resource: "routes",
+		}).Namespace("openshift-ingress-canary").Get(ctx, "canary", metav1.GetOptions{})
+		if err != nil {
+			reportState("canary route check failed: %v", err)
+			return false, nil
+		}
+		if !routeAdmitted(canaryRoute) {
+			reportState("ingress canary route is not admitted yet")
+			return false, nil
+		}
+
+		resources, err := discoveryClient.ServerResourcesForGroupVersion("route.openshift.io/v1")
+		if err != nil {
+			reportState("route discovery check failed: %v", err)
+			return false, nil
+		}
+		routeResourceFound := false
+		for _, resource := range resources.APIResources {
+			if resource.Name == "routes" {
+				routeResourceFound = true
+				break
+			}
+		}
+		if !routeResourceFound {
+			reportState("route.openshift.io/v1 discovery missing routes resource")
+			return false, nil
+		}
+
+		if lastState != "ready" {
+			lastState = "ready"
+			ginkgo.GinkgoLogr.Info("nodepool became ready",
+				"nodePool", nodePoolName,
+				"cluster", hcpClusterName,
+				"resourceGroup", resourceGroupName,
+			)
+		}
+		return true, nil
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to become ready, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to become ready: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	return nil
+}
+
+func routeAdmitted(route *unstructured.Unstructured) bool {
+	ingresses, found, err := unstructured.NestedSlice(route.Object, "status", "ingress")
+	if err != nil || !found {
+		return false
+	}
+	for _, ingress := range ingresses {
+		ingressMap, ok := ingress.(map[string]any)
+		if !ok {
+			continue
+		}
+		conditions, ok := ingressMap["conditions"].([]any)
+		if !ok {
+			continue
+		}
+		for _, condition := range conditions {
+			conditionMap, ok := condition.(map[string]any)
+			if !ok {
+				continue
+			}
+			conditionType, _, _ := unstructured.NestedString(conditionMap, "type")
+			conditionStatus, _, _ := unstructured.NestedString(conditionMap, "status")
+			if conditionType == "Admitted" && conditionStatus == "True" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // UpdateNodePoolAndWait sends a PATCH (BeginUpdate) request for a nodepool and waits for completion
