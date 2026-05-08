@@ -43,13 +43,17 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
+		func(j *api.CosmosMetadata, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
+			j.ExistingCosmosUID = ""
+			j.CosmosETag = ""
+		},
 		func(j *api.HCPOpenShiftClusterNodePool, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
 			}
-			j.ServiceProviderProperties.ExistingCosmosUID = ""
-			j.CosmosETag = ""
 			// Canonical defaults are applied on Cosmos read, so ensure
 			// defaulted fields are never zero during round-trip testing.
 			if len(j.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
@@ -90,6 +94,11 @@ func TestCosmosToInternalNodePoolPreservesETag(t *testing.T) {
 			},
 		},
 		NodePoolProperties: NodePoolProperties{
+			HCPOpenShiftClusterNodePool: api.HCPOpenShiftClusterNodePool{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: resourceID,
+				},
+			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID: resourceID,
 			},

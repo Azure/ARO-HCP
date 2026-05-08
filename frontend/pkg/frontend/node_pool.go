@@ -212,6 +212,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
 	}
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
+	newInternalNodePool.SetResourceID(resourceID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -781,8 +782,11 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	if !strings.EqualFold(internalNodePool.ID.String(), resourceID.String()) {
-		return nil, fmt.Errorf("unexpected resourceID: %s", internalNodePool.ID.String())
+	if internalNodePool.ResourceID == nil {
+		return nil, fmt.Errorf("stored nodepool document is missing cosmosMetadata.resourceID")
+	}
+	if !strings.EqualFold(internalNodePool.ResourceID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalNodePool.ResourceID.String())
 	}
 	internalNodePool.ID = resourceID
 
