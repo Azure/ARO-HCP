@@ -70,7 +70,7 @@ arobit:
       repository: oss/v2/fluent/fluent-bit
     resources:
       limits:
-        memory: 1Gi
+        memory: 1248Mi
       requests:
         cpu: 100m
         memory: 256Mi
