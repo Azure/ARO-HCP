@@ -20,7 +20,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*NodePool, error) {
@@ -38,6 +37,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
+			HCPOpenShiftClusterNodePool: *internalObj,
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
@@ -55,18 +55,6 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			},
 		},
 	}
-
-	// some pieces of data in the internalNodePool conflict with ResourceDocument fields.  We may evolve over time, but for
-	// now avoid persisting those.
-	cosmosObj.InternalState.InternalAPI.TrackedResource = arm.TrackedResource{
-		Location: internalObj.Location, // this is the only TrackedResource value not present elsewhere in ResourceDcoument
-	}
-	cosmosObj.InternalState.InternalAPI.Identity = nil
-	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
-	cosmosObj.InternalState.InternalAPI.SystemData = nil
-	cosmosObj.InternalState.InternalAPI.Tags = nil
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
 	return cosmosObj, nil
 }
@@ -97,7 +85,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	// we carry over the CosmosETag from the cosmos object to the internal object into a
 	// temporary field until we have inlined and serialized CosmosMetadata in
 	// HCPOpenShiftClusterNodePool.
-	internalObj.CosmosETag = cosmosObj.CosmosETag
+	internalObj.CosmosETag = cosmosObj.BaseDocument.CosmosETag
 	internalObj.Identity = resourceDoc.Identity.DeepCopy()
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
