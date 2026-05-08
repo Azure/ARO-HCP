@@ -95,12 +95,8 @@ func NewNodePoolVersionController(
 //
 // 2. Desired Version Validation and Storage:
 //   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID
-//   - Validates it against upgrade constraints (see below)
-//   - The desired version must satisfy:
-//   - Not less than the highest active version (no downgrades)
-//   - Not greater than the lowest control plane version (node pools cannot exceed CP)
-//   - Minor version upgrades limited to +2
-//   - Exist as a known version in Cincinnati
+//   - Validates it against version change constraints (see validateDesiredNodePoolVersion)
+//   - Both upgrades and downgrades are supported — HCP nodepools use Replace strategy
 //   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
 //
 // If the desired version is already among the active versions, validation is skipped
@@ -251,12 +247,12 @@ func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersio
 	return newVersions
 }
 
-// validateDesiredNodePoolVersion checks that the desired node pool version is a valid upgrade.
+// validateDesiredNodePoolVersion checks that the desired node pool version is a valid change.
 // It validates:
-//   - The desired version is not less than the highest active node pool version (no downgrades)
-//   - The desired version is not greater than the lowest control plane version
-//   - No major version changes (unless FeatureExperimentalReleaseFeatures is registered)
-//   - Minor version upgrades limited to +2
+//   - Cannot exceed lowest control plane version (upper bound)
+//   - Must be within 2 minor versions of control plane (N-2 skew lower bound, same major)
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - Upgrade minor skip limited to +2 from current nodepool version (downgrades bounded by N-2 skew)
 //   - The desired version exists in Cincinnati
 //
 // Cincinnati upgrade-edge validation is intentionally skipped — HCP nodepools use the Replace
