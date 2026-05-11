@@ -79,7 +79,7 @@ func (g *cosmosResourcesGlobalListers) Clusters() GlobalLister[api.HCPOpenShiftC
 }
 
 func (g *cosmosResourcesGlobalListers) NodePools() GlobalLister[api.HCPOpenShiftClusterNodePool] {
-	return &cosmosGlobalLister[api.HCPOpenShiftClusterNodePool, NodePool]{
+	return &cosmosGlobalLister[api.HCPOpenShiftClusterNodePool, GenericDocument[api.HCPOpenShiftClusterNodePool]]{
 		containerClient: g.resources,
 		resourceType:    api.NodePoolResourceType,
 	}

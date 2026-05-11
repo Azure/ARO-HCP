@@ -365,11 +365,11 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 		}
 		return database.CosmosToInternalCluster(&cosmosObj)
 	case strings.ToLower(api.NodePoolResourceType.String()):
-		var cosmosObj database.NodePool
+		var cosmosObj database.GenericDocument[api.HCPOpenShiftClusterNodePool]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
-		return database.CosmosToInternalNodePool(&cosmosObj)
+		return database.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
 		var cosmosObj database.ExternalAuth
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
