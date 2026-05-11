@@ -304,15 +304,15 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, opt
 				}
 			}
 
-			file, ok := openedFiles[fileName]
+			filePath := path.Join(outputPath, directory, fileName)
+			file, ok := openedFiles[filePath]
 			if !ok {
-				filePath := path.Join(outputPath, directory, fileName)
 				newFile, err := os.Create(filePath)
 				if err != nil {
 					allErrors = errors.Join(allErrors, fmt.Errorf("failed to create output file %s: %w", filePath, err))
 					continue
 				}
-				openedFiles[fileName] = newFile
+				openedFiles[filePath] = newFile
 				file = newFile
 			}
 			thisLog, err := json.Marshal(logLine.Log)
