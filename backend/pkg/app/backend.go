@@ -557,22 +557,22 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
-	maestroCreateClusterScopedReadonlyBundlesController := controllers.NewCreateClusterScopedMaestroReadonlyBundlesController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.ClustersServiceClient,
-		backendInformers, unionKubeApplierInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	createClusterScopedReadDesiresController := controllers.NewCreateClusterScopedReadDesiresController(
+		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		b.options.ClustersServiceClient, backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
-	maestroReadAndPersistClusterScopedReadonlyBundlesContentController := controllers.NewReadAndPersistClusterScopedMaestroReadonlyBundlesContentController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.ClustersServiceClient,
-		backendInformers, unionKubeApplierInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	readAndPersistClusterScopedKubeContentController := controllers.NewReadAndPersistClusterScopedKubeContentController(
+		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		b.options.ClustersServiceClient, backendInformers,
 	)
 
-	maestroCreateNodePoolScopedReadonlyBundlesController := controllers.NewCreateNodePoolScopedMaestroReadonlyBundlesController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.ClustersServiceClient,
-		backendInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	createNodePoolScopedReadDesiresController := controllers.NewCreateNodePoolScopedReadDesiresController(
+		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		b.options.ClustersServiceClient, backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
-	maestroReadAndPersistNodePoolScopedReadonlyBundlesContentController := controllers.NewReadAndPersistNodePoolScopedMaestroReadonlyBundlesContentController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.ClustersServiceClient,
-		backendInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	readAndPersistNodePoolScopedKubeContentController := controllers.NewReadAndPersistNodePoolScopedKubeContentController(
+		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		b.options.ClustersServiceClient, backendInformers,
 	)
 
 	maestroDeleteOrphanedReadonlyBundlesController := controllers.NewDeleteOrphanedMaestroReadonlyBundlesController(
@@ -684,10 +684,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
-				go maestroCreateClusterScopedReadonlyBundlesController.Run(ctx, 20)
-				go maestroReadAndPersistClusterScopedReadonlyBundlesContentController.Run(ctx, 20)
-				go maestroCreateNodePoolScopedReadonlyBundlesController.Run(ctx, 20)
-				go maestroReadAndPersistNodePoolScopedReadonlyBundlesContentController.Run(ctx, 20)
+				go createClusterScopedReadDesiresController.Run(ctx, 20)
+				go readAndPersistClusterScopedKubeContentController.Run(ctx, 20)
+				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
+				go readAndPersistNodePoolScopedKubeContentController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
