@@ -315,7 +315,7 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 	}
 }
 
-// TestPreExistingDataNodePool verifies that CosmosToInternalNodePool applies
+// TestPreExistingDataNodePool verifies that CosmosGenericToInternal applies
 // canonical defaults when reading a Cosmos document that predates the
 // introduction of DiskStorageAccountType.
 func TestPreExistingDataNodePool(t *testing.T) {
@@ -324,35 +324,33 @@ func TestPreExistingDataNodePool(t *testing.T) {
 	))
 
 	// Simulate a pre-existing Cosmos document missing DiskStorageAccountType.
-	preExistingDoc := &NodePool{
+	preExistingDoc := &GenericDocument[api.HCPOpenShiftClusterNodePool]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		NodePoolProperties: NodePoolProperties{
-			HCPOpenShiftClusterNodePool: api.HCPOpenShiftClusterNodePool{
-				// DiskStorageAccountType is intentionally zero-valued
-				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: resourceID,
-				},
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
-					ProvisioningState: arm.ProvisioningStateSucceeded,
-					Platform: api.NodePoolPlatformProfile{
-						OSDisk: api.OSDiskProfile{
-							// DiskStorageAccountType: "" — simulates pre-existing document
-						},
+		Content: api.HCPOpenShiftClusterNodePool{
+			// DiskStorageAccountType is intentionally zero-valued
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: resourceID,
+			},
+			Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				ProvisioningState: arm.ProvisioningStateSucceeded,
+				Platform: api.NodePoolPlatformProfile{
+					OSDisk: api.OSDiskProfile{
+						// DiskStorageAccountType: "" — simulates pre-existing document
 					},
 				},
-				ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-					ClusterServiceID: ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/node_pools/test-np"))),
-				},
+			},
+			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+				ClusterServiceID: ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/node_pools/test-np"))),
 			},
 		},
 	}
 
-	internalNodePool, err := CosmosToInternalNodePool(preExistingDoc)
+	internalNodePool, err := CosmosGenericToInternal(preExistingDoc)
 	if err != nil {
-		t.Fatalf("CosmosToInternalNodePool failed: %v", err)
+		t.Fatalf("CosmosGenericToInternal failed: %v", err)
 	}
 
 	if internalNodePool.Properties.Platform.OSDisk.DiskStorageAccountType != api.DiskStorageAccountTypePremium_LRS {
