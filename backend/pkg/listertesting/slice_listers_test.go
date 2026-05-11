@@ -385,7 +385,8 @@ func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externa
 			"/externalAuths/" + externalAuthName,
 	))
 	return &api.HCPOpenShiftClusterExternalAuth{
-		ProxyResource: arm.NewProxyResource(resourceID),
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		ProxyResource:  arm.NewProxyResource(resourceID),
 	}
 }
 
