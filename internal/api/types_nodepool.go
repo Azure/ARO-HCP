@@ -38,6 +38,11 @@ type HCPOpenShiftClusterNodePool struct {
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
+var _ ConditionsHolder = &HCPOpenShiftClusterNodePool{}
+
+func (o *HCPOpenShiftClusterNodePool) GetConditions() []Condition {
+	return o.Properties.Conditions
+}
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.

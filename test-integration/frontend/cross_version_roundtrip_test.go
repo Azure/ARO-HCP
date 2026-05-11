@@ -51,6 +51,7 @@ func TestCrossVersionRoundTrip(t *testing.T) {
 const (
 	v2024 = "2024-06-10-preview"
 	v2025 = "2025-12-23-preview"
+	v2026 = "2026-05-31-preview"
 )
 
 func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
@@ -208,8 +209,9 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }`, clusterName, subscriptionID, subscriptionID))
 
-	case v2025:
+	case v2025, v2026:
 		// v2025 payload — includes all optional fields (autoscaling, nodeDrainTimeoutMinutes)
+		// v2026 payload - current the same as 2025, includes conditions as read only field
 		return []byte(fmt.Sprintf(`{
   "identity": {
     "type": "UserAssigned",
@@ -433,8 +435,9 @@ func nodePoolCreatePayload(nodePoolName, apiVersion string) []byte {
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
 }`, nodePoolName, subscriptionID))
 
-	case v2025:
+	case v2025, v2026:
 		// v2025 payload — includes all optional fields (osDisk.diskStorageAccountType, diskType, nodeDrainTimeoutMinutes)
+		// v2026 payload - current the same as 2025, includes conditions as read only field
 		return []byte(fmt.Sprintf(`{
   "name": "%s",
   "properties": {

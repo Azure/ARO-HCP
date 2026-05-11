@@ -24,3 +24,10 @@ type Condition struct {
 	Reason             string              `json:"reason"`
 	Message            string              `json:"message"`
 }
+
+// ConditionsHolder is implemented by resource types that carry a slice
+// of Condition. It is used by the validation package to validate
+// conditions before database persistence.
+type ConditionsHolder interface {
+	GetConditions() []Condition
+}
