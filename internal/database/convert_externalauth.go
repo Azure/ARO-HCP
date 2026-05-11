@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/utils/ptr"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -46,23 +44,8 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 		},
 		ExternalAuthProperties: ExternalAuthProperties{
 			HCPOpenShiftClusterExternalAuth: *internalObj,
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        cosmosResourceID,
-				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
-				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
-				ProvisioningState: internalObj.Properties.ProvisioningState,
-				Identity:          nil,
-				SystemData:        internalObj.SystemData,
-				Tags:              nil,
-			},
-
-			InternalState: ExternalAuthInternalState{
-				InternalAPI: *internalObj,
-			},
 		},
 	}
-
-	cosmosObj.InternalState.InternalAPI.CosmosMetadata = api.CosmosMetadata{}
 
 	return cosmosObj, nil
 }
