@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build E2Etests
-
 package e2e
 
-import (
-	
-	"testing"
+import "embed"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-)
-
-func TestE2E(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "ARO-HCP E2E Tests")
-}
-
-
-var _ = AfterSuite(func() {
-	// Cleanup is done by Resource Group DeferCleanup
-})
+//go:embed test-artifacts
+var TestArtifactsFS embed.FS
