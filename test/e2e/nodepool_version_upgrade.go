@@ -253,7 +253,7 @@ var _ = Describe("Customer", func() {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
 			fromVersion, toVersion, err := framework.GetVersionPairWithoutUpgradeEdge(ctx, channelGroup, minor)
-			if errors.Is(err, framework.ErrNoNoEdgePairFound) {
+			if errors.Is(err, framework.ErrNoEdgePairFound) {
 				Skip(fmt.Sprintf("no version pair without upgrade edge in minor %s on channel %s", minor, channelGroup))
 			}
 			Expect(err).NotTo(HaveOccurred())
