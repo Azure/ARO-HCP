@@ -86,7 +86,7 @@ func (g *cosmosResourcesGlobalListers) NodePools() GlobalLister[api.HCPOpenShift
 }
 
 func (g *cosmosResourcesGlobalListers) ExternalAuths() GlobalLister[api.HCPOpenShiftClusterExternalAuth] {
-	return &cosmosGlobalLister[api.HCPOpenShiftClusterExternalAuth, ExternalAuth]{
+	return &cosmosGlobalLister[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]]{
 		containerClient: g.resources,
 		resourceType:    api.ExternalAuthResourceType,
 	}
