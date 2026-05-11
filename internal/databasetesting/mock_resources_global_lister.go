@@ -45,7 +45,7 @@ func (g *mockResourcesGlobalListers) Clusters() database.GlobalLister[api.HCPOpe
 }
 
 func (g *mockResourcesGlobalListers) NodePools() database.GlobalLister[api.HCPOpenShiftClusterNodePool] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftClusterNodePool, database.NodePool]{
+	return &mockTypedGlobalLister[api.HCPOpenShiftClusterNodePool, database.GenericDocument[api.HCPOpenShiftClusterNodePool]]{
 		client:       g.client,
 		resourceType: api.NodePoolResourceType,
 	}

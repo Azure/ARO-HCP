@@ -485,7 +485,7 @@ func (m *mockHCPClusterCRUD) NodePools(hcpClusterName string) database.NodePools
 			hcpClusterName)))
 
 	return &mockNodePoolsCRUD{
-		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftClusterNodePool, database.NodePool](
+		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftClusterNodePool, database.GenericDocument[api.HCPOpenShiftClusterNodePool]](
 			m.client,
 			parentResourceID,
 			api.NodePoolResourceType),
@@ -520,7 +520,7 @@ var _ database.HCPClusterCRUD = &mockHCPClusterCRUD{}
 
 // mockNodePoolsCRUD implements database.NodePoolsCRUD.
 type mockNodePoolsCRUD struct {
-	*mockResourceCRUD[api.HCPOpenShiftClusterNodePool, database.NodePool]
+	*mockResourceCRUD[api.HCPOpenShiftClusterNodePool, database.GenericDocument[api.HCPOpenShiftClusterNodePool]]
 }
 
 func (m *mockNodePoolsCRUD) Controllers(nodePoolName string) database.ResourceCRUD[api.Controller] {
