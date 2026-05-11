@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -54,8 +55,10 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
-	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty"`
-	ActiveOperationID string      `json:"activeOperationId,omitempty"`
+	ClusterServiceID                *InternalID  `json:"clusterServiceID,omitempty"`
+	ActiveOperationID               string       `json:"activeOperationId,omitempty"`
+	DeletionTimestamp               *metav1.Time `json:"deletionTimestamp,omitempty"`
+	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
