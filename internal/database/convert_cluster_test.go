@@ -15,76 +15,10 @@
 package database
 
 import (
-	"bytes"
-	"encoding/json"
-	"math/rand"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
-	"k8s.io/apimachinery/pkg/api/equality"
-
-	"sigs.k8s.io/randfill"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 )
-
-// fuzzerFor can randomly populate api objects that are destined for version.
-func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
-	f := randfill.New().NilChance(.5).NumElements(0, 1)
-	if src != nil {
-		f.RandSource(src)
-	}
-	f.Funcs(funcs...)
-	return f
-}
-
-func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *testing.T, original *InternalAPIType) {
-	originalBeforeJSON, _ := json.MarshalIndent(original, "", "    ")
-
-	intermediate, err := InternalToCosmos[InternalAPIType, CosmosAPIType](original)
-	require.NoError(t, err)
-	intermediateBeforeJSON, _ := json.MarshalIndent(intermediate, "", "    ")
-
-	final, err := CosmosToInternal[InternalAPIType, CosmosAPIType](intermediate)
-	require.NoError(t, err)
-
-	// this value is set during conversion, so we need clear for comparison
-	switch cast := any(final).(type) {
-	case *api.HCPOpenShiftCluster:
-		cast.ExistingCosmosUID = ""
-	case *api.HCPOpenShiftClusterNodePool:
-		cast.ExistingCosmosUID = ""
-	case *api.HCPOpenShiftClusterExternalAuth:
-		cast.ExistingCosmosUID = ""
-	}
-	//finalJSON, _ := json.MarshalIndent(final, "", "    ")
-
-	// we compare the JSON here because many of these types have private fields that cannot be introspected
-	if !equality.Semantic.DeepEqual(original, final) {
-		//t.Logf("original\n%s", string(originalBeforeJSON))
-		//t.Logf("intermediate\n%s", string(intermediateBeforeJSON))
-		//t.Logf("final\n%s", string(finalJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, final, api.CmpDiffOptions...))
-	}
-
-	// now check to be sure we didn't mutate the originals.  The copies still aren't deep, but at least we didn't nuke the inputs
-	originalAfterJSON, _ := json.MarshalIndent(original, "", "    ")
-	if !bytes.Equal(originalBeforeJSON, originalAfterJSON) {
-		t.Logf("original\n%s", string(originalBeforeJSON))
-		t.Logf("originalAfter\n%s", string(originalAfterJSON))
-		t.Errorf("original was modified: %v", cmp.Diff(originalBeforeJSON, originalAfterJSON))
-	}
-
-	// now check to be sure we didn't mutate the originals.  The copies still aren't deep, but at least we didn't nuke the inputs
-	intermediateAfterJSON, _ := json.MarshalIndent(intermediate, "", "    ")
-	if !bytes.Equal(intermediateBeforeJSON, intermediateAfterJSON) {
-		t.Logf("intermediate\n%s", string(intermediateBeforeJSON))
-		t.Logf("intermediateAfter\n%s", string(intermediateAfterJSON))
-		t.Errorf("intermediate was modified: %v", cmp.Diff(intermediateBeforeJSON, intermediateAfterJSON))
-	}
-}
 
 func TestClusterEnsureDefaults(t *testing.T) {
 	tests := []struct {

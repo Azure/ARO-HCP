@@ -159,7 +159,7 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 			hcpClusterName)))
 
 	return &externalAuthCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
 			h.containerClient,
 			parentResourceID,
 			api.ExternalAuthResourceType,
@@ -213,7 +213,7 @@ func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) Manage
 }
 
 type externalAuthCRUD struct {
-	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth]
+	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]]
 }
 
 func (h *externalAuthCRUD) Controllers(externalAuthName string) ResourceCRUD[api.Controller] {
