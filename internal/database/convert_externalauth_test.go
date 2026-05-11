@@ -107,9 +107,6 @@ func TestCosmosToInternalExternalAuthPreservesETag(t *testing.T) {
 					ResourceID: resourceID,
 				},
 			},
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID: resourceID,
-			},
 		},
 	}
 
