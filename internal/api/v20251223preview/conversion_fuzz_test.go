@@ -71,6 +71,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// BillingDocumentCosmosID does not roundtrip through the external type because it is purely an internal detail
 			j.BillingDocumentCosmosID = ""
 		},
+		func(j *api.HCPOpenShiftClusterExternalAuthProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// Condition is read-only and not converted from external to internal
+			j.Condition = api.ExternalAuthCondition{}
+		},
 		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
