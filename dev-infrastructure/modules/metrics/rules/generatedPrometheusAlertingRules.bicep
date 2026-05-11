@@ -379,7 +379,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -406,7 +406,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '(sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -433,7 +433,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h])) ) > 0.05'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -460,7 +460,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"} == 1'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
     ]
     scopes: [
@@ -749,6 +749,73 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   }
 }
 
+resource backendNodepool 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'backend-nodepool'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendNodePoolOperationErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'BackendNodePoolOperationErrorRate/{{ $labels.cluster }}'
+          description: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/pkg/controllers/controllerutils/operations_metrics.go.'
+          info: 'The Backend node pool operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}. Metrics emitted from backend/pkg/controllers/controllerutils/operations_metrics.go.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'High error rate on Backend Node Pool operations'
+          title: 'High error rate on Backend Node Pool operations'
+        }
+        expression: '(sum by (cluster) (rate(backend_failed_operations_total{type="poll_node_pool"}[1h]))) / (sum by (cluster) (rate(backend_operations_total{type="poll_node_pool"}[1h]))) > 0.05'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendNodePoolPollLatency'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'BackendNodePoolPollLatency/{{ $labels.cluster }}'
+          description: 'The 95th percentile of node pool poll operation latency has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/pkg/controllers/controllerutils/operations_metrics.go.'
+          info: 'The 95th percentile of node pool poll operation latency has exceeded 2 seconds over the past hour. This measures individual backend poll cycles, not end-to-end VM scaling time. Metrics emitted from backend/pkg/controllers/controllerutils/operations_metrics.go.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
+          title: 'Node pool backend poll operations are taking too long: 95th percentile exceeds 2 seconds'
+        }
+        expression: 'histogram_quantile(0.95, sum by (le, cluster) (rate(backend_operations_duration_seconds_bucket{type="poll_node_pool"}[1h]))) > 2'
+        for: 'PT15M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'admin-api'
   location: location
@@ -780,7 +847,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h])) ) > 0.05'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -807,7 +874,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"} == 1'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
     ]
     scopes: [
@@ -1173,7 +1240,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-customerapi"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1202,7 +1269,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-svc"} / 18 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1231,7 +1298,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-cx"} / 8 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1260,7 +1327,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-svc"} / 18 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1289,7 +1356,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region!="uswest2"} / 64 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1318,7 +1385,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region="uswest2"} / 128 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1347,7 +1414,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-cx"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1376,7 +1443,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-svc"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1405,7 +1472,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-cx"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1434,7 +1501,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-svc"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
     ]
     scopes: [
