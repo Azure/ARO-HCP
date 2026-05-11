@@ -292,6 +292,7 @@ func newTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) 
 			"/nodePools/" + testNodePoolName))
 	nodePoolInternalID := api.Must(api.NewInternalID(testNodePoolCSIDStr))
 	np := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,

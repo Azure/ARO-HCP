@@ -262,6 +262,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
 			clusterResourceID.String() + "/nodePools/" + name))
 		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: nodePoolResourceID,
+			},
 			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
 			Properties: api.HCPOpenShiftClusterNodePoolProperties{
 				Version: api.NodePoolVersionProfile{ID: versionID},

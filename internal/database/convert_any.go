@@ -34,9 +34,6 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	case *HCPCluster:
 		internalObj, err = CosmosToInternalCluster(cosmosObj)
 
-	case *NodePool:
-		internalObj, err = CosmosToInternalNodePool(cosmosObj)
-
 	case *TypedDocument:
 		var expectedObj InternalAPIType
 		switch castObj := any(expectedObj).(type) {
@@ -89,9 +86,6 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 
 	case *api.HCPOpenShiftCluster:
 		cosmosObj, err = InternalToCosmosCluster(internalObj)
-
-	case *api.HCPOpenShiftClusterNodePool:
-		cosmosObj, err = InternalToCosmosNodePool(internalObj)
 
 	case *TypedDocument:
 		var expectedObj CosmosAPIType

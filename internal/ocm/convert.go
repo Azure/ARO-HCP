@@ -572,6 +572,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string,
 	}
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,

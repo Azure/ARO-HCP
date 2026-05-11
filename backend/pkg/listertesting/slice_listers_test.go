@@ -344,6 +344,7 @@ func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolNam
 			"/nodePools/" + nodePoolName,
 	))
 	return &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
