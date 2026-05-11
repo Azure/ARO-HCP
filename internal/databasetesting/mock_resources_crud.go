@@ -454,7 +454,7 @@ func (m *mockHCPClusterCRUD) ExternalAuth(hcpClusterName string) database.Extern
 			hcpClusterName)))
 
 	return &mockExternalAuthCRUD{
-		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth](
+		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftClusterExternalAuth, database.GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
 			m.client,
 			parentResourceID,
 			api.ExternalAuthResourceType,
@@ -536,7 +536,7 @@ var _ database.NodePoolsCRUD = &mockNodePoolsCRUD{}
 
 // mockExternalAuthCRUD implements database.ExternalAuthsCRUD.
 type mockExternalAuthCRUD struct {
-	*mockResourceCRUD[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth]
+	*mockResourceCRUD[api.HCPOpenShiftClusterExternalAuth, database.GenericDocument[api.HCPOpenShiftClusterExternalAuth]]
 }
 
 func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) database.ResourceCRUD[api.Controller] {
