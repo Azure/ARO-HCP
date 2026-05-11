@@ -260,7 +260,8 @@ func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersio
 //   - The desired version exists in Cincinnati
 //
 // Cincinnati upgrade-edge validation is intentionally skipped — HCP nodepools use the Replace
-// strategy (destroy + recreate), so only version existence matters. See OCM-16815, ARO-26792.
+// strategy (destroy + recreate), so only version existence matters.
+// See https://hypershift.pages.dev/reference/nodepool-rollouts/#upgrade-types
 //
 // Returns nil if the desired version is valid, or an error describing why it's invalid.
 func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
