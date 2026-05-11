@@ -76,7 +76,11 @@ func toNodePoolPropertiesProvisioningState(oldObj *api.HCPOpenShiftClusterNodePo
 	return &oldObj.ProvisioningState
 }
 
-func toNodePoolPropertiesVersion(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolVersionProfile {
+// ToNodePoolPropertiesVersion returns a pointer to the Version field of node
+// pool properties. It is exported for use as a field accessor with safe.Field
+// by external callers (e.g. admission code) that need to navigate into the
+// Version subtree.
+func ToNodePoolPropertiesVersion(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolVersionProfile {
 	return &oldObj.Version
 }
 
@@ -115,7 +119,7 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toNodePoolPropertiesProvisioningState))...)
 
 	//Version                 NodePoolVersionProfile  `json:"version,omitempty"`
-	errs = append(errs, validateNodePoolVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toNodePoolPropertiesVersion))...)
+	errs = append(errs, validateNodePoolVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, ToNodePoolPropertiesVersion))...)
 
 	//Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, ToNodePoolPropertiesPlatform))...)
