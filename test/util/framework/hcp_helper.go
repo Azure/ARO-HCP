@@ -54,6 +54,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 // checkOperationResult ensures the result model returned by a runtime.Poller
@@ -1464,6 +1465,115 @@ func GetNodePool20251223(
 		return nil, err
 	}
 	return &resp.NodePool, nil
+}
+
+func BuildHCPCluster20260630FromParams(
+	parameters ClusterParams20260630,
+	location string,
+	imageDigestMirrors []*hcpsdk20260630preview.ImageDigestMirror,
+) (hcpsdk20260630preview.HcpOpenShiftCluster, error) {
+	return hcpsdk20260630preview.HcpOpenShiftCluster{
+		Location: to.Ptr(location),
+		Identity: parameters.Identity,
+		Tags:     parameters.Tags,
+		Properties: &hcpsdk20260630preview.HcpOpenShiftClusterProperties{
+			Version: &hcpsdk20260630preview.VersionProfile{
+				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ChannelGroup: to.Ptr(parameters.ChannelGroup),
+			},
+			Platform: &hcpsdk20260630preview.PlatformProfile{
+				ManagedResourceGroup:    to.Ptr(parameters.ManagedResourceGroupName),
+				NetworkSecurityGroupID:  to.Ptr(parameters.NsgResourceID),
+				SubnetID:                to.Ptr(parameters.SubnetResourceID),
+				VnetIntegrationSubnetID: to.Ptr(parameters.VnetIntegrationSubnetID),
+				OperatorsAuthentication: &hcpsdk20260630preview.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: parameters.UserAssignedIdentitiesProfile,
+				},
+			},
+			Network: &hcpsdk20260630preview.NetworkProfile{
+				NetworkType: to.Ptr(hcpsdk20260630preview.NetworkType(parameters.Network.NetworkType)),
+				PodCIDR:     to.Ptr(parameters.Network.PodCIDR),
+				ServiceCIDR: to.Ptr(parameters.Network.ServiceCIDR),
+				MachineCIDR: to.Ptr(parameters.Network.MachineCIDR),
+				HostPrefix:  to.Ptr(parameters.Network.HostPrefix),
+			},
+			API: &hcpsdk20260630preview.APIProfile{
+				Visibility:      to.Ptr(hcpsdk20260630preview.Visibility(parameters.APIVisibility)),
+				AuthorizedCIDRs: parameters.AuthorizedCIDRs,
+			},
+			ClusterImageRegistry: &hcpsdk20260630preview.ClusterImageRegistryProfile{
+				State: to.Ptr(hcpsdk20260630preview.ClusterImageRegistryState(parameters.ImageRegistryState)),
+			},
+			Etcd: &hcpsdk20260630preview.EtcdProfile{
+				DataEncryption: &hcpsdk20260630preview.EtcdDataEncryptionProfile{
+					KeyManagementMode: to.Ptr(hcpsdk20260630preview.EtcdDataEncryptionKeyManagementModeType(parameters.EncryptionKeyManagementMode)),
+					CustomerManaged: &hcpsdk20260630preview.CustomerManagedEncryptionProfile{
+						EncryptionType: to.Ptr(hcpsdk20260630preview.CustomerManagedEncryptionType(parameters.EncryptionType)),
+						Kms: &hcpsdk20260630preview.KmsEncryptionProfile{
+							VaultName:  to.Ptr(parameters.KeyVaultName),
+							Visibility: to.Ptr(hcpsdk20260630preview.KeyVaultVisibility(parameters.KeyVaultVisibility)),
+							ActiveKey: &hcpsdk20260630preview.KmsKey{
+								Name:    to.Ptr(parameters.EtcdEncryptionKeyName),
+								Version: to.Ptr(parameters.EtcdEncryptionKeyVersion),
+							},
+						},
+					},
+				},
+			},
+			ImageDigestMirrors: imageDigestMirrors,
+		},
+	}, nil
+}
+
+// CreateHCPCluster20260630AndWait creates an HCP cluster using the v20260630preview API and waits for completion.
+func CreateHCPCluster20260630AndWait(
+	ctx context.Context,
+	logger logr.Logger,
+	hcpClient *hcpsdk20260630preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	cluster hcpsdk20260630preview.HcpOpenShiftCluster,
+	timeout time.Duration,
+) (*hcpsdk20260630preview.HcpOpenShiftCluster, error) {
+	if timeout > 0*time.Second {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20260630AndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+		defer cancel()
+	}
+
+	logger.Info("Starting HCP cluster creation (v20260630preview)", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
+	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	if timeout > 0*time.Second {
+		operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+			Frequency: StandardPollInterval,
+		})
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating: %w", hcpClusterName, resourceGroupName, err)
+		}
+		switch m := any(operationResult).(type) {
+		case hcpsdk20260630preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
+			return &m.HcpOpenShiftCluster, nil
+		default:
+			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+			return nil, fmt.Errorf("unknown type %T", m)
+		}
+	} else {
+		_, err := poller.Poll(ctx)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed checking for deployment %q in resourcegroup=%q, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return nil, fmt.Errorf("failed checking for deployment %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+		}
+		return nil, nil
+	}
 }
 
 // BuildHCPClusterFromParams20251223 builds a v20251223preview HCP cluster from ClusterParams20251223

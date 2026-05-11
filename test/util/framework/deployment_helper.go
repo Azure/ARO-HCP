@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func GetOutputValueString(deploymentInfo *armresources.DeploymentExtended, outputName string) (string, error) {
@@ -539,6 +540,49 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20251223(
 		return fmt.Errorf("failed to create NodePool %s: %w", nodePoolName, err)
 	}
 
+	return nil
+}
+
+func (tc *perItOrDescribeTestContext) CreateHCPCluster20260630FromParam(
+	ctx context.Context,
+	logger logr.Logger,
+	resourceGroupName string,
+	parameters ClusterParams20260630,
+	imageDigestMirrors []*hcpsdk20260630preview.ImageDigestMirror,
+	timeout time.Duration,
+) error {
+	if timeout > 0*time.Second {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20260630FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
+		defer cancel()
+	}
+	clusterName := parameters.ClusterName
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20260630preview)", resourceGroupName, clusterName), startTime, finishTime)
+	}()
+
+	cluster, err := BuildHCPCluster20260630FromParams(parameters, tc.Location(), imageDigestMirrors)
+	if err != nil {
+		return fmt.Errorf("failed to build HCP cluster %s: %w", clusterName, err)
+	}
+
+	if _, err := CreateHCPCluster20260630AndWait(
+		ctx,
+		logger,
+		tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+		resourceGroupName,
+		clusterName,
+		cluster,
+		timeout,
+	); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+	}
 	return nil
 }
 

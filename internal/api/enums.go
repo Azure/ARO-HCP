@@ -223,6 +223,22 @@ var (
 	)
 )
 
+type ConditionType string
+
+const (
+	ConditionTypeAvailable   ConditionType = "Available"
+	ConditionTypeDegraded    ConditionType = "Degraded"
+	ConditionTypeProgressing ConditionType = "Progressing"
+)
+
+var (
+	ValidConditionTypes = sets.New[ConditionType](
+		ConditionTypeAvailable,
+		ConditionTypeDegraded,
+		ConditionTypeProgressing,
+	)
+)
+
 type ConditionStatusType string
 
 const (
