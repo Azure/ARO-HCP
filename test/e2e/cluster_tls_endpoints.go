@@ -94,20 +94,32 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("ensuring the API TLS certificate is signed by a trusted Azure CA")
-			clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
+			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			Eventually(func() error {
+				clusterResp, err := clusterClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				if err != nil {
+					return fmt.Errorf("failed to get cluster: %w", err)
+				}
 
-			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster response Properties was nil")
-			Expect(clusterResp.Properties.API).NotTo(BeNil(), "cluster Properties.API was nil")
-			Expect(clusterResp.Properties.API.URL).NotTo(BeNil(), "cluster Properties.API.URL was nil")
+				if clusterResp.Properties == nil || clusterResp.Properties.API == nil || clusterResp.Properties.API.URL == nil {
+					return fmt.Errorf("cluster API URL not yet available")
+				}
 
-			apiServerURL := clusterResp.Properties.API.URL
-			actualAPICerts, err := tlsCertsFromURL(ctx, *apiServerURL)
-			Expect(err).NotTo(HaveOccurred())
+				apiServerURL := clusterResp.Properties.API.URL
+				actualAPICerts, err := tlsCertsFromURL(ctx, *apiServerURL)
+				if err != nil {
+					return fmt.Errorf("failed to fetch TLS certificate from %s: %w", *apiServerURL, err)
+				}
 
-			fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICerts[0].Issuer)
-			err = verifyCertChain(actualAPICerts, trustedCAs)
-			Expect(err).NotTo(HaveOccurred(), "expect API certificate to be signed by a trusted Azure CA")
+				fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICerts[0].Issuer)
+				err = verifyCertChain(actualAPICerts, trustedCAs)
+				if err != nil {
+					return fmt.Errorf("certificate verification failed for %s (issuer: %v): %w",
+						*apiServerURL, actualAPICerts[0].Issuer, err)
+				}
+				return nil
+			}).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"expect API certificate to be signed by a trusted Azure CA")
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -150,7 +162,7 @@ var _ = Describe("Customer", func() {
 				}
 				fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", certs[0].Issuer)
 				return verifyCertChain(certs, trustedCAs)
-			}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+			}).WithTimeout(4*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect ingress certificate to be signed by a trusted Azure CA")
 		})
 })
