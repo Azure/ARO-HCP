@@ -1,0 +1,7 @@
+allowedRegistries:
+- '{{ .acr.svc.name }}.{{ .acrDNSSuffix }}'
+- '{{ .acr.ocp.name }}.{{ .acrDNSSuffix }}'
+- mcr.microsoft.com
+- kubernetesshared.azurecr.io
+validationActions:
+- Audit
