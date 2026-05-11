@@ -221,9 +221,30 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	return newInternalNodePool, nil
 }
 
-func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, cluster *api.HCPOpenShiftCluster) (*admission.NodePoolAdmissionContext, error) {
+// newNodePoolAdmissionContext creates an admission context for node pool operations.
+// The cluster parameter is always required.
+// The spCluster and spNodePool parameters provide service provider state needed for
+// admission checks that depend on runtime state (e.g., version upgrade validation).
+// For UPDATE operations, these parameters are required and the function will fail if they're nil.
+// For CREATE operations, these can be nil since no prior state exists.
+func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster, spNodePool *api.ServiceProviderNodePool) (*admission.NodePoolAdmissionContext, error) {
+	if cluster == nil {
+		return nil, fmt.Errorf("cluster is required for admission context")
+	}
+
+	if op.Type == operation.Update {
+		if spCluster == nil {
+			return nil, fmt.Errorf("serviceProviderCluster is required for UPDATE operations")
+		}
+		if spNodePool == nil {
+			return nil, fmt.Errorf("serviceProviderNodePool is required for UPDATE operations")
+		}
+	}
+
 	return &admission.NodePoolAdmissionContext{
-		Cluster: cluster,
+		Cluster:                 cluster,
+		ServiceProviderCluster:  spCluster,
+		ServiceProviderNodePool: spNodePool,
 	}, nil
 }
 
@@ -264,13 +285,13 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, cluster)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	restOperation := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, nil, nil)
+	if err != nil {
+		return utils.TrackError(err)
 	}
 	if mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, nil); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
@@ -278,7 +299,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	validationErrs := validation.ValidateNodePool(ctx, restOperation, newInternalNodePool, nil)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, nil, cluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, admissionContext, restOperation, newInternalNodePool, nil)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -553,22 +574,20 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, cluster)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	restOperation := operation.Operation{
 		Type:    operation.Update,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+	}
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, spCluster, spNodePool)
+	if err != nil {
+		return utils.TrackError(err)
 	}
 	if mutationErrs := admission.MutateNodePool(ctx, admissionContext, restOperation, newInternalNodePool, oldInternalNodePool); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
 	validationErrs := validation.ValidateNodePool(ctx, restOperation, newInternalNodePool, oldInternalNodePool)
-	// in addition to static validation, we have validation based on the state of the hcp cluster
-	// AdmitNodePoolUpdate includes AdmitNodePool checks plus version upgrade validation
-	validationErrs = append(validationErrs, admission.AdmitNodePoolUpdate(newInternalNodePool, oldInternalNodePool, cluster, spNodePool, spCluster, restOperation)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(ctx, admissionContext, restOperation, newInternalNodePool, oldInternalNodePool)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}

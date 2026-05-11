@@ -147,39 +147,84 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 		return np
 	}
 
+	newAdmissionContext := func(withServiceProvider bool) *NodePoolAdmissionContext {
+		admissionContext := &NodePoolAdmissionContext{
+			Cluster: cluster,
+		}
+		if withServiceProvider {
+			version := semver.MustParse("4.14.0")
+			admissionContext.ServiceProviderNodePool = &api.ServiceProviderNodePool{
+				Spec: api.ServiceProviderNodePoolSpec{
+					NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+						DesiredVersion: &version,
+					},
+				},
+				Status: api.ServiceProviderNodePoolStatus{
+					NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
+						ActiveVersions: []api.HCPNodePoolActiveVersion{
+							{Version: &version},
+						},
+					},
+				},
+			}
+			admissionContext.ServiceProviderCluster = &api.ServiceProviderCluster{
+				Status: api.ServiceProviderClusterStatus{
+					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+						ActiveVersions: []api.HCPClusterActiveVersion{
+							{Version: &version},
+						},
+					},
+				},
+			}
+		}
+		return admissionContext
+	}
+
 	tests := []struct {
-		name         string
-		newObj       *api.HCPOpenShiftClusterNodePool
-		oldObj       *api.HCPOpenShiftClusterNodePool
-		expectErrors []utils.ExpectedError
+		name             string
+		op               operation.Type
+		newObj           *api.HCPOpenShiftClusterNodePool
+		oldObj           *api.HCPOpenShiftClusterNodePool
+		admissionContext *NodePoolAdmissionContext
+		expectErrors     []utils.ExpectedError
 	}{
 		{
-			name:         "create: subnet matches cluster subnet (same cluster reuse allowed)",
-			newObj:       nodePoolWithSubnet(clusterSubnet),
-			expectErrors: []utils.ExpectedError{},
+			name:             "create: subnet matches cluster subnet (same cluster reuse allowed)",
+			op:               operation.Create,
+			newObj:           nodePoolWithSubnet(clusterSubnet),
+			admissionContext: newAdmissionContext(false),
+			expectErrors:     []utils.ExpectedError{},
 		},
 		{
-			name:         "create: subnet in same VNet allowed",
-			newObj:       nodePoolWithSubnet(sameVNetSubnet),
-			expectErrors: []utils.ExpectedError{},
+			name:             "create: subnet in same VNet allowed",
+			op:               operation.Create,
+			newObj:           nodePoolWithSubnet(sameVNetSubnet),
+			admissionContext: newAdmissionContext(false),
+			expectErrors:     []utils.ExpectedError{},
 		},
 		{
-			name:   "create: subnet in different VNet rejected",
-			newObj: nodePoolWithSubnet(differentVNetSubnet),
+			name:             "create: subnet in different VNet rejected",
+			op:               operation.Create,
+			newObj:           nodePoolWithSubnet(differentVNetSubnet),
+			admissionContext: newAdmissionContext(false),
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.platform.subnetId", Message: "must belong to the same VNet as the parent cluster VNet"},
 			},
 		},
 		{
-			name:         "update: unchanged subnet in different VNet not re-validated",
-			oldObj:       nodePoolWithSubnet(differentVNetSubnet),
-			newObj:       nodePoolWithSubnet(differentVNetSubnet),
-			expectErrors: []utils.ExpectedError{},
+			name:             "update: unchanged subnet in different VNet not re-validated",
+			op:               operation.Update,
+			oldObj:           nodePoolWithSubnet(differentVNetSubnet),
+			newObj:           nodePoolWithSubnet(differentVNetSubnet),
+			admissionContext: newAdmissionContext(true),
+			expectErrors:     []utils.ExpectedError{},
 		},
 		{
-			name:   "update: subnet changed to different VNet rejected",
-			oldObj: nodePoolWithSubnet(sameVNetSubnet),
-			newObj: nodePoolWithSubnet(differentVNetSubnet),
+			name:             "update: subnet changed to different VNet rejected",
+			op:               operation.Update,
+			oldObj:           nodePoolWithSubnet(sameVNetSubnet),
+			newObj:           nodePoolWithSubnet(differentVNetSubnet),
+			admissionContext: newAdmissionContext(true),
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.platform.subnetId", Message: "must belong to the same VNet as the parent cluster VNet"},
 			},
@@ -188,7 +233,7 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := AdmitNodePool(tt.newObj, tt.oldObj, cluster)
+			errs := AdmitNodePool(context.Background(), tt.admissionContext, operation.Operation{Type: tt.op}, tt.newObj, tt.oldObj)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -206,7 +251,7 @@ func assertNodePoolEqual(t *testing.T, expected, actual *api.HCPOpenShiftCluster
 	assert.Equal(t, string(expectedJSON), string(actualJSON))
 }
 
-func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
+func TestAdmitNodePool_VersionValidation(t *testing.T) {
 	tests := []struct {
 		name               string
 		newVersion         string
@@ -489,14 +534,18 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 				},
 			}
 
-			errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster, op)
+			errs := AdmitNodePool(context.Background(), &NodePoolAdmissionContext{
+				Cluster:                 cluster,
+				ServiceProviderNodePool: spNodePool,
+				ServiceProviderCluster:  spCluster,
+			}, op, newNodePool, oldNodePool)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
 
-func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
-	// Test that AdmitNodePoolUpdate also performs AdmitNodePool checks
+func TestAdmitNodePool_IncludesChannelGroupCheck(t *testing.T) {
+	// Test that AdmitNodePool performs channel group validation from service provider state
 	newNodePool := &api.HCPOpenShiftClusterNodePool{
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
@@ -549,7 +598,11 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 	// Empty update operation (no experimental features)
 	op := operation.Operation{Type: operation.Update}
 
-	errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster, op)
+	errs := AdmitNodePool(context.Background(), &NodePoolAdmissionContext{
+		Cluster:                 cluster,
+		ServiceProviderNodePool: spNodePool,
+		ServiceProviderCluster:  spCluster,
+	}, op, newNodePool, oldNodePool)
 
 	expectedErrors := []utils.ExpectedError{
 		{FieldPath: "properties.version.channelGroup", Message: "must be the same as control plane channel group"},
