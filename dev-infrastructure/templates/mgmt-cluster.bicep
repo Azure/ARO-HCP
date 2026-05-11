@@ -179,6 +179,15 @@ param kubeApplierContainerName string
 @description('The autoscale max throughput for the kube-applier CosmosDB container.')
 param kubeApplierContainerMaxScale int
 
+@description('The name of the mgmt-agent managed identity.')
+param mgmtAgentMIName string
+
+@description('The namespace of the mgmt-agent controller.')
+param mgmtAgentNamespace string
+
+@description('The service account name of the mgmt-agent controller.')
+param mgmtAgentServiceAccountName string
+
 @description('The regional SVC DNS zone name.')
 param regionalSvcDNSZoneName string
 
@@ -246,6 +255,11 @@ var workloadIdentities = items({
     uamiName: maestroConsumerMIName
     namespace: maestroConsumerNamespace
     serviceAccountName: maestroConsumerServiceAccountName
+  }
+  mgmt_agent_wi: {
+    uamiName: mgmtAgentMIName
+    namespace: mgmtAgentNamespace
+    serviceAccountName: mgmtAgentServiceAccountName
   }
   logs_wi: {
     uamiName: logsMSI

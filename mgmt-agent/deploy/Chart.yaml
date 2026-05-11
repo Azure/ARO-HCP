@@ -1,0 +1,5 @@
+apiVersion: v2
+name: mgmt-agent
+description: Controller for managing node extended resources on ARO HCP management clusters.
+type: application
+version: 0.1.0

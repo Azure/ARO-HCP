@@ -7,6 +7,7 @@ use (
 	./frontend
 	./internal
 	./kube-applier
+	./mgmt-agent
 	./sessiongate
 	./test
 	./test-integration

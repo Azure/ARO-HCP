@@ -1,0 +1,19 @@
+image:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  repository: "{{ .mgmtAgent.image.repository }}"
+  digest: "{{ .mgmtAgent.image.digest }}"
+deployment:
+  replicas: "{{ .mgmtAgent.k8s.replicas }}"
+  requests:
+    cpu: 50m
+    memory: 64Mi
+logLevel: "2"
+health:
+  port: 8080
+nodeSelector: {}
+tolerations: []
+affinity: {}
+serviceAccount:
+  name: "{{ .mgmtAgent.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__msiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
