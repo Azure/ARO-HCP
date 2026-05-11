@@ -134,6 +134,98 @@ func TestValidateCondition(t *testing.T) {
 	}
 }
 
+type testConditionsHolder struct {
+	conditions []api.Condition
+}
+
+func (h *testConditionsHolder) GetConditions() []api.Condition {
+	return h.conditions
+}
+
+func TestValidateConditionsForPersist(t *testing.T) {
+	tests := []struct {
+		name       string
+		conditions []api.Condition
+		wantErr    string
+	}{
+		{
+			name:       "valid conditions",
+			conditions: []api.Condition{validCondition()},
+		},
+		{
+			name: "invalid condition type is rejected",
+			conditions: []api.Condition{
+				func() api.Condition { c := validCondition(); c.Type = "NotAValidType"; return c }(),
+			},
+			wantErr: "Unsupported value",
+		},
+		{
+			name: "missing lastTransitionTime is rejected",
+			conditions: []api.Condition{
+				func() api.Condition { c := validCondition(); c.LastTransitionTime = time.Time{}; return c }(),
+			},
+			wantErr: "Required value",
+		},
+		{
+			name: "too many conditions is rejected",
+			conditions: func() []api.Condition {
+				out := make([]api.Condition, conditionMaxItems+1)
+				for i := range out {
+					out[i] = validCondition()
+				}
+				return out
+			}(),
+			wantErr: "Too many",
+		},
+		{
+			name: "duplicate condition types is rejected",
+			conditions: []api.Condition{
+				func() api.Condition { c := validCondition(); c.Type = api.ConditionTypeAvailable; return c }(),
+				func() api.Condition { c := validCondition(); c.Type = api.ConditionTypeAvailable; return c }(),
+			},
+			wantErr: "Duplicate value",
+		},
+		{
+			name: "invalid reason pattern is rejected",
+			conditions: []api.Condition{
+				func() api.Condition { c := validCondition(); c.Reason = "has spaces"; return c }(),
+			},
+			wantErr: "reason",
+		},
+		{
+			name:       "nil conditions pass",
+			conditions: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			holder := &testConditionsHolder{conditions: tt.conditions}
+			errs := ValidateConditionsForPersist(holder)
+			if tt.wantErr == "" {
+				if len(errs) > 0 {
+					t.Errorf("expected no errors, got: %v", errs)
+				}
+			} else {
+				if len(errs) == 0 {
+					t.Errorf("expected error containing %q, got none", tt.wantErr)
+				} else {
+					found := false
+					for _, e := range errs {
+						if strings.Contains(e.Error(), tt.wantErr) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("expected error containing %q, got: %v", tt.wantErr, errs)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestValidateConditions(t *testing.T) {
 	ctx := context.Background()
 	op := operation.Operation{Type: operation.Create}

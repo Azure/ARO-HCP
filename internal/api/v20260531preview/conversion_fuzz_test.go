@@ -86,6 +86,18 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// Conditions does not roundtrip through this API version because it is not exposed
 			j.Conditions = nil
 		},
+		func(j *api.HCPOpenShiftClusterNodePoolProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// Conditions are read-only and not accepted from client input in ConvertToInternal
+			j.Conditions = nil
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuthProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// The singular Condition field does not exist in this API version
+			j.Condition = api.ExternalAuthCondition{}
+			// Conditions are read-only and not accepted from client input in ConvertToInternal
+			j.Conditions = nil
+		},
 		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail

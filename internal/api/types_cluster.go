@@ -33,6 +33,11 @@ type HCPOpenShiftCluster struct {
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
+var _ ConditionsHolder = &HCPOpenShiftCluster{}
+
+func (o *HCPOpenShiftCluster) GetConditions() []Condition {
+	return o.ServiceProviderProperties.Conditions
+}
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterCustomerProperties struct {

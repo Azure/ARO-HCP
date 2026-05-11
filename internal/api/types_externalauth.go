@@ -48,6 +48,11 @@ func (ea *HCPOpenShiftClusterExternalAuth) EnsureDefaults() {
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+var _ ConditionsHolder = &HCPOpenShiftClusterExternalAuth{}
+
+func (o *HCPOpenShiftClusterExternalAuth) GetConditions() []Condition {
+	return o.Properties.Conditions
+}
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.

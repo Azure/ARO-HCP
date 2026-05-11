@@ -38,6 +38,16 @@ var (
 	conditionReasonPattern = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`)
 )
 
+// ValidateConditionsForPersist validates the conditions of a ConditionsHolder
+// using the same rules as the frontend validation path. It is called
+// automatically by the database CRUD layer during Create and Replace.
+func ValidateConditionsForPersist(holder api.ConditionsHolder) field.ErrorList {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Update}
+	fldPath := field.NewPath("conditions")
+	return validateConditions(ctx, op, fldPath, holder.GetConditions())
+}
+
 // validateConditions validates a slice of conditions using the standard
 // validation helpers. Constraints are aligned with Kubernetes metav1.Condition.
 func validateConditions(ctx context.Context, op operation.Operation, fldPath *field.Path, conditions []api.Condition) field.ErrorList {
