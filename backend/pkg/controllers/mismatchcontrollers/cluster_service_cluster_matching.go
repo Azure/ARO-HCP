@@ -48,7 +48,7 @@ type clusterServiceClusterMatching struct {
 // NewClusterServiceClusterMatchingController periodically looks for mismatched cluster-service and cosmos clusters
 func NewClusterServiceClusterMatchingController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister, clusterServiceClient ocm.ClusterServiceClientSpec) controllerutils.Controller {
 	c := &clusterServiceClusterMatching{
-		name:                 "ClusterServiceMatchingClusters",
+		name:                 " ",
 		subscriptionLister:   subscriptionLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
