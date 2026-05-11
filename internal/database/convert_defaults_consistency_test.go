@@ -486,21 +486,24 @@ func TestPreExistingDataExternalAuth(t *testing.T) {
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/externalAuths/default",
 	))
 
+	internalID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default"))
 	preExistingDoc := &ExternalAuth{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
 		ExternalAuthProperties: ExternalAuthProperties{
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
-			},
-			InternalState: ExternalAuthInternalState{
-				InternalAPI: api.HCPOpenShiftClusterExternalAuth{
-					// PrefixPolicy is intentionally zero-valued to simulate
-					// a pre-existing document that predates the field.
+			HCPOpenShiftClusterExternalAuth: api.HCPOpenShiftClusterExternalAuth{
+				// PrefixPolicy is intentionally zero-valued to simulate
+				// a pre-existing document that predates the field.
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID: resourceID,
+				},
+				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
+					ProvisioningState: arm.ProvisioningStateSucceeded,
+				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
+					ClusterServiceID: &internalID,
 				},
 			},
 		},

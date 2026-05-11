@@ -25,22 +25,10 @@ type ExternalAuth struct {
 }
 
 type ExternalAuthProperties struct {
-	// HCPOpenShiftClusterExternalAuth is the inline serialization that mirrors GenericDocument[api.HCPOpenShiftClusterExternalAuth]
-	// (the destination shape for externalauth documents). The reading path now uses these inline fields as the
-	// source of truth; the IntermediateResourceDoc/InternalState siblings are still written for compatibility
-	// with old readers, but will be removed once all readers have migrated.
+	// HCPOpenShiftClusterExternalAuth is inlined directly. The on-disk shape now matches
+	// GenericDocument[api.HCPOpenShiftClusterExternalAuth] and ExternalAuth only exists as a
+	// distinct type while the migration to that generic surface completes.
 	api.HCPOpenShiftClusterExternalAuth `json:",inline"`
-
-	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
-	// embed the InternalAPIType which has colliding serialization fields.
-	IntermediateResourceDoc *ResourceDocument `json:"intermediateResourceDoc"`
-
-	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
-	InternalState ExternalAuthInternalState `json:"internalState"`
-}
-
-type ExternalAuthInternalState struct {
-	InternalAPI api.HCPOpenShiftClusterExternalAuth `json:"internalAPI"`
 }
 
 func (o *ExternalAuth) GetTypedDocument() *TypedDocument {
