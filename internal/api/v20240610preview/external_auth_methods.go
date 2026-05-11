@@ -16,7 +16,6 @@ package v20240610preview
 
 import (
 	"strings"
-	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -93,16 +92,6 @@ func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExtern
 	if h.Properties != nil {
 		if h.Properties.ProvisioningState != nil {
 			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
-		}
-
-		if h.Properties.Condition != nil {
-			out.Properties.Condition = api.ExternalAuthCondition{
-				Type:               api.ExternalAuthConditionType(ptr.Deref(h.Properties.Condition.Type, "")),
-				Status:             api.ConditionStatusType(ptr.Deref(h.Properties.Condition.Status, "")),
-				LastTransitionTime: ptr.Deref(h.Properties.Condition.LastTransitionTime, time.Time{}),
-				Reason:             ptr.Deref(h.Properties.Condition.Reason, ""),
-				Message:            ptr.Deref(h.Properties.Condition.Message, ""),
-			}
 		}
 
 		if h.Properties.Issuer != nil {
