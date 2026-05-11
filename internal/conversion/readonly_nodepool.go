@@ -37,5 +37,6 @@ func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
 	}
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
+	dest.Properties.Conditions = src.Properties.Conditions
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
 }
