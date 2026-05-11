@@ -11,7 +11,6 @@
 			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample"
 		},
 		"externalId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness",
-		"resourceId": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrilleffectiveness/providers/microsoft.redhatopenshift/hcpopenshiftclusters/lavishunhappiness/hcpOpenShiftControllers/DoNothingExample",
 		"status": {
 			"conditions": [
 				{

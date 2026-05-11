@@ -131,8 +131,8 @@ func estimateLegendHeight(series []parsedSeries, chartWidth int) int {
 
 // buildChartData builds the chart HTML for a single PromQL query result.
 // Each PrometheusResult becomes a separate series, labeled by its metric
-// labels. Series where all values are zero are filtered out.
-func buildChartData(title, description, query, queryErr string, results []PrometheusResult, tw timing.TimeWindow) chartData {
+// labels.
+func buildChartData(title, description, query, unit, queryErr string, results []PrometheusResult, tw timing.TimeWindow) chartData {
 	var series []parsedSeries
 	for _, result := range results {
 		if len(result.Values) == 0 {
@@ -140,7 +140,6 @@ func buildChartData(title, description, query, queryErr string, results []Promet
 		}
 
 		var data []opts.LineData
-		allZero := true
 		for _, v := range result.Values {
 			if len(v) < 2 {
 				continue
@@ -149,15 +148,12 @@ func buildChartData(title, description, query, queryErr string, results []Promet
 			if !ok || ts == 0 {
 				continue
 			}
-			if val != 0 {
-				allZero = false
-			}
 			data = append(data, opts.LineData{
 				Value: []any{ts * 1000, val}, // ECharts time axis expects milliseconds
 			})
 		}
 
-		if len(data) == 0 || allZero {
+		if len(data) == 0 {
 			continue
 		}
 
@@ -219,7 +215,10 @@ func buildChartData(title, description, query, queryErr string, results []Promet
 			Max:  tw.End.UnixMilli(),
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
-			Type: "value",
+			Type:         "value",
+			Name:         unit,
+			NameLocation: "middle",
+			NameGap:      50,
 		}),
 		charts.WithGridOpts(opts.Grid{
 			Bottom: fmt.Sprintf("%d", legendHeight+legendBottomPadding),

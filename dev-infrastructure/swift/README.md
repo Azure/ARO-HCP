@@ -1,63 +1,44 @@
 ### SWIFT V2 Setup
 
-Basic instructions to get swift working in our dev environment. For this you will need access to our mock 1P app. The `login_fpa.sh` script will collect the certificate and log you in as the 1P app, it's used to create/delete the service association link on the subnet created by the `demo/02-customer-infra.sh`.
+> [!NOTE]
+> All `pers` environments are now Swift enabled by default. Use the e2e tests in `test/` for creating Swift clusters. These docs remain as a reference for any changes needed based on installation.
 
-The sal_env_vars script stores some basic configuration that is specific to the dev environment (subscription). This would need to be modified for other environments such as INT
+Basic instructions to get swift working in our dev environment. For this you will need access to our mock 1P app. The `login_fpa.sh` script will collect the certificate and log you in as the 1P app, it's used to create/delete the service association link on the customer subnet.
 
-NOTE: Yes when you start creating the SAL, PotNetwork etc you will get logged in and out of Azure because we're switching between the mock 1p and the dev sub
+The `swift_env_vars` script stores some basic configuration that is specific to the dev environment (subscription). This would need to be modified for other environments such as INT
 
-You need to create a cluster in dev with the correct vnet tag, instance types and agent pool flags.
+NOTE: Yes when you start creating the SAL, PodNetwork etc you will get logged in and out of Azure because we're switching between the mock 1p and the dev sub
 
-The default personal dev environment (`DEPLOY_ENV=pers`) already has Swift V2 enabled with `Standard_D4s_v3` nodes (1 secondary NIC). This is sufficient for basic Swift testing.
+All personal dev environments (`DEPLOY_ENV=pers`) have Swift V2 enabled by default.
 
 `make personal-dev-env`
 
-If you need a larger management cluster with more secondary NICs (e.g. `Standard_D16s_v3` with 7 secondary NICs), use the dedicated Swift environment instead:
+Refer to `demo/README.md` for instructions on creating infrastructure and clusters via ARM.
 
-`DEPLOY_ENV=swft make personal-dev-env`
-
-1. Port forward to the aro-hcp frontend
-
-`export KUBECONFIG=$(make infra.svc.aks.kubeconfigfile)`
-
-`kubectl port-forward svc/aro-hcp-frontend 8443:8443 -n aro-hcp`
-
-2. Create infrastructure, resource group, vnet and subnet. Pass the "swift" argument to the demo script so it will create a second subnet for Swift and delegate it to the Microsoft.RedHatOpenShift/hcpOpenShiftClusters service
-
-`./demo/01-register-sub.sh`
-
-`./demo/02-customer-infra.sh swift`
-
-3. Create cluster and node pool
-
-`./demo/03-create-cluster.sh`
-
-`./demo/04-create-nodepool.sh`
-
-2. Validate that we can create the service association link (this should return a 200)
+1. Validate that we can create the service association link (this should return a 200)
 
 `./01_validate_sal.sh`
 
-3. Create the service association link on the subnet
+2. Create the service association link on the subnet
 
 `./02_create_sal.sh`
 
 > [!IMPORTANT]
 > These should be executed on the management cluster not the service cluster
 
-4. Create the `PodNetwork` CR
+3. Create the `PodNetwork` CR
 
 `./03_create_podnetwork.sh`
 
-5. Create the `PodNetworkInstance` CR
+4. Create the `PodNetworkInstance` CR
 
 `./04_create_podnetworkinstance.sh <ocm namespace>`
 
-6. Create labels on kube-apiserver pods (this is an example not the solution)
+5. Create labels on kube-apiserver pods (this is an example not the solution)
 
 `./05_create_labels_kube_api.sh <ocm namespace>`
 
-7. Validate multitenantpodnetworkconfig CR which should show status with interface details
+6. Validate multitenantpodnetworkconfig CR which should show status with interface details
 
 `./06_validate_mtpnc.sh <ocm namespace>`
 

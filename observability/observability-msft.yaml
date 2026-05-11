@@ -74,6 +74,7 @@ prometheusRules:
   - groupName: msi-credential-refresher
     alerts:
     - ClusterCredentialExpiringSoon
+    - ClusterCredentialExpired
   outputReplacements:
   - from: 'job="kube-scheduler"'
     to: 'job="controlplane-kube-scheduler"'

@@ -1028,20 +1028,20 @@ resource msftPrometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups
         }
         annotations: {
           correlationId: 'PrometheusJobUp/{{ $labels.cluster }}'
-          description: '''Prometheus has not been reachable for the past 5 minutes.
+          description: '''Prometheus has not been reachable for the past 10 minutes.
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          info: '''Prometheus has not been reachable for the past 5 minutes.
+          info: '''Prometheus has not been reachable for the past 10 minutes.
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
           runbook_url: 'TBD'
-          summary: 'Prometheus is unreachable for 5 minutes.'
-          title: 'Prometheus is unreachable for 5 minutes.'
+          summary: 'Prometheus is unreachable for 10 minutes.'
+          title: 'Prometheus is unreachable for 10 minutes.'
         }
         expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
-        for: 'PT5M'
+        for: 'PT10M'
         severity: 3
       }
       {
@@ -1382,13 +1382,40 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
         }
         annotations: {
           correlationId: 'ClusterCredentialExpiringSoon/{{ $labels.cluster }}'
-          description: 'Cluster credential for cluster {{ $labels.cluster }} is expiring in less than 30 days.'
-          info: 'Cluster credential for cluster {{ $labels.cluster }} is expiring in less than 30 days.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/doc/tsgs/credential-refresher-expiring-cert'
-          summary: 'Cluster credential expiring in less than 30 days'
-          title: 'Cluster credential expiring in less than 30 days'
+          description: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} are expiring in less than 30 days.'
+          info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} are expiring in less than 30 days.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          summary: 'Customer cluster credential expiring in less than 30 days'
+          title: 'Customer cluster credential expiring in less than 30 days'
         }
-        expression: 'increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="14"}[30m]) > 0'
+        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="30"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="0"}[30m])) > 0'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClusterCredentialExpired'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'ClusterCredentialExpired/{{ $labels.cluster }}'
+          description: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} have expired.'
+          info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} have expired.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          summary: 'Customer cluster credential has expired'
+          title: 'Customer cluster credential has expired'
+        }
+        expression: 'increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="0"}[30m]) > 0'
         for: 'PT5M'
         severity: 3
       }

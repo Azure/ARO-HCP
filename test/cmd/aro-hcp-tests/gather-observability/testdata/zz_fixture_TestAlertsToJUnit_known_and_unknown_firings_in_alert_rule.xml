@@ -1,0 +1,9 @@
+<testsuites>
+  <testsuite name="aro-hcp-tests" tests="1" skipped="0" failures="1" time="2100">
+    <properties></properties>
+    <testcase name="[aro-hcp-observability] [svc] alert BackendControllerRetryHotLoop does not fire" time="2100">
+      <failure message="alert fired 2 time(s) (1 unknown, 1 known)">Firing 1:&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T07:00:00Z&#xA;  Ended:       2026-04-13T07:15:00Z&#xA;  Severity:    Sev3&#xA;  Labels:      alertname=&#34;BackendControllerRetryHotLoop&#34;, cluster=&#34;prow-j3151872-svc&#34;, name=&#34;operationnodepoolcreate&#34;, severity=&#34;warning&#34;&#xA;  Description: Backend controller retry hot loop (unknown firing)&#xA;</failure>
+      <system-out>Known firings (not counted as failures):&#xA;Firing 1: (known issue: Known issue: hot loop during provisioning.)&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T06:10:00Z&#xA;  Ended:       2026-04-13T06:30:00Z&#xA;  Severity:    Sev3&#xA;  Labels:      alertname=&#34;BackendControllerRetryHotLoop&#34;, cluster=&#34;prow-j3151872-svc&#34;, name=&#34;operationnodepoolcreate&#34;, severity=&#34;warning&#34;&#xA;  Description: Backend controller retry hot loop (known firing)&#xA;</system-out>
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -36,21 +36,37 @@ import (
 
 type operationClusterDelete struct {
 	clock                utilsclock.PassiveClock
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
+	billingDBClient      database.BillingDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
 }
 
-// NewOperationClusterDeleteController periodically lists all clusters and for each out when the cluster was deleted and its state.
+// NewOperationClusterDeleteController returns a new Controller instance that
+// follows an asynchronous cluster deletion operation to completion and updates
+// the corresponding operation document in Cosmos DB.
+//
+// Operation documents relevant to this controller will have the following values:
+//
+//	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
+//	     Request: Delete
+//	      Status: any non-terminal value
+//
+// Note that "to completion" does not imply success. An operation is considered
+// complete when its status field reaches what Azure defines as a terminal value;
+// any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
+// a terminal value, there will be no further updates to the operation document.
 func NewOperationClusterDeleteController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
+	billingDBClient database.BillingDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationClusterDelete{
 		clock:                utilsclock.RealClock{},
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
+		billingDBClient:      billingDBClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
 	}
@@ -60,7 +76,7 @@ func NewOperationClusterDeleteController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -83,7 +99,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -108,7 +124,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		// Do this before calling setDeleteOperationAsCompleted so that in
 		// case of error the backend will retry by virtue of the operation
 		// document still having a non-terminal status.
-		err = controllerutils.MarkBillingDocumentDeleted(ctx, c.cosmosClient, operation.ExternalID, c.clock.Now())
+		err = controllerutils.MarkBillingDocumentDeleted(ctx, c.billingDBClient, operation.ExternalID, c.clock.Now())
 		if errors.Is(err, database.ErrAmbiguousResult) {
 			// TODO: Remove when we enforce there's a single billing document per cluster.
 			logger.Error(err, "Failed to mark CosmosDB billing record for deletion")
@@ -116,7 +132,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 			return utils.TrackError(err)
 		}
 
-		err = SetDeleteOperationAsCompleted(ctx, c.cosmosClient, operation, postAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -132,7 +148,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	err = UpdateOperationStatus(ctx, c.cosmosClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

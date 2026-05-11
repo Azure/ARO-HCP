@@ -37,7 +37,7 @@ type nodePoolWatchingController struct {
 	name   string
 	syncer NodePoolSyncer
 
-	cosmosClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 }
 
 // NewNodePoolWatchingController periodically looks up all NodePools and queues them
@@ -47,15 +47,15 @@ type nodePoolWatchingController struct {
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 func NewNodePoolWatchingController(
 	name string,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer NodePoolSyncer,
 ) Controller {
 	nodePoolSyncer := &nodePoolWatchingController{
-		name:         name,
-		cosmosClient: cosmosClient,
-		syncer:       syncer,
+		name:              name,
+		resourcesDBClient: resourcesDBClient,
+		syncer:            syncer,
 	}
 	nodePoolController := newGenericWatchingController(name, api.NodePoolResourceType, nodePoolSyncer)
 
@@ -82,7 +82,7 @@ func NewNodePoolWatchingController(
 func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePoolKey) error {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName),
+		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName),
 		c.name,
 		key.InitialController))
 
@@ -90,7 +90,7 @@ func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePo
 
 	controllerWriteErr := WriteController(
 		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName),
+		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName),
 		c.name,
 		key.InitialController,
 		ReportSyncError(syncErr),

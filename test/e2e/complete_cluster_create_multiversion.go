@@ -69,12 +69,6 @@ var _ = Describe("ARO-HCP", func() {
 					Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", clusterParams.ChannelGroup, err.Error()))
 				}
 			}
-			// TODO: remove this filter when https://redhat.atlassian.net/browse/OCPBUGS-83564 is fixed
-			calculatedControlPlaneSemver, err := semver.ParseTolerant(clusterParams.OpenshiftVersionId)
-			Expect(err).NotTo(HaveOccurred(), "calculated control plane version was not semver parseable")
-			if calculatedControlPlaneSemver.Major == 5 {
-				Skip(fmt.Sprintf("Skipping test for control plane version %s: versions >= 5.0 are not yet supported by this test", clusterParams.OpenshiftVersionId))
-			}
 			clusterParams.OpenshiftVersionId = openShiftControlPlaneVersion
 
 			tc := framework.NewTestContext()

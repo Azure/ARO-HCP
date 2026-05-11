@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -39,10 +40,10 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
 )
 
-func DefaultOptions(outputDir string, url string) *RawOptions {
+func DefaultOptions(outputDir string, urls []string) *RawOptions {
 	return &RawOptions{
 		OutputDir:        outputDir,
-		CentralRemoteUrl: url,
+		CentralRemoteUrl: urls,
 	}
 }
 
@@ -51,7 +52,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.DevSettingsFile, "dev-settings-file", opts.DevSettingsFile, "Validate only the combinations present in the settings file, using public production Ev2 contexts.")
 	cmd.Flags().StringVar(&opts.DigestFile, "digest-file", opts.DigestFile, "File holding digests of previously-rendered configurations to validate with.")
 	cmd.Flags().StringVar(&opts.OutputDir, "output-dir", opts.OutputDir, "Directory to output rendered configurations to.")
-	cmd.Flags().StringVar(&opts.CentralRemoteUrl, "central-remote-url", opts.CentralRemoteUrl, "Git URL for the central remote, used to calculate merge-base.")
+	cmd.Flags().StringArrayVar(&opts.CentralRemoteUrl, "central-remote-url", opts.CentralRemoteUrl, "Git URL for the central remote, used to calculate merge-base. Can be specified multiple times.")
 	cmd.Flags().BoolVar(&opts.Update, "update", opts.Update, "Update the digest file.")
 
 	for _, flag := range []string{
@@ -73,7 +74,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 type RawOptions struct {
 	ServiceConfigFile string
 	DevSettingsFile   string
-	CentralRemoteUrl  string
+	CentralRemoteUrl  []string
 
 	DigestFile string
 	OutputDir  string
@@ -96,7 +97,7 @@ type completedOptions struct {
 	Digests       *Digests
 	DevSettings   *settings.Settings
 
-	CentralRemoteUrl  string
+	CentralRemoteUrl  []string
 	OutputDir         string
 	ServiceConfigFile string
 	DigestFile        string
@@ -259,7 +260,7 @@ func ValidateServiceConfig(
 	outputDir string,
 	update bool,
 	digestFile string,
-	centralRemoteUrl string,
+	centralRemoteUrls []string,
 ) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -405,7 +406,7 @@ func ValidateServiceConfig(
 							ctx,
 							cloud, environment, *regionCtx,
 							serviceConfigFile, jsonSchemaPath,
-							centralRemoteUrl, outputDir, scratchDir,
+							centralRemoteUrls, outputDir, scratchDir,
 						); err != nil {
 							logger.WithValues("cloud", cloud, "environment", environment, "region", region).Error(err, "Failed to render diff.")
 						}
@@ -449,7 +450,7 @@ func renderDiff(
 	cloud, environment string, regionCtx RegionContext,
 	serviceConfigFile string,
 	jsonSchemaFile string,
-	centralRemoteUrl string,
+	centralRemoteUrls []string,
 	outputDir, scratchDir string,
 ) error {
 	region := regionCtx.Region
@@ -489,7 +490,7 @@ func renderDiff(
 	//
 	// n.b. in GitHub Actions CI, we're in some non-standard git state and are better off consuming
 	// the upstream ref directly
-	mergeBase, err := DetermineMergeBase(ctx, dir, centralRemoteUrl)
+	mergeBase, err := DetermineMergeBase(ctx, dir, centralRemoteUrls)
 	if err != nil {
 		return err
 	}
@@ -564,7 +565,7 @@ func renderDiff(
 }
 
 // DetermineMergeBase determines the merge base between HEAD and what we think the upstream target branch is.
-func DetermineMergeBase(ctx context.Context, dir, centralRemoteUrl string) (string, error) {
+func DetermineMergeBase(ctx context.Context, dir string, centralRemoteUrls []string) (string, error) {
 	var mergeBase string
 	if value, set := os.LookupEnv("MERGE_BASE_REF"); set && value != "" {
 		mergeBase = value
@@ -603,7 +604,7 @@ func DetermineMergeBase(ctx context.Context, dir, centralRemoteUrl string) (stri
 				if err != nil {
 					return "", fmt.Errorf("failed to get git remote URL: %w", err)
 				}
-				if strings.TrimSpace(remoteUrl) == centralRemoteUrl {
+				if slices.Contains(centralRemoteUrls, strings.TrimSpace(remoteUrl)) {
 					upstreamRef = remote + "/main"
 					break
 				}
@@ -611,7 +612,7 @@ func DetermineMergeBase(ctx context.Context, dir, centralRemoteUrl string) (stri
 		}
 
 		if upstreamRef == "" {
-			return "", fmt.Errorf("failed to determine upstream branch - no upstream configured and no remote matches %s", centralRemoteUrl)
+			return "", fmt.Errorf("failed to determine upstream branch - no upstream configured and no remote matches any of: %s", strings.Join(centralRemoteUrls, ", "))
 		}
 
 		mergeBaseFromGit, err := command(ctx, dir, "git", "merge-base", "HEAD", upstreamRef)

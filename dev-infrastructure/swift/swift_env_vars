@@ -23,7 +23,7 @@ is_service_principal(){
 
 export resource_group=$CUSTOMER_RG_NAME
 export vnet_name=$CUSTOMER_VNET_NAME
-export subnet_name=$CUSTOMER_VNET_PODNETWORK1
+export subnet_name=$CUSTOMER_VNET_INTEGRATION_SUBNET
 export subscription=1d3378d3-5a3f-4712-85a1-2485495dfc4b
 export resource=RedHatOpenShift
 export linked_resource_type=Microsoft.RedHatOpenShift/hcpOpenShiftClusters

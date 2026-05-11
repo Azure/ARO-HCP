@@ -8,12 +8,14 @@ COPY test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopens
 RUN cd frontend && go mod download
 WORKDIR /app
 COPY . .
-ARG ARO_HCP_IMAGE_TAG
+ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
 # non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
 ENV CGO_ENABLED=1 GOFIPS140=latest
-RUN make --directory frontend ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG}
+RUN --mount=type=cache,target=/go/cache \
+    GOCACHE=/go/cache \
+    make --directory frontend build ARO_HCP_REVISION=${ARO_HCP_REVISION}
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
 USER 65532:65532

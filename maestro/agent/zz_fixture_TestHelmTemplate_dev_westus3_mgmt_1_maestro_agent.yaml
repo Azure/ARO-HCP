@@ -285,7 +285,7 @@ metadata:
   name: maestro-agent
   namespace: 'maestro'
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: maestro-agent
@@ -348,7 +348,7 @@ spec:
         - --workload-source-driver=mqtt
         - --workload-source-config=/secrets/maestro/config.yaml
         - --cloudevents-client-id=hcp-underlay-usw3-mgmt-1-work-agent
-        - --disable-leader-election=false
+        - --disable-leader-election=true
         - --appliedmanifestwork-eviction-grace-period=876000h
         - -v=2
         image: "arohcpsvcdev.azurecr.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro@sha256:1234567890"

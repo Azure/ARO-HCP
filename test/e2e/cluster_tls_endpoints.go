@@ -150,7 +150,7 @@ var _ = Describe("Customer", func() {
 				}
 				fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", certs[0].Issuer)
 				return verifyCertChain(certs, trustedCAs)
-			}).WithTimeout(4*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+			}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect ingress certificate to be signed by a trusted Azure CA")
 		})
 })

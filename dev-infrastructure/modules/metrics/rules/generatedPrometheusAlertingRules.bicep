@@ -30,20 +30,20 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         }
         annotations: {
           correlationId: 'PrometheusJobUp/{{ $labels.cluster }}'
-          description: '''Prometheus has not been reachable for the past 5 minutes.
+          description: '''Prometheus has not been reachable for the past 10 minutes.
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          info: '''Prometheus has not been reachable for the past 5 minutes.
+          info: '''Prometheus has not been reachable for the past 10 minutes.
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
           runbook_url: 'TBD'
-          summary: 'Prometheus is unreachable for 5 minutes.'
-          title: 'Prometheus is unreachable for 5 minutes.'
+          summary: 'Prometheus is unreachable for 10 minutes.'
+          title: 'Prometheus is unreachable for 10 minutes.'
         }
         expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
-        for: 'PT5M'
+        for: 'PT10M'
         severity: 3
       }
       {
@@ -661,33 +661,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   properties: {
     interval: 'PT1M'
     rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'BackendOperationErrorRate'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'BackendOperationErrorRate/{{ $labels.cluster }}'
-          description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
-          info: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'High Error Rate on Backend Operations'
-          title: 'High Error Rate on Backend Operations'
-        }
-        expression: '(sum by (cluster) (rate(backend_failed_operations_total[1h]))) / (sum by (cluster) (rate(backend_operations_total[1h]))) > 0.05'
-        for: 'PT5M'
-        severity: 4
-      }
       {
         actions: [
           for g in actionGroups: {

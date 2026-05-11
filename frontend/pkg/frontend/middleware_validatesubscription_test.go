@@ -178,7 +178,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDBClient := databasetesting.NewMockDBClient()
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 
 			var subscription *arm.Subscription
 
@@ -196,7 +196,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				}
 				// Pre-populate the subscription in the mock database
 				ctx := t.Context()
-				_, err := mockDBClient.Subscriptions().Create(ctx, subscription, nil)
+				_, err := mockResourcesDBClient.Subscriptions().Create(ctx, subscription, nil)
 				require.NoError(t, err)
 			}
 
@@ -219,7 +219,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				request.SetPathValue(PathSegmentSubscriptionID, subscriptionId)
 			}
 
-			newMiddlewareValidateSubscriptionState(mockDBClient).handleRequest(writer, request, next)
+			newMiddlewareValidateSubscriptionState(mockResourcesDBClient).handleRequest(writer, request, next)
 
 			res := writer.Result()
 			if tt.expectedError != nil {
@@ -234,6 +234,11 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.expectedState, subscription.State)
+
+			// Verify the subscription was stashed in the request context.
+			stashedSubscription, err := SubscriptionFromContext(request.Context())
+			assert.NoError(t, err)
+			assert.Equal(t, subscription.ResourceID, stashedSubscription.ResourceID)
 
 			// Check that the attributes have been added to the span too.
 			ss := sr.collect()

@@ -1,0 +1,9 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('aksEvents')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where operationName == 'kube-audit'
+| extend event = parse_json(log)
+| where event.stage == 'ResponseComplete'
+| where
+{{ range $i, $mw := .ManifestWorkNames }}{{ if $i }}    or {{ end }}(tostring(event.objectRef.namespace) == '{{ manifestWorkNamespace $mw }}' and tostring(event.objectRef.name) == '{{ manifestWorkName $mw }}')
+{{ end }}| project timestamp, objectNamespace = tostring(event.objectRef.namespace), objectName = tostring(event.objectRef.name), verb = tostring(event.verb), user = tostring(event.user.username), responseCode = toint(event.responseStatus.code)
+| order by timestamp asc

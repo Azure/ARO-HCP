@@ -25,14 +25,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/microsoft/go-otel-audit/audit/base"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
@@ -42,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/signal"
@@ -149,10 +149,6 @@ func (opts *FrontendOpts) Run() error {
 	logger := utils.DefaultLogger()
 	ctx = utils.ContextWithLogger(ctx, logger)
 
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(collectors.NewGoCollector())
-	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-
 	if len(opts.location) == 0 {
 		return errors.New("location is required")
 	}
@@ -170,7 +166,7 @@ func (opts *FrontendOpts) Run() error {
 	auditClient, err := audit.NewOtelAuditClient(
 		ctx,
 		audit.CreateConn(opts.auditConnectSocket),
-		registry,
+		legacyregistry.Registerer(),
 		base.WithLogger(slogLogger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
@@ -193,23 +189,28 @@ func (opts *FrontendOpts) Run() error {
 	}
 
 	// Create the database client.
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentFrontend)
+	// FIXME Cloud should be determined by other means.
+	clientOpts.Cloud = cloud.AzurePublic
+	clientOpts.PerCallPolicies = []policy.Policy{PolicyFunc(CorrelationIDPolicy)}
+	clientOpts.TracingProvider = azotel.NewTracingProvider(otel.GetTracerProvider(), nil)
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
 		opts.cosmosURL,
 		opts.cosmosName,
-		azcore.ClientOptions{
-			// FIXME Cloud should be determined by other means.
-			Cloud:           cloud.AzurePublic,
-			PerCallPolicies: []policy.Policy{PolicyFunc(CorrelationIDPolicy)},
-			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
-		},
+		clientOpts,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
 
-	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
+	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
 	if err != nil {
-		return fmt.Errorf("failed to create the database client: %w", err)
+		return fmt.Errorf("failed to create the resources database client: %w", err)
+	}
+
+	locksDBClient, err := database.NewLocksDBClient(ctx, cosmosDatabaseClient)
+	if err != nil {
+		return fmt.Errorf("failed to create the locks database client: %w", err)
 	}
 
 	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", opts.port))
@@ -232,7 +233,7 @@ func (opts *FrontendOpts) Run() error {
 		URL(opts.clustersServiceURL).
 		Insecure(opts.insecure).
 		MetricsSubsystem("frontend_clusters_service_client").
-		MetricsRegisterer(registry).
+		MetricsRegisterer(legacyregistry.Registerer()).
 		Build()
 	if err != nil {
 		return err
@@ -244,7 +245,9 @@ func (opts *FrontendOpts) Run() error {
 	)
 
 	f := frontend.NewFrontend(
-		logger, listener, metricsListener, registry, dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
+		logger, listener, metricsListener,
+		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
+		resourcesDBClient, locksDBClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
 		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
 	)
 

@@ -284,7 +284,7 @@ func createClusterAndComplete(
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, clusterCreatePayload(clusterName, apiVersion)))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 }
 
 // testCrossVersionClusterPUT verifies that a v2024 GET-then-PUT preserves
@@ -309,7 +309,7 @@ func testCrossVersionClusterPUT(t *testing.T, testInfo *integrationutils.Integra
 
 	// Complete the update operation
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 5: GET via v2025 → snapshot after the v2024 round-trip ("after")
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
@@ -343,7 +343,7 @@ func testCrossVersionClusterPATCH(t *testing.T, testInfo *integrationutils.Integ
 
 	// Complete the update operation
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 4: GET via v2025 → snapshot after the v2024 PATCH ("after")
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
@@ -381,7 +381,7 @@ func testSameVersionClusterPUT(t *testing.T, testInfo *integrationutils.Integrat
 	require.NoError(t, v2025Accessor.CreateOrUpdate(ctx, resourceID, v2025Body))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Verify no data loss
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
@@ -498,7 +498,7 @@ func createNodePoolAndComplete(
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 }
 
 // externalAuthCreatePayload returns the ExternalAuth creation payload.
@@ -559,7 +559,7 @@ func createExternalAuthAndComplete(
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, externalAuthCreatePayload(apiVersion)))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 }
 
 // getResourceResponse returns the resource GET response as raw JSON bytes and
@@ -610,7 +610,7 @@ func testCrossVersionNodePoolPUT(t *testing.T, testInfo *integrationutils.Integr
 	require.NoError(t, v2024Accessor.CreateOrUpdate(ctx, resourceID, v2024Body))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 6: GET via v2025 → snapshot after the v2024 round-trip ("after")
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
@@ -645,7 +645,7 @@ func testCrossVersionNodePoolPATCH(t *testing.T, testInfo *integrationutils.Inte
 	require.NoError(t, v2024Accessor.Patch(ctx, resourceID, patchBody))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 4: GET via v2025 → snapshot after the v2024 PATCH ("after")
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
@@ -690,7 +690,7 @@ func testCrossVersionExternalAuthPUT(t *testing.T, testInfo *integrationutils.In
 
 	// Complete the update operation
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 6: GET via v2025 → snapshot after the v2024 round-trip ("after")
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
@@ -728,7 +728,7 @@ func testCrossVersionExternalAuthPATCH(t *testing.T, testInfo *integrationutils.
 
 	// Complete the update operation
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 5: GET via v2025 → snapshot after the v2024 PATCH ("after")
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
@@ -767,7 +767,7 @@ func testSameVersionClusterPATCH(t *testing.T, testInfo *integrationutils.Integr
 	require.NoError(t, v2025Accessor.Patch(ctx, resourceID, patchBody))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
-	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, parsedID.Name))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Verify tags were updated and all other fields are unchanged
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2025, resourceID)

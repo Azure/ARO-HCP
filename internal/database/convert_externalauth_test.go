@@ -16,6 +16,7 @@ package database
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,16 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 			j.ID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if j == nil {
+				return
+			}
+			clusterID := "r" + strings.ReplaceAll(c.String(10), "/", "-")
+			externalAuthID := strings.ReplaceAll(c.String(10), "/", "-")
+			foo := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterID + "/external_auth_config/external_auths/" + externalAuthID))
+			j.ClusterServiceID = &foo
 		},
 		func(j *api.HCPOpenShiftClusterExternalAuth, c randfill.Continue) {
 			c.FillNoCustom(j)

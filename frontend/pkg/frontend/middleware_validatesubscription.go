@@ -32,12 +32,12 @@ const (
 )
 
 type middlewareValidateSubscriptionState struct {
-	dbClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 }
 
-func newMiddlewareValidateSubscriptionState(dbClient database.DBClient) *middlewareValidateSubscriptionState {
+func newMiddlewareValidateSubscriptionState(resourcesDBClient database.ResourcesDBClient) *middlewareValidateSubscriptionState {
 	return &middlewareValidateSubscriptionState{
-		dbClient: dbClient,
+		resourcesDBClient: resourcesDBClient,
 	}
 }
 
@@ -57,9 +57,7 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 		return
 	}
 
-	// TODO: Ideally, we don't want to have to hit the database in this middleware
-	// Currently, we are using the database to retrieve the subscription's tenantID and state
-	subscription, err := h.dbClient.Subscriptions().Get(ctx, subscriptionId)
+	subscription, err := h.resourcesDBClient.Subscriptions().Get(ctx, subscriptionId)
 	if err != nil {
 		logger.Error(err, "failed to get subscription document", "subscriptionId", subscriptionId)
 
@@ -94,6 +92,10 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	span.SetAttributes(
 		tracing.SubscriptionStateKey.String(string(subscription.State)),
 	)
+
+	// Stash the subscription for REST handlers.
+	ctx = ContextWithSubscription(ctx, subscription)
+	r = r.WithContext(ctx)
 
 	switch subscription.State {
 	case arm.SubscriptionStateRegistered:

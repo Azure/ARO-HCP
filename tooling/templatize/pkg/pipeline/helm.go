@@ -127,6 +127,10 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 
 	// then, run the helm release
+	timeout, err := helmTimeout(step.Timeout)
+	if err != nil {
+		return err
+	}
 	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
 	opts := helm.RawOptions{
 		NamespaceFiles:    namespaceFiles,
@@ -137,7 +141,7 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		KustoDatabase:     step.KustoDatabase,
 		KustoTable:        step.KustoTable,
 		KustoEndpoint:     kustoEndpointString,
-		Timeout:           5 * time.Minute,
+		Timeout:           timeout,
 		KubeconfigFile:    kubeconfig,
 		RollbackOnFailure: step.RollbackOnFailure,
 	}
@@ -195,6 +199,22 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 
 	return commit()
+}
+
+const defaultHelmTimeout = 5 * time.Minute
+
+func helmTimeout(raw string) (time.Duration, error) {
+	if len(raw) == 0 {
+		return defaultHelmTimeout, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse helm timeout %q: %w", raw, err)
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("helm timeout must be positive, got %q", raw)
+	}
+	return d, nil
 }
 
 type helmInputs struct {

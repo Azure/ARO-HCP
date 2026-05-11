@@ -1,0 +1,25 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"a503428e-0000-1100-0000-69807fa40000\"",
+	"_rid": "vr4qAP3+YBNMBQEAAAAAAA==",
+	"_self": "dbs/vr4qAA==/colls/vr4qAP3+YBM=/docs/vr4qAP3+YBNMBQEAAAAAAA==/",
+	"_ts": 1770028964,
+	"id": "|subscriptions|a433a095-1277-44f1-8453-8d61a4d848c2|resourcegroups|unimportantPostponement|providers|microsoft.redhatopenshift|hcpopenshiftclusters|monstrousPrecinct|serviceproviderclusters|default",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct/serviceProviderClusters/default"
+		},
+		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct/serviceProviderClusters/default",
+		"validations": [
+			{
+				"lastTransitionTime": "2026-02-02T10:42:44.390858444Z",
+				"message": "Validation succeeded",
+				"reason": "Succeeded",
+				"status": "True",
+				"type": "AlwaysSuccessValidation"
+			}
+		]
+	},
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/serviceProviderClusters"
+}

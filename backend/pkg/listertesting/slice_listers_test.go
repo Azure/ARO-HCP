@@ -396,7 +396,6 @@ func newTestServiceProviderCluster(subscriptionID, resourceGroupName, clusterNam
 		CosmosMetadata: arm.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: *resourceID,
 	}
 }
 
@@ -411,7 +410,6 @@ func newTestClusterController(subscriptionID, resourceGroupName, clusterName, co
 		CosmosMetadata: arm.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 	}
 }
 
@@ -427,7 +425,6 @@ func newTestNodePoolController(subscriptionID, resourceGroupName, clusterName, n
 		CosmosMetadata: arm.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 	}
 }
 
@@ -443,7 +440,6 @@ func newTestExternalAuthController(subscriptionID, resourceGroupName, clusterNam
 		CosmosMetadata: arm.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 	}
 }
 
@@ -468,7 +464,6 @@ func newTestClusterScopedManagementClusterContent(subscriptionID, resourceGroupN
 	))
 	return &api.ManagementClusterContent{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
-		ResourceID:     *resourceID,
 	}
 }
 
@@ -482,6 +477,5 @@ func newTestNodePoolScopedManagementClusterContent(subscriptionID, resourceGroup
 	))
 	return &api.ManagementClusterContent{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
-		ResourceID:     *resourceID,
 	}
 }

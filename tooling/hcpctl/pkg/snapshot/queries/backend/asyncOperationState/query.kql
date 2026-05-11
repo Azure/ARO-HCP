@@ -1,0 +1,8 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where container_name == 'aro-hcp-backend'
+| where log.controller_name == 'datadump'
+| where log.content.resourceId =~ '{{ .AsyncOperationId }}'
+| summarize content=take_any(log.content) by lastTransitionTime=tostring(log.content.lastTransitionTime)
+| sort by lastTransitionTime asc
+| project content

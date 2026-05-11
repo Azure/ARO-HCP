@@ -17,9 +17,10 @@ package engine
 import (
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 )
 
 var defaultARMRetryOptions = policy.RetryOptions{
@@ -31,10 +32,10 @@ var defaultARMRetryOptions = policy.RetryOptions{
 
 // DefaultARMClientOptions returns cleanup-sweeper's default ARM client options.
 func DefaultARMClientOptions() *azcorearm.ClientOptions {
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentResourceCleaner)
+	clientOpts.Retry = defaultARMRetryOptions
 	return &azcorearm.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: defaultARMRetryOptions,
-		},
+		ClientOptions: clientOpts,
 	}
 }
 

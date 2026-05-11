@@ -1,0 +1,10 @@
+cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where namespace_name == '{{ .HostedControlPlaneNamespace }}'
+| where container_name == 'control-plane-operator'
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by msg = tostring(log.msg), err = tostring(log.error)
+| order by first_occurrence asc

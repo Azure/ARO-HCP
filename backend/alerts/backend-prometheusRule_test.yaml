@@ -2,34 +2,6 @@ rule_files:
 - backend-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: BackendOperationErrorRate above 5%
-- interval: 1m
-  input_series:
-  - series: 'backend_failed_operations_total{type="create"}'
-    values: "0 6x10" # 6 failures per minute → 6 / 106 ≈ 5.66%
-  - series: 'backend_operations_total{type="create"}'
-    values: "0 100x10" # 100 operations per minute from minute 1 to 10
-  alert_rule_test:
-  - eval_time: 10m # At this point, the condition has held for 10 minutes
-    alertname: BackendOperationErrorRate
-    exp_alerts:
-    - exp_labels:
-        severity: info
-      exp_annotations:
-        description: 'The Backend operation error rate is above 5% for the last hour. Current value: 6%.'
-        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'High Error Rate on Backend Operations'
-# Test: BackendOperationErrorRate below 5%
-- interval: 1m
-  input_series:
-  - series: 'backend_failed_operations_total{type="create"}'
-    values: "0 2x10" # 2 failures / 102 total ≈ 1.96%
-  - series: 'backend_operations_total{type="create"}'
-    values: "0 100x10" # 100 operations per minute from minute 1 to 10
-  alert_rule_test:
-  - eval_time: 10m # At this point, the condition has held for 10 minutes
-    alertname: BackendOperationErrorRate
-    exp_alerts: []
 # Test: BackendControllerRetryHotLoop fires when retry ratio > 50%
 - interval: 1m
   input_series:

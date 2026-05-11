@@ -208,6 +208,18 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "missing version ID when channel group is stable - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = ""
+				np.Properties.Version.ChannelGroup = "stable"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "properties.version.id"},
+			},
+		},
+		{
 			name: "nil subnet ID - valid - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -1176,6 +1188,35 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []expectedError{}, // No error because version validation is skipped
+		},
+		// Version.id is required since 20251223preview, but legacy nodepools may not have it.
+		// On update with oldObj.ID empty: version.id is NOT required (legacy migration support).
+		// On update with oldObj.ID set: version.id is required (cannot be cleared).
+		{
+			name: "update: version.id can be empty when old nodepool had no version.id (legacy migration)",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = ""
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = ""
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "update: version.id cannot be cleared when old nodepool had version.id",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = ""
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "properties.version.id"},
+			},
 		},
 		{
 			name: "multiple immutable field changes - update",

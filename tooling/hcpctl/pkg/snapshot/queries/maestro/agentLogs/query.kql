@@ -1,0 +1,13 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where namespace_name == 'maestro'
+| where container_name == 'maestro-agent'
+| where
+{{ range $i, $id := .BundleIDs }}{{ if $i }}    or {{ end }}log has '{{ $id }}'
+{{ end }}{{ range $mw := .ManifestWorkNames }}    or (log has '{{ manifestWorkName $mw }}' and log has '{{ manifestWorkNamespace $mw }}')
+{{ end }}| extend bundleId = extract('"resourceid":"([^"]+)"', 1, tostring(log))
+| extend resourceNamespace = extract('resourceNamespace="([^"]+)"', 1, tostring(log))
+| extend resourceName = extract('resourceName="([^"]+)"', 1, tostring(log))
+| extend message = extract('] "([^"]+)"', 1, tostring(log))
+| project timestamp, bundleId, resourceNamespace, resourceName, message
+| order by timestamp asc

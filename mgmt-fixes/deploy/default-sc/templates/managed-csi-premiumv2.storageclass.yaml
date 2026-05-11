@@ -5,7 +5,7 @@ metadata:
     storageclass.kubernetes.io/is-default-class: "true"
   name: managed-csi-premiumv2
 parameters:
-  skuname: PremiumV2_LRS
+  skuname: {{ .Values.skuName | default "PremiumV2_LRS" }}
 provisioner: disk.csi.azure.com
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer

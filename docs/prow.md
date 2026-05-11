@@ -19,8 +19,7 @@ This document is intended for ARO HCP developers and SREs. It provides an overvi
     - [EV2 Gating E2E Tests](#ev2-gating-e2e-tests)
   - [Periodic Jobs](#periodic-jobs)
     - [Image Updater Tooling](#image-updater-tooling)
-    - [Resource Group Cleanup](#resource-group-cleanup)
-    - [Cleanup-Sweeper Maintenance](#cleanup-sweeper-maintenance)
+    - [Cleanup Jobs](#cleanup-jobs)
     - [Periodic E2E Tests](#periodic-e2e-tests)
 - [Managed Identity Reuse for E2E Tests](#managed-identity-reuse-for-e2e-tests)
 - [EV2 Pipeline Integration](#ev2-pipeline-integration)
@@ -223,63 +222,44 @@ Periodic jobs run on a regular schedule to maintain system health, perform routi
 
 ---
 
-#### Resource Group Cleanup
+#### Cleanup Jobs
 
-These jobs automatically delete expired resource groups across different environments to prevent resource accumulation from testing.
+All cleanup periodic jobs are defined in `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`. For design rationale and cleanup architecture, see [Cleanup](cleanup.md).
 
-##### Integration Environment Cleanup
+##### Expired Resource Groups
 
-| Property | Value |
-|----------|-------|
-| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-integration-resource-groups](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-integration-resource-groups) |
-| **Schedule** | Every 30 minutes (`*/30 * * * *`) |
-| **Environment** | Int (uksouth) |
-| **Step Registry** | [delete-expired-integration-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-integration-resource-groups) |
-| **Purpose** | Removes expired resource groups from the integration environment that were created during testing. |
+These jobs delete expired test resource groups across environments. They run hourly at minute 35.
 
-##### Stage Environment Cleanup
+| Job | Environment | Prow Link |
+|-----|-------------|-----------|
+| `delete-expired-dev-prow-resource-groups` | Dev (prow) | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-dev-prow-resource-groups) |
+| `delete-expired-dev-pers-resource-groups` | Dev (pers) | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-dev-pers-resource-groups) |
+| `delete-expired-integration-resource-groups` | Int | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-integration-resource-groups) |
+| `delete-expired-stage-resource-groups` | Stg | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-stage-resource-groups) |
+| `delete-expired-prod-resource-groups` | Prod | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-prod-resource-groups) |
 
-| Property | Value |
-|----------|-------|
-| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-stage-resource-groups](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-stage-resource-groups) |
-| **Schedule** | Every 30 minutes (`*/30 * * * *`) |
-| **Environment** | Stage (uksouth) |
-| **Step Registry** | [delete-expired-stage-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-stage-resource-groups) |
-| **Purpose** | Removes expired resource groups from the staging environment that were created during testing. |
+##### Expired App Registrations
 
-##### Production Environment Cleanup
+| Job | Tenant | Schedule | Prow Link |
+|-----|--------|----------|-----------|
+| `delete-expired-red-hat-tenant-app-registrations` | Red Hat | Hourly at :35 | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-red-hat-tenant-app-registrations) |
+| `delete-expired-msft-test-tenant-app-registrations` | MSFT test | Hourly at :35 | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-msft-test-tenant-app-registrations) |
 
-| Property | Value |
-|----------|-------|
-| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-prod-resource-groups](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-prod-resource-groups) |
-| **Schedule** | Every 30 minutes (`*/30 * * * *`) |
-| **Environment** | Prod (uksouth) |
-| **Step Registry** | [delete-expired-prod-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-prod-resource-groups) |
-| **Purpose** | Removes expired resource groups from the production environment that were created during testing. |
-
----
-
-#### Cleanup-Sweeper Maintenance
-
-These periodic jobs run the `cleanup-sweeper` workflows used for shared leftovers and ordered resource cleanup.
-
-##### RG Ordered Cleanup
+##### Kusto Role Assignments
 
 | Property | Value |
 |----------|-------|
-| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-sweeper-rg-ordered](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-sweeper-rg-ordered) |
-| **Schedule** | Hourly at minute 5 (`5 * * * *`) |
-| **Step Registry** | [cleanup-sweeper-rg-ordered](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=cleanup-sweeper-rg-ordered) |
-| **Purpose** | Runs `cleanup-sweeper` workflow `rg-ordered` (policy-driven ordered cleanup across subscriptions). |
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-kusto-role-assignments](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-delete-expired-kusto-role-assignments) |
+| **Schedule** | Daily at 4:00 AM UTC (`0 4 * * *`) |
+| **Purpose** | Removes stale Kusto database principal assignments left behind by deleted test app registrations. |
 
-##### Shared Leftovers Cleanup
+##### Cleanup-Sweeper
 
-| Property | Value |
-|----------|-------|
-| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-sweeper-shared-leftovers](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-sweeper-shared-leftovers) |
-| **Schedule** | Hourly at minute 35 (`35 * * * *`) |
-| **Step Registry** | [cleanup-sweeper-shared-leftovers](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=cleanup-sweeper-shared-leftovers) |
-| **Purpose** | Runs `cleanup-sweeper` workflow `shared-leftovers` to clean orphaned shared resources (including role assignments). |
+| Property | `sweeper-rg-ordered` | `sweeper-shared-leftovers-dev` |
+|----------|----------------------|-------------------------------|
+| **Prow Link** | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-sweeper-rg-ordered) | [job](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-cleanup-sweeper-shared-leftovers-dev) |
+| **Schedule** | Every 4 hours at :05 (`5 */4 * * *`) | Hourly at :35 (`35 * * * *`) |
+| **Purpose** | Policy-driven ordered resource-group cleanup across dev subscriptions. | Cleans orphaned shared resources such as ARM role assignments in dev subscriptions. |
 
 ---
 
@@ -697,6 +677,7 @@ To modify or add jobs:
 - [OpenShift CI Documentation](https://docs.ci.openshift.org/docs/)
 - [Use registries in the build farm](https://docs.ci.openshift.org/how-tos/use-registries-in-build-farm/)
 - [Prow Documentation](https://docs.prow.k8s.io/)
+- [ARO HCP Cleanup](cleanup.md)
 - [ARO HCP E2E Testing](../test/e2e/README.md)
 - [ARO HCP Environments](environments.md)
 - [ARO HCP Pipelines](pipelines.md)

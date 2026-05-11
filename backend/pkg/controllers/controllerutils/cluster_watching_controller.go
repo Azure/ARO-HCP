@@ -37,7 +37,7 @@ type clusterWatchingController struct {
 	name   string
 	syncer ClusterSyncer
 
-	cosmosClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 }
 
 // NewClusterWatchingController periodically looks up all clusters and queues them
@@ -47,16 +47,16 @@ type clusterWatchingController struct {
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
 func NewClusterWatchingController(
 	name string,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
 	resyncDuration time.Duration,
 	syncer ClusterSyncer,
 ) Controller {
 
 	clusterSyncer := &clusterWatchingController{
-		name:         name,
-		cosmosClient: cosmosClient,
-		syncer:       syncer,
+		name:              name,
+		resourcesDBClient: resourcesDBClient,
+		syncer:            syncer,
 	}
 	clusterController := newGenericWatchingController(name, api.ClusterResourceType, clusterSyncer)
 
@@ -82,7 +82,7 @@ func NewClusterWatchingController(
 func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPClusterKey) error {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
 		c.name,
 		key.InitialController))
 
@@ -90,7 +90,7 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPCluster
 
 	controllerWriteErr := WriteController(
 		ctx,
-		c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
 		c.name,
 		key.InitialController,
 		ReportSyncError(syncErr),

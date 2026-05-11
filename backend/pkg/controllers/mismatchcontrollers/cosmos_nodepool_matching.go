@@ -31,15 +31,15 @@ import (
 
 type cosmosNodePoolMatching struct {
 	cooldownChecker      controllerutils.CooldownChecker
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
 // NewCosmosNodePoolMatchingController periodically looks for mismatched cluster-service and cosmos nodepool
-func NewCosmosNodePoolMatchingController(cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
+func NewCosmosNodePoolMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
 	syncer := &cosmosNodePoolMatching{
 		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
 
@@ -47,7 +47,7 @@ func NewCosmosNodePoolMatchingController(cosmosClient database.DBClient, cluster
 	// clusters, in order to do the "all nodepools from clusterservice".
 	controller := controllerutils.NewClusterWatchingController(
 		"CosmosMatchingNodePools",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		60*time.Minute,
 		syncer,
@@ -60,7 +60,7 @@ func (c *cosmosNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj co
 	clusterServiceIDToNodePool := map[string]*api.HCPOpenShiftClusterNodePool{}
 	ret := []*api.HCPOpenShiftClusterNodePool{}
 
-	allNodePools, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).NodePools(keyObj.HCPClusterName).List(ctx, nil)
+	allNodePools, err := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).NodePools(keyObj.HCPClusterName).List(ctx, nil)
 	if err != nil {
 		return nil, nil, utils.TrackError(err)
 	}
@@ -103,7 +103,7 @@ func (c *cosmosNodePoolMatching) getAllClusterServiceObjs(ctx context.Context, c
 func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	cluster, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
+	cluster, err := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -150,7 +150,7 @@ func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj
 		_, exists := clusterServiceIDToClusterServiceNodePools[cosmosNodePool.ServiceProviderProperties.ClusterServiceID.String()]
 		if !exists {
 			logger.Info("deleting cosmos nodepool", "cosmosResourceID", cosmosNodePool.ID)
-			if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosNodePool.ID); err != nil {
+			if err := controllerutils.DeleteRecursively(ctx, c.resourcesDBClient, cosmosNodePool.ID); err != nil {
 				return utils.TrackError(err)
 			}
 		}

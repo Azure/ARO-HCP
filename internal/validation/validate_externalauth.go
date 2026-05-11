@@ -147,15 +147,15 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 
 var (
 	toExternalAuthServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties) *api.InternalID {
-		return &oldObj.ClusterServiceID
+		return oldObj.ClusterServiceID
 	}
 )
 
 func validateExternalAuthServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toExternalAuthServiceProviderClusterServiceID))...)
+	//ClusterServiceID  *InternalID                     `json:"clusterServiceID,omitempty"`
+	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), newObj.ClusterServiceID, safe.Field(oldObj, toExternalAuthServiceProviderClusterServiceID))...)
 
 	return errs
 }

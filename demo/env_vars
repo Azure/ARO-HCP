@@ -1,44 +1,13 @@
 #!/bin/bash
 
-# Defined here because it's used here.
-is_int_testing_subscription() {
-    return $(test "$(az account show --query name --output tsv)" = "ARO SRE Team - INT (EA Subscription 3)")
-}
-
-is_stg_testing_subscription() {
-    return $(test "$(az account show --query name --output tsv)" = "ARO HCP - STAGE testing (EA Subscription)")
-}
-
-if is_int_testing_subscription; then
-    export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
-    DEMO_ENV_NAME=int
-elif is_stg_testing_subscription; then
-    export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
-    DEMO_ENV_NAME=stg
-else
-    export FRONTEND_HOST="http://localhost:8443"
-    DEMO_ENV_NAME=${DEPLOY_ENV:-pers}
-fi
-
 if [ -z "${CUSTOMER_RG_NAME:-}" ]; then
     export CUSTOMER_RG_NAME="$USER-net-rg-03"
 fi
+
 export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
-export CUSTOMER_VNET_PODNETWORK1="customer-podnetwork-1"
+export CUSTOMER_VNET_INTEGRATION_SUBNET="customer-vnet-integration-subnet"
 export CUSTOMER_NSG="customer-nsg"
-export CUSTOMER_KV_NAME="$USER-customer-kv-${DEMO_ENV_NAME}"
-export ETCD_ENCRYPTION_KEY_NAME="etcd-data-kms-encryption-key"
-if [ -z "${LOCATION:-}" ]; then
-    case "${FRONTEND_HOST}" in
-        *localhost*)
-            export LOCATION=$(curl --silent "${FRONTEND_HOST}/location")
-            ;;
-        *)
-            export LOCATION="uksouth"
-            ;;
-    esac
-fi
 export SUBSCRIPTION_ID=$(az account show --query id --output tsv)
 export TENANT_ID=$(az account show --query tenantId --output tsv)
 if [ -z "${CLUSTER_NAME:-}" ]; then
@@ -54,4 +23,3 @@ export SUBSCRIPTION_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}"
 export RESOURCE_GROUP_RESOURCE_ID="${SUBSCRIPTION_RESOURCE_ID}/resourceGroups/${CUSTOMER_RG_NAME}"
 export CLUSTER_RESOURCE_ID="${RESOURCE_GROUP_RESOURCE_ID}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/${CLUSTER_NAME}"
 export NODE_POOL_RESOURCE_ID="${CLUSTER_RESOURCE_ID}/nodePools/${NP_NAME}"
-export FRONTEND_API_VERSION="2024-06-10-preview"

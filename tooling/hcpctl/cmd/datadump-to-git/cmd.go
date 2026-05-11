@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -41,22 +42,39 @@ type logEntry struct {
 
 // contentData represents the content object in the log JSON
 type contentData struct {
+	ResourceID     string             `json:"resourceID"`
+	ExternalId     string             `json:"externalId"`
+	Request        string             `json:"request"`
+	CosmosMetadata *cosmosMetadataRef `json:"cosmosMetadata,omitempty"`
+}
+
+// cosmosMetadataRef is the relevant slice of arm.CosmosMetadata as serialized inside `content`.
+// Resource types whose top-level envelope no longer carries a redundant `resourceID` (e.g.
+// Operation, ManagementClusterContent) only expose it here.
+type cosmosMetadataRef struct {
 	ResourceID string `json:"resourceID"`
-	ExternalId string `json:"externalId"`
-	Request    string `json:"request"`
 }
 
 // logData represents the full log JSON structure
 type logData struct {
-	Content *contentData `json:"content"`
+	// CurrentResourceID is the structured-logging key DumpDataToLogger sets alongside `content`
+	// for every dumped record. It's populated even when the inner content has no top-level
+	// resourceID (operation statuses, etc.), so it's our most reliable source of the document's
+	// ARM resource ID.
+	CurrentResourceID string       `json:"currentResourceID"`
+	Content           *contentData `json:"content"`
 }
 
 // dataDumpEntry represents a parsed data dump entry
 type dataDumpEntry struct {
 	Timestamp  string
 	ResourceID string
-	Content    string // The .content field to write to the file
+	Content    string // The JSON to write to the file
 	FullMsg    string // The full log JSON for operation status detection
+	// RelativePath, when non-empty, overrides the path derived from
+	// ResourceID. Used for log entries that don't carry an Azure resource ID
+	// (e.g. cluster-service state dumps).
+	RelativePath string
 }
 
 func NewCommand(group string) (*cobra.Command, error) {
@@ -198,8 +216,7 @@ func parseCSVFile(path string) ([]dataDumpEntry, error) {
 
 		logJSON := record[logColIdx]
 
-		// Filter for DumpDataToLogger entries
-		if !strings.Contains(logJSON, "DumpDataToLogger") {
+		if !looksLikeDataDump(logJSON) {
 			continue
 		}
 
@@ -210,6 +227,20 @@ func parseCSVFile(path string) ([]dataDumpEntry, error) {
 	}
 
 	return entries, nil
+}
+
+// looksLikeDataDump is a coarse substring filter to skip log lines that
+// clearly aren't data-dump entries before we attempt JSON parsing.
+//
+// We match against tokens from the *explicit* logger.Info call (the msg text or the log
+// keys / values we control). Tokens that only appear because of incidental Go-runtime metadata
+// (e.g. the receiver type name leaking into source.function) are too brittle to rely on:
+// LogValues.AddControllerName lowercases the controller name, so the registered controller name
+// "SubscriptionNonClusterDataDump" lands on the wire as "subscriptionnonclusterdatadump".
+func looksLikeDataDump(logJSON string) bool {
+	return strings.Contains(logJSON, "dumping resourceID ") ||
+		strings.Contains(logJSON, "cluster-service state dump") ||
+		strings.Contains(logJSON, "cluster-service node pool state dump")
 }
 
 func parseJSONLFile(path string) ([]dataDumpEntry, error) {
@@ -228,8 +259,7 @@ func parseJSONLFile(path string) ([]dataDumpEntry, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Filter for DumpDataToLogger entries
-		if !strings.Contains(line, "DumpDataToLogger") {
+		if !looksLikeDataDump(line) {
 			continue
 		}
 
@@ -271,6 +301,13 @@ func parseLogJSON(logJSON string) (dataDumpEntry, bool) {
 		return dataDumpEntry{}, false
 	}
 
+	switch entry.Msg {
+	case "cluster-service state dump":
+		return parseCSClusterStateDump(inner, entry.Time)
+	case "cluster-service node pool state dump":
+		return parseCSNodePoolStateDump(inner, entry.Time)
+	}
+
 	// We need to extract resourceID and content from the inner log JSON
 	resourceID := extractResourceID(inner)
 	if resourceID == "" {
@@ -288,29 +325,102 @@ func parseLogJSON(logJSON string) (dataDumpEntry, bool) {
 	}, true
 }
 
+// parseCSClusterStateDump parses a "cluster-service state dump" log entry,
+// whose payload is the raw cluster-service Cluster object under .csCluster.
+// The resulting file is placed peer to the cluster's hcpopenshiftcluster
+// JSON file.
+func parseCSClusterStateDump(inner, timestamp string) (dataDumpEntry, bool) {
+	csID := extractStringField(inner, "clusterServiceID")
+	clusterResourceID := extractStringField(inner, "resource_id")
+	csClusterRaw := extractRawField(inner, "csCluster")
+	if csID == "" || clusterResourceID == "" || csClusterRaw == "" {
+		return dataDumpEntry{}, false
+	}
+	relPath := csClusterStatePath(clusterResourceID, csID)
+	return dataDumpEntry{
+		Timestamp:    timestamp,
+		ResourceID:   "cluster-service-cluster:" + csID,
+		Content:      csClusterRaw,
+		FullMsg:      inner,
+		RelativePath: relPath,
+	}, true
+}
+
+// parseCSNodePoolStateDump parses a "cluster-service node pool state dump"
+// log entry, whose payload is the raw cluster-service NodePool object under
+// .csNodePool. The resulting file is placed peer to the node pool's
+// hcpopenshiftcluster nodepools JSON file.
+func parseCSNodePoolStateDump(inner, timestamp string) (dataDumpEntry, bool) {
+	npCSID := extractStringField(inner, "nodePoolClusterServiceID")
+	clusterResourceID := extractStringField(inner, "resource_id")
+	csNodePoolRaw := extractRawField(inner, "csNodePool")
+	if npCSID == "" || clusterResourceID == "" || csNodePoolRaw == "" {
+		return dataDumpEntry{}, false
+	}
+	relPath := csNodePoolStatePath(clusterResourceID, npCSID)
+	return dataDumpEntry{
+		Timestamp:    timestamp,
+		ResourceID:   "cluster-service-nodepool:" + npCSID,
+		Content:      csNodePoolRaw,
+		FullMsg:      inner,
+		RelativePath: relPath,
+	}, true
+}
+
 // extractContent extracts the .content field to write to the git repo file
 func extractContent(logJSON string) string {
+	return extractRawField(logJSON, "content")
+}
+
+// extractRawField returns the raw JSON of a top-level field, or "" if the
+// field is absent or the JSON does not parse.
+func extractRawField(logJSON, field string) string {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(logJSON), &raw); err != nil {
 		return ""
 	}
-
-	if contentRaw, ok := raw["content"]; ok {
-		return string(contentRaw)
+	if v, ok := raw[field]; ok {
+		return string(v)
 	}
-
 	return ""
 }
 
-// extractResourceID extracts the resource ID from .content.resourceID
+// extractStringField returns the value of a top-level string field, or ""
+// if the field is absent, not a string, or the JSON does not parse.
+func extractStringField(logJSON, field string) string {
+	raw := extractRawField(logJSON, field)
+	if raw == "" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		return ""
+	}
+	return s
+}
+
+// extractResourceID extracts the resource ID of the dumped record. It tries, in order:
+//  1. The top-level structured-logging `currentResourceID` key set by DumpDataToLogger. This is
+//     always present for data dumps and is the only reliable location for record types whose
+//     `content` does not carry its own top-level `resourceID` (e.g. hcpOperationStatuses,
+//     managementClusterContents).
+//  2. `.content.resourceID` for record types whose envelope still serializes it (clusters,
+//     nodepools, externalauths).
+//  3. `.content.cosmosMetadata.resourceID` as a final fallback.
 func extractResourceID(logJSON string) string {
 	var data logData
 	if err := json.Unmarshal([]byte(logJSON), &data); err != nil {
 		return ""
 	}
 
+	if data.CurrentResourceID != "" {
+		return data.CurrentResourceID
+	}
 	if data.Content != nil && data.Content.ResourceID != "" {
 		return data.Content.ResourceID
+	}
+	if data.Content != nil && data.Content.CosmosMetadata != nil && data.Content.CosmosMetadata.ResourceID != "" {
+		return data.Content.CosmosMetadata.ResourceID
 	}
 	return ""
 }
@@ -365,7 +475,10 @@ func processEntries(ctx context.Context, entries []dataDumpEntry, outputDir stri
 		// Convert resource_id to directory path structure
 		// For operation statuses, place them in the same directory as their externalId
 		// Use FullMsg for operation status detection (contains externalId and request fields)
-		relPath := resourceIDToPathWithContent(entry.ResourceID, entry.FullMsg)
+		relPath := entry.RelativePath
+		if relPath == "" {
+			relPath = resourceIDToPathWithContent(entry.ResourceID, entry.FullMsg)
+		}
 		filePath := filepath.Join(outputDir, relPath)
 
 		// Create parent directories
@@ -661,6 +774,35 @@ func resourceIDToPathWithContent(resourceID string, logJSON string) string {
 	// Create filename with request prefix
 	filename := fmt.Sprintf("%s-%s.json", strings.ToLower(data.Content.Request), strings.ToLower(operationID))
 	return filepath.Join(append(parts, filename)...)
+}
+
+// csClusterStatePath returns the relative path for a cluster-service cluster
+// state dump. The file is placed peer to the cluster's hcpopenshiftcluster
+// JSON file, using the cluster-service ID as a disambiguator so multiple
+// clusters in the same resource group don't collide.
+func csClusterStatePath(clusterResourceID, csID string) string {
+	clusterPath := resourceIDToPath(clusterResourceID)
+	parentDir := filepath.Dir(clusterPath)
+	csIDLower := strings.ToLower(csIDBaseName(csID))
+	return filepath.Join(parentDir, fmt.Sprintf("cluster-service-cluster-%s.json", csIDLower))
+}
+
+// csNodePoolStatePath returns the relative path for a cluster-service
+// node-pool state dump. The file is placed peer to per-nodepool JSON files
+// under the cluster's nodepools directory.
+func csNodePoolStatePath(clusterResourceID, npCSID string) string {
+	clusterPath := resourceIDToPath(clusterResourceID)
+	clusterDir := strings.TrimSuffix(clusterPath, ".json")
+	npCSIDLower := strings.ToLower(csIDBaseName(npCSID))
+	return filepath.Join(clusterDir, "nodepools", fmt.Sprintf("cluster-service-nodepool-%s.json", npCSIDLower))
+}
+
+// csIDBaseName returns the last path segment of a cluster-service ID, e.g.
+// "/api/aro_hcp/v1alpha1/clusters/<id>" -> "<id>", or
+// "/api/aro_hcp/v1alpha1/clusters/<cid>/node_pools/<id>" -> "<id>".
+func csIDBaseName(csID string) string {
+	csID = strings.TrimSuffix(csID, "/")
+	return path.Base(csID)
 }
 
 // resourceIDToPath converts an Azure resource ID to a directory path structure

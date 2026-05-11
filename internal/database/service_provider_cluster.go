@@ -35,7 +35,6 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: *resourceID,
 	}
 }
 
@@ -43,7 +42,7 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 // instance named `default` for the given cluster resource ID.
 // If it doesn't exist, it creates a new one.
 func GetOrCreateServiceProviderCluster(
-	ctx context.Context, dbClient DBClient, clusterResourceID *azcorearm.ResourceID,
+	ctx context.Context, dbClient ResourcesDBClient, clusterResourceID *azcorearm.ResourceID,
 ) (*api.ServiceProviderCluster, error) {
 	if !armhelpers.ResourceTypeEqual(clusterResourceID.ResourceType, api.ClusterResourceType) {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))

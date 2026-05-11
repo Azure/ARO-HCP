@@ -121,6 +121,38 @@ See the [Shell extension](https://ev2docs.azure.net/features/service-artifacts/a
 
 Shell steps are mostly used for service deployments leveraging [Helm charts](service-deployment-concept.md#helm-chart).
 
+### Automated Retry
+
+Steps can be configured to automatically retry on failure by adding an `automatedRetry` section. This is useful for handling transient failures such as network timeouts, temporary service unavailability, or rate limiting.
+
+```yaml
+  ...
+  steps:
+  - name: upgrade-aks-cluster
+    action: Shell
+    command: ./upgrade-cluster.sh
+    workingDir: ./scripts
+    automatedRetry:                                  (1)
+      errorContainsAny:                              (2)
+      - "context deadline exceeded"
+      - "500 Internal Server Error"
+      - "TooManyRequests"
+      maximumRetryCount: 3                           (3)
+      durationBetweenRetries: 2m                     (4)
+```
+
+1. `automatedRetry`: Optional configuration block for automatic retry behavior.
+2. `errorContainsAny`: A list of strings to match against the error message (case-sensitive). If the error contains any of these strings, a retry will be triggered. Maximum of 16 items; total encoded length must not exceed 1KB.
+3. `maximumRetryCount`: The maximum total number of step executions, including the initial attempt. Must be between 1 and 10. Defaults to 1 if not specified. For example, `3` means up to 3 total attempts, not 1 initial attempt plus 3 retries.
+4. `durationBetweenRetries`: The time to wait between retry attempts. Should be between 1 minute (`1m`) and 3 hours (`3h`). Uses Go's time.Duration syntax (e.g., `30s`, `5m`, `1h`).
+
+**Important notes:**
+
+- The retry mechanism only triggers if the error message contains one of the specified strings
+- Each retry attempt counts toward the total step execution time
+- If the configured maximum number of attempts is exhausted and the step still fails, the entire pipeline will fail
+- The `automatedRetry` configuration is available for all step types (ARM, Shell, Helm, etc.)
+
 ### Step execution context
 
 All steps share a common execution context:

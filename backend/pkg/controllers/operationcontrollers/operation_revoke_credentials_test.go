@@ -88,7 +88,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 		revokeCredentialsOperationID string
 		expectError                  bool
 		expectCSMockCalled           bool
-		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
+		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name:                         "no credentials present means operation is successful",
@@ -96,7 +96,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
 			expectCSMockCalled:           true,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -115,7 +115,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
 			expectCSMockCalled:           true,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -135,7 +135,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
 			expectCSMockCalled:           true,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
@@ -153,7 +153,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
 			expectCSMockCalled:           true,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -169,7 +169,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			revokeCredentialsOperationID: "not-our-operation-id",
 			expectError:                  false,
 			expectCSMockCalled:           true,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Equal(t, "not-our-operation-id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
@@ -181,7 +181,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  true,
 			expectCSMockCalled:           true,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status) // no state change
@@ -197,7 +197,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
 			expectCSMockCalled:           false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status) // no state change
@@ -225,7 +225,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 				tt.operationOverride(operation)
 			}
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -247,7 +247,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			}
 
 			controller := &operationRevokeCredentials{
-				cosmosClient:          mockDB,
+				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}
 
@@ -260,7 +260,7 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

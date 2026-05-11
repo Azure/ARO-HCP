@@ -121,7 +121,7 @@ func TestEscapeODataString_EscapesSingleQuotes(t *testing.T) {
 	}
 }
 
-func TestAssignmentWithinResourceGroupScope_UsesScopeWhenPresent(t *testing.T) {
+func TestAssignmentWithinSubscriptionScope(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -130,27 +130,30 @@ func TestAssignmentWithinResourceGroupScope_UsesScopeWhenPresent(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "uses scope when present",
+			name: "accepts subscription scope",
 			role: &armauthorization.RoleAssignment{
-				Properties: &armauthorization.RoleAssignmentProperties{
-					Scope: strPtr("/subscriptions/abc/resourceGroups/rg-one/providers/Microsoft.Compute/virtualMachines/vm1"),
-				},
+				ID: strPtr("/subscriptions/abc/providers/Microsoft.Authorization/roleAssignments/ra1"),
 			},
 			want: true,
 		},
 		{
-			name: "falls back to ID",
+			name: "accepts resource group scope",
 			role: &armauthorization.RoleAssignment{
 				ID: strPtr("/subscriptions/abc/resourceGroups/rg-one/providers/Microsoft.Authorization/roleAssignments/ra1"),
 			},
 			want: true,
 		},
 		{
-			name: "rejects non-RG scope",
+			name: "rejects management group scope",
 			role: &armauthorization.RoleAssignment{
-				Properties: &armauthorization.RoleAssignmentProperties{
-					Scope: strPtr("/subscriptions/abc"),
-				},
+				ID: strPtr("/providers/Microsoft.Management/managementGroups/mg1/providers/Microsoft.Authorization/roleAssignments/ra1"),
+			},
+			want: false,
+		},
+		{
+			name: "rejects different subscription with shared prefix",
+			role: &armauthorization.RoleAssignment{
+				ID: strPtr("/subscriptions/abc123/providers/Microsoft.Authorization/roleAssignments/ra1"),
 			},
 			want: false,
 		},
@@ -159,7 +162,7 @@ func TestAssignmentWithinResourceGroupScope_UsesScopeWhenPresent(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := assignmentWithinResourceGroupScope(tc.role, "/subscriptions/abc/resourcegroups/")
+			got := assignmentWithinSubscriptionScope(tc.role, "/subscriptions/abc/")
 			if got != tc.want {
 				t.Fatalf("expected %t, got %t", tc.want, got)
 			}

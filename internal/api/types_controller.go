@@ -27,12 +27,6 @@ type Controller struct {
 	// it will be the ServiceProviderCluster type and the name default
 	CosmosMetadata `json:"cosmosMetadata"`
 
-	// this matches the resourcedocument and standard storage schema.
-	// we already store this field, but its currently done in conversion trickery.  Update to directly serialize it.
-	// all items previously stored will read out and have this filled in.
-	// we need to be sure that all new records have it too.
-	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
-
 	// ExternalID is the Azure resource ID of the type this is associated with.
 	ExternalID *azcorearm.ResourceID `json:"externalId,omitempty"`
 

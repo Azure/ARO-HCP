@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
+	"github.com/Azure/ARO-HCP/test/util/junit"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
@@ -268,6 +269,14 @@ func (o Options) Run(ctx context.Context) error {
 	}
 	logger.Info("wrote alert HTML artifact", "path", htmlPath)
 
+	// Write JUnit
+	junitPath := filepath.Join(o.OutputDir, "junit_alerts.xml")
+	suites := alertsToJUnit(logger, workspaces, o.TimeWindow)
+	if err := junit.Write(junitPath, suites); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to write JUnit output: %w", err))
+	}
+	logger.Info("wrote alert JUnit artifact", "path", junitPath)
+
 	// Execute PromQL queries and render timeseries charts
 	if o.Queries != nil {
 		if err := o.runQueries(ctx, workspaces); err != nil {
@@ -308,7 +317,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				results = resp.Data.Result
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, queryErr, results, o.TimeWindow))
+			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html

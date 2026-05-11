@@ -24,13 +24,13 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
 // isGatewayToNextMinor checks if a given version has an upgrade path to the next minor version.
 // Returns true if the version is a gateway, false otherwise. Returns an error if the check fails.
-func isGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiClient cincinatti.Client, channelGroup string, nextMinor string) (bool, error) {
-	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
+func isGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiClient cincinnati.Client, channelGroup string, nextMinor string) (bool, error) {
+	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 	if err != nil {
 		return false, err
 	}
@@ -47,7 +47,7 @@ func isGatewayToNextMinor(ctx context.Context, ver semver.Version, cincinnatiCli
 		nextMinorCincinnatiChannel,
 		ver,
 	)
-	if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+	if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 		return false, nil
 	}
 	if err != nil {

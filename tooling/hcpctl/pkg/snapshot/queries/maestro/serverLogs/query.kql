@@ -1,0 +1,11 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where namespace_name == 'maestro'
+| where container_name == 'maestro-server'
+| where
+{{ range $i, $id := .BundleIDs }}{{ if $i }}    or {{ end }}log has '{{ $id }}'
+{{ end }}| where log !contains 'send the event to status subscribers'
+| extend bundleId = extract('("resourceid":|resourceID=)"([^"]+)"', 2, tostring(log))
+| extend message = extract('] "([^"]+)"', 1, tostring(log))
+| project timestamp, bundleId, message
+| order by timestamp asc

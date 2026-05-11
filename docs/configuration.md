@@ -1,6 +1,6 @@
 # Configuration Management
-The ARO Tools Documentation explains in greater detail about how the config templates are used. https://github.com/Azure/ARO-Tools/blob/main/pkg/config/README.md 
-It's important to note that these configuration files are **Go Templates** and won't render as YAML locally, this can be confusing with the .yaml file extensions, but is a very important as any misplaced linting would not catch the difference. To render these files use the ARO-Tools library. 
+The [ARO Tools Documentation](https://github.com/Azure/ARO-Tools/blob/main/config/README.md) explains in greater detail how the configuration templates are used.
+It is important to note that these configuration files are **Go templates** and are not valid YAML until they are rendered. The `.yaml` file extension can therefore be misleading, and linters may not catch issues caused by template syntax versus YAML syntax. Use the ARO-Tools library to render these files.
 
 ## Purpose of Configuration Management Strategy
 Managing configuration effectively is crucial for ensuring that deployments remain consistent and adaptable to various environments. Configuration data for every aspect of ARO HCP is stored in a configuration file and used for infrastructure and service deployments alike.
@@ -186,7 +186,7 @@ By enforcing a schema, configuration files remain predictable and can be automat
   - **cspr**: CS PR environment - a dedicated environment for testing Cluster Service PRs.
   - **pers**: personal DEV environment - used by developers to create new personal ARO HCP instances.
   - **perf**: personal perfscale environment - used by the perfscale team to create new ARO HCP instances with production grade management cluster settings
-- **[ADO sdp-pipelines/hcp/config.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.clouds-overlay.yaml)** - Contains the configuration overlay for the Microsoft deployment environments, adding MSFT specific settings to the baseline configuration.
+- **[ADO sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.sensitive.clouds-overlay.yaml)** - Contains the configuration overlay for the Microsoft deployment environments, adding MSFT specific settings to the baseline configuration.
   - **int**: MSIT INT environment - a dedicated environment for testing EV2 deployments and MISE.
   - **stg**: MSFT STAGE environment - a dedicated environment for testing AME specific features before promoting to production.
 
@@ -201,7 +201,7 @@ By enforcing a schema, configuration files remain predictable and can be automat
 2. Inspect the effects of the changes in the materialized configuration files.
 3. Commit the materialized files, open a PR, review, and merge.
 
-Check the section about [Materializing Configuration](#materializing-configuration) and [Propagate Configuration Changes](#propagate-configuration-changes) for more details.
+Check [Propagate Configuration Changes](#propagate-configuration-changes) for more details.
 
 ## Propagate Configuration Changes
 
@@ -211,7 +211,7 @@ Propagation of configuration changes varies depending on the environment:
   - Only the **cspr** environment is automatically reconciled with new changes for configuration, infrastructure, and service deployments via [Prow](prow.md).
   - personal development environments (**pers**) are fully controlled by developers. If there are relevant changes, notify developers so they can apply updates manually.
 
-- **[ADO sdp-pipelines/hcp/config.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.clouds-overlay.yaml)**:
+- **[ADO sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.sensitive.clouds-overlay.yaml)**:
   - This file serves as a `clouds.public` override to the [ARO HCP baseline configuration](../config/config.yaml) for Microsoft environments.
   - Propagation is **not automated**.
   - Refer to the [EV2 deployment documentation](ev2-deployment.md) for details on how to prepare and trigger a deployment.

@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	// If using ginkgo, import your tests here
@@ -27,12 +28,14 @@ import (
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
 	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
+	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	gatherobservability "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-observability"
+	gathersnapshot "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-snapshot"
 	identitypool "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/identity-pool"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -45,6 +48,16 @@ func fastTestsOnly(query string) string {
 
 func slowTestsOnly(query string) string {
 	return fmt.Sprintf("%s && labels.exists(l, l==\"%s\")", query, labels.Slow[0])
+}
+
+func miDemandPriority(spec *et.ExtensionTestSpec) int {
+	if spec.Labels.Has(labels.MIDemandHigh[0]) {
+		return 2
+	}
+	if spec.Labels.Has(labels.MIDemandMedium[0]) {
+		return 1
+	}
+	return 0
 }
 
 func setupCli() *cobra.Command {
@@ -241,6 +254,14 @@ func setupCli() *cobra.Command {
 	//	}
 	// })
 
+	// Sort specs so tests with higher managed identity container demand are
+	// dispatched first. This prevents starvation: multi-container tests get
+	// dispatched while the pool is full, before single-container tests can
+	// consume all available capacity.
+	sort.SliceStable(specs, func(i, j int) bool {
+		return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
+	})
+
 	ext.AddSpecs(specs)
 	registry.Register(ext)
 
@@ -254,6 +275,7 @@ func setupCli() *cobra.Command {
 	root.AddCommand(api.Must(customlinktools.NewCommand()))
 	root.AddCommand(api.Must(identitypool.NewCommand()))
 	root.AddCommand(api.Must(gatherobservability.NewCommand()))
+	root.AddCommand(api.Must(gathersnapshot.NewCommand()))
 	return root
 }
 

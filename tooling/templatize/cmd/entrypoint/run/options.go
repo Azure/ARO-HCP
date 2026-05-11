@@ -162,7 +162,7 @@ func (o *Options) Run(ctx context.Context) error {
 			BicepClient:                          o.BicepClient,
 			SubscriptionIdToAzureConfigDirectory: subscriptionIdToAzureConfigDirectory,
 		},
-		TopologyDir:           o.TopoDir,
+		TopoDirLookupFunc:     o.Topo.GetTopologyDirForServiceGroup,
 		Region:                o.Region,
 		Environment:           o.DeployEnv,
 		Stamp:                 o.Stamp,

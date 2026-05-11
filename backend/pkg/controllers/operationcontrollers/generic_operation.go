@@ -42,9 +42,9 @@ type OperationSynchronizer interface {
 type genericOperation struct {
 	name string
 
-	cooldownChecker controllerutils.CooldownChecker
-	synchronizer    OperationSynchronizer
-	cosmosClient    database.DBClient
+	cooldownChecker   controllerutils.CooldownChecker
+	synchronizer      OperationSynchronizer
+	resourcesDBClient database.ResourcesDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -60,13 +60,13 @@ func NewGenericOperationController(
 	synchronizer OperationSynchronizer,
 	activeOperationScanInterval time.Duration,
 	activeOperationInformer cache.SharedIndexInformer,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 ) controllerutils.Controller {
 	c := &genericOperation{
-		name:            name,
-		cooldownChecker: controllerutils.NewTimeBasedCooldownChecker(10 * time.Second),
-		synchronizer:    synchronizer,
-		cosmosClient:    cosmosClient,
+		name:              name,
+		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(10 * time.Second),
+		synchronizer:      synchronizer,
+		resourcesDBClient: resourcesDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[controllerutils.OperationKey](),
 			workqueue.TypedRateLimitingQueueConfig[controllerutils.OperationKey]{
@@ -100,11 +100,11 @@ func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) data
 
 	switch {
 	case strings.EqualFold(parentResourceID.ResourceType.String(), api.NodePoolResourceType.String()):
-		return c.cosmosClient.HCPClusters(sub, rg).NodePools(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)
+		return c.resourcesDBClient.HCPClusters(sub, rg).NodePools(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)
 	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
-		return c.cosmosClient.HCPClusters(sub, rg).ExternalAuth(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)
+		return c.resourcesDBClient.HCPClusters(sub, rg).ExternalAuth(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)
 	default:
-		return c.cosmosClient.HCPClusters(sub, rg).Controllers(parentResourceID.Name)
+		return c.resourcesDBClient.HCPClusters(sub, rg).Controllers(parentResourceID.Name)
 	}
 }
 

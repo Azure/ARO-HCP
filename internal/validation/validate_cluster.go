@@ -561,7 +561,9 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
-	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("subnetId"), newObj.SubnetID, nil, newObj.ManagedResourceGroup)...)
+	// Note: DifferentResourceGroupNameFromResourceID for subnetId is performed at the cluster
+	// peer-field level (it's a cross-field check against ManagedResourceGroup); duplicating it
+	// here would emit the same error twice for the same input.
 
 	// VnetIntegrationSubnetID *azcorearm.ResourceID `json:"vnetIntegrationSubnetId,omitempty"`
 	// vnetIntegrationSubnetId was added in v20251223preview, so it's optional for backwards compatibility

@@ -54,6 +54,7 @@ type QuerySpec struct {
 	Title       string `json:"title" yaml:"title"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	Query       string `json:"query" yaml:"query"`
+	Unit        string `json:"unit,omitempty" yaml:"unit,omitempty"`
 	Workspace   string `json:"workspace" yaml:"workspace"` // "svc" or "hcp"
 	Step        string `json:"step,omitempty" yaml:"step,omitempty"`
 }

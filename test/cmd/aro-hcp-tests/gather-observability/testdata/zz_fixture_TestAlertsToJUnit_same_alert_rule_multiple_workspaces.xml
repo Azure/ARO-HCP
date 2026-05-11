@@ -1,0 +1,9 @@
+<testsuites>
+  <testsuite name="aro-hcp-tests" tests="2" skipped="0" failures="1" time="3600">
+    <properties></properties>
+    <testcase name="[aro-hcp-observability] [hcp] alert KubeNodeNotReady does not fire" time="3600">
+      <failure message="alert fired 1 time(s)">Firing 1:&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T07:00:00Z&#xA;  Severity:    Sev2&#xA;  Labels:      alertname=&#34;KubeNodeNotReady&#34;, node=&#34;worker-1&#34;&#xA;</failure>
+    </testcase>
+    <testcase name="[aro-hcp-observability] [svc] alert KubeNodeNotReady does not fire" time="0"></testcase>
+  </testsuite>
+</testsuites>

@@ -805,7 +805,7 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 		if len(parts) == 2 {
 			// Patch version is managed by Red Hat. This will be computed automatically to the latest
 			// as part of https://github.com/Azure/ARO-HCP/pull/4477
-			if patch, ok := map[string]string{"4.19": "27", "4.20": "17", "4.21": "9"}[v]; ok {
+			if patch, ok := map[string]string{"4.19": "30", "4.20": "20", "4.21": "14"}[v]; ok {
 				parts = append(parts, patch)
 			} else {
 				parts = append(parts, "0")

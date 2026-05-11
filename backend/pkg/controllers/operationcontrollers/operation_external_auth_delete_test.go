@@ -39,7 +39,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 		name        string
 		setupMock   func(ctrl *gomock.Controller, fixture *externalAuthTestFixture) ocm.ClusterServiceClientSpec
 		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *externalAuthTestFixture)
+		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture)
 	}{
 		{
 			name: "external auth not found marks operation succeeded and removes external auth",
@@ -52,7 +52,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *externalAuthTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -75,7 +75,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *externalAuthTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture) {
 				// When external auth still exists, operation stays at Accepted
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -101,13 +101,13 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			externalAuth := fixture.newExternalAuth()
 			operation := fixture.newOperation(database.OperationRequestDelete)
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, externalAuth, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, externalAuth, operation})
 			require.NoError(t, err)
 
 			mockCSClient := tt.setupMock(ctrl, fixture)
 
 			controller := &operationExternalAuthDelete{
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
 			}
@@ -121,7 +121,7 @@ func TestOperationExternalAuthDelete_SynchronizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

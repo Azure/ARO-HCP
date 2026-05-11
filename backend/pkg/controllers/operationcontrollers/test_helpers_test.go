@@ -282,7 +282,7 @@ func (f *externalAuthTestFixture) newExternalAuth() *api.HCPOpenShiftClusterExte
 			ProvisioningState: arm.ProvisioningStateAccepted,
 		},
 		ServiceProviderProperties: api.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
-			ClusterServiceID:  f.externalAuthInternalID,
+			ClusterServiceID:  &f.externalAuthInternalID,
 			ActiveOperationID: testOperationName,
 		},
 	}

@@ -126,7 +126,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		Stamp:                 o.PipelineOptions.RolloutOptions.Stamp,
 		Step:                  o.PipelineOptions.Step,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.PipelineOptions.RolloutOptions.Subscriptions),
-		TopologyDir:           o.PipelineOptions.TopologyDir,
+		TopoDirLookupFunc:     o.PipelineOptions.TopoDirLookupFunc,
 		Concurrency:           o.PipelineOptions.RolloutOptions.Concurrency,
 	}, pipeline.RunStep)
 	return err

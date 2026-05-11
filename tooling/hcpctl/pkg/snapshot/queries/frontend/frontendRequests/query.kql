@@ -1,0 +1,11 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where log.resource_group =~ '{{ .ResourceGroup }}'
+| where log.msg == 'response complete'
+| summarize count() by
+    correlation_id = tostring(log.correlation_request_id),
+    method = tostring(log.method),
+    path = tostring(log.resource_id),
+    status = toint(log.response_status_code),
+    timestamp = bin(timestamp, 1s)
+| order by timestamp asc

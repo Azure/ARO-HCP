@@ -1,0 +1,7 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where eventNamespace == '{{ .HostedControlPlaneNamespace }}'
+| where objectName == 'control-plane-pki-operator'
+| where reason contains 'CertificateSigningRequest'
+| project timestamp, objectKind, objectName, reason, message
+| order by timestamp asc

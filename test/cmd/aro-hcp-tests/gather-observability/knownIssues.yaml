@@ -1,7 +1,5 @@
-knownIssues: []
-
-# the following is an example definition of a known issue
-# - name: "BackendControllerRetryHotLoop"
-#   labels:
-#     name: "operationnodepoolcreate"
-#   reason: "Nodepool create controller retry hot loops are observed during e2e runs. Needs investigation."
+knownIssues:
+- name: "KubeVersionMismatch"
+  labels:
+    cluster: ".*-mgmt-.*"
+  reason: "Under investigation."

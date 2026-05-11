@@ -38,19 +38,27 @@ import (
 
 type dispatchRevokeCredentials struct {
 	clock                 utilsclock.PassiveClock
-	cosmosClient          database.DBClient
+	resourcesDBClient     database.ResourcesDBClient
 	clustersServiceClient ocm.ClusterServiceClientSpec
 }
 
+// NewDispatchRevokeCredentialsController returns a new Controller instance that
+// initiates an asynchronous credential revocation operation in Clusters Service.
+//
+// Operation documents relevant to this controller will have the following values:
+//
+//	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
+//	     Request: RevokeCredentials
+//	      Status: Accepted
 func NewDispatchRevokeCredentialsController(
 	clock utilsclock.PassiveClock,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &dispatchRevokeCredentials{
 		clock:                 clock,
-		cosmosClient:          cosmosClient,
+		resourcesDBClient:     resourcesDBClient,
 		clustersServiceClient: clustersServiceClient,
 	}
 
@@ -59,7 +67,7 @@ func NewDispatchRevokeCredentialsController(
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
-		cosmosClient,
+		resourcesDBClient,
 	)
 
 	return controller
@@ -89,7 +97,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.cosmosClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -102,7 +110,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 
 	// Ensure the cluster's RevokeCredentialsOperationID still matches this operation's ID.
 
-	cluster, err := c.cosmosClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
+	cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -112,7 +120,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 
 		apihelpers.CancelOperation(operation, c.clock.Now())
 
-		_, err = c.cosmosClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
+		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -147,7 +155,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 
 	operation.Status = arm.ProvisioningStateDeleting
 
-	_, err = c.cosmosClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
+	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}

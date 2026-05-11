@@ -34,7 +34,8 @@ import (
 )
 
 type ControllerInitializationInput struct {
-	CosmosClient         database.DBClient
+	ResourcesDBClient    database.ResourcesDBClient
+	BillingDBClient      database.BillingDBClient
 	SubscriptionLister   listers.SubscriptionLister
 	ClusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -62,6 +63,9 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 
 	// this forces every test to have its own directory and a couple permanent fixtures
 	testDir, err := fs.Sub(tc.ArtifactDir, tc.Name)
+	require.NoError(t, err)
+
+	_, err = fs.Lstat(tc.ArtifactDir, tc.Name)
 	require.NoError(t, err)
 
 	ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
@@ -106,7 +110,8 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	}
 
 	controllerInput := &ControllerInitializationInput{
-		CosmosClient:         storageIntegrationTestInfo.CosmosClient(),
+		ResourcesDBClient:    storageIntegrationTestInfo.ResourcesDBClient(),
+		BillingDBClient:      storageIntegrationTestInfo.BillingDBClient(),
 		ClusterServiceClient: clusterServiceMockInfo.MockClusterServiceClient,
 	}
 

@@ -29,10 +29,11 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
+	configv1 "github.com/openshift/api/config/v1"
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
 var (
@@ -42,7 +43,51 @@ var (
 	ErrVersionNotFound              = errors.New("no graph nodes found")
 )
 
-const graphAPIRequestTimeout = 30 * time.Second
+const (
+	graphAPIRequestTimeout     = 30 * time.Second
+	versionFetchMaxRetries     = 3
+	versionFetchRetryBaseDelay = 1 * time.Second
+)
+
+func retryOnTransientError[T any](ctx context.Context, f func() (T, error)) (T, error) {
+	var zero T
+	var lastErr error
+	for attempt := range versionFetchMaxRetries + 1 {
+		if attempt > 0 {
+			backoff := versionFetchRetryBaseDelay * time.Duration(1<<(attempt-1))
+			select {
+			case <-ctx.Done():
+				return zero, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+		result, err := f()
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+		if !isRetryableVersionError(err) {
+			return zero, err
+		}
+	}
+	return zero, fmt.Errorf("after %d attempts: %w", versionFetchMaxRetries+1, lastErr)
+}
+
+func isRetryableVersionError(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if errors.Is(err, ErrVersionNotFound) ||
+		errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
+		errors.Is(err, ErrNoAcceptedNightlyTags) ||
+		errors.Is(err, ErrNoParseableNightlyTags) {
+		return false
+	}
+	if cincinnati.IsCincinnatiVersionNotFoundError(err) {
+		return false
+	}
+	return true
+}
 
 // GetInstallVersionForZStreamUpgrade returns the version to install the cluster with when testing
 // a z-stream upgrade, and whether that version has an available z-stream upgrade path. It uses
@@ -62,7 +107,7 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 	nextMinorStr := fmt.Sprintf("%d.%d", configuredVersion.Major, configuredVersion.Minor+1)
 	maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
 	if err != nil {
-		if !cincinatti.IsCincinnatiVersionNotFoundError(err) {
+		if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
 			return "", false, err
 		}
 		// we don't have the next minor, use the max version in the current minor
@@ -90,7 +135,7 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 		return nil, fmt.Errorf("parse version %q: %w", version, err)
 	}
 
-	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
+	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 	if err != nil {
 		return nil, fmt.Errorf("get Cincinnati URI: %w", err)
 	}
@@ -98,10 +143,13 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 	if transport == nil {
 		transport = &http.Transport{}
 	}
-	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
 	channel := fmt.Sprintf("%s-%d.%d", channelGroup, fromVersion.Major, fromVersion.Minor)
 
-	_, possibleUpgradeCandidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVersion)
+	possibleUpgradeCandidates, err := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
+		_, updates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVersion)
+		return updates, err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +219,7 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 	}
 	channel := fmt.Sprintf("%s-%d.%d", channelGroup, maxVer.Major, maxVer.Minor)
 
-	cincinnatiURI, err := cincinatti.GetCincinnatiURI(channelGroup)
+	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 	if err != nil {
 		return nil, fmt.Errorf("get Cincinnati URI: %w", err)
 	}
@@ -179,9 +227,12 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 	if transport == nil {
 		transport = &http.Transport{}
 	}
-	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinatti.NewAlwaysConditionRegistry())
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
 
-	_, possibleCandidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVer)
+	possibleCandidates, err := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
+		_, candidates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVer)
+		return candidates, err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -202,18 +253,21 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 	return out, nil
 }
 
-// GetLatestInstallVersion returns the latest install version for the given channel group and version
+// GetLatestInstallVersion returns the latest install version for the given channel group and version.
 // For nightly channels, it returns the latest accepted nightly tag.
 // For all other channels, it returns the latest version in the minor.
+// Transient HTTP/DNS errors are retried with exponential backoff.
 func GetLatestInstallVersion(ctx context.Context, channelGroup string, version string) (string, error) {
-	if channelGroup == "nightly" {
-		return GetLatestInstallVersionForNightlyChannel(version)
-	}
-	return GetLatestInstallVersionForGraphChannel(ctx, channelGroup, version)
+	return retryOnTransientError(ctx, func() (string, error) {
+		if channelGroup == "nightly" {
+			return getLatestInstallVersionForNightlyChannel(ctx, version)
+		}
+		return getLatestInstallVersionForGraphChannel(ctx, channelGroup, version)
+	})
 }
 
 // Note that this function is different from GetLatestVersionInMinor because it will return also engineering candidate versions.
-func GetLatestInstallVersionForGraphChannel(ctx context.Context, channelGroup string, version string) (string, error) {
+func getLatestInstallVersionForGraphChannel(ctx context.Context, channelGroup string, version string) (string, error) {
 	channel := fmt.Sprintf("%s-%s", channelGroup, version)
 	graphURL := fmt.Sprintf("https://api.openshift.com/api/upgrades_info/v1/graph?channel=%s", url.QueryEscape(channel))
 
@@ -271,19 +325,19 @@ func GetLatestInstallVersionForGraphChannel(ctx context.Context, channelGroup st
 	}
 
 	if latestVersionID == "" {
-		return "", fmt.Errorf("no %s versions found in %s for requested minor %s", channelGroup, channel, version)
+		return "", fmt.Errorf("%w: no %s versions in %s for requested minor %s", ErrVersionNotFound, channelGroup, channel, version)
 	}
 
 	return latestVersionID, nil
 }
 
-// GetLatestInstallVersionForNightlyChannel returns the latest accepted nightly tag for the given minor version
+// getLatestInstallVersionForNightlyChannel returns the latest accepted nightly tag for the given minor version
 // (for example "4.19" -> "4.19.0-0.nightly-multi-YYYY-MM-DD-HHMMSS").
-func GetLatestInstallVersionForNightlyChannel(version string) (string, error) {
+func getLatestInstallVersionForNightlyChannel(ctx context.Context, version string) (string, error) {
 	releaseStream := fmt.Sprintf("%s.0-0.nightly-multi", version)
 	releaseTagsURL := fmt.Sprintf("https://multi.ocp.releases.ci.openshift.org/api/v1/releasestream/%s/tags?phase=Accepted", url.PathEscape(releaseStream))
 
-	req, err := http.NewRequest(http.MethodGet, releaseTagsURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, releaseTagsURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("create nightly tags request for %s: %w", releaseStream, err)
 	}

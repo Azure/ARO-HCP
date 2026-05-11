@@ -1,0 +1,9 @@
+**
+!image-environment
+!sessiongate/
+
+# https://github.com/containers/podman/discussions/22910
+# !image-environment
+# !sessiongate/go.*
+# !sessiongate/Makefile
+# !sessiongate/**/*.go

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Snapshot Overview</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #1a1a2e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+h1 { font-size: 18px; margin-bottom: 8px; color: #fff; }
+.meta { color: #888; margin-bottom: 16px; font-size: 12px; }
+.tree { list-style: none; padding-left: 0; }
+.tree ul { list-style: none; padding-left: 20px; display: none; }
+.tree li { position: relative; }
+.tree li.open > ul { display: block; }
+.node { display: flex; align-items: center; padding: 3px 6px; cursor: pointer; border-radius: 3px; margin: 1px 0; }
+.node:hover { background: #2a2a4a; }
+.toggle { width: 16px; flex-shrink: 0; text-align: center; color: #666; font-size: 10px; }
+.icon { width: 18px; flex-shrink: 0; text-align: center; margin-right: 4px; }
+.label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 8px; font-weight: bold; flex-shrink: 0; }
+.badge-pass { background: #1b5e20; color: #a5d6a7; }
+.badge-fail { background: #b71c1c; color: #ffcdd2; }
+.badge-skip { background: #f57f17; color: #000; }
+.badge-info { background: #1a237e; color: #90caf9; }
+.kql { display: none; background: #0d0d1a; border: 1px solid #333; border-radius: 4px; padding: 8px; margin: 4px 0 4px 38px; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; color: #ccc; }
+.kql.visible { display: block; }
+.summary { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+.summary-item { padding: 4px 12px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Snapshot Query Overview</h1>
+<div class="summary">
+  <span class="summary-item badge-pass">{{.TotalPassCount}} passed</span>
+  <span class="summary-item badge-fail">{{.TotalFailCount}} failed</span>
+  <span class="summary-item badge-skip">{{.TotalSkipCount}} skipped</span>
+</div>
+<ul class="tree">
+{{range $si, $section := .Sections}}
+  <li class="open">
+    <div class="node" id="section-{{$si}}" onclick="toggleNode(event, this)">
+      <span class="toggle">&#x25BC;</span>
+      <span class="icon">&#x1F9EA;</span>
+      <span class="label">{{$section.TestName}} / {{$section.ResourceGroup}}</span>
+      {{if $section.FailCount}}<span class="badge badge-fail">{{$section.FailCount}} failed</span>{{end}}
+      <span class="badge badge-info">{{$section.StartTime}} &mdash; {{$section.EndTime}}</span>
+    </div>
+    <ul>
+    {{range $ni, $node := $section.Nodes}}
+      <li class="open">
+        <div class="node" id="node-{{$si}}-{{$ni}}" onclick="toggleNode(event, this)">
+          <span class="toggle">&#x25BC;</span>
+          <span class="icon">&#x1F4C1;</span>
+          <span class="label">{{$node.Name}}</span>
+          {{if $node.FailCount}}<span class="badge badge-fail">{{$node.FailCount}} failed</span>{{end}}
+        </div>
+        <ul>
+        {{range $ci, $child := $node.Children}}
+          <li class="open">
+            <div class="node" id="node-{{$si}}-{{$ni}}-{{$ci}}" onclick="toggleNode(event, this)">
+              <span class="toggle">&#x25BC;</span>
+              <span class="icon">&#x1F4C2;</span>
+              <span class="label">{{$child.Name}}</span>
+            </div>
+            <ul>
+            {{range $qi, $query := $child.Queries}}
+              <li>
+                <div class="node" id="node-{{$si}}-{{$ni}}-{{$ci}}-{{$qi}}" onclick="toggleKQL(event, this)">
+                  <span class="toggle">&#xB7;</span>
+                  <span class="icon">{{$query.Icon}}</span>
+                  <span class="label">{{$query.Key}}</span>
+                  <span class="badge {{$query.BadgeClass}}">{{$query.BadgeText}}</span>
+                </div>
+                {{if $query.KQL}}<div class="kql" id="kql-{{$si}}-{{$ni}}-{{$ci}}-{{$qi}}">{{$query.KQL}}</div>{{end}}
+              </li>
+            {{end}}
+            </ul>
+          </li>
+        {{end}}
+        </ul>
+      </li>
+    {{end}}
+    </ul>
+  </li>
+{{end}}
+</ul>
+<script>
+function toggleNode(event, el) {
+  event.stopPropagation();
+  var li = el.parentElement;
+  li.classList.toggle('open');
+  var t = el.querySelector('.toggle');
+  if (t && t.textContent !== '\xB7') t.textContent = li.classList.contains('open') ? '\u25BC' : '\u25B6';
+}
+function toggleKQL(event, el) {
+  event.stopPropagation();
+  var kql = el.nextElementSibling;
+  if (kql && kql.classList.contains('kql')) kql.classList.toggle('visible');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+<testsuites>
+  <testsuite name="aro-hcp-tests" tests="1" skipped="0" failures="0" time="0">
+    <properties></properties>
+    <testcase name="[aro-hcp-observability] [svc] alert DefinedRule does not fire" time="0"></testcase>
+  </testsuite>
+</testsuites>

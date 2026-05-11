@@ -24,9 +24,13 @@ import (
 )
 
 func LoadPipelines(
-	root *topology.Service, topologyDir string, pipelines map[string]*types.Pipeline,
+	root *topology.Service, t *topology.CombinedTopology, pipelines map[string]*types.Pipeline,
 	cfg configtypes.Configuration,
 ) error {
+	topologyDir, err := t.GetTopologyDirForServiceGroup(root.ServiceGroup)
+	if err != nil {
+		return fmt.Errorf("failed to get topology dir for service group %s: %w", root.ServiceGroup, err)
+	}
 	pipelineConfigFilePath := filepath.Join(topologyDir, root.PipelinePath)
 	pipe, err := types.NewPipelineFromFile(pipelineConfigFilePath, cfg)
 	if err != nil {
@@ -39,7 +43,7 @@ func LoadPipelines(
 	pipelines[root.ServiceGroup] = pipe
 
 	for _, child := range root.Children {
-		if err := LoadPipelines(&child, topologyDir, pipelines, cfg); err != nil {
+		if err := LoadPipelines(&child, t, pipelines, cfg); err != nil {
 			return err
 		}
 	}

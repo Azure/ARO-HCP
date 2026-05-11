@@ -1,0 +1,9 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where cid == '{{ .ClusterID }}'
+| where log.msg has 'successfully sent create request of maestro bundle with maestro bundle id'
+| extend bundleId = extract("bundle id '([^']+)'", 1, tostring(log.msg))
+| extend bundleName = extract("maestro bundle name '([^']+)'", 1, tostring(log.msg))
+| extend manifestWork = extract("containing resource '([^']+)'", 1, tostring(log.msg))
+| where isnotempty(manifestWork)
+| distinct bundleId, bundleName, manifestWork

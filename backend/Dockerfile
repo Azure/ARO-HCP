@@ -8,13 +8,14 @@ COPY backend/go.mod backend/go.sum backend/
 RUN cd backend && go mod download
 WORKDIR /app
 COPY . .
-ARG TAG
+ARG ARO_HCP_REVISION
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
 # non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
 ENV CGO_ENABLED=1 GOFIPS140=latest
-RUN make --directory backend ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG}
-
+RUN --mount=type=cache,target=/go/cache \
+    GOCACHE=/go/cache \
+    make --directory backend build ARO_HCP_REVISION=${ARO_HCP_REVISION}
 
 # Deployment image copies aro-hcp-backend from builder image
 FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0

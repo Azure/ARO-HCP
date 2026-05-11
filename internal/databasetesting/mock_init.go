@@ -23,7 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
-// NewMockDBClientWithResources creates a new MockDBClient and populates it with the given resources.
+// NewMockResourcesDBClientWithResources creates a new mockResourcesDBClient and populates it with the given resources.
 // Resources can be of the following types:
 //   - *api.HCPOpenShiftCluster
 //   - *api.HCPOpenShiftClusterNodePool
@@ -36,20 +36,20 @@ import (
 //   - *api.ManagementClusterContent
 //
 // Returns an error if any resource cannot be created or if an unsupported type is encountered.
-func NewMockDBClientWithResources(ctx context.Context, resources []any) (*MockDBClient, error) {
-	mockDB := NewMockDBClient()
+func NewMockResourcesDBClientWithResources(ctx context.Context, resources []any) (*MockResourcesDBClient, error) {
+	mockResourcesDBClient := NewMockResourcesDBClient()
 
 	for i, resource := range resources {
-		if err := mockDB.addResource(ctx, resource); err != nil {
+		if err := mockResourcesDBClient.addResource(ctx, resource); err != nil {
 			return nil, fmt.Errorf("failed to add resource at index %d: %w", i, err)
 		}
 	}
 
-	return mockDB, nil
+	return mockResourcesDBClient, nil
 }
 
-// addResource adds a single resource to the MockDBClient.
-func (m *MockDBClient) addResource(ctx context.Context, resource any) error {
+// addResource adds a single resource to the mockResourcesDBClient.
+func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
 	case *api.HCPOpenShiftCluster:
 		return m.addCluster(ctx, r)
@@ -74,7 +74,7 @@ func (m *MockDBClient) addResource(ctx context.Context, resource any) error {
 	}
 }
 
-func (m *MockDBClient) addCluster(ctx context.Context, cluster *api.HCPOpenShiftCluster) error {
+func (m *MockResourcesDBClient) addCluster(ctx context.Context, cluster *api.HCPOpenShiftCluster) error {
 	if cluster.ID == nil {
 		return fmt.Errorf("cluster is missing resource ID")
 	}
@@ -83,7 +83,7 @@ func (m *MockDBClient) addCluster(ctx context.Context, cluster *api.HCPOpenShift
 	return err
 }
 
-func (m *MockDBClient) addNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool) error {
+func (m *MockResourcesDBClient) addNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool) error {
 	if nodePool.ID == nil {
 		return fmt.Errorf("node pool is missing resource ID")
 	}
@@ -96,7 +96,7 @@ func (m *MockDBClient) addNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 	return err
 }
 
-func (m *MockDBClient) addOperation(ctx context.Context, operation *api.Operation) error {
+func (m *MockResourcesDBClient) addOperation(ctx context.Context, operation *api.Operation) error {
 	if operation.OperationID == nil {
 		return fmt.Errorf("operation is missing operation ID")
 	}
@@ -105,7 +105,7 @@ func (m *MockDBClient) addOperation(ctx context.Context, operation *api.Operatio
 	return err
 }
 
-func (m *MockDBClient) addExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) error {
+func (m *MockResourcesDBClient) addExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) error {
 	if externalAuth.ID == nil {
 		return fmt.Errorf("external auth is missing resource ID")
 	}
@@ -118,7 +118,7 @@ func (m *MockDBClient) addExternalAuth(ctx context.Context, externalAuth *api.HC
 	return err
 }
 
-func (m *MockDBClient) addServiceProviderCluster(ctx context.Context, spc *api.ServiceProviderCluster) error {
+func (m *MockResourcesDBClient) addServiceProviderCluster(ctx context.Context, spc *api.ServiceProviderCluster) error {
 	resourceID := spc.GetResourceID()
 	if resourceID == nil {
 		return fmt.Errorf("service provider cluster is missing resource ID")
@@ -132,7 +132,7 @@ func (m *MockDBClient) addServiceProviderCluster(ctx context.Context, spc *api.S
 	return err
 }
 
-func (m *MockDBClient) addServiceProviderNodePool(ctx context.Context, spnp *api.ServiceProviderNodePool) error {
+func (m *MockResourcesDBClient) addServiceProviderNodePool(ctx context.Context, spnp *api.ServiceProviderNodePool) error {
 	resourceID := spnp.GetResourceID()
 	if resourceID == nil {
 		return fmt.Errorf("service provider node pool is missing resource ID")
@@ -150,7 +150,7 @@ func (m *MockDBClient) addServiceProviderNodePool(ctx context.Context, spnp *api
 	return err
 }
 
-func (m *MockDBClient) addSubscription(ctx context.Context, subscription *arm.Subscription) error {
+func (m *MockResourcesDBClient) addSubscription(ctx context.Context, subscription *arm.Subscription) error {
 	resourceID := subscription.GetResourceID()
 	if resourceID == nil {
 		return fmt.Errorf("subscription is missing resource ID")
@@ -160,7 +160,7 @@ func (m *MockDBClient) addSubscription(ctx context.Context, subscription *arm.Su
 	return err
 }
 
-func (m *MockDBClient) addController(ctx context.Context, controller *api.Controller) error {
+func (m *MockResourcesDBClient) addController(ctx context.Context, controller *api.Controller) error {
 	resourceID := controller.GetResourceID()
 	if resourceID == nil {
 		return fmt.Errorf("controller is missing resource ID")
@@ -197,7 +197,7 @@ func (m *MockDBClient) addController(ctx context.Context, controller *api.Contro
 	return fmt.Errorf("unsupported parent resource type: %s", parentType)
 }
 
-func (m *MockDBClient) addManagementClusterContent(ctx context.Context, mcc *api.ManagementClusterContent) error {
+func (m *MockResourcesDBClient) addManagementClusterContent(ctx context.Context, mcc *api.ManagementClusterContent) error {
 	resourceID := mcc.GetResourceID()
 	if resourceID == nil {
 		return fmt.Errorf("management cluster content is missing resource ID")

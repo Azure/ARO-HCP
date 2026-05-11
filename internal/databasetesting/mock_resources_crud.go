@@ -1,0 +1,833 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package databasetesting
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"path"
+	"strings"
+
+	"github.com/google/uuid"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+// mockResourceCRUD is a generic mock implementation of database.ResourceCRUD.
+type mockResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
+	client           *MockResourcesDBClient
+	parentResourceID *azcorearm.ResourceID
+	resourceType     azcorearm.ResourceType
+	// makeResourceIDPath constructs the full resource ID path from a resource name.
+	// This is customizable to support different resource ID construction patterns.
+	makeResourceIDPath func(resourceID string) (*azcorearm.ResourceID, error)
+	// getListPrefix returns the prefix string for listing resources.
+	// This is customizable to support different listing patterns.
+	getListPrefix func() (string, error)
+}
+
+func newMockResourceCRUD[InternalAPIType, CosmosAPIType any](
+	client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockResourceCRUD[InternalAPIType, CosmosAPIType] {
+
+	m := &mockResourceCRUD[InternalAPIType, CosmosAPIType]{
+		client:           client,
+		parentResourceID: parentResourceID,
+		resourceType:     resourceType,
+	}
+	// Set default implementations
+	m.makeResourceIDPath = m.defaultMakeResourceIDPath
+	m.getListPrefix = func() (string, error) {
+		prefix, err := m.defaultMakeResourceIDPath("")
+		if err != nil {
+			return "", err
+		}
+		return prefix.String() + "/", nil
+	}
+	return m
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) defaultMakeResourceIDPath(resourceID string) (*azcorearm.ResourceID, error) {
+	if len(m.parentResourceID.SubscriptionID) == 0 {
+		return nil, fmt.Errorf("subscriptionID is required")
+	}
+	parts := []string{m.parentResourceID.String()}
+
+	if !strings.EqualFold(m.parentResourceID.ResourceType.Namespace, api.ProviderNamespace) {
+		if len(resourceID) == 0 {
+			resourcePathString := path.Join(parts...)
+			return azcorearm.ParseResourceID(resourcePathString)
+		}
+
+		parts = append(parts,
+			"providers",
+			m.resourceType.Namespace,
+		)
+	} else {
+		if len(m.parentResourceID.ResourceGroupName) == 0 {
+			return nil, fmt.Errorf("resourceGroup is required")
+		}
+	}
+	parts = append(parts, m.resourceType.Types[len(m.resourceType.Types)-1])
+
+	if len(resourceID) > 0 {
+		parts = append(parts, resourceID)
+	}
+
+	resourcePathString := path.Join(parts...)
+	return azcorearm.ParseResourceID(resourcePathString)
+}
+
+func NewPreconditionFailedError() *azcore.ResponseError {
+	return &azcore.ResponseError{
+		ErrorCode:  "412 Precondition Failed",
+		StatusCode: http.StatusPreconditionFailed,
+	}
+}
+
+// generateETag creates a new unique etag value
+func generateETag() azcore.ETag {
+	return azcore.ETag(uuid.New().String())
+}
+
+// injectETag injects a new etag into the document JSON
+func injectETag(data json.RawMessage) (json.RawMessage, azcore.ETag, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, "", err
+	}
+	newETag := generateETag()
+	doc["_etag"] = string(newETag)
+	newData, err := json.Marshal(doc)
+	if err != nil {
+		return nil, "", err
+	}
+	return newData, newETag, nil
+}
+
+func injectID(data json.RawMessage, id string) (json.RawMessage, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	doc["id"] = id
+	newData, err := json.Marshal(doc)
+	if err != nil {
+		return nil, err
+	}
+	return newData, nil
+}
+
+// getStoredETag extracts the etag from a stored document
+func getStoredETag(data json.RawMessage) azcore.ETag {
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return ""
+	}
+	if etag, ok := doc["_etag"].(string); ok {
+		return azcore.ETag(etag)
+	}
+	return ""
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error) {
+	if strings.ToLower(cosmosID) != cosmosID {
+		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
+	}
+
+	data, ok := m.client.GetDocument(cosmosID)
+	if !ok {
+		return nil, database.NewNotFoundError()
+	}
+
+	var cosmosObj CosmosAPIType
+	if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal document: %w", err)
+	}
+
+	return database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Context, resourceID string) (*InternalAPIType, error) {
+	completeResourceID, err := m.makeResourceIDPath(resourceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
+	}
+
+	newCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.GetByID(ctx, newCosmosID)
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[InternalAPIType], error) {
+	prefix, err := m.getListPrefix()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get list prefix: %w", err)
+	}
+
+	documents := m.client.ListDocuments(&m.resourceType, prefix)
+
+	var ids []string
+	var items []*InternalAPIType
+
+	for _, data := range documents {
+		var cosmosObj CosmosAPIType
+		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+			continue
+		}
+
+		internalObj, err := database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
+		if err != nil {
+			continue
+		}
+
+		// Get the ID from the typed document
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+
+		ids = append(ids, typedDoc.ID)
+		items = append(items, internalObj)
+	}
+
+	return newMockIterator(ids, items), nil
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
+	}
+
+	data, err := json.Marshal(cosmosObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cosmos object: %w", err)
+	}
+
+	// Get cosmos ID from the object
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
+	}
+
+	cosmosData := cosmosPersistable.GetCosmosData()
+	cosmosID := cosmosData.GetCosmosUID()
+
+	// Check for existing
+	if _, exists := m.client.GetDocument(cosmosID); exists {
+		return nil, &azcore.ResponseError{StatusCode: http.StatusConflict}
+	}
+
+	// Inject a new etag and store
+	dataWithETag, _, err := injectETag(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inject etag: %w", err)
+	}
+	m.client.StoreDocument(cosmosID, dataWithETag)
+
+	// Read back the stored object
+	return m.GetByID(ctx, cosmosID)
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
+	}
+
+	data, err := json.Marshal(cosmosObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cosmos object: %w", err)
+	}
+
+	// Get cosmos ID and resource info from the converted cosmos object
+	typedDocAccessor, ok := any(cosmosObj).(database.TypedDocumentAccessor)
+	if !ok {
+		return nil, fmt.Errorf("type %T does not implement TypedDocumentAccessor", cosmosObj)
+	}
+	typedDoc := typedDocAccessor.GetTypedDocument()
+	newCosmosID := typedDoc.ID
+	resourceName := typedDoc.ResourceID.Name
+
+	// Get etag from the original object for conditional replace
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
+	}
+	expectedETag := cosmosPersistable.GetCosmosData().CosmosETag
+
+	oldObj, err := m.Get(ctx, resourceName)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	storedETag := any(oldObj).(arm.CosmosPersistable).GetCosmosData().CosmosETag
+	existingCosmosID := any(oldObj).(arm.CosmosPersistable).GetCosmosData().GetCosmosUID()
+
+	// Check etag if one is provided
+	if len(expectedETag) > 0 {
+		if storedETag != expectedETag {
+			return nil, NewPreconditionFailedError()
+		}
+	}
+
+	// Inject a new etag and store
+	dataWithETag, _, err := injectETag(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inject etag: %w", err)
+	}
+	dataWithETag, err = injectID(dataWithETag, existingCosmosID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inject ID: %w", err)
+	}
+	// Use the existing cosmosID to maintain consistency
+	_ = newCosmosID // newCosmosID should match existingCosmosID
+	m.client.StoreDocument(existingCosmosID, dataWithETag)
+
+	// Read back the stored object
+	return m.Get(ctx, resourceName)
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Context, resourceID string) error {
+	completeResourceID, err := m.makeResourceIDPath(resourceID)
+	if err != nil {
+		return fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
+	}
+
+	cosmosUID, err := arm.ResourceIDToCosmosID(completeResourceID)
+	if err != nil {
+		return err
+	}
+	m.client.DeleteDocument(cosmosUID)
+	return nil
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
+	}
+
+	data, err := json.Marshal(cosmosObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
+	}
+
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
+	}
+
+	cosmosData := cosmosPersistable.GetCosmosData()
+	cosmosID := cosmosData.GetCosmosUID()
+
+	mockTx, ok := transaction.(*mockTransaction)
+	if !ok {
+		return "", fmt.Errorf("expected mockTransaction, got %T", transaction)
+	}
+
+	transactionDetails := database.CosmosDBTransactionStepDetails{
+		ActionType: "Create",
+		GoType:     fmt.Sprintf("%T", newObj),
+		CosmosID:   cosmosID,
+	}
+
+	mockTx.steps = append(mockTx.steps, mockTransactionStep{
+		details: transactionDetails,
+		execute: func() (string, json.RawMessage, error) {
+			// Inject a new etag and store
+			dataWithETag, _, err := injectETag(data)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to inject etag: %w", err)
+			}
+			m.client.StoreDocument(cosmosID, dataWithETag)
+			return cosmosID, dataWithETag, nil
+		},
+	})
+
+	return cosmosID, nil
+}
+
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
+	}
+
+	data, err := json.Marshal(cosmosObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
+	}
+
+	// Get cosmos ID from the converted cosmos object
+	typedDocAccessor, ok := any(cosmosObj).(database.TypedDocumentAccessor)
+	if !ok {
+		return "", fmt.Errorf("type %T does not implement TypedDocumentAccessor", cosmosObj)
+	}
+	cosmosID := typedDocAccessor.GetTypedDocument().ID
+
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
+	}
+	expectedETag := cosmosPersistable.GetCosmosData().CosmosETag
+
+	mockTx, ok := transaction.(*mockTransaction)
+	if !ok {
+		return "", fmt.Errorf("expected mockTransaction, got %T", transaction)
+	}
+
+	transactionDetails := database.CosmosDBTransactionStepDetails{
+		ActionType: "Replace",
+		GoType:     fmt.Sprintf("%T", newObj),
+		CosmosID:   cosmosID,
+	}
+
+	mockTx.steps = append(mockTx.steps, mockTransactionStep{
+		details: transactionDetails,
+		execute: func() (string, json.RawMessage, error) {
+			// Check etag if one is provided
+			if len(expectedETag) > 0 {
+				existingData, exists := m.client.GetDocument(cosmosID)
+				if !exists {
+					return "", nil, database.NewNotFoundError()
+				}
+				storedETag := getStoredETag(existingData)
+				if storedETag != expectedETag {
+					return "", nil, NewPreconditionFailedError()
+				}
+			}
+			// Inject a new etag and store
+			dataWithETag, _, err := injectETag(data)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to inject etag: %w", err)
+			}
+			m.client.StoreDocument(cosmosID, dataWithETag)
+			return cosmosID, dataWithETag, nil
+		},
+	})
+
+	return cosmosID, nil
+}
+
+// mockHCPClusterCRUD implements database.HCPClusterCRUD.
+type mockHCPClusterCRUD struct {
+	*mockResourceCRUD[api.HCPOpenShiftCluster, database.HCPCluster]
+}
+
+func newMockHCPClusterCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockHCPClusterCRUD {
+	return &mockHCPClusterCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftCluster, database.HCPCluster](client, parentResourceID, api.ClusterResourceType),
+	}
+}
+
+func (m *mockHCPClusterCRUD) ExternalAuth(hcpClusterName string) database.ExternalAuthsCRUD {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			"providers",
+			m.resourceType.Namespace,
+			m.resourceType.Type,
+			hcpClusterName)))
+
+	return &mockExternalAuthCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth](
+			m.client,
+			parentResourceID,
+			api.ExternalAuthResourceType,
+		),
+	}
+}
+
+func (m *mockHCPClusterCRUD) NodePools(hcpClusterName string) database.NodePoolsCRUD {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			"providers",
+			m.resourceType.Namespace,
+			m.resourceType.Type,
+			hcpClusterName)))
+
+	return &mockNodePoolsCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.HCPOpenShiftClusterNodePool, database.NodePool](
+			m.client,
+			parentResourceID,
+			api.NodePoolResourceType),
+	}
+}
+
+func (m *mockHCPClusterCRUD) Controllers(hcpClusterName string) database.ResourceCRUD[api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			"providers",
+			m.resourceType.Namespace,
+			m.resourceType.Type,
+			hcpClusterName)))
+
+	return newMockResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.ClusterControllerResourceType)
+}
+
+func (m *mockHCPClusterCRUD) ManagementClusterContents(hcpClusterName string) database.ManagementClusterContentCRUD {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			"providers",
+			m.resourceType.Namespace,
+			m.resourceType.Type,
+			hcpClusterName)))
+
+	return newMockManagementClusterContentCRUD(m.client, parentResourceID, api.ClusterScopedManagementClusterContentResourceType)
+}
+
+var _ database.HCPClusterCRUD = &mockHCPClusterCRUD{}
+
+// mockNodePoolsCRUD implements database.NodePoolsCRUD.
+type mockNodePoolsCRUD struct {
+	*mockResourceCRUD[api.HCPOpenShiftClusterNodePool, database.NodePool]
+}
+
+func (m *mockNodePoolsCRUD) Controllers(nodePoolName string) database.ResourceCRUD[api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			m.resourceType.Types[len(m.resourceType.Types)-1],
+			nodePoolName,
+		)))
+
+	return newMockResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.NodePoolControllerResourceType)
+}
+
+func (m *mockNodePoolsCRUD) ManagementClusterContents(nodePoolName string) database.ManagementClusterContentCRUD {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			m.resourceType.Types[len(m.resourceType.Types)-1],
+			nodePoolName,
+		)))
+
+	return newMockManagementClusterContentCRUD(m.client, parentResourceID, api.NodePoolScopedManagementClusterContentResourceType)
+}
+
+var _ database.NodePoolsCRUD = &mockNodePoolsCRUD{}
+
+// mockExternalAuthCRUD implements database.ExternalAuthsCRUD.
+type mockExternalAuthCRUD struct {
+	*mockResourceCRUD[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth]
+}
+
+func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) database.ResourceCRUD[api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			m.resourceType.Types[len(m.resourceType.Types)-1],
+			externalAuthName,
+		)))
+
+	return newMockResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.ExternalAuthControllerResourceType)
+}
+
+var _ database.ExternalAuthsCRUD = &mockExternalAuthCRUD{}
+
+// mockOperationCRUD implements database.OperationCRUD.
+type mockOperationCRUD struct {
+	*mockResourceCRUD[api.Operation, database.GenericDocument[api.Operation]]
+}
+
+func newMockOperationCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockOperationCRUD {
+	return &mockOperationCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.Operation, database.GenericDocument[api.Operation]](client, parentResourceID, api.OperationStatusResourceType),
+	}
+}
+
+func (m *mockOperationCRUD) ListActiveOperations(options *database.ResourcesDBClientListActiveOperationDocsOptions) database.DBClientIterator[api.Operation] {
+	allDocs := m.client.GetAllDocuments()
+
+	var ids []string
+	var items []*api.Operation
+
+	for _, data := range allDocs {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+
+		// Check resource type
+		if !strings.EqualFold(typedDoc.ResourceType, api.OperationStatusResourceType.String()) {
+			continue
+		}
+
+		var cosmosObj database.GenericDocument[api.Operation]
+		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+			continue
+		}
+
+		// Filter out terminal states
+		status := cosmosObj.Content.Status
+		if status == arm.ProvisioningStateSucceeded ||
+			status == arm.ProvisioningStateFailed ||
+			status == arm.ProvisioningStateCanceled {
+			continue
+		}
+
+		// Apply options filters
+		if options != nil {
+			if options.Request != nil && cosmosObj.Content.Request != *options.Request {
+				continue
+			}
+
+			if options.ExternalID != nil {
+				externalID := cosmosObj.Content.ExternalID
+				if externalID == nil {
+					continue
+				}
+
+				if options.IncludeNestedResources {
+					if !strings.HasPrefix(strings.ToLower(externalID.String()), strings.ToLower(options.ExternalID.String())) {
+						continue
+					}
+				} else {
+					if !strings.EqualFold(externalID.String(), options.ExternalID.String()) {
+						continue
+					}
+				}
+			}
+		}
+
+		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
+		if err != nil {
+			continue
+		}
+
+		ids = append(ids, typedDoc.ID)
+		items = append(items, internalObj)
+	}
+
+	return newMockIterator(ids, items)
+}
+
+var _ database.OperationCRUD = &mockOperationCRUD{}
+
+// mockSubscriptionCRUD implements database.SubscriptionCRUD.
+// It embeds mockResourceCRUD with customized makeResourceIDPath and getListPrefix
+// functions for subscription-specific resource ID construction.
+type mockSubscriptionCRUD struct {
+	*mockResourceCRUD[arm.Subscription, database.GenericDocument[arm.Subscription]]
+}
+
+func newMockSubscriptionCRUD(client *MockResourcesDBClient) *mockSubscriptionCRUD {
+	base := newMockResourceCRUD[arm.Subscription, database.GenericDocument[arm.Subscription]](
+		client, nil, azcorearm.SubscriptionResourceType)
+
+	// Override makeResourceIDPath for subscription-specific resource ID construction
+	base.makeResourceIDPath = func(resourceID string) (*azcorearm.ResourceID, error) {
+		return arm.ToSubscriptionResourceID(resourceID)
+	}
+
+	// Override getListPrefix for subscription-specific listing (no parent prefix)
+	base.getListPrefix = func() (string, error) {
+		return "/subscriptions/", nil
+	}
+
+	return &mockSubscriptionCRUD{
+		mockResourceCRUD: base,
+	}
+}
+
+var _ database.SubscriptionCRUD = &mockSubscriptionCRUD{}
+
+// mockServiceProviderClusterCRUD implements database.ServiceProviderClusterCRUD.
+type mockServiceProviderClusterCRUD struct {
+	*mockResourceCRUD[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]]
+}
+
+func newMockServiceProviderClusterCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderClusterCRUD {
+	return &mockServiceProviderClusterCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]](
+			client, parentResourceID, api.ServiceProviderClusterResourceType),
+	}
+}
+
+var _ database.ServiceProviderClusterCRUD = &mockServiceProviderClusterCRUD{}
+
+// mockServiceProviderNodePoolCRUD implements database.ServiceProviderNodePoolCRUD.
+type mockServiceProviderNodePoolCRUD struct {
+	*mockResourceCRUD[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]]
+}
+
+func newMockServiceProviderNodePoolCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderNodePoolCRUD {
+	return &mockServiceProviderNodePoolCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]](
+			client, parentResourceID, api.ServiceProviderNodePoolResourceType),
+	}
+}
+
+var _ database.ServiceProviderNodePoolCRUD = &mockServiceProviderNodePoolCRUD{}
+
+// mockManagementClusterContentCRUD implements database.ManagementClusterContentCRUD.
+type mockManagementClusterContentCRUD struct {
+	*mockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]
+}
+
+func newMockManagementClusterContentCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockManagementClusterContentCRUD {
+	return &mockManagementClusterContentCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]](
+			client, parentResourceID, resourceType),
+	}
+}
+
+var _ database.ManagementClusterContentCRUD = &mockManagementClusterContentCRUD{}
+
+// mockUntypedCRUD implements database.UntypedResourceCRUD.
+type mockUntypedCRUD struct {
+	client           *MockResourcesDBClient
+	parentResourceID azcorearm.ResourceID
+}
+
+func newMockUntypedCRUD(client *MockResourcesDBClient, parentResourceID azcorearm.ResourceID) *mockUntypedCRUD {
+	return &mockUntypedCRUD{
+		client:           client,
+		parentResourceID: parentResourceID,
+	}
+}
+
+func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*database.TypedDocument, error) {
+	if !strings.HasPrefix(strings.ToLower(resourceID.String()), strings.ToLower(m.parentResourceID.String())) {
+		return nil, fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), m.parentResourceID.String())
+	}
+
+	newCosmosID, err := arm.ResourceIDToCosmosID(resourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	data, ok := m.client.GetDocument(newCosmosID)
+	if ok {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal document: %w", err)
+		}
+		return database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&typedDoc)
+	}
+
+	return nil, database.NewNotFoundError()
+}
+
+func (m *mockUntypedCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
+	return m.listInternal(ctx, opts, true)
+}
+
+func (m *mockUntypedCRUD) ListRecursive(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
+	return m.listInternal(ctx, opts, false)
+}
+
+func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBClientListResourceDocsOptions, nonRecursive bool) (database.DBClientIterator[database.TypedDocument], error) {
+	allDocs := m.client.GetAllDocuments()
+
+	prefix := m.parentResourceID.String() + "/"
+	requiredSlashes := strings.Count(m.parentResourceID.String(), "/") + 2
+	if strings.EqualFold(m.parentResourceID.ResourceType.Type, "resourceGroups") {
+		requiredSlashes = strings.Count(m.parentResourceID.String(), "/") + 4
+	}
+
+	var ids []string
+	var items []*database.TypedDocument
+
+	for _, data := range allDocs {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+
+		if typedDoc.ResourceID != nil && !strings.HasPrefix(strings.ToLower(typedDoc.ResourceID.String()), strings.ToLower(prefix)) {
+			continue
+		}
+
+		// For non-recursive, check slash count
+		if nonRecursive {
+			slashCount := strings.Count(typedDoc.ResourceID.String(), "/")
+			if slashCount != requiredSlashes {
+				continue
+			}
+		}
+
+		docCopy := typedDoc
+		docPointer, err := database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&docCopy)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, docPointer.ID)
+		items = append(items, docPointer)
+	}
+
+	return newMockIterator(ids, items), nil
+}
+
+func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {
+	cosmosUID, err := arm.ResourceIDToCosmosID(resourceID)
+	if err != nil {
+		return err
+	}
+	m.client.DeleteDocument(cosmosUID)
+	return nil
+}
+
+func (m *mockUntypedCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
+	m.client.DeleteDocument(cosmosID)
+	return nil
+}
+
+func (m *mockUntypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName string) (database.UntypedResourceCRUD, error) {
+	if len(resourceName) == 0 {
+		return nil, fmt.Errorf("resourceName is required")
+	}
+
+	parts := []string{m.parentResourceID.String()}
+
+	switch {
+	case strings.EqualFold(resourceType.Type, "resourcegroups"):
+		// no provider needed here.
+	case resourceType.Namespace == api.ProviderNamespace && m.parentResourceID.ResourceType.Namespace != api.ProviderNamespace:
+		parts = append(parts,
+			"providers",
+			resourceType.Namespace,
+		)
+	case resourceType.Namespace != api.ProviderNamespace && m.parentResourceID.ResourceType.Namespace == api.ProviderNamespace:
+		return nil, fmt.Errorf("cannot switch to a non-RH provider: %q", resourceType.Namespace)
+	}
+	parts = append(parts, resourceType.Types[len(resourceType.Types)-1])
+	parts = append(parts, resourceName)
+
+	resourcePathString := path.Join(parts...)
+	newParentResourceID, err := azcorearm.ParseResourceID(resourcePathString)
+	if err != nil {
+		return nil, err
+	}
+
+	return newMockUntypedCRUD(m.client, *newParentResourceID), nil
+}
+
+var _ database.UntypedResourceCRUD = &mockUntypedCRUD{}

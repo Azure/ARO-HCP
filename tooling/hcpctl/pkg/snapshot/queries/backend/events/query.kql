@@ -1,0 +1,6 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where eventNamespace == 'aro-hcp'
+| where objectName has 'backend'
+| project timestamp, objectKind, objectName, reason, message, firstSeen, lastSeen
+| order by timestamp asc

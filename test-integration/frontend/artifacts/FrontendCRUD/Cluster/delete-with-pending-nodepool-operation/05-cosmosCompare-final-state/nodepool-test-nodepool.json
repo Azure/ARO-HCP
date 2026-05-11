@@ -35,6 +35,7 @@
 							"diskType": "Managed",
 							"sizeGiB": 64
 						},
+						"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
 						"vmSize": "large"
 					},
 					"taints": [
@@ -45,7 +46,8 @@
 						}
 					],
 					"version": {
-						"channelGroup": "stable"
+						"channelGroup": "stable",
+						"id": "4.20.8"
 					}
 				},
 				"serviceProviderProperties": {

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -85,21 +86,39 @@ type NetworkConfig struct {
 	HostPrefix  int32
 }
 
-func DefaultOpenshiftControlPlaneVersionId() string {
-	version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
-	if len(version) == 0 {
-		version = DefaultOCPVersionId
-		channelGroup := DefaultOpenshiftChannelGroup()
-		if channelGroup != "stable" {
-			var err error
-			version, err = GetLatestInstallVersion(context.Background(), channelGroup, version)
-			if err != nil {
-				if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrVersionNotFound) {
-					Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", version, channelGroup, err.Error()))
-				} else {
-					Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", channelGroup, err.Error()))
+var (
+	defaultCPVersion     string
+	defaultCPVersionErr  error
+	defaultCPVersionOnce sync.Once
+)
+
+func resolveDefaultControlPlaneVersion() (string, error) {
+	defaultCPVersionOnce.Do(func() {
+		version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
+		if len(version) == 0 {
+			version = DefaultOCPVersionId
+			channelGroup := DefaultOpenshiftChannelGroup()
+			if channelGroup != "stable" {
+				resolved, err := GetLatestInstallVersion(context.Background(), channelGroup, version)
+				if err != nil {
+					defaultCPVersionErr = err
+					return
 				}
+				version = resolved
 			}
+		}
+		defaultCPVersion = version
+	})
+	return defaultCPVersion, defaultCPVersionErr
+}
+
+func DefaultOpenshiftControlPlaneVersionId() string {
+	version, err := resolveDefaultControlPlaneVersion()
+	if err != nil {
+		if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrVersionNotFound) {
+			Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", DefaultOCPVersionId, DefaultOpenshiftChannelGroup(), err.Error()))
+		} else {
+			Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", DefaultOpenshiftChannelGroup(), err.Error()))
 		}
 	}
 	return version
@@ -117,6 +136,9 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if len(version) == 0 {
 		channelGroup := DefaultOpenshiftNodePoolChannelGroup()
+		if channelGroup == DefaultOpenshiftChannelGroup() {
+			return DefaultOpenshiftControlPlaneVersionId()
+		}
 		if channelGroup != "stable" {
 			var err error
 			version, err = GetLatestInstallVersion(context.Background(), channelGroup, DefaultOCPVersionId)

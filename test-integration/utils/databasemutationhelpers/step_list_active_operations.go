@@ -63,7 +63,7 @@ func (l *listActiveOperationsStep) StepID() StepID {
 }
 
 func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[api.Operation](t, stepInput.DBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
+	resourceCRUDClient := NewCosmosCRUD[api.Operation](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
 	var operationsCRUD = any(resourceCRUDClient).(database.OperationCRUD)
 	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)

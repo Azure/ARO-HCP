@@ -12,19 +12,6 @@ spec:
   groups:
   - name: backend
     rules:
-    - alert: BackendOperationErrorRate
-      expr: |
-        (sum by (cluster) (rate(backend_failed_operations_total[1h])))
-        /
-        (sum by (cluster) (rate(backend_operations_total[1h])))
-        > 0.05
-      for: 5m
-      labels:
-        severity: info
-      annotations:
-        description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
-        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'High Error Rate on Backend Operations'
     - alert: BackendControllerRetryHotLoop
       # A ratio of retries to total adds that is rate-independent:
       # it stays high regardless of item count or backoff delay.

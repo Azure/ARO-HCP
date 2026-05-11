@@ -83,11 +83,24 @@ type NodePoolVersionProfile struct {
 // NodePoolPlatformProfile represents a worker node pool configuration.
 // Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
+	// SubnetID is the resource ID of the subnet to use for this Node Pool's virtual machines.
+	// * If SubnetID is nil on CREATE, mutation defaults it to the parent cluster's subnet.
+	// * SubnetID must belong to the same VNet as the parent cluster's subnet.
+	// * The same subnet may be used across Node Pools of the same cluster (and may match
+	//   the parent cluster's subnet), but a subnet cannot be reused across different
+	//   ARO-HCP Clusters.
 	SubnetID               *azcorearm.ResourceID `json:"subnetId,omitempty"`
 	VMSize                 string                `json:"vmSize,omitempty"`
 	EnableEncryptionAtHost bool                  `json:"enableEncryptionAtHost"`
 	OSDisk                 OSDiskProfile         `json:"osDisk"`
-	AvailabilityZone       string                `json:"availabilityZone,omitempty"`
+	// AvailabilityZone can be empty.
+	// * If AvailabilityZone is not specified during creation, then the Node Pool is not part of any Availability Zone and the Node Pool's
+	//   virtual machines are included in an Availability Set.
+	// * If AvailabilityZone is specified, then the virtual machines are deployed as standalone instances in the specified Availability Zone.
+	// * It must not be specified for Node Pools whose parent cluster is in an Azure location that does not support Availability Zones
+	// * It is a logical Availability Zone
+	// * It is optional during creation and immutable
+	AvailabilityZone string `json:"availabilityZone,omitempty"`
 }
 
 // OSDiskProfile represents a OS Disk configuration.

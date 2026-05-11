@@ -1,0 +1,35 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"f100ce4d-0000-1100-0000-69f87b380000\"",
+	"_rid": "vr4qAP3+YBMVQQEAAAAAAA==",
+	"_self": "dbs/vr4qAA==/colls/vr4qAP3+YBM=/docs/vr4qAP3+YBMVQQEAAAAAAA==/",
+	"_ts": 1777892152,
+	"id": "b1e87a41-1eeb-51ba-8155-cd118688d9d2",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"cosmosMetadata": {
+			"etag": "\"f100af4d-0000-1100-0000-69f87b380000\"",
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"
+		},
+		"properties": {
+			"registeredFeatures": [
+				{
+					"name": "Microsoft.RedHatOpenShift/HcpPrivatePreview",
+					"state": "Registered"
+				},
+				{
+					"name": "Microsoft.RedHatOpenShift/PreconfiguredNSG",
+					"state": "Registered"
+				},
+				{
+					"name": "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures",
+					"state": "Registered"
+				}
+			]
+		},
+		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
+		"state": "Registered"
+	},
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
+	"resourceType": "Microsoft.Resources/subscriptions"
+}

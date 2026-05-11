@@ -12,9 +12,10 @@ COPY . .
 # NOTE: starting with go 1.27, GODEBUG=fips140=only can be used at runtime to also reject
 # non-FIPS algorithms. See https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips
 ENV CGO_ENABLED=1 GOFIPS140=latest
-ARG ARO_HCP_IMAGE_TAG
 ARG ARO_HCP_REVISION
-RUN make --directory admin build ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ARO_HCP_REVISION=${ARO_HCP_REVISION}
+RUN --mount=type=cache,target=/go/cache \
+    GOCACHE=/go/cache \
+    make --directory admin build ARO_HCP_REVISION=${ARO_HCP_REVISION}
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
 USER 65532:65532

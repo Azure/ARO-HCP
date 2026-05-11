@@ -54,7 +54,7 @@ func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Reque
 // TODO we will collapse onto this function entirely once we complete the migration.  Creating a separate method now to avoid having to have a big bang
 func checkForProvisioningStateConflict(
 	ctx context.Context,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	operationRequest database.OperationRequest,
 	resourceID *azcorearm.ResourceID,
 	provisioningState arm.ProvisioningState,
@@ -102,7 +102,7 @@ func checkForProvisioningStateConflict(
 	if strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()) ||
 		strings.EqualFold(resourceID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
 
-		cluster, err := cosmosClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Parent.Name)
+		cluster, err := resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Parent.Name)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -134,9 +134,9 @@ func checkForProvisioningStateConflict(
 }
 
 func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscriptionID string) error {
-	transaction := f.dbClient.NewTransaction(subscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(subscriptionID)
 
-	clusterIterator, err := f.dbClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+	clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}

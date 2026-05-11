@@ -208,7 +208,7 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 			if tc.existingNodePool != nil {
 				resources = append(resources, tc.existingNodePool)
 			}
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -231,7 +231,7 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 			syncer := &nodePoolPropertiesSyncer{
 				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				nodePoolLister:       &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 			}
 
@@ -252,7 +252,7 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			if tc.wantNodePool != nil {
-				updated, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
+				updated, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
 					NodePools(testClusterName).Get(ctx, testNodePoolName)
 				require.NoError(t, err)
 				require.True(t, equality.Semantic.DeepEqual(tc.wantNodePool.Properties, updated.Properties), "updated node pool properties do not match expected")

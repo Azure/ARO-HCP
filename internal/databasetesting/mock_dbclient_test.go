@@ -31,11 +31,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
-func TestMockDBClient_LoadFromDirectory(t *testing.T) {
+func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 	// Find a test directory with cosmos-record context data
 	testDataDir := filepath.Join("..", "..", "test-integration", "frontend", "artifacts", "FrontendCRUD", "NodePool", "read-old-data", "01-load-old-data")
 
-	mock := NewMockDBClient()
+	mock := NewMockResourcesDBClient()
 	err := mock.LoadFromDirectory(testDataDir)
 	if err != nil {
 		t.Fatalf("Failed to load test data from %s: %v", testDataDir, err)
@@ -89,11 +89,11 @@ func TestMockDBClient_LoadFromDirectory(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_LoadAndQuery(t *testing.T) {
+func TestMockResourcesDBClient_LoadAndQuery(t *testing.T) {
 	// Load test data
 	testDataDir := filepath.Join("..", "..", "test-integration", "frontend", "artifacts", "FrontendCRUD", "NodePool", "read-old-data", "01-load-old-data")
 
-	mock := NewMockDBClient()
+	mock := NewMockResourcesDBClient()
 	err := mock.LoadFromDirectory(testDataDir)
 	if err != nil {
 		t.Fatalf("Failed to load test data: %v", err)
@@ -129,8 +129,8 @@ func TestMockDBClient_LoadAndQuery(t *testing.T) {
 	t.Logf("Found %d clusters", count)
 }
 
-func TestMockDBClient_CRUD_Cluster(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
@@ -219,8 +219,8 @@ func TestMockDBClient_CRUD_Cluster(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_CRUD_Operation(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_CRUD_Operation(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
@@ -243,7 +243,6 @@ func TestMockDBClient_CRUD_Operation(t *testing.T) {
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID:         resourceID,
 		OperationID:        operationID,
 		ExternalID:         externalID,
 		Request:            api.OperationRequestCreate,
@@ -284,7 +283,7 @@ func TestMockDBClient_CRUD_Operation(t *testing.T) {
 
 	// List with filter
 	createRequest := api.OperationRequestCreate
-	iterFiltered := operationCRUD.ListActiveOperations(&database.DBClientListActiveOperationDocsOptions{
+	iterFiltered := operationCRUD.ListActiveOperations(&database.ResourcesDBClientListActiveOperationDocsOptions{
 		Request: &createRequest,
 	})
 
@@ -304,8 +303,8 @@ func TestMockDBClient_CRUD_Operation(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_CRUD_Subscription(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
@@ -367,8 +366,8 @@ func TestMockDBClient_CRUD_Subscription(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_Transaction(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_Transaction(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
@@ -425,8 +424,8 @@ func TestMockDBClient_Transaction(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_UntypedCRUD(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
@@ -486,8 +485,8 @@ func TestMockDBClient_UntypedCRUD(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_StoreAndRetrieveRawDocument(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_StoreAndRetrieveRawDocument(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 
 	cosmosID := "test-cosmos-id"
 	testData := map[string]any{
@@ -532,8 +531,8 @@ func TestMockDBClient_StoreAndRetrieveRawDocument(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_Clear(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_Clear(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 
 	// Store some documents
 	mock.StoreDocument("doc1", json.RawMessage(`{"id": "doc1"}`))
@@ -555,8 +554,8 @@ func TestMockDBClient_Clear(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_ServiceProviderCluster_ETagConditionalReplace(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_ServiceProviderCluster_ETagConditionalReplace(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
@@ -574,7 +573,6 @@ func TestMockDBClient_ServiceProviderCluster_ETagConditionalReplace(t *testing.T
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: serviceProviderClusterResourceID,
 		},
-		ResourceID: *serviceProviderClusterResourceID,
 	}
 
 	spClusterCRUD := mock.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName)
@@ -642,8 +640,8 @@ func TestMockDBClient_ServiceProviderCluster_ETagConditionalReplace(t *testing.T
 	})
 }
 
-func TestMockDBClient_Controller_ETagConditionalReplace(t *testing.T) {
-	mock := NewMockDBClient()
+func TestMockResourcesDBClient_Controller_ETagConditionalReplace(t *testing.T) {
+	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
@@ -668,7 +666,6 @@ func TestMockDBClient_Controller_ETagConditionalReplace(t *testing.T) {
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: controllerResourceID,
 		},
-		ResourceID: controllerResourceID,
 		ExternalID: clusterResourceID,
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{
@@ -780,9 +777,9 @@ func TestMockLockClient(t *testing.T) {
 	}
 }
 
-func TestMockDBClient_addResource(t *testing.T) {
+func TestMockResourcesDBClient_addResource(t *testing.T) {
 	ctx := context.Background()
-	mock := NewMockDBClient()
+	mock := NewMockResourcesDBClient()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 	resourceGroupName := "test-rg"
@@ -861,7 +858,7 @@ func TestMockDBClient_addResource(t *testing.T) {
 	}
 }
 
-func TestNewMockDBClientWithResources(t *testing.T) {
+func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
@@ -923,8 +920,8 @@ func TestNewMockDBClientWithResources(t *testing.T) {
 		State:      arm.SubscriptionStateRegistered,
 	}
 
-	// Create MockDBClient with all resources
-	mock, err := NewMockDBClientWithResources(ctx, []any{cluster, nodePool, subscription})
+	// Create mockResourcesDBClient with all resources
+	mock, err := NewMockResourcesDBClientWithResources(ctx, []any{cluster, nodePool, subscription})
 	if err != nil {
 		t.Fatalf("Failed to create mock with resources: %v", err)
 	}
@@ -960,18 +957,18 @@ func TestNewMockDBClientWithResources(t *testing.T) {
 	}
 }
 
-func TestNewMockDBClientWithResources_Error(t *testing.T) {
+func TestNewMockResourcesDBClientWithResources_Error(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with unsupported type
-	_, err := NewMockDBClientWithResources(ctx, []any{"unsupported"})
+	_, err := NewMockResourcesDBClientWithResources(ctx, []any{"unsupported"})
 	if err == nil {
 		t.Error("Expected error for unsupported type")
 	}
 
 	// Test with nil resource ID
 	clusterWithNilID := &api.HCPOpenShiftCluster{}
-	_, err = NewMockDBClientWithResources(ctx, []any{clusterWithNilID})
+	_, err = NewMockResourcesDBClientWithResources(ctx, []any{clusterWithNilID})
 	if err == nil {
 		t.Error("Expected error for cluster with nil resource ID")
 	}

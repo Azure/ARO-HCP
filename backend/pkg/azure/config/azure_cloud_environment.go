@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 )
 
 // AzureCloudEnvironment represents an Azure cloud environment.
@@ -97,6 +98,9 @@ func NewAzureCloudEnvironment(
 
 	clientOptions := &policy.ClientOptions{
 		Cloud: configuration.cloud,
+		Telemetry: policy.TelemetryOptions{
+			ApplicationID: azsdk.ApplicationID(azsdk.ComponentBackend),
+		},
 	}
 	if tracerProvider != nil {
 		clientOptions.TracingProvider = azotel.NewTracingProvider(tracerProvider, nil)

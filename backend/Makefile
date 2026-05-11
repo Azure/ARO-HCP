@@ -5,7 +5,7 @@ CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 -include ../.bingo/Variables.mk
 
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
-ARO_HCP_COMMIT_TIME := $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
+ARO_HCP_COMMIT_TIME ?= $(shell TZ=UTC git show -s --format=%cd --date=iso-strict-local ${ARO_HCP_REVISION})
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 BACKEND_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 BACKEND_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${BACKEND_IMAGE_REPOSITORY} ../generate-repo.sh)
@@ -44,18 +44,24 @@ clean:
 	rm -f ${BINARY}
 .PHONY: clean
 
-image: Dockerfile $(BACKEND_SOURCES) Makefile
+image:
 	cd $(BACKEND_DIR)/.. && \
 	$(CONTAINER_ENGINE) build . --file backend/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_COMMIT_TIME=${ARO_HCP_COMMIT_TIME} \
-		--build-arg ARO_HCP_IMAGE_TAG=${BACKEND_IMAGE_TAG} \
 		--tag ${BACKEND_TAGGED_IMAGE}
+.PHONY: image
 
-build-and-push: image $(ORAS)
+build-and-push: image $(ORAS) $(YQ)
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	$(CONTAINER_ENGINE) push ${BACKEND_TAGGED_IMAGE}
+	@LOCAL_DIGEST=$$($(CONTAINER_ENGINE) image inspect --format '{{.Id}}' ${BACKEND_TAGGED_IMAGE} | sed 's/sha256://'); \
+	REMOTE_DIGEST=$$($(ORAS) manifest fetch ${BACKEND_TAGGED_IMAGE} 2>/dev/null | $(YQ) .config.digest | sed 's/sha256://'); \
+	if [ "$$LOCAL_DIGEST" = "$$REMOTE_DIGEST" ]; then \
+		echo "Image ${BACKEND_TAGGED_IMAGE} already up to date in registry, skipping push"; \
+	else \
+		$(CONTAINER_ENGINE) push ${BACKEND_TAGGED_IMAGE}; \
+	fi
 .PHONY: build-and-push
 
 # Unix timestamp for this make run; computed once so multiple targets see the same value.

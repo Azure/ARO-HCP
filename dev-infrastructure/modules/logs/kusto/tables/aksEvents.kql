@@ -24,13 +24,39 @@ with (docstring = "Temporary table for storing events from aks cluster")
 )
 with (docstring = "Stores events from aks cluster")
 
+.create-merge table kubeAudit (
+    category:string,
+    operationName:string,
+    containerId:string,
+    stream:string,
+    pod:string,
+    resourceId:string,
+    timestamp:datetime,
+    objectKind:string,
+    apiVersion:string,
+    level:string,
+    auditID:string,
+    stage:string,
+    requestURI:string,
+    verb:string,
+    user:dynamic,
+    sourceIPs:dynamic,
+    userAgent:string,
+    objectRef:dynamic,
+    responseStatus:dynamic,
+    requestReceivedTimestamp:datetime,
+    stageTimestamp:datetime,
+    annotations:dynamic
+)
+with (docstring = "Stores kube-audit events from aks cluster")
+
 .create-or-alter function 
 with (docstring = 'process aks events', skipvalidation = "true")
 rawAksEventsTransform()  {
   rawAksEvents
   | mv-expand (records)
   | extend category=tostring(records["category"]), 
-  operationName=tostring(records["category"]), 
+  operationName=tostring(records["operationName"]), 
   containerId=tostring(records["properties"]["containerID"]),
   stream=tostring(records["properties"]["stream"]),
   pod=tostring(records["properties"]["pod"]),
@@ -40,4 +66,52 @@ rawAksEventsTransform()  {
   | project-away records
 }
 
-.alter table aksEvents policy update @'[{"IsEnabled": true, "Source": "rawAksEvents", "Query": "rawAksEventsTransform()", "IsTransactional": true, "PropagateIngestionProperties": false}]'
+.create-or-alter function 
+with (docstring = 'process kube-audit events', skipvalidation = "true")
+rawAksEventsKubeAuditTransform()  {
+  rawAksEventsTransform()
+  | where tolower(category) == "kube-audit"
+  | extend parsedLog=parse_json(log)
+  | extend objectKind=tostring(parsedLog["kind"]),
+  apiVersion=tostring(parsedLog["apiVersion"]),
+  level=tostring(parsedLog["level"]),
+  auditID=tostring(parsedLog["auditID"]),
+  stage=tostring(parsedLog["stage"]),
+  requestURI=tostring(parsedLog["requestURI"]),
+  verb=tostring(parsedLog["verb"]),
+  user=parsedLog["user"],
+  sourceIPs=parsedLog["sourceIPs"],
+  userAgent=tostring(parsedLog["userAgent"]),
+  objectRef=parsedLog["objectRef"],
+  responseStatus=parsedLog["responseStatus"],
+  requestReceivedTimestamp=todatetime(parsedLog["requestReceivedTimestamp"]),
+  stageTimestamp=todatetime(parsedLog["stageTimestamp"]),
+  annotations=parsedLog["annotations"]
+  | project
+      category,
+      operationName,
+      containerId,
+      stream,
+      pod,
+      resourceId,
+      timestamp,
+      objectKind,
+      apiVersion,
+      level,
+      auditID,
+      stage,
+      requestURI,
+      verb,
+      user,
+      sourceIPs,
+      userAgent,
+      objectRef,
+      responseStatus,
+      requestReceivedTimestamp,
+      stageTimestamp,
+      annotations
+}
+
+.alter table aksEvents policy update @'[{"IsEnabled": true, "Source": "rawAksEvents", "Query": "rawAksEventsTransform() | where tolower(category) != ''kube-audit''", "IsTransactional": true, "PropagateIngestionProperties": false}]'
+
+.alter table kubeAudit policy update @'[{"IsEnabled": true, "Source": "rawAksEvents", "Query": "rawAksEventsKubeAuditTransform()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

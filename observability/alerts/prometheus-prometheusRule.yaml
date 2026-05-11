@@ -14,16 +14,16 @@ spec:
     rules:
     - alert: PrometheusJobUp
       expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
-      for: 5m
+      for: 10m
       labels:
         severity: critical
       annotations:
         description: |
-          Prometheus has not been reachable for the past 5 minutes.
+          Prometheus has not been reachable for the past 10 minutes.
           This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
           Check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
-        summary: Prometheus is unreachable for 5 minutes.
+        summary: Prometheus is unreachable for 10 minutes.
     - alert: PrometheusUptime
       expr: avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95
       for: 10m

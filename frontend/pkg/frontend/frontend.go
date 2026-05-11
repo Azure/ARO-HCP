@@ -58,7 +58,8 @@ type Frontend struct {
 	metricsListener      net.Listener
 	server               http.Server
 	metricsServer        http.Server
-	dbClient             database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
+	locksDBClient        database.LocksDBClient
 	auditClient          audit.Client
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
@@ -84,8 +85,10 @@ func NewFrontend(
 	logger logr.Logger,
 	listener net.Listener,
 	metricsListener net.Listener,
-	registry *prometheus.Registry,
-	dbClient database.DBClient,
+	registerer prometheus.Registerer,
+	gatherer prometheus.Gatherer,
+	resourcesDBClient database.ResourcesDBClient,
+	locksDBClient database.LocksDBClient,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
@@ -116,12 +119,13 @@ func NewFrontend(
 			},
 		},
 		auditClient:                   auditClient,
-		dbClient:                      dbClient,
-		collector:                     metrics.NewSubscriptionCollector(registry, dbClient, azureLocation),
+		resourcesDBClient:             resourcesDBClient,
+		locksDBClient:                 locksDBClient,
+		collector:                     metrics.NewSubscriptionCollector(registerer, resourcesDBClient, azureLocation),
 		clusterServiceProvisionShard:  clusterServiceProvisionShard,
 		clusterServiceNoopProvision:   clusterServiceNoopProvision,
 		clusterServiceNoopDeprovision: clusterServiceNoopDeprovision,
-		healthGauge: promauto.With(registry).NewGauge(
+		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
 				Help: "Reports the health status of the service (0: not healthy, 1: healthy).",
@@ -132,8 +136,8 @@ func NewFrontend(
 		exitOnPanic:   exitOnPanic,
 	}
 
-	f.server.Handler = f.routes(registry)
-	f.metricsServer.Handler = f.metricsRoutes(registry)
+	f.server.Handler = f.routes(registerer)
+	f.metricsServer.Handler = f.metricsRoutes(gatherer)
 
 	return f
 }
@@ -164,7 +168,7 @@ func (f *Frontend) Run(ctx context.Context) error {
 	// before we start the http handler (this should ensure we readiness checks until this is complete), we will do a cosmos
 	// data migration to our new storage keys.
 	logger.Info("starting cosmos data migration")
-	MigrateCosmosOrDie(ctx, f.dbClient)
+	MigrateCosmosOrDie(ctx, f.resourcesDBClient)
 	logger.Info("completed cosmos data migration")
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
@@ -346,13 +350,13 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return utils.TrackError(err)
 	}
 
-	cluster, err := f.dbClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+	cluster, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
@@ -365,29 +369,19 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return arm.NewConflictError(clusterResourceID, "Cannot request credential while credentials are being revoked")
 	}
 
-	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	csCredentialClusterServiceID, err := api.NewInternalID(csCredential.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
 
 	operationDoc := database.NewOperation(
 		operationRequest,
 		clusterResourceID,
-		csCredentialClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
-	_, err = f.dbClient.Operations(clusterResourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	_, err = f.resourcesDBClient.Operations(clusterResourceID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -420,20 +414,20 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return utils.TrackError(err)
 	}
 
-	cluster, err := f.dbClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+	cluster, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, operationRequest, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
-	subscription, err := f.dbClient.Subscriptions().Get(ctx, clusterResourceID.SubscriptionID)
+	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, clusterResourceID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -458,16 +452,11 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return arm.NewConflictError(clusterResourceID, "Credentials are already being revoked")
 	}
 
-	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	transaction := f.dbClient.NewTransaction(clusterResourceID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
 
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.
-	operationsToCancel, err := database.CancelActiveOperations(ctx, f.dbClient, transaction, &database.DBClientListActiveOperationDocsOptions{
+	operationsToCancel, err := database.CancelActiveOperations(ctx, f.resourcesDBClient, transaction, &database.ResourcesDBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRequestCredential),
 		ExternalID: clusterResourceID,
 	})
@@ -488,20 +477,8 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 
-	// XXX TEMPORARY: This must be removed along with the Clusters Service call.
-	//
-	//     For this operation type, because there is no single Clusters Service
-	//     resource to poll for completion, the operation's status field is used
-	//     for backend controller coordination. "Accepted" means the revocation
-	//     has not yet been dispatched to Clusters Service. Once dispatched, the
-	//     operation status becomes "Deleting" and is ready for status polling.
-	//
-	//     Because the credentials revocation has already been dispatched here,
-	//     set the initial operation status to "Deleting".
-	operationDoc.Status = arm.ProvisioningStateDeleting
-
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
-	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	_, err = f.resourcesDBClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -510,7 +487,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	// requests or revocations until the backend clears the field.
 	cluster.ServiceProviderProperties.RevokeCredentialsOperationID = operationDoc.OperationID.Name
 
-	_, err = f.dbClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, cluster, nil)
+	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, cluster, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -534,7 +511,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	subscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
+	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
 	if database.IsNotFoundError(err) {
 		return arm.NewResourceNotFoundError(resourceID)
 	}
@@ -576,9 +553,9 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	}
 
 	var resultingSubscription *arm.Subscription
-	existingSubscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
+	existingSubscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
 	if database.IsNotFoundError(err) {
-		resultingSubscription, err = f.dbClient.Subscriptions().Create(ctx, &requestSubscription, nil)
+		resultingSubscription, err = f.resourcesDBClient.Subscriptions().Create(ctx, &requestSubscription, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -591,7 +568,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			logger.Info(message)
 		}
 		if len(messages) > 0 {
-			resultingSubscription, err = f.dbClient.Subscriptions().Replace(ctx, &requestSubscription, nil)
+			resultingSubscription, err = f.resourcesDBClient.Subscriptions().Replace(ctx, &requestSubscription, nil)
 			if err != nil {
 				return utils.TrackError(err)
 			}
@@ -622,7 +599,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	ctx := request.Context()
 	logger := utils.LoggerFromContext(ctx)
 
-	subscription, err := f.dbClient.Subscriptions().Get(ctx, subscriptionID)
+	subscription, err := SubscriptionFromContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -873,7 +850,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
-	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
+	operation, err := f.resourcesDBClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -953,7 +930,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 
-	operation, err := f.dbClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
+	operation, err := f.resourcesDBClient.Operations(resourceID.SubscriptionID).Get(ctx, resourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}

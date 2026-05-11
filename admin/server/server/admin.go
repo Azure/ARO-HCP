@@ -48,7 +48,7 @@ import (
 
 type AdminAPI struct {
 	clustersServiceClient  ocm.ClusterServiceClientSpec
-	dbClient               database.DBClient
+	resourcesDBClient      database.ResourcesDBClient
 	kustoClient            *kusto.Client
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 
@@ -65,7 +65,8 @@ func NewAdminAPI(
 	location string,
 	listener net.Listener,
 	metricsListener net.Listener,
-	dbClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
+	billingDBClient database.BillingDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	kustoClient *kusto.Client,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
@@ -91,15 +92,15 @@ func NewAdminAPI(
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/helloworld"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPHelloWorldHandler(dbClient, clustersServiceClient).ServeHTTP)),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPHelloWorldHandler(resourcesDBClient, clustersServiceClient).ServeHTTP)),
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/hellworld/lbs"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDemoListLoadbalancersHandler(dbClient, clustersServiceClient, fpaCredentialRetriever).ServeHTTP)),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDemoListLoadbalancersHandler(resourcesDBClient, clustersServiceClient, fpaCredentialRetriever).ServeHTTP)),
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("POST", "/breakglass"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(breakglasshandlers.NewHCPBreakglassSessionCreationHandler(dbClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL).ServeHTTP)),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(breakglasshandlers.NewHCPBreakglassSessionCreationHandler(resourcesDBClient, clustersServiceClient, sessionClient, allowedBreakglassGroups, minSessionTTL, maxSessionTTL).ServeHTTP)),
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/breakglass/{sessionName}/kubeconfig"),
@@ -107,15 +108,15 @@ func NewAdminAPI(
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/cosmosdump"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(cosmosdump.NewCosmosDumpHandler(dbClient).ServeHTTP)),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(cosmosdump.NewCosmosDumpHandler(resourcesDBClient).ServeHTTP)),
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/billingdump"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(cosmosdump.NewBillingDumpHandler(dbClient).ServeHTTP)),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(cosmosdump.NewBillingDumpHandler(resourcesDBClient, billingDBClient).ServeHTTP)),
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/serialconsole"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPSerialConsoleHandler(dbClient, fpaCredentialRetriever).ServeHTTP)),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPSerialConsoleHandler(resourcesDBClient, fpaCredentialRetriever).ServeHTTP)),
 	)
 
 	// Non-HCP admin routes
@@ -152,7 +153,7 @@ func NewAdminAPI(
 			},
 			Handler: metricsMux,
 		},
-		dbClient:               dbClient,
+		resourcesDBClient:      resourcesDBClient,
 		clustersServiceClient:  clustersServiceClient,
 		kustoClient:            kustoClient,
 		fpaCredentialRetriever: fpaCredentialRetriever,

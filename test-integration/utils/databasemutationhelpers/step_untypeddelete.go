@@ -68,7 +68,7 @@ func (l *untypedDeleteStep) RunTest(ctx context.Context, t *testing.T, stepInput
 	resourceID, err := azcorearm.ParseResourceID(l.key.ResourceID)
 	require.NoError(t, err)
 
-	untypedCRUD, err := stepInput.DBClient.UntypedCRUD(*resourceID.Parent)
+	untypedCRUD, err := stepInput.ResourcesDBClient.UntypedCRUD(*resourceID.Parent)
 	require.NoError(t, err)
 	err = untypedCRUD.Delete(ctx, resourceID)
 	switch {

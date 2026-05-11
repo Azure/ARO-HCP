@@ -3,10 +3,7 @@
 	"identity": {
 		"type": "UserAssigned",
 		"userAssignedIdentities": {
-			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {
-				"clientId": "service-managed-identity_fake-client-id",
-				"principalId": "service-managed-identity_fake-principal-id"
-			}
+			"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {}
 		}
 	},
 	"location": "fake-location",

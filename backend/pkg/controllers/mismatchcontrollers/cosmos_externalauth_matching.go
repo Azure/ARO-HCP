@@ -31,15 +31,15 @@ import (
 
 type cosmosExternalAuthMatching struct {
 	cooldownChecker      controllerutils.CooldownChecker
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
 // NewCosmosExternalAuthMatchingController periodically looks for mismatched cluster-service and cosmos externalauths
-func NewCosmosExternalAuthMatchingController(cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
+func NewCosmosExternalAuthMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
 	syncer := &cosmosExternalAuthMatching{
 		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
 
@@ -47,7 +47,7 @@ func NewCosmosExternalAuthMatchingController(cosmosClient database.DBClient, clu
 	// clusters, in order to do the "all externalauths from clusterservice".
 	controller := controllerutils.NewClusterWatchingController(
 		"CosmosMatchingExternalAuths",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		60*time.Minute,
 		syncer,
@@ -60,12 +60,18 @@ func (c *cosmosExternalAuthMatching) getAllCosmosObjs(ctx context.Context, keyOb
 	clusterServiceIDToExternalAuth := map[string]*api.HCPOpenShiftClusterExternalAuth{}
 	ret := []*api.HCPOpenShiftClusterExternalAuth{}
 
-	allExternalAuths, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).ExternalAuth(keyObj.HCPClusterName).List(ctx, nil)
+	allExternalAuths, err := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).ExternalAuth(keyObj.HCPClusterName).List(ctx, nil)
 	if err != nil {
 		return nil, nil, utils.TrackError(err)
 	}
 
 	for _, externalAuth := range allExternalAuths.Items(ctx) {
+		// we skip cosmos externalauths that don't have a clusterServiceID because if we don't have it there's nothing we
+		// can delete. It means that the externalauth hasn't been created in cluster service yet or we haven't persisted
+		// the clusterServiceID in cosmos yet.
+		if externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+			continue
+		}
 		ret = append(ret, externalAuth)
 		existingCluster, exists := clusterServiceIDToExternalAuth[externalAuth.ServiceProviderProperties.ClusterServiceID.String()]
 		if exists {
@@ -103,7 +109,7 @@ func (c *cosmosExternalAuthMatching) getAllClusterServiceObjs(ctx context.Contex
 func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	cluster, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
+	cluster, err := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -150,7 +156,7 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 		_, exists := clusterServiceIDToClusterServiceExternalAuths[cosmosExternalAuth.ServiceProviderProperties.ClusterServiceID.String()]
 		if !exists {
 			logger.Info("deleting cosmos externalAuth", "cosmosResourceID", cosmosExternalAuth.ID)
-			if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosExternalAuth.ID); err != nil {
+			if err := controllerutils.DeleteRecursively(ctx, c.resourcesDBClient, cosmosExternalAuth.ID); err != nil {
 				return utils.TrackError(err)
 			}
 		}

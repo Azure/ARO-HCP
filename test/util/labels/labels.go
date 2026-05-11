@@ -54,6 +54,13 @@ var (
 	AroRpApiCompatible = ginkgo.Label("ARO-HCP-RP-API-Compatible")
 )
 
+// Managed identity container demand for resource-aware scheduling.
+// Tests without these labels default to needing 1 container.
+var (
+	MIDemandHigh   = ginkgo.Label("MIDemand:High")
+	MIDemandMedium = ginkgo.Label("MIDemand:Medium")
+)
+
 // Environments this test can be used in.
 var (
 	RequireNothing        = ginkgo.Label("PreLaunchSetup:None")

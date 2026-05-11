@@ -11,5 +11,8 @@ param serviceKeyVaultTagValue = '{{ .serviceKeyVault.tagValue }}'
 // MI for resource access during pipeline runs
 param globalMSIId = '__globalMSIId__'
 
+// Subscription where the service keyvault lives (supports cross-subscription scenarios)
+param serviceKeyVaultSubscription = '__serviceKeyVaultSubscription__'
+
 // SP for KV certificate issuer registration
 param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'

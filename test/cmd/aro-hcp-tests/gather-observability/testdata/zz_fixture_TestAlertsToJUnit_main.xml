@@ -1,0 +1,16 @@
+<testsuites>
+  <testsuite name="aro-hcp-tests" tests="5" skipped="2" failures="1" time="6803">
+    <properties></properties>
+    <testcase name="[aro-hcp-observability] [hcp] alert HCPClusterHealth does not fire" time="0"></testcase>
+    <testcase name="[aro-hcp-observability] [svc] alert BackendControllerRetryHotLoop does not fire" time="2603">
+      <skipped message="known issue: Nodepool create controller retry hot loops are observed during e2e runs. Needs investigation."></skipped>
+    </testcase>
+    <testcase name="[aro-hcp-observability] [svc] alert KubePodImagePull does not fire" time="3600">
+      <failure message="alert fired 1 time(s)">Firing 1:&#xA;  State:       Fired (not resolved)&#xA;  Started:     2026-04-13T07:00:00Z&#xA;  Severity:    Sev4&#xA;  Labels:      alertname=&#34;KubePodImagePull&#34;, cluster=&#34;prow-j3151872-svc&#34;, namespace=&#34;aro-hcp&#34;, pod=&#34;frontend-abc123&#34;, severity=&#34;warning&#34;&#xA;</failure>
+    </testcase>
+    <testcase name="[aro-hcp-observability] [svc] alert MiseEnvoyScrapeDown does not fire" time="600">
+      <skipped message="known issue: Mise Envoy scrape targets intermittently go down during e2e runs."></skipped>
+    </testcase>
+    <testcase name="[aro-hcp-observability] [svc] alert SomeRuleThatDidNotFire does not fire" time="0"></testcase>
+  </testsuite>
+</testsuites>

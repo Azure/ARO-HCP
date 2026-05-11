@@ -1,3 +1,5 @@
+Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
+Customer should not be able to reuse subnets and NSGs between clusters
 Customer should be able to list available HCP OpenShift versions and validate response content
 SRE should be able to log into a cluster via a breakglass session
 SRE should be able to retrieve serial console logs for a VM
@@ -10,11 +12,9 @@ Customer should be able to create a HCP cluster and use cilium CNI plugin
 Customer should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully
 Customer should be able to create an HCP cluster and custom node pool osDisk size
 Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20251223preview API
-Customer should not be able to reuse subnets and NSGs between clusters
 Customer should be able to create an HCP cluster and manage pull secrets
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create an HCP cluster with back-level version 4.19
-Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.20
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.21
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.22

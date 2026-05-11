@@ -1,5 +1,10 @@
-{
-    "code": "InvalidRequestContent",
-    "message": "Invalid value: 1: cannot specify replicas when autoScaling is enabled",
-    "target": "properties.replicas"
-  }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Required value",
+        "target": "properties.version.id"
+      }
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: 1: cannot specify replicas when autoScaling is enabled",
+        "target": "properties.replicas"
+      }

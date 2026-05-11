@@ -1,0 +1,12 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+{{- if eq (toLower .ResourceType) "microsoft.redhatopenshift/hcpopenshiftclusters" }}
+| where log.aro_hcp_cluster_resource_id =~ '{{ .ResourceID }}'
+| where isempty(log.aro_hcp_node_pool_resource_id)
+| where log has 'state to' or log has 'now in'
+{{- else }}
+| where log.aro_hcp_node_pool_resource_id =~ '{{ .ResourceID }}'
+| where log.msg has 'with state' or log.msg has 'state updated from'
+{{- end }}
+| project timestamp, msg=tostring(log.msg)
+| order by timestamp asc

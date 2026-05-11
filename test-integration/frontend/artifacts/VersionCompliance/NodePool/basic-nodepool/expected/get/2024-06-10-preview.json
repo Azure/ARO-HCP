@@ -14,11 +14,13 @@
 				"diskStorageAccountType": "Premium_LRS",
 				"sizeGiB": 64
 			},
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
 			"vmSize": "Standard_D4s_v3"
 		},
 		"provisioningState": "Succeeded",
 		"version": {
-			"channelGroup": "stable"
+			"channelGroup": "stable",
+			"id": "4.20.8"
 		}
 	},
 	"systemData": {

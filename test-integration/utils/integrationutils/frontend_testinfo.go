@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -31,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -41,7 +41,9 @@ type StorageIntegrationTestInfo interface {
 	DocumentLister
 
 	GetArtifactDir() string
-	CosmosClient() database.DBClient
+	ResourcesDBClient() database.ResourcesDBClient
+	BillingDBClient() database.BillingDBClient
+	LocksDBClient() database.LocksDBClient
 
 	Cleanup(ctx context.Context)
 }
@@ -62,27 +64,27 @@ type IntegrationTestInfo struct {
 }
 
 func Get20240610ClientFactory(frontendURL string, subscriptionID string) *hcpsdk20240610preview.ClientFactory {
+	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
+	clientOpts.Retry = policy.RetryOptions{
+		MaxRetries: -1, // no retries
+	}
+	clientOpts.Cloud = cloud.Configuration{
+		//ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				Audience: "https://management.core.windows.net/",
+				Endpoint: frontendURL,
+			},
+		},
+	}
+	clientOpts.InsecureAllowCredentialWithHTTP = true
+	clientOpts.PerCallPolicies = []policy.Policy{
+		emptySystemData{},
+	}
 	return api.Must(
 		hcpsdk20240610preview.NewClientFactory(subscriptionID, nil,
 			&azcorearm.ClientOptions{
-				ClientOptions: azcore.ClientOptions{
-					Retry: policy.RetryOptions{
-						MaxRetries: -1, // no retries
-					},
-					Cloud: cloud.Configuration{
-						//ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
-						Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-							cloud.ResourceManager: {
-								Audience: "https://management.core.windows.net/",
-								Endpoint: frontendURL,
-							},
-						},
-					},
-					InsecureAllowCredentialWithHTTP: true,
-					PerCallPolicies: []policy.Policy{
-						emptySystemData{},
-					},
-				},
+				ClientOptions: clientOpts,
 			},
 		),
 	)

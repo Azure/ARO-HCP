@@ -8,7 +8,8 @@ panels:
         sum by (le, route, method) (
             rate(frontend_http_requests_duration_seconds_bucket[5m])
           )
-      ) > 0
+      )
+    unit: seconds
     workspace: svc
     step: "60s"
 - title: "Backend Metrics"
@@ -28,16 +29,8 @@ panels:
             rate(workqueue_adds_total{namespace="aro-hcp"}[10m])
           )
         )
-      ) > 0
-    workspace: svc
-    step: "60s"
-  - title: "Operation Error Rate"
-    description: "Ratio of failed to total backend operations per cluster, computed from Prometheus recording rules over cluster and nodepool lifecycle operations (create, update, delete). A non-zero rate indicates operation failures."
-    query: |
-      (sum by (cluster) (rate(backend_failed_operations_total[1h])))
-      /
-      (sum by (cluster) (rate(backend_operations_total[1h])))
-      > 0
+      )
+    unit: ratio
     workspace: svc
     step: "60s"
   - title: "Controller Workqueue Depth"
@@ -47,7 +40,8 @@ panels:
         max without(prometheus_replica) (
           workqueue_depth{namespace="aro-hcp"}
         )
-      ) > 0
+      )
+    unit: items
     workspace: svc
     step: "60s"
   - title: "Controller Panic Rate"
@@ -55,7 +49,8 @@ panels:
     query: |
       sum by (controller, cluster) (
         rate(panic_total{namespace="aro-hcp"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"
 - title: "Maestro Metrics"
@@ -65,7 +60,8 @@ panels:
     query: |
       sum by (code) (
         rate(rest_api_inbound_request_count{namespace="maestro"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"
   - title: "gRPC Server Call Rate"
@@ -73,7 +69,8 @@ panels:
     query: |
       sum by (type) (
         rate(grpc_server_called_total{namespace="maestro"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"
   - title: "gRPC Server Error Rate"
@@ -81,7 +78,8 @@ panels:
     query: |
       sum by (type, code) (
         rate(grpc_server_processed_total{namespace="maestro", code!="OK"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"
   - title: "gRPC Registered Source Clients"
@@ -90,6 +88,7 @@ panels:
       sum by (cluster) (
         grpc_server_registered_source_clients{namespace="maestro"}
       )
+    unit: clients
     workspace: svc
     step: "60s"
   - title: "Spec Controller Reconcile Rate"
@@ -97,7 +96,8 @@ panels:
     query: |
       sum by (status) (
         rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"
   - title: "Status Controller Reconcile Rate"
@@ -105,7 +105,8 @@ panels:
     query: |
       sum by (status) (
         rate(status_controller_event_reconcile_total{namespace="maestro"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"
   - title: "Resource Processing Rate"
@@ -113,7 +114,8 @@ panels:
     query: |
       sum by (action) (
         rate(resource_processed_total{namespace="maestro"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"
   - title: "CloudEvents Flow"
@@ -121,7 +123,8 @@ panels:
     query: |
       sum by (action, type) (
         rate(cloudevents_sent_total{namespace="maestro"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"
   - title: "Advisory Lock Latency p99"
@@ -132,6 +135,7 @@ panels:
           rate(advisory_lock_duration_bucket{namespace="maestro"}[5m])
         )
       )
+    unit: seconds
     workspace: svc
     step: "60s"
   - title: "Advisory Lock Rate"
@@ -139,6 +143,7 @@ panels:
     query: |
       sum by (type) (
         rate(advisory_lock_count{namespace="maestro"}[5m])
-      ) > 0
+      )
+    unit: /s
     workspace: svc
     step: "60s"

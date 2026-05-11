@@ -1,0 +1,18 @@
+{{- if .Header}}{{.Header}}
+{{end -}}
+{{- range $i, $f := .Firings}}Firing {{inc $i}}:{{if $f.Metadata.KnownIssueReason}} (known issue: {{$f.Metadata.KnownIssueReason}}){{end}}
+  State:       {{state $f.Alert.Condition}}
+{{- if $f.Alert.StartsAt}}
+  Started:     {{formatTime $f.Alert.StartsAt}}
+{{- end}}
+{{- if $f.Alert.EndsAt}}
+  Ended:       {{formatTime $f.Alert.EndsAt}}
+{{- end}}
+  Severity:    {{$f.Alert.Severity}}
+{{- if $f.Alert.Labels}}
+  Labels:      {{formatLabels $f.Alert.Labels}}
+{{- end}}
+{{- if $f.Alert.Description}}
+  Description: {{$f.Alert.Description}}
+{{- end}}
+{{end -}}

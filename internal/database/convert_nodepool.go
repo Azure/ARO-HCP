@@ -46,7 +46,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
-				Identity:          toCosmosIdentity(internalObj.Identity),
+				Identity:          internalObj.Identity.DeepCopy(),
 				SystemData:        internalObj.SystemData,
 				Tags:              copyTags(internalObj.Tags),
 			},
@@ -98,7 +98,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	// temporary field until we have inlined and serialized CosmosMetadata in
 	// HCPOpenShiftClusterNodePool.
 	internalObj.CosmosETag = cosmosObj.CosmosETag
-	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
+	internalObj.Identity = resourceDoc.Identity.DeepCopy()
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)

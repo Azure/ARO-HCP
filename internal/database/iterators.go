@@ -35,7 +35,7 @@ func newQueryResourcesIterator[InternalAPIType, CosmosAPIType any](pager *runtim
 	return &queryResourcesIterator[InternalAPIType, CosmosAPIType]{pager: pager}
 }
 
-// newQueryItemsSinglePageIterator is a failable push iterator for a paged
+// newQueryResourcesSinglePageIterator is a failable push iterator for a paged
 // query response that stops at the end of the first page and includes a
 // continuation token if additional items are available.
 func newQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[InternalAPIType] {
@@ -88,7 +88,7 @@ func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx co
 
 // GetContinuationToken returns a continuation token that can be used to obtain
 // the next page of results. This is only set when the iterator was created with
-// NewQueryItemsSinglePageIterator and additional items are available.
+// newQueryResourcesSinglePageIterator and additional items are available.
 func (iter queryResourcesIterator[InternalAPIType, CosmosAPIType]) GetContinuationToken() string {
 	return iter.continuationToken
 }

@@ -1,0 +1,6 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where log.correlation_request_id == '{{ .CorrelationID }}'
+| where log.msg == 'response complete'
+| project resource_id=tostring(log.resource_id)
+| limit 1

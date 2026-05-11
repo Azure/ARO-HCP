@@ -15,6 +15,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -63,4 +64,25 @@ func (e *LineTrackingError) Error() string {
 // to work correctly with the underlying error type.
 func (e *LineTrackingError) Unwrap() error {
 	return e.originalError
+}
+
+// ErrorMessageWithoutLineTracking returns err.Error() after peeling zero or more *LineTrackingError
+// wrappers (from TrackError). Use this when persisting or surfacing errors to users so internal
+// file/line prefixes are not included.
+func ErrorMessageWithoutLineTracking(err error) string {
+	if err == nil {
+		return ""
+	}
+	for {
+		var lte *LineTrackingError
+		if !errors.As(err, &lte) {
+			break
+		}
+		inner := lte.Unwrap()
+		if inner == nil {
+			return ""
+		}
+		err = inner
+	}
+	return err.Error()
 }

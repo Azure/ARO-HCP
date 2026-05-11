@@ -45,11 +45,6 @@
       }
       {
         "code": "InvalidRequestContent",
-        "message": "Invalid value: \"/subscriptions/different-sub/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity\": identity is not assigned to this resource",
-        "target": "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"
-      }
-      {
-        "code": "InvalidRequestContent",
         "message": "Invalid value: \"/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity\": identity is used multiple times",
         "target": "identity.userAssignedIdentities[/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"
       }

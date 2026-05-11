@@ -152,7 +152,7 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 
 	var executionGraph *graph.Graph
 	if o.Entrypoint != nil {
-		executionGraph, err = graph.ForEntrypoint(o.Topo, o.Entrypoint, o.Pipelines)
+		executionGraph, err = graph.ForEntrypoint(&o.Topo.Topology, o.Entrypoint, o.Pipelines)
 	} else {
 		executionGraph, err = graph.ForPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup])
 	}

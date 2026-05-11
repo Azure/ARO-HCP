@@ -32,7 +32,7 @@ import (
 	azcore "github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/cincinatti"
+	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -56,7 +56,7 @@ var _ = Describe("Service Provider", func() {
 			configuredVersionID := api.Must(semver.ParseTolerant(baseInstallVersion))
 			installVersion, hasUpgradePath, err := framework.GetInstallVersionForZStreamUpgrade(ctx, "candidate", configuredVersionID.String())
 			if err != nil {
-				if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s (minor %s)", configuredVersionID, minorVersion))
 				}
 				Expect(err).NotTo(HaveOccurred())

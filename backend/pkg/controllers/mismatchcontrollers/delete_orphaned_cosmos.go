@@ -28,8 +28,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -42,7 +40,7 @@ type deleteOrphanedCosmosResources struct {
 	name string
 
 	subscriptionLister listers.SubscriptionLister
-	cosmosClient       database.DBClient
+	resourcesDBClient  database.ResourcesDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -50,11 +48,11 @@ type deleteOrphanedCosmosResources struct {
 }
 
 // NewDeleteOrphanedCosmosResourcesController periodically looks for cosmos objs that don't have an owning cluster and deletes them.
-func NewDeleteOrphanedCosmosResourcesController(cosmosClient database.DBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
+func NewDeleteOrphanedCosmosResourcesController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{
 		name:               "DeleteOrphanedCosmosResources",
 		subscriptionLister: subscriptionLister,
-		cosmosClient:       cosmosClient,
+		resourcesDBClient:  resourcesDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -73,7 +71,7 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	untypedSubscriptionCRUD, err := c.cosmosClient.UntypedCRUD(*subscriptionResourceID)
+	untypedSubscriptionCRUD, err := c.resourcesDBClient.UntypedCRUD(*subscriptionResourceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -87,9 +85,20 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 
 	errs := []error{}
 	// while the number of items is large, but we can paginate through
-	allSubscriptionResourceIDs := map[string]*azcorearm.ResourceID{}
+	allSubscriptionResourceIDs := map[string]*database.TypedDocument{}
 	for _, subscriptionResource := range subscriptionResourceIterator.Items(ctx) {
-		allSubscriptionResourceIDs[strings.ToLower(subscriptionResource.ResourceID.String())] = subscriptionResource.ResourceID
+		if subscriptionResource.ResourceID == nil {
+			// n.b. our listers pass all data through a Cosmos -> internal representation mapping, which attempts to ensure
+			// that document.resourceID is a comprehensible value - however:
+			// - first, if/when we retire that, we don't want this controller to panic and blow up if we encounter a record where
+			//   that has not happened, and we need to make sure that errant values are visible through logs
+			// - during the migration period when records in the database exist with old pipe-delimited identifiers, or during any future
+			//   migrations, we need to be deleting from cosmos with the raw partition and document ID
+			localLogger := logger.WithValues(utils.LogValues{}.AddCosmosResourceID(subscriptionResource.CosmosResourceID))
+			localLogger.Error(errors.New("cosmos document has no resource ID"), "found invalid document")
+			continue
+		}
+		allSubscriptionResourceIDs[strings.ToLower(subscriptionResource.ResourceID.String())] = subscriptionResource
 	}
 	if err := subscriptionResourceIterator.GetError(); err != nil {
 		return utils.TrackError(err)
@@ -110,16 +119,16 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	// at this point we have every resourceID under the subscription that is under a resourcegroup
 	resourceGroupPrefix := subscriptionResourceID.String() + "/resourcegroups/"
 	for _, currResourceIDString := range resourceIDStrings {
-		currResourceID := allSubscriptionResourceIDs[currResourceIDString]
+		currResource := allSubscriptionResourceIDs[currResourceIDString]
 		switch {
-		case strings.EqualFold(currResourceID.ResourceType.String(), api.ClusterResourceType.String()):
+		case strings.EqualFold(currResource.ResourceID.ResourceType.String(), api.ClusterResourceType.String()):
 			// clusters have an owning cluster by definition (themselves)
 			continue
 		case !strings.HasPrefix(strings.ToLower(currResourceIDString), strings.ToLower(resourceGroupPrefix)):
 			// skip anything outside a resourcegroup (operations for instance).  These have TTLs and logically need to live past clusters.
 			// For instance, a DNSReservation must exist for a week after the cluster using it is gone to avoid unexpected reuse.
 			continue
-		case !strings.EqualFold(currResourceID.ResourceType.Namespace, api.ProviderNamespace):
+		case !strings.EqualFold(currResource.ResourceID.ResourceType.Namespace, api.ProviderNamespace):
 			// any resources outside our namespace we shouldn't delete. Subscriptions exist outside our namespace for instance.
 			continue
 		}
@@ -127,20 +136,20 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 		localLogger := logger.WithValues(
 			utils.LogValues{}.
 				AddCosmosResourceID(currResourceIDString).
-				AddLogValuesForResourceID(currResourceID)...)
+				AddLogValuesForResourceID(currResource.ResourceID)...)
 		ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger) // setting so that other calls down the chain will show correctly in kusto for the delete
 
-		if currResourceID.Parent == nil {
+		if currResource.ResourceID.Parent == nil {
 			// this is an unexpected state, so we'll log it and hope it is rare.
 			localLogger.Error(nil, "cosmos resource has no parent", "cosmosResourceID", currResourceIDString)
 			continue
 		}
-		_, parentExists := allSubscriptionResourceIDs[strings.ToLower(currResourceID.Parent.String())]
+		_, parentExists := allSubscriptionResourceIDs[strings.ToLower(currResource.ResourceID.Parent.String())]
 		if !parentExists {
-			localLogger.Info("deleting orphaned cosmos resource")
-			if err := untypedSubscriptionCRUD.Delete(ctxWithLocalLogger, currResourceID); err != nil {
-				localLogger.Error(err, "unable to delete orphaned cosmos resource") // logged here so we a log line with a filterable context.
-				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %v in %v: %w", currResourceIDString, currResourceID.Parent.String(), err)))
+			localLogger.Info("deleting orphaned cosmos resource by cosmos ID")
+			if err := untypedSubscriptionCRUD.DeleteByCosmosID(ctxWithLocalLogger, currResource.PartitionKey, currResource.ID); err != nil {
+				localLogger.Error(err, "unable to delete orphaned cosmos resource") // logged here so we emit a log line with a filterable context.
+				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %v in %v: %w", currResourceIDString, currResource.ResourceID.Parent.String(), err)))
 			}
 		}
 	}

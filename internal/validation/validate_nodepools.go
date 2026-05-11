@@ -37,15 +37,20 @@ func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 	return validateNodePool(ctx, op, newObj, oldObj)
 }
 
-var (
-	toNodePoolTrackedResource = func(oldObj *api.HCPOpenShiftClusterNodePool) *arm.TrackedResource { return &oldObj.TrackedResource }
-	toNodePoolProperties      = func(oldObj *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePoolProperties {
-		return &oldObj.Properties
-	}
-	toNodePoolServiceProviderProperties = func(oldObj *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePoolServiceProviderProperties {
-		return &oldObj.ServiceProviderProperties
-	}
-)
+func toNodePoolTrackedResource(oldObj *api.HCPOpenShiftClusterNodePool) *arm.TrackedResource {
+	return &oldObj.TrackedResource
+}
+
+// ToNodePoolProperties returns a pointer to the Properties field of a node pool.
+// It is exported for use as a field accessor with safe.Field by external callers
+// (e.g. admission code) that need to navigate into the Properties subtree.
+func ToNodePoolProperties(oldObj *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePoolProperties {
+	return &oldObj.Properties
+}
+
+func toNodePoolServiceProviderProperties(oldObj *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePoolServiceProviderProperties {
+	return &oldObj.ServiceProviderProperties
+}
 
 func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
 	errs := field.ErrorList{}
@@ -59,7 +64,7 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 	}
 
 	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
-	errs = append(errs, validateNodePoolProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toNodePoolProperties))...)
+	errs = append(errs, validateNodePoolProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, ToNodePoolProperties))...)
 
 	//ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateNodePoolServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toNodePoolServiceProviderProperties))...)
@@ -67,24 +72,41 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 	return errs
 }
 
-var (
-	toNodePoolPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *arm.ProvisioningState {
-		return &oldObj.ProvisioningState
-	}
-	toNodePoolPropertiesVersion = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolVersionProfile {
-		return &oldObj.Version
-	}
-	toNodePoolPropertiesPlatform = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolPlatformProfile {
-		return &oldObj.Platform
-	}
-	toNodePoolPropertiesReplicas    = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *int32 { return &oldObj.Replicas }
-	toNodePoolPropertiesAutoRepair  = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *bool { return &oldObj.AutoRepair }
-	toNodePoolPropertiesAutoScaling = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolAutoScaling {
-		return oldObj.AutoScaling
-	}
-	toNodePoolPropertiesLabels = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) map[string]string { return oldObj.Labels }
-	toNodePoolPropertiesTaints = func(oldObj *api.HCPOpenShiftClusterNodePoolProperties) []api.Taint { return oldObj.Taints }
-)
+func toNodePoolPropertiesProvisioningState(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *arm.ProvisioningState {
+	return &oldObj.ProvisioningState
+}
+
+func toNodePoolPropertiesVersion(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolVersionProfile {
+	return &oldObj.Version
+}
+
+// ToNodePoolPropertiesPlatform returns a pointer to the Platform field of node
+// pool properties. It is exported for use as a field accessor with safe.Field
+// by external callers (e.g. admission code) that need to navigate into the
+// Platform subtree.
+func ToNodePoolPropertiesPlatform(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolPlatformProfile {
+	return &oldObj.Platform
+}
+
+func toNodePoolPropertiesReplicas(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *int32 {
+	return &oldObj.Replicas
+}
+
+func toNodePoolPropertiesAutoRepair(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *bool {
+	return &oldObj.AutoRepair
+}
+
+func toNodePoolPropertiesAutoScaling(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolAutoScaling {
+	return oldObj.AutoScaling
+}
+
+func toNodePoolPropertiesLabels(oldObj *api.HCPOpenShiftClusterNodePoolProperties) map[string]string {
+	return oldObj.Labels
+}
+
+func toNodePoolPropertiesTaints(oldObj *api.HCPOpenShiftClusterNodePoolProperties) []api.Taint {
+	return oldObj.Taints
+}
 
 func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
@@ -96,8 +118,8 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, validateNodePoolVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toNodePoolPropertiesVersion))...)
 
 	//Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toNodePoolPropertiesPlatform))...)
-	errs = append(errs, validateNodePoolPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toNodePoolPropertiesPlatform))...)
+	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, ToNodePoolPropertiesPlatform))...)
+	errs = append(errs, validateNodePoolPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, ToNodePoolPropertiesPlatform))...)
 
 	//Replicas                int32                   `json:"replicas,omitempty"`
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), 0)...)
@@ -172,8 +194,9 @@ var (
 func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolVersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
+	// Version ID is required since 20251223preview version but some records may not have had it originally, so don't fail them yet.
 	//ID           string `json:"id,omitempty"`
-	if newObj.ChannelGroup != "stable" {
+	if oldObj == nil || len(oldObj.ID) > 0 {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID))...)
 	}
 

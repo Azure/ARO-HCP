@@ -86,8 +86,9 @@ setup_redhat() {
     local DIRECTORY_QUOTA=true
     local SUBSCRIPTIONS=(
         "ARO Hosted Control Planes (EA Subscription 1)"
-        "ARO SRE Team - INT (EA Subscription 3)"
         "ARO HCP E2E Hosted Clusters (EA Subscription)"
+        "ARO HCP E2E Infrastructure (EA Subscription)"
+        "ARO SRE Team - INT (EA Subscription 3)"
     )
 
     create_or_get_sp "${APPLICATION_NAME}"

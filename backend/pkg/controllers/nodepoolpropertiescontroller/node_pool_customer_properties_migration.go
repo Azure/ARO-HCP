@@ -35,14 +35,14 @@ type nodePoolCustomerPropertiesMigrationController struct {
 	cooldownChecker controllerutils.CooldownChecker
 
 	nodePoolLister       listers.NodePoolLister
-	cosmosClient         database.DBClient
+	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolCustomerPropertiesMigrationController)(nil)
 
 func NewNodePoolCustomerPropertiesMigrationController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
@@ -52,13 +52,13 @@ func NewNodePoolCustomerPropertiesMigrationController(
 	syncer := &nodePoolCustomerPropertiesMigrationController{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:       nodePoolLister,
-		cosmosClient:         cosmosClient,
+		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
 		"NodePoolCustomerPropertiesMigration",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		60*time.Minute, // Check every 60 minutes
 		syncer,
@@ -106,7 +106,7 @@ func (c *nodePoolCustomerPropertiesMigrationController) SyncOnce(ctx context.Con
 	}
 
 	// Get the nodePool from Cosmos
-	nodePoolCRUD := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
+	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	existingNodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
 		return nil // nodePool doesn't exist, no work to do

@@ -11,6 +11,7 @@ param maestroInfraResourceGroup string
 param maestroEventGridNamespaceName string
 param certKeyVaultName string
 param certKeyVaultResourceGroup string
+param certKeyVaultSubscription string = subscription().subscriptionId
 param keyVaultOfficerManagedIdentityName string
 param maestroCertificateDomain string
 param maestroCertificateIssuer string
@@ -180,7 +181,7 @@ module maestroManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' 
 
 module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
   name: 'maestro-eg-crt-${uniqueString(mqttClientName)}'
-  scope: resourceGroup(certKeyVaultResourceGroup)
+  scope: resourceGroup(certKeyVaultSubscription, certKeyVaultResourceGroup)
   params: {
     keyVaultName: certKeyVaultName
     kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName

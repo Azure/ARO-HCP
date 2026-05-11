@@ -1,0 +1,29 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"4a0036e3-0000-1100-0000-69f35f960000\"",
+	"_rid": "vr4qAP3+YBM3FAQAAAAAAA==",
+	"_self": "dbs/vr4qAA==/colls/vr4qAP3+YBM=/docs/vr4qAP3+YBM3FAQAAAAAAA==/",
+	"_ts": 1777557398,
+	"id": "718f75e1-6967-5ce1-ab3c-4f991504b7eb",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousPrecinct/hcpOpenShiftControllers/CreateBillingDoc"
+		},
+		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousPrecinct",
+		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousPrecinct/hcpOpenShiftControllers/CreateBillingDoc",
+		"status": {
+			"conditions": [
+				{
+					"lastTransitionTime": "2026-04-30T13:56:38Z",
+					"message": "As expected.",
+					"reason": "NoErrors",
+					"status": "False",
+					"type": "Degraded"
+				}
+			]
+		}
+	},
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousPrecinct/hcpOpenShiftControllers/CreateBillingDoc",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/hcpOpenShiftControllers"
+}

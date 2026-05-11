@@ -1,0 +1,6 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where log.path =~ '{{ .AsyncOperationPath }}'
+| where log.msg == 'response complete'
+| project timestamp, method=tostring(log.method), response_status_code=tostring(log.response_status_code), msg=tostring(log.msg), error=tostring(log.error)
+| order by timestamp

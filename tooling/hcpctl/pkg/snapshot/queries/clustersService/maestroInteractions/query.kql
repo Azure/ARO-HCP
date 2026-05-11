@@ -1,0 +1,6 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where cid == '{{ .ClusterID }}'
+| where log.msg has 'maestro bundle with maestro bundle name'
+| project timestamp, msg = tostring(log.msg)
+| order by timestamp asc

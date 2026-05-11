@@ -31,20 +31,22 @@ import (
 )
 
 type backfillClusterUID struct {
-	clock           utilsclock.PassiveClock
-	cooldownChecker controllerutils.CooldownChecker
-	clusterLister   listers.ClusterLister
-	cosmosClient    database.DBClient
+	clock             utilsclock.PassiveClock
+	cooldownChecker   controllerutils.CooldownChecker
+	clusterLister     listers.ClusterLister
+	resourcesDBClient database.ResourcesDBClient
+	billingDBClient   database.BillingDBClient
 }
 
 // NewBackfillClusterUIDController creates a controller that populates ClusterUID
 // for existing clusters that don't have it set.
-func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, cosmosClient database.DBClient, clusterLister listers.ClusterLister) controllerutils.ClusterSyncer {
+func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister) controllerutils.ClusterSyncer {
 	c := &backfillClusterUID{
-		clock:           clock,
-		cooldownChecker: controllerutils.NewTimeBasedCooldownChecker(60 * time.Minute),
-		clusterLister:   clusterLister,
-		cosmosClient:    cosmosClient,
+		clock:             clock,
+		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(60 * time.Minute),
+		clusterLister:     clusterLister,
+		resourcesDBClient: resourcesDBClient,
+		billingDBClient:   billingDBClient,
 	}
 
 	return c
@@ -75,7 +77,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 		return nil
 	}
 
-	clusterCRUD := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName)
+	clusterCRUD := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
@@ -92,7 +94,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 		"clusterResourceID", existingCluster.ID,
 	)
 
-	billingDocs, err := c.cosmosClient.BillingDocs(existingCluster.ID.SubscriptionID).ListActiveForCluster(ctx, existingCluster.ID)
+	billingDocs, err := c.billingDBClient.BillingDocs(existingCluster.ID.SubscriptionID).ListActiveForCluster(ctx, existingCluster.ID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -121,7 +123,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 
 	existingCluster.ServiceProviderProperties.ClusterUID = clusterUID
 
-	_, err = c.cosmosClient.HCPClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName).Replace(ctx, existingCluster, nil)
+	_, err = c.resourcesDBClient.HCPClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName).Replace(ctx, existingCluster, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}

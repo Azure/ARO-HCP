@@ -33,10 +33,10 @@ import (
 type orphanedBillingCleanup struct {
 	name string
 
-	clock         utilsclock.PassiveClock
-	clusterLister listers.ClusterLister
-	billingLister listers.BillingLister
-	cosmosClient  database.DBClient
+	clock           utilsclock.PassiveClock
+	clusterLister   listers.ClusterLister
+	billingLister   listers.BillingLister
+	billingDBClient database.BillingDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -45,13 +45,13 @@ type orphanedBillingCleanup struct {
 
 // NewOrphanedBillingCleanupController creates a controller that marks billing documents
 // as deleted when their corresponding cluster no longer exists in Cosmos DB.
-func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, cosmosClient database.DBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.Controller {
+func NewOrphanedBillingCleanupController(clock utilsclock.PassiveClock, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.Controller {
 	c := &orphanedBillingCleanup{
-		name:          "OrphanedBillingCleanup",
-		clock:         clock,
-		clusterLister: clusterLister,
-		billingLister: billingLister,
-		cosmosClient:  cosmosClient,
+		name:            "OrphanedBillingCleanup",
+		clock:           clock,
+		clusterLister:   clusterLister,
+		billingLister:   billingLister,
+		billingDBClient: billingDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -102,7 +102,7 @@ func (c *orphanedBillingCleanup) synchronizeAllBillingDocs(ctx context.Context) 
 		deletionTime := c.clock.Now()
 		var patchOperations database.BillingDocumentPatchOperations
 		patchOperations.SetDeletionTime(deletionTime)
-		err = c.cosmosClient.BillingDocs(doc.SubscriptionID).PatchByID(ctx, doc.ID, patchOperations)
+		err = c.billingDBClient.BillingDocs(doc.SubscriptionID).PatchByID(ctx, doc.ID, patchOperations)
 		if err != nil {
 			return utils.TrackError(err)
 		}

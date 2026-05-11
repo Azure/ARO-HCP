@@ -26,11 +26,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func DumpDataToLogger(ctx context.Context, cosmosClient database.DBClient, resourceID *azcorearm.ResourceID) error {
+func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesDBClient, resourceID *azcorearm.ResourceID) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// load the HCP from the cosmos DB
-	cosmosCRUD, err := cosmosClient.UntypedCRUD(*resourceID)
+	cosmosCRUD, err := resourcesDBClient.UntypedCRUD(*resourceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -60,7 +60,7 @@ func DumpDataToLogger(ctx context.Context, cosmosClient database.DBClient, resou
 	}
 
 	// dump all related operations, including the completed ones.
-	allOperationsForSubscription, err := cosmosClient.Operations(resourceID.SubscriptionID).List(ctx, nil)
+	allOperationsForSubscription, err := resourcesDBClient.Operations(resourceID.SubscriptionID).List(ctx, nil)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -82,10 +82,10 @@ func DumpDataToLogger(ctx context.Context, cosmosClient database.DBClient, resou
 }
 
 // DumpBillingToLogger dumps active billing documents for the given cluster resource ID to the logger.
-func DumpBillingToLogger(ctx context.Context, cosmosClient database.DBClient, resourceID *azcorearm.ResourceID) error {
+func DumpBillingToLogger(ctx context.Context, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, resourceID *azcorearm.ResourceID) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	clusterCRUD := cosmosClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName)
+	clusterCRUD := resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, resourceID.Name)
 	if database.IsNotFoundError(err) {
 		return nil
@@ -99,7 +99,7 @@ func DumpBillingToLogger(ctx context.Context, cosmosClient database.DBClient, re
 		return nil
 	}
 
-	billingDoc, err := cosmosClient.BillingDocs(resourceID.SubscriptionID).GetByID(ctx, clusterUID)
+	billingDoc, err := billingDBClient.BillingDocs(resourceID.SubscriptionID).GetByID(ctx, clusterUID)
 	if database.IsNotFoundError(err) {
 		return nil
 	}
