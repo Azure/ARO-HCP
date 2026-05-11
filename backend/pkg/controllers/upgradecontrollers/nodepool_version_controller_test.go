@@ -554,6 +554,13 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		{
+			name:                 "y-stream upgrade without Cincinnati edge succeeds",
+			desiredVersion:       "4.21.12",
+			activeVersions:       []string{"4.20.8"},
+			controlPlaneVersions: []string{"4.21.12"},
+			expectError:          false,
+		},
+		{
 			name:                 "y-stream upgrade (+2) - pass",
 			desiredVersion:       "4.20.5",
 			activeVersions:       []string{"4.18.10"},
