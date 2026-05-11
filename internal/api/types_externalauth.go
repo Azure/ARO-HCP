@@ -68,6 +68,7 @@ func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
 type HCPOpenShiftClusterExternalAuthProperties struct {
 	ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
 	Condition         ExternalAuthCondition       `json:"condition,omitzero"`
+	Conditions        []Condition                 `json:"conditions,omitempty"`
 	Issuer            TokenIssuerProfile          `json:"issuer"`
 	Clients           []ExternalAuthClientProfile `json:"clients"`
 	Claim             ExternalAuthClaimProfile    `json:"claim"`

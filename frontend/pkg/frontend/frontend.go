@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20260531preview"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -101,6 +102,7 @@ func NewFrontend(
 	apiRegistry := api.NewAPIRegistry()
 	api.Must[any](nil, v20240610preview.RegisterVersion(apiRegistry))
 	api.Must[any](nil, v20251223preview.RegisterVersion(apiRegistry))
+	api.Must[any](nil, v20260531preview.RegisterVersion(apiRegistry))
 
 	f := &Frontend{
 		clusterServiceClient: csClient,

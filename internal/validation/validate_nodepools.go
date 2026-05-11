@@ -168,6 +168,11 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	//NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
 	// TODO why do we allow this to be negative?
 
+	// Conditions are read-only (server-managed) and are not round-tripped from
+	// client input. We keep the validation here in a single spot so that the
+	// constraints are enforced consistently regardless of who sets conditions.
+	errs = append(errs, validateConditions(ctx, op, fldPath.Child("conditions"), newObj.Conditions)...)
+
 	return errs
 }
 

@@ -104,6 +104,11 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 	//Condition         ExternalAuthCondition       `json:"condition,omitzero"`
 	errs = append(errs, validateExternalAuthCondition(ctx, op, fldPath.Child("condition"), &newObj.Condition, safe.Field(oldObj, toExternalAuthPropertiesCondition))...)
 
+	// Conditions are read-only (server-managed) and are not round-tripped from
+	// client input. We keep the validation here in a single spot so that the
+	// constraints are enforced consistently regardless of who sets conditions.
+	errs = append(errs, validateConditions(ctx, op, fldPath.Child("conditions"), newObj.Conditions)...)
+
 	//Issuer            TokenIssuerProfile          `json:"issuer"`
 	errs = append(errs, validateTokenIssuerProfile(ctx, op, fldPath.Child("issuer"), &newObj.Issuer, safe.Field(oldObj, toExternalAuthPropertiesIssuer))...)
 
