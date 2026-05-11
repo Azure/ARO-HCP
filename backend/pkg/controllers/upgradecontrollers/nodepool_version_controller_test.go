@@ -125,6 +125,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 	require.NoError(t, err)
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,

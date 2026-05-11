@@ -25,20 +25,10 @@ type NodePool struct {
 }
 
 type NodePoolProperties struct {
-	// when we switch to inlining the internalObj, this will be in the right spot.  We add it now so that we can switch our
-	// queries to select on cosmosMetata.ResourceID instead of resourceId
-	CosmosMetadata api.CosmosMetadata `json:"cosmosMetadata"`
-
-	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
-	// embed the InternalAPIType which has colliding serialization fields.
-	IntermediateResourceDoc *ResourceDocument `json:"intermediateResourceDoc"`
-
-	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
-	InternalState NodePoolInternalState `json:"internalState"`
-}
-
-type NodePoolInternalState struct {
-	InternalAPI api.HCPOpenShiftClusterNodePool `json:"internalAPI"`
+	// HCPOpenShiftClusterNodePool is inlined directly. The on-disk shape now matches
+	// GenericDocument[api.HCPOpenShiftClusterNodePool] and NodePool only exists as a
+	// distinct type while the migration to that generic surface completes.
+	api.HCPOpenShiftClusterNodePool `json:",inline"`
 }
 
 func (o *NodePool) GetTypedDocument() *TypedDocument {

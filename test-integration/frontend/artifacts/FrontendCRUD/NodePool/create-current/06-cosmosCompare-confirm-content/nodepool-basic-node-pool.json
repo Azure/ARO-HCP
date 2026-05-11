@@ -10,58 +10,53 @@
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool"
 		},
-		"intermediateResourceDoc": {
-			"activeOperationId": "bf643e76-55fe-48a0-a752-f5c5a2db72ad",
-			"internalId": "/api/clusters_mgmt/v1/clusters/dl7f9px2f2/node_pools/82npf9hxmk",
+		"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
+		"location": "fake-location",
+		"name": "basic-node-pool",
+		"properties": {
+			"autoRepair": true,
+			"autoScaling": {
+				"max": 5,
+				"min": 1
+			},
+			"labels": {
+				"label-ky": "label-value"
+			},
+			"nodeDrainTimeoutMinutes": 2,
+			"platform": {
+				"enableEncryptionAtHost": false,
+				"osDisk": {
+					"diskStorageAccountType": "Premium_LRS",
+					"diskType": "Managed",
+					"sizeGiB": 64
+				},
+				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+				"vmSize": "large"
+			},
 			"provisioningState": "Accepted",
-			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
-			"systemData": {
-				"createdBy": "Unknown-ARO-HCP-frontend",
-				"createdByType": "Application",
-				"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-				"lastModifiedByType": "Application"
+			"taints": [
+				{
+					"effect": "NoExecute",
+					"key": "foo.com/key",
+					"value": "valid"
+				}
+			],
+			"version": {
+				"channelGroup": "stable",
+				"id": "4.20.8"
 			}
 		},
-		"internalState": {
-			"internalAPI": {
-				"location": "fake-location",
-				"properties": {
-					"autoRepair": true,
-					"autoScaling": {
-						"max": 5,
-						"min": 1
-					},
-					"labels": {
-						"label-ky": "label-value"
-					},
-					"nodeDrainTimeoutMinutes": 2,
-					"platform": {
-						"enableEncryptionAtHost": false,
-						"osDisk": {
-							"diskStorageAccountType": "Premium_LRS",
-							"diskType": "Managed",
-							"sizeGiB": 64
-						},
-						"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
-						"vmSize": "large"
-					},
-					"taints": [
-						{
-							"effect": "NoExecute",
-							"key": "foo.com/key",
-							"value": "valid"
-						}
-					],
-					"version": {
-						"channelGroup": "stable",
-						"id": "4.20.8"
-					}
-				},
-				"serviceProviderProperties": {
-					"clusterServiceID": ""
-				}
-			}
-		}
+		"serviceProviderProperties": {
+			"activeOperationId": "bf643e76-55fe-48a0-a752-f5c5a2db72ad",
+			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/dl7f9px2f2/node_pools/82npf9hxmk"
+		},
+		"systemData": {
+			"createdBy": "Unknown-ARO-HCP-frontend",
+			"createdByType": "Application",
+			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+			"lastModifiedByType": "Application"
+		},
+		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"

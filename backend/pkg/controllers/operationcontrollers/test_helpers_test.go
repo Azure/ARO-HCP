@@ -177,6 +177,7 @@ func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 
 func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 	return &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.nodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.nodePoolResourceID,
