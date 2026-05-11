@@ -170,6 +170,11 @@ func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 			expectError:                  false,
 			expectCSMockCalled:           true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Nil(t, op.Error)
+
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Equal(t, "not-our-operation-id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
