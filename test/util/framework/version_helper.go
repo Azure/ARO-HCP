@@ -258,6 +258,8 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 // GetVersionPairWithoutUpgradeEdge finds two versions A < B in the given minor where Cincinnati
 // has no upgrade edge from A to B. This is useful for testing that nodepool upgrades succeed
 // even without a Cincinnati upgrade path (HCP nodepools use Replace strategy).
+// The search starts from the lowest versions in the minor — lower versions are more stable
+// across Cincinnati graph updates, making test results more reproducible.
 // Returns ErrNoEdgePairFound if all version pairs in the minor have edges.
 func GetVersionPairWithoutUpgradeEdge(ctx context.Context, channelGroup string, minor string) (from, to semver.Version, err error) {
 	type versionPair struct {
