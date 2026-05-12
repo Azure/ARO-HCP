@@ -684,6 +684,10 @@
         {
           "id": "seriesToRows",
           "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
         }
       ],
       "type": "stat"
@@ -759,6 +763,10 @@
         {
           "id": "seriesToRows",
           "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
         }
       ],
       "type": "stat"
@@ -833,6 +841,10 @@
       "transformations": [
         {
           "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
           "options": {}
         }
       ],

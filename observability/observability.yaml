@@ -56,3 +56,5 @@ grafana-dashboards:
     path: ./grafana-dashboards/kas-ksm-monitor
   - name: User Journey
     path: ./grafana-dashboards/user-journey
+  - name: User Journey
+    path: ./grafana-dashboards/sre/user-journey
