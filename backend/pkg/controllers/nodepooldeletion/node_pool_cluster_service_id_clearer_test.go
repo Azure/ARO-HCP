@@ -68,7 +68,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			name: "ClusterServiceID already cleared — no-op",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				withDeletionStamps(np)
-				np.ServiceProviderProperties.ClusterServiceID = api.InternalID{}
+				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 		},
 		{

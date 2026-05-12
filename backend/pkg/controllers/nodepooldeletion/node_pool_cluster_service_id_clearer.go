@@ -80,7 +80,7 @@ func (c *nodePoolClusterServiceIDClearer) CooldownChecker() controllerutils.Cool
 func (c *nodePoolClusterServiceIDClearer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
-		len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) > 0
+		nodePool.ServiceProviderProperties.ClusterServiceID != nil && len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) > 0
 }
 
 // SyncOnce reads the NodePool from cluster-service. If cluster-service reports
@@ -114,14 +114,14 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 	}
 
 	csID := nodePool.ServiceProviderProperties.ClusterServiceID
-	if _, err := c.clusterServiceClient.GetNodePool(ctx, csID); err != nil {
+	if _, err := c.clusterServiceClient.GetNodePool(ctx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
 			return utils.TrackError(fmt.Errorf("failed to get cluster-service NodePool: %w", err))
 		}
-		// 404 — cluster-service has finished deleting the NodePool, clear the ID.
-		logger.Info("cluster-service NodePool gone — clearing ClusterServiceID", "clusterServiceID", csID.String())
-		nodePool.ServiceProviderProperties.ClusterServiceID = api.InternalID{}
+		// 404 - cluster-service has finished deleting the NodePool, clear the CS ID.
+		logger.Info("cluster-service NodePool gone - clearing ClusterServiceID", "clusterServiceID", csID.String())
+		nodePool.ServiceProviderProperties.ClusterServiceID = nil
 		if _, err := nodePoolCRUD.Replace(ctx, nodePool, nil); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
 		}
