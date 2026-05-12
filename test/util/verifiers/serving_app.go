@@ -36,8 +36,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
-
-	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 //go:embed artifacts
@@ -164,14 +162,17 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	lastErr = nil
 	url := "https://" + host
 
-	// Create HTTP client with TLS skip for development environments
-	client := &http.Client{}
-	if framework.IsDevelopmentEnvironment() {
-		client.Transport = &http.Transport{
+	// AROSLSRE-836: skip TLS verification unconditionally until the backend
+	// blocks cluster Succeeded on ingress cert readiness. Remove after 2026-06-12.
+	if time.Now().After(time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC)) {
+		ginkgo.Fail("AROSLSRE-836 timebomb: TLS skip mitigation expired. Fix the backend or extend the deadline.")
+	}
+	client := &http.Client{
+		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
-		}
+		},
 	}
 	startTime := time.Now()
 	logged5Min := false
