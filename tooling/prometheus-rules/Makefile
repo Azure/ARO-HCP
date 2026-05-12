@@ -1,5 +1,7 @@
 SHELL = /bin/bash
 
+PROMTOOL ?= promtool
+
 # Define the binary name
 BINARY = prometheus-rules
 
@@ -21,31 +23,31 @@ fmt-devinfra:
 .PHONY: fmt-devinfra
 
 run:
-	go run ./...  --config-file ../../observability/observability.yaml $(EXTRA_FLAGS)
+	go run ./...  --config-file ../../observability/observability.yaml --promtool-path $(PROMTOOL) $(EXTRA_FLAGS)
 	$(MAKE) fmt-devinfra
 .PHONY: run
 
 run-hcp:
-	go run ./...  --config-file ../../observability/observability-hcp.yaml $(EXTRA_FLAGS)
+	go run ./...  --config-file ../../observability/observability-hcp.yaml --promtool-path $(PROMTOOL) $(EXTRA_FLAGS)
 	$(MAKE) fmt-devinfra
 .PHONY: run-hcp
 
 run-rp:
-	go run ./...  --config-file ../../observability/observability-rp.yaml $(EXTRA_FLAGS)
+	go run ./...  --config-file ../../observability/observability-rp.yaml --promtool-path $(PROMTOOL) $(EXTRA_FLAGS)
 	$(MAKE) fmt-devinfra
 .PHONY: run-rp
 
 run-msft:
-	go run ./...  --config-file ../../observability/observability-msft.yaml $(EXTRA_FLAGS)
+	go run ./...  --config-file ../../observability/observability-msft.yaml --promtool-path $(PROMTOOL) $(EXTRA_FLAGS)
 	$(MAKE) fmt-devinfra
 .PHONY: run-msft
 
 run-recording-rules:
-	go run ./...  --config-file ../../observability/observability-recording-rules.yaml
+	go run ./...  --config-file ../../observability/observability-recording-rules.yaml --promtool-path $(PROMTOOL) $(EXTRA_FLAGS)
 	$(MAKE) fmt-devinfra
 .PHONY: run-recording-rules
 
 run-hcp-recording-rules:
-	go run ./...  --config-file ../../observability/observability-hcp-recording-rules.yaml
+	go run ./...  --config-file ../../observability/observability-hcp-recording-rules.yaml --promtool-path $(PROMTOOL) $(EXTRA_FLAGS)
 	$(MAKE) fmt-devinfra
 .PHONY: run-hcp-recording-rules
