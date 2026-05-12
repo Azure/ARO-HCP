@@ -3,3 +3,7 @@ TopologyDir: ../..
 Replace:
 - Regex: 'sha256.[a-fA-F0-9]{64}'
   Replacement: 'sha256:1234567890'
+ResourceLimitsAllowlist:
+- Deployment/acrpull/acrpull-controller
+- DaemonSet/arobit-forwarder/fluentbit
+- Deployment/multicluster-engine-operator/backplane-operator

@@ -54,9 +54,10 @@ func (h *HelmStepWithPath) ChartDirFromRoot(topologyDir string) string {
 }
 
 type Settings struct {
-	ConfigPath  string
-	TopologyDir string
-	Replace     []Replace
+	ConfigPath              string
+	TopologyDir             string
+	Replace                 []Replace
+	ResourceLimitsAllowlist []string
 }
 
 type Replace struct {
