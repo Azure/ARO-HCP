@@ -109,7 +109,7 @@ func AdmitNodePool(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cl
 }
 
 // AdmitNodePoolUpdate performs update-specific validation that requires both the old and new node pool states.
-// It includes all validations from AdmitNodePool plus version upgrade constraints.
+// It includes all validations from AdmitNodePool plus version change constraints.
 // The spNodePool and spCluster parameters provide the service provider state for version validation.
 func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster,
 	spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
@@ -126,10 +126,10 @@ func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePo
 
 // validateNodePoolVersionUpgrade validates that a node pool version change is valid.
 // It checks:
-//   - Downgrades allowed (cross-major requires FeatureExperimentalReleaseFeatures)
-//   - No major version change without FeatureExperimentalReleaseFeatures
-//   - Minor version upgrades limited to +2: new minor <= old minor + 2
-//   - Cannot exceed cluster version: new version <= cluster version
+//   - Cannot exceed control plane version
+//   - Must be within 2 minor versions below control plane (N-2 skew)
+//   - Upgrade minor skip limited to +2 from current nodepool version
+//   - No cross-major changes without FeatureExperimentalReleaseFeatures
 func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
 
 	// Skip validation if no version is specified or version didn't change

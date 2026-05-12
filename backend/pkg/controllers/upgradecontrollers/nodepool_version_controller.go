@@ -91,11 +91,11 @@ func NewNodePoolVersionController(
 // 1. Active Version Tracking:
 //   - Reads the current running version from Cluster Service (csNodePool.Version)
 //   - Stores it in ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-//   - Maintains up to 2 versions during upgrades (newest first, then previous)
+//   - Maintains up to 2 versions during version changes (newest first, then previous)
 //
 // 2. Desired Version Validation and Storage:
 //   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID
-//   - Validates it against version change constraints (see validateDesiredNodePoolVersion)
+//   - Validates it against version change constraints
 //   - Both upgrades and downgrades are supported — HCP nodepools use Replace strategy
 //   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
 //

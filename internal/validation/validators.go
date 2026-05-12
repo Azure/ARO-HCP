@@ -890,13 +890,12 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 	return nil
 }
 
-// ValidateNodePoolUpgrade validates a node pool version change (upgrade or downgrade).
-// HCP nodepools use Replace strategy (nodes are destroyed and recreated), so downgrades
-// are operationally identical to upgrades. Constraints:
+// ValidateNodePoolUpgrade validates a node pool version change.
+// Constraints:
 //   - Cannot exceed lowest control plane version (upper bound)
 //   - Must be within 2 minor versions of control plane (N-2 skew lower bound, same major)
 //   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
-//   - Minor version upgrades limited to +2 (downgrades bounded by N-2 skew)
+//   - Upgrade minor skip limited to +2 from current nodepool version (downgrades bounded by N-2 skew)
 func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
 	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
@@ -908,15 +907,18 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 
 	// Version bounds relative to control plane
-	if lowestCPVersion != nil && desiredVersion.GT(*lowestCPVersion) {
+	exceedsCPVersion := lowestCPVersion != nil && desiredVersion.GT(*lowestCPVersion)
+	if exceedsCPVersion {
 		return fmt.Errorf(
 			"invalid node pool version %s: cannot exceed control plane version %s",
 			desiredVersion.String(), lowestCPVersion.String(),
 		)
 	}
-	if lowestCPVersion != nil && desiredVersion.Major == lowestCPVersion.Major &&
+
+	exceedsN2Skew := lowestCPVersion != nil && desiredVersion.Major == lowestCPVersion.Major &&
 		desiredVersion.Minor < lowestCPVersion.Minor &&
-		lowestCPVersion.Minor-desiredVersion.Minor > 2 {
+		lowestCPVersion.Minor-desiredVersion.Minor > 2
+	if exceedsN2Skew {
 		return fmt.Errorf(
 			"invalid node pool version %s: must be within 2 minor versions of control plane version %s",
 			desiredVersion.String(), lowestCPVersion.String(),
@@ -939,7 +941,8 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 	// Same-major upgrade: minor skip limit (+2). Downgrades are bounded by the
 	// N-2 lower bound above; HCP Replace strategy (destroy + recreate) means no
 	// step-through requirement for either direction.
-	if lowest != nil && desiredVersion.Minor > lowest.Minor+2 {
+	exceedsMinorSkip := lowest != nil && desiredVersion.Minor > lowest.Minor+2
+	if exceedsMinorSkip {
 		return fmt.Errorf(
 			"invalid upgrade path from %s to %s: skipping more than 2 minor versions is not allowed",
 			lowest.String(), desiredVersion.String(),

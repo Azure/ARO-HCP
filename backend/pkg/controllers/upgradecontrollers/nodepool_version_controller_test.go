@@ -678,7 +678,7 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			errorContains:        "must be within 2 minor versions of control plane",
 		},
 		{
-			name:                 "cross-major downgrade without feature flag fails",
+			name:                 "major version downgrade - fail by default",
 			desiredVersion:       "4.22.0",
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
@@ -686,7 +686,7 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			errorContains:        "major version changes are not supported",
 		},
 		{
-			name:                 "cross-major downgrade with feature flag succeeds",
+			name:                 "valid major downgrade 5.0 to 4.22",
 			desiredVersion:       "4.22.0",
 			activeVersions:       []string{"5.0.1"},
 			controlPlaneVersions: []string{"5.0.1"},
@@ -1081,9 +1081,6 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 	// Create ServiceProviderCluster with control plane at 4.20.0
 	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
 
-	// Create ServiceProviderNodePool with active version 4.19.10
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
-
 	// CS returns node pool with current version 4.19.10
 	csNodePool := newCSNodePoolWithVersion(t, "4.19.10")
 	mockCS.EXPECT().
@@ -1140,9 +1137,6 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T
 
 	// Create ServiceProviderCluster with control plane at 4.20.0
 	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// Create ServiceProviderNodePool with active version 4.19.10
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
 
 	// CS returns node pool with current version 4.19.10
 	csNodePool := newCSNodePoolWithVersion(t, "4.19.10")
