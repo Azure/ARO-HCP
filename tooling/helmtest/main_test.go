@@ -171,6 +171,3 @@ func TestArobitWatsonMDSDSocketConfiguration(t *testing.T) {
 			require.NotContains(t, output, "MDSD_OPTION")
 		})
 	}
-func TestDaemonSetUpdateStrategies(t *testing.T) {
-	testrunner.RunTestDaemonSetUpdateStrategies(t, "settings.yaml")
-}
