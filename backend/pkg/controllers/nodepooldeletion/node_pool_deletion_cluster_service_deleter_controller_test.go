@@ -92,14 +92,14 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 			name: "DeletionTimestamp set, no ClusterServiceID, within timeout — wait",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Second)}
-				np.ServiceProviderProperties.ClusterServiceID = api.InternalID{}
+				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 		},
 		{
 			name: "DeletionTimestamp set, no ClusterServiceID, past timeout — give up and stamp",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-3 * time.Minute)}
-				np.ServiceProviderProperties.ClusterServiceID = api.InternalID{}
+				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			wantClusterServiceDeletionTimestamp: true,
 		},
@@ -230,7 +230,7 @@ func newTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) 
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
-	nodePoolInternalID := api.Must(api.NewInternalID(testNodePoolCSIDStr))
+	nodePoolInternalID := api.Ptr(api.Must(api.NewInternalID(testNodePoolCSIDStr)))
 	np := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -240,6 +240,7 @@ func newTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) 
 			},
 			Location: "eastus",
 		},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Platform: api.NodePoolPlatformProfile{
 				OSDisk: api.OSDiskProfile{

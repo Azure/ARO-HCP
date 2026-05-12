@@ -135,7 +135,7 @@ func (c *nodePoolDeletionClusterServiceDeleter) SyncOnce(ctx context.Context, ke
 	csID := nodePool.ServiceProviderProperties.ClusterServiceID
 	deletedAt := nodePool.ServiceProviderProperties.DeletionTimestamp.Time
 
-	if len(csID.String()) == 0 {
+	if csID == nil || len(csID.String()) == 0 {
 		if elapsed := c.clock.Since(deletedAt); elapsed < missingClusterServiceIDTimeout {
 			// The frontend may still be in the middle of creating the cluster-service
 			// NodePool, or the controller that does so hasn't run yet. Re-check on the
@@ -144,7 +144,7 @@ func (c *nodePoolDeletionClusterServiceDeleter) SyncOnce(ctx context.Context, ke
 		}
 		logger.Info("giving up on cluster-service NodePool delete — ClusterServiceID never appeared",
 			"deletionTimestamp", deletedAt)
-	} else if err := c.clusterServiceClient.DeleteNodePool(ctx, csID); err != nil {
+	} else if err := c.clusterServiceClient.DeleteNodePool(ctx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
 			return utils.TrackError(fmt.Errorf("failed to delete cluster-service NodePool: %w", err))
