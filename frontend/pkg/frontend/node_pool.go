@@ -770,7 +770,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
 	if nodePool.ServiceProviderProperties.DeletionTimestamp == nil {
-		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
 	}
 	_, err = f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
