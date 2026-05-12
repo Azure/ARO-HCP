@@ -761,6 +761,7 @@ monitoring:
       routingId: ""
   maxActiveTimeSeries: 2000000
   maxEventsPerMinute: 2000000
+  skipDatasourceSync: false
   svcWorkspaceName: services-usw3test
 msiCredentialsRefresher:
   certificate:

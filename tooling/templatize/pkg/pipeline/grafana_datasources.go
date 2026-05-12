@@ -21,9 +21,16 @@ import (
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/modify"
+	"github.com/go-logr/logr"
 )
 
 func runGrafanaDatasourcesStep(_ graph.Identifier, step *types.GrafanaDatasourcesStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, _ *ExecutionState) error {
+	if step.SkipSync {
+		logger := logr.FromContextOrDiscard(ctx)
+		logger.Info("Skipping grafana datasource sync")
+		return nil
+	}
+
 	opts := modify.DefaultAddDatasourceOptions()
 	opts.GrafanaName = step.GrafanaName
 	opts.SubscriptionID = executionTarget.GetSubscriptionID()
