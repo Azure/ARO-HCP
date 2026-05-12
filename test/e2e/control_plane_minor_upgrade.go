@@ -59,11 +59,13 @@ var _ = Describe("Customer", func() {
 			} else {
 				previousMinor = semver.Version{Major: targetVer.Major, Minor: targetVer.Minor - 1}
 			}
+			previousMinorLine := fmt.Sprintf("%d.%d", previousMinor.Major, previousMinor.Minor)
+			targetMinorLine := fmt.Sprintf("%d.%d", targetVer.Major, targetVer.Minor)
 
 			var installVersion *semver.Version
 			cincinnatiClient := cvocincinnati.NewClient(uuid.NameSpaceDNS, &http.Transport{}, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
 
-			possibleInstallVersions, err := framework.GetAllVersionsInMinorStartingWith(ctx, channelGroup, previousMinor.String())
+			possibleInstallVersions, err := framework.GetAllVersionsInMinorStartingWith(ctx, channelGroup, previousMinorLine)
 			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 				Skip(fmt.Sprintf("Cincinnati returned version not found for previous minor %s on channel %s: %v",
 					previousMinor.String(),
@@ -135,7 +137,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By(fmt.Sprintf("creating the HCP cluster with install version %s (previous minor %s)", installVersion,
-				previousMinor.String()))
+				previousMinorLine))
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
@@ -184,8 +186,8 @@ var _ = Describe("Customer", func() {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
 					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
-						previousMinor.String(),
-						targetVer.String()))
+						previousMinorLine,
+						targetMinorLine))
 			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),

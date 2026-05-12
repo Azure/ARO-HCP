@@ -95,16 +95,15 @@ func isRetryableVersionError(err error) bool {
 // When no version with an upgrade path is found, it still returns the configured version so the
 // caller can install and optionally skip upgrade assertions.
 func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
-	configuredVersion := api.Must(semver.ParseTolerant(configuredVersionID))
 	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, configuredVersionID)
 	if err != nil {
 		return "", false, err
 	}
 	if len(candidates) == 1 {
-		return configuredVersion.String(), false, nil
+		return candidates[0].String(), false, nil
 	}
 
-	nextMinorStr := fmt.Sprintf("%d.%d", configuredVersion.Major, configuredVersion.Minor+1)
+	nextMinorStr := fmt.Sprintf("%d.%d", candidates[0].Major, candidates[0].Minor+1)
 	maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
 	if err != nil {
 		if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
@@ -127,12 +126,28 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 }
 
 // GetAllVersionsInMinorStartingWith returns all OpenShift versions in the same major.minor as the given version,
-// including that version, from Cincinnati for the given channelGroup. The version string is parse-tolerant
-// (e.g. "4.20", "4.20.0", "4.20.1"). Results are sorted descending (latest first).
+// including that version, from Cincinnati for the given channelGroup. The version string may be strict semver or
+// parse-tolerant (e.g. "4.20", "4.20.0", "4.20.1"). Results are sorted descending (latest first).
+//
+// If semver.Parse succeeds, only that version is used as the Cincinnati graph root for GetUpdates. When semver.Parse
+// fails (major.minor only), discovery queries ParseTolerant dot-zero, X.Y.0-rc.0, and X.Y.0-ec.0 in turn when GA z0 may
+// not yet be a graph node. Each successful response is merged into the result; VersionNotFound skips to the next root;
+// any other error fails immediately.
 func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string, version string) ([]semver.Version, error) {
-	fromVersion, err := semver.ParseTolerant(version)
-	if err != nil {
-		return nil, fmt.Errorf("parse version %q: %w", version, err)
+	var getUpdatesGraphRoots []semver.Version
+	if parsed, err := semver.Parse(version); err != nil {
+		versionToDiscover, err := semver.ParseTolerant(version)
+		if err != nil {
+			return nil, err
+		}
+		// Major.minor only (e.g. "4.20"): discover the minor by querying each dot-zero anchor (GA z0, RC, EC).
+		getUpdatesGraphRoots = []semver.Version{
+			versionToDiscover,
+			semver.MustParse(fmt.Sprintf("%d.%d.0-rc.0", versionToDiscover.Major, versionToDiscover.Minor)),
+			semver.MustParse(fmt.Sprintf("%d.%d.0-ec.0", versionToDiscover.Major, versionToDiscover.Minor)),
+		}
+	} else {
+		getUpdatesGraphRoots = []semver.Version{parsed}
 	}
 
 	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
@@ -144,23 +159,40 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 		transport = &http.Transport{}
 	}
 	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
-	channel := fmt.Sprintf("%s-%d.%d", channelGroup, fromVersion.Major, fromVersion.Minor)
+	channel := fmt.Sprintf("%s-%d.%d", channelGroup, getUpdatesGraphRoots[0].Major, getUpdatesGraphRoots[0].Minor)
 
-	possibleUpgradeCandidates, err := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
-		_, updates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, fromVersion)
-		return updates, err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	candidates := []semver.Version{fromVersion}
-	for _, release := range possibleUpgradeCandidates {
-		candidateVersion := api.Must(semver.ParseTolerant(release.Version))
-		if candidateVersion.Major != fromVersion.Major || candidateVersion.Minor != fromVersion.Minor {
+	maj, min := getUpdatesGraphRoots[0].Major, getUpdatesGraphRoots[0].Minor
+	uniqueVersionsInMinor := make(map[string]semver.Version)
+	for _, root := range getUpdatesGraphRoots {
+		releases, err := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
+			_, updates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", channel, root)
+			return updates, err
+		})
+		if err != nil {
+			if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
+				return nil, err
+			}
 			continue
 		}
-		candidates = append(candidates, candidateVersion)
+		uniqueVersionsInMinor[root.String()] = root
+		for _, release := range releases {
+			candidateVersion := api.Must(semver.ParseTolerant(release.Version))
+			if candidateVersion.Major != maj || candidateVersion.Minor != min {
+				continue
+			}
+			uniqueVersionsInMinor[candidateVersion.String()] = candidateVersion
+		}
+	}
+	if len(uniqueVersionsInMinor) == 0 {
+		return nil, &cvocincinnati.Error{
+			Reason:  "VersionNotFound",
+			Message: fmt.Sprintf("no versions discovered for channel %s (input %q)", channel, version),
+		}
+	}
+
+	candidates := make([]semver.Version, 0, len(uniqueVersionsInMinor))
+	for _, v := range uniqueVersionsInMinor {
+		candidates = append(candidates, v)
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		return candidates[j].LT(candidates[i])
