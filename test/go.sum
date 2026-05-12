@@ -65,8 +65,6 @@ filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
 github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 h1:bvDV9vkmnHYOMsOr4WLk+Vo07yKIzd94sVoIqshQ4bU=
 github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24/go.mod h1:8o94RPi1/7XTJvwPpRSzSUedZrtlirdB3r9Z20bi2f8=
-github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58 h1:GS9DvICq1eTLLl5M+1+O/5mXSDxBTxijXuO2dMWuVjY=
-github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58/go.mod h1:/0GqqOcoDf58ozMxUvx2BN8i9KUN28EzhNdpTMSejW8=
 github.com/Azure/ARO-Tools/config v0.0.0-20260512140819-ecd1d9a0477a h1:/PKd6ulzW9C0/X49dZdiafhsSSCOT9p/Pu3LSxJAw6U=
 github.com/Azure/ARO-Tools/config v0.0.0-20260512140819-ecd1d9a0477a/go.mod h1:W3WxDlH2JMb5PpiuTAMebFgmd+p9koNIfGF67gng0E8=
 github.com/Azure/ARO-Tools/pipelines v0.0.0-20260512140819-ecd1d9a0477a h1:RKRT1fQytgljhqwQvyMewyGhZheDVZFhodWawbqd6lY=
@@ -74,7 +72,6 @@ github.com/Azure/ARO-Tools/pipelines v0.0.0-20260512140819-ecd1d9a0477a/go.mod h
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260512140819-ecd1d9a0477a h1:W66ZV6J8gcpB/HENFDnBauUdwwjfQQ9q8rcN3pMvPKA=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260512140819-ecd1d9a0477a/go.mod h1:6V1kLTbkz3TLTspxt7fAI8Xy4EdBdsvLR5mk0gkry7k=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260512140819-ecd1d9a0477a h1:+KcfGABeF9guAPIvCsTO/eEn6zSiBKDgZAUXOw/R1UA=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260512140819-ecd1d9a0477a/go.mod h1:bin6OKbbloNkD5EYEgXz6d6JGQsWhClgcbVUQrEJ2BQ=
 github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260512140819-ecd1d9a0477a h1:PvIylbLn1bBbZZJOLA7XyZyBCBRvlcGtxMYSbyGVwbg=
 github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260512140819-ecd1d9a0477a/go.mod h1:zxoZ1tIwd5xvd3O25IGAcsai1XbeGua4FsGrN4PZZl4=
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260512140819-ecd1d9a0477a h1:gVQqzGQmMw6E+DMKX9VV01i5IdzrWGDT9WhkpCY8ZQg=
@@ -86,7 +83,6 @@ github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260512140819-ecd1d9a0477a
 github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260512140819-ecd1d9a0477a h1:M7Sl1YjPZsbKOkg1y45rK1lkmvrL7PH3UJKT9TAikp8=
 github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260512140819-ecd1d9a0477a/go.mod h1:xXixpbJgXYCPR58IGDkYkig2tNHSxebRC5LSIr/Ptc0=
 github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260512140819-ecd1d9a0477a h1:9xSb6Mv43Nqy/KCLKLzUmXTslhnbNVFIxO1NxnHR55Y=
-github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260512140819-ecd1d9a0477a/go.mod h1:YJiBh5aw2nJxA1smdlXqb7AnA6wYrMumf7k6VU6dQ/U=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1 h1:De25JIENJVLYUMB4Z9LfAFzbgjGz1ozYJiL2zprs1KA=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1/go.mod h1:pYbM6A7z4XDU+3S0+OgoyUOuCOWPUe/hyEfnOCT6Gok=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
