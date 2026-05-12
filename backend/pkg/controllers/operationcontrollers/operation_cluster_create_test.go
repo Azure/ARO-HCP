@@ -130,7 +130,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 					Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 				},
 				clusterManagementClusterContentLister: &listertesting.SliceManagementClusterContentLister{
-					Contents: []*api.ManagementClusterContent{succeededContent},
+					Contents: []*api.ManagementClusterContent{succeededContent, newIngressControllerContent(t, "cluster-ingress-cert")},
 				},
 			}
 
@@ -212,6 +212,50 @@ func newHostedClusterContent(t *testing.T, hostedCluster *v1beta1.HostedCluster,
 	}
 }
 
+func newIngressControllerContent(t *testing.T, certName string, conditions ...metav1.Condition) *api.ManagementClusterContent {
+	t.Helper()
+	obj := map[string]any{
+		"apiVersion": "operator.openshift.io/v1",
+		"kind":       "IngressController",
+		"metadata": map[string]any{
+			"name":      "default",
+			"namespace": "openshift-ingress-operator",
+		},
+	}
+	if certName != "" {
+		obj["spec"] = map[string]any{
+			"defaultCertificate": map[string]any{
+				"name": certName,
+			},
+		}
+	}
+	raw, err := json.Marshal(obj)
+	require.NoError(t, err)
+	if conditions == nil {
+		conditions = []metav1.Condition{
+			{Type: "Degraded", Status: metav1.ConditionFalse},
+		}
+	}
+
+	contentResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/managementClusterContents/" + string(api.MaestroBundleInternalNameReadonlyIngressController)))
+
+	return &api.ManagementClusterContent{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: contentResourceID,
+		},
+		Status: api.ManagementClusterContentStatus{
+			Conditions: conditions,
+			KubeContent: &metav1.List{
+				Items: []kruntime.RawExtension{{Raw: raw}},
+			},
+		},
+	}
+}
+
 func newClusterWithAPIURL(url string) *api.HCPOpenShiftCluster {
 	fixture := newClusterTestFixture()
 	cluster := fixture.newCluster(nil)
@@ -233,7 +277,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 		errContains     string
 	}{
 		{
-			name: "both checks succeed → Succeeded",
+			name: "all checks succeed → Succeeded",
 			clusterLister: &listertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
@@ -255,6 +299,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 						},
 					}),
+										newIngressControllerContent(t, "cluster-ingress-cert"),
 				},
 			},
 			expectedState:   arm.ProvisioningStateSucceeded,
@@ -283,6 +328,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 						},
 					}),
+										newIngressControllerContent(t, "cluster-ingress-cert"),
 				},
 			},
 			expectedState:   arm.ProvisioningStateProvisioning,
@@ -317,6 +363,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 						},
 					}),
+										newIngressControllerContent(t, "cluster-ingress-cert"),
 				},
 			},
 			expectError: true,
@@ -369,6 +416,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 						},
 					}),
+										newIngressControllerContent(t, "cluster-ingress-cert"),
 				},
 			},
 			expectedState:   arm.ProvisioningStateProvisioning,
@@ -393,6 +441,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 						},
 					}),
+										newIngressControllerContent(t, "cluster-ingress-cert"),
 				},
 			},
 			expectedState:   arm.ProvisioningStateProvisioning,
@@ -420,6 +469,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 						},
 					}),
+										newIngressControllerContent(t, "cluster-ingress-cert"),
 				},
 			},
 			expectedState:   arm.ProvisioningStateProvisioning,
@@ -448,6 +498,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 						},
 					}),
+										newIngressControllerContent(t, "cluster-ingress-cert"),
 				},
 			},
 			expectedState:   arm.ProvisioningStateProvisioning,

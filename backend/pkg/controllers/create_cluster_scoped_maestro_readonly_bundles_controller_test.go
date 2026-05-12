@@ -611,6 +611,11 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_AllBundlesAlre
 					MaestroAPIMaestroBundleID:   "bundle-id",
 				},
 				{
+					Name:                        api.MaestroBundleInternalNameReadonlyIngressController,
+					MaestroAPIMaestroBundleName: "bundle-name-ingress",
+					MaestroAPIMaestroBundleID:   "bundle-id-ingress",
+				},
+				{
 					Name:                        syncMaestroBundleTestOtherBundleName,
 					MaestroAPIMaestroBundleName: "bundle-nameother",
 					MaestroAPIMaestroBundleID:   "bundle-idother",
