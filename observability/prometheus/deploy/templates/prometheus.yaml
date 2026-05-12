@@ -103,6 +103,9 @@ spec:
   walCompression: true
   externalLabels:
     cluster: '{{ .Values.prometheusSpec.externalLabels.cluster }}'
+    {{- if .Values.prometheusSpec.externalLabels.region }}
+    region: '{{ .Values.prometheusSpec.externalLabels.region }}'
+    {{- end }}
   remoteWrite:
   - url: '{{ .Values.prometheusSpec.remoteWriteUrl }}'
     azureAd:

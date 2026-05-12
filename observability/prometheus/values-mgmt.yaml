@@ -83,6 +83,9 @@ kube-prometheus-stack:
       - apiGroups: ["hypershift.openshift.io"]
         resources: ["hostedclusters"]
         verbs: ["list", "watch"]
+      - apiGroups: ["cluster.x-k8s.io"]
+        resources: ["machines"]
+        verbs: ["list", "watch"]
     customResourceState:
       enabled: true
       create: true
@@ -126,6 +129,33 @@ kube-prometheus-stack:
                   path: [status, conditions, "[type=Progressing]", status]
                   labelName: status
                   list: ["True", "False", "Unknown"]
+          - groupVersionKind:
+              group: cluster.x-k8s.io
+              kind: "Machine"
+              version: "v1beta1"
+            metricNamePrefix: capiMachine
+            labelsFromPath:
+              namespace: [metadata, namespace]
+              cluster_name: [spec, clusterName]
+              arm_resource_id: [spec, providerID]
+              nodepool: [metadata, annotations, "hypershift.openshift.io/nodePool"]
+            metrics:
+            - name: "node_ready"
+              help: "Node readiness condition from guest cluster, derived from CAPI Machine CR"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, v1beta2, conditions, "[type=NodeReady]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
+    prometheus:
+      monitor:
+        metricRelabelings:
+        - sourceLabels: [arm_resource_id]
+          regex: 'azure:///(.*)'
+          replacement: '/${1}'
+          targetLabel: arm_resource_id
+          action: replace
 # this is our own config for the files in templates/
 prometheusSpec:
   image:
@@ -135,6 +165,7 @@ prometheusSpec:
   version: "" # derived from the sha
   externalLabels:
     cluster: "{{ .mgmt.aks.name }}"
+    region: "{{ .region }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}

@@ -67703,6 +67703,43 @@ data:
             type: StateSet
           help: Cluster progressing condition
           name: progressing
+      - groupVersionKind:
+          group: cluster.x-k8s.io
+          kind: Machine
+          version: v1beta1
+        labelsFromPath:
+          arm_resource_id:
+          - spec
+          - providerID
+          cluster_name:
+          - spec
+          - clusterName
+          namespace:
+          - metadata
+          - namespace
+          nodepool:
+          - metadata
+          - annotations
+          - hypershift.openshift.io/nodePool
+        metricNamePrefix: capiMachine
+        metrics:
+        - each:
+            stateSet:
+              labelName: status
+              list:
+              - "True"
+              - "False"
+              - Unknown
+              path:
+              - status
+              - v1beta2
+              - conditions
+              - '[type=NodeReady]'
+              - status
+            type: StateSet
+          help: Node readiness condition from guest cluster, derived from CAPI Machine
+            CR
+          name: node_ready
 ---
 # Source: hcp-prometheus/templates/ama-metrics-settings-configmap.yaml
 kind: ConfigMap
@@ -67946,6 +67983,13 @@ rules:
   - hypershift.openshift.io
   resources:
   - hostedclusters
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
   verbs:
   - list
   - watch
@@ -68624,6 +68668,7 @@ spec:
   walCompression: true
   externalLabels:
     cluster: 'dev-westus3-mgmt-1'
+    region: 'westus3'
   remoteWrite:
   - url: '__dcrRemoteWriteUrl__'
     azureAd:
@@ -71031,6 +71076,13 @@ spec:
   endpoints:
     - port: http
       honorLabels: true
+      metricRelabelings:
+        - action: replace
+          regex: azure:///(.*)
+          replacement: /${1}
+          sourceLabels:
+          - arm_resource_id
+          targetLabel: arm_resource_id
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
