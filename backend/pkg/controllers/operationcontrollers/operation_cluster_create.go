@@ -27,6 +27,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -175,6 +176,11 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	} else {
 		operationStates = append(operationStates, currState)
 	}
+	if currState, err := c.ingressCertOperationStatus(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState)
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -304,5 +310,35 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// 1. the hosted cluster is available via condition
 	// 2. the hosted cluster has successfully installed at least one version
 	// 3. the hosted cluster has a control plane endpoint host and port
+	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) ingressCertOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+	ingressControllerContent, err := c.clusterManagementClusterContentLister.GetForCluster(
+		ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name,
+		string(api.MaestroBundleInternalNameReadonlyIngressController),
+	)
+	if database.IsNotFoundError(err) {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ingress controller readonly bundle not yet available"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !meta.IsStatusConditionFalse(ingressControllerContent.Status.Conditions, "Degraded") {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ingress controller readonly bundle is degraded"), nil
+	}
+	if ingressControllerContent.Status.KubeContent == nil || len(ingressControllerContent.Status.KubeContent.Items) == 0 {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ingress controller readonly bundle has no content"), nil
+	}
+
+	obj := &unstructured.Unstructured{}
+	if err := json.Unmarshal(ingressControllerContent.Status.KubeContent.Items[0].Raw, obj); err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to decode IngressController: %w", err))
+	}
+	certName, found, _ := unstructured.NestedString(obj.Object, "spec", "defaultCertificate", "name")
+	if !found || certName != "cluster-ingress-cert" {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ingress certificate not yet configured on IngressController"), nil
+	}
+
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
 }

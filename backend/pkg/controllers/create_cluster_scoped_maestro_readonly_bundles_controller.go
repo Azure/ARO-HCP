@@ -22,6 +22,8 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -122,6 +124,7 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.C
 	// controller and reported as an error.
 	recognizedMaestroBundles := []api.MaestroBundleInternalName{
 		api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
+		api.MaestroBundleInternalNameReadonlyIngressController,
 	}
 
 	var maestroBundlesToSync []api.MaestroBundleInternalName
@@ -258,6 +261,8 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 	switch maestroBundleInternalName {
 	case api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster:
 		desiredMaestroBundle = c.buildInitialReadonlyMaestroBundleForHostedCluster(existingCluster, csClusterDomainPrefix, maestroBundleNamespacedName)
+	case api.MaestroBundleInternalNameReadonlyIngressController:
+		desiredMaestroBundle = c.buildInitialReadonlyMaestroBundleForIngressController(maestroBundleNamespacedName)
 	default:
 		return lastPersistedSPC, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleInternalName))
 	}
@@ -342,6 +347,27 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildInitialReadonlyMa
 // Internally in CS this is the "CDNamespace" attribute associated to the cluster.
 func (c *createClusterScopedMaestroReadonlyBundlesSyncer) getHostedClusterNamespace(envName string, csClusterID string) string {
 	return fmt.Sprintf("ocm-%s-%s", envName, csClusterID)
+}
+
+// buildInitialReadonlyMaestroBundleForIngressController builds an initial readonly Maestro Bundle for the
+// default IngressController in the HCP cluster's openshift-ingress-operator namespace.
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundleForIngressController(maestroBundleNamespacedName types.NamespacedName) *workv1.ManifestWork {
+	ingressController := &unstructured.Unstructured{}
+	ingressController.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "IngressController",
+	})
+	ingressController.SetName("default")
+	ingressController.SetNamespace("openshift-ingress-operator")
+
+	resourceIdentifier := workv1.ResourceIdentifier{
+		Group:     "operator.openshift.io",
+		Resource:  "ingresscontrollers",
+		Name:      "default",
+		Namespace: "openshift-ingress-operator",
+	}
+	return buildInitialReadonlyMaestroBundle(maestroBundleNamespacedName, resourceIdentifier, ingressController, readonlyBundleManagedByK8sLabelValueClusterScoped)
 }
 
 func (c *createClusterScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutils.CooldownChecker {

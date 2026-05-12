@@ -216,4 +216,8 @@ const (
 	// MaestroBundleInternalNameReadonlyHypershiftHostedCluster is the internal name of the Maestro Bundle that represents
 	// the Cluster's Hypershift's HostedCluster K8s resource.
 	MaestroBundleInternalNameReadonlyHypershiftHostedCluster MaestroBundleInternalName = "readonlyHypershiftHostedCluster"
+
+	// MaestroBundleInternalNameReadonlyIngressController is the internal name of the Maestro Bundle that represents
+	// the default IngressController in the HCP cluster's openshift-ingress-operator namespace.
+	MaestroBundleInternalNameReadonlyIngressController MaestroBundleInternalName = "readonlyIngressController"
 )
