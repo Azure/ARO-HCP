@@ -128,7 +128,7 @@ func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePo
 // It checks:
 //   - No downgrade: new version >= old version
 //   - No major version change: new major == old major (unless FeatureExperimentalReleaseFeatures is registered)
-//   - No skipping minor versions: new minor <= old minor + 1
+//   - Minor version upgrades limited to +2: new minor <= old minor + 2
 //   - Cannot exceed cluster version: new version <= cluster version
 func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
 
