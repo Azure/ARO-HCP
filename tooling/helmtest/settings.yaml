@@ -3,3 +3,7 @@ TopologyDir: ../..
 Replace:
 - Regex: 'sha256.[a-fA-F0-9]{64}'
   Replacement: 'sha256:1234567890'
+ResourceLimitsAllowlist:
+- Deployment/acrpull/acrpull-controller # upstream chart sets limits
+- DaemonSet/arobit-forwarder/fluentbit # upstream fluent-bit chart sets limits
+- Deployment/multicluster-engine-operator/backplane-operator # third-party MCE chart, not ours to modify
