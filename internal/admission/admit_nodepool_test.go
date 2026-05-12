@@ -274,7 +274,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 		},
 		{
-			name:            "downgrade at N-2 boundary succeeds",
+			name:            "downgrade at N-2 boundary succeeds (4.21 to 4.19)",
 			activeVersions:  []string{"4.21.5"},
 			newVersion:      "4.19.0",
 			clusterVersions: []string{"4.21.5"},
@@ -414,7 +414,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			desiredVersion:  "4.18.0",
 		},
 		{
-			name:            "downgrade at N-2 boundary succeeds",
+			name:            "downgrade at N-2 boundary succeeds (4.23 to 4.21)",
 			activeVersions:  []string{"4.23.0"},
 			newVersion:      "4.21.0",
 			clusterVersions: []string{"4.23.0"},
