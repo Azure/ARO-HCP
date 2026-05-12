@@ -37,6 +37,9 @@ type RawOptions struct {
 	ExcludeLocations []string
 	Tracked          bool
 	SharedDir        string
+	FPAClientID      string
+	FPATenantID      string
+	FPACertPath      string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -59,6 +62,9 @@ type completedOptions struct {
 	CleanupWorkflow  framework.CleanupWorkflow
 	DeleteExpired    bool
 	EvaluationTime   time.Time
+	FPAClientID      string
+	FPATenantID      string
+	FPACertPath      string
 }
 
 type Options struct {
@@ -78,6 +84,9 @@ func DefaultOptions() *RawOptions {
 		ExcludeLocations: []string{},
 		Tracked:          false,
 		SharedDir:        framework.SharedDir(),
+		FPAClientID:      "",
+		FPATenantID:      "",
+		FPACertPath:      "",
 	}
 }
 
@@ -141,6 +150,30 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		if group.oneOfGroup && group.seenFlags.Len() == 0 {
 			return nil, fmt.Errorf("one of %s is required", group.memberFlags.UnsortedList())
 		}
+	}
+
+	fpaFlags := []struct {
+		flag  string
+		value string
+	}{
+		{flag: "--fpa-client-id", value: o.FPAClientID},
+		{flag: "--fpa-tenant-id", value: o.FPATenantID},
+		{flag: "--fpa-cert-path", value: o.FPACertPath},
+	}
+
+	var seenFPAFlags []string
+	var missingFPAFlags []string
+
+	for _, item := range fpaFlags {
+		if item.value != "" {
+			seenFPAFlags = append(seenFPAFlags, item.flag)
+		} else {
+			missingFPAFlags = append(missingFPAFlags, item.flag)
+		}
+	}
+
+	if len(seenFPAFlags) > 0 && len(missingFPAFlags) > 0 {
+		return nil, fmt.Errorf("%v must be provided together; got %v, missing %v", []string{"--fpa-client-id", "--fpa-tenant-id", "--fpa-cert-path"}, seenFPAFlags, missingFPAFlags)
 	}
 
 	return &ValidatedOptions{
@@ -211,6 +244,9 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			ExcludeLocations: sets.New(o.ExcludeLocations...),
 			DeleteExpired:    o.DeleteExpired,
 			EvaluationTime:   evalTime,
+			FPAClientID:      o.FPAClientID,
+			FPATenantID:      o.FPATenantID,
+			FPACertPath:      o.FPACertPath,
 		},
 	}, nil
 }
