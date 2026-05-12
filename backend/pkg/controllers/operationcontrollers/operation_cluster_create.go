@@ -325,17 +325,30 @@ func (c *operationClusterCreate) ingressCertOperationStatus(ctx context.Context,
 		return nil, utils.TrackError(err)
 	}
 	if !meta.IsStatusConditionFalse(ingressControllerContent.Status.Conditions, "Degraded") {
-		return newOperationState(arm.ProvisioningStateProvisioning, "ingress controller readonly bundle is degraded"), nil
+		message := "ingress controller maestro bundle is degraded, degraded condition missing"
+		if degradedCondition := meta.FindStatusCondition(ingressControllerContent.Status.Conditions, "Degraded"); degradedCondition != nil {
+			message = fmt.Sprintf("ingress controller maestro bundle is degraded: %s: %s", degradedCondition.Reason, degradedCondition.Message)
+		}
+		return newOperationState(arm.ProvisioningStateProvisioning, message), nil
 	}
-	if ingressControllerContent.Status.KubeContent == nil || len(ingressControllerContent.Status.KubeContent.Items) == 0 {
-		return newOperationState(arm.ProvisioningStateProvisioning, "ingress controller readonly bundle has no content"), nil
+	if ingressControllerContent.Status.KubeContent == nil {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ingress controller maestro bundle has no kube content"), nil
+	}
+	if len(ingressControllerContent.Status.KubeContent.Items) == 0 {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ingress controller maestro bundle has no items in kube content"), nil
+	}
+	if len(ingressControllerContent.Status.KubeContent.Items) > 1 {
+		return nil, utils.TrackError(fmt.Errorf("unexpected number of kube content items for IngressController: %d", len(ingressControllerContent.Status.KubeContent.Items)))
 	}
 
 	obj := &unstructured.Unstructured{}
 	if err := json.Unmarshal(ingressControllerContent.Status.KubeContent.Items[0].Raw, obj); err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to decode IngressController: %w", err))
 	}
-	certName, found, _ := unstructured.NestedString(obj.Object, "spec", "defaultCertificate", "name")
+	certName, found, err := unstructured.NestedString(obj.Object, "spec", "defaultCertificate", "name")
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to read spec.defaultCertificate.name from IngressController: %w", err))
+	}
 	if !found || certName != "cluster-ingress-cert" {
 		return newOperationState(arm.ProvisioningStateProvisioning, "ingress certificate not yet configured on IngressController"), nil
 	}
