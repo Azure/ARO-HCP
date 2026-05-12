@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +43,7 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 
 // nodePoolDeletionClusterServiceDeleter issues a Cluster Service delete for any
 // NodePool whose DeletionTimestamp has been set. The frontend records the
-// timestamp on the NodePool when DeleteNodePool is invoked; this controller
+// timestamp on the NodePool when DeleteNodePool is invoked, this controller
 // picks it up and calls Cluster Service out-of-band so the frontend never has
 // to block on it. Once the controller has issued the delete (or given up
 // waiting for a ClusterServiceID), it stamps ClusterServiceDeletionTimestamp
@@ -136,33 +137,50 @@ func (c *nodePoolDeletionClusterServiceDeleter) SyncOnce(ctx context.Context, ke
 	deletedAt := nodePool.ServiceProviderProperties.DeletionTimestamp.Time
 
 	if csID == nil || len(csID.String()) == 0 {
-		if elapsed := c.clock.Since(deletedAt); elapsed < missingClusterServiceIDTimeout {
+		elapsed := c.clock.Since(deletedAt)
+		if elapsed < missingClusterServiceIDTimeout {
 			// The frontend may still be in the middle of creating the cluster-service
 			// NodePool, or the controller that does so hasn't run yet. Re-check on the
-			// next sync; the resync interval and informer change events drive retries.
+			// next sync. The resync interval and informer change events drive retries.
 			return nil
 		}
-		logger.Info("giving up on cluster-service NodePool delete — ClusterServiceID never appeared",
+		logger.Info("giving up on cluster-service NodePool delete - ClusterServiceID never appeared",
 			"deletionTimestamp", deletedAt)
 	} else if err := c.clusterServiceClient.DeleteNodePool(ctx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
-		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
+
+		switch {
+		case errors.As(err, &ocmError) && ocmError.Status() == http.StatusBadRequest &&
+			strings.Contains(ocmError.Reason(), "Cannot delete node pool: its parent cluster must be in a deletable state") &&
+			strings.Contains(ocmError.Reason(), "Parent cluster state: 'uninstalling'"):
+			// If the error is indicating that the parent cluster is already being
+			// uninstalled we consider that the the nodepool is already being deleted
+			// because Cluster Service on cluster deletion will end up deleting the
+			// nodepools as well.
+			// Matching an error message is brittle, but Clusters Service
+			// returns 400 Bad Request for a wide range of errors and there
+			// is no other information in the response to distinguish them.
+			logger.Info("NodePool already being deleted by cluster-service via parent cluster deletion", "clusterServiceID", csID.String())
+		case errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound:
+			// OCM error 404 - could be a stale CSID or a race against an in-flight CS
+			// create. Wait before treating the NodePool as definitively gone
+			elapsed := c.clock.Since(deletedAt)
+			if elapsed < missingClusterServiceIDTimeout {
+				return nil
+			}
+			logger.Info("cluster-service NodePool already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
+		default:
 			return utils.TrackError(fmt.Errorf("failed to delete cluster-service NodePool: %w", err))
 		}
-		// 404 — could be a stale CSID or a race against an in-flight CS create;
-		// require the same dwell time as the missing-CSID branch before treating
-		// the NodePool as definitively gone.
-		if elapsed := c.clock.Since(deletedAt); elapsed < missingClusterServiceIDTimeout {
-			return nil
-		}
-		logger.Info("cluster-service NodePool already deleted", "clusterServiceID", csID.String())
 	} else {
 		logger.Info("requested cluster-service NodePool delete", "clusterServiceID", csID.String())
 	}
 
 	nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-	if _, err := nodePoolCRUD.Replace(ctx, nodePool, nil); err != nil {
+	_, err = nodePoolCRUD.Replace(ctx, nodePool, nil)
+	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
 	}
+
 	return nil
 }
