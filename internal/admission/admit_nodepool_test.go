@@ -358,13 +358,21 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 			},
 		},
 		{
-			name:            "skipping minor versions not allowed",
+			name:            "y-stream upgrade skipping two minor versions is allowed",
 			activeVersions:  []string{"4.16.0"},
 			newVersion:      "4.18.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.16.0",
+			expectErrors:    []utils.ExpectedError{},
+		},
+		{
+			name:            "skipping more than 2 minor versions not allowed",
+			activeVersions:  []string{"4.16.0"},
+			newVersion:      "4.19.0",
+			clusterVersions: []string{"4.19.0"},
+			desiredVersion:  "4.16.0",
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "skipping minor versions is not allowed"},
+				{FieldPath: "properties.version.id", Message: "skipping more than 2 minor versions is not allowed"},
 			},
 		},
 		{

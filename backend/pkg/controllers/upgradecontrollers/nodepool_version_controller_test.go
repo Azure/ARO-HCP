@@ -412,12 +412,19 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		{
-			name:                 "skip minor version (+2) - fail",
+			name:                 "y-stream upgrade (+2) - pass",
 			desiredVersion:       "4.20.5",
 			activeVersions:       []string{"4.18.10"},
 			controlPlaneVersions: []string{"4.20.5"},
+			expectError:          false,
+		},
+		{
+			name:                 "skip minor version (+3) - fail",
+			desiredVersion:       "4.21.5",
+			activeVersions:       []string{"4.18.10"},
+			controlPlaneVersions: []string{"4.21.5"},
 			expectError:          true,
-			errorContains:        "skipping minor versions is not allowed",
+			errorContains:        "skipping more than 2 minor versions is not allowed",
 		},
 		{
 			name:                 "major version change - fail by default",
@@ -662,11 +669,11 @@ func TestNodePoolVersionSyncer_SyncOnce_SkipMinorVersionFails(t *testing.T) {
 	mockClientCache := cincinnati.NewMockClientCache(ctrl)
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
 
-	// Create node pool with desired version 4.20.0 (skips from 4.18.x)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
+	// Create node pool with desired version 4.21.0 (skips +3 from 4.18.x)
+	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.21.0")
 
-	// Create ServiceProviderCluster with control plane at 4.20.0 (allowing the desired version)
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
+	// Create ServiceProviderCluster with control plane at 4.21.0 (allowing the desired version)
+	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.21.0")
 
 	// Create ServiceProviderNodePool with active version 4.18.10 (to create skew)
 	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.18.10")
@@ -697,7 +704,7 @@ func TestNodePoolVersionSyncer_SyncOnce_SkipMinorVersionFails(t *testing.T) {
 	err := syncer.SyncOnce(ctx, testKey)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "skipping minor versions is not allowed")
+	assert.Contains(t, err.Error(), "skipping more than 2 minor versions is not allowed")
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testing.T) {
