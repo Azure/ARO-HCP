@@ -189,6 +189,57 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 
 }
 
+func RunTestDaemonSetUpdateStrategies(t *testing.T, settingsPath string) {
+	settings, err := internal.LoadSettings(settingsPath)
+	assert.NoError(t, err)
+	assert.NotNil(t, settings)
+
+	helmSteps, err := internal.FindHelmSteps(settings.TopologyDir, settings.ConfigPath)
+	assert.NoError(t, err)
+	assert.NotNil(t, helmSteps)
+
+	chartDirsVisited := make(map[string]bool)
+
+	for _, helmStep := range helmSteps {
+		allCases := []internal.TestCase{}
+		if _, ok := chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)]; !ok {
+			customTestCases, err := getCustomTestCases(helmStep.ChartDirFromRoot(settings.TopologyDir))
+			assert.NoError(t, err)
+			allCases = append(allCases, customTestCases...)
+			chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)] = true
+		}
+
+		allCases = append(allCases, internal.TestCase{
+			Name:         fmt.Sprintf("%s-%s", helmStep.AKSCluster, helmStep.HelmStep.ReleaseName),
+			Namespace:    helmStep.HelmStep.ReleaseNamespace,
+			Values:       helmStep.ValuesFileFromRoot(settings.TopologyDir),
+			HelmChartDir: helmStep.ChartDirFromRoot(settings.TopologyDir),
+			TestData:     map[string]any{},
+			Implicit:     true,
+		})
+
+		for _, testCase := range allCases {
+			t.Run(testCase.Name, func(t *testing.T) {
+				manifest, err := runTest(t.Context(), settings, testCase)
+				assert.NoError(t, err)
+
+				for _, daemonSet := range strings.Split(manifest, "kind: DaemonSet")[1:] {
+					if nextDocument := strings.Index(daemonSet, "\n---"); nextDocument >= 0 {
+						daemonSet = daemonSet[:nextDocument]
+					}
+
+					if !strings.Contains(daemonSet, "updateStrategy:") ||
+						!strings.Contains(daemonSet, "type: RollingUpdate") ||
+						!strings.Contains(daemonSet, "rollingUpdate:") ||
+						!strings.Contains(daemonSet, "maxUnavailable: 100%") {
+						t.Errorf("DaemonSet must set spec.updateStrategy.type=RollingUpdate and spec.updateStrategy.rollingUpdate.maxUnavailable=100%%")
+					}
+				}
+			})
+		}
+	}
+}
+
 func RunTestACRValues(t *testing.T, settingsPath string) {
 	settings, err := internal.LoadSettings(settingsPath)
 	assert.NoError(t, err)
