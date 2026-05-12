@@ -15,8 +15,10 @@
 package testrunner
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -30,6 +32,7 @@ import (
 	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
+	apimachyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"sigs.k8s.io/yaml"
 
@@ -113,6 +116,46 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 	return fmt.Sprintf("%s\n%s", manifest, allHooks), nil
 }
 
+func validateDaemonSetUpdateStrategies(t *testing.T, manifest string) {
+	t.Helper()
+
+	decoder := apimachyaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(manifest)), 1024)
+	for {
+		var obj struct {
+			Kind     string `json:"kind"`
+			Metadata struct {
+				Name      string `json:"name"`
+				Namespace string `json:"namespace"`
+			} `json:"metadata"`
+			Spec struct {
+				UpdateStrategy struct {
+					Type          string `json:"type"`
+					RollingUpdate struct {
+						MaxUnavailable any `json:"maxUnavailable"`
+					} `json:"rollingUpdate"`
+				} `json:"updateStrategy"`
+			} `json:"spec"`
+		}
+
+		err := decoder.Decode(&obj)
+		if err == io.EOF {
+			return
+		}
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		if obj.Kind != "DaemonSet" {
+			continue
+		}
+
+		if obj.Spec.UpdateStrategy.Type != "RollingUpdate" ||
+			fmt.Sprint(obj.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable) != "100%" {
+			t.Errorf("DaemonSet %s/%s must set spec.updateStrategy.type=RollingUpdate and spec.updateStrategy.rollingUpdate.maxUnavailable=100%%", obj.Metadata.Namespace, obj.Metadata.Name)
+		}
+	}
+}
+
 func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 	testCaseFiles, err := internal.FindHelmTestFiles(filepath.Join(chartDir, internal.TestDataFromChartDir))
 	if err != nil {
@@ -175,6 +218,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 			t.Run(testCase.Name, func(t *testing.T) {
 				manifest, err := runTest(t.Context(), settings, testCase)
 				assert.NoError(t, err)
+				validateDaemonSetUpdateStrategies(t, manifest)
 				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
 				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
 				// exactly as the output directory - an exercise left for the future
@@ -187,57 +231,6 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 		}
 	}
 
-}
-
-func RunTestDaemonSetUpdateStrategies(t *testing.T, settingsPath string) {
-	settings, err := internal.LoadSettings(settingsPath)
-	assert.NoError(t, err)
-	assert.NotNil(t, settings)
-
-	helmSteps, err := internal.FindHelmSteps(settings.TopologyDir, settings.ConfigPath)
-	assert.NoError(t, err)
-	assert.NotNil(t, helmSteps)
-
-	chartDirsVisited := make(map[string]bool)
-
-	for _, helmStep := range helmSteps {
-		allCases := []internal.TestCase{}
-		if _, ok := chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)]; !ok {
-			customTestCases, err := getCustomTestCases(helmStep.ChartDirFromRoot(settings.TopologyDir))
-			assert.NoError(t, err)
-			allCases = append(allCases, customTestCases...)
-			chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)] = true
-		}
-
-		allCases = append(allCases, internal.TestCase{
-			Name:         fmt.Sprintf("%s-%s", helmStep.AKSCluster, helmStep.HelmStep.ReleaseName),
-			Namespace:    helmStep.HelmStep.ReleaseNamespace,
-			Values:       helmStep.ValuesFileFromRoot(settings.TopologyDir),
-			HelmChartDir: helmStep.ChartDirFromRoot(settings.TopologyDir),
-			TestData:     map[string]any{},
-			Implicit:     true,
-		})
-
-		for _, testCase := range allCases {
-			t.Run(testCase.Name, func(t *testing.T) {
-				manifest, err := runTest(t.Context(), settings, testCase)
-				assert.NoError(t, err)
-
-				for _, daemonSet := range strings.Split(manifest, "kind: DaemonSet")[1:] {
-					if nextDocument := strings.Index(daemonSet, "\n---"); nextDocument >= 0 {
-						daemonSet = daemonSet[:nextDocument]
-					}
-
-					if !strings.Contains(daemonSet, "updateStrategy:") ||
-						!strings.Contains(daemonSet, "type: RollingUpdate") ||
-						!strings.Contains(daemonSet, "rollingUpdate:") ||
-						!strings.Contains(daemonSet, "maxUnavailable: 100%") {
-						t.Errorf("DaemonSet must set spec.updateStrategy.type=RollingUpdate and spec.updateStrategy.rollingUpdate.maxUnavailable=100%%")
-					}
-				}
-			})
-		}
-	}
 }
 
 func RunTestACRValues(t *testing.T, settingsPath string) {

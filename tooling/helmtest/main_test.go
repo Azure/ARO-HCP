@@ -27,7 +27,3 @@ func TestHelmTemplate(t *testing.T) {
 func TestACRValues(t *testing.T) {
 	testrunner.RunTestACRValues(t, "settings.yaml")
 }
-
-func TestDaemonSetUpdateStrategies(t *testing.T) {
-	testrunner.RunTestDaemonSetUpdateStrategies(t, "settings.yaml")
-}
