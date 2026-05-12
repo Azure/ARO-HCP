@@ -165,14 +165,14 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// AROSLSRE-836: skip TLS verification unconditionally until the backend
 	// blocks cluster Succeeded on ingress cert readiness. Remove after 2026-06-12.
 	if time.Now().After(time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC)) {
-		ginkgo.Fail("AROSLSRE-836 timebomb: TLS skip mitigation expired. Fix the backend or extend the deadline.")
+		return fmt.Errorf("AROSLSRE-836 timebomb: TLS skip mitigation expired. Fix the backend or extend the deadline")
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
 	}
 	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
+		Transport: transport,
 	}
 	startTime := time.Now()
 	logged5Min := false
