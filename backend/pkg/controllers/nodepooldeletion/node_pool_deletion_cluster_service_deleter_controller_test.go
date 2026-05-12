@@ -139,6 +139,15 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 			wantErrContain: "failed to delete cluster-service NodePool",
 		},
 		{
+			name: "CS delete returns parent cluster isuninstalling - stamp immediately",
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Second)}
+			}),
+			expectCSDelete:                      true,
+			csDeleteErr:                         fakeOCMParentClusterUninstallingError(),
+			wantClusterServiceDeletionTimestamp: true,
+		},
+		{
 			name: "node pool not found",
 		},
 	}
@@ -220,6 +229,14 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 
 func fakeOCMNotFoundError() error {
 	e, _ := ocmerrors.NewError().Status(http.StatusNotFound).Reason("not found").Build()
+	return e
+}
+
+func fakeOCMParentClusterUninstallingError() error {
+	e, _ := ocmerrors.NewError().
+		Status(http.StatusBadRequest).
+		Reason("Cannot delete node pool: its parent cluster must be in a deletable state. Parent cluster state: 'uninstalling'").
+		Build()
 	return e
 }
 
