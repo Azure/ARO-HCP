@@ -113,7 +113,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(max by (cluster) (changes(etcd_server_leader_changes_seen_total[1d])) <= 5) or vector(0)",
+          "expr": "count(max by (cluster) (increase(etcd_server_leader_changes_seen_total[1d])) <= 5) or vector(0)",
           "instant": true,
           "legendFormat": "Stable Clusters",
           "range": false,
@@ -204,7 +204,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(max by (cluster) (changes(etcd_server_leader_changes_seen_total[1d])))",
+          "expr": "sum(max by (cluster) (increase(etcd_server_leader_changes_seen_total[1d])))",
           "instant": true,
           "legendFormat": "Total Leader Changes",
           "range": false,
@@ -376,7 +376,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster!=\"\"}[5m])) by (le)) * 1000",
+          "expr": "max(histogram_quantile(0.99, sum by (cluster, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster!=\"\"}[5m])))) * 1000",
           "instant": true,
           "legendFormat": "P99 WAL Fsync",
           "range": false,
@@ -466,7 +466,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(etcd_disk_backend_commit_duration_seconds_bucket{cluster!=\"\"}[5m])) by (le)) * 1000",
+          "expr": "max(histogram_quantile(0.99, sum by (cluster, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{cluster!=\"\"}[5m])))) * 1000",
           "instant": true,
           "legendFormat": "P99 Backend Commit",
           "range": false,
@@ -556,7 +556,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(etcd_network_peer_round_trip_time_seconds_bucket{cluster!=\"\"}[5m])) by (le)) * 1000",
+          "expr": "max(histogram_quantile(0.99, sum by (cluster, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{cluster!=\"\"}[5m])))) * 1000",
           "instant": true,
           "legendFormat": "P99 Peer RTT",
           "range": false,
@@ -1007,7 +1007,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by (cluster) (changes(etcd_server_leader_changes_seen_total[1h])) > 3",
+          "expr": "max by (cluster) (increase(etcd_server_leader_changes_seen_total[1h])) > 3",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1107,7 +1107,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by (cluster) (changes(etcd_server_leader_changes_seen_total[1d])) > 10",
+          "expr": "max by (cluster) (increase(etcd_server_leader_changes_seen_total[1d])) > 10",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1207,7 +1207,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by (cluster) (changes(etcd_server_leader_changes_seen_total{cluster!=\"\"}[1d])) > 5",
+          "expr": "max by (cluster) (increase(etcd_server_leader_changes_seen_total{cluster!=\"\"}[1d])) > 5",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -1258,7 +1258,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Stable (≤5 changes/24h)"
+                "value": "Stable (\u22645 changes/24h)"
               },
               {
                 "id": "color",
@@ -1337,7 +1337,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(max by (cluster) (changes(etcd_server_leader_changes_seen_total[1d])) <= 5) or vector(0)",
+          "expr": "count(max by (cluster) (increase(etcd_server_leader_changes_seen_total[1d])) <= 5) or vector(0)",
           "format": "table",
           "instant": true,
           "legendFormat": "Stable",
@@ -1351,7 +1351,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(max by (cluster) (changes(etcd_server_leader_changes_seen_total[1d])) > 10) or vector(0)",
+          "expr": "count(max by (cluster) (increase(etcd_server_leader_changes_seen_total[1d])) > 10) or vector(0)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1366,7 +1366,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(max by (cluster) (changes(etcd_server_leader_changes_seen_total{cluster!=\"\"}[1d])) > 5) or vector(0)",
+          "expr": "count(max by (cluster) (increase(etcd_server_leader_changes_seen_total{cluster!=\"\"}[1d])) > 5) or vector(0)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1582,7 +1582,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "max by (cluster) (changes(etcd_server_leader_changes_seen_total{cluster!=\"\"}[1h]))",
+          "expr": "max by (cluster) (increase(etcd_server_leader_changes_seen_total{cluster!=\"\"}[1h]))",
           "instant": false,
           "legendFormat": "{{cluster}}",
           "range": true,
