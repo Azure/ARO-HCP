@@ -146,7 +146,7 @@ var _ = Describe("Customer", func() {
 				}
 				Expect(resp.Properties.Console.URL).NotTo(BeNil(), "cluster Properties.Console.URL was nil")
 				consoleURL = *resp.Properties.Console.URL
-				fmt.Fprintln(GinkgoWriter, "Console URL found:", consoleURL)
+				GinkgoLogr.Info("Console URL found", "url", consoleURL)
 				return true
 			}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(BeTrue())
 
@@ -157,10 +157,10 @@ var _ = Describe("Customer", func() {
 			Eventually(func() error {
 				certs, err := tlsCertsFromURL(ctx, consoleUrlWithPort)
 				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "error fetching cert: %v\n", err)
+					GinkgoLogr.Info("Ingress certificate check", "status", "failed", "error", err.Error())
 					return err
 				}
-				fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", certs[0].Issuer)
+				GinkgoLogr.Info("Ingress certificate issuer", "issuer", certs[0].Issuer.String())
 				return verifyCertChain(certs, trustedCAs)
 			}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect ingress certificate to be signed by a trusted Azure CA")
