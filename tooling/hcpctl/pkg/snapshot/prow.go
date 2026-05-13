@@ -128,20 +128,20 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 }
 
 // FetchProwJobData downloads config and test results from a Prow job's GCS artifacts.
-// Returns the Kusto config and all failed tests.
-func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, []FailedTest, error) {
+// Returns the Kusto config, all failed tests, and the full set of test results.
+func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, []FailedTest, extensiontests.ExtensionTestResults, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create GCS client: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create GCS client: %w", err)
 	}
 	defer gcsClient.Close()
 
 	// Find the artifact directory.
 	artifactDir, err := findArtifactDir(ctx, gcsClient, info.JobName, info.GCSPrefix)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find artifact directory: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
 	logger.Info("Found artifact directory", "dir", artifactDir)
 
@@ -151,12 +151,12 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 	configGCSPath := fmt.Sprintf("%s/%s", artifactPrefix, configPath)
 	configData, err := downloadObject(ctx, gcsClient, configGCSPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
 	}
 
 	jobConfig, err := parseConfig(configData, info.IsPR)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse config.yaml: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to parse config.yaml: %w", err)
 	}
 	logger.Info("Parsed job config",
 		"region", jobConfig.Region,
@@ -173,10 +173,10 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 	testResultsPrefix := fmt.Sprintf("%s/%s/artifacts/extension_test_result_e2e_", artifactPrefix, testStep)
 	testResultFiles, err := listObjects(ctx, gcsClient, testResultsPrefix)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list test result files: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to list test result files: %w", err)
 	}
 	if len(testResultFiles) == 0 {
-		return nil, nil, fmt.Errorf("no extension_test_result_e2e_*.json files found under %s", testResultsPrefix)
+		return nil, nil, nil, fmt.Errorf("no extension_test_result_e2e_*.json files found under %s", testResultsPrefix)
 	}
 
 	var allResults extensiontests.ExtensionTestResults
@@ -211,12 +211,12 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 		if result.EndTime != nil {
 			ft.EndTime = time.Time(*result.EndTime)
 		}
-		ft.ResourceGroup = extractResourceGroup(result.Output)
+		ft.ResourceGroup = ExtractResourceGroup(result.Output)
 		failed = append(failed, ft)
 	}
 
 	logger.Info("Found test results", "total", len(allResults), "failed", len(failed))
-	return jobConfig, failed, nil
+	return jobConfig, failed, allResults, nil
 }
 
 // resourceGroupRegex matches log lines like:
@@ -224,9 +224,9 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 //	"msg"="creating resource group" "resourceGroup"="private-keyvault-gxsj99"
 var resourceGroupRegex = regexp.MustCompile(`"resourceGroup"="([^"]+)"`)
 
-// extractResourceGroup parses the resource group name from test output logs.
+// ExtractResourceGroup parses the resource group name from test output logs.
 // Tests log a line like: "msg"="creating resource group" "resourceGroup"="<name>"
-func extractResourceGroup(output string) string {
+func ExtractResourceGroup(output string) string {
 	matches := resourceGroupRegex.FindStringSubmatch(output)
 	if len(matches) >= 2 {
 		return matches[1]

@@ -87,7 +87,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 	)
 
 	// Phase 1: Download Prow artifacts and parse config + failed tests.
-	jobConfig, failedTests, err := snapshotpkg.FetchProwJobData(ctx, o.prowInfo)
+	jobConfig, failedTests, _, err := snapshotpkg.FetchProwJobData(ctx, o.prowInfo)
 	if err != nil {
 		return fmt.Errorf("failed to fetch Prow job data: %w", err)
 	}
