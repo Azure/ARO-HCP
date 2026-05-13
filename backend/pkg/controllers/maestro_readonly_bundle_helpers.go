@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -44,6 +45,13 @@ const (
 // kubeContentMaxSizeBytes is the maximum serialized size (in bytes) stored as KubeContent in Cosmos.
 // 2MB is the maximum size of a Cosmos DB item (https://learn.microsoft.com/en-us/azure/cosmos-db/concepts-limits#per-item-limits).
 const kubeContentMaxSizeBytes = 1887436 // 2MB * 0.9
+
+// staleReadonlyBundleThreshold is how long a readonly bundle can have no status
+// feedback before it is considered stale and deleted so the create controller
+// can recreate it. This works around a Maestro race condition where the server
+// persists the bundle to Postgres but the event is never published to the
+// broker (AROSLSRE-833).
+const staleReadonlyBundleThreshold = 5 * time.Minute
 
 // buildInitialReadonlyMaestroBundle builds an initial readonly Maestro Bundle for a given resource specified in obj.
 // objResourceIdentifier is the resource identifier of the resource specified in obj.
@@ -199,31 +207,32 @@ func getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(maestroBundle *work
 }
 
 // calculateManagementClusterContentFromMaestroBundle builds the desired ManagementClusterContent from a Maestro
-// bundle reference. parentResourceID is the ARM ID of the document parent
+// bundle reference. parentResourceID is the ARM ID of the document parent.
+// It also returns the ManifestWork that was fetched from Maestro (nil when the bundle was not found).
 func calculateManagementClusterContentFromMaestroBundle(
 	ctx context.Context,
 	parentResourceID *azcorearm.ResourceID,
 	maestroBundleReference *api.MaestroBundleReference,
 	maestroClient maestro.Client,
-) (*api.ManagementClusterContent, error) {
+) (*api.ManagementClusterContent, *workv1.ManifestWork, error) {
 	managementClusterContentResourceID := controllerutils.ManagementClusterContentResourceIDFromParentResourceID(parentResourceID, maestroBundleReference.Name)
 	desired := controllerutils.NewInitialManagementClusterContent(managementClusterContentResourceID)
 
 	existingMaestroBundle, err := maestroClient.Get(ctx, maestroBundleReference.MaestroAPIMaestroBundleName, metav1.GetOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
-		return nil, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to get Maestro Bundle: %w", err))
 	}
 	if k8serrors.IsNotFound(err) {
 		degradedCondition := buildDegradedCondition(metav1.ConditionTrue, "MaestroBundleNotFound", err.Error())
 		meta.SetStatusCondition(&desired.Status.Conditions, degradedCondition)
-		return desired, nil
+		return desired, nil, nil
 	}
 
 	rawBytes, err := getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(existingMaestroBundle)
 	if err != nil {
 		degradedCondition := buildDegradedCondition(metav1.ConditionTrue, "MaestroBundleStatusFeedbackNotAvailable", err.Error())
 		meta.SetStatusCondition(&desired.Status.Conditions, degradedCondition)
-		return desired, nil
+		return desired, existingMaestroBundle, nil
 	}
 
 	kubeContentMaxSizeExceeded := len(rawBytes) > kubeContentMaxSizeBytes
@@ -235,16 +244,16 @@ func calculateManagementClusterContentFromMaestroBundle(
 	unstructuredObj := &unstructured.Unstructured{}
 	err = json.Unmarshal(rawBytes, unstructuredObj)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal object from status feedback value: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to unmarshal object from status feedback value: %w", err))
 	}
 	kind := unstructuredObj.GetKind()
 	if kind == "" {
-		return nil, utils.TrackError(fmt.Errorf("expected kind to be not empty"))
+		return nil, nil, utils.TrackError(fmt.Errorf("expected kind to be not empty"))
 	}
 
 	objs, err := buildObjectsFromUnstructuredObj(unstructuredObj)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to build objects from unstructured object: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to build objects from unstructured object: %w", err))
 	}
 	var degradedCondition metav1.Condition
 	if !kubeContentMaxSizeExceeded {
@@ -257,33 +266,62 @@ func calculateManagementClusterContentFromMaestroBundle(
 	}
 	meta.SetStatusCondition(&desired.Status.Conditions, degradedCondition)
 
-	return desired, nil
+	return desired, existingMaestroBundle, nil
+}
+
+// isStaleMaestroReadonlyBundle checks whether a Maestro readonly bundle is stale
+// (i.e. it has no status feedback and was created long enough ago that it should
+// have received one). A stale bundle indicates the Maestro race condition
+// described in AROSLSRE-833 where the bundle was persisted to Postgres but the
+// event was never published to the broker.
+// mcc is the ManagementClusterContent that was already computed and persisted.
+// bundle is the ManifestWork that was already fetched from Maestro (may be nil
+// when the bundle was not found).
+func isStaleMaestroReadonlyBundle(
+	mcc *api.ManagementClusterContent,
+	bundle *workv1.ManifestWork,
+) bool {
+	if mcc == nil || bundle == nil {
+		return false
+	}
+
+	degraded := meta.FindStatusCondition(mcc.Status.Conditions, "Degraded")
+	if degraded == nil || degraded.Status != metav1.ConditionTrue || degraded.Reason != "MaestroBundleStatusFeedbackNotAvailable" {
+		return false
+	}
+
+	if bundle.CreationTimestamp.IsZero() {
+		return false
+	}
+
+	return time.Since(bundle.CreationTimestamp.Time) > staleReadonlyBundleThreshold
 }
 
 // readAndPersistMaestroReadonlyBundleContent reads a Maestro readonly bundle and creates or updates the corresponding
 // ManagementClusterContent in Cosmos. parentResourceID is the resource id of the parent resource of the ManagementClusterContent.
+// It returns the desired ManagementClusterContent and the ManifestWork fetched from Maestro (nil when not found).
 func readAndPersistMaestroReadonlyBundleContent(
 	ctx context.Context,
 	parentResourceID *azcorearm.ResourceID,
 	maestroBundleReference *api.MaestroBundleReference,
 	maestroClient maestro.Client,
 	managementClusterContentsDBClient database.ManagementClusterContentCRUD,
-) error {
-	desired, err := calculateManagementClusterContentFromMaestroBundle(ctx, parentResourceID, maestroBundleReference, maestroClient)
+) (*api.ManagementClusterContent, *workv1.ManifestWork, error) {
+	desired, bundle, err := calculateManagementClusterContentFromMaestroBundle(ctx, parentResourceID, maestroBundleReference, maestroClient)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to calculate ManagementClusterContent from Maestro Bundle: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to calculate ManagementClusterContent from Maestro Bundle: %w", err))
 	}
 
 	existing, err := managementClusterContentsDBClient.Get(ctx, desired.ResourceID.Name)
 	if err != nil && !database.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to get ManagementClusterContent: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to get ManagementClusterContent: %w", err))
 	}
 	if database.IsNotFoundError(err) {
 		_, err := managementClusterContentsDBClient.Create(ctx, desired, nil)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to create ManagementClusterContent: %w", err))
+			return nil, nil, utils.TrackError(fmt.Errorf("failed to create ManagementClusterContent: %w", err))
 		}
-		return nil
+		return desired, bundle, nil
 	}
 
 	// We set the Cosmos ETag to the existing one to avoid conflicts when replacing the document
@@ -322,13 +360,13 @@ func readAndPersistMaestroReadonlyBundleContent(
 	desired.Status.Conditions = mergedConditions
 
 	if !controllerutils.NeedsUpdate(existing, desired) {
-		return nil
+		return desired, bundle, nil
 	}
 
 	_, err = managementClusterContentsDBClient.Replace(ctx, desired, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ManagementClusterContent: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to replace ManagementClusterContent: %w", err))
 	}
 
-	return nil
+	return desired, bundle, nil
 }

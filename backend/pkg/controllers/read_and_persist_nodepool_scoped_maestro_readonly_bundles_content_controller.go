@@ -130,7 +130,7 @@ func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) SyncOn
 
 	var syncErrors []error
 	for _, maestroBundleReference := range existingServiceProviderNodePool.Status.MaestroReadonlyBundles {
-		err = readAndPersistMaestroReadonlyBundleContent(ctx, existingNodePool.ID, maestroBundleReference, maestroClient, managementClusterContentsDBClient)
+		_, _, err = readAndPersistMaestroReadonlyBundleContent(ctx, existingNodePool.ID, maestroBundleReference, maestroClient, managementClusterContentsDBClient)
 		if err != nil {
 			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to read and persist NodePool: %w", err)))
 		}

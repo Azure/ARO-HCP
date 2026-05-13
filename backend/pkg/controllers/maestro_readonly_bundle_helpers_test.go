@@ -387,10 +387,10 @@ func TestMaestroReadonlyBundleHelpers_calculateManagementClusterContentFromMaest
 			errSub:  "failed to get Maestro Bundle",
 		},
 		{
-			name: "bundle has invalid status feedback - desired with degraded",
+			name: "bundle has invalid status feedback - desired with degraded condition",
 			maestroGet: func(m *maestro.MockClient) {
-				// Bundle with no status feedback values
 				b := &workv1.ManifestWork{
+					ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Now()},
 					Status: workv1.ManifestWorkStatus{
 						ResourceStatus: workv1.ManifestResourceStatus{
 							Manifests: []workv1.ManifestCondition{
@@ -420,7 +420,7 @@ func TestMaestroReadonlyBundleHelpers_calculateManagementClusterContentFromMaest
 			mockMaestro := maestro.NewMockClient(ctrl)
 			tt.maestroGet(mockMaestro)
 
-			got, err := calculateManagementClusterContentFromMaestroBundle(context.Background(), cluster.ID, ref, mockMaestro)
+			got, _, err := calculateManagementClusterContentFromMaestroBundle(context.Background(), cluster.ID, ref, mockMaestro)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errSub)
@@ -459,7 +459,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 		mccCRUD := mockResourcesDBClient.HCPClusters("sub", "rg").ManagementClusterContents("cluster")
 
-		err := readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
+		_, _, err := readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
 		require.NoError(t, err)
 
 		// Content should have been created (name = bundle internal name)
@@ -487,7 +487,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		_, err := mccCRUD.Create(ctx, existing, nil)
 		require.NoError(t, err)
 
-		err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
+		_, _, err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
 		require.NoError(t, err)
 
 		got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
@@ -499,8 +499,10 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 	t.Run("keeps existing kube content when desired has no content (degraded)", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockMaestro := maestro.NewMockClient(ctrl)
-		// Return bundle that has no valid status feedback so desired has no KubeContent
+		// Return a fresh bundle (created just now) that has no valid status feedback so desired has no KubeContent.
+		// Using a recent CreationTimestamp so the stale bundle self-heal logic does not trigger a Delete.
 		b := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Now()},
 			Status: workv1.ManifestWorkStatus{
 				ResourceStatus: workv1.ManifestResourceStatus{
 					Manifests: []workv1.ManifestCondition{
@@ -522,7 +524,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		_, err := mccCRUD.Create(ctx, existing, nil)
 		require.NoError(t, err)
 
-		err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
+		_, _, err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
 		require.NoError(t, err)
 
 		got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
@@ -544,7 +546,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
 		// Pre-create content that matches exactly what the syncer would compute (same KubeContent and Degraded=False condition)
 		// so that DeepEqual(existing, desired) is true and Replace is not called.
-		desired, err := calculateManagementClusterContentFromMaestroBundle(ctx, cluster.ID, ref, mockMaestro)
+		desired, _, err := calculateManagementClusterContentFromMaestroBundle(ctx, cluster.ID, ref, mockMaestro)
 		require.NoError(t, err)
 		require.NotNil(t, desired)
 		existing := &api.ManagementClusterContent{
@@ -554,7 +556,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		_, err = mccCRUD.Create(ctx, existing, nil)
 		require.NoError(t, err)
 
-		err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
+		_, _, err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
 		require.NoError(t, err)
 
 		// Document should still exist with same content (no Replace was needed)
@@ -580,7 +582,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 
 		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 		baseMCCCRUD := mockResourcesDBClient.HCPClusters("sub", "rg").ManagementClusterContents("cluster")
-		desired, err := calculateManagementClusterContentFromMaestroBundle(ctx, cluster.ID, ref, mockMaestro)
+		desired, _, err := calculateManagementClusterContentFromMaestroBundle(ctx, cluster.ID, ref, mockMaestro)
 		require.NoError(t, err)
 		require.NotNil(t, desired)
 		// Pre-create the same content via the underlying CRUD (so the counter wrapper isn't
@@ -589,7 +591,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		require.NoError(t, err)
 
 		counter := &callCountingMCCCRUD{ManagementClusterContentCRUD: baseMCCCRUD}
-		err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, counter)
+		_, _, err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, counter)
 		require.NoError(t, err)
 
 		assert.Equal(t, 0, counter.replaceCount, "expected no Replace calls when desired matches existing; CosmosMetadata.ExistingCosmosUID populated by the read conversion is not copied to desired and trips equality.Semantic.DeepEqual")
@@ -617,7 +619,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 			},
 		}
 
-		err := readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mockResourcesDBClient.mccCRUD)
+		_, _, err := readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mockResourcesDBClient.mccCRUD)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to replace ManagementClusterContent")
 		assert.True(t, database.IsPreconditionFailedError(err), "expected 412 Precondition Failed")
@@ -638,7 +640,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 			},
 		}
 
-		err := readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mockResourcesDBClient.mccCRUD)
+		_, _, err := readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mockResourcesDBClient.mccCRUD)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get ManagementClusterContent")
 		assert.Contains(t, err.Error(), "cosmos connection error")
@@ -677,7 +679,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		_, err := mccCRUD.Create(ctx, existing, nil)
 		require.NoError(t, err)
 
-		err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
+		_, _, err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
 		require.NoError(t, err)
 
 		got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
@@ -687,4 +689,94 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		assert.True(t, degraded.LastTransitionTime.Equal(&historicLTT), "expected LastTransitionTime from Cosmos to be preserved, got %v", degraded.LastTransitionTime)
 	})
 
+}
+
+func TestMaestroReadonlyBundleHelpers_isStaleMaestroReadonlyBundle(t *testing.T) {
+	t.Run("not stale when MCC is nil", func(t *testing.T) {
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
+		}
+		assert.False(t, isStaleMaestroReadonlyBundle(nil, bundle))
+	})
+
+	t.Run("not stale when bundle is nil", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "MaestroBundleStatusFeedbackNotAvailable"},
+				},
+			},
+		}
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, nil))
+	})
+
+	t.Run("not stale when MCC is not degraded", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionFalse, Reason: "NoErrors"},
+				},
+			},
+		}
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
+		}
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+	})
+
+	t.Run("not stale when degraded for a different reason", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "MaestroBundleNotFound"},
+				},
+			},
+		}
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
+		}
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+	})
+
+	t.Run("not stale when bundle has zero CreationTimestamp", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "MaestroBundleStatusFeedbackNotAvailable"},
+				},
+			},
+		}
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{},
+		}
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+	})
+
+	t.Run("not stale when bundle was created recently", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "MaestroBundleStatusFeedbackNotAvailable"},
+				},
+			},
+		}
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Now()},
+		}
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+	})
+
+	t.Run("stale when bundle is old and has no status feedback", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "MaestroBundleStatusFeedbackNotAvailable"},
+				},
+			},
+		}
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
+		}
+		assert.True(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+	})
 }
