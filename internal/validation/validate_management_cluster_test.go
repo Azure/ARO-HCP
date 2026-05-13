@@ -49,6 +49,7 @@ func validManagementCluster(t *testing.T) *fleet.ManagementCluster {
 			MaestroConsumerName:                                  "hcp-underlay-westus3-mgmt-1",
 			MaestroRESTAPIURL:                                    "http://maestro.maestro.svc.cluster.local:8000",
 			MaestroGRPCTarget:                                    "maestro-grpc.maestro.svc.cluster.local:8090",
+			KubeApplierCosmosContainerName:                       "Manifests-MC-1",
 		},
 	}
 }

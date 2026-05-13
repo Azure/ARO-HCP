@@ -1219,6 +1219,9 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 				require.NotNil(t, mc.Status.ClusterServiceProvisionShardID)
 				assert.Equal(t, api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")), *mc.Status.ClusterServiceProvisionShardID)
 
+				// Kube-applier
+				assert.Equal(t, "Manifests-MC-1", mc.Status.KubeApplierCosmosContainerName)
+
 				// Maestro config
 				assert.Equal(t, "test-consumer", mc.Status.MaestroConsumerName)
 				assert.Equal(t, "http://maestro.maestro.svc.cluster.local:8000", mc.Status.MaestroRESTAPIURL)

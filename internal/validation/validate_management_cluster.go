@@ -108,6 +108,9 @@ var (
 	toManagementClusterStatusMaestroGRPCTarget = func(oldObj *fleet.ManagementClusterStatus) *string {
 		return &oldObj.MaestroGRPCTarget
 	}
+	toManagementClusterStatusKubeApplierCosmosContainerName = func(oldObj *fleet.ManagementClusterStatus) *string {
+		return &oldObj.KubeApplierCosmosContainerName
+	}
 )
 
 func validateManagementClusterStatus(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *fleet.ManagementClusterStatus) field.ErrorList {
@@ -155,6 +158,10 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 	errs = append(errs, HostPort(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
+
+	// KubeApplierCosmosContainerName — required, immutable
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
 
 	return errs
 }
