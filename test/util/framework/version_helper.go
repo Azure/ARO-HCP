@@ -253,6 +253,64 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 	return out, nil
 }
 
+// FilterCandidatesToGatewayVersions filters candidates to those with an upgrade path
+// to the next minor version (targetMinor.Minor+1). If the next minor channel does not
+// exist in Cincinnati, all candidates are returned unfiltered. This mirrors the
+// controller's selectBestVersionFromCandidates gateway logic.
+// Input candidates should be sorted ascending (lowest first).
+func FilterCandidatesToGatewayVersions(ctx context.Context, channelGroup string, targetMinor semver.Version, candidates []semver.Version) ([]semver.Version, error) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	nextMinor := fmt.Sprintf("%d.%d", targetMinor.Major, targetMinor.Minor+1)
+	nextMinorChannel := fmt.Sprintf("%s-%s", channelGroup, nextMinor)
+
+	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
+	if err != nil {
+		return nil, fmt.Errorf("get Cincinnati URI for channel %s: %w", channelGroup, err)
+	}
+	transport, _ := http.DefaultTransport.(*http.Transport)
+	if transport == nil {
+		transport = &http.Transport{}
+	}
+	client := cvocincinnati.NewClient(uuid.NameSpaceDNS, transport, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
+
+	latestCandidate := candidates[len(candidates)-1]
+	_, probeErr := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
+		_, updates, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", nextMinorChannel, latestCandidate)
+		return updates, err
+	})
+	if probeErr != nil {
+		if cincinnati.IsCincinnatiVersionNotFoundError(probeErr) {
+			return candidates, nil
+		}
+		return nil, fmt.Errorf("probe next minor channel %s: %w", nextMinorChannel, probeErr)
+	}
+
+	var gateways []semver.Version
+	for _, candidate := range candidates {
+		updates, err := retryOnTransientError(ctx, func() ([]configv1.Release, error) {
+			_, u, _, err := client.GetUpdates(ctx, cincinnatiURI, "multi", "multi", nextMinorChannel, candidate)
+			return u, err
+		})
+		if err != nil {
+			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
+				continue
+			}
+			return nil, fmt.Errorf("check gateway for %s: %w", candidate, err)
+		}
+
+		for _, release := range updates {
+			if strings.Contains(release.Version, nextMinor+".") {
+				gateways = append(gateways, candidate)
+				break
+			}
+		}
+	}
+	return gateways, nil
+}
+
 // GetLatestInstallVersion returns the latest install version for the given channel group and version.
 // For nightly channels, it returns the latest accepted nightly tag.
 // For all other channels, it returns the latest version in the minor.

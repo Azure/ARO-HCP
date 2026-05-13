@@ -77,7 +77,14 @@ var _ = Describe("Customer", func() {
 				Skip(fmt.Sprintf("no Cincinnati upgrade candidates from install %s within target minor %s; cannot exercise control plane y-stream upgrade",
 					installVersion, targetVer.String()))
 			}
-			desiredVersion := candidates[len(candidates)-1].String()
+
+			gatewayCandidates, err := framework.FilterCandidatesToGatewayVersions(ctx, channelGroup, targetVer, candidates)
+			Expect(err).NotTo(HaveOccurred())
+			if len(gatewayCandidates) == 0 {
+				Skip(fmt.Sprintf("no gateway candidates in target minor %s to next minor %d.%d on channel %s; controller will not perform y-stream upgrade",
+					targetVer.String(), targetVer.Major, targetVer.Minor+1, channelGroup))
+			}
+			desiredVersion := gatewayCandidates[len(gatewayCandidates)-1].String()
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
