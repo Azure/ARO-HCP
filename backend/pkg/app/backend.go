@@ -591,6 +591,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		managementClusterLister,
 		backendInformers,
 	)
+	controlPlaneIdentitiesPermissionValidationController := validationcontrollers.NewClusterValidationController(
+		validations.NewControlPlaneIdentitiesPermissionValidation(b.options.FPAMIDataplaneClientBuilder),
+		activeOperationLister,
+		b.options.CosmosDBClient,
+		backendInformers,
+	)
 
 	nodePoolPropertiesSyncController := nodepoolpropertiescontroller.NewNodePoolPropertiesSyncController(
 		b.options.ResourcesDBClient,
@@ -653,6 +659,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
+				go controlPlaneIdentitiesPermissionValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go maestroCreateClusterScopedReadonlyBundlesController.Run(ctx, 20)
 				go maestroReadAndPersistClusterScopedReadonlyBundlesContentController.Run(ctx, 20)
