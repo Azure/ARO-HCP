@@ -111,12 +111,12 @@ var _ = Describe("Customer", func() {
 					return fmt.Errorf("failed to fetch TLS certificate from %s: %w", *apiServerURL, err)
 				}
 
-				GinkgoLogr.Info("API certificate issuer", "issuer", actualAPICerts[0].Issuer)
 				err = verifyCertChain(actualAPICerts, trustedCAs)
 				if err != nil {
 					return fmt.Errorf("certificate verification failed for %s (issuer: %v): %w",
 						*apiServerURL, actualAPICerts[0].Issuer, err)
 				}
+				GinkgoLogr.Info("API certificate issuer", "issuer", actualAPICerts[0].Issuer)
 				return nil
 			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect API certificate to be signed by a trusted Azure CA")
