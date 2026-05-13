@@ -47,13 +47,13 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 				return any(cosmosObj).(*InternalAPIType), nil
 			}
 
-			// fill in the new ResourceID field for old data that is missing it. This means we didn't migrate something.
-			// this will happen frequently when the new backend is running against an old frontend.
-			resourceIDFromOldCosmosID, err := oldCosmosIDToResourceID(cosmosObj.ID)
-			if err != nil {
-				return nil, utils.TrackError(fmt.Errorf("expected old cosmosID and got %q", castObj.ID))
+			// Best-effort: derive ResourceID from a legacy pipe-delimited cosmosID. When that fails
+			// (e.g. the cosmosID is a bare UUID, as it is for operation documents), surface the doc
+			// with nil ResourceID rather than halting the iterator — cleanup controllers handle the
+			// nil case and need to see these rows to delete them.
+			if resourceIDFromOldCosmosID, err := oldCosmosIDToResourceID(cosmosObj.ID); err == nil {
+				cosmosObj.ResourceID = resourceIDFromOldCosmosID
 			}
-			cosmosObj.ResourceID = resourceIDFromOldCosmosID
 
 			return any(cosmosObj).(*InternalAPIType), nil
 		default:
