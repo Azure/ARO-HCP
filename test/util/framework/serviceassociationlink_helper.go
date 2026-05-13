@@ -16,11 +16,14 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/onsi/ginkgo/v2"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -40,10 +43,6 @@ func (tc *perItOrDescribeTestContext) deleteRedHatOpenShiftServiceAssociationLin
 	resourceGroupName string,
 	creds FPACredentials,
 ) error {
-	if !creds.IsConfigured() {
-		return nil
-	}
-
 	networkClientFactory, err := tc.GetARMNetworkClientFactory(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get ARM network client factory: %w", err)
@@ -181,6 +180,19 @@ func isRedHatOpenShiftServiceAssociationLink(sal *armnetwork.ServiceAssociationL
 	return false
 }
 
+func isResourceNotFoundError(err error) bool {
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) {
+		if responseErr.StatusCode == http.StatusNotFound {
+			return true
+		}
+		if responseErr.ErrorCode == "ResourceNotFound" {
+			return true
+		}
+	}
+	return false
+}
+
 func deleteResourceByID(
 	ctx context.Context,
 	client *armresources.Client,
@@ -189,11 +201,19 @@ func deleteResourceByID(
 ) error {
 	poller, err := client.BeginDeleteByID(ctx, resourceID, apiVersion, nil)
 	if err != nil {
+		// If the resource is already deleted (404), treat as success
+		if isResourceNotFoundError(err) {
+			return nil
+		}
 		return err
 	}
 
 	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
 		Frequency: StandardPollInterval,
 	})
+	if err != nil && isResourceNotFoundError(err) {
+		// Resource was deleted during polling
+		return nil
+	}
 	return err
 }
