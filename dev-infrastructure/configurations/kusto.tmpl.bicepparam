@@ -7,8 +7,6 @@ param tier = '{{ .kusto.tier }}'
 
 param kustoName = '{{ .kusto.kustoName }}'
 
-param grafanaResourceId = '__grafanaResourceId__'
-
 param manageInstance = {{ .kusto.manageInstance }}
 
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'

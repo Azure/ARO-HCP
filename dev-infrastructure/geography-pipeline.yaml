@@ -48,12 +48,27 @@ resourceGroups:
     template: templates/kusto.bicep
     parameters: configurations/kusto.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: global
+      step: output
+  - name: grafana-kusto-grant
+    action: ARM
+    template: templates/kusto-grafana-viewer.bicep
+    parameters: configurations/kusto-grafana-viewer.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
     variables:
     - name: grafanaResourceId
       input:
         resourceGroup: global
         step: output
         name: grafanaResourceId
+    automatedRetry:
+      errorContainsAny:
+      - "AAD principal was not found"
+      maximumRetryCount: 7
+      durationBetweenRetries: 1m
     dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
     - resourceGroup: global
       step: output

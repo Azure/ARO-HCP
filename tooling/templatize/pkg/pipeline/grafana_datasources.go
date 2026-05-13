@@ -106,6 +106,14 @@ func resolveGrafanaADXOptions(serviceGroup string, adx *types.GrafanaADXDatasour
 	if err != nil {
 		return nil, err
 	}
+
+	if !enabled {
+		return &resolvedGrafanaADXOptions{
+			Enabled:            false,
+			DeleteWhenDisabled: adx.DeleteWhenDisabled,
+		}, nil
+	}
+
 	geographies, err := resolveOptionalString(serviceGroup, "adx.geographies", adx.Geographies, cfg, outputs)
 	if err != nil {
 		return nil, err
