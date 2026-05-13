@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
@@ -36,6 +37,7 @@ import (
 type ControllerInitializationInput struct {
 	ResourcesDBClient    database.ResourcesDBClient
 	BillingDBClient      database.BillingDBClient
+	KubeApplierDBClient  database.KubeApplierDBClient
 	SubscriptionLister   listers.SubscriptionLister
 	ClusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -110,8 +112,13 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	}
 
 	controllerInput := &ControllerInitializationInput{
-		ResourcesDBClient:    storageIntegrationTestInfo.ResourcesDBClient(),
-		BillingDBClient:      storageIntegrationTestInfo.BillingDBClient(),
+		ResourcesDBClient: storageIntegrationTestInfo.ResourcesDBClient(),
+		BillingDBClient:   storageIntegrationTestInfo.BillingDBClient(),
+		// An empty mock — populated for *Desire-specific tests via overlay. Pre-populating
+		// here keeps tests that don't touch *Desires from accidentally exercising a nil
+		// kube-applier client; the no-op pass over an empty container is exactly what
+		// "no orphan desires" means in those scenarios.
+		KubeApplierDBClient:  databasetesting.NewMockKubeApplierDBClient(),
 		ClusterServiceClient: clusterServiceMockInfo.MockClusterServiceClient,
 	}
 

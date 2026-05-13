@@ -52,6 +52,15 @@ type KubeApplierDBClient interface {
 	// queries only the named partition. The kube-applier binary uses this so
 	// it can feed informers without holding container-wide credentials.
 	PartitionListers(managementCluster string) KubeApplierGlobalListers
+
+	// UntypedCRUD returns an UntypedResourceCRUD that walks the kube-applier container
+	// for descendents of parentResourceID. Queries are cross-partition (the kube-applier
+	// container is partitioned by management-cluster name, which the caller — e.g. the
+	// subscription-scoped orphan cleanup controller — does not generally know up front).
+	// Get and Delete(resourceID) on the returned CRUD return errors; cleanup callers
+	// should use ListRecursive + DeleteByCosmosID using the partitionKey from the
+	// listed row. Only callers with container-wide credentials should use this.
+	UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error)
 }
 
 // KubeApplierApplyDesireCRUD provides parent-scoped ResourceCRUD access to
@@ -167,6 +176,10 @@ func (c *kubeApplierCosmosDBClient) PartitionListers(managementCluster string) K
 		kubeApplier:  c.kubeApplier,
 		partitionKey: strings.ToLower(managementCluster),
 	}
+}
+
+func (c *kubeApplierCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
+	return newKubeApplierUntypedCRUD(c.kubeApplier, parentResourceID), nil
 }
 
 // kubeApplierCRUD implements KubeApplierCRUD against a Cosmos container.

@@ -140,6 +140,102 @@ func (m *MockKubeApplierDBClient) PartitionListers(managementCluster string) dat
 	}
 }
 
+func (m *MockKubeApplierDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (database.UntypedResourceCRUD, error) {
+	return &mockKubeApplierUntypedCRUD{store: m, parentResourceID: parentResourceID}, nil
+}
+
+// mockKubeApplierUntypedCRUD mirrors the production kubeApplierUntypedCRUD: cross-partition
+// listing, deletion only by cosmosID. Get and Delete(resourceID) error for the same reason as
+// in production — a *Desire's partition key isn't derivable from its resourceID.
+type mockKubeApplierUntypedCRUD struct {
+	store            *MockKubeApplierDBClient
+	parentResourceID azcorearm.ResourceID
+}
+
+var _ database.UntypedResourceCRUD = &mockKubeApplierUntypedCRUD{}
+
+func (k *mockKubeApplierUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*database.TypedDocument, error) {
+	return nil, fmt.Errorf("kube-applier UntypedCRUD.Get is not supported")
+}
+
+func (k *mockKubeApplierUntypedCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
+	return k.listInternal(ctx, true)
+}
+
+func (k *mockKubeApplierUntypedCRUD) ListRecursive(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
+	return k.listInternal(ctx, false)
+}
+
+func (k *mockKubeApplierUntypedCRUD) listInternal(ctx context.Context, nonRecursive bool) (database.DBClientIterator[database.TypedDocument], error) {
+	allDocs := k.store.GetAllDocuments()
+
+	prefix := strings.ToLower(k.parentResourceID.String()) + "/"
+	requiredSlashes := strings.Count(k.parentResourceID.String(), "/") + 2
+	if strings.EqualFold(k.parentResourceID.ResourceType.Type, "resourceGroups") {
+		requiredSlashes = strings.Count(k.parentResourceID.String(), "/") + 4
+	}
+
+	var ids []string
+	var items []*database.TypedDocument
+
+	for _, data := range allDocs {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+
+		if typedDoc.ResourceID != nil && !strings.HasPrefix(strings.ToLower(typedDoc.ResourceID.String()), prefix) {
+			continue
+		}
+
+		if nonRecursive && typedDoc.ResourceID != nil {
+			if strings.Count(typedDoc.ResourceID.String(), "/") != requiredSlashes {
+				continue
+			}
+		}
+
+		docCopy := typedDoc
+		docPointer, err := database.CosmosToInternal[database.TypedDocument, database.TypedDocument](&docCopy)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, docPointer.ID)
+		items = append(items, docPointer)
+	}
+
+	return newMockIterator(ids, items), nil
+}
+
+func (k *mockKubeApplierUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {
+	return fmt.Errorf("kube-applier UntypedCRUD.Delete is not supported")
+}
+
+func (k *mockKubeApplierUntypedCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
+	k.store.DeleteDocument(cosmosID)
+	return nil
+}
+
+func (k *mockKubeApplierUntypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName string) (database.UntypedResourceCRUD, error) {
+	if len(resourceName) == 0 {
+		return nil, fmt.Errorf("resourceName is required")
+	}
+	parts := []string{k.parentResourceID.String()}
+	switch {
+	case strings.EqualFold(resourceType.Type, "resourcegroups"):
+	case resourceType.Namespace == api.ProviderNamespace && k.parentResourceID.ResourceType.Namespace != api.ProviderNamespace:
+		parts = append(parts, "providers", resourceType.Namespace)
+	case resourceType.Namespace != api.ProviderNamespace && k.parentResourceID.ResourceType.Namespace == api.ProviderNamespace:
+		return nil, fmt.Errorf("cannot switch to a non-RH provider: %q", resourceType.Namespace)
+	}
+	parts = append(parts, resourceType.Types[len(resourceType.Types)-1])
+	parts = append(parts, resourceName)
+	newParent, err := azcorearm.ParseResourceID(strings.Join(parts, "/"))
+	if err != nil {
+		return nil, err
+	}
+	return &mockKubeApplierUntypedCRUD{store: k.store, parentResourceID: *newParent}, nil
+}
+
 type mockKubeApplierCRUD struct {
 	store             *MockKubeApplierDBClient
 	managementCluster string

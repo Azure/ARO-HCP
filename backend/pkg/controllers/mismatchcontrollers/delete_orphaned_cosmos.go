@@ -28,6 +28,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -39,20 +41,33 @@ import (
 type deleteOrphanedCosmosResources struct {
 	name string
 
-	subscriptionLister listers.SubscriptionLister
-	resourcesDBClient  database.ResourcesDBClient
+	subscriptionLister  listers.SubscriptionLister
+	resourcesDBClient   database.ResourcesDBClient
+	kubeApplierDBClient database.KubeApplierDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
 	queue workqueue.TypedRateLimitingInterface[string]
 }
 
-// NewDeleteOrphanedCosmosResourcesController periodically looks for cosmos objs that don't have an owning cluster and deletes them.
-func NewDeleteOrphanedCosmosResourcesController(resourcesDBClient database.ResourcesDBClient, subscriptionLister listers.SubscriptionLister) controllerutils.Controller {
+// NewDeleteOrphanedCosmosResourcesController periodically looks for cosmos objs that don't have an
+// owning cluster and deletes them. The sweep covers two containers:
+//
+//   - the resources container, which holds clusters/nodepools and their nested children;
+//     orphans here are children whose parent resource has been removed.
+//   - the kube-applier container, which holds *Desire documents nested (in resourceID space)
+//     under a cluster or nodepool. Their partitionKey is the management cluster name and is
+//     not derivable from the resourceID, so we list cross-partition and delete by cosmosID.
+func NewDeleteOrphanedCosmosResourcesController(
+	resourcesDBClient database.ResourcesDBClient,
+	kubeApplierDBClient database.KubeApplierDBClient,
+	subscriptionLister listers.SubscriptionLister,
+) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{
-		name:               "DeleteOrphanedCosmosResources",
-		subscriptionLister: subscriptionLister,
-		resourcesDBClient:  resourcesDBClient,
+		name:                "DeleteOrphanedCosmosResources",
+		subscriptionLister:  subscriptionLister,
+		resourcesDBClient:   resourcesDBClient,
+		kubeApplierDBClient: kubeApplierDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -152,6 +167,80 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 				errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete %v in %v: %w", currResourceIDString, currResource.ResourceID.Parent.String(), err)))
 			}
 		}
+	}
+
+	if err := c.sweepOrphanedDesires(ctx, subscriptionResourceID, allSubscriptionResourceIDs); err != nil {
+		errs = append(errs, err)
+	}
+
+	return errors.Join(errs...)
+}
+
+// sweepOrphanedDesires walks the kube-applier container for *Desire documents nested under
+// this subscription and deletes any whose parent (the cluster or nodepool the *Desire is
+// scoped to) is no longer present in allSubscriptionResourceIDs.
+//
+// The kube-applier container is partitioned by management-cluster name, which is not derivable
+// from a *Desire's resourceID. We therefore use the kube-applier UntypedCRUD's cross-partition
+// listing and delete each orphan by its (partitionKey, cosmosID) from the listed row.
+func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
+	ctx context.Context,
+	subscriptionResourceID *azcorearm.ResourceID,
+	allSubscriptionResourceIDs map[string]*database.TypedDocument,
+) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	if c.kubeApplierDBClient == nil {
+		// Defensive: kube-applier wiring is optional only for test scenarios that don't load
+		// any *Desires. Production callers always pass a non-nil client.
+		return nil
+	}
+
+	desireCRUD, err := c.kubeApplierDBClient.UntypedCRUD(*subscriptionResourceID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	paginatedListOptions := &database.DBClientListResourceDocsOptions{
+		PageSizeHint: ptr.To(int32(500)),
+	}
+	desireIterator, err := desireCRUD.ListRecursive(ctx, paginatedListOptions)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	errs := []error{}
+	for _, desire := range desireIterator.Items(ctx) {
+		if desire.ResourceID == nil {
+			localLogger := logger.WithValues(utils.LogValues{}.AddCosmosResourceID(desire.CosmosResourceID))
+			localLogger.Error(errors.New("kube-applier document has no resource ID"), "found invalid document")
+			continue
+		}
+		if desire.ResourceID.Parent == nil {
+			localLogger := logger.WithValues(utils.LogValues{}.AddCosmosResourceID(desire.ResourceID.String()))
+			localLogger.Error(nil, "kube-applier desire has no parent in its resource ID")
+			continue
+		}
+
+		desireResourceIDString := strings.ToLower(desire.ResourceID.String())
+		localLogger := logger.WithValues(
+			utils.LogValues{}.
+				AddCosmosResourceID(desireResourceIDString).
+				AddLogValuesForResourceID(desire.ResourceID)...)
+		ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger)
+
+		if _, parentExists := allSubscriptionResourceIDs[strings.ToLower(desire.ResourceID.Parent.String())]; parentExists {
+			continue
+		}
+
+		localLogger.Info("deleting orphaned kube-applier desire by cosmos ID",
+			"managementCluster", desire.PartitionKey)
+		if err := desireCRUD.DeleteByCosmosID(ctxWithLocalLogger, desire.PartitionKey, desire.ID); err != nil {
+			localLogger.Error(err, "unable to delete orphaned kube-applier desire")
+			errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete desire %v under missing parent %v: %w", desireResourceIDString, desire.ResourceID.Parent.String(), err)))
+		}
+	}
+	if err := desireIterator.GetError(); err != nil {
+		errs = append(errs, utils.TrackError(err))
 	}
 
 	return errors.Join(errs...)

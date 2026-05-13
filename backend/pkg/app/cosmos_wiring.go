@@ -58,3 +58,15 @@ func NewFleetDBClient(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.F
 
 	return fleetClient, nil
 }
+
+// NewKubeApplierDBClient returns a data-plane client for the kube-applier container.
+// The backend uses container-wide credentials so it can list *Desire documents across
+// management-cluster partitions; the kube-applier sidecar binary uses a partition-scoped
+// credential and constructs its own client.
+func NewKubeApplierDBClient(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.KubeApplierDBClient, error) {
+	kubeApplierClient, err := database.NewKubeApplierDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create kube-applier DBClient: %w", err))
+	}
+	return kubeApplierClient, nil
+}
