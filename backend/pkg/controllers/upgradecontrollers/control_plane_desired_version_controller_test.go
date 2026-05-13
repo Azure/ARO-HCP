@@ -518,7 +518,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			expectedErrorContains: "no upgrade path found from 4.20.22 to 4.21.0",
 		},
 		{
-			name:                 "Y-stream upgrade - next minor exists but no gateway, returns latest candidate",
+			name:                 "Y-stream upgrade - candidates exist but no gateway to next minor, returns nil",
 			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.22")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor: "4.21",
 			channelGroup:         "candidate",
@@ -532,17 +532,25 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 					nil,
 				)
 
-				// Check if next minor (4.22) exists - it does, 4.21.15 is in the graph
-				// but has no 4.22.x edges, so not a gateway. Called twice: once for existence, once for gateway check.
+				// Check if next minor (4.22) exists - it does, but 4.21.15 has no 4.22.x edges
 				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("candidate")), "multi", "multi", "candidate-4.22", semver.MustParse("4.21.15")).Times(2).Return(
 					configv1.Release{Version: "4.21.15"},
-					[]configv1.Release{}, // No 4.22.x reachable
+					[]configv1.Release{},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+
+				// Fallback to current minor (4.20) - already at latest
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("candidate")), "multi", "multi", "candidate-4.20", semver.MustParse("4.20.22")).Return(
+					configv1.Release{Version: "4.20.22"},
+					[]configv1.Release{},
 					[]configv1.ConditionalUpdate{},
 					nil,
 				)
 			},
-			expectedVersion: ptr.To(semver.MustParse("4.21.15")),
-			expectedError:   false,
+			expectedVersion:       nil,
+			expectedError:         true,
+			expectedErrorContains: "no upgrade path found from 4.20.22 to 4.21.0",
 		},
 	}
 
