@@ -268,7 +268,7 @@ var allQueries = []querySpec{
 		prerequisites: "ClusterID",
 		requiredWhen:  func(d queryData) bool { return d.ClusterID != "" },
 		storeResult: func(d *queryData, rows []resultRow) {
-			// Columns: bundleId, bundleName, manifestWork
+			// Columns: bundleId, bundleName, resource, kind
 			for _, row := range rows {
 				if len(row.values) >= 3 {
 					if id := strings.TrimSpace(row.values[0]); id != "" {
@@ -279,6 +279,34 @@ var allQueries = []querySpec{
 					}
 					if mw := strings.TrimSpace(row.values[2]); mw != "" {
 						d.ManifestWorkNames = append(d.ManifestWorkNames, mw)
+					}
+				}
+			}
+		},
+	},
+	{
+		component:    "backend",
+		queryName:    "maestroBundleAssociations",
+		templatePath: "queries/backend/maestroBundleAssociations/query.kql",
+		database:     "service",
+		category:     categoryResourceDiscovery,
+		ready: func(d queryData) bool {
+			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != ""
+		},
+		prerequisites: "ResourceGroup, ClusterResourceName, ServiceProviderResourceType",
+		requiredWhen:  isClusterOrNodePool,
+		storeResult: func(d *queryData, rows []resultRow) {
+			// Columns: resourceID, name, bundleName, bundleId
+			for _, row := range rows {
+				if len(row.values) >= 4 {
+					if mw := strings.TrimSpace(row.values[1]); mw != "" {
+						d.ManifestWorkNames = append(d.ManifestWorkNames, mw)
+					}
+					if name := strings.TrimSpace(row.values[2]); name != "" {
+						d.BundleNames = append(d.BundleNames, name)
+					}
+					if id := strings.TrimSpace(row.values[3]); id != "" {
+						d.BundleIDs = append(d.BundleIDs, id)
 					}
 				}
 			}
@@ -449,6 +477,20 @@ var allQueries = []querySpec{
 			return len(d.ManifestWorkNames) > 0
 		},
 		prerequisites: "ManifestWorkNames",
+	},
+	{
+		component:    "maestro",
+		queryName:    "transitions",
+		templatePath: "queries/maestro/transitions/query.kql",
+		database:     "service",
+		category:     categoryState,
+		ready: func(d queryData) bool {
+			hasCS := d.ClusterID != ""
+			hasBackend := d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != ""
+			return len(d.BundleIDs) > 0 && (hasCS || hasBackend)
+		},
+		prerequisites: "BundleIDs, and one of (ClusterID) or (ResourceGroup, ClusterResourceName, ServiceProviderResourceType)",
+		requiredWhen:  func(d queryData) bool { return len(d.BundleIDs) > 0 },
 	},
 
 	// --- Context: time-windowed, resource-group-scoped ---
