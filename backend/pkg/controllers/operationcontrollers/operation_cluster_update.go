@@ -217,21 +217,24 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	if intentFailedCondition == nil || intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != api.VersionUpgradeNotAcceptedReason {
 		// Customer desired minor differs from the service provider resolved version, and the
 		// ControlPlaneDesiredVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted).
-		// Stay Accepted while resolution runs; fail once elapsed exceeds 29s from the first
+		// Stay Accepted while resolution runs; fail once elapsed exceeds the timeout from the first
 		// time this process observed the mismatch for this operation, so a
 		// controller restart does not immediately fail long-running operations.
+		// The timeout must be long enough for the ControlPlaneDesiredVersion controller
+		// (which runs every 5 minutes) to reconcile and resolve the version.
+		const desiredVersionResolutionTimeout = 5 * time.Minute
 		pending := newOperationState(arm.ProvisioningStateAccepted, "customer desired version does not match resolved desired version")
 		firstSeen, ok := c.desiredVersionMismatchFirstSeen.Get(operation.ResourceID.String())
 		if !ok {
 			c.desiredVersionMismatchFirstSeen.Add(operation.ResourceID.String(), c.clock.Now())
 			return pending, nil
 		}
-		if c.clock.Since(firstSeen.(time.Time)) <= 29*time.Second {
+		if c.clock.Since(firstSeen.(time.Time)) <= desiredVersionResolutionTimeout {
 			return pending, nil
 		}
 		msg := fmt.Sprintf(
-			"timed out after 29s waiting for resolution of desired version from '%s' cluster version",
-			existingCluster.CustomerProperties.Version.ID,
+			"timed out after %s waiting for resolution of desired version from '%s' cluster version",
+			desiredVersionResolutionTimeout, existingCluster.CustomerProperties.Version.ID,
 		)
 		c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
 		return newOperationState(arm.ProvisioningStateFailed, msg), nil
