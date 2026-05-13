@@ -129,7 +129,6 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&rawOpt.Tracked, "tracked", rawOpt.Tracked, "Use tracked resource groups")
 	cmd.Flags().StringVar(&rawOpt.SharedDir, "shared-dir", rawOpt.SharedDir, "Shared directory to use for tracked resource groups")
 	cmd.Flags().StringVar(&rawOpt.FPAClientID, "fpa-client-id", rawOpt.FPAClientID, "Client ID of the FPA used to delete Red Hat OpenShift service association links")
-	cmd.Flags().StringVar(&rawOpt.FPATenantID, "fpa-tenant-id", rawOpt.FPATenantID, "Tenant ID of the FPA used to delete Red Hat OpenShift service association links")
 	cmd.Flags().StringVar(&rawOpt.FPACertPath, "fpa-cert-path", rawOpt.FPACertPath, "Certificate path of the FPA used to delete Red Hat OpenShift service association links")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
