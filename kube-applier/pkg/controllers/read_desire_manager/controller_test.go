@@ -16,7 +16,6 @@ package read_desire_manager
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"testing"
 
@@ -42,7 +41,6 @@ const (
 var (
 	testManagementID = api.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
-	testManagement = strings.ToLower(testManagementID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -123,7 +121,7 @@ func newTestController(
 	fakes *[]*fakePerInstance,
 ) *ReadDesireInformerManagingController {
 	return &ReadDesireInformerManagingController{
-		fetcher: &readDesireFetcher{crudByParent: mock.KubeApplier(testManagement)},
+		fetcher: &readDesireFetcher{crudByParent: mock},
 		factory: &recordingFakeFactory{fakes: fakes},
 		running: map[keys.ReadDesireKey]*runningInstance{},
 		writer:  noopStatusWriter[kubeapplier.ReadDesire, keys.ReadDesireKey]{},
@@ -136,7 +134,7 @@ func newTestController(
 func loadDesires(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, ds ...*kubeapplier.ReadDesire) {
 	t.Helper()
 	parent := database.ResourceParent{SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster}
-	crud, err := mock.KubeApplier(testManagement).ReadDesires(parent)
+	crud, err := mock.ReadDesires(parent)
 	if err != nil {
 		t.Fatalf("ReadDesires(parent): %v", err)
 	}
@@ -151,7 +149,7 @@ func loadDesires(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, ds
 func deleteDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
 	t.Helper()
 	parent := database.ResourceParent{SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster}
-	crud, err := mock.KubeApplier(testManagement).ReadDesires(parent)
+	crud, err := mock.ReadDesires(parent)
 	if err != nil {
 		t.Fatalf("ReadDesires(parent): %v", err)
 	}
@@ -164,7 +162,7 @@ func deleteDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d
 func replaceDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
 	t.Helper()
 	parent := database.ResourceParent{SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster}
-	crud, err := mock.KubeApplier(testManagement).ReadDesires(parent)
+	crud, err := mock.ReadDesires(parent)
 	if err != nil {
 		t.Fatalf("ReadDesires(parent): %v", err)
 	}

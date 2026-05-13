@@ -37,7 +37,7 @@ import (
 type ControllerInitializationInput struct {
 	ResourcesDBClient    database.ResourcesDBClient
 	BillingDBClient      database.BillingDBClient
-	KubeApplierDBClient  database.KubeApplierDBClient
+	KubeApplierDBClients database.KubeApplierDBClients
 	SubscriptionLister   listers.SubscriptionLister
 	ClusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -114,11 +114,11 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 	controllerInput := &ControllerInitializationInput{
 		ResourcesDBClient: storageIntegrationTestInfo.ResourcesDBClient(),
 		BillingDBClient:   storageIntegrationTestInfo.BillingDBClient(),
-		// An empty mock — populated for *Desire-specific tests via overlay. Pre-populating
-		// here keeps tests that don't touch *Desires from accidentally exercising a nil
-		// kube-applier client; the no-op pass over an empty container is exactly what
-		// "no orphan desires" means in those scenarios.
-		KubeApplierDBClient:  databasetesting.NewMockKubeApplierDBClient(),
+		// An empty plural registry — populated for *Desire-specific tests via overlay.
+		// Pre-populating here keeps tests that don't touch *Desires from accidentally
+		// exercising a nil kube-applier registry; iterating an empty registry is exactly
+		// what "no management clusters configured" means in those scenarios.
+		KubeApplierDBClients: databasetesting.NewMockKubeApplierDBClients(),
 		ClusterServiceClient: clusterServiceMockInfo.MockClusterServiceClient,
 	}
 

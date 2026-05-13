@@ -20,6 +20,8 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
@@ -37,8 +39,9 @@ type ApplyDesireLister interface {
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ApplyDesire, error)
 
 	// ListForManagementCluster returns every ApplyDesire whose
-	// spec.managementCluster matches (case-insensitively).
-	ListForManagementCluster(ctx context.Context, managementCluster string) ([]*kubeapplier.ApplyDesire, error)
+	// spec.managementCluster matches (case-insensitively). A nil managementCluster
+	// returns no results.
+	ListForManagementCluster(ctx context.Context, managementCluster *azcorearm.ResourceID) ([]*kubeapplier.ApplyDesire, error)
 
 	// ListForCluster returns every ApplyDesire under the given HCPOpenShiftCluster,
 	// covering both cluster- and node-pool-scoped desires.
@@ -79,9 +82,12 @@ func (l *applyDesireLister) GetForNodePool(
 }
 
 func (l *applyDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster string,
+	ctx context.Context, managementCluster *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
-	return listFromIndex[kubeapplier.ApplyDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster))
+	if managementCluster == nil {
+		return nil, nil
+	}
+	return listFromIndex[kubeapplier.ApplyDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster.String()))
 }
 
 func (l *applyDesireLister) ListForCluster(

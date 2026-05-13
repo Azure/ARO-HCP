@@ -54,7 +54,7 @@ func newKubeApplierUntypedCRUD(containerClient *azcosmos.ContainerClient, parent
 }
 
 func (d *kubeApplierUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, error) {
-	return nil, fmt.Errorf("kube-applier UntypedCRUD.Get is not supported: partitionKey is not derivable from a *Desire resourceID; use KubeApplier(managementCluster) for typed access")
+	return nil, fmt.Errorf("kube-applier UntypedCRUD.Get is not supported: partitionKey is not derivable from a *Desire resourceID; use KubeApplierDBClients.For(managementClusterResourceID).{ApplyDesires,DeleteDesires,ReadDesires}(parent) for typed access")
 }
 
 func (d *kubeApplierUntypedCRUD) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {

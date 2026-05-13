@@ -8,15 +8,18 @@ PRs touch only `internal/` and have no runtime effect.
 
 Before any implementation:
 
-- [ ] Confirm partition-key isolation strategy with platform: a single
-      Cosmos role assignment scoped to one partition value per management
-      cluster.
+- [ ] Confirm per-management-cluster container provisioning: each MC gets
+      its own Cosmos container, and the kube-applier pod's credentials are
+      scoped to that one container.
 - [ ] Confirm the workload identity / service-account model the kube-applier
       pod will use.
-- [ ] Confirm whether the kube-applier container should live in the same
-      Cosmos *account* as `Resources` or a separate account. (Same account
-      is simpler and matches readme; separate account is stronger
-      isolation.)
+- [ ] Confirm whether the per-MC containers should live in the same
+      Cosmos *account* as `Resources` or in separate accounts. (Same account
+      is simpler; separate accounts are stronger isolation.)
+- [ ] Decide how each management cluster's
+      `fleet.ManagementCluster.Status.KubeApplierCosmosContainerName` is
+      populated (the backend's `KubeApplierDBClients` registry reads it via a
+      `ManagementClusterLister`).
 - [ ] Decide field-manager string (recommend `kube-applier`).
 
 ## Phase 1 &mdash; API package (Doc 02)
@@ -36,13 +39,16 @@ package yet.
 
 Single PR.
 
-- [ ] Add `kube-applier` container constant + client field.
-- [ ] Add `NewKubeApplierPartitionKey` helper.
-- [ ] Add `KubeApplier(...)` accessor + `KubeApplierCRUD` and the per-type
-      `ResourceCRUD[T]` instances.
-- [ ] Extend `GlobalListers` with `ApplyDesires`/`DeleteDesires`/`ReadDesires`.
+- [ ] Add the per-MC `KubeApplierDBClient` interface with direct
+      `ApplyDesires`/`DeleteDesires`/`ReadDesires` accessors, `Listers()`,
+      and `UntypedCRUD(parentResourceID)`.
+- [ ] Add the plural `KubeApplierDBClients` registry with thread-safe lazy
+      caching and `ManagementClusterResourceIDs()` iteration.
+- [ ] Add `NewKubeApplierDBClient`, `NewKubeApplierDBClientFromDatabase`,
+      `NewKubeApplierDBClients` constructors.
 - [ ] Add `database.Kube{Apply,Delete,Read}Desire` envelope types.
-- [ ] Update `internal/databasetesting` mocks.
+- [ ] Update `internal/databasetesting` mocks: both `MockKubeApplierDBClient`
+      (single container) and `MockKubeApplierDBClients` (registry).
 
 Exit criteria: existing tests stay green; new tests for the partition-key
 helper and CRUD round-trip pass; `MockDBClient` can store and list each

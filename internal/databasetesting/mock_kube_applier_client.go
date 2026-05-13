@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"strings"
 	"sync"
 
@@ -33,6 +34,10 @@ import (
 // It owns its own document store, separate from MockDBClient — production has the
 // kube-applier container live in a different container (and behind different
 // credentials) than the resources container, and the mock mirrors that boundary.
+//
+// In the per-management-cluster container model, each MockKubeApplierDBClient
+// represents one container. Tests that want multiple containers use
+// MockKubeApplierDBClients (plural).
 type MockKubeApplierDBClient struct {
 	mu        sync.RWMutex
 	documents map[string]json.RawMessage
@@ -125,28 +130,156 @@ var _ mockDocumentStore = &MockKubeApplierDBClient{}
 
 // --- KubeApplierDBClient implementation -----------------------------------
 
-func (m *MockKubeApplierDBClient) KubeApplier(managementCluster string) database.KubeApplierCRUD {
-	return &mockKubeApplierCRUD{store: m, managementCluster: managementCluster}
-}
-
-func (m *MockKubeApplierDBClient) GlobalListers() database.KubeApplierGlobalListers {
-	return &mockKubeApplierGlobalListers{store: m}
-}
-
-func (m *MockKubeApplierDBClient) PartitionListers(managementCluster string) database.KubeApplierGlobalListers {
-	return &mockKubeApplierGlobalListers{
-		store:        m,
-		partitionKey: strings.ToLower(managementCluster),
+func (m *MockKubeApplierDBClient) ApplyDesires(
+	parent database.ResourceParent,
+) (database.ResourceCRUD[kubeapplier.ApplyDesire], error) {
+	parentID, err := desireParentID(parent)
+	if err != nil {
+		return nil, err
 	}
+	resourceType := kubeapplier.ClusterScopedApplyDesireResourceType
+	if parent.IsNodePoolScoped() {
+		resourceType = kubeapplier.NodePoolScopedApplyDesireResourceType
+	}
+	return newMockResourceCRUD[kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]](
+		m, parentID, resourceType,
+	), nil
+}
+
+func (m *MockKubeApplierDBClient) DeleteDesires(
+	parent database.ResourceParent,
+) (database.ResourceCRUD[kubeapplier.DeleteDesire], error) {
+	parentID, err := desireParentID(parent)
+	if err != nil {
+		return nil, err
+	}
+	resourceType := kubeapplier.ClusterScopedDeleteDesireResourceType
+	if parent.IsNodePoolScoped() {
+		resourceType = kubeapplier.NodePoolScopedDeleteDesireResourceType
+	}
+	return newMockResourceCRUD[kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]](
+		m, parentID, resourceType,
+	), nil
+}
+
+func (m *MockKubeApplierDBClient) ReadDesires(
+	parent database.ResourceParent,
+) (database.ResourceCRUD[kubeapplier.ReadDesire], error) {
+	parentID, err := desireParentID(parent)
+	if err != nil {
+		return nil, err
+	}
+	resourceType := kubeapplier.ClusterScopedReadDesireResourceType
+	if parent.IsNodePoolScoped() {
+		resourceType = kubeapplier.NodePoolScopedReadDesireResourceType
+	}
+	return newMockResourceCRUD[kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]](
+		m, parentID, resourceType,
+	), nil
+}
+
+func (m *MockKubeApplierDBClient) Listers() database.KubeApplierListers {
+	return &mockKubeApplierListers{store: m}
 }
 
 func (m *MockKubeApplierDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (database.UntypedResourceCRUD, error) {
 	return &mockKubeApplierUntypedCRUD{store: m, parentResourceID: parentResourceID}, nil
 }
 
-// mockKubeApplierUntypedCRUD mirrors the production kubeApplierUntypedCRUD: cross-partition
-// listing, deletion only by cosmosID. Get and Delete(resourceID) error for the same reason as
-// in production — a *Desire's partition key isn't derivable from its resourceID.
+// desireParentID builds the parent resource ID for *Desire documents using the
+// real CRUD's exact format, so the mock and the real client see the same IDs.
+func desireParentID(parent database.ResourceParent) (*azcorearm.ResourceID, error) {
+	if parent.IsNodePoolScoped() {
+		return api.ToNodePoolResourceID(
+			parent.SubscriptionID, parent.ResourceGroupName, parent.ClusterName, parent.NodePoolName,
+		)
+	}
+	return api.ToClusterResourceID(parent.SubscriptionID, parent.ResourceGroupName, parent.ClusterName)
+}
+
+// --- KubeApplierListers (in-memory) ----------------------------------------
+
+type mockKubeApplierListers struct {
+	store *MockKubeApplierDBClient
+}
+
+var _ database.KubeApplierListers = &mockKubeApplierListers{}
+
+func (g *mockKubeApplierListers) ApplyDesires() database.GlobalLister[kubeapplier.ApplyDesire] {
+	return &mockKubeApplierDesireLister[kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]]{
+		store: g.store,
+		resourceTypes: []azcorearm.ResourceType{
+			kubeapplier.ClusterScopedApplyDesireResourceType,
+			kubeapplier.NodePoolScopedApplyDesireResourceType,
+		},
+	}
+}
+
+func (g *mockKubeApplierListers) DeleteDesires() database.GlobalLister[kubeapplier.DeleteDesire] {
+	return &mockKubeApplierDesireLister[kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]]{
+		store: g.store,
+		resourceTypes: []azcorearm.ResourceType{
+			kubeapplier.ClusterScopedDeleteDesireResourceType,
+			kubeapplier.NodePoolScopedDeleteDesireResourceType,
+		},
+	}
+}
+
+func (g *mockKubeApplierListers) ReadDesires() database.GlobalLister[kubeapplier.ReadDesire] {
+	return &mockKubeApplierDesireLister[kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]]{
+		store: g.store,
+		resourceTypes: []azcorearm.ResourceType{
+			kubeapplier.ClusterScopedReadDesireResourceType,
+			kubeapplier.NodePoolScopedReadDesireResourceType,
+		},
+	}
+}
+
+type mockKubeApplierDesireLister[InternalAPIType, CosmosAPIType any] struct {
+	store         *MockKubeApplierDBClient
+	resourceTypes []azcorearm.ResourceType
+}
+
+func (l *mockKubeApplierDesireLister[InternalAPIType, CosmosAPIType]) List(
+	ctx context.Context, options *database.DBClientListResourceDocsOptions,
+) (database.DBClientIterator[InternalAPIType], error) {
+	allDocs := l.store.GetAllDocuments()
+
+	var ids []string
+	var items []*InternalAPIType
+
+	for _, data := range allDocs {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+		matches := false
+		for _, rt := range l.resourceTypes {
+			if strings.EqualFold(typedDoc.ResourceType, rt.String()) {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
+		var cosmosObj CosmosAPIType
+		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+			continue
+		}
+		internalObj, err := database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, typedDoc.ID)
+		items = append(items, internalObj)
+	}
+
+	return newMockIterator(ids, items), nil
+}
+
+// --- UntypedCRUD (in-memory) ----------------------------------------------
+
 type mockKubeApplierUntypedCRUD struct {
 	store            *MockKubeApplierDBClient
 	parentResourceID azcorearm.ResourceID
@@ -229,166 +362,11 @@ func (k *mockKubeApplierUntypedCRUD) Child(resourceType azcorearm.ResourceType, 
 	}
 	parts = append(parts, resourceType.Types[len(resourceType.Types)-1])
 	parts = append(parts, resourceName)
-	newParent, err := azcorearm.ParseResourceID(strings.Join(parts, "/"))
+	newParent, err := azcorearm.ParseResourceID(path.Join(parts...))
 	if err != nil {
 		return nil, err
 	}
 	return &mockKubeApplierUntypedCRUD{store: k.store, parentResourceID: *newParent}, nil
-}
-
-type mockKubeApplierCRUD struct {
-	store             *MockKubeApplierDBClient
-	managementCluster string
-}
-
-var _ database.KubeApplierCRUD = &mockKubeApplierCRUD{}
-
-func (k *mockKubeApplierCRUD) ApplyDesires(
-	parent database.ResourceParent,
-) (database.ResourceCRUD[kubeapplier.ApplyDesire], error) {
-	parentID, err := desireParentID(parent)
-	if err != nil {
-		return nil, err
-	}
-	resourceType := kubeapplier.ClusterScopedApplyDesireResourceType
-	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedApplyDesireResourceType
-	}
-	return newMockResourceCRUD[kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]](
-		k.store, parentID, resourceType,
-	), nil
-}
-
-func (k *mockKubeApplierCRUD) DeleteDesires(
-	parent database.ResourceParent,
-) (database.ResourceCRUD[kubeapplier.DeleteDesire], error) {
-	parentID, err := desireParentID(parent)
-	if err != nil {
-		return nil, err
-	}
-	resourceType := kubeapplier.ClusterScopedDeleteDesireResourceType
-	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedDeleteDesireResourceType
-	}
-	return newMockResourceCRUD[kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]](
-		k.store, parentID, resourceType,
-	), nil
-}
-
-func (k *mockKubeApplierCRUD) ReadDesires(
-	parent database.ResourceParent,
-) (database.ResourceCRUD[kubeapplier.ReadDesire], error) {
-	parentID, err := desireParentID(parent)
-	if err != nil {
-		return nil, err
-	}
-	resourceType := kubeapplier.ClusterScopedReadDesireResourceType
-	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedReadDesireResourceType
-	}
-	return newMockResourceCRUD[kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]](
-		k.store, parentID, resourceType,
-	), nil
-}
-
-// desireParentID builds the parent resource ID for *Desire documents using the
-// real CRUD's exact format, so the mock and the real client see the same IDs.
-func desireParentID(parent database.ResourceParent) (*azcorearm.ResourceID, error) {
-	if parent.IsNodePoolScoped() {
-		return api.ToNodePoolResourceID(
-			parent.SubscriptionID, parent.ResourceGroupName, parent.ClusterName, parent.NodePoolName,
-		)
-	}
-	return api.ToClusterResourceID(parent.SubscriptionID, parent.ResourceGroupName, parent.ClusterName)
-}
-
-// --- KubeApplierGlobalListers ------------------------------------------------
-
-type mockKubeApplierGlobalListers struct {
-	store        *MockKubeApplierDBClient
-	partitionKey string // empty = cross-partition; non-empty = restrict to this partition
-}
-
-var _ database.KubeApplierGlobalListers = &mockKubeApplierGlobalListers{}
-
-func (g *mockKubeApplierGlobalListers) ApplyDesires() database.GlobalLister[kubeapplier.ApplyDesire] {
-	return &mockKubeApplierDesireGlobalLister[kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]]{
-		store:        g.store,
-		partitionKey: g.partitionKey,
-		resourceTypes: []azcorearm.ResourceType{
-			kubeapplier.ClusterScopedApplyDesireResourceType,
-			kubeapplier.NodePoolScopedApplyDesireResourceType,
-		},
-	}
-}
-
-func (g *mockKubeApplierGlobalListers) DeleteDesires() database.GlobalLister[kubeapplier.DeleteDesire] {
-	return &mockKubeApplierDesireGlobalLister[kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]]{
-		store:        g.store,
-		partitionKey: g.partitionKey,
-		resourceTypes: []azcorearm.ResourceType{
-			kubeapplier.ClusterScopedDeleteDesireResourceType,
-			kubeapplier.NodePoolScopedDeleteDesireResourceType,
-		},
-	}
-}
-
-func (g *mockKubeApplierGlobalListers) ReadDesires() database.GlobalLister[kubeapplier.ReadDesire] {
-	return &mockKubeApplierDesireGlobalLister[kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]]{
-		store:        g.store,
-		partitionKey: g.partitionKey,
-		resourceTypes: []azcorearm.ResourceType{
-			kubeapplier.ClusterScopedReadDesireResourceType,
-			kubeapplier.NodePoolScopedReadDesireResourceType,
-		},
-	}
-}
-
-type mockKubeApplierDesireGlobalLister[InternalAPIType, CosmosAPIType any] struct {
-	store         *MockKubeApplierDBClient
-	resourceTypes []azcorearm.ResourceType
-	partitionKey  string
-}
-
-func (l *mockKubeApplierDesireGlobalLister[InternalAPIType, CosmosAPIType]) List(
-	ctx context.Context, options *database.DBClientListResourceDocsOptions,
-) (database.DBClientIterator[InternalAPIType], error) {
-	allDocs := l.store.GetAllDocuments()
-
-	var ids []string
-	var items []*InternalAPIType
-
-	for _, data := range allDocs {
-		var typedDoc database.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
-			continue
-		}
-		matches := false
-		for _, rt := range l.resourceTypes {
-			if strings.EqualFold(typedDoc.ResourceType, rt.String()) {
-				matches = true
-				break
-			}
-		}
-		if !matches {
-			continue
-		}
-		if len(l.partitionKey) > 0 && !strings.EqualFold(typedDoc.PartitionKey, l.partitionKey) {
-			continue
-		}
-		var cosmosObj CosmosAPIType
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
-			continue
-		}
-		internalObj, err := database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
-		if err != nil {
-			continue
-		}
-		ids = append(ids, typedDoc.ID)
-		items = append(items, internalObj)
-	}
-
-	return newMockIterator(ids, items), nil
 }
 
 // --- resource-loading helpers (parallel to mock_init.go) ---------------------
@@ -411,7 +389,7 @@ func (m *MockKubeApplierDBClient) addApplyDesire(ctx context.Context, d *kubeapp
 	if err != nil {
 		return err
 	}
-	crud, err := m.KubeApplier(managementClusterPartitionKey(d.GetManagementCluster())).ApplyDesires(parent)
+	crud, err := m.ApplyDesires(parent)
 	if err != nil {
 		return err
 	}
@@ -424,7 +402,7 @@ func (m *MockKubeApplierDBClient) addDeleteDesire(ctx context.Context, d *kubeap
 	if err != nil {
 		return err
 	}
-	crud, err := m.KubeApplier(managementClusterPartitionKey(d.GetManagementCluster())).DeleteDesires(parent)
+	crud, err := m.DeleteDesires(parent)
 	if err != nil {
 		return err
 	}
@@ -437,23 +415,12 @@ func (m *MockKubeApplierDBClient) addReadDesire(ctx context.Context, d *kubeappl
 	if err != nil {
 		return err
 	}
-	crud, err := m.KubeApplier(managementClusterPartitionKey(d.GetManagementCluster())).ReadDesires(parent)
+	crud, err := m.ReadDesires(parent)
 	if err != nil {
 		return err
 	}
 	_, err = crud.Create(ctx, d, nil)
 	return err
-}
-
-// managementClusterPartitionKey reduces a *Desire's spec.managementCluster
-// resourceID to the lowercased string we use as the Cosmos partition key.
-// Returns "" when the resourceID is nil — callers that pass that to
-// KubeApplier(...) get the empty partition, which is acceptable in tests.
-func managementClusterPartitionKey(rid *azcorearm.ResourceID) string {
-	if rid == nil {
-		return ""
-	}
-	return strings.ToLower(rid.String())
 }
 
 // parentForKubeApplierDesire derives a database.ResourceParent from a *Desire's
@@ -489,4 +456,56 @@ func parentForKubeApplierDesire(resourceID *azcorearm.ResourceID) (database.Reso
 	return database.ResourceParent{}, fmt.Errorf(
 		"unsupported parent resource type for kube-applier desire: %s", parentType,
 	)
+}
+
+// MockKubeApplierDBClients is the in-memory test double for
+// database.KubeApplierDBClients. Construction registers a per-management-cluster
+// MockKubeApplierDBClient; For() returns the registered client (or nil for
+// unknown resourceIDs). Thread-safe.
+type MockKubeApplierDBClients struct {
+	mu      sync.Mutex
+	clients map[string]*MockKubeApplierDBClient // key = lowercased(rid.String())
+}
+
+var _ database.KubeApplierDBClients = &MockKubeApplierDBClients{}
+
+// NewMockKubeApplierDBClients constructs an empty registry; use Register to add
+// per-management-cluster clients.
+func NewMockKubeApplierDBClients() *MockKubeApplierDBClients {
+	return &MockKubeApplierDBClients{clients: map[string]*MockKubeApplierDBClient{}}
+}
+
+// Register stores a per-management-cluster client under the given resourceID.
+// Replaces any previous registration for the same resourceID.
+func (c *MockKubeApplierDBClients) Register(managementClusterResourceID *azcorearm.ResourceID, client *MockKubeApplierDBClient) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clients[strings.ToLower(managementClusterResourceID.String())] = client
+}
+
+func (c *MockKubeApplierDBClients) For(managementClusterResourceID *azcorearm.ResourceID) database.KubeApplierDBClient {
+	if managementClusterResourceID == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	client, ok := c.clients[strings.ToLower(managementClusterResourceID.String())]
+	if !ok {
+		return nil
+	}
+	return client
+}
+
+func (c *MockKubeApplierDBClients) ManagementClusterResourceIDs() []*azcorearm.ResourceID {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]*azcorearm.ResourceID, 0, len(c.clients))
+	for ridString := range c.clients {
+		rid, err := azcorearm.ParseResourceID(ridString)
+		if err != nil {
+			continue
+		}
+		out = append(out, rid)
+	}
+	return out
 }

@@ -27,9 +27,10 @@ import (
 )
 
 // KubeApplierInformers bundles one SharedIndexInformer per *Desire type plus the
-// matching listers. Both the kube-applier binary (single-partition) and the
-// backend (cross-partition) construct one of these with the appropriate
-// database.KubeApplierGlobalListers — the factory does not care which.
+// matching listers. Each instance is scoped to one management cluster's
+// container — the factory takes the per-MC database.KubeApplierListers. The
+// kube-applier binary constructs one instance for its single management
+// cluster; the backend constructs one per management cluster it talks to.
 type KubeApplierInformers interface {
 	ApplyDesires() (cache.SharedIndexInformer, listers.ApplyDesireLister)
 	DeleteDesires() (cache.SharedIndexInformer, listers.DeleteDesireLister)
@@ -63,11 +64,10 @@ func (k *kubeApplierInformers) ReadDesires() (cache.SharedIndexInformer, listers
 }
 
 // NewKubeApplierInformers wires up the three *Desire informers + listers using
-// the default relist durations. The kube-applier binary calls this with
-// client.PartitionListers(mgmtCluster); the backend calls it with
-// client.GlobalListers().
+// the default relist durations. Callers (kube-applier binary or backend) pass
+// the per-management-cluster KubeApplierListers from KubeApplierDBClient.Listers().
 func NewKubeApplierInformers(
-	ctx context.Context, gl database.KubeApplierGlobalListers,
+	ctx context.Context, gl database.KubeApplierListers,
 ) KubeApplierInformers {
 	return NewKubeApplierInformersWithRelistDuration(ctx, gl, nil)
 }
@@ -76,7 +76,7 @@ func NewKubeApplierInformers(
 // but lets the caller override the relist duration uniformly across all three
 // informers. Tests use this to drive faster relists.
 func NewKubeApplierInformersWithRelistDuration(
-	ctx context.Context, gl database.KubeApplierGlobalListers, relistDuration *time.Duration,
+	ctx context.Context, gl database.KubeApplierListers, relistDuration *time.Duration,
 ) KubeApplierInformers {
 	apply := ApplyDesireRelistDuration
 	delete := DeleteDesireRelistDuration

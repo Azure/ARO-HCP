@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"sync"
 
 	"k8s.io/utils/ptr"
 
@@ -26,47 +27,87 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// KubeApplierDBClient is the database surface used by the kube-applier binary.
-// It is intentionally narrower than DBClient because the kube-applier pod's
-// Cosmos credentials are scoped to a single container; reusing DBClient would
-// expose methods (HCPClusters, Operations, &hellip;) that the pod cannot
-// actually serve at runtime.
+// ManagementClusterLister is the narrow lister shape KubeApplierDBClients depends
+// on to resolve a management-cluster resourceID into its Cosmos container name and
+// partition-key value. The listers package's full ManagementClusterLister satisfies
+// it; declaring the slimmer interface here keeps the import direction clean
+// (database can stay below database/listers in the import graph).
+type ManagementClusterLister interface {
+	List(ctx context.Context) ([]*fleet.ManagementCluster, error)
+}
+
+// NewDBBackedManagementClusterLister adapts a FleetDBClient's cross-partition
+// ManagementClusters global lister into the slim ManagementClusterLister
+// interface. Each List() call hits Cosmos directly — no informer caching —
+// which is fine for low-cadence callers like the orphan-cleanup controller
+// (60-minute jitter). Backend startup that doesn't yet have informers wired
+// can use this without taking on the informer lifecycle.
+func NewDBBackedManagementClusterLister(fleetClient FleetDBClient) ManagementClusterLister {
+	return &dbBackedManagementClusterLister{fleetClient: fleetClient}
+}
+
+type dbBackedManagementClusterLister struct {
+	fleetClient FleetDBClient
+}
+
+func (l *dbBackedManagementClusterLister) List(ctx context.Context) ([]*fleet.ManagementCluster, error) {
+	iter, err := l.fleetClient.GlobalListers().ManagementClusters().List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out []*fleet.ManagementCluster
+	for _, mc := range iter.Items(ctx) {
+		out = append(out, mc)
+	}
+	if err := iter.GetError(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// KubeApplierDBClient is the database surface for a single management cluster's
+// kube-applier container. In the per-management-cluster container model, every
+// container holds exactly one management cluster's *Desire documents, so callers
+// never need to pass a management-cluster name into a method on this interface.
+// Callers that span multiple management clusters (the backend) hold a
+// KubeApplierDBClients (plural) and obtain a per-MC client via For().
 type KubeApplierDBClient interface {
-	// KubeApplier returns CRUD accessors scoped to a single management-cluster
-	// partition. The kube-applier binary calls this with its own management
-	// cluster name; the backend (creator of *Desires) calls it with the
-	// cluster it intends to write *Desires for.
-	KubeApplier(managementCluster string) KubeApplierCRUD
+	// ApplyDesires returns a CRUD scoped to the (cluster, [nodepool]) parent.
+	ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error)
+	// DeleteDesires returns a CRUD scoped to the (cluster, [nodepool]) parent.
+	DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error)
+	// ReadDesires returns a CRUD scoped to the (cluster, [nodepool]) parent.
+	ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error)
 
-	// GlobalListers returns cross-partition listers for the *Desire types.
-	// Only callers with container-wide credentials (i.e. the backend) should
-	// use this.
-	GlobalListers() KubeApplierGlobalListers
+	// Listers lists every *Desire of each kind in this container — i.e. across the
+	// one management cluster's worth of data. Replaces the old GlobalListers /
+	// PartitionListers split, which existed only because all management clusters
+	// previously shared one container.
+	Listers() KubeApplierListers
 
-	// PartitionListers returns listers scoped to a single management-cluster
-	// partition. The interface shape matches GlobalListers, but each List call
-	// queries only the named partition. The kube-applier binary uses this so
-	// it can feed informers without holding container-wide credentials.
-	PartitionListers(managementCluster string) KubeApplierGlobalListers
-
-	// UntypedCRUD returns an UntypedResourceCRUD that walks the kube-applier container
-	// for descendents of parentResourceID. Queries are cross-partition (the kube-applier
-	// container is partitioned by management-cluster name, which the caller — e.g. the
-	// subscription-scoped orphan cleanup controller — does not generally know up front).
-	// Get and Delete(resourceID) on the returned CRUD return errors; cleanup callers
-	// should use ListRecursive + DeleteByCosmosID using the partitionKey from the
-	// listed row. Only callers with container-wide credentials should use this.
+	// UntypedCRUD walks this container by resourceID prefix, returning
+	// TypedDocument rows for cross-cutting cleanup. Deletion goes through
+	// DeleteByCosmosID using the partitionKey from the listed row.
 	UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error)
 }
 
-// KubeApplierApplyDesireCRUD provides parent-scoped ResourceCRUD access to
-// ApplyDesires within a single management-cluster partition. Callers that work
-// with ApplyDesires across many parents (e.g. the ApplyDesireController) take
-// this peer interface so they can build the right CRUD per desire.
+// KubeApplierListers exposes per-container listers for each *Desire kind. The
+// underlying container holds one management cluster's documents, so a List call
+// returns every desire of that kind for that management cluster.
+type KubeApplierListers interface {
+	ApplyDesires() GlobalLister[kubeapplier.ApplyDesire]
+	DeleteDesires() GlobalLister[kubeapplier.DeleteDesire]
+	ReadDesires() GlobalLister[kubeapplier.ReadDesire]
+}
+
+// KubeApplierApplyDesireCRUD is the narrow per-type peer interface that the
+// apply_desire controller takes as its database dependency. KubeApplierDBClient
+// satisfies it; tests can also provide a one-method fake.
 type KubeApplierApplyDesireCRUD interface {
 	ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error)
 }
@@ -79,23 +120,6 @@ type KubeApplierDeleteDesireCRUD interface {
 // KubeApplierReadDesireCRUD is the ReadDesire peer of KubeApplierApplyDesireCRUD.
 type KubeApplierReadDesireCRUD interface {
 	ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error)
-}
-
-// KubeApplierCRUD scopes ResourceCRUD accessors to a single management-cluster
-// partition. It is constructed from KubeApplierDBClient.KubeApplier(managementCluster)
-// and is the union of the per-type peer interfaces above.
-type KubeApplierCRUD interface {
-	KubeApplierApplyDesireCRUD
-	KubeApplierDeleteDesireCRUD
-	KubeApplierReadDesireCRUD
-}
-
-// KubeApplierGlobalListers provides cross-partition listers for the three
-// *Desire types in the kube-applier container.
-type KubeApplierGlobalListers interface {
-	ApplyDesires() GlobalLister[kubeapplier.ApplyDesire]
-	DeleteDesires() GlobalLister[kubeapplier.DeleteDesire]
-	ReadDesires() GlobalLister[kubeapplier.ReadDesire]
 }
 
 // ResourceParent identifies what a *Desire is nested under in the resource ID
@@ -135,62 +159,40 @@ func (p ResourceParent) resourceID() (*azcorearm.ResourceID, error) {
 }
 
 // kubeApplierCosmosDBClient implements KubeApplierDBClient against a Cosmos
-// container. The struct mirrors billingCosmosDBClient / resourcesCosmosDBClient:
-// the single field carries the container's own name.
+// container that holds one management cluster's data. managementClusterPartitionKey
+// is the lowercased partition-key value used for every write/query against the
+// container; documents must carry a matching Spec.ManagementCluster.
 type kubeApplierCosmosDBClient struct {
-	kubeApplier *azcosmos.ContainerClient
+	kubeApplier                   *azcosmos.ContainerClient
+	managementClusterPartitionKey string
 }
 
 var _ KubeApplierDBClient = &kubeApplierCosmosDBClient{}
 
-// NewKubeApplierDBClient instantiates a KubeApplierDBClient from a Cosmos
-// DatabaseClient. containerName selects which Cosmos container to open;
-// the caller's credentials therefore need only that single grant.
-func NewKubeApplierDBClient(database *azcosmos.DatabaseClient, containerName string) (KubeApplierDBClient, error) {
-	kubeApplier, err := database.NewContainer(containerName)
+// NewKubeApplierDBClient wraps a pre-opened Cosmos container client for a single
+// management cluster. managementClusterPartitionKey is the value used as the
+// partition key for every CRUD call; it is lowercased on entry to match the
+// existing kube-applier write helpers, which lowercase Spec.ManagementCluster
+// before comparing.
+func NewKubeApplierDBClient(container *azcosmos.ContainerClient, managementClusterPartitionKey *azcorearm.ResourceID) KubeApplierDBClient {
+	return &kubeApplierCosmosDBClient{
+		kubeApplier:                   container,
+		managementClusterPartitionKey: strings.ToLower(managementClusterPartitionKey.String()),
+	}
+}
+
+// NewKubeApplierDBClientFromDatabase opens the named container under the given
+// Cosmos database and wraps it for the named management cluster. Convenience
+// for callers like the kube-applier sidecar that have a DatabaseClient in hand.
+func NewKubeApplierDBClientFromDatabase(database *azcosmos.DatabaseClient, containerName string, managementClusterPartitionKey *azcorearm.ResourceID) (KubeApplierDBClient, error) {
+	container, err := database.NewContainer(containerName)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	return &kubeApplierCosmosDBClient{kubeApplier: kubeApplier}, nil
+	return NewKubeApplierDBClient(container, managementClusterPartitionKey), nil
 }
 
-// NewKubeApplierDBClientFromContainer wraps an already-opened container
-// client. Useful when the caller has constructed the container client itself.
-func NewKubeApplierDBClientFromContainer(kubeApplier *azcosmos.ContainerClient) KubeApplierDBClient {
-	return &kubeApplierCosmosDBClient{kubeApplier: kubeApplier}
-}
-
-func (c *kubeApplierCosmosDBClient) KubeApplier(managementCluster string) KubeApplierCRUD {
-	return &kubeApplierCRUD{
-		kubeApplier:       c.kubeApplier,
-		managementCluster: managementCluster,
-	}
-}
-
-func (c *kubeApplierCosmosDBClient) GlobalListers() KubeApplierGlobalListers {
-	return &cosmosKubeApplierGlobalListers{kubeApplier: c.kubeApplier}
-}
-
-func (c *kubeApplierCosmosDBClient) PartitionListers(managementCluster string) KubeApplierGlobalListers {
-	return &cosmosKubeApplierGlobalListers{
-		kubeApplier:  c.kubeApplier,
-		partitionKey: strings.ToLower(managementCluster),
-	}
-}
-
-func (c *kubeApplierCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
-	return newKubeApplierUntypedCRUD(c.kubeApplier, parentResourceID), nil
-}
-
-// kubeApplierCRUD implements KubeApplierCRUD against a Cosmos container.
-type kubeApplierCRUD struct {
-	kubeApplier       *azcosmos.ContainerClient
-	managementCluster string
-}
-
-var _ KubeApplierCRUD = &kubeApplierCRUD{}
-
-func (k *kubeApplierCRUD) ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error) {
+func (c *kubeApplierCosmosDBClient) ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error) {
 	parentID, err := parent.resourceID()
 	if err != nil {
 		return nil, err
@@ -200,11 +202,11 @@ func (k *kubeApplierCRUD) ApplyDesires(parent ResourceParent) (ResourceCRUD[kube
 		resourceType = kubeapplier.NodePoolScopedApplyDesireResourceType
 	}
 	return newKubeApplierResourceCRUD[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
-		k.kubeApplier, k.managementCluster, parentID, resourceType,
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, resourceType,
 	), nil
 }
 
-func (k *kubeApplierCRUD) DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error) {
+func (c *kubeApplierCosmosDBClient) DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error) {
 	parentID, err := parent.resourceID()
 	if err != nil {
 		return nil, err
@@ -214,11 +216,11 @@ func (k *kubeApplierCRUD) DeleteDesires(parent ResourceParent) (ResourceCRUD[kub
 		resourceType = kubeapplier.NodePoolScopedDeleteDesireResourceType
 	}
 	return newKubeApplierResourceCRUD[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
-		k.kubeApplier, k.managementCluster, parentID, resourceType,
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, resourceType,
 	), nil
 }
 
-func (k *kubeApplierCRUD) ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error) {
+func (c *kubeApplierCosmosDBClient) ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error) {
 	parentID, err := parent.resourceID()
 	if err != nil {
 		return nil, err
@@ -228,22 +230,33 @@ func (k *kubeApplierCRUD) ReadDesires(parent ResourceParent) (ResourceCRUD[kubea
 		resourceType = kubeapplier.NodePoolScopedReadDesireResourceType
 	}
 	return newKubeApplierResourceCRUD[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
-		k.kubeApplier, k.managementCluster, parentID, resourceType,
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, resourceType,
 	), nil
 }
 
-// cosmosKubeApplierGlobalListers implements KubeApplierGlobalListers against a Cosmos container.
-// An empty partitionKey means "list cross-partition"; a non-empty value scopes every query to
-// that single partition.
-type cosmosKubeApplierGlobalListers struct {
+func (c *kubeApplierCosmosDBClient) Listers() KubeApplierListers {
+	return &cosmosKubeApplierListers{
+		kubeApplier:  c.kubeApplier,
+		partitionKey: c.managementClusterPartitionKey,
+	}
+}
+
+func (c *kubeApplierCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
+	return newKubeApplierUntypedCRUD(c.kubeApplier, parentResourceID), nil
+}
+
+// cosmosKubeApplierListers implements KubeApplierListers against a single per-MC
+// Cosmos container. partitionKey scopes every query to this container's one
+// partition (there is only one in the per-MC model, but Cosmos still requires a key).
+type cosmosKubeApplierListers struct {
 	kubeApplier  *azcosmos.ContainerClient
 	partitionKey string
 }
 
-var _ KubeApplierGlobalListers = &cosmosKubeApplierGlobalListers{}
+var _ KubeApplierListers = &cosmosKubeApplierListers{}
 
-func (g *cosmosKubeApplierGlobalListers) ApplyDesires() GlobalLister[kubeapplier.ApplyDesire] {
-	return &cosmosKubeApplierDesireGlobalLister[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]]{
+func (g *cosmosKubeApplierListers) ApplyDesires() GlobalLister[kubeapplier.ApplyDesire] {
+	return &cosmosKubeApplierDesireLister[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]]{
 		kubeApplier:  g.kubeApplier,
 		partitionKey: g.partitionKey,
 		resourceTypes: []azcorearm.ResourceType{
@@ -253,8 +266,8 @@ func (g *cosmosKubeApplierGlobalListers) ApplyDesires() GlobalLister[kubeapplier
 	}
 }
 
-func (g *cosmosKubeApplierGlobalListers) DeleteDesires() GlobalLister[kubeapplier.DeleteDesire] {
-	return &cosmosKubeApplierDesireGlobalLister[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]]{
+func (g *cosmosKubeApplierListers) DeleteDesires() GlobalLister[kubeapplier.DeleteDesire] {
+	return &cosmosKubeApplierDesireLister[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]]{
 		kubeApplier:  g.kubeApplier,
 		partitionKey: g.partitionKey,
 		resourceTypes: []azcorearm.ResourceType{
@@ -264,8 +277,8 @@ func (g *cosmosKubeApplierGlobalListers) DeleteDesires() GlobalLister[kubeapplie
 	}
 }
 
-func (g *cosmosKubeApplierGlobalListers) ReadDesires() GlobalLister[kubeapplier.ReadDesire] {
-	return &cosmosKubeApplierDesireGlobalLister[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]]{
+func (g *cosmosKubeApplierListers) ReadDesires() GlobalLister[kubeapplier.ReadDesire] {
+	return &cosmosKubeApplierDesireLister[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]]{
 		kubeApplier:  g.kubeApplier,
 		partitionKey: g.partitionKey,
 		resourceTypes: []azcorearm.ResourceType{
@@ -275,17 +288,16 @@ func (g *cosmosKubeApplierGlobalListers) ReadDesires() GlobalLister[kubeapplier.
 	}
 }
 
-// cosmosKubeApplierDesireGlobalLister lists *Desire documents (one kind per
-// instance) of the kube-applier container, unioning the cluster-scoped and
-// node-pool-scoped resource types in a single query. An empty partitionKey
-// means "cross-partition"; a non-empty value restricts to that partition.
-type cosmosKubeApplierDesireGlobalLister[InternalAPIType, CosmosAPIType any] struct {
+// cosmosKubeApplierDesireLister lists *Desire documents (one kind per instance)
+// from a kube-applier container, unioning the cluster-scoped and node-pool-scoped
+// resource types in a single query against one partition.
+type cosmosKubeApplierDesireLister[InternalAPIType, CosmosAPIType any] struct {
 	kubeApplier   *azcosmos.ContainerClient
 	resourceTypes []azcorearm.ResourceType
 	partitionKey  string
 }
 
-func (l *cosmosKubeApplierDesireGlobalLister[InternalAPIType, CosmosAPIType]) List(
+func (l *cosmosKubeApplierDesireLister[InternalAPIType, CosmosAPIType]) List(
 	ctx context.Context, options *DBClientListResourceDocsOptions,
 ) (DBClientIterator[InternalAPIType], error) {
 	var resourceTypeConditions []string
@@ -305,14 +317,153 @@ func (l *cosmosKubeApplierDesireGlobalLister[InternalAPIType, CosmosAPIType]) Li
 		queryOptions.ContinuationToken = options.ContinuationToken
 	}
 
-	pk := azcosmos.NewPartitionKey()
-	if len(l.partitionKey) > 0 {
-		pk = azcosmos.NewPartitionKeyString(l.partitionKey)
-	}
-	pager := l.kubeApplier.NewQueryItemsPager(query, pk, &queryOptions)
+	pager := l.kubeApplier.NewQueryItemsPager(query, azcosmos.NewPartitionKeyString(l.partitionKey), &queryOptions)
 
 	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
 		return newQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType](pager), nil
 	}
 	return newQueryResourcesIterator[InternalAPIType, CosmosAPIType](pager), nil
+}
+
+// KubeApplierDBClients is a thread-safe registry of KubeApplierDBClient keyed by
+// management-cluster resourceID. Each entry corresponds to one Cosmos container,
+// resolved at lookup time from the configured ManagementClusterLister. Per-MC
+// clients are constructed lazily on first For() access and cached.
+type KubeApplierDBClients interface {
+	// For returns the client for the given management cluster, constructing it
+	// on demand. It walks the configured ManagementClusterLister to find the
+	// management cluster whose ResourceID matches; the container name comes
+	// from the management cluster's Status.KubeApplierCosmosContainerName.
+	// Returns nil if no management cluster matches, if the lister errors, or
+	// if the matched management cluster has no container name configured.
+	For(managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient
+
+	// ManagementClusterResourceIDs returns the resourceID of every management
+	// cluster currently visible through the lister. Order is not stable.
+	// Callers use this to iterate every container in the registry (e.g. the
+	// orphan-cleanup controller sweeping all MCs).
+	ManagementClusterResourceIDs() []*azcorearm.ResourceID
+}
+
+// kubeApplierDBClients is the cosmos-backed implementation of KubeApplierDBClients.
+type kubeApplierDBClients struct {
+	database *azcosmos.DatabaseClient
+
+	// mcLister is the source of truth for which management clusters exist and
+	// what their per-container configuration looks like. It is queried fresh
+	// on each For() / ManagementClusterResourceIDs() call so additions and
+	// removals at the lister level are picked up without restarting the
+	// backend; only the per-MC azcosmos client construction is cached.
+	mcLister ManagementClusterLister
+
+	mu      sync.Mutex
+	clients map[string]KubeApplierDBClient // key = lowercased(rid.String())
+}
+
+var _ KubeApplierDBClients = &kubeApplierDBClients{}
+
+// NewKubeApplierDBClients constructs a thread-safe registry whose contents are
+// resolved against the provided ManagementClusterLister. Each ManagementCluster's
+// Status.KubeApplierCosmosContainerName names the Cosmos container; the
+// management cluster's Status.MaestroConsumerName is used as the per-container
+// partition key. Per-MC KubeApplierDBClient instances are built lazily and
+// cached on first access via For().
+func NewKubeApplierDBClients(database *azcosmos.DatabaseClient, mcLister ManagementClusterLister) KubeApplierDBClients {
+	return &kubeApplierDBClients{
+		database: database,
+		mcLister: mcLister,
+		clients:  map[string]KubeApplierDBClient{},
+	}
+}
+
+func (c *kubeApplierDBClients) For(managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient {
+	if managementClusterResourceID == nil {
+		return nil
+	}
+	key := strings.ToLower(managementClusterResourceID.String())
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if existing, ok := c.clients[key]; ok {
+		return existing
+	}
+
+	mc := c.findManagementClusterLocked(managementClusterResourceID)
+	if mc == nil {
+		return nil
+	}
+	containerName := mc.Status.KubeApplierCosmosContainerName
+	if len(containerName) == 0 {
+		return nil
+	}
+	container, err := c.database.NewContainer(containerName)
+	if err != nil {
+		// NewContainer only errors on malformed inputs at construction time —
+		// treat as misconfiguration and surface as nil. The caller already
+		// has to handle nil for "not found" anyway.
+		return nil
+	}
+	// Partition key per container is the lowercased MaestroConsumerName; *Desire
+	// documents written into this container must carry a matching
+	// Spec.ManagementCluster. The kube-applier binary is started with the same
+	// string via --management-cluster.
+	client := NewKubeApplierDBClient(container, managementClusterResourceID)
+	c.clients[key] = client
+	return client
+}
+
+func (c *kubeApplierDBClients) ManagementClusterResourceIDs() []*azcorearm.ResourceID {
+	// The lister is the source of truth; we do not cache the set, only the
+	// constructed per-MC clients. This lets MCs added after backend startup
+	// become visible on the next sync without recycling the backend.
+	mcs, err := c.mcLister.List(context.TODO())
+	if err != nil {
+		// No logger is plumbed here; on a lister error the orphan-sweep caller
+		// will simply not iterate this round and try again next sync.
+		return nil
+	}
+	out := make([]*azcorearm.ResourceID, 0, len(mcs))
+	for _, mc := range mcs {
+		if rid := managementClusterResourceID(mc); rid != nil {
+			out = append(out, rid)
+		}
+	}
+	return out
+}
+
+// findManagementClusterLocked walks the lister looking for the management cluster
+// whose ResourceID matches the caller's. Linear iteration is intentional: the
+// fleet is small (low hundreds of MCs at the worst case) and walking the list
+// keeps us tolerant of any resourceID-format mismatch between the caller's input
+// and the canonical form from the lister.
+func (c *kubeApplierDBClients) findManagementClusterLocked(rid *azcorearm.ResourceID) *fleet.ManagementCluster {
+	mcs, err := c.mcLister.List(context.TODO())
+	if err != nil {
+		return nil
+	}
+	target := strings.ToLower(rid.String())
+	for _, mc := range mcs {
+		mcRID := managementClusterResourceID(mc)
+		if mcRID == nil {
+			continue
+		}
+		if strings.ToLower(mcRID.String()) == target {
+			return mc
+		}
+	}
+	return nil
+}
+
+// managementClusterResourceID prefers the explicit ResourceID field (kept on the
+// type during the migration off cosmosMetadata-only resourceIDs), falling back
+// to CosmosMetadata.ResourceID. Returns nil if neither is set.
+func managementClusterResourceID(mc *fleet.ManagementCluster) *azcorearm.ResourceID {
+	if mc == nil {
+		return nil
+	}
+	if mc.ResourceID != nil {
+		return mc.ResourceID
+	}
+	return mc.CosmosMetadata.ResourceID
 }

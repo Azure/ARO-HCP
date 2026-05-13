@@ -34,28 +34,36 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// TestSynchronizeSubscription_OrphanedDesires verifies the kube-applier sweep:
-// *Desires whose parent cluster or nodepool is gone are deleted by cosmosID; those
-// whose parent is still present in the resources container are left alone.
+// TestSynchronizeSubscription_OrphanedDesires verifies the kube-applier sweep across
+// the new per-management-cluster container model: each MC has its own MockKubeApplierDBClient
+// registered in a MockKubeApplierDBClients (plural). The orphan controller iterates the
+// registry, opens an UntypedCRUD against each MC's container, and deletes any *Desire whose
+// parent cluster/nodepool is gone — using DeleteByCosmosID with the partitionKey from the
+// listed row, never relying on the resourceID encoding a partition key.
 //
-// The kube-applier container is partitioned by management-cluster name, so deletions
-// happen via DeleteByCosmosID using the partitionKey from each listed row. We exercise
-// both cluster-scoped and nodepool-scoped *Desires across two management clusters.
+// Coverage:
+//   - Cluster-scoped desire under a live cluster (mc-a) — kept.
+//   - Nodepool-scoped desire under a live nodepool (mc-a) — kept.
+//   - Cluster-scoped desire under a missing cluster (mc-b, a different MC's container) — deleted.
+//   - Nodepool-scoped desire under a missing nodepool (mc-a) — deleted.
 func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 	const (
-		subscriptionID    = "a433a095-1277-44f1-8453-8d61a4d848c2"
-		resourceGroupName = "rg"
-		liveClusterName   = "live-cluster"
-		missingClusterName = "missing-cluster"
-		liveNodePoolName  = "live-np"
+		subscriptionID      = "a433a095-1277-44f1-8453-8d61a4d848c2"
+		resourceGroupName   = "rg"
+		liveClusterName     = "live-cluster"
+		missingClusterName  = "missing-cluster"
+		liveNodePoolName    = "live-np"
 		missingNodePoolName = "missing-np"
-		mgmtClusterA      = "mc-a"
-		mgmtClusterB      = "mc-b"
+		mgmtClusterAName    = "mc-a"
+		mgmtClusterBName    = "mc-b"
 	)
 
-	// --- resources container: a cluster + nodepool that DO exist, plus a subscription
+	mgmtClusterAResourceID := api.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/test/managementclusters/" + mgmtClusterAName))
+	mgmtClusterBResourceID := api.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/test/managementclusters/" + mgmtClusterBName))
+
+	// --- resources container: subscription + live cluster + live nodepool
 	subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	subscription := &arm.Subscription{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: subscriptionResourceID},
@@ -77,6 +85,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 
 	liveNodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, liveClusterName, liveNodePoolName))
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: liveNodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   liveNodePoolResourceID,
@@ -90,46 +99,51 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 	resourcesClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{subscription, cluster, nodePool})
 	require.NoError(t, err)
 
-	// --- kube-applier container: four ApplyDesires
-	desireUnderLiveCluster := newApplyDesire(t, mgmtClusterA,
+	// --- kube-applier containers: one per management cluster.
+	// mc-a: desire-under-live-cluster (kept) + desire-under-live-nodepool (kept) + desire-under-missing-nodepool (deleted)
+	// mc-b: desire-under-missing-cluster (deleted)
+	desireUnderLiveCluster := newApplyDesire(t, mgmtClusterAResourceID,
 		kubeapplier.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, liveClusterName, "live-cluster-desire"))
-	desireUnderLiveNodePool := newApplyDesire(t, mgmtClusterA,
+	desireUnderLiveNodePool := newApplyDesire(t, mgmtClusterAResourceID,
 		kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, liveClusterName, liveNodePoolName, "live-np-desire"))
-	desireUnderMissingCluster := newApplyDesire(t, mgmtClusterB,
-		kubeapplier.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, missingClusterName, "missing-cluster-desire"))
-	desireUnderMissingNodePool := newApplyDesire(t, mgmtClusterA,
+	desireUnderMissingNodePool := newApplyDesire(t, mgmtClusterAResourceID,
 		kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, liveClusterName, missingNodePoolName, "missing-np-desire"))
+	desireUnderMissingCluster := newApplyDesire(t, mgmtClusterBResourceID,
+		kubeapplier.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, missingClusterName, "missing-cluster-desire"))
 
-	kubeApplierClient, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
-		desireUnderLiveCluster,
-		desireUnderLiveNodePool,
-		desireUnderMissingCluster,
-		desireUnderMissingNodePool,
+	mcAClient, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+		desireUnderLiveCluster, desireUnderLiveNodePool, desireUnderMissingNodePool,
 	})
 	require.NoError(t, err)
+	mcBClient, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{desireUnderMissingCluster})
+	require.NoError(t, err)
+
+	kubeApplierClients := databasetesting.NewMockKubeApplierDBClients()
+	kubeApplierClients.Register(mgmtClusterAResourceID, mcAClient)
+	kubeApplierClients.Register(mgmtClusterBResourceID, mcBClient)
 
 	c := &deleteOrphanedCosmosResources{
-		name:                "DeleteOrphanedCosmosResources",
-		resourcesDBClient:   resourcesClient,
-		kubeApplierDBClient: kubeApplierClient,
+		name:                 "DeleteOrphanedCosmosResources",
+		resourcesDBClient:    resourcesClient,
+		kubeApplierDBClients: kubeApplierClients,
 	}
 
 	require.NoError(t, c.synchronizeSubscription(ctx, subscriptionID))
 
-	// Desires whose parent still exists survive.
-	assertDesirePresent(t, kubeApplierClient, desireUnderLiveCluster.GetResourceID(),
+	// Desires whose parent still exists survive — in their respective containers.
+	assertDesirePresent(t, mcAClient, desireUnderLiveCluster.GetResourceID(),
 		"desire under live cluster must survive")
-	assertDesirePresent(t, kubeApplierClient, desireUnderLiveNodePool.GetResourceID(),
+	assertDesirePresent(t, mcAClient, desireUnderLiveNodePool.GetResourceID(),
 		"desire under live nodepool must survive")
 
-	// Desires whose parent is gone are deleted by cosmosID.
-	assertDesireAbsent(t, kubeApplierClient, desireUnderMissingCluster.GetResourceID(),
-		"desire under missing cluster must be deleted")
-	assertDesireAbsent(t, kubeApplierClient, desireUnderMissingNodePool.GetResourceID(),
-		"desire under missing nodepool must be deleted")
+	// Desires whose parent is gone are deleted by cosmosID from their respective containers.
+	assertDesireAbsent(t, mcAClient, desireUnderMissingNodePool.GetResourceID(),
+		"desire under missing nodepool (mc-a) must be deleted")
+	assertDesireAbsent(t, mcBClient, desireUnderMissingCluster.GetResourceID(),
+		"desire under missing cluster (mc-b) must be deleted")
 }
 
-func newApplyDesire(t *testing.T, managementCluster, resourceIDString string) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, managementCluster *azcorearm.ResourceID, resourceIDString string) *kubeapplier.ApplyDesire {
 	t.Helper()
 	rid := api.Must(azcorearm.ParseResourceID(resourceIDString))
 	return &kubeapplier.ApplyDesire{
