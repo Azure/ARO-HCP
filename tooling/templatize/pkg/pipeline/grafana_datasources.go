@@ -18,10 +18,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/modify"
-	"github.com/go-logr/logr"
 )
 
 func runGrafanaDatasourcesStep(_ graph.Identifier, step *types.GrafanaDatasourcesStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, _ *ExecutionState) error {
