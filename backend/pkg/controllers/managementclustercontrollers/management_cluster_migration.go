@@ -30,8 +30,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -136,7 +136,7 @@ func (c *managementClusterMigrationController) syncProvisionShard(ctx context.Co
 	if database.IsNotFoundError(err) {
 		// The lister cache may be stale (e.g. on startup). Check CosmosDB directly
 		// before attempting to create.
-		existing, err = managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
+		existing, err = managementClusterCRUD.Get(ctx, fleetapi.ManagementClusterResourceName)
 		if err != nil && !database.IsNotFoundError(err) {
 			return fmt.Errorf("management cluster %s: %w", stampIdentifier, err)
 		}
@@ -184,10 +184,10 @@ func (c *managementClusterMigrationController) ensureStamp(ctx context.Context, 
 	}
 
 	approvedCondition := metav1.Condition{
-		Type:               string(fleet.StampConditionApproved),
+		Type:               string(fleetapi.StampConditionApproved),
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
-		Reason:             string(fleet.StampConditionReasonAutoApproved),
+		Reason:             string(fleetapi.StampConditionReasonAutoApproved),
 		Message:            "Synced from Cluster Service provision shard",
 	}
 
@@ -203,12 +203,12 @@ func (c *managementClusterMigrationController) ensureStamp(ctx context.Context, 
 	}
 
 	if database.IsNotFoundError(err) {
-		stampResourceID, err := fleet.ToStampResourceID(stampIdentifier)
+		stampResourceID, err := fleetapi.ToStampResourceID(stampIdentifier)
 		if err != nil {
 			return fmt.Errorf("invalid stamp identifier %q: %w", stampIdentifier, err)
 		}
-		stamp := &fleet.Stamp{
-			CosmosMetadata: api.CosmosMetadata{
+		stamp := &fleetapi.Stamp{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: stampResourceID,
 			},
 			ResourceID: stampResourceID,

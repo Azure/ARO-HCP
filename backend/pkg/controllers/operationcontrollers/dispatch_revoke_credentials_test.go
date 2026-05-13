@@ -25,7 +25,7 @@ import (
 
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -46,7 +46,7 @@ func TestDispatchRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateDeleting, op.Status)
 			},
 		},
 		{
@@ -56,7 +56,7 @@ func TestDispatchRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateCanceled, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateCanceled, op.Status)
 			},
 		},
 	}

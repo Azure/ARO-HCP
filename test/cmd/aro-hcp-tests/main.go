@@ -31,7 +31,7 @@ import (
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	customlinktools "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/custom-link-tools"
 	gatherobservability "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-observability"
@@ -271,11 +271,11 @@ func setupCli() *cobra.Command {
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
 	root.AddCommand(cleanup.NewCommand())
-	root.AddCommand(api.Must(visualize.NewCommand()))
-	root.AddCommand(api.Must(customlinktools.NewCommand()))
-	root.AddCommand(api.Must(identitypool.NewCommand()))
-	root.AddCommand(api.Must(gatherobservability.NewCommand()))
-	root.AddCommand(api.Must(gathersnapshot.NewCommand()))
+	root.AddCommand(resourcesapi.Must(visualize.NewCommand()))
+	root.AddCommand(resourcesapi.Must(customlinktools.NewCommand()))
+	root.AddCommand(resourcesapi.Must(identitypool.NewCommand()))
+	root.AddCommand(resourcesapi.Must(gatherobservability.NewCommand()))
+	root.AddCommand(resourcesapi.Must(gathersnapshot.NewCommand()))
 	return root
 }
 

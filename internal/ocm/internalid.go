@@ -22,7 +22,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 // Resource Keys
@@ -74,7 +74,7 @@ func GenerateAROHCPBreakGlassCredentialHREF(clusterPath string, credentialName s
 	return path.Join(aroHcpV1Alpha1Pattern, clusterKey, clusterPath, "break_glass_credentials", credentialName)
 }
 
-type InternalID = api.InternalID
+type InternalID = resourcesapi.InternalID
 
 // getClusterClient returns a v1 ClusterClient from the InternalID.
 // This works for both cluster and node pool resources. The transport

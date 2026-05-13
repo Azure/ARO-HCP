@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -71,7 +71,7 @@ func middlewareTracing(w http.ResponseWriter, r *http.Request, next http.Handler
 // the propagated span. It also adds correlation data to the span's baggage
 // which is propagated to the downstream services (e.g. Clusters Service). If
 // the context does not maintain a span, the function has no effect.
-func addCorrelationDataToSpanContext(ctx context.Context, data *arm.CorrelationData) context.Context {
+func addCorrelationDataToSpanContext(ctx context.Context, data *armresourcesapi.CorrelationData) context.Context {
 	var (
 		logger = utils.LoggerFromContext(ctx)
 		span   = trace.SpanFromContext(ctx)

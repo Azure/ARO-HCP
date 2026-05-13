@@ -30,8 +30,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -65,38 +65,38 @@ func newTestClusterResourceID(t *testing.T) *azcorearm.ResourceID {
 	return resourceID
 }
 
-func newTestSubscription() *arm.Subscription {
-	subResourceID := api.Must(azcorearm.ParseResourceID(
+func newTestSubscription() *armresourcesapi.Subscription {
+	subResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID))
-	return &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{
+	return &armresourcesapi.Subscription{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: subResourceID,
 		},
 		ResourceID: subResourceID,
-		State:      arm.SubscriptionStateRegistered,
-		Properties: &arm.SubscriptionProperties{
+		State:      armresourcesapi.SubscriptionStateRegistered,
+		Properties: &armresourcesapi.SubscriptionProperties{
 			TenantId: ptr.To(testTenantID),
 		},
 	}
 }
 
-func newTestCluster(t *testing.T, clusterUID string, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T, clusterUID string, provisioningState armresourcesapi.ProvisioningState, createdAt *time.Time) *resourcesapi.HCPOpenShiftCluster {
 	t.Helper()
-	return &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	return &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   newTestClusterResourceID(t),
 				Name: testClusterName,
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-				SystemData: &arm.SystemData{
+				SystemData: &armresourcesapi.SystemData{
 					CreatedAt: createdAt,
 				},
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ProvisioningState: provisioningState,
 			ClusterUID:        clusterUID,
-			ClusterServiceID:  api.Ptr(api.Must(api.NewInternalID(testClusterServiceIDStr))),
+			ClusterServiceID:  resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr))),
 		},
 	}
 }
@@ -115,13 +115,13 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cluster     *api.HCPOpenShiftCluster
+		cluster     *resourcesapi.HCPOpenShiftCluster
 		expectError bool
 		verify      func(t *testing.T, billing *databasetesting.MockBillingDBClient)
 	}{
 		{
 			name:        "creates billing document for succeeded cluster with ClusterUID",
-			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt),
+			cluster:     newTestCluster(t, testClusterUID, armresourcesapi.ProvisioningStateSucceeded, &createdAt),
 			expectError: false,
 			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
@@ -136,7 +136,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		},
 		{
 			name:        "uses fallback time when CreatedAt is nil",
-			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, nil),
+			cluster:     newTestCluster(t, testClusterUID, armresourcesapi.ProvisioningStateSucceeded, nil),
 			expectError: false,
 			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
@@ -148,7 +148,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		},
 		{
 			name:        "skips cluster without ClusterUID",
-			cluster:     newTestCluster(t, "", arm.ProvisioningStateSucceeded, &createdAt),
+			cluster:     newTestCluster(t, "", armresourcesapi.ProvisioningStateSucceeded, &createdAt),
 			expectError: false,
 			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
@@ -157,7 +157,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		},
 		{
 			name:        "skips cluster not in Succeeded state",
-			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateProvisioning, &createdAt),
+			cluster:     newTestCluster(t, testClusterUID, armresourcesapi.ProvisioningStateProvisioning, &createdAt),
 			expectError: false,
 			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
@@ -166,7 +166,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		},
 		{
 			name:        "skips cluster in Failed state",
-			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateFailed, &createdAt),
+			cluster:     newTestCluster(t, testClusterUID, armresourcesapi.ProvisioningStateFailed, &createdAt),
 			expectError: false,
 			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
 				billingDocs := billing.GetBillingDocuments()
@@ -175,7 +175,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 		},
 		{
 			name:        "idempotent when billing document already exists",
-			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt),
+			cluster:     newTestCluster(t, testClusterUID, armresourcesapi.ProvisioningStateSucceeded, &createdAt),
 			expectError: false,
 			verify:      nil, // covered by setup - billing doc pre-seeded, second sync should not error
 		},
@@ -199,7 +199,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 				resourcesDBClient: mockResourcesDBClient,
 				billingDBClient:   mockBillingDBClient,
 				clusterLister: &listertesting.SliceClusterLister{
-					Clusters: []*api.HCPOpenShiftCluster{tt.cluster},
+					Clusters: []*resourcesapi.HCPOpenShiftCluster{tt.cluster},
 				},
 				billingLister: &listertesting.SliceBillingLister{
 					BillingDocuments: []*database.BillingDocument{},
@@ -228,7 +228,7 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 	ctx := context.Background()
 	ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-	cluster := newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt)
+	cluster := newTestCluster(t, testClusterUID, armresourcesapi.ProvisioningStateSucceeded, &createdAt)
 	subscription := newTestSubscription()
 
 	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription})
@@ -237,7 +237,7 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 
 	// Setup slice cluster lister (cache)
 	clusterLister := &listertesting.SliceClusterLister{
-		Clusters: []*api.HCPOpenShiftCluster{cluster},
+		Clusters: []*resourcesapi.HCPOpenShiftCluster{cluster},
 	}
 
 	controller := &createBillingDoc{
@@ -302,7 +302,7 @@ func TestCreateBillingDoc_ExistingBillingDocButMissingClusterRef(t *testing.T) {
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
 			// Cluster has ClusterUID but no BillingDocumentCosmosID.
-			cluster := newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt)
+			cluster := newTestCluster(t, testClusterUID, armresourcesapi.ProvisioningStateSucceeded, &createdAt)
 			assert.Empty(t, cluster.ServiceProviderProperties.BillingDocumentCosmosID)
 
 			subscription := newTestSubscription()
@@ -322,7 +322,7 @@ func TestCreateBillingDoc_ExistingBillingDocButMissingClusterRef(t *testing.T) {
 				resourcesDBClient: mockResourcesDBClient,
 				billingDBClient:   mockBillingDBClient,
 				clusterLister: &listertesting.SliceClusterLister{
-					Clusters: []*api.HCPOpenShiftCluster{cluster},
+					Clusters: []*resourcesapi.HCPOpenShiftCluster{cluster},
 				},
 				billingLister: &listertesting.SliceBillingLister{
 					BillingDocuments: tt.cachedBillingDoc,

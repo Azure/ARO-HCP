@@ -34,8 +34,8 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -84,9 +84,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, resourcesapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []resourcesapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -104,9 +104,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, resourcesapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []resourcesapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.17")), State: configv1.PartialUpdate}, {Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate}, {Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -123,9 +123,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, resourcesapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []resourcesapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -140,7 +140,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, resourcesapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
 				require.Empty(t, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -159,9 +159,9 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, resourcesapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
+				assert.Equal(t, []resourcesapi.HCPClusterActiveVersion{
 					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
@@ -178,10 +178,10 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
-				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, resourcesapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err)
-				assert.Equal(t, []api.HCPClusterActiveVersion{
-					{Version: ptr.To(api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))), State: configv1.CompletedUpdate},
+				assert.Equal(t, []resourcesapi.HCPClusterActiveVersion{
+					{Version: ptr.To(resourcesapi.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
 		},
@@ -255,7 +255,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	})
 
 	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
-	before, err := spcCRUD.Get(runCtx, api.ServiceProviderClusterResourceName)
+	before, err := spcCRUD.Get(runCtx, resourcesapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	beforeETag := before.CosmosETag
 
@@ -269,7 +269,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 		HCPClusterName:    testClusterName,
 	}))
 
-	after, err := spcCRUD.Get(runCtx, api.ServiceProviderClusterResourceName)
+	after, err := spcCRUD.Get(runCtx, resourcesapi.ServiceProviderClusterResourceName)
 	require.NoError(t, err)
 	assert.Equal(t, beforeETag, after.CosmosETag, "ServiceProviderCluster.CosmosETag changed despite identical ActiveVersions; the syncer wrote unnecessarily")
 }
@@ -279,23 +279,23 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 	t.Helper()
 
-	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID, err := api.NewInternalID(testCSClusterIDStr)
+	clusterInternalID, err := resourcesapi.NewInternalID(testCSClusterIDStr)
 	require.NoError(t, err)
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   clusterResourceID,
 				Name: testClusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: resourcesapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &clusterInternalID,
 		},
 	}
@@ -331,14 +331,14 @@ func createManagementClusterContentWithHostedClusterHistory(t *testing.T, ctx co
 func createManagementClusterContentWithKubeContentItems(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, items []runtime.RawExtension) {
 	t.Helper()
 
-	clusterRID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+	clusterRID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	managementClusterContentResourceID := api.Must(azcorearm.ParseResourceID(clusterRID.String() + "/" + api.ManagementClusterContentResourceTypeName + "/" + string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)))
+	managementClusterContentResourceID := resourcesapi.Must(azcorearm.ParseResourceID(clusterRID.String() + "/" + resourcesapi.ManagementClusterContentResourceTypeName + "/" + string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)))
 
-	managementClusterContent := &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterContentResourceID},
-		Status: api.ManagementClusterContentStatus{
+	managementClusterContent := &resourcesapi.ManagementClusterContent{
+		CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: managementClusterContentResourceID},
+		Status: resourcesapi.ManagementClusterContentStatus{
 			KubeContent: &metav1.List{
 				Items: items,
 			},

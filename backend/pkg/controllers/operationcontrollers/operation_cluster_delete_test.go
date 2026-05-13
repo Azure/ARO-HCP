@@ -29,7 +29,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -61,7 +61,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				// Verify operation succeeded
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, op.Status)
 
 				// Verify cluster document was deleted
 				_, err = db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
@@ -84,7 +84,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateDeleting, op.Status)
 
 				// Cluster should still exist during uninstalling
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
@@ -109,7 +109,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				// When cluster is Ready during delete, operation stays at Accepted
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateAccepted, op.Status)
 
 				// Cluster should still exist
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
@@ -135,7 +135,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 				assert.Equal(t, "ERR001", op.Error.Code)
 

@@ -27,7 +27,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -55,7 +55,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, op.Status)
 
 				// Verify node pool document was deleted
 				_, err = db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
@@ -78,7 +78,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateDeleting, op.Status)
 
 				// Node pool should still exist during uninstalling
 				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
@@ -103,7 +103,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				// When node pool is Ready during delete, operation stays at Accepted
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateAccepted, op.Status)
 
 				// Node pool should still exist
 				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
@@ -128,7 +128,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 
 				// Node pool should still exist on failure

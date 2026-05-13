@@ -18,8 +18,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 const operationTimeToLive = 604800 // 7 days
@@ -29,9 +30,9 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 		return nil, nil
 	}
 
-	metadata, ok := any(internalObj).(arm.CosmosMetadataAccessor)
+	metadata, ok := any(internalObj).(metaapi.CosmosMetadataAccessor)
 	if !ok {
-		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", internalObj)
+		return nil, fmt.Errorf("internalObj must be an metaapi.CosmosMetadataAccessor: %T", internalObj)
 	}
 
 	cosmosObj := &GenericDocument[InternalAPIType]{
@@ -48,7 +49,7 @@ func InternalToCosmosGeneric[InternalAPIType any](internalObj *InternalAPIType) 
 
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
 	switch any(internalObj).(type) {
-	case *api.Operation:
+	case *resourcesapi.Operation:
 		// TODO Add TTL to cosmosMetadata
 		cosmosObj.TimeToLive = operationTimeToLive
 	}
@@ -61,17 +62,17 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 		return nil, nil
 	}
 
-	ret, ok := any(&cosmosObj.Content).(arm.CosmosMetadataAccessor)
+	ret, ok := any(&cosmosObj.Content).(metaapi.CosmosMetadataAccessor)
 	if !ok {
-		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", cosmosObj)
+		return nil, fmt.Errorf("internalObj must be an metaapi.CosmosMetadataAccessor: %T", cosmosObj)
 	}
-	cosmosData := ret.(arm.CosmosPersistable).GetCosmosData()
+	cosmosData := ret.(metaapi.CosmosPersistable).GetCosmosData()
 	cosmosData.ExistingCosmosUID = cosmosObj.ID
 	ret.SetEtag(cosmosObj.CosmosETag)
 
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
 	switch castObj := any(ret).(type) {
-	case *arm.Subscription:
+	case *armresourcesapi.Subscription:
 		if castObj.CosmosMetadata.ResourceID == nil && castObj.ResourceID != nil {
 			castObj.CosmosMetadata.ResourceID = castObj.ResourceID
 		}
@@ -79,7 +80,7 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 			castObj.CosmosMetadata.ResourceID = cosmosObj.ResourceID
 		}
 		castObj.LastUpdated = cosmosObj.CosmosTimestamp
-	case arm.Subscription:
+	case armresourcesapi.Subscription:
 		castObj.LastUpdated = cosmosObj.CosmosTimestamp
 	}
 

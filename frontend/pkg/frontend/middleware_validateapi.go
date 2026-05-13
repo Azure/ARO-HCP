@@ -20,16 +20,16 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type middlewareValidatedAPIVersion struct {
-	apiRegistry api.APIRegistry
+	apiRegistry resourcesapi.APIRegistry
 }
 
-func newMiddlewareValidatedAPIVersion(apiRegistry api.APIRegistry) *middlewareValidatedAPIVersion {
+func newMiddlewareValidatedAPIVersion(apiRegistry resourcesapi.APIRegistry) *middlewareValidatedAPIVersion {
 	return &middlewareValidatedAPIVersion{
 		apiRegistry: apiRegistry,
 	}
@@ -41,17 +41,17 @@ func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *
 
 	apiVersion := r.URL.Query().Get(APIVersionKey)
 	if apiVersion == "" {
-		arm.WriteError(
+		armresourcesapi.WriteError(
 			w, http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidParameter, "",
+			armresourcesapi.CloudErrorCodeInvalidParameter, "",
 			"The request is missing required parameter '%s'.",
 			APIVersionKey)
 	} else if version, ok := h.apiRegistry.Lookup(apiVersion); !ok {
-		arm.WriteError(
+		armresourcesapi.WriteError(
 			w, http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidResourceType, "",
+			armresourcesapi.CloudErrorCodeInvalidResourceType, "",
 			"The resource type '%s' could not be found API version '%s'.",
-			api.ClusterResourceType,
+			resourcesapi.ClusterResourceType,
 			apiVersion)
 	} else {
 		logger = logger.WithValues(utils.LogValues{}.AddAPIVersion(apiVersion)...)

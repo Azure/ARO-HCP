@@ -26,7 +26,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -81,7 +81,7 @@ func getByItemID[InternalAPIType, CosmosAPIType any](ctx context.Context, contai
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
 	// try to see if the cosmosID we've passed is also the exact resource ID.  If so, then return the value we got.
-	newExactCosmosID, err := arm.ResourceIDToCosmosID(completeResourceID)
+	newExactCosmosID, err := metaapi.ResourceIDToCosmosID(completeResourceID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -169,8 +169,8 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 
 // serializeItem will create a CosmosUID if it doesn't exist, otherwise uses what exists.  This makes it compatible with
 // create, replace, and create
-func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*arm.CosmosMetadata, []byte, error) {
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*metaapi.CosmosMetadata, []byte, error) {
+	cosmosPersistable, ok := any(newObj).(metaapi.CosmosPersistable)
 	if !ok {
 		return nil, nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
 	}
@@ -321,7 +321,7 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 }
 
 func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
-	cosmosID, err := arm.ResourceIDToCosmosID(resourceID)
+	cosmosID, err := metaapi.ResourceIDToCosmosID(resourceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}

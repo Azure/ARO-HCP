@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 func ReadGenericMutationTest(testDir fs.FS) (*GenericMutationTest, error) {
@@ -122,12 +122,12 @@ func (h *GenericMutationTest) VerifyActualError(t *testing.T, actualErr error) {
 		t.Fatal(actualErr)
 	}
 
-	actualErrors := &arm.CloudError{}
+	actualErrors := &armresourcesapi.CloudError{}
 	body, err := io.ReadAll(azureErr.RawResponse.Body)
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(body, actualErrors))
 	if len(actualErrors.Details) == 0 { // if we have details, then simulate one so the checking code works easily
-		actualErrors.Details = []arm.CloudErrorBody{
+		actualErrors.Details = []armresourcesapi.CloudErrorBody{
 			{
 				Code:    actualErrors.Code,
 				Message: actualErrors.Message,
@@ -217,7 +217,7 @@ func (e expectedFieldError) String() string {
 	return fmt.Sprintf("%s: %s: %s", e.code, e.field, e.message)
 }
 
-func (e expectedFieldError) matches(actualError arm.CloudErrorBody) error {
+func (e expectedFieldError) matches(actualError armresourcesapi.CloudErrorBody) error {
 	if actualError.Code != e.code {
 		return fmt.Errorf("expected code %q, got %q", e.code, actualError.Code)
 	}

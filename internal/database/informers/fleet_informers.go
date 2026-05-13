@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -36,13 +36,13 @@ const (
 
 // NewStampInformer creates an unstarted SharedIndexInformer for stamps
 // with the default relist duration.
-func NewStampInformer(lister database.GlobalLister[fleet.Stamp]) cache.SharedIndexInformer {
+func NewStampInformer(lister database.GlobalLister[fleetapi.Stamp]) cache.SharedIndexInformer {
 	return NewStampInformerWithRelistDuration(lister, StampRelistDuration)
 }
 
 // NewStampInformerWithRelistDuration creates an unstarted SharedIndexInformer for stamps
 // with a configurable relist duration.
-func NewStampInformerWithRelistDuration(lister database.GlobalLister[fleet.Stamp], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewStampInformerWithRelistDuration(lister database.GlobalLister[fleetapi.Stamp], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -54,7 +54,7 @@ func NewStampInformerWithRelistDuration(lister database.GlobalLister[fleet.Stamp
 				return nil, err
 			}
 
-			list := &fleet.StampList{}
+			list := &fleetapi.StampList{}
 			list.ResourceVersion = "0"
 			for _, s := range iter.Items(ctx) {
 				list.Items = append(list.Items, *s)
@@ -72,7 +72,7 @@ func NewStampInformerWithRelistDuration(lister database.GlobalLister[fleet.Stamp
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&fleet.Stamp{},
+		&fleetapi.Stamp{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
 		},
@@ -81,13 +81,13 @@ func NewStampInformerWithRelistDuration(lister database.GlobalLister[fleet.Stamp
 
 // NewManagementClusterInformer creates an unstarted SharedIndexInformer for management clusters
 // with the default relist duration.
-func NewManagementClusterInformer(lister database.GlobalLister[fleet.ManagementCluster]) cache.SharedIndexInformer {
+func NewManagementClusterInformer(lister database.GlobalLister[fleetapi.ManagementCluster]) cache.SharedIndexInformer {
 	return NewManagementClusterInformerWithRelistDuration(lister, ManagementClusterRelistDuration)
 }
 
 // NewManagementClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for management clusters
 // with a configurable relist duration.
-func NewManagementClusterInformerWithRelistDuration(lister database.GlobalLister[fleet.ManagementCluster], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewManagementClusterInformerWithRelistDuration(lister database.GlobalLister[fleetapi.ManagementCluster], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -99,7 +99,7 @@ func NewManagementClusterInformerWithRelistDuration(lister database.GlobalLister
 				return nil, err
 			}
 
-			list := &fleet.ManagementClusterList{}
+			list := &fleetapi.ManagementClusterList{}
 			list.ResourceVersion = "0"
 			for _, mc := range iter.Items(ctx) {
 				list.Items = append(list.Items, *mc)
@@ -117,7 +117,7 @@ func NewManagementClusterInformerWithRelistDuration(lister database.GlobalLister
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&fleet.ManagementCluster{},
+		&fleetapi.ManagementCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
 			Indexers: cache.Indexers{

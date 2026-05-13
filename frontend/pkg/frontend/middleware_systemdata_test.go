@@ -26,7 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -47,16 +47,16 @@ func TestMiddlewareSystemData(t *testing.T) {
 	tests := []struct {
 		name               string
 		systemData         string
-		expectedSystemData *arm.SystemData
+		expectedSystemData *armresourcesapi.SystemData
 	}{
 		{
 			name:       "systemData provided",
 			systemData: systemDataRaw,
-			expectedSystemData: &arm.SystemData{
+			expectedSystemData: &armresourcesapi.SystemData{
 				CreatedBy:          "foo@bar.com",
-				CreatedByType:      arm.CreatedByTypeApplication,
+				CreatedByType:      armresourcesapi.CreatedByTypeApplication,
 				CreatedAt:          &timestamp,
-				LastModifiedByType: arm.CreatedByTypeApplication,
+				LastModifiedByType: armresourcesapi.CreatedByTypeApplication,
 				LastModifiedBy:     "00000000-0000-0000-0000-000000000000",
 				LastModifiedAt:     &timestamp,
 			},
@@ -82,7 +82,7 @@ func TestMiddlewareSystemData(t *testing.T) {
 
 			if tt.systemData != "" {
 				request.Header = http.Header{
-					arm.HeaderNameARMResourceSystemData: []string{tt.systemData},
+					armresourcesapi.HeaderNameARMResourceSystemData: []string{tt.systemData},
 				}
 			}
 

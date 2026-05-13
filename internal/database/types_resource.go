@@ -20,7 +20,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -28,13 +28,13 @@ import (
 // to an internal resource ID (the OCM API path), as well as any
 // ARM-specific metadata for the resource.
 type ResourceDocument struct {
-	ResourceID        *azcorearm.ResourceID       `json:"resourceId,omitempty"`
-	InternalID        ocm.InternalID              `json:"internalId,omitempty"`
-	ActiveOperationID string                      `json:"activeOperationId,omitempty"`
-	ProvisioningState arm.ProvisioningState       `json:"provisioningState,omitempty"`
-	Identity          *arm.ManagedServiceIdentity `json:"identity,omitempty"`
-	SystemData        *arm.SystemData             `json:"systemData,omitempty"`
-	Tags              map[string]string           `json:"tags,omitempty"`
+	ResourceID        *azcorearm.ResourceID                   `json:"resourceId,omitempty"`
+	InternalID        ocm.InternalID                          `json:"internalId,omitempty"`
+	ActiveOperationID string                                  `json:"activeOperationId,omitempty"`
+	ProvisioningState armresourcesapi.ProvisioningState       `json:"provisioningState,omitempty"`
+	Identity          *armresourcesapi.ManagedServiceIdentity `json:"identity,omitempty"`
+	SystemData        *armresourcesapi.SystemData             `json:"systemData,omitempty"`
+	Tags              map[string]string                       `json:"tags,omitempty"`
 
 	InternalState map[string]any `json:"internalState,omitempty"`
 }

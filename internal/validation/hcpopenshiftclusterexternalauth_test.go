@@ -21,19 +21,19 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestExternalAuthRequired(t *testing.T) {
 	tests := []struct {
 		name         string
-		resource     *api.HCPOpenShiftClusterExternalAuth
+		resource     *resourcesapi.HCPOpenShiftClusterExternalAuth
 		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:     "Empty External Auth",
-			resource: &api.HCPOpenShiftClusterExternalAuth{},
+			resource: &resourcesapi.HCPOpenShiftClusterExternalAuth{},
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "Required value",
@@ -71,7 +71,7 @@ func TestExternalAuthRequired(t *testing.T) {
 		},
 		{
 			name:     "Default external auth",
-			resource: api.NewDefaultHCPOpenShiftClusterExternalAuth(api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth"))),
+			resource: resourcesapi.NewDefaultHCPOpenShiftClusterExternalAuth(resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth"))),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "Required value",
@@ -92,7 +92,7 @@ func TestExternalAuthRequired(t *testing.T) {
 		},
 		{
 			name:     "Minimum valid external auth",
-			resource: api.MinimumValidExternalAuthTestCase(),
+			resource: resourcesapi.MinimumValidExternalAuthTestCase(),
 		},
 	}
 
@@ -115,20 +115,20 @@ func TestExternalAuthValidate(t *testing.T) {
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string
-		tweaks       *api.HCPOpenShiftClusterExternalAuth
+		tweaks       *resourcesapi.HCPOpenShiftClusterExternalAuth
 		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:   "Minimum valid external auth",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{},
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{},
 		},
 		{
 			name: "Max not satisfied for properties.claim.mappings.username.claim",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Claim: api.ExternalAuthClaimProfile{
-						Mappings: api.TokenClaimMappingsProfile{
-							Username: api.UsernameClaimProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Claim: resourcesapi.ExternalAuthClaimProfile{
+						Mappings: resourcesapi.TokenClaimMappingsProfile{
+							Username: resourcesapi.UsernameClaimProfile{
 								Claim: TooLongClaim,
 							},
 						},
@@ -139,11 +139,11 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "Max not satisfied for properties.claim.mappings.groups.claim",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Claim: api.ExternalAuthClaimProfile{
-						Mappings: api.TokenClaimMappingsProfile{
-							Groups: &api.GroupClaimProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Claim: resourcesapi.ExternalAuthClaimProfile{
+						Mappings: resourcesapi.TokenClaimMappingsProfile{
+							Groups: &resourcesapi.GroupClaimProfile{
 								Claim: TooLongClaim,
 							},
 						},
@@ -159,9 +159,9 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "Empty properties.issuer.ca",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: api.TokenIssuerProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: resourcesapi.TokenIssuerProfile{
 						CA: "",
 					},
 				},
@@ -169,9 +169,9 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "Bad properties.issuer.ca",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: api.TokenIssuerProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: resourcesapi.TokenIssuerProfile{
 						CA: "NOT A PEM DOC",
 					},
 				},
@@ -185,9 +185,9 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "Bad properties.issuer.url - InvalidURL",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: api.TokenIssuerProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: resourcesapi.TokenIssuerProfile{
 						URL: "aaa",
 					},
 				},
@@ -201,9 +201,9 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "Bad properties.issuer.url - Not starting with https://",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: api.TokenIssuerProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: resourcesapi.TokenIssuerProfile{
 						URL: "http://microsoft.com",
 					},
 				},
@@ -217,9 +217,9 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "Bad properties.issuer.audiences",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: api.TokenIssuerProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: resourcesapi.TokenIssuerProfile{
 						Audiences: []string{"omitempty"},
 					},
 				},
@@ -228,12 +228,12 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "Missing prefix when policy is Prefix",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Claim: api.ExternalAuthClaimProfile{
-						Mappings: api.TokenClaimMappingsProfile{
-							Username: api.UsernameClaimProfile{
-								PrefixPolicy: api.UsernameClaimPrefixPolicyPrefix,
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Claim: resourcesapi.ExternalAuthClaimProfile{
+						Mappings: resourcesapi.TokenClaimMappingsProfile{
+							Username: resourcesapi.UsernameClaimProfile{
+								PrefixPolicy: resourcesapi.UsernameClaimPrefixPolicyPrefix,
 							},
 						},
 					},
@@ -248,13 +248,13 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "No username prefix when policy is NoPrefix",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Claim: api.ExternalAuthClaimProfile{
-						Mappings: api.TokenClaimMappingsProfile{
-							Username: api.UsernameClaimProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Claim: resourcesapi.ExternalAuthClaimProfile{
+						Mappings: resourcesapi.TokenClaimMappingsProfile{
+							Username: resourcesapi.UsernameClaimProfile{
 								Prefix:       "prefix",
-								PrefixPolicy: api.UsernameClaimPrefixPolicyNoPrefix,
+								PrefixPolicy: resourcesapi.UsernameClaimPrefixPolicyNoPrefix,
 							},
 						},
 					},
@@ -269,13 +269,13 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "No username prefix when policy is None",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Claim: api.ExternalAuthClaimProfile{
-						Mappings: api.TokenClaimMappingsProfile{
-							Username: api.UsernameClaimProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Claim: resourcesapi.ExternalAuthClaimProfile{
+						Mappings: resourcesapi.TokenClaimMappingsProfile{
+							Username: resourcesapi.UsernameClaimProfile{
 								Prefix:       "prefix",
-								PrefixPolicy: api.UsernameClaimPrefixPolicyNone,
+								PrefixPolicy: resourcesapi.UsernameClaimPrefixPolicyNone,
 							},
 						},
 					},
@@ -295,25 +295,25 @@ func TestExternalAuthValidate(t *testing.T) {
 
 		{
 			name: "Valid ClientID in audiences",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: api.TokenIssuerProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: resourcesapi.TokenIssuerProfile{
 						URL:       "https://example.com",
 						Audiences: []string{ClientID1},
 					},
-					Clients: []api.ExternalAuthClientProfile{
+					Clients: []resourcesapi.ExternalAuthClientProfile{
 						{
 							ClientID: ClientID1,
-							Component: api.ExternalAuthClientComponentProfile{
+							Component: resourcesapi.ExternalAuthClientComponentProfile{
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: resourcesapi.ExternalAuthClientTypeConfidential,
 						},
 					},
-					Claim: api.ExternalAuthClaimProfile{
-						Mappings: api.TokenClaimMappingsProfile{
-							Username: api.UsernameClaimProfile{Claim: "email"},
+					Claim: resourcesapi.ExternalAuthClaimProfile{
+						Mappings: resourcesapi.TokenClaimMappingsProfile{
+							Username: resourcesapi.UsernameClaimProfile{Claim: "email"},
 						},
 					},
 				},
@@ -322,25 +322,25 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "Invalid ClientID not in audiences",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: api.TokenIssuerProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: resourcesapi.TokenIssuerProfile{
 						URL:       "https://example.com",
 						Audiences: []string{},
 					},
-					Clients: []api.ExternalAuthClientProfile{
+					Clients: []resourcesapi.ExternalAuthClientProfile{
 						{
 							ClientID: ClientID1,
-							Component: api.ExternalAuthClientComponentProfile{
+							Component: resourcesapi.ExternalAuthClientComponentProfile{
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: resourcesapi.ExternalAuthClientTypeConfidential,
 						},
 					},
-					Claim: api.ExternalAuthClaimProfile{
-						Mappings: api.TokenClaimMappingsProfile{
-							Username: api.UsernameClaimProfile{Claim: "email"},
+					Claim: resourcesapi.ExternalAuthClaimProfile{
+						Mappings: resourcesapi.TokenClaimMappingsProfile{
+							Username: resourcesapi.UsernameClaimProfile{Claim: "email"},
 						},
 					},
 				},
@@ -354,33 +354,33 @@ func TestExternalAuthValidate(t *testing.T) {
 		},
 		{
 			name: "External Auth with multiple clients that have the same Name/Namespace pair",
-			tweaks: &api.HCPOpenShiftClusterExternalAuth{
-				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: api.TokenIssuerProfile{
+			tweaks: &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: resourcesapi.TokenIssuerProfile{
 						URL:       "https://example.com",
 						Audiences: []string{ClientID1, ClientID2},
 					},
-					Clients: []api.ExternalAuthClientProfile{
+					Clients: []resourcesapi.ExternalAuthClientProfile{
 						{
 							ClientID: ClientID1,
-							Component: api.ExternalAuthClientComponentProfile{
+							Component: resourcesapi.ExternalAuthClientComponentProfile{
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: resourcesapi.ExternalAuthClientTypeConfidential,
 						},
 						{
 							ClientID: ClientID2,
-							Component: api.ExternalAuthClientComponentProfile{
+							Component: resourcesapi.ExternalAuthClientComponentProfile{
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: resourcesapi.ExternalAuthClientTypeConfidential,
 						},
 					},
-					Claim: api.ExternalAuthClaimProfile{
-						Mappings: api.TokenClaimMappingsProfile{
-							Username: api.UsernameClaimProfile{Claim: "email"},
+					Claim: resourcesapi.ExternalAuthClaimProfile{
+						Mappings: resourcesapi.TokenClaimMappingsProfile{
+							Username: resourcesapi.UsernameClaimProfile{Claim: "email"},
 						},
 					},
 				},
@@ -396,7 +396,7 @@ func TestExternalAuthValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resource := api.ExternalAuthTestCase(t, tt.tweaks)
+			resource := resourcesapi.ExternalAuthTestCase(t, tt.tweaks)
 			actualErrors := ValidateExternalAuthCreate(context.TODO(), resource)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})

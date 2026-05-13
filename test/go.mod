@@ -348,6 +348,8 @@ require (
 
 replace github.com/Azure/ARO-HCP/tooling/cleanup-sweeper => ../tooling/cleanup-sweeper
 
+replace github.com/Azure/ARO-HCP/backend => ../backend
+
 replace github.com/Azure/ARO-HCP/internal => ../internal
 
 replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize

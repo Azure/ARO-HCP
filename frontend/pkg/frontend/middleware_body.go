@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 const megabyte int64 = (1 << 20)
@@ -32,9 +32,9 @@ func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 		// See https://github.com/Azure/azure-resource-manager-rpc/blob/master/v1.0/common-api-details.md#max-request-body-size
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4*megabyte))
 		if err != nil {
-			arm.WriteError(
+			armresourcesapi.WriteError(
 				w, http.StatusBadRequest,
-				arm.CloudErrorCodeInvalidResource, "",
+				armresourcesapi.CloudErrorCodeInvalidResource, "",
 				"The resource definition is invalid.")
 			return
 		}
@@ -42,9 +42,9 @@ func MiddlewareBody(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 		contentType := strings.SplitN(r.Header.Get("Content-Type"), ";", 2)[0]
 
 		if !strings.EqualFold(contentType, "application/json") && (len(body) > 0 || contentType != "") {
-			arm.WriteError(
+			armresourcesapi.WriteError(
 				w, http.StatusUnsupportedMediaType,
-				arm.CloudErrorCodeUnsupportedMediaType, "",
+				armresourcesapi.CloudErrorCodeUnsupportedMediaType, "",
 				"The content media type '%s' is not supported. Only 'application/json' is supported.",
 				r.Header.Get("Content-Type"))
 			return

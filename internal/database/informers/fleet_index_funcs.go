@@ -17,14 +17,14 @@ package informers
 import (
 	"fmt"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func managementClusterProvisionShardIDIndexFunc(obj interface{}) ([]string, error) {
-	mc, ok := obj.(*fleet.ManagementCluster)
+	mc, ok := obj.(*fleetapi.ManagementCluster)
 	if !ok {
-		return nil, utils.TrackError(fmt.Errorf("expected *fleet.ManagementCluster, got %T", obj))
+		return nil, utils.TrackError(fmt.Errorf("expected *fleetapi.ManagementCluster, got %T", obj))
 	}
 	if mc.Status.ClusterServiceProvisionShardID == nil || len(mc.Status.ClusterServiceProvisionShardID.ID()) == 0 {
 		return nil, nil

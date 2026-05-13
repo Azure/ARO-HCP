@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -170,20 +170,20 @@ func (d *resourcesCosmosDBClient) Operations(subscriptionID string) OperationCRU
 }
 
 func (d *resourcesCosmosDBClient) Subscriptions() SubscriptionCRUD {
-	return NewCosmosResourceCRUD[arm.Subscription, GenericDocument[arm.Subscription]](
+	return NewCosmosResourceCRUD[armresourcesapi.Subscription, GenericDocument[armresourcesapi.Subscription]](
 		d.resources, nil, azcorearm.SubscriptionResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {
 	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
-	return NewCosmosResourceCRUD[api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
-		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
+	return NewCosmosResourceCRUD[resourcesapi.ServiceProviderCluster, GenericDocument[resourcesapi.ServiceProviderCluster]](
+		d.resources, clusterResourceID, resourcesapi.ServiceProviderClusterResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD {
 	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
-		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+	return NewCosmosResourceCRUD[resourcesapi.ServiceProviderNodePool, GenericDocument[resourcesapi.ServiceProviderNodePool]](
+		d.resources, nodePoolResourceID, resourcesapi.ServiceProviderNodePoolResourceType)
 }
 
 func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

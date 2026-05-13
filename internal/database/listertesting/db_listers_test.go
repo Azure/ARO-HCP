@@ -22,8 +22,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -49,22 +49,22 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	ctx := context.Background()
 
-	clusterScoped := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	clusterScoped := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				testSub, testRG, testCluster, "cluster-d")),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmt,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
 		},
 	}
-	nodePoolScoped := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+	nodePoolScoped := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 				testSub, testRG, testCluster, testNodePool, "np-d")),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmt,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret"}`)},
 		},

@@ -21,7 +21,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -82,7 +82,7 @@ func (h *HCPHelloWorldHandler) ServeHTTP(writer http.ResponseWriter, request *ht
 		"managedResourceGroup": csCluster.Azure().ManagedResourceGroupName(),
 		"hcpName":              hcp.Name,
 	}
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, output)
+	_, err = armresourcesapi.WriteJSONResponse(writer, http.StatusOK, output)
 	return err
 }
 
@@ -136,6 +136,6 @@ func (h *HCPDemoListLoadbalancersHandler) ServeHTTP(writer http.ResponseWriter, 
 
 	// some output
 	output := map[string]any{"loadBalancers": loadBalancers}
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, output)
+	_, err = armresourcesapi.WriteJSONResponse(writer, http.StatusOK, output)
 	return err
 }

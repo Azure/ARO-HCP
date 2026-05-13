@@ -21,7 +21,7 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -67,14 +67,14 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 	if errors.As(err, &ocmError) {
 		resourceID, _ := utils.ResourceIDFromContext(ctx) // used for error reporting
 		cloudErr := ocm.CSErrorToCloudError(err, resourceID)
-		arm.WriteCloudError(w, cloudErr)
+		armresourcesapi.WriteCloudError(w, cloudErr)
 		return nil
 	}
 
-	var cloudErr *arm.CloudError
+	var cloudErr *armresourcesapi.CloudError
 	if err != nil && errors.As(err, &cloudErr) {
 		if cloudErr != nil { // difference between interface is nil and the content is nil
-			arm.WriteCloudError(w, cloudErr)
+			armresourcesapi.WriteCloudError(w, cloudErr)
 			return nil
 		}
 	}
@@ -82,14 +82,14 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error) error {
 	if database.IsNotFoundError(err) {
 		resourceID, err := utils.ResourceIDFromContext(ctx) // used for error reporting
 		if err != nil {
-			arm.WriteInternalServerError(w)
+			armresourcesapi.WriteInternalServerError(w)
 			return nil
 		}
-		arm.WriteCloudError(w, arm.NewResourceNotFoundError(resourceID))
+		armresourcesapi.WriteCloudError(w, armresourcesapi.NewResourceNotFoundError(resourceID))
 		return nil
 	}
 
-	arm.WriteInternalServerError(w)
+	armresourcesapi.WriteInternalServerError(w)
 	return nil
 }
 
@@ -101,7 +101,7 @@ func predictedResponseStatus(err error) int {
 		return cloudErr.StatusCode
 	}
 
-	var cloudErr *arm.CloudError
+	var cloudErr *armresourcesapi.CloudError
 	if err != nil && errors.As(err, &cloudErr) {
 		if cloudErr != nil { // difference between interface is nil and the content is nil
 			return cloudErr.StatusCode

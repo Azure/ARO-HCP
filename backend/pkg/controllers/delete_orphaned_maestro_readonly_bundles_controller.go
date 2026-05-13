@@ -29,7 +29,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -134,7 +134,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) SyncOnce(ctx context.Context, _ a
 // controller are deleted when no ServiceProviderCluster on that provision shard references them.
 func (c *deleteOrphanedMaestroReadonlyBundles) ensureClusterScopedOrphanedMaestroReadonlyBundlesAreDeleted(ctx context.Context, maestroClientsByShard map[string]*shardMaestroClient) error {
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("maestroReadonlyBundleReferencesResourceType", api.ServiceProviderClusterResourceType)
+	logger = logger.WithValues("maestroReadonlyBundleReferencesResourceType", resourcesapi.ServiceProviderClusterResourceType)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	return c.ensureOrphanedReadonlyBundlesDeleted(ctx, maestroClientsByShard, readonlyBundleManagedByK8sLabelValueClusterScoped, c.clusterScopedPersistedMaestroBundleRefsByShardFromCosmos)
@@ -144,14 +144,14 @@ func (c *deleteOrphanedMaestroReadonlyBundles) ensureClusterScopedOrphanedMaestr
 // nodepool-scoped controller are deleted when no ServiceProviderNodePool on that provision shard references them.
 func (c *deleteOrphanedMaestroReadonlyBundles) ensureOrphanedNodePoolScopedMaestroReadonlyBundlesAreDeleted(ctx context.Context, maestroClientsByShard map[string]*shardMaestroClient) error {
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues("maestroReadonlyBundleReferencesResourceType", api.ServiceProviderNodePoolResourceType)
+	logger = logger.WithValues("maestroReadonlyBundleReferencesResourceType", resourcesapi.ServiceProviderNodePoolResourceType)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	return c.ensureOrphanedReadonlyBundlesDeleted(ctx, maestroClientsByShard, readonlyBundleManagedByK8sLabelValueNodePoolScoped, c.nodePoolScopedPersistedMaestroBundleRefsByShardFromCosmos)
 }
 
 // getAllServiceProviderClusters returns all ServiceProviderClusters via database.ListAll.
-func (c *deleteOrphanedMaestroReadonlyBundles) getAllServiceProviderClusters(ctx context.Context) ([]*api.ServiceProviderCluster, error) {
+func (c *deleteOrphanedMaestroReadonlyBundles) getAllServiceProviderClusters(ctx context.Context) ([]*resourcesapi.ServiceProviderCluster, error) {
 	// We list all ServiceProviderClusters in chunks of 500 at most to avoid putting
 	// too much pressure on the Cosmos DB.
 	// Any failure to iterate over the ServiceProviderclusters ends the sync process because otherwise
@@ -161,7 +161,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) getAllServiceProviderClusters(ctx
 }
 
 // getAllServiceProviderNodePools returns all ServiceProviderNodePools via database.ListAll.
-func (c *deleteOrphanedMaestroReadonlyBundles) getAllServiceProviderNodePools(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
+func (c *deleteOrphanedMaestroReadonlyBundles) getAllServiceProviderNodePools(ctx context.Context) ([]*resourcesapi.ServiceProviderNodePool, error) {
 	// We list all ServiceProviderNodePools in chunks of 500 at most to avoid putting
 	// too much pressure on the Cosmos DB.
 	// Any failure to iterate over the ServiceProviderNodePools ends the sync process because otherwise
@@ -220,8 +220,8 @@ func (c *deleteOrphanedMaestroReadonlyBundles) buildMaestroClientsByProvisionSha
 // Every resolved shard must exist in maestroClientsByShard (registered provision shards).
 // ServiceProviderClusters whose parent cluster has no ClusterServiceID yet (pre–Cluster Service registration) are skipped
 // so the syncer doesn't fail if there are some resources that still don't have it set
-func (c *deleteOrphanedMaestroReadonlyBundles) mapServiceProviderClustersByProvisionShard(ctx context.Context, spcs []*api.ServiceProviderCluster, maestroClientsByShard map[string]*shardMaestroClient) (map[string][]*api.ServiceProviderCluster, error) {
-	res := make(map[string][]*api.ServiceProviderCluster)
+func (c *deleteOrphanedMaestroReadonlyBundles) mapServiceProviderClustersByProvisionShard(ctx context.Context, spcs []*resourcesapi.ServiceProviderCluster, maestroClientsByShard map[string]*shardMaestroClient) (map[string][]*resourcesapi.ServiceProviderCluster, error) {
+	res := make(map[string][]*resourcesapi.ServiceProviderCluster)
 	for _, spc := range spcs {
 		shardID, skip, err := c.clusterProvisionShardIDForServiceProviderCluster(ctx, spc)
 		if err != nil {
@@ -249,8 +249,8 @@ func (c *deleteOrphanedMaestroReadonlyBundles) mapServiceProviderClustersByProvi
 // of their owning cluster. Every resolved shard must exist in maestroClientsByShard (registered provision shards).
 // ServiceProviderNodePools whose parent cluster has no ClusterServiceID yet (pre–Cluster Service registration) are skipped
 // so the syncer doesn't fail if there are some resources that still don't have it set.
-func (c *deleteOrphanedMaestroReadonlyBundles) mapServiceProviderNodePoolsByProvisionShard(ctx context.Context, spnps []*api.ServiceProviderNodePool, maestroClientsByShard map[string]*shardMaestroClient) (map[string][]*api.ServiceProviderNodePool, error) {
-	res := make(map[string][]*api.ServiceProviderNodePool)
+func (c *deleteOrphanedMaestroReadonlyBundles) mapServiceProviderNodePoolsByProvisionShard(ctx context.Context, spnps []*resourcesapi.ServiceProviderNodePool, maestroClientsByShard map[string]*shardMaestroClient) (map[string][]*resourcesapi.ServiceProviderNodePool, error) {
+	res := make(map[string][]*resourcesapi.ServiceProviderNodePool)
 	for _, spnp := range spnps {
 		shardID, skip, err := c.clusterProvisionShardIDForServiceProviderNodePool(ctx, spnp)
 		if err != nil {
@@ -451,7 +451,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) conditionallyDeleteOrphanReadonly
 
 // clusterProvisionShardIDForServiceProviderCluster returns the Cluster Service provision shard ID for the cluster that owns the SPC.
 // skip is true when the parent cluster has no ClusterServiceID yet or when the Cluster associated with the node pool does not exist anymore.
-func (c *deleteOrphanedMaestroReadonlyBundles) clusterProvisionShardIDForServiceProviderCluster(ctx context.Context, spc *api.ServiceProviderCluster) (shardID string, skip bool, err error) {
+func (c *deleteOrphanedMaestroReadonlyBundles) clusterProvisionShardIDForServiceProviderCluster(ctx context.Context, spc *resourcesapi.ServiceProviderCluster) (shardID string, skip bool, err error) {
 	clusterResourceID := spc.ResourceID.Parent
 	if clusterResourceID == nil {
 		return "", false, utils.TrackError(fmt.Errorf("ServiceProviderCluster %s has no parent resource ID", spc.ResourceID.String()))
@@ -469,7 +469,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) clusterProvisionShardIDForService
 
 // clusterProvisionShardIDForServiceProviderNodePool returns the Cluster Service provision shard ID for the cluster that owns the node pool.
 // skip is true when the parent cluster has no ClusterServiceID yet or when the Cluster associated with the node pool does not exist anymore.
-func (c *deleteOrphanedMaestroReadonlyBundles) clusterProvisionShardIDForServiceProviderNodePool(ctx context.Context, spnp *api.ServiceProviderNodePool) (shardID string, skip bool, err error) {
+func (c *deleteOrphanedMaestroReadonlyBundles) clusterProvisionShardIDForServiceProviderNodePool(ctx context.Context, spnp *resourcesapi.ServiceProviderNodePool) (shardID string, skip bool, err error) {
 	nodePoolResourceID := spnp.ResourceID.Parent
 	if nodePoolResourceID == nil {
 		return "", false, utils.TrackError(fmt.Errorf("ServiceProviderNodePool %s has no parent resource ID", spnp.ResourceID.String()))
@@ -491,7 +491,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) clusterProvisionShardIDForService
 
 // provisionShardIDFromCluster resolves the provision shard for a Cosmos cluster document. skip is true when ClusterServiceID
 // is unset so the cluster is not yet registered with Cluster Service (same gate as create-*-scoped Maestro bundle controllers).
-func (c *deleteOrphanedMaestroReadonlyBundles) provisionShardIDFromCluster(ctx context.Context, cluster *api.HCPOpenShiftCluster) (shardID string, skip bool, err error) {
+func (c *deleteOrphanedMaestroReadonlyBundles) provisionShardIDFromCluster(ctx context.Context, cluster *resourcesapi.HCPOpenShiftCluster) (shardID string, skip bool, err error) {
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return "", true, nil
 	}
@@ -510,7 +510,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) provisionShardIDFromCluster(ctx c
 // buildClusterScopedMaestroAPIMaestroBundleNamesByShard maps provision shard ID to the set of Maestro API bundle names referenced by
 // ServiceProviderClusters grouped under that shard (shard assignment is already resolved in spcsByShard). Nil list entries or empty
 // maestroAPIMaestroBundleName return an error so the reference set cannot silently omit in-use bundles.
-func (c *deleteOrphanedMaestroReadonlyBundles) buildClusterScopedMaestroAPIMaestroBundleNamesByShard(spcsByShard map[string][]*api.ServiceProviderCluster) (maestroBundleNamesByShard, error) {
+func (c *deleteOrphanedMaestroReadonlyBundles) buildClusterScopedMaestroAPIMaestroBundleNamesByShard(spcsByShard map[string][]*resourcesapi.ServiceProviderCluster) (maestroBundleNamesByShard, error) {
 	out := make(maestroBundleNamesByShard)
 
 	for shardID, spcs := range spcsByShard {
@@ -541,7 +541,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) buildClusterScopedMaestroAPIMaest
 // buildNodePoolScopedMaestroAPIMaestroBundleNamesByShard builds a map of provision shard ID to the set of Maestro API bundle names referenced by
 // ServiceProviderNodePools grouped under that shard (shard assignment is already resolved in spnpsByShard). Nil list entries or empty
 // maestroAPIMaestroBundleName return an error so the reference set cannot silently omit in-use bundles.
-func (c *deleteOrphanedMaestroReadonlyBundles) buildNodePoolScopedMaestroAPIMaestroBundleNamesByShard(spnpsByShard map[string][]*api.ServiceProviderNodePool) (maestroBundleNamesByShard, error) {
+func (c *deleteOrphanedMaestroReadonlyBundles) buildNodePoolScopedMaestroAPIMaestroBundleNamesByShard(spnpsByShard map[string][]*resourcesapi.ServiceProviderNodePool) (maestroBundleNamesByShard, error) {
 	out := make(maestroBundleNamesByShard)
 
 	for shardID, spnps := range spnpsByShard {

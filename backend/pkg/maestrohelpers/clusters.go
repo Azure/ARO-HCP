@@ -25,13 +25,13 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func GetCachedHostedClusterForCluster(ctx context.Context, clusterManagementClusterContentLister listers.ManagementClusterContentLister, subscriptionName, resourceGroupName, clusterName string) (*v1beta1.HostedCluster, error) {
-	hostedClusterContent, err := clusterManagementClusterContentLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+	hostedClusterContent, err := clusterManagementClusterContentLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get cluster management cluster content: %w", err))
 	}

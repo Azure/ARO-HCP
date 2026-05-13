@@ -25,16 +25,15 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type createBillingDoc struct {
 	clock             utilsclock.PassiveClock
-	cooldownChecker   controllerutil.CooldownChecker
+	cooldownChecker   controllerutils.CooldownChecker
 	azureLocation     string
 	clusterLister     listers.ClusterLister
 	billingLister     listers.BillingLister
@@ -47,7 +46,7 @@ type createBillingDoc struct {
 func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.ClusterSyncer {
 	return &createBillingDoc{
 		clock:             clock,
-		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(60 * time.Second),
+		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(60 * time.Second),
 		azureLocation:     azureLocation,
 		clusterLister:     clusterLister,
 		billingLister:     billingLister,
@@ -56,7 +55,7 @@ func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation 
 	}
 }
 
-func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
+func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *resourcesapi.HCPOpenShiftCluster) bool {
 	// Skip if the cluster is deleted or does not have a ClusterUID because the cluster is old and yet-to-be backfilled old data (backfill controller's responsibility).
 	// All new clusters will have it from admission.
 	if existingCluster == nil || len(existingCluster.ServiceProviderProperties.ClusterUID) == 0 {
@@ -69,7 +68,7 @@ func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *api.H
 	}
 
 	// Skip if the cluster provision is not succeeded yet.
-	if existingCluster.ServiceProviderProperties.ProvisioningState != arm.ProvisioningStateSucceeded {
+	if existingCluster.ServiceProviderProperties.ProvisioningState != armresourcesapi.ProvisioningStateSucceeded {
 		return false
 	}
 
@@ -150,7 +149,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		if len(existingCluster.CustomerProperties.Platform.ManagedResourceGroup) != 0 {
 			managedRGName = existingCluster.CustomerProperties.Platform.ManagedResourceGroup
 		}
-		doc.ManagedResourceGroup = api.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
+		doc.ManagedResourceGroup = resourcesapi.ToResourceGroupResourceIDString(existingCluster.ID.SubscriptionID, managedRGName)
 
 		err = billingDocCRUD.Create(ctx, doc)
 		if err != nil {
@@ -178,6 +177,6 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 	return nil
 }
 
-func (c *createBillingDoc) CooldownChecker() controllerutil.CooldownChecker {
+func (c *createBillingDoc) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

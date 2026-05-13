@@ -23,7 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
 
@@ -46,7 +46,7 @@ func (s *loadApplyDesireStep) StepID() string { return s.id }
 
 func (s *loadApplyDesireStep) Run(ctx context.Context, t *testing.T, h *Harness) {
 	t.Helper()
-	for _, d := range readJSONsAs[kubeapplier.ApplyDesire](t, s.stepDir) {
+	for _, d := range readJSONsAs[kubeapplierapi.ApplyDesire](t, s.stepDir) {
 		key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
 		require.NoErrorf(t, err, "derive parent for ApplyDesire %s", d.GetResourceID())
 		crud, err := h.KubeApplierDBClient.KubeApplier(ManagementCluster).ApplyDesires(key.ResourceParent())
@@ -69,7 +69,7 @@ func (s *loadDeleteDesireStep) StepID() string { return s.id }
 
 func (s *loadDeleteDesireStep) Run(ctx context.Context, t *testing.T, h *Harness) {
 	t.Helper()
-	for _, d := range readJSONsAs[kubeapplier.DeleteDesire](t, s.stepDir) {
+	for _, d := range readJSONsAs[kubeapplierapi.DeleteDesire](t, s.stepDir) {
 		key, err := keys.DeleteDesireKeyFromResourceID(d.GetResourceID())
 		require.NoErrorf(t, err, "derive parent for DeleteDesire %s", d.GetResourceID())
 		crud, err := h.KubeApplierDBClient.KubeApplier(ManagementCluster).DeleteDesires(key.ResourceParent())
@@ -92,7 +92,7 @@ func (s *loadReadDesireStep) StepID() string { return s.id }
 
 func (s *loadReadDesireStep) Run(ctx context.Context, t *testing.T, h *Harness) {
 	t.Helper()
-	for _, d := range readJSONsAs[kubeapplier.ReadDesire](t, s.stepDir) {
+	for _, d := range readJSONsAs[kubeapplierapi.ReadDesire](t, s.stepDir) {
 		key, err := keys.ReadDesireKeyFromResourceID(d.GetResourceID())
 		require.NoErrorf(t, err, "derive parent for ReadDesire %s", d.GetResourceID())
 		crud, err := h.KubeApplierDBClient.KubeApplier(ManagementCluster).ReadDesires(key.ResourceParent())

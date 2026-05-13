@@ -51,7 +51,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -449,7 +449,7 @@ func DeleteAllHCPClusters(
 		}
 		for _, cluster := range page.Value {
 			hcpClusterNames = append(hcpClusterNames, *cluster.Name)
-			if value, set := cluster.Tags[api.TagClusterSizeOverride]; !set || value == nil || *value != string(api.MinimalControlPlanePodSizing) {
+			if value, set := cluster.Tags[resourcesapi.TagClusterSizeOverride]; !set || value == nil || *value != string(resourcesapi.MinimalControlPlanePodSizing) {
 				hcpClustersWithoutSizeTag = append(hcpClustersWithoutSizeTag, *cluster.Name)
 			}
 		}
@@ -485,7 +485,7 @@ type NonConformingClustersError struct {
 }
 
 func (e *NonConformingClustersError) Error() string {
-	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", api.TagClusterSizeOverride, api.MinimalControlPlanePodSizing, e.clusters)
+	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", resourcesapi.TagClusterSizeOverride, resourcesapi.MinimalControlPlanePodSizing, e.clusters)
 }
 
 // DeleteNodePool deletes a nodepool and waits for the operation to complete

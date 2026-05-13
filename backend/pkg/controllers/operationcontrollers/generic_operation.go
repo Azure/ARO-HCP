@@ -29,21 +29,20 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type OperationSynchronizer interface {
-	ShouldProcess(ctx context.Context, operation *api.Operation) bool
+	ShouldProcess(ctx context.Context, operation *resourcesapi.Operation) bool
 	SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error
 }
 
 type genericOperation struct {
 	name string
 
-	cooldownChecker   controllerutil.CooldownChecker
+	cooldownChecker   controllerutils.CooldownChecker
 	synchronizer      OperationSynchronizer
 	resourcesDBClient database.ResourcesDBClient
 
@@ -65,7 +64,7 @@ func NewGenericOperationController(
 ) controllerutils.Controller {
 	c := &genericOperation{
 		name:              name,
-		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(10 * time.Second),
+		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(10 * time.Second),
 		synchronizer:      synchronizer,
 		resourcesDBClient: resourcesDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -94,15 +93,15 @@ func NewGenericOperationController(
 	return c
 }
 
-func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) database.ResourceCRUD[api.Controller] {
+func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) database.ResourceCRUD[resourcesapi.Controller] {
 	parentResourceID := key.GetParentResourceID()
 	sub := parentResourceID.SubscriptionID
 	rg := parentResourceID.ResourceGroupName
 
 	switch {
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.NodePoolResourceType.String()):
+	case strings.EqualFold(parentResourceID.ResourceType.String(), resourcesapi.NodePoolResourceType.String()):
 		return c.resourcesDBClient.HCPClusters(sub, rg).NodePools(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)
-	case strings.EqualFold(parentResourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
+	case strings.EqualFold(parentResourceID.ResourceType.String(), resourcesapi.ExternalAuthResourceType.String()):
 		return c.resourcesDBClient.HCPClusters(sub, rg).ExternalAuth(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)
 	default:
 		return c.resourcesDBClient.HCPClusters(sub, rg).Controllers(parentResourceID.Name)
@@ -190,7 +189,7 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	ctx := logr.NewContext(context.TODO(), logger)
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 
-	castObj := newObj.(*api.Operation)
+	castObj := newObj.(*resourcesapi.Operation)
 	if castObj.ExternalID == nil {
 		return
 	}

@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -73,14 +73,14 @@ func NewOperationExternalAuthCreateController(
 	return controller
 }
 
-func (c *operationExternalAuthCreate) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationExternalAuthCreate) ShouldProcess(ctx context.Context, operation *resourcesapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != database.OperationRequestCreate {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), resourcesapi.ExternalAuthResourceType.String()) {
 		return false
 	}
 	return true

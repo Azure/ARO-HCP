@@ -24,8 +24,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 const (
@@ -62,32 +62,32 @@ func main() {
 
 // CreateJSONFile creates a base cluster JSON file for use with testing frontend to create clusters
 func CreateJSONFile() error {
-	cluster := api.HCPOpenShiftCluster{
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			Version: api.VersionProfile{
+	cluster := resourcesapi.HCPOpenShiftCluster{
+		CustomerProperties: resourcesapi.HCPOpenShiftClusterCustomerProperties{
+			Version: resourcesapi.VersionProfile{
 				ChannelGroup: "stable",
 			},
-			DNS: api.CustomerDNSProfile{},
-			Network: api.NetworkProfile{
-				NetworkType: api.NetworkTypeOVNKubernetes,
+			DNS: resourcesapi.CustomerDNSProfile{},
+			Network: resourcesapi.NetworkProfile{
+				NetworkType: resourcesapi.NetworkTypeOVNKubernetes,
 				PodCIDR:     "10.128.0.0/14",
 				ServiceCIDR: "172.30.0.0/16",
 				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
 			},
-			API: api.CustomerAPIProfile{
-				Visibility: api.Visibility("Public"),
+			API: resourcesapi.CustomerAPIProfile{
+				Visibility: resourcesapi.Visibility("Public"),
 			},
-			Platform: api.CustomerPlatformProfile{
+			Platform: resourcesapi.CustomerPlatformProfile{
 				ManagedResourceGroup:   "dev-test-mrg",
-				NetworkSecurityGroupID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz")),
-				SubnetID:               api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
-				OutboundType:           api.OutboundType("LoadBalancer"),
+				NetworkSecurityGroupID: resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz")),
+				SubnetID:               resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
+				OutboundType:           resourcesapi.OutboundType("LoadBalancer"),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			Console: api.ServiceProviderConsoleProfile{},
-			Platform: api.ServiceProviderPlatformProfile{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+			Console: resourcesapi.ServiceProviderConsoleProfile{},
+			Platform: resourcesapi.ServiceProviderPlatformProfile{
 				IssuerURL: "",
 			},
 		},
@@ -107,15 +107,15 @@ func CreateJSONFile() error {
 }
 
 func CreateNodePool() error {
-	nodePool := api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			ProvisioningState: arm.ProvisioningState(""),
-			Version: api.NodePoolVersionProfile{
+	nodePool := resourcesapi.HCPOpenShiftClusterNodePool{
+		Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+			ProvisioningState: armresourcesapi.ProvisioningState(""),
+			Version: resourcesapi.NodePoolVersionProfile{
 				ChannelGroup: "stable",
 			},
-			Platform: api.NodePoolPlatformProfile{
-				SubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
-				OSDisk: api.OSDiskProfile{
+			Platform: resourcesapi.NodePoolPlatformProfile{
+				SubnetID: resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz")),
+				OSDisk: resourcesapi.OSDiskProfile{
 					SizeGiB:                ptr.To[int32](64),
 					DiskStorageAccountType: "StandardSSD_LRS",
 				},

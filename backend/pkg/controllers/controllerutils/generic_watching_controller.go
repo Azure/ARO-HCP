@@ -30,15 +30,14 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 type GenericSyncer[T comparable] interface {
 	SyncOnce(ctx context.Context, keyObj T) error
-	CooldownChecker() controllerutil.CooldownChecker
+	CooldownChecker() CooldownChecker
 	MakeKey(resourceID *azcorearm.ResourceID) T
 }
 
@@ -231,7 +230,7 @@ func (c *genericWatchingController[T]) enqueueCosmosAddFunc(maxDepth int) func(a
 }
 
 func (c *genericWatchingController[T]) enqueueCosmosAddWithMaxDepth(newObj any, maxDepth int) {
-	c.EnqueueResourceIDAddWithMaxDepth(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID(), true, maxDepth)
+	c.EnqueueResourceIDAddWithMaxDepth(newObj.(metaapi.CosmosPersistable).GetCosmosData().GetResourceID(), true, maxDepth)
 }
 
 func (c *genericWatchingController[T]) enqueueCosmosUpdateFunc(maxDepth int) func(any, any) {
@@ -241,6 +240,6 @@ func (c *genericWatchingController[T]) enqueueCosmosUpdateFunc(maxDepth int) fun
 }
 
 func (c *genericWatchingController[T]) enqueueCosmosUpdateWithMaxDepth(oldObj, newObj any, maxDepth int) {
-	changed := oldObj.(arm.CosmosPersistable).GetCosmosData().GetEtag() != newObj.(arm.CosmosPersistable).GetCosmosData().GetEtag()
-	c.EnqueueResourceIDAddWithMaxDepth(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID(), changed, maxDepth)
+	changed := oldObj.(metaapi.CosmosPersistable).GetCosmosData().GetEtag() != newObj.(metaapi.CosmosPersistable).GetCosmosData().GetEtag()
+	c.EnqueueResourceIDAddWithMaxDepth(newObj.(metaapi.CosmosPersistable).GetCosmosData().GetResourceID(), changed, maxDepth)
 }

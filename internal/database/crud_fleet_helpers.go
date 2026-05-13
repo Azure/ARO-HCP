@@ -22,7 +22,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
 )
 
 // partitionKeySetter is a temporary interface used to override the partition key
@@ -50,8 +50,8 @@ func (td *TypedDocument) SetPartitionKey(pk string) {
 func serializeFleetItem[InternalAPIType, CosmosAPIType any](
 	partitionKeyString string,
 	newObj *InternalAPIType,
-) (*arm.CosmosMetadata, []byte, error) {
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+) (*metaapi.CosmosMetadata, []byte, error) {
+	cosmosPersistable, ok := any(newObj).(metaapi.CosmosPersistable)
 	if !ok {
 		return nil, nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
 	}

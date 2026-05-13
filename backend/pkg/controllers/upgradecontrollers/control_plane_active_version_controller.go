@@ -30,8 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,7 +39,7 @@ import (
 // versions in ServiceProviderCluster status by reading the version from the management cluster
 // content (HostedCluster status persisted from Maestro readonly bundles).
 type controlPlaneActiveVersionSyncer struct {
-	cooldownChecker   controllerutil.CooldownChecker
+	cooldownChecker   controllerutils.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 }
 
@@ -68,7 +67,7 @@ func NewControlPlaneActiveVersionController(
 	)
 }
 
-func (c *controlPlaneActiveVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (c *controlPlaneActiveVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
@@ -85,7 +84,7 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	}
 
 	managementClusterContentClient := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ManagementClusterContents(key.HCPClusterName)
-	managementClusterContent, err := managementClusterContentClient.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+	managementClusterContent, err := managementClusterContentClient.Get(ctx, string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 	if database.IsNotFoundError(err) {
 		return nil
 	}
@@ -129,7 +128,7 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 
 // getControlPlaneActiveVersionsFromManagementClusterContent reads the HostedCluster content and returns
 // the active versions (each with Version and State). Returns nil if no content or no version.
-func (c *controlPlaneActiveVersionSyncer) getControlPlaneActiveVersionsFromManagementClusterContent(ctx context.Context, items []runtime.RawExtension) ([]api.HCPClusterActiveVersion, error) {
+func (c *controlPlaneActiveVersionSyncer) getControlPlaneActiveVersionsFromManagementClusterContent(ctx context.Context, items []runtime.RawExtension) ([]resourcesapi.HCPClusterActiveVersion, error) {
 	hostedCluster, err := c.findHostedClusterInKubeContent(items)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -151,19 +150,19 @@ func (c *controlPlaneActiveVersionSyncer) getControlPlaneActiveVersionsFromManag
 //
 // TODO: Once Hypershift exposes HostedCluster.Status.controlPlaneVersion (ControlPlaneVersionStatus) from
 // https://github.com/openshift/enhancements/pull/1950, derive active versions from that instead of status.version.history.
-func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx context.Context, hostedCluster *hsv1beta1.HostedCluster) ([]api.HCPClusterActiveVersion, error) {
+func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx context.Context, hostedCluster *hsv1beta1.HostedCluster) ([]resourcesapi.HCPClusterActiveVersion, error) {
 	if hostedCluster == nil || hostedCluster.Status.Version == nil {
 		return nil, nil
 	}
 	logger := utils.LoggerFromContext(ctx)
-	var activeVersions []api.HCPClusterActiveVersion
+	var activeVersions []resourcesapi.HCPClusterActiveVersion
 	for _, historyEntry := range hostedCluster.Status.Version.History {
 		parsedVersion, err := semver.Parse(historyEntry.Version)
 		if err != nil {
 			logger.Error(err, "Skipping HostedCluster version history entry with unparseable version", "history", historyEntry)
 			continue
 		}
-		activeVersions = append(activeVersions, api.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
+		activeVersions = append(activeVersions, resourcesapi.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
 		if historyEntry.State == configv1.CompletedUpdate {
 			return activeVersions, nil
 		}

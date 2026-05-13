@@ -19,7 +19,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -55,13 +55,13 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 			if errors.Is(err, context.DeadlineExceeded) {
 				message += "timed out"
 				lockClient.SetRetryAfterHeader(w.Header())
-				arm.WriteError(
+				armresourcesapi.WriteError(
 					w, http.StatusServiceUnavailable,
-					arm.CloudErrorCodeLockContention,
+					armresourcesapi.CloudErrorCodeLockContention,
 					"/subscriptions/"+subscriptionID, "%s", message)
 			} else {
 				message += err.Error()
-				arm.WriteInternalServerError(w)
+				armresourcesapi.WriteInternalServerError(w)
 			}
 			logger.Error(err, message)
 			return

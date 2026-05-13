@@ -19,8 +19,8 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -31,7 +31,7 @@ type DBClusterLister struct {
 
 var _ listers.ClusterLister = &DBClusterLister{}
 
-func (l *DBClusterLister) List(ctx context.Context) ([]*api.HCPOpenShiftCluster, error) {
+func (l *DBClusterLister) List(ctx context.Context) ([]*resourcesapi.HCPOpenShiftCluster, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().Clusters().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -39,11 +39,11 @@ func (l *DBClusterLister) List(ctx context.Context) ([]*api.HCPOpenShiftCluster,
 	return collectFromIterator(ctx, iter)
 }
 
-func (l *DBClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*api.HCPOpenShiftCluster, error) {
+func (l *DBClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*resourcesapi.HCPOpenShiftCluster, error) {
 	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, clusterName)
 }
 
-func (l *DBClusterLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftCluster, error) {
+func (l *DBClusterLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*resourcesapi.HCPOpenShiftCluster, error) {
 	iter, err := l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ type DBNodePoolLister struct {
 
 var _ listers.NodePoolLister = &DBNodePoolLister{}
 
-func (l *DBNodePoolLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterNodePool, error) {
+func (l *DBNodePoolLister) List(ctx context.Context) ([]*resourcesapi.HCPOpenShiftClusterNodePool, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().NodePools().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -66,17 +66,17 @@ func (l *DBNodePoolLister) List(ctx context.Context) ([]*api.HCPOpenShiftCluster
 	return collectFromIterator(ctx, iter)
 }
 
-func (l *DBNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.HCPOpenShiftClusterNodePool, error) {
+func (l *DBNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*resourcesapi.HCPOpenShiftClusterNodePool, error) {
 	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).Get(ctx, nodePoolName)
 }
 
-func (l *DBNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftClusterNodePool, error) {
+func (l *DBNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*resourcesapi.HCPOpenShiftClusterNodePool, error) {
 	// List all node pools and filter by resource group
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result []*api.HCPOpenShiftClusterNodePool
+	var result []*resourcesapi.HCPOpenShiftClusterNodePool
 	for _, np := range all {
 		if np.ID != nil &&
 			strings.EqualFold(np.ID.SubscriptionID, subscriptionID) &&
@@ -87,7 +87,7 @@ func (l *DBNodePoolLister) ListForResourceGroup(ctx context.Context, subscriptio
 	return result, nil
 }
 
-func (l *DBNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.HCPOpenShiftClusterNodePool, error) {
+func (l *DBNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*resourcesapi.HCPOpenShiftClusterNodePool, error) {
 	iter, err := l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ type DBActiveOperationLister struct {
 
 var _ listers.ActiveOperationLister = &DBActiveOperationLister{}
 
-func (l *DBActiveOperationLister) List(ctx context.Context) ([]*api.Operation, error) {
+func (l *DBActiveOperationLister) List(ctx context.Context) ([]*resourcesapi.Operation, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ActiveOperations().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -110,17 +110,17 @@ func (l *DBActiveOperationLister) List(ctx context.Context) ([]*api.Operation, e
 	return collectFromIterator(ctx, iter)
 }
 
-func (l *DBActiveOperationLister) Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error) {
+func (l *DBActiveOperationLister) Get(ctx context.Context, subscriptionID, name string) (*resourcesapi.Operation, error) {
 	return l.ResourcesDBClient.Operations(subscriptionID).Get(ctx, name)
 }
 
-func (l *DBActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Operation, error) {
-	clusterKey := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+func (l *DBActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*resourcesapi.Operation, error) {
+	clusterKey := resourcesapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result []*api.Operation
+	var result []*resourcesapi.Operation
 	for _, op := range all {
 		if op.ExternalID != nil && strings.HasPrefix(strings.ToLower(op.ExternalID.String()), strings.ToLower(clusterKey)) {
 			result = append(result, op)
@@ -136,7 +136,7 @@ type DBExternalAuthLister struct {
 
 var _ listers.ExternalAuthLister = &DBExternalAuthLister{}
 
-func (l *DBExternalAuthLister) List(ctx context.Context) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
+func (l *DBExternalAuthLister) List(ctx context.Context) ([]*resourcesapi.HCPOpenShiftClusterExternalAuth, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ExternalAuths().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -144,16 +144,16 @@ func (l *DBExternalAuthLister) List(ctx context.Context) ([]*api.HCPOpenShiftClu
 	return collectFromIterator(ctx, iter)
 }
 
-func (l *DBExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func (l *DBExternalAuthLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) (*resourcesapi.HCPOpenShiftClusterExternalAuth, error) {
 	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).Get(ctx, externalAuthName)
 }
 
-func (l *DBExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
+func (l *DBExternalAuthLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*resourcesapi.HCPOpenShiftClusterExternalAuth, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result []*api.HCPOpenShiftClusterExternalAuth
+	var result []*resourcesapi.HCPOpenShiftClusterExternalAuth
 	for _, ea := range all {
 		if ea.ID != nil &&
 			strings.EqualFold(ea.ID.SubscriptionID, subscriptionID) &&
@@ -164,7 +164,7 @@ func (l *DBExternalAuthLister) ListForResourceGroup(ctx context.Context, subscri
 	return result, nil
 }
 
-func (l *DBExternalAuthLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.HCPOpenShiftClusterExternalAuth, error) {
+func (l *DBExternalAuthLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*resourcesapi.HCPOpenShiftClusterExternalAuth, error) {
 	iter, err := l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ type DBServiceProviderClusterLister struct {
 
 var _ listers.ServiceProviderClusterLister = &DBServiceProviderClusterLister{}
 
-func (l *DBServiceProviderClusterLister) List(ctx context.Context) ([]*api.ServiceProviderCluster, error) {
+func (l *DBServiceProviderClusterLister) List(ctx context.Context) ([]*resourcesapi.ServiceProviderCluster, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ServiceProviderClusters().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -187,11 +187,11 @@ func (l *DBServiceProviderClusterLister) List(ctx context.Context) ([]*api.Servi
 	return collectFromIterator(ctx, iter)
 }
 
-func (l *DBServiceProviderClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*api.ServiceProviderCluster, error) {
+func (l *DBServiceProviderClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*resourcesapi.ServiceProviderCluster, error) {
 	return l.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName).Get(ctx, "default")
 }
 
-func (l *DBServiceProviderClusterLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ServiceProviderCluster, error) {
+func (l *DBServiceProviderClusterLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*resourcesapi.ServiceProviderCluster, error) {
 	iter, err := l.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName).List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ type DBControllerLister struct {
 
 var _ listers.ControllerLister = &DBControllerLister{}
 
-func (l *DBControllerLister) List(ctx context.Context) ([]*api.Controller, error) {
+func (l *DBControllerLister) List(ctx context.Context) ([]*resourcesapi.Controller, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().Controllers().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -214,32 +214,32 @@ func (l *DBControllerLister) List(ctx context.Context) ([]*api.Controller, error
 	return collectFromIterator(ctx, iter)
 }
 
-func (l *DBControllerLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.Controller, error) {
-	prefix := api.ToResourceGroupResourceIDString(subscriptionID, resourceGroupName)
+func (l *DBControllerLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*resourcesapi.Controller, error) {
+	prefix := resourcesapi.ToResourceGroupResourceIDString(subscriptionID, resourceGroupName)
 	return l.listWithPrefix(ctx, prefix)
 }
 
-func (l *DBControllerLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Controller, error) {
-	prefix := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+func (l *DBControllerLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*resourcesapi.Controller, error) {
+	prefix := resourcesapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return l.listWithPrefix(ctx, prefix)
 }
 
-func (l *DBControllerLister) ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error) {
-	prefix := api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+func (l *DBControllerLister) ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*resourcesapi.Controller, error) {
+	prefix := resourcesapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return l.listWithPrefix(ctx, prefix)
 }
 
-func (l *DBControllerLister) ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
-	prefix := api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+func (l *DBControllerLister) ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*resourcesapi.Controller, error) {
+	prefix := resourcesapi.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
 	return l.listWithPrefix(ctx, prefix)
 }
 
-func (l *DBControllerLister) listWithPrefix(ctx context.Context, prefix string) ([]*api.Controller, error) {
+func (l *DBControllerLister) listWithPrefix(ctx context.Context, prefix string) ([]*resourcesapi.Controller, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result []*api.Controller
+	var result []*resourcesapi.Controller
 	for _, c := range all {
 		if c.ResourceID != nil && strings.HasPrefix(strings.ToLower(c.ResourceID.String()), strings.ToLower(prefix)) {
 			result = append(result, c)
@@ -255,7 +255,7 @@ type DBManagementClusterContentLister struct {
 
 var _ listers.ManagementClusterContentLister = &DBManagementClusterContentLister{}
 
-func (l *DBManagementClusterContentLister) List(ctx context.Context) ([]*api.ManagementClusterContent, error) {
+func (l *DBManagementClusterContentLister) List(ctx context.Context) ([]*resourcesapi.ManagementClusterContent, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ManagementClusterContents().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -263,26 +263,26 @@ func (l *DBManagementClusterContentLister) List(ctx context.Context) ([]*api.Man
 	return collectFromIterator(ctx, iter)
 }
 
-func (l *DBManagementClusterContentLister) GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*api.ManagementClusterContent, error) {
+func (l *DBManagementClusterContentLister) GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, managementClusterContentName string) (*resourcesapi.ManagementClusterContent, error) {
 	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ManagementClusterContents(clusterName).Get(ctx, managementClusterContentName)
 }
 
-func (l *DBManagementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ManagementClusterContent, error) {
-	prefix := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+func (l *DBManagementClusterContentLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*resourcesapi.ManagementClusterContent, error) {
+	prefix := resourcesapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
 	return l.listMCCWithPrefix(ctx, prefix)
 }
 
-func (l *DBManagementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ManagementClusterContent, error) {
-	prefix := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+func (l *DBManagementClusterContentLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*resourcesapi.ManagementClusterContent, error) {
+	prefix := resourcesapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
 	return l.listMCCWithPrefix(ctx, prefix)
 }
 
-func (l *DBManagementClusterContentLister) listMCCWithPrefix(ctx context.Context, prefix string) ([]*api.ManagementClusterContent, error) {
+func (l *DBManagementClusterContentLister) listMCCWithPrefix(ctx context.Context, prefix string) ([]*resourcesapi.ManagementClusterContent, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result []*api.ManagementClusterContent
+	var result []*resourcesapi.ManagementClusterContent
 	for _, mcc := range all {
 		rid := mcc.GetResourceID()
 		if rid != nil && strings.HasPrefix(strings.ToLower(rid.String()), strings.ToLower(prefix)) {
@@ -299,7 +299,7 @@ type DBSubscriptionLister struct {
 
 var _ listers.SubscriptionLister = &DBSubscriptionLister{}
 
-func (l *DBSubscriptionLister) List(ctx context.Context) ([]*arm.Subscription, error) {
+func (l *DBSubscriptionLister) List(ctx context.Context) ([]*armresourcesapi.Subscription, error) {
 	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().Subscriptions().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -307,7 +307,7 @@ func (l *DBSubscriptionLister) List(ctx context.Context) ([]*arm.Subscription, e
 	return collectFromIterator(ctx, iter)
 }
 
-func (l *DBSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
+func (l *DBSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*armresourcesapi.Subscription, error) {
 	return l.ResourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
 }
 

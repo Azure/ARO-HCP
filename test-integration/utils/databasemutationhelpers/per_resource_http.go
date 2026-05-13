@@ -26,8 +26,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -55,24 +55,24 @@ func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString stri
 	}
 
 	switch strings.ToLower(resourceID.ResourceType.String()) {
-	case strings.ToLower(api.ClusterResourceType.String()):
+	case strings.ToLower(resourcesapi.ClusterResourceType.String()):
 		return c.frontendClient.NewHcpOpenShiftClustersClient().Get(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
 
-	case strings.ToLower(api.NodePoolResourceType.String()):
+	case strings.ToLower(resourcesapi.NodePoolResourceType.String()):
 		return c.frontendClient.NewNodePoolsClient().Get(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
 
-	case strings.ToLower(api.ExternalAuthResourceType.String()):
+	case strings.ToLower(resourcesapi.ExternalAuthResourceType.String()):
 		return c.frontendClient.NewExternalAuthsClient().Get(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
 
-	case strings.ToLower(api.OperationStatusResourceType.String()):
+	case strings.ToLower(resourcesapi.OperationStatusResourceType.String()):
 		parts := []string{
 			"/subscriptions",
 			resourceID.SubscriptionID,
 			"providers",
-			api.ProviderNamespace,
+			resourcesapi.ProviderNamespace,
 			"locations",
 			"fake-location",
-			api.OperationStatusResourceType.Type,
+			resourcesapi.OperationStatusResourceType.Type,
 			resourceID.Name,
 		}
 		fullURL := c.frontEndURL + strings.Join(parts, "/") + "?api-version=2024-06-10-preview"
@@ -81,7 +81,7 @@ func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString stri
 			return nil, utils.TrackError(err)
 		}
 		req = req.WithContext(ctx)
-		req.Header.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+		req.Header.Set(armresourcesapi.HeaderNameHomeTenantID, resourcesapi.TestTenantID)
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -100,7 +100,7 @@ func (c frontendHTTPTestAccessor) Get(ctx context.Context, resourceIDString stri
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
-		ret := &arm.Operation{}
+		ret := &armresourcesapi.Operation{}
 		if err := json.Unmarshal(contentBytes, ret); err != nil {
 			return nil, utils.TrackError(err)
 		}
@@ -119,7 +119,7 @@ func (c frontendHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDSt
 	}
 
 	switch strings.ToLower(exemplarResourceID.ResourceType.String()) {
-	case strings.ToLower(api.ClusterResourceType.String()):
+	case strings.ToLower(resourcesapi.ClusterResourceType.String()):
 		pager := c.frontendClient.NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(exemplarResourceID.ResourceGroupName, nil)
 		ret := []any{}
 		for pager.More() {
@@ -133,7 +133,7 @@ func (c frontendHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDSt
 		}
 		return ret, nil
 
-	case strings.ToLower(api.NodePoolResourceType.String()):
+	case strings.ToLower(resourcesapi.NodePoolResourceType.String()):
 		pager := c.frontendClient.NewNodePoolsClient().NewListByParentPager(exemplarResourceID.ResourceGroupName, exemplarResourceID.Parent.Name, nil)
 		ret := []any{}
 		for pager.More() {
@@ -147,7 +147,7 @@ func (c frontendHTTPTestAccessor) List(ctx context.Context, exemplarResourceIDSt
 		}
 		return ret, nil
 
-	case strings.ToLower(api.ExternalAuthResourceType.String()):
+	case strings.ToLower(resourcesapi.ExternalAuthResourceType.String()):
 		pager := c.frontendClient.NewExternalAuthsClient().NewListByParentPager(exemplarResourceID.ResourceGroupName, exemplarResourceID.Parent.Name, nil)
 		ret := []any{}
 		for pager.More() {
@@ -175,7 +175,7 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 	}
 
 	switch strings.ToLower(resourceID.ResourceType.String()) {
-	case strings.ToLower(api.ClusterResourceType.String()):
+	case strings.ToLower(resourcesapi.ClusterResourceType.String()):
 		obj := hcpsdk20240610preview.HcpOpenShiftCluster{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
@@ -186,7 +186,7 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 		}
 		return nil
 
-	case strings.ToLower(api.NodePoolResourceType.String()):
+	case strings.ToLower(resourcesapi.NodePoolResourceType.String()):
 		obj := hcpsdk20240610preview.NodePool{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
@@ -197,7 +197,7 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 		}
 		return nil
 
-	case strings.ToLower(api.ExternalAuthResourceType.String()):
+	case strings.ToLower(resourcesapi.ExternalAuthResourceType.String()):
 		obj := hcpsdk20240610preview.ExternalAuth{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
@@ -236,14 +236,14 @@ func (c frontendHTTPTestAccessor) CreateOrUpdate(ctx context.Context, resourceID
 
 		return nil
 
-	case strings.ToLower(api.RequestAdminCredentialActionType.String()):
+	case strings.ToLower(resourcesapi.RequestAdminCredentialActionType.String()):
 		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginRequestAdminCredential(ctx, resourceID.Parent.ResourceGroupName, resourceID.Parent.Name, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}
 		return nil
 
-	case strings.ToLower(api.RevokeAdminCredentialsActionType.String()):
+	case strings.ToLower(resourcesapi.RevokeAdminCredentialsActionType.String()):
 		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginRevokeCredentials(ctx, resourceID.Parent.ResourceGroupName, resourceID.Parent.Name, nil)
 		if err != nil {
 			return utils.TrackError(err)
@@ -265,7 +265,7 @@ func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString st
 	}
 
 	switch strings.ToLower(resourceID.ResourceType.String()) {
-	case strings.ToLower(api.ClusterResourceType.String()):
+	case strings.ToLower(resourcesapi.ClusterResourceType.String()):
 		obj := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
@@ -276,7 +276,7 @@ func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString st
 		}
 		return nil
 
-	case strings.ToLower(api.NodePoolResourceType.String()):
+	case strings.ToLower(resourcesapi.NodePoolResourceType.String()):
 		obj := hcpsdk20240610preview.NodePoolUpdate{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
@@ -287,7 +287,7 @@ func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString st
 		}
 		return nil
 
-	case strings.ToLower(api.ExternalAuthResourceType.String()):
+	case strings.ToLower(resourcesapi.ExternalAuthResourceType.String()):
 		obj := hcpsdk20240610preview.ExternalAuthUpdate{}
 		if err := json.Unmarshal(content, &obj); err != nil {
 			return utils.TrackError(err)
@@ -298,14 +298,14 @@ func (c frontendHTTPTestAccessor) Patch(ctx context.Context, resourceIDString st
 		}
 		return nil
 
-	case strings.ToLower(api.RequestAdminCredentialActionType.String()):
+	case strings.ToLower(resourcesapi.RequestAdminCredentialActionType.String()):
 		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginRequestAdminCredential(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}
 		return nil
 
-	case strings.ToLower(api.RevokeAdminCredentialsActionType.String()):
+	case strings.ToLower(resourcesapi.RevokeAdminCredentialsActionType.String()):
 		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginRevokeCredentials(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
 		if err != nil {
 			return utils.TrackError(err)
@@ -323,15 +323,15 @@ func (c frontendHTTPTestAccessor) Delete(ctx context.Context, resourceIDString s
 	}
 
 	switch strings.ToLower(resourceID.ResourceType.String()) {
-	case strings.ToLower(api.ClusterResourceType.String()):
+	case strings.ToLower(resourcesapi.ClusterResourceType.String()):
 		_, err := c.frontendClient.NewHcpOpenShiftClustersClient().BeginDelete(ctx, resourceID.ResourceGroupName, resourceID.Name, nil)
 		return utils.TrackError(err)
 
-	case strings.ToLower(api.NodePoolResourceType.String()):
+	case strings.ToLower(resourcesapi.NodePoolResourceType.String()):
 		_, err := c.frontendClient.NewNodePoolsClient().BeginDelete(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
 		return utils.TrackError(err)
 
-	case strings.ToLower(api.ExternalAuthResourceType.String()):
+	case strings.ToLower(resourcesapi.ExternalAuthResourceType.String()):
 		_, err := c.frontendClient.NewExternalAuthsClient().BeginDelete(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
 		return utils.TrackError(err)
 

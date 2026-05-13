@@ -27,42 +27,42 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 // fakeControllerCRUD is a simple in-memory implementation of ResourceCRUD[api.Controller] for testing
 type fakeControllerCRUD struct {
-	controllers map[string]*api.Controller
+	controllers map[string]*resourcesapi.Controller
 }
 
 func newFakeControllerCRUD() *fakeControllerCRUD {
 	return &fakeControllerCRUD{
-		controllers: make(map[string]*api.Controller),
+		controllers: make(map[string]*resourcesapi.Controller),
 	}
 }
 
-func (f *fakeControllerCRUD) GetByID(ctx context.Context, cosmosID string) (*api.Controller, error) {
+func (f *fakeControllerCRUD) GetByID(ctx context.Context, cosmosID string) (*resourcesapi.Controller, error) {
 	return nil, nil
 }
 
-func (f *fakeControllerCRUD) Get(ctx context.Context, resourceID string) (*api.Controller, error) {
+func (f *fakeControllerCRUD) Get(ctx context.Context, resourceID string) (*resourcesapi.Controller, error) {
 	if c, ok := f.controllers[resourceID]; ok {
 		return c, nil
 	}
 	return nil, database.NewNotFoundError()
 }
 
-func (f *fakeControllerCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[api.Controller], error) {
+func (f *fakeControllerCRUD) List(ctx context.Context, opts *database.DBClientListResourceDocsOptions) (database.DBClientIterator[resourcesapi.Controller], error) {
 	return nil, nil
 }
 
-func (f *fakeControllerCRUD) Create(ctx context.Context, newObj *api.Controller, options *azcosmos.ItemOptions) (*api.Controller, error) {
+func (f *fakeControllerCRUD) Create(ctx context.Context, newObj *resourcesapi.Controller, options *azcosmos.ItemOptions) (*resourcesapi.Controller, error) {
 	f.controllers[newObj.ResourceID.Name] = newObj
 	return newObj, nil
 }
 
-func (f *fakeControllerCRUD) Replace(ctx context.Context, newObj *api.Controller, options *azcosmos.ItemOptions) (*api.Controller, error) {
+func (f *fakeControllerCRUD) Replace(ctx context.Context, newObj *resourcesapi.Controller, options *azcosmos.ItemOptions) (*resourcesapi.Controller, error) {
 	f.controllers[newObj.ResourceID.Name] = newObj
 	return newObj, nil
 }
@@ -72,11 +72,11 @@ func (f *fakeControllerCRUD) Delete(ctx context.Context, resourceID string) erro
 	return nil
 }
 
-func (f *fakeControllerCRUD) AddCreateToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *api.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (f *fakeControllerCRUD) AddCreateToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *resourcesapi.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	return "", nil
 }
 
-func (f *fakeControllerCRUD) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *api.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (f *fakeControllerCRUD) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *resourcesapi.Controller, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	return "", nil
 }
 
@@ -86,20 +86,20 @@ func TestDegradedControllerPanicHandler(t *testing.T) {
 	resourceGroup := "test-rg"
 	clusterName := "test-cluster"
 
-	initialController := func(name string) *api.Controller {
-		resourceID := api.Must(azcorearm.ParseResourceID(
+	initialController := func(name string) *resourcesapi.Controller {
+		resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + subscriptionID + "/resourceGroups/" + resourceGroup +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
-				"/" + api.ControllerResourceTypeName + "/" + name))
-		clusterResourceID := api.Must(azcorearm.ParseResourceID(
+				"/" + resourcesapi.ControllerResourceTypeName + "/" + name))
+		clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + subscriptionID + "/resourceGroups/" + resourceGroup +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
-		return &api.Controller{
-			CosmosMetadata: api.CosmosMetadata{
+		return &resourcesapi.Controller{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: resourceID,
 			},
 			ExternalID: clusterResourceID,
-			Status: api.ControllerStatus{
+			Status: resourcesapi.ControllerStatus{
 				Conditions: []metav1.Condition{},
 			},
 		}

@@ -25,31 +25,31 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 // ValidateManagementClusterCreate validates a ManagementCluster for creation.
-func ValidateManagementClusterCreate(ctx context.Context, newObj *fleet.ManagementCluster) field.ErrorList {
+func ValidateManagementClusterCreate(ctx context.Context, newObj *fleetapi.ManagementCluster) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	return validateManagementCluster(ctx, op, newObj, nil)
 }
 
 // ValidateManagementClusterUpdate validates a ManagementCluster for update.
-func ValidateManagementClusterUpdate(ctx context.Context, newObj, oldObj *fleet.ManagementCluster) field.ErrorList {
+func ValidateManagementClusterUpdate(ctx context.Context, newObj, oldObj *fleetapi.ManagementCluster) field.ErrorList {
 	op := operation.Operation{Type: operation.Update}
 	return validateManagementCluster(ctx, op, newObj, oldObj)
 }
 
 var (
-	toManagementClusterResourceID = func(oldObj *fleet.ManagementCluster) *azcorearm.ResourceID { return oldObj.ResourceID }
-	toManagementClusterSpec       = func(oldObj *fleet.ManagementCluster) *fleet.ManagementClusterSpec { return &oldObj.Spec }
-	toManagementClusterStatus     = func(oldObj *fleet.ManagementCluster) *fleet.ManagementClusterStatus { return &oldObj.Status }
+	toManagementClusterResourceID = func(oldObj *fleetapi.ManagementCluster) *azcorearm.ResourceID { return oldObj.ResourceID }
+	toManagementClusterSpec       = func(oldObj *fleetapi.ManagementCluster) *fleetapi.ManagementClusterSpec { return &oldObj.Spec }
+	toManagementClusterStatus     = func(oldObj *fleetapi.ManagementCluster) *fleetapi.ManagementClusterStatus { return &oldObj.Status }
 )
 
 var stampIdentifierRegex = regexp.MustCompile(`^[a-z0-9]{1,3}$`)
 
-func validateManagementCluster(ctx context.Context, op operation.Operation, newObj, oldObj *fleet.ManagementCluster) field.ErrorList {
+func validateManagementCluster(ctx context.Context, op operation.Operation, newObj, oldObj *fleetapi.ManagementCluster) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// ResourceID (top-level, mirrors CosmosMetadata.ResourceID)
@@ -69,48 +69,50 @@ func validateManagementCluster(ctx context.Context, op operation.Operation, newO
 }
 
 var (
-	toManagementClusterSpecSchedulingPolicy = func(oldObj *fleet.ManagementClusterSpec) *fleet.ManagementClusterSchedulingPolicy {
+	toManagementClusterSpecSchedulingPolicy = func(oldObj *fleetapi.ManagementClusterSpec) *fleetapi.ManagementClusterSchedulingPolicy {
 		return &oldObj.SchedulingPolicy
 	}
 )
 
-func validateManagementClusterSpec(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *fleet.ManagementClusterSpec) field.ErrorList {
+func validateManagementClusterSpec(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *fleetapi.ManagementClusterSpec) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// SchedulingPolicy — required, must be a valid value
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("schedulingPolicy"), &newObj.SchedulingPolicy, safe.Field(oldObj, toManagementClusterSpecSchedulingPolicy))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("schedulingPolicy"), &newObj.SchedulingPolicy, safe.Field(oldObj, toManagementClusterSpecSchedulingPolicy), fleet.ValidManagementClusterSchedulingPolicies, nil)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("schedulingPolicy"), &newObj.SchedulingPolicy, safe.Field(oldObj, toManagementClusterSpecSchedulingPolicy), fleetapi.ValidManagementClusterSchedulingPolicies, nil)...)
 
 	return errs
 }
 
 var (
-	toManagementClusterStatusAKSResourceID           = func(oldObj *fleet.ManagementClusterStatus) *azcorearm.ResourceID { return oldObj.AKSResourceID }
-	toManagementClusterStatusPublicDNSZoneResourceID = func(oldObj *fleet.ManagementClusterStatus) *azcorearm.ResourceID {
+	toManagementClusterStatusAKSResourceID           = func(oldObj *fleetapi.ManagementClusterStatus) *azcorearm.ResourceID { return oldObj.AKSResourceID }
+	toManagementClusterStatusPublicDNSZoneResourceID = func(oldObj *fleetapi.ManagementClusterStatus) *azcorearm.ResourceID {
 		return oldObj.PublicDNSZoneResourceID
 	}
-	toManagementClusterStatusHostedClustersSecretsKeyVaultURL           = func(oldObj *fleet.ManagementClusterStatus) *string { return &oldObj.HostedClustersSecretsKeyVaultURL }
-	toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL = func(oldObj *fleet.ManagementClusterStatus) *string {
+	toManagementClusterStatusHostedClustersSecretsKeyVaultURL = func(oldObj *fleetapi.ManagementClusterStatus) *string {
+		return &oldObj.HostedClustersSecretsKeyVaultURL
+	}
+	toManagementClusterStatusHostedClustersManagedIdentitiesKeyVaultURL = func(oldObj *fleetapi.ManagementClusterStatus) *string {
 		return &oldObj.HostedClustersManagedIdentitiesKeyVaultURL
 	}
-	toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID = func(oldObj *fleet.ManagementClusterStatus) *string {
+	toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID = func(oldObj *fleetapi.ManagementClusterStatus) *string {
 		return &oldObj.HostedClustersSecretsKeyVaultManagedIdentityClientID
 	}
-	toManagementClusterStatusClusterServiceProvisionShardID = func(oldObj *fleet.ManagementClusterStatus) *api.InternalID {
+	toManagementClusterStatusClusterServiceProvisionShardID = func(oldObj *fleetapi.ManagementClusterStatus) *resourcesapi.InternalID {
 		return oldObj.ClusterServiceProvisionShardID
 	}
-	toManagementClusterStatusMaestroConsumerName = func(oldObj *fleet.ManagementClusterStatus) *string {
+	toManagementClusterStatusMaestroConsumerName = func(oldObj *fleetapi.ManagementClusterStatus) *string {
 		return &oldObj.MaestroConsumerName
 	}
-	toManagementClusterStatusMaestroRESTAPIURL = func(oldObj *fleet.ManagementClusterStatus) *string {
+	toManagementClusterStatusMaestroRESTAPIURL = func(oldObj *fleetapi.ManagementClusterStatus) *string {
 		return &oldObj.MaestroRESTAPIURL
 	}
-	toManagementClusterStatusMaestroGRPCTarget = func(oldObj *fleet.ManagementClusterStatus) *string {
+	toManagementClusterStatusMaestroGRPCTarget = func(oldObj *fleetapi.ManagementClusterStatus) *string {
 		return &oldObj.MaestroGRPCTarget
 	}
 )
 
-func validateManagementClusterStatus(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *fleet.ManagementClusterStatus) field.ErrorList {
+func validateManagementClusterStatus(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *fleetapi.ManagementClusterStatus) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// AKSResourceID — required, validated as AKS resource type, immutable

@@ -23,7 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 )
 
 // kubeApplierContainer is the Cosmos container name used by the kube-applier
@@ -157,4 +157,4 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTr
 }
 
 // Compile-time assertion that *kubeApplierResourceCRUD implements ResourceCRUD.
-var _ ResourceCRUD[kubeapplier.ApplyDesire] = &kubeApplierResourceCRUD[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]]{}
+var _ ResourceCRUD[kubeapplierapi.ApplyDesire] = &kubeApplierResourceCRUD[kubeapplierapi.ApplyDesire, GenericDocument[kubeapplierapi.ApplyDesire]]{}

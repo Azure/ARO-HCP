@@ -22,8 +22,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -33,7 +32,7 @@ import (
 // managementClusterPlacementSyncer resolves the management cluster an HCP runs on
 // and updates the ServiceProviderCluster document with the ManagementClusterResourceID.
 type managementClusterPlacementSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
+	cooldownChecker controllerutils.CooldownChecker
 
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	clusterLister                listers.ClusterLister
@@ -76,12 +75,12 @@ func NewManagementClusterPlacementSyncController(
 	return controller
 }
 
-func (c *managementClusterPlacementSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (c *managementClusterPlacementSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
 // needsWork checks if the ServiceProviderCluster still needs its ManagementClusterResourceID resolved.
-func (c *managementClusterPlacementSyncer) needsWork(spc *api.ServiceProviderCluster) bool {
+func (c *managementClusterPlacementSyncer) needsWork(spc *resourcesapi.ServiceProviderCluster) bool {
 	return spc.Status.ManagementClusterResourceID == nil
 }
 
@@ -121,7 +120,7 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 
 	// Get the ServiceProviderCluster from Cosmos (live read)
 	spcCRUD := c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	existingSPC, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
+	existingSPC, err := spcCRUD.Get(ctx, resourcesapi.ServiceProviderClusterResourceName)
 	if database.IsNotFoundError(err) {
 		logger.V(1).Info("ServiceProviderCluster not found in Cosmos, skipping")
 		return nil
@@ -145,7 +144,7 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 		logger.V(1).Info("Provision shard not yet allocated by Cluster Service, skipping")
 		return nil
 	}
-	provisionShardID, err := api.NewInternalID(csShard.HREF())
+	provisionShardID, err := resourcesapi.NewInternalID(csShard.HREF())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to parse provision shard href: %w", err))
 	}

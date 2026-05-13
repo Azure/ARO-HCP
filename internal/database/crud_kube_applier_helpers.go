@@ -22,8 +22,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
 )
 
 // serializeKubeApplierItem mirrors serializeItem but validates the partition key
@@ -31,12 +31,12 @@ import (
 // subscriptionID. The two never match for kube-applier objects.
 func serializeKubeApplierItem[InternalAPIType, CosmosAPIType any](
 	newObj *InternalAPIType,
-) (*arm.CosmosMetadata, []byte, error) {
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+) (*metaapi.CosmosMetadata, []byte, error) {
+	cosmosPersistable, ok := any(newObj).(metaapi.CosmosPersistable)
 	if !ok {
 		return nil, nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
 	}
-	mgmtAccessor, ok := any(newObj).(kubeapplier.ManagementClusterAccessor)
+	mgmtAccessor, ok := any(newObj).(kubeapplierapi.ManagementClusterAccessor)
 	if !ok {
 		return nil, nil, fmt.Errorf("type %T does not implement ManagementClusterAccessor", newObj)
 	}
@@ -66,7 +66,7 @@ func serializeKubeApplierItem[InternalAPIType, CosmosAPIType any](
 
 // kubeApplierPartitionKey returns the lowercased management cluster name from a *Desire.
 func kubeApplierPartitionKey[InternalAPIType any](newObj *InternalAPIType) (string, error) {
-	mgmtAccessor, ok := any(newObj).(kubeapplier.ManagementClusterAccessor)
+	mgmtAccessor, ok := any(newObj).(kubeapplierapi.ManagementClusterAccessor)
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement ManagementClusterAccessor", newObj)
 	}

@@ -28,8 +28,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -235,19 +236,19 @@ func subscriptionInformerTestCase() informerTestCase {
 		name: "subscription",
 		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 			t.Helper()
-			sub1 := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
+			sub1 := &armresourcesapi.Subscription{
+				CosmosMetadata: metaapi.CosmosMetadata{
 					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				State:      arm.SubscriptionStateRegistered,
+				State:      armresourcesapi.SubscriptionStateRegistered,
 			}
-			sub2 := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
+			sub2 := &armresourcesapi.Subscription{
+				CosmosMetadata: metaapi.CosmosMetadata{
 					ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
-				State:      arm.SubscriptionStateRegistered,
+				State:      armresourcesapi.SubscriptionStateRegistered,
 			}
 			_, err := mockResourcesDBClient.Subscriptions().Create(ctx, sub1, nil)
 			require.NoError(t, err)
@@ -261,23 +262,23 @@ func subscriptionInformerTestCase() informerTestCase {
 		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 			t.Helper()
 			// Update sub-1.
-			sub1Updated := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
+			sub1Updated := &armresourcesapi.Subscription{
+				CosmosMetadata: metaapi.CosmosMetadata{
 					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				State:      arm.SubscriptionStateWarned,
+				State:      armresourcesapi.SubscriptionStateWarned,
 			}
 			_, err := mockResourcesDBClient.Subscriptions().Replace(ctx, sub1Updated, nil)
 			require.NoError(t, err)
 
 			// Add sub-3.
-			sub3 := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
+			sub3 := &armresourcesapi.Subscription{
+				CosmosMetadata: metaapi.CosmosMetadata{
 					ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
-				State:      arm.SubscriptionStateRegistered,
+				State:      armresourcesapi.SubscriptionStateRegistered,
 			}
 			_, err = mockResourcesDBClient.Subscriptions().Create(ctx, sub3, nil)
 			require.NoError(t, err)
@@ -291,8 +292,8 @@ func subscriptionInformerTestCase() informerTestCase {
 			// Expect an update for sub-1.
 			require.Eventually(t, func() bool {
 				for _, evt := range tracker.getUpdated() {
-					if sub, ok := evt.newObj.(*arm.Subscription); ok {
-						if sub.ResourceID.SubscriptionID == "sub-1" && sub.State == arm.SubscriptionStateWarned {
+					if sub, ok := evt.newObj.(*armresourcesapi.Subscription); ok {
+						if sub.ResourceID.SubscriptionID == "sub-1" && sub.State == armresourcesapi.SubscriptionStateWarned {
 							return true
 						}
 					}
@@ -303,7 +304,7 @@ func subscriptionInformerTestCase() informerTestCase {
 			// Expect an add for sub-3.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if sub, ok := obj.(*arm.Subscription); ok {
+					if sub, ok := obj.(*armresourcesapi.Subscription); ok {
 						if sub.ResourceID.SubscriptionID == "sub-3" {
 							return true
 						}
@@ -315,7 +316,7 @@ func subscriptionInformerTestCase() informerTestCase {
 			// Expect a delete for sub-2.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if sub, ok := obj.(*arm.Subscription); ok {
+					if sub, ok := obj.(*armresourcesapi.Subscription); ok {
 						if sub.ResourceID.SubscriptionID == "sub-2" {
 							return true
 						}
@@ -335,24 +336,24 @@ func clusterInformerTestCase() informerTestCase {
 		resourceGroupName = "test-rg"
 	)
 
-	newCluster := func(t *testing.T, name string, state arm.ProvisioningState) *api.HCPOpenShiftCluster {
+	newCluster := func(t *testing.T, name string, state armresourcesapi.ProvisioningState) *resourcesapi.HCPOpenShiftCluster {
 		t.Helper()
 		clusterResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+name)
-		internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name)
+		internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + name)
 		require.NoError(t, err)
-		return &api.HCPOpenShiftCluster{
-			TrackedResource: arm.TrackedResource{
-				Resource: arm.Resource{
+		return &resourcesapi.HCPOpenShiftCluster{
+			TrackedResource: armresourcesapi.TrackedResource{
+				Resource: armresourcesapi.Resource{
 					ID:   clusterResourceID,
 					Name: name,
-					Type: api.ClusterResourceType.String(),
+					Type: resourcesapi.ClusterResourceType.String(),
 				},
 				Location: "eastus",
 			},
-			ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 				ProvisioningState: state,
 				ClusterServiceID:  &internalID,
 			},
@@ -364,9 +365,9 @@ func clusterInformerTestCase() informerTestCase {
 		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 			t.Helper()
 			clusterCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
-			_, err := clusterCRUD.Create(ctx, newCluster(t, "cluster-1", arm.ProvisioningStateSucceeded), nil)
+			_, err := clusterCRUD.Create(ctx, newCluster(t, "cluster-1", armresourcesapi.ProvisioningStateSucceeded), nil)
 			require.NoError(t, err)
-			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-2", arm.ProvisioningStateSucceeded), nil)
+			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-2", armresourcesapi.ProvisioningStateSucceeded), nil)
 			require.NoError(t, err)
 		},
 		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
@@ -378,11 +379,11 @@ func clusterInformerTestCase() informerTestCase {
 			clusterCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
 
 			// Update cluster-1 state.
-			_, err := clusterCRUD.Replace(ctx, newCluster(t, "cluster-1", arm.ProvisioningStateDeleting), nil)
+			_, err := clusterCRUD.Replace(ctx, newCluster(t, "cluster-1", armresourcesapi.ProvisioningStateDeleting), nil)
 			require.NoError(t, err)
 
 			// Add cluster-3.
-			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-3", arm.ProvisioningStateAccepted), nil)
+			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-3", armresourcesapi.ProvisioningStateAccepted), nil)
 			require.NoError(t, err)
 
 			// Delete cluster-2.
@@ -394,8 +395,8 @@ func clusterInformerTestCase() informerTestCase {
 			// Expect an update for cluster-1.
 			require.Eventually(t, func() bool {
 				for _, evt := range tracker.getUpdated() {
-					if c, ok := evt.newObj.(*api.HCPOpenShiftCluster); ok {
-						if c.Name == "cluster-1" && c.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting {
+					if c, ok := evt.newObj.(*resourcesapi.HCPOpenShiftCluster); ok {
+						if c.Name == "cluster-1" && c.ServiceProviderProperties.ProvisioningState == armresourcesapi.ProvisioningStateDeleting {
 							return true
 						}
 					}
@@ -406,7 +407,7 @@ func clusterInformerTestCase() informerTestCase {
 			// Expect an add for cluster-3.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if c, ok := obj.(*api.HCPOpenShiftCluster); ok {
+					if c, ok := obj.(*resourcesapi.HCPOpenShiftCluster); ok {
 						if c.Name == "cluster-3" {
 							return true
 						}
@@ -418,7 +419,7 @@ func clusterInformerTestCase() informerTestCase {
 			// Expect a delete for cluster-2.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if c, ok := obj.(*api.HCPOpenShiftCluster); ok {
+					if c, ok := obj.(*resourcesapi.HCPOpenShiftCluster); ok {
 						if c.Name == "cluster-2" {
 							return true
 						}
@@ -439,28 +440,28 @@ func nodePoolInformerTestCase() informerTestCase {
 		clusterName       = "parent-cluster"
 	)
 
-	newNodePool := func(t *testing.T, name string, replicas int32) *api.HCPOpenShiftClusterNodePool {
+	newNodePool := func(t *testing.T, name string, replicas int32) *resourcesapi.HCPOpenShiftClusterNodePool {
 		t.Helper()
 		npResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 				"/nodePools/"+name)
-		internalID := api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
-		return &api.HCPOpenShiftClusterNodePool{
-			TrackedResource: arm.TrackedResource{
-				Resource: arm.Resource{
+		internalID := resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
+		return &resourcesapi.HCPOpenShiftClusterNodePool{
+			TrackedResource: armresourcesapi.TrackedResource{
+				Resource: armresourcesapi.Resource{
 					ID:   npResourceID,
 					Name: name,
-					Type: api.NodePoolResourceType.String(),
+					Type: resourcesapi.NodePoolResourceType.String(),
 				},
 				Location: "eastus",
 			},
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				ProvisioningState: arm.ProvisioningStateSucceeded,
+			Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+				ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 				Replicas:          replicas,
 			},
-			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 				ClusterServiceID: internalID,
 			},
 		}
@@ -475,19 +476,19 @@ func nodePoolInformerTestCase() informerTestCase {
 				"/subscriptions/"+subscriptionID+
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
-			internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
+			internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
 			require.NoError(t, err)
-			cluster := &api.HCPOpenShiftCluster{
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{
+			cluster := &resourcesapi.HCPOpenShiftCluster{
+				TrackedResource: armresourcesapi.TrackedResource{
+					Resource: armresourcesapi.Resource{
 						ID:   clusterResourceID,
 						Name: clusterName,
-						Type: api.ClusterResourceType.String(),
+						Type: resourcesapi.ClusterResourceType.String(),
 					},
 					Location: "eastus",
 				},
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ProvisioningState: arm.ProvisioningStateSucceeded,
+				ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 					ClusterServiceID:  &internalID,
 				},
 			}
@@ -525,7 +526,7 @@ func nodePoolInformerTestCase() informerTestCase {
 			// Expect an update for np-1.
 			require.Eventually(t, func() bool {
 				for _, evt := range tracker.getUpdated() {
-					if np, ok := evt.newObj.(*api.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := evt.newObj.(*resourcesapi.HCPOpenShiftClusterNodePool); ok {
 						if np.Name == "np-1" && np.Properties.Replicas == 10 {
 							return true
 						}
@@ -537,7 +538,7 @@ func nodePoolInformerTestCase() informerTestCase {
 			// Expect an add for np-3.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if np, ok := obj.(*api.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := obj.(*resourcesapi.HCPOpenShiftClusterNodePool); ok {
 						if np.Name == "np-3" {
 							return true
 						}
@@ -549,7 +550,7 @@ func nodePoolInformerTestCase() informerTestCase {
 			// Expect a delete for np-2.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if np, ok := obj.(*api.HCPOpenShiftClusterNodePool); ok {
+					if np, ok := obj.(*resourcesapi.HCPOpenShiftClusterNodePool); ok {
 						if np.Name == "np-2" {
 							return true
 						}
@@ -566,7 +567,7 @@ func nodePoolInformerTestCase() informerTestCase {
 func activeOperationInformerTestCase() informerTestCase {
 	const subscriptionID = "00000000-0000-0000-0000-000000000003"
 
-	newOperation := func(t *testing.T, opName string, status arm.ProvisioningState) *api.Operation {
+	newOperation := func(t *testing.T, opName string, status armresourcesapi.ProvisioningState) *resourcesapi.Operation {
 		t.Helper()
 		operationID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
@@ -578,13 +579,13 @@ func activeOperationInformerTestCase() informerTestCase {
 			"/subscriptions/"+subscriptionID+
 				"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/"+opName)
 		now := time.Now().UTC()
-		return &api.Operation{
-			CosmosMetadata: api.CosmosMetadata{
+		return &resourcesapi.Operation{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: resourceID,
 			},
 			OperationID:        operationID,
 			ExternalID:         externalID,
-			Request:            api.OperationRequestCreate,
+			Request:            resourcesapi.OperationRequestCreate,
 			Status:             status,
 			StartTime:          now,
 			LastTransitionTime: now,
@@ -596,9 +597,9 @@ func activeOperationInformerTestCase() informerTestCase {
 		seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 			t.Helper()
 			opCRUD := mockResourcesDBClient.Operations(subscriptionID)
-			_, err := opCRUD.Create(ctx, newOperation(t, "op-1", arm.ProvisioningStateAccepted), nil)
+			_, err := opCRUD.Create(ctx, newOperation(t, "op-1", armresourcesapi.ProvisioningStateAccepted), nil)
 			require.NoError(t, err)
-			_, err = opCRUD.Create(ctx, newOperation(t, "op-2", arm.ProvisioningStateProvisioning), nil)
+			_, err = opCRUD.Create(ctx, newOperation(t, "op-2", armresourcesapi.ProvisioningStateProvisioning), nil)
 			require.NoError(t, err)
 		},
 		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
@@ -612,11 +613,11 @@ func activeOperationInformerTestCase() informerTestCase {
 			// Transition op-1 to succeeded (terminal) — the active operations
 			// informer should see this as a deletion since it only tracks
 			// non-terminal operations.
-			_, err := opCRUD.Replace(ctx, newOperation(t, "op-1", arm.ProvisioningStateSucceeded), nil)
+			_, err := opCRUD.Replace(ctx, newOperation(t, "op-1", armresourcesapi.ProvisioningStateSucceeded), nil)
 			require.NoError(t, err)
 
 			// Add a new active operation op-3.
-			_, err = opCRUD.Create(ctx, newOperation(t, "op-3", arm.ProvisioningStateAccepted), nil)
+			_, err = opCRUD.Create(ctx, newOperation(t, "op-3", armresourcesapi.ProvisioningStateAccepted), nil)
 			require.NoError(t, err)
 		},
 		verifyMutationEvents: func(t *testing.T, tracker *objectEventTracker) {
@@ -630,7 +631,7 @@ func activeOperationInformerTestCase() informerTestCase {
 			// Expect an add for op-3.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if op, ok := obj.(*api.Operation); ok {
+					if op, ok := obj.(*resourcesapi.Operation); ok {
 						if op.OperationID != nil && op.OperationID.Name == "op-3" {
 							return true
 						}
@@ -653,21 +654,21 @@ func controllerInformerTestCase() informerTestCase {
 		externalAuthName  = "test-externalauth"
 	)
 
-	newClusterController := func(t *testing.T, name string) *api.Controller {
+	newClusterController := func(t *testing.T, name string) *resourcesapi.Controller {
 		t.Helper()
 		controllerResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 				"/hcpOpenShiftControllers/"+name)
-		return &api.Controller{
-			CosmosMetadata: api.CosmosMetadata{
+		return &resourcesapi.Controller{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: controllerResourceID,
 			},
 		}
 	}
 
-	newNodePoolController := func(t *testing.T, name string) *api.Controller {
+	newNodePoolController := func(t *testing.T, name string) *resourcesapi.Controller {
 		t.Helper()
 		controllerResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
@@ -675,14 +676,14 @@ func controllerInformerTestCase() informerTestCase {
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 				"/nodePools/"+nodePoolName+
 				"/hcpOpenShiftControllers/"+name)
-		return &api.Controller{
-			CosmosMetadata: api.CosmosMetadata{
+		return &resourcesapi.Controller{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: controllerResourceID,
 			},
 		}
 	}
 
-	newExternalAuthController := func(t *testing.T, name string) *api.Controller {
+	newExternalAuthController := func(t *testing.T, name string) *resourcesapi.Controller {
 		t.Helper()
 		controllerResourceID := mustParseResourceID(t,
 			"/subscriptions/"+subscriptionID+
@@ -690,8 +691,8 @@ func controllerInformerTestCase() informerTestCase {
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 				"/externalAuths/"+externalAuthName+
 				"/hcpOpenShiftControllers/"+name)
-		return &api.Controller{
-			CosmosMetadata: api.CosmosMetadata{
+		return &resourcesapi.Controller{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: controllerResourceID,
 			},
 		}
@@ -706,19 +707,19 @@ func controllerInformerTestCase() informerTestCase {
 				"/subscriptions/"+subscriptionID+
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
-			internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
+			internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
 			require.NoError(t, err)
-			cluster := &api.HCPOpenShiftCluster{
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{
+			cluster := &resourcesapi.HCPOpenShiftCluster{
+				TrackedResource: armresourcesapi.TrackedResource{
+					Resource: armresourcesapi.Resource{
 						ID:   clusterResourceID,
 						Name: clusterName,
-						Type: api.ClusterResourceType.String(),
+						Type: resourcesapi.ClusterResourceType.String(),
 					},
 					Location: "eastus",
 				},
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ProvisioningState: arm.ProvisioningStateSucceeded,
+				ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+					ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 					ClusterServiceID:  &internalID,
 				},
 			}
@@ -731,9 +732,9 @@ func controllerInformerTestCase() informerTestCase {
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 					"/nodePools/"+nodePoolName)
-			np := &api.HCPOpenShiftClusterNodePool{
-				TrackedResource: arm.TrackedResource{
-					Resource: arm.Resource{
+			np := &resourcesapi.HCPOpenShiftClusterNodePool{
+				TrackedResource: armresourcesapi.TrackedResource{
+					Resource: armresourcesapi.Resource{
 						ID:   npResourceID,
 						Name: nodePoolName,
 						Type: npResourceID.ResourceType.String(),
@@ -749,8 +750,8 @@ func controllerInformerTestCase() informerTestCase {
 					"/resourceGroups/"+resourceGroupName+
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 					"/externalAuths/"+externalAuthName)
-			ea := &api.HCPOpenShiftClusterExternalAuth{
-				ProxyResource: arm.NewProxyResource(eaResourceID),
+			ea := &resourcesapi.HCPOpenShiftClusterExternalAuth{
+				ProxyResource: armresourcesapi.NewProxyResource(eaResourceID),
 			}
 			_, err = mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).Create(ctx, ea, nil)
 			require.NoError(t, err)
@@ -796,7 +797,7 @@ func controllerInformerTestCase() informerTestCase {
 			// Expect an add for ctrl-cluster-3.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getAdded() {
-					if c, ok := obj.(*api.Controller); ok {
+					if c, ok := obj.(*resourcesapi.Controller); ok {
 						if c.ResourceID != nil && c.ResourceID.Name == "ctrl-cluster-3" {
 							return true
 						}
@@ -808,7 +809,7 @@ func controllerInformerTestCase() informerTestCase {
 			// Expect a delete for ctrl-cluster-2.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if c, ok := obj.(*api.Controller); ok {
+					if c, ok := obj.(*resourcesapi.Controller); ok {
 						if c.ResourceID != nil && c.ResourceID.Name == "ctrl-cluster-2" {
 							return true
 						}
@@ -820,7 +821,7 @@ func controllerInformerTestCase() informerTestCase {
 			// Expect a delete for ctrl-np.
 			require.Eventually(t, func() bool {
 				for _, obj := range tracker.getDeleted() {
-					if c, ok := obj.(*api.Controller); ok {
+					if c, ok := obj.(*resourcesapi.Controller); ok {
 						if c.ResourceID != nil && c.ResourceID.Name == "ctrl-np" {
 							return true
 						}

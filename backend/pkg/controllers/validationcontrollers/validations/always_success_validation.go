@@ -17,8 +17,8 @@ package validations
 import (
 	"context"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 // AlwaysSuccessValidation is a validation that always succeeds. This is,
@@ -30,7 +30,7 @@ func (v *AlwaysSuccessValidation) Name() string {
 	return "AlwaysSuccessValidation"
 }
 
-func (v *AlwaysSuccessValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error {
+func (v *AlwaysSuccessValidation) Validate(ctx context.Context, clusterSubscription *armresourcesapi.Subscription, cluster *resourcesapi.HCPOpenShiftCluster) error {
 	return nil
 }
 

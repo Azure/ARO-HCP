@@ -28,9 +28,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 const (
@@ -39,7 +38,7 @@ const (
 )
 
 type stringSyncer struct {
-	cooldown controllerutil.CooldownChecker
+	cooldown CooldownChecker
 }
 
 func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) string {
@@ -51,7 +50,7 @@ func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) string {
 
 func (s *stringSyncer) SyncOnce(context.Context, string) error { return nil }
 
-func (s *stringSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (s *stringSyncer) CooldownChecker() CooldownChecker {
 	if s.cooldown == nil {
 		return alwaysAllowCooldown{}
 	}
@@ -67,8 +66,8 @@ type neverAllowCooldown struct{}
 func (neverAllowCooldown) CanSync(context.Context, any) bool { return false }
 
 func newTestWatchingController() (*genericWatchingController[string], *azcorearm.ResourceID, *azcorearm.ResourceID) {
-	clusterID := api.Must(azcorearm.ParseResourceID(testClusterARMID))
-	npID := api.Must(azcorearm.ParseResourceID(testNodePoolARMID))
+	clusterID := resourcesapi.Must(azcorearm.ParseResourceID(testClusterARMID))
+	npID := resourcesapi.Must(azcorearm.ParseResourceID(testNodePoolARMID))
 	syncer := &stringSyncer{}
 	c := newGenericWatchingController("test", clusterID.ResourceType, syncer)
 	return c, clusterID, npID
@@ -89,8 +88,8 @@ func popAllQueue(c *genericWatchingController[string]) []string {
 }
 
 func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
-	clusterID := api.Must(azcorearm.ParseResourceID(testClusterARMID))
-	npID := api.Must(azcorearm.ParseResourceID(testNodePoolARMID))
+	clusterID := resourcesapi.Must(azcorearm.ParseResourceID(testClusterARMID))
+	npID := resourcesapi.Must(azcorearm.ParseResourceID(testNodePoolARMID))
 
 	tests := []struct {
 		name     string
@@ -146,7 +145,7 @@ func TestEnqueueResourceIDAddWithMaxDepth(t *testing.T) {
 }
 
 func TestEnqueueResourceIDAddWithMaxDepth_changedAndCooldown(t *testing.T) {
-	clusterID := api.Must(azcorearm.ParseResourceID(testClusterARMID))
+	clusterID := resourcesapi.Must(azcorearm.ParseResourceID(testClusterARMID))
 	syncer := &stringSyncer{cooldown: neverAllowCooldown{}}
 	c := newGenericWatchingController("cooldown", clusterID.ResourceType, syncer)
 
@@ -182,7 +181,7 @@ func TestEnqueueCosmosWithMaxDepth(t *testing.T) {
 		{
 			name: "add from node pool metadata",
 			run: func(c *genericWatchingController[string]) {
-				c.enqueueCosmosAddWithMaxDepth(&arm.CosmosMetadata{ResourceID: npID}, 1)
+				c.enqueueCosmosAddWithMaxDepth(&metaapi.CosmosMetadata{ResourceID: npID}, 1)
 			},
 			want: []string{clusterID.String()},
 		},
@@ -190,8 +189,8 @@ func TestEnqueueCosmosWithMaxDepth(t *testing.T) {
 			name: "update same etag uses unchanged path",
 			run: func(c *genericWatchingController[string]) {
 				etag := azcore.ETag("e1")
-				oldObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: etag}
-				newObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: etag}
+				oldObj := &metaapi.CosmosMetadata{ResourceID: npID, CosmosETag: etag}
+				newObj := &metaapi.CosmosMetadata{ResourceID: npID, CosmosETag: etag}
 				c.enqueueCosmosUpdateWithMaxDepth(oldObj, newObj, 1)
 			},
 			want: []string{clusterID.String()},
@@ -199,8 +198,8 @@ func TestEnqueueCosmosWithMaxDepth(t *testing.T) {
 		{
 			name: "update different etag",
 			run: func(c *genericWatchingController[string]) {
-				oldObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("a")}
-				newObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("b")}
+				oldObj := &metaapi.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("a")}
+				newObj := &metaapi.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("b")}
 				c.enqueueCosmosUpdateWithMaxDepth(oldObj, newObj, 1)
 			},
 			want: []string{clusterID.String()},
@@ -242,7 +241,7 @@ func TestQueueForInformersWithMaxDepth(t *testing.T) {
 			name: "Add handler respects maxDepth",
 			run: func(t *testing.T, c *genericWatchingController[string], n *capturingNotifier) {
 				require.NotNil(t, n.addFunc)
-				n.addFunc(&arm.CosmosMetadata{ResourceID: npID})
+				n.addFunc(&metaapi.CosmosMetadata{ResourceID: npID})
 				require.Equal(t, []string{clusterID.String()}, popAllQueue(c))
 			},
 		},
@@ -250,8 +249,8 @@ func TestQueueForInformersWithMaxDepth(t *testing.T) {
 			name: "Update handler respects maxDepth",
 			run: func(t *testing.T, c *genericWatchingController[string], n *capturingNotifier) {
 				require.NotNil(t, n.updateFunc)
-				oldObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("a")}
-				newObj := &arm.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("b")}
+				oldObj := &metaapi.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("a")}
+				newObj := &metaapi.CosmosMetadata{ResourceID: npID, CosmosETag: azcore.ETag("b")}
 				n.updateFunc(oldObj, newObj)
 				require.Equal(t, []string{clusterID.String()}, popAllQueue(c))
 			},

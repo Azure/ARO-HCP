@@ -24,21 +24,21 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 var (
-	subnetResourceType                         azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.Network/virtualNetworks/subnets"))
-	vnetResourceType                           azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.Network/virtualNetworks"))
-	nsgResourceType                            azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.Network/networkSecurityGroups"))
-	publicDNSZoneResourceType                  azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.Network/dnsZones"))
-	userAssignedManagedIdentityType            azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.ManagedIdentity/userAssignedIdentities"))
-	acrResourceType                            azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.ContainerRegistry/registries"))
-	roleDefinitionResourceType                 azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.Authorization/roleDefinitions"))
-	resourceGroupResourceType                  azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.Resources/resourceGroups"))
-	diskEncryptionSetResourceType              azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.Compute/diskEncryptionSets"))
-	keyVaultResourceType                       azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.KeyVault/vaults"))
-	containerServiceManagedClusterResourceType azcorearm.ResourceType = api.Must(azcorearm.ParseResourceType("Microsoft.ContainerService/managedClusters"))
+	subnetResourceType                         azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.Network/virtualNetworks/subnets"))
+	vnetResourceType                           azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.Network/virtualNetworks"))
+	nsgResourceType                            azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.Network/networkSecurityGroups"))
+	publicDNSZoneResourceType                  azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.Network/dnsZones"))
+	userAssignedManagedIdentityType            azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.ManagedIdentity/userAssignedIdentities"))
+	acrResourceType                            azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.ContainerRegistry/registries"))
+	roleDefinitionResourceType                 azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.Authorization/roleDefinitions"))
+	resourceGroupResourceType                  azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.Resources/resourceGroups"))
+	diskEncryptionSetResourceType              azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.Compute/diskEncryptionSets"))
+	keyVaultResourceType                       azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.KeyVault/vaults"))
+	containerServiceManagedClusterResourceType azcorearm.ResourceType = resourcesapi.Must(azcorearm.ParseResourceType("Microsoft.ContainerService/managedClusters"))
 )
 
 // ValidateResourceGroupScopedResourceID validates that the Azure Resource ID

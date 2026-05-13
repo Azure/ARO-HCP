@@ -25,8 +25,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -59,17 +59,17 @@ type KubeApplierDBClient interface {
 // with ApplyDesires across many parents (e.g. the ApplyDesireController) take
 // this peer interface so they can build the right CRUD per desire.
 type KubeApplierApplyDesireCRUD interface {
-	ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error)
+	ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplierapi.ApplyDesire], error)
 }
 
 // KubeApplierDeleteDesireCRUD is the DeleteDesire peer of KubeApplierApplyDesireCRUD.
 type KubeApplierDeleteDesireCRUD interface {
-	DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error)
+	DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplierapi.DeleteDesire], error)
 }
 
 // KubeApplierReadDesireCRUD is the ReadDesire peer of KubeApplierApplyDesireCRUD.
 type KubeApplierReadDesireCRUD interface {
-	ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error)
+	ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplierapi.ReadDesire], error)
 }
 
 // KubeApplierCRUD scopes ResourceCRUD accessors to a single management-cluster
@@ -84,9 +84,9 @@ type KubeApplierCRUD interface {
 // KubeApplierGlobalListers provides cross-partition listers for the three
 // *Desire types in the kube-applier container.
 type KubeApplierGlobalListers interface {
-	ApplyDesires() GlobalLister[kubeapplier.ApplyDesire]
-	DeleteDesires() GlobalLister[kubeapplier.DeleteDesire]
-	ReadDesires() GlobalLister[kubeapplier.ReadDesire]
+	ApplyDesires() GlobalLister[kubeapplierapi.ApplyDesire]
+	DeleteDesires() GlobalLister[kubeapplierapi.DeleteDesire]
+	ReadDesires() GlobalLister[kubeapplierapi.ReadDesire]
 }
 
 // ResourceParent identifies what a *Desire is nested under in the resource ID
@@ -117,10 +117,10 @@ func (p ResourceParent) resourceID() (*azcorearm.ResourceID, error) {
 	parts := []string{
 		"/subscriptions", strings.ToLower(p.SubscriptionID),
 		"resourceGroups", p.ResourceGroupName,
-		"providers", api.ClusterResourceType.String(), p.ClusterName,
+		"providers", resourcesapi.ClusterResourceType.String(), p.ClusterName,
 	}
 	if p.IsNodePoolScoped() {
-		parts = append(parts, api.NodePoolResourceTypeName, p.NodePoolName)
+		parts = append(parts, resourcesapi.NodePoolResourceTypeName, p.NodePoolName)
 	}
 	return azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...)))
 }
@@ -177,44 +177,44 @@ type kubeApplierCRUD struct {
 
 var _ KubeApplierCRUD = &kubeApplierCRUD{}
 
-func (k *kubeApplierCRUD) ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error) {
+func (k *kubeApplierCRUD) ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplierapi.ApplyDesire], error) {
 	parentID, err := parent.resourceID()
 	if err != nil {
 		return nil, err
 	}
-	resourceType := kubeapplier.ClusterScopedApplyDesireResourceType
+	resourceType := kubeapplierapi.ClusterScopedApplyDesireResourceType
 	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedApplyDesireResourceType
+		resourceType = kubeapplierapi.NodePoolScopedApplyDesireResourceType
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
+	return newKubeApplierResourceCRUD[kubeapplierapi.ApplyDesire, GenericDocument[kubeapplierapi.ApplyDesire]](
 		k.kubeApplier, k.managementCluster, parentID, resourceType,
 	), nil
 }
 
-func (k *kubeApplierCRUD) DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error) {
+func (k *kubeApplierCRUD) DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplierapi.DeleteDesire], error) {
 	parentID, err := parent.resourceID()
 	if err != nil {
 		return nil, err
 	}
-	resourceType := kubeapplier.ClusterScopedDeleteDesireResourceType
+	resourceType := kubeapplierapi.ClusterScopedDeleteDesireResourceType
 	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedDeleteDesireResourceType
+		resourceType = kubeapplierapi.NodePoolScopedDeleteDesireResourceType
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
+	return newKubeApplierResourceCRUD[kubeapplierapi.DeleteDesire, GenericDocument[kubeapplierapi.DeleteDesire]](
 		k.kubeApplier, k.managementCluster, parentID, resourceType,
 	), nil
 }
 
-func (k *kubeApplierCRUD) ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error) {
+func (k *kubeApplierCRUD) ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplierapi.ReadDesire], error) {
 	parentID, err := parent.resourceID()
 	if err != nil {
 		return nil, err
 	}
-	resourceType := kubeapplier.ClusterScopedReadDesireResourceType
+	resourceType := kubeapplierapi.ClusterScopedReadDesireResourceType
 	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedReadDesireResourceType
+		resourceType = kubeapplierapi.NodePoolScopedReadDesireResourceType
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
+	return newKubeApplierResourceCRUD[kubeapplierapi.ReadDesire, GenericDocument[kubeapplierapi.ReadDesire]](
 		k.kubeApplier, k.managementCluster, parentID, resourceType,
 	), nil
 }
@@ -229,35 +229,35 @@ type cosmosKubeApplierGlobalListers struct {
 
 var _ KubeApplierGlobalListers = &cosmosKubeApplierGlobalListers{}
 
-func (g *cosmosKubeApplierGlobalListers) ApplyDesires() GlobalLister[kubeapplier.ApplyDesire] {
-	return &cosmosKubeApplierDesireGlobalLister[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]]{
+func (g *cosmosKubeApplierGlobalListers) ApplyDesires() GlobalLister[kubeapplierapi.ApplyDesire] {
+	return &cosmosKubeApplierDesireGlobalLister[kubeapplierapi.ApplyDesire, GenericDocument[kubeapplierapi.ApplyDesire]]{
 		kubeApplier:  g.kubeApplier,
 		partitionKey: g.partitionKey,
 		resourceTypes: []azcorearm.ResourceType{
-			kubeapplier.ClusterScopedApplyDesireResourceType,
-			kubeapplier.NodePoolScopedApplyDesireResourceType,
+			kubeapplierapi.ClusterScopedApplyDesireResourceType,
+			kubeapplierapi.NodePoolScopedApplyDesireResourceType,
 		},
 	}
 }
 
-func (g *cosmosKubeApplierGlobalListers) DeleteDesires() GlobalLister[kubeapplier.DeleteDesire] {
-	return &cosmosKubeApplierDesireGlobalLister[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]]{
+func (g *cosmosKubeApplierGlobalListers) DeleteDesires() GlobalLister[kubeapplierapi.DeleteDesire] {
+	return &cosmosKubeApplierDesireGlobalLister[kubeapplierapi.DeleteDesire, GenericDocument[kubeapplierapi.DeleteDesire]]{
 		kubeApplier:  g.kubeApplier,
 		partitionKey: g.partitionKey,
 		resourceTypes: []azcorearm.ResourceType{
-			kubeapplier.ClusterScopedDeleteDesireResourceType,
-			kubeapplier.NodePoolScopedDeleteDesireResourceType,
+			kubeapplierapi.ClusterScopedDeleteDesireResourceType,
+			kubeapplierapi.NodePoolScopedDeleteDesireResourceType,
 		},
 	}
 }
 
-func (g *cosmosKubeApplierGlobalListers) ReadDesires() GlobalLister[kubeapplier.ReadDesire] {
-	return &cosmosKubeApplierDesireGlobalLister[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]]{
+func (g *cosmosKubeApplierGlobalListers) ReadDesires() GlobalLister[kubeapplierapi.ReadDesire] {
+	return &cosmosKubeApplierDesireGlobalLister[kubeapplierapi.ReadDesire, GenericDocument[kubeapplierapi.ReadDesire]]{
 		kubeApplier:  g.kubeApplier,
 		partitionKey: g.partitionKey,
 		resourceTypes: []azcorearm.ResourceType{
-			kubeapplier.ClusterScopedReadDesireResourceType,
-			kubeapplier.NodePoolScopedReadDesireResourceType,
+			kubeapplierapi.ClusterScopedReadDesireResourceType,
+			kubeapplierapi.NodePoolScopedReadDesireResourceType,
 		},
 	}
 }

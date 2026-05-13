@@ -20,11 +20,11 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
-func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster, error) {
+func InternalToCosmosCluster(internalObj *resourcesapi.HCPOpenShiftCluster) (*HCPCluster, error) {
 	if internalObj == nil {
 		return nil, nil
 	}
@@ -40,12 +40,12 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 		},
 		HCPClusterProperties: HCPClusterProperties{
 			HCPOpenShiftCluster: *internalObj,
-			CosmosMetadata: api.CosmosMetadata{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
-				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, resourcesapi.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.ServiceProviderProperties.ProvisioningState,
 				Identity:          internalObj.Identity.DeepCopy(),
@@ -73,7 +73,7 @@ func copyTags(src map[string]string) map[string]string {
 	return tags
 }
 
-func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, error) {
+func CosmosToInternalCluster(cosmosObj *HCPCluster) (*resourcesapi.HCPOpenShiftCluster, error) {
 	if cosmosObj == nil {
 		return nil, nil
 	}
@@ -86,8 +86,8 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj := &tempInternalAPI
 
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
-	internalObj.TrackedResource = arm.TrackedResource{
-		Resource: arm.Resource{
+	internalObj.TrackedResource = armresourcesapi.TrackedResource{
+		Resource: armresourcesapi.Resource{
 			ID:         resourceDoc.ResourceID,
 			Name:       resourceDoc.ResourceID.Name,
 			Type:       resourceDoc.ResourceID.ResourceType.String(),

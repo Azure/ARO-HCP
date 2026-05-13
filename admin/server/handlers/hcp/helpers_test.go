@@ -22,7 +22,7 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 func TestClusterServiceError(t *testing.T) {
@@ -49,7 +49,7 @@ func TestClusterServiceError(t *testing.T) {
 			err:                createOCMError(http.StatusNotFound),
 			what:               "cluster data",
 			expectedStatusCode: http.StatusNotFound,
-			expectedErrorCode:  arm.CloudErrorCodeNotFound,
+			expectedErrorCode:  armresourcesapi.CloudErrorCodeNotFound,
 			expectedMessage:    "cluster data not found in cluster service",
 			isCloudError:       true,
 		},
@@ -58,7 +58,7 @@ func TestClusterServiceError(t *testing.T) {
 			err:                createOCMError(http.StatusNotFound),
 			what:               "hypershift details",
 			expectedStatusCode: http.StatusNotFound,
-			expectedErrorCode:  arm.CloudErrorCodeNotFound,
+			expectedErrorCode:  armresourcesapi.CloudErrorCodeNotFound,
 			expectedMessage:    "hypershift details not found in cluster service",
 			isCloudError:       true,
 		},
@@ -109,7 +109,7 @@ func TestClusterServiceError(t *testing.T) {
 
 			if tt.isCloudError {
 				// Check if it's a CloudError
-				var cloudErr *arm.CloudError
+				var cloudErr *armresourcesapi.CloudError
 				if !errors.As(result, &cloudErr) {
 					t.Fatalf("Expected CloudError but got %T: %v", result, result)
 				}
@@ -127,7 +127,7 @@ func TestClusterServiceError(t *testing.T) {
 				}
 			} else {
 				// Check if it's a wrapped error (not CloudError)
-				var cloudErr *arm.CloudError
+				var cloudErr *armresourcesapi.CloudError
 				if errors.As(result, &cloudErr) {
 					t.Fatalf("Expected wrapped error but got CloudError: %v", result)
 				}

@@ -23,8 +23,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -34,7 +34,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		subscription *arm.Subscription
+		subscription *armresourcesapi.Subscription
 		expectErrors []utils.ExpectedError
 	}{
 		{
@@ -44,9 +44,9 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "valid subscription with all fields - create",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.Properties = &arm.SubscriptionProperties{
+				s.Properties = &armresourcesapi.SubscriptionProperties{
 					TenantId: ptr.To("tenant-id-123"),
 				}
 				return s
@@ -55,16 +55,16 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "valid subscription - all valid states",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.State = arm.SubscriptionStateRegistered
+				s.State = armresourcesapi.SubscriptionStateRegistered
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "missing required resource ID",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
 				s.ResourceID = nil
 				return s
@@ -75,10 +75,10 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "invalid resource ID type",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
 				// Use a cluster resource ID instead of subscription
-				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
+				s.ResourceID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -89,7 +89,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "missing subscription ID in resource ID",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
 				s.ResourceID = &azcorearm.ResourceID{} // Empty ResourceID to test missing fields
 				return s
@@ -102,9 +102,9 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "invalid subscription ID format",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/invalid-uuid"))
+				s.ResourceID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/invalid-uuid"))
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -113,7 +113,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "missing registration date",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
 				s.RegistrationDate = nil
 				return s
@@ -124,7 +124,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "registration date with extra whitespace",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
 				s.RegistrationDate = ptr.To("  2023-01-01T00:00:00Z  ")
 				return s
@@ -135,9 +135,9 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "invalid subscription state",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.State = arm.SubscriptionState("InvalidState")
+				s.State = armresourcesapi.SubscriptionState("InvalidState")
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -146,9 +146,9 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "empty subscription state",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.State = arm.SubscriptionState("")
+				s.State = armresourcesapi.SubscriptionState("")
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -157,11 +157,11 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "multiple validation errors",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
 				s.ResourceID = nil
 				s.RegistrationDate = nil
-				s.State = arm.SubscriptionState("InvalidState")
+				s.State = armresourcesapi.SubscriptionState("InvalidState")
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -173,45 +173,45 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		// Test all valid subscription states
 		{
 			name: "subscription state - Registered",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.State = arm.SubscriptionStateRegistered
+				s.State = armresourcesapi.SubscriptionStateRegistered
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription state - Unregistered",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.State = arm.SubscriptionStateUnregistered
+				s.State = armresourcesapi.SubscriptionStateUnregistered
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription state - Warned",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.State = arm.SubscriptionStateWarned
+				s.State = armresourcesapi.SubscriptionStateWarned
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription state - Deleted",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.State = arm.SubscriptionStateDeleted
+				s.State = armresourcesapi.SubscriptionStateDeleted
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription state - Suspended",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.State = arm.SubscriptionStateSuspended
+				s.State = armresourcesapi.SubscriptionStateSuspended
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{},
@@ -219,18 +219,18 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		// Resource naming validation tests (covering middleware_validatestatic_test.go patterns)
 		{
 			name: "subscription with valid UUID",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012"))
+				s.ResourceID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012"))
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription with invalid UUID - too short",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/123"))
+				s.ResourceID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/123"))
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -239,9 +239,9 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		},
 		{
 			name: "subscription with invalid UUID - wrong format",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/not-a-uuid-at-all"))
+				s.ResourceID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/not-a-uuid-at-all"))
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -251,9 +251,9 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 		// Test that resource group validation works properly
 		{
 			name: "subscription with resource group should fail",
-			subscription: func() *arm.Subscription {
+			subscription: func() *armresourcesapi.Subscription {
 				s := createValidSubscription()
-				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/should-not-exist"))
+				s.ResourceID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/should-not-exist"))
 				return s
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -271,10 +271,10 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 	}
 }
 
-func createValidSubscription() *arm.Subscription {
-	return &arm.Subscription{
-		ResourceID:       api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012")),
-		State:            arm.SubscriptionStateRegistered,
+func createValidSubscription() *armresourcesapi.Subscription {
+	return &armresourcesapi.Subscription{
+		ResourceID:       resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012")),
+		State:            armresourcesapi.SubscriptionStateRegistered,
 		RegistrationDate: ptr.To("2023-01-01T00:00:00Z"),
 		Properties:       nil, // Properties are optional
 	}

@@ -31,7 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -126,12 +126,12 @@ func buildInitialReadonlyMaestroBundle(maestroBundleNamespacedName types.Namespa
 }
 
 // buildInitialMaestroBundleReference builds an initial Maestro Bundle reference for a given maestro bundle internal name.
-func buildInitialMaestroBundleReference(internalName api.MaestroBundleInternalName, generator maestro.MaestroAPIMaestroBundleNameGenerator) (*api.MaestroBundleReference, error) {
+func buildInitialMaestroBundleReference(internalName resourcesapi.MaestroBundleInternalName, generator maestro.MaestroAPIMaestroBundleNameGenerator) (*resourcesapi.MaestroBundleReference, error) {
 	maestroAPIMaestroBundleName, err := generator.NewMaestroAPIMaestroBundleName()
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to generate Maestro API Maestro Bundle name: %w", err))
 	}
-	return &api.MaestroBundleReference{
+	return &resourcesapi.MaestroBundleReference{
 		Name:                        internalName,
 		MaestroAPIMaestroBundleName: maestroAPIMaestroBundleName,
 		MaestroAPIMaestroBundleID:   "",
@@ -203,9 +203,9 @@ func getSingleResourceStatusFeedbackRawJSONFromMaestroBundle(maestroBundle *work
 func calculateManagementClusterContentFromMaestroBundle(
 	ctx context.Context,
 	parentResourceID *azcorearm.ResourceID,
-	maestroBundleReference *api.MaestroBundleReference,
+	maestroBundleReference *resourcesapi.MaestroBundleReference,
 	maestroClient maestro.Client,
-) (*api.ManagementClusterContent, error) {
+) (*resourcesapi.ManagementClusterContent, error) {
 	managementClusterContentResourceID := controllerutils.ManagementClusterContentResourceIDFromParentResourceID(parentResourceID, maestroBundleReference.Name)
 	desired := controllerutils.NewInitialManagementClusterContent(managementClusterContentResourceID)
 
@@ -265,7 +265,7 @@ func calculateManagementClusterContentFromMaestroBundle(
 func readAndPersistMaestroReadonlyBundleContent(
 	ctx context.Context,
 	parentResourceID *azcorearm.ResourceID,
-	maestroBundleReference *api.MaestroBundleReference,
+	maestroBundleReference *resourcesapi.MaestroBundleReference,
 	maestroClient maestro.Client,
 	managementClusterContentsDBClient database.ManagementClusterContentCRUD,
 ) error {

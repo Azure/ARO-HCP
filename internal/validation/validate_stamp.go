@@ -19,22 +19,22 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
 )
 
-func ValidateStampCreate(_ context.Context, stamp *fleet.Stamp) field.ErrorList {
+func ValidateStampCreate(_ context.Context, stamp *fleetapi.Stamp) field.ErrorList {
 	var errs field.ErrorList
 	errs = append(errs, validateStampIdentifier(stamp)...)
 	return errs
 }
 
-func ValidateStampUpdate(_ context.Context, newStamp *fleet.Stamp, _ *fleet.Stamp) field.ErrorList {
+func ValidateStampUpdate(_ context.Context, newStamp *fleetapi.Stamp, _ *fleetapi.Stamp) field.ErrorList {
 	var errs field.ErrorList
 	errs = append(errs, validateStampIdentifier(newStamp)...)
 	return errs
 }
 
-func validateStampIdentifier(stamp *fleet.Stamp) field.ErrorList {
+func validateStampIdentifier(stamp *fleetapi.Stamp) field.ErrorList {
 	var errs field.ErrorList
 	stampIdentifier := stamp.GetStampIdentifier()
 	if !stampIdentifierRegex.MatchString(stampIdentifier) {

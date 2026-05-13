@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 )
 
 func findCondition(conds []metav1.Condition, condType string) *metav1.Condition {
@@ -37,30 +37,30 @@ func findCondition(conds []metav1.Condition, condType string) *metav1.Condition 
 func TestSetSuccessful_NilErrIsTrueWithNoErrors(t *testing.T) {
 	var conds []metav1.Condition
 	SetSuccessful(&conds, nil)
-	c := findCondition(conds, kubeapplier.ConditionTypeSuccessful)
+	c := findCondition(conds, kubeapplierapi.ConditionTypeSuccessful)
 	if c == nil {
 		t.Fatal("Successful condition not set")
 	}
 	if c.Status != metav1.ConditionTrue {
 		t.Errorf("Status = %v, want True", c.Status)
 	}
-	if c.Reason != kubeapplier.ConditionReasonNoErrors {
-		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplier.ConditionReasonNoErrors)
+	if c.Reason != kubeapplierapi.ConditionReasonNoErrors {
+		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplierapi.ConditionReasonNoErrors)
 	}
 }
 
 func TestSetSuccessful_PreCheckErrorReason(t *testing.T) {
 	var conds []metav1.Condition
 	SetSuccessful(&conds, NewPreCheckError(errors.New("malformed input")))
-	c := findCondition(conds, kubeapplier.ConditionTypeSuccessful)
+	c := findCondition(conds, kubeapplierapi.ConditionTypeSuccessful)
 	if c == nil {
 		t.Fatal("Successful condition not set")
 	}
 	if c.Status != metav1.ConditionFalse {
 		t.Errorf("Status = %v, want False", c.Status)
 	}
-	if c.Reason != kubeapplier.ConditionReasonPreCheckFailed {
-		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplier.ConditionReasonPreCheckFailed)
+	if c.Reason != kubeapplierapi.ConditionReasonPreCheckFailed {
+		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplierapi.ConditionReasonPreCheckFailed)
 	}
 	if c.Message != "malformed input" {
 		t.Errorf("Message = %q, want %q", c.Message, "malformed input")
@@ -70,12 +70,12 @@ func TestSetSuccessful_PreCheckErrorReason(t *testing.T) {
 func TestSetSuccessful_RegularErrorIsKubeAPIError(t *testing.T) {
 	var conds []metav1.Condition
 	SetSuccessful(&conds, errors.New("503 from apiserver"))
-	c := findCondition(conds, kubeapplier.ConditionTypeSuccessful)
+	c := findCondition(conds, kubeapplierapi.ConditionTypeSuccessful)
 	if c == nil {
 		t.Fatal("Successful condition not set")
 	}
-	if c.Reason != kubeapplier.ConditionReasonKubeAPIError {
-		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplier.ConditionReasonKubeAPIError)
+	if c.Reason != kubeapplierapi.ConditionReasonKubeAPIError {
+		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplierapi.ConditionReasonKubeAPIError)
 	}
 }
 
@@ -84,15 +84,15 @@ func TestSetSuccessfulWaitingForDeletion(t *testing.T) {
 	dt := metav1.NewTime(time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC))
 	uid := types.UID("abc-123")
 	SetSuccessfulWaitingForDeletion(&conds, dt, uid)
-	c := findCondition(conds, kubeapplier.ConditionTypeSuccessful)
+	c := findCondition(conds, kubeapplierapi.ConditionTypeSuccessful)
 	if c == nil {
 		t.Fatal("Successful condition not set")
 	}
 	if c.Status != metav1.ConditionFalse {
 		t.Errorf("Status = %v, want False", c.Status)
 	}
-	if c.Reason != kubeapplier.ConditionReasonWaitingForDeletion {
-		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplier.ConditionReasonWaitingForDeletion)
+	if c.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
+		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplierapi.ConditionReasonWaitingForDeletion)
 	}
 	if !contains(c.Message, "abc-123") {
 		t.Errorf("Message = %q does not contain UID", c.Message)
@@ -105,18 +105,18 @@ func TestSetSuccessfulWaitingForDeletion(t *testing.T) {
 func TestSetDegraded(t *testing.T) {
 	var conds []metav1.Condition
 	SetDegraded(&conds, errors.New("control loop wedged"))
-	c := findCondition(conds, kubeapplier.ConditionTypeDegraded)
+	c := findCondition(conds, kubeapplierapi.ConditionTypeDegraded)
 	if c == nil {
 		t.Fatal("Degraded not set")
 	}
 	if c.Status != metav1.ConditionTrue {
 		t.Errorf("Status = %v, want True", c.Status)
 	}
-	if c.Reason != kubeapplier.ConditionReasonFailed {
-		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplier.ConditionReasonFailed)
+	if c.Reason != kubeapplierapi.ConditionReasonFailed {
+		t.Errorf("Reason = %q, want %q", c.Reason, kubeapplierapi.ConditionReasonFailed)
 	}
 	SetDegraded(&conds, nil)
-	c = findCondition(conds, kubeapplier.ConditionTypeDegraded)
+	c = findCondition(conds, kubeapplierapi.ConditionTypeDegraded)
 	if c.Status != metav1.ConditionFalse {
 		t.Errorf("Status = %v after recovery, want False", c.Status)
 	}

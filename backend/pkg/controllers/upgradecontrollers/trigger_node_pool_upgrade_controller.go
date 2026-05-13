@@ -26,8 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -35,7 +34,7 @@ import (
 
 // triggerNodePoolUpgradeSyncer is a NodePool syncer that triggers node pool upgrades
 type triggerNodePoolUpgradeSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
+	cooldownChecker      controllerutils.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -68,7 +67,7 @@ func NewTriggerNodePoolUpgradeController(
 	return controller
 }
 
-func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
@@ -123,7 +122,7 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 //  1. Queries existing upgrade policies from Cluster Service (sorted by creation_timestamp desc)
 //  2. Checks if the latest policy matches the desired version - returns nil if it does
 //  3. Otherwise, creates a new upgrade policy with the desired version
-func (c *triggerNodePoolUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, desiredVersion *semver.Version, nodePoolServiceID api.InternalID) error {
+func (c *triggerNodePoolUpgradeSyncer) createUpgradePolicyIfNeeded(ctx context.Context, desiredVersion *semver.Version, nodePoolServiceID resourcesapi.InternalID) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Query existing node pool upgrade policies from Cluster Service

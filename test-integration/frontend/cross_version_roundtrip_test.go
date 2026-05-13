@@ -29,8 +29,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -145,7 +145,7 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 
 			// Register subscription
 			subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
-			subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+			subscriptionResourceID := resourcesapi.Must(armresourcesapi.ToSubscriptionResourceID(subscriptionID))
 			subscriptionJSON := []byte(`{
 				"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7",
 				"state": "Registered",
@@ -283,7 +283,7 @@ func createClusterAndComplete(
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, clusterCreatePayload(clusterName, apiVersion)))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 }
 
@@ -308,7 +308,7 @@ func testCrossVersionClusterPUT(t *testing.T, testInfo *integrationutils.Integra
 	require.NoError(t, v2024Accessor.CreateOrUpdate(ctx, resourceID, v2024Body))
 
 	// Complete the update operation
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 5: GET via v2025 → snapshot after the v2024 round-trip ("after")
@@ -342,7 +342,7 @@ func testCrossVersionClusterPATCH(t *testing.T, testInfo *integrationutils.Integ
 	require.NoError(t, v2024Accessor.Patch(ctx, resourceID, patchBody))
 
 	// Complete the update operation
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 4: GET via v2025 → snapshot after the v2024 PATCH ("after")
@@ -380,7 +380,7 @@ func testSameVersionClusterPUT(t *testing.T, testInfo *integrationutils.Integrat
 	v2025Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2025)
 	require.NoError(t, v2025Accessor.CreateOrUpdate(ctx, resourceID, v2025Body))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Verify no data loss
@@ -497,7 +497,7 @@ func createNodePoolAndComplete(
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 }
 
@@ -558,7 +558,7 @@ func createExternalAuthAndComplete(
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, externalAuthCreatePayload(apiVersion)))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 }
 
@@ -609,7 +609,7 @@ func testCrossVersionNodePoolPUT(t *testing.T, testInfo *integrationutils.Integr
 	v2024Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2024)
 	require.NoError(t, v2024Accessor.CreateOrUpdate(ctx, resourceID, v2024Body))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 6: GET via v2025 → snapshot after the v2024 round-trip ("after")
@@ -644,7 +644,7 @@ func testCrossVersionNodePoolPATCH(t *testing.T, testInfo *integrationutils.Inte
 	v2024Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2024)
 	require.NoError(t, v2024Accessor.Patch(ctx, resourceID, patchBody))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 4: GET via v2025 → snapshot after the v2024 PATCH ("after")
@@ -689,7 +689,7 @@ func testCrossVersionExternalAuthPUT(t *testing.T, testInfo *integrationutils.In
 	require.NoError(t, v2024Accessor.CreateOrUpdate(ctx, resourceID, v2024Body))
 
 	// Complete the update operation
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 6: GET via v2025 → snapshot after the v2024 round-trip ("after")
@@ -727,7 +727,7 @@ func testCrossVersionExternalAuthPATCH(t *testing.T, testInfo *integrationutils.
 	require.NoError(t, v2024Accessor.Patch(ctx, resourceID, patchBody))
 
 	// Complete the update operation
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Step 5: GET via v2025 → snapshot after the v2024 PATCH ("after")
@@ -766,7 +766,7 @@ func testSameVersionClusterPATCH(t *testing.T, testInfo *integrationutils.Integr
 	v2025Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2025)
 	require.NoError(t, v2025Accessor.Patch(ctx, resourceID, patchBody))
 
-	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	parsedID := resourcesapi.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Verify tags were updated and all other fields are unchanged

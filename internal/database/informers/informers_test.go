@@ -25,8 +25,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database/informers"
 	"github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -50,11 +50,11 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newApplyDesire(t *testing.T, idStr, mgmt string) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, idStr, mgmt string) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
-		Spec: kubeapplier.ApplyDesireSpec{
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: mgmt,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
 		},
@@ -81,14 +81,14 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		// mgmt-a: cluster-scoped + nodepool-scoped under cluster c
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			testMgmtA),
 		newApplyDesire(t,
-			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 			testMgmtA),
 		// mgmt-b: cluster-scoped under a different cluster
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 			testMgmtB),
 	})
 	if err != nil {
@@ -137,14 +137,14 @@ func TestKubeApplierInformers_ListForCluster_UnionsClusterAndNodePool(t *testing
 
 	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			testMgmtA),
 		newApplyDesire(t,
-			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
+			kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
 			testMgmtA),
 		// Different cluster: should NOT show up under our cluster's index.
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
 			testMgmtB),
 	})
 	if err != nil {
@@ -180,7 +180,7 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 
 	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newApplyDesire(t,
-			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
+			kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
 			testMgmtA),
 	})
 	if err != nil {

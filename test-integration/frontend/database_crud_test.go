@@ -21,8 +21,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -41,13 +41,13 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 	allCRUDDirFS, err := fs.Sub(artifacts, "artifacts/DatabaseCRUD")
 	require.NoError(t, err)
 
-	crudSuiteDirs := api.Must(fs.ReadDir(allCRUDDirFS, "."))
+	crudSuiteDirs := resourcesapi.Must(fs.ReadDir(allCRUDDirFS, "."))
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
-		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
+		crudSuiteDir := resourcesapi.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		switch crudSuiteDirEntry.Name() {
 		case "ControllerCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[api.Controller](
+				testCRUDSuite[resourcesapi.Controller](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -57,7 +57,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "OperationCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[api.Operation](
+				testCRUDSuite[resourcesapi.Operation](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -67,7 +67,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "SubscriptionCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[arm.Subscription](
+				testCRUDSuite[armresourcesapi.Subscription](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -77,7 +77,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "ServiceProviderClusterCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[api.ServiceProviderCluster](
+				testCRUDSuite[resourcesapi.ServiceProviderCluster](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -95,7 +95,7 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 
 		case "ServiceProviderNodePoolCRUD":
 			t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-				testCRUDSuite[api.ServiceProviderNodePool](
+				testCRUDSuite[resourcesapi.ServiceProviderNodePool](
 					ctx,
 					t,
 					crudSuiteDir,
@@ -109,9 +109,9 @@ func testDatabaseCRUD(t *testing.T, withMock bool) {
 }
 
 func testCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
-	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
+	testDirs := resourcesapi.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {
-		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
+		testDir := resourcesapi.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
 
 		currTest, err := databasemutationhelpers.NewResourceMutationTest[InternalAPIType](
 			ctx,

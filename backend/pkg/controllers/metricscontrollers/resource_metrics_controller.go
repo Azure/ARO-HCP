@@ -22,13 +22,13 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 type resourceStateMetricsObject interface {
 	ResourceID() *azcorearm.ResourceID
-	ProvisioningState() arm.ProvisioningState
+	ProvisioningState() armresourcesapi.ProvisioningState
 	CreatedAt() *time.Time
 }
 
@@ -97,7 +97,7 @@ func (h *resourceStateMetricsHandler[T]) Delete(key string) {
 }
 
 type clusterMetricsObject struct {
-	*api.HCPOpenShiftCluster
+	*resourcesapi.HCPOpenShiftCluster
 }
 
 func (o clusterMetricsObject) ResourceID() *azcorearm.ResourceID {
@@ -107,7 +107,7 @@ func (o clusterMetricsObject) ResourceID() *azcorearm.ResourceID {
 	return o.ID
 }
 
-func (o clusterMetricsObject) ProvisioningState() arm.ProvisioningState {
+func (o clusterMetricsObject) ProvisioningState() armresourcesapi.ProvisioningState {
 	if o.HCPOpenShiftCluster == nil {
 		return ""
 	}
@@ -126,7 +126,7 @@ type clusterMetricsHandler struct {
 }
 
 // NewClusterMetricsHandler creates a metrics handler for cluster metrics.
-func NewClusterMetricsHandler(r prometheus.Registerer) Handler[*api.HCPOpenShiftCluster] {
+func NewClusterMetricsHandler(r prometheus.Registerer) Handler[*resourcesapi.HCPOpenShiftCluster] {
 	return &clusterMetricsHandler{
 		newResourceStateMetricsHandler[clusterMetricsObject](
 			r,
@@ -138,12 +138,12 @@ func NewClusterMetricsHandler(r prometheus.Registerer) Handler[*api.HCPOpenShift
 	}
 }
 
-func (h *clusterMetricsHandler) Sync(ctx context.Context, cluster *api.HCPOpenShiftCluster) {
+func (h *clusterMetricsHandler) Sync(ctx context.Context, cluster *resourcesapi.HCPOpenShiftCluster) {
 	h.resourceStateMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
 }
 
 type nodePoolMetricsObject struct {
-	*api.HCPOpenShiftClusterNodePool
+	*resourcesapi.HCPOpenShiftClusterNodePool
 }
 
 func (o nodePoolMetricsObject) ResourceID() *azcorearm.ResourceID {
@@ -153,7 +153,7 @@ func (o nodePoolMetricsObject) ResourceID() *azcorearm.ResourceID {
 	return o.ID
 }
 
-func (o nodePoolMetricsObject) ProvisioningState() arm.ProvisioningState {
+func (o nodePoolMetricsObject) ProvisioningState() armresourcesapi.ProvisioningState {
 	if o.HCPOpenShiftClusterNodePool == nil {
 		return ""
 	}
@@ -172,7 +172,7 @@ type nodePoolMetricsHandler struct {
 }
 
 // NewNodePoolMetricsHandler creates a metrics handler for node pool metrics.
-func NewNodePoolMetricsHandler(r prometheus.Registerer) Handler[*api.HCPOpenShiftClusterNodePool] {
+func NewNodePoolMetricsHandler(r prometheus.Registerer) Handler[*resourcesapi.HCPOpenShiftClusterNodePool] {
 	return &nodePoolMetricsHandler{
 		newResourceStateMetricsHandler[nodePoolMetricsObject](
 			r,
@@ -184,12 +184,12 @@ func NewNodePoolMetricsHandler(r prometheus.Registerer) Handler[*api.HCPOpenShif
 	}
 }
 
-func (h *nodePoolMetricsHandler) Sync(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool) {
+func (h *nodePoolMetricsHandler) Sync(ctx context.Context, nodePool *resourcesapi.HCPOpenShiftClusterNodePool) {
 	h.resourceStateMetricsHandler.Sync(ctx, nodePoolMetricsObject{nodePool})
 }
 
 type externalAuthMetricsObject struct {
-	*api.HCPOpenShiftClusterExternalAuth
+	*resourcesapi.HCPOpenShiftClusterExternalAuth
 }
 
 func (o externalAuthMetricsObject) ResourceID() *azcorearm.ResourceID {
@@ -199,7 +199,7 @@ func (o externalAuthMetricsObject) ResourceID() *azcorearm.ResourceID {
 	return o.ID
 }
 
-func (o externalAuthMetricsObject) ProvisioningState() arm.ProvisioningState {
+func (o externalAuthMetricsObject) ProvisioningState() armresourcesapi.ProvisioningState {
 	if o.HCPOpenShiftClusterExternalAuth == nil {
 		return ""
 	}
@@ -218,7 +218,7 @@ type externalAuthMetricsHandler struct {
 }
 
 // NewExternalAuthMetricsHandler creates a metrics handler for external auth metrics.
-func NewExternalAuthMetricsHandler(r prometheus.Registerer) Handler[*api.HCPOpenShiftClusterExternalAuth] {
+func NewExternalAuthMetricsHandler(r prometheus.Registerer) Handler[*resourcesapi.HCPOpenShiftClusterExternalAuth] {
 	return &externalAuthMetricsHandler{
 		newResourceStateMetricsHandler[externalAuthMetricsObject](
 			r,
@@ -230,6 +230,6 @@ func NewExternalAuthMetricsHandler(r prometheus.Registerer) Handler[*api.HCPOpen
 	}
 }
 
-func (h *externalAuthMetricsHandler) Sync(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) {
+func (h *externalAuthMetricsHandler) Sync(ctx context.Context, externalAuth *resourcesapi.HCPOpenShiftClusterExternalAuth) {
 	h.resourceStateMetricsHandler.Sync(ctx, externalAuthMetricsObject{externalAuth})
 }

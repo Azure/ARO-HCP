@@ -24,8 +24,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -42,31 +42,31 @@ func TestDumpBillingToLogger(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HCP clusters
-	cluster1 := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster1 := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   cluster1ResourceID,
 				Name: "cluster-1",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "billing-doc-1",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
+			ClusterServiceID: resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
 		},
 	}
 
-	cluster2 := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster2 := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   cluster2ResourceID,
 				Name: "cluster-2",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "billing-doc-2",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
+			ClusterServiceID: resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
 		},
 	}
 
@@ -119,45 +119,45 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HCP clusters with ClusterUIDs
-	cluster1 := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster1 := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   cluster1ResourceID,
 				Name: "cluster-1",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "cluster-1-billing-1",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
+			ClusterServiceID: resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-1"))),
 		},
 	}
 
-	cluster2 := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster2 := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   cluster2ResourceID,
 				Name: "cluster-2",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "cluster-2-billing-2",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
+			ClusterServiceID: resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-2"))),
 		},
 	}
 
-	cluster3 := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster3 := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   cluster3ResourceID,
 				Name: "cluster-3",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterUID:       "cluster-3-billing-3",
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-3"))),
+			ClusterServiceID: resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-3"))),
 		},
 	}
 

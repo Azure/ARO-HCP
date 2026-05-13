@@ -25,7 +25,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -741,12 +741,12 @@ func TestResourceID(t *testing.T) {
 		},
 		{
 			name:      "valid resource ID - valid",
-			value:     api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")),
+			value:     resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")),
 			expectErr: false,
 		},
 		{
 			name:      "valid subnet resource ID - valid",
-			value:     api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet")),
+			value:     resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet")),
 			expectErr: false,
 		},
 		// Note: Tests for invalid resource IDs (missing subscription, resource group, etc.)
@@ -786,12 +786,12 @@ func TestRestrictedResourceID(t *testing.T) {
 		},
 		{
 			name:      "valid matching resource type - valid",
-			value:     api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")),
+			value:     resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet")),
 			expectErr: false,
 		},
 		{
 			name:      "wrong resource type - invalid",
-			value:     api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg")),
+			value:     resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg")),
 			expectErr: true,
 		},
 		// Note: Tests for invalid resource IDs (missing subscription, etc.)
