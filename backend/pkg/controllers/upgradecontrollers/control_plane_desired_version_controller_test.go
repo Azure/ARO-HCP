@@ -490,6 +490,33 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			expectedError:         true,
 			expectedErrorContains: "example error message",
 		},
+		{
+			name:                 "Y-stream upgrade - no path in target minor and already at latest in current minor",
+			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.22")), State: configv1.CompletedUpdate}},
+			customerDesiredMinor: "4.21",
+			channelGroup:         "candidate",
+			cosmosResources:      testCosmosClusterWithWorkersNodePoolAtVersion("4.20.22"),
+			mockSetup: func(mc *cincinnati.MockClient) {
+				// Query for 4.21 versions from 4.20.22 - no candidates reachable
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("candidate")), "multi", "multi", "candidate-4.21", semver.MustParse("4.20.22")).Return(
+					configv1.Release{Version: "4.20.22"},
+					[]configv1.Release{},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+
+				// Fallback to current minor (4.20) - already at latest, no candidates
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("candidate")), "multi", "multi", "candidate-4.20", semver.MustParse("4.20.22")).Return(
+					configv1.Release{Version: "4.20.22"},
+					[]configv1.Release{},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+			},
+			expectedVersion:       nil,
+			expectedError:         true,
+			expectedErrorContains: "no upgrade path found from 4.20.0 to 4.21.0",
+		},
 	}
 
 	for _, tt := range tests {
