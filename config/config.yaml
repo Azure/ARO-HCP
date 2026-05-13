@@ -185,8 +185,15 @@ defaults:
     cosmosContainerMaxScale: 4000
     managedIdentityName: kube-applier
     k8s:
+      replicas: 1
       namespace: kube-applier
       serviceAccountName: kube-applier
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: unlimited
   # Secret Sync Controller
   secretSyncController:
     image:

@@ -135,10 +135,10 @@ type kubeApplierCosmosDBClient struct {
 var _ KubeApplierDBClient = &kubeApplierCosmosDBClient{}
 
 // NewKubeApplierDBClient instantiates a KubeApplierDBClient from a Cosmos
-// DatabaseClient. It opens *only* the kube-applier container; the caller's
-// credentials therefore need only that single grant.
-func NewKubeApplierDBClient(database *azcosmos.DatabaseClient) (KubeApplierDBClient, error) {
-	kubeApplier, err := database.NewContainer(kubeApplierContainer)
+// DatabaseClient. containerName selects which Cosmos container to open;
+// the caller's credentials therefore need only that single grant.
+func NewKubeApplierDBClient(database *azcosmos.DatabaseClient, containerName string) (KubeApplierDBClient, error) {
+	kubeApplier, err := database.NewContainer(containerName)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
