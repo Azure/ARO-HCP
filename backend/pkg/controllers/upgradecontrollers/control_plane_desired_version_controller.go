@@ -321,7 +321,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 
 	return nil, utils.TrackError(fmt.Errorf(
 		"no upgrade path found from %s to %s: no reachable versions in target minor and no gateway version in current minor",
-		actualLatestMinorVersion.String(), desiredMinorVersion.String(),
+		actualLatestVersion.String(), desiredMinorVersion.String(),
 	))
 }
 
@@ -502,5 +502,7 @@ func selectBestVersionFromCandidates(
 		}
 	}
 
-	return nil, nil
+	// Next minor channel exists but no candidate is a gateway yet.
+	// Return the latest candidate so the upgrade can proceed.
+	return &candidates[0], nil
 }
