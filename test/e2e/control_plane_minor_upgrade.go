@@ -59,6 +59,11 @@ var _ = Describe("Customer", func() {
 			} else {
 				previousMinor = semver.Version{Major: targetVer.Major, Minor: targetVer.Minor - 1}
 			}
+
+			if previousMinor.Major == 4 && targetVer.Major == 5 {
+				Skip("CS does not support major upgrade yet; skipping until https://redhat.atlassian.net/browse/ARO-25230 is resolved")
+			}
+
 			previousMinorLine := fmt.Sprintf("%d.%d", previousMinor.Major, previousMinor.Minor)
 			targetMinorLine := fmt.Sprintf("%d.%d", targetVer.Major, targetVer.Minor)
 
