@@ -16,10 +16,14 @@ package testrunner
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -30,6 +34,9 @@ import (
 	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 
 	"sigs.k8s.io/yaml"
 
@@ -245,4 +252,80 @@ func RunTestACRValues(t *testing.T, settingsPath string) {
 			}
 		})
 	}
+}
+
+type helmOwnership struct {
+	Objects map[string]string `yaml:"objects"`
+}
+
+func RunTestHelmOwnership(t *testing.T, settingsPath string) {
+	settings, err := internal.LoadSettings(settingsPath)
+	assert.NoError(t, err)
+	assert.NotNil(t, settings)
+
+	helmSteps, err := internal.FindHelmSteps(settings.TopologyDir, settings.ConfigPath)
+	assert.NoError(t, err)
+	assert.NotNil(t, helmSteps)
+
+	ownership := helmOwnership{Objects: map[string]string{}}
+	for _, helmStep := range helmSteps {
+		testCase := internal.TestCase{
+			Name:         fmt.Sprintf("%s-%s", helmStep.AKSCluster, helmStep.HelmStep.ReleaseName),
+			Namespace:    helmStep.HelmStep.ReleaseNamespace,
+			Values:       helmStep.ValuesFileFromRoot(settings.TopologyDir),
+			HelmChartDir: helmStep.ChartDirFromRoot(settings.TopologyDir),
+			TestData:     map[string]any{},
+			Implicit:     true,
+		}
+
+		manifest, err := runTest(t.Context(), settings, testCase)
+		assert.NoError(t, err)
+
+		owner := fmt.Sprintf("%s/%s", helmStep.HelmStep.ReleaseNamespace, helmStep.HelmStep.ReleaseName)
+		dec := yamlutil.NewYAMLOrJSONDecoder(strings.NewReader(manifest), 4096)
+		for {
+			obj := unstructured.Unstructured{}
+			err := dec.Decode(&obj)
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			assert.NoError(t, err)
+
+			if obj.GetAPIVersion() == "" || obj.GetKind() == "" || obj.GetName() == "" {
+				continue
+			}
+
+			namespace := obj.GetNamespace()
+			if namespace == "" {
+				namespace = "_cluster"
+			}
+
+			key := fmt.Sprintf("%s/%s/%s/%s/%s", helmStep.AKSCluster, obj.GetAPIVersion(), obj.GetKind(), namespace, obj.GetName())
+			if existingOwner, ok := ownership.Objects[key]; ok && existingOwner != owner {
+				t.Fatalf("object %s is rendered by multiple Helm releases: %s and %s", key, existingOwner, owner)
+			}
+			ownership.Objects[key] = owner
+		}
+	}
+
+	CompareWithFixture(t, serializeHelmOwnership(ownership), WithGoldenDir("testdata"))
+}
+
+func serializeHelmOwnership(ownership helmOwnership) string {
+	keys := make([]string, 0, len(ownership.Objects))
+	for key := range ownership.Objects {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var out strings.Builder
+	out.WriteString("objects:\n")
+	for _, key := range keys {
+		out.WriteString("- key: ")
+		out.WriteString(strconv.Quote(key))
+		out.WriteString("\n  owner: ")
+		out.WriteString(strconv.Quote(ownership.Objects[key]))
+		out.WriteString("\n")
+	}
+	return out.String()
 }
