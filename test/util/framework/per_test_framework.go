@@ -289,12 +289,11 @@ func isIgnorableResourceGroupCleanupError(err error) bool {
 
 type FPACredentials struct {
 	ClientID string
-	TenantID string
 	CertPath string
 }
 
 func (c FPACredentials) IsConfigured() bool {
-	return c.ClientID != "" && c.TenantID != "" && c.CertPath != ""
+	return c.ClientID != "" && c.CertPath != ""
 }
 
 type CleanupWorkflow string

@@ -38,7 +38,6 @@ type RawOptions struct {
 	Tracked          bool
 	SharedDir        string
 	FPAClientID      string
-	FPATenantID      string
 	FPACertPath      string
 }
 
@@ -63,7 +62,6 @@ type completedOptions struct {
 	DeleteExpired    bool
 	EvaluationTime   time.Time
 	FPAClientID      string
-	FPATenantID      string
 	FPACertPath      string
 }
 
@@ -85,7 +83,6 @@ func DefaultOptions() *RawOptions {
 		Tracked:          false,
 		SharedDir:        framework.SharedDir(),
 		FPAClientID:      "",
-		FPATenantID:      "",
 		FPACertPath:      "",
 	}
 }
@@ -157,7 +154,6 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		value string
 	}{
 		{flag: "--fpa-client-id", value: o.FPAClientID},
-		{flag: "--fpa-tenant-id", value: o.FPATenantID},
 		{flag: "--fpa-cert-path", value: o.FPACertPath},
 	}
 
@@ -173,7 +169,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}
 
 	if len(seenFPAFlags) > 0 && len(missingFPAFlags) > 0 {
-		return nil, fmt.Errorf("%v must be provided together; got %v, missing %v", []string{"--fpa-client-id", "--fpa-tenant-id", "--fpa-cert-path"}, seenFPAFlags, missingFPAFlags)
+		return nil, fmt.Errorf("%v must be provided together; got %v, missing %v", []string{"--fpa-client-id", "--fpa-cert-path"}, seenFPAFlags, missingFPAFlags)
 	}
 
 	return &ValidatedOptions{
@@ -245,7 +241,6 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			DeleteExpired:    o.DeleteExpired,
 			EvaluationTime:   evalTime,
 			FPAClientID:      o.FPAClientID,
-			FPATenantID:      o.FPATenantID,
 			FPACertPath:      o.FPACertPath,
 		},
 	}, nil

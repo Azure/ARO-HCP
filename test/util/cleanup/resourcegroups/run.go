@@ -102,7 +102,6 @@ func (o *Options) Run(ctx context.Context) error {
 		CleanupWorkflow:    o.CleanupWorkflow,
 		FPACredentials: framework.FPACredentials{
 			ClientID: o.FPAClientID,
-			TenantID: o.FPATenantID,
 			CertPath: o.FPACertPath,
 		},
 	}

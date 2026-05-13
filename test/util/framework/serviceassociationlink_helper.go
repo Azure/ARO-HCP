@@ -73,7 +73,7 @@ func (tc *perItOrDescribeTestContext) newFPAResourcesClient(
 		return nil, fmt.Errorf("failed to create FPA credential retriever: %w", err)
 	}
 
-	credential, err := credentialRetriever.RetrieveCredential(creds.TenantID)
+	credential, err := credentialRetriever.RetrieveCredential(tc.TenantID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve FPA credential: %w", err)
 	}
