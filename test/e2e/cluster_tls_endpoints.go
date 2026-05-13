@@ -111,7 +111,7 @@ var _ = Describe("Customer", func() {
 					return fmt.Errorf("failed to fetch TLS certificate from %s: %w", *apiServerURL, err)
 				}
 
-				fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICerts[0].Issuer)
+				GinkgoLogr.Info("API certificate issuer", "issuer", actualAPICerts[0].Issuer)
 				err = verifyCertChain(actualAPICerts, trustedCAs)
 				if err != nil {
 					return fmt.Errorf("certificate verification failed for %s (issuer: %v): %w",
