@@ -20,17 +20,17 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 )
 
 // DeleteDesireLister lists and gets DeleteDesires from an informer's indexer.
 type DeleteDesireLister interface {
-	List(ctx context.Context) ([]*kubeapplier.DeleteDesire, error)
-	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplier.DeleteDesire, error)
-	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.DeleteDesire, error)
-	ListForManagementCluster(ctx context.Context, managementCluster string) ([]*kubeapplier.DeleteDesire, error)
-	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplier.DeleteDesire, error)
-	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplier.DeleteDesire, error)
+	List(ctx context.Context) ([]*kubeapplierapi.DeleteDesire, error)
+	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplierapi.DeleteDesire, error)
+	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplierapi.DeleteDesire, error)
+	ListForManagementCluster(ctx context.Context, managementCluster string) ([]*kubeapplierapi.DeleteDesire, error)
+	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplierapi.DeleteDesire, error)
+	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplierapi.DeleteDesire, error)
 }
 
 type deleteDesireLister struct {
@@ -42,44 +42,44 @@ func NewDeleteDesireLister(indexer cache.Indexer) DeleteDesireLister {
 	return &deleteDesireLister{indexer: indexer}
 }
 
-func (l *deleteDesireLister) List(ctx context.Context) ([]*kubeapplier.DeleteDesire, error) {
-	return listAll[kubeapplier.DeleteDesire](l.indexer)
+func (l *deleteDesireLister) List(ctx context.Context) ([]*kubeapplierapi.DeleteDesire, error) {
+	return listAll[kubeapplierapi.DeleteDesire](l.indexer)
 }
 
 func (l *deleteDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.DeleteDesire, error) {
-	key := kubeapplier.ToClusterScopedDeleteDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
-	return getByKey[kubeapplier.DeleteDesire](l.indexer, key)
+) (*kubeapplierapi.DeleteDesire, error) {
+	key := kubeapplierapi.ToClusterScopedDeleteDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+	return getByKey[kubeapplierapi.DeleteDesire](l.indexer, key)
 }
 
 func (l *deleteDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.DeleteDesire, error) {
-	key := kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
+) (*kubeapplierapi.DeleteDesire, error) {
+	key := kubeapplierapi.ToNodePoolScopedDeleteDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
-	return getByKey[kubeapplier.DeleteDesire](l.indexer, key)
+	return getByKey[kubeapplierapi.DeleteDesire](l.indexer, key)
 }
 
 func (l *deleteDesireLister) ListForManagementCluster(
 	ctx context.Context, managementCluster string,
-) ([]*kubeapplier.DeleteDesire, error) {
-	return listFromIndex[kubeapplier.DeleteDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster))
+) ([]*kubeapplierapi.DeleteDesire, error) {
+	return listFromIndex[kubeapplierapi.DeleteDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster))
 }
 
 func (l *deleteDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.DeleteDesire, error) {
-	return listFromIndex[kubeapplier.DeleteDesire](
+) ([]*kubeapplierapi.DeleteDesire, error) {
+	return listFromIndex[kubeapplierapi.DeleteDesire](
 		l.indexer, ByCluster, clusterIndexKey(subscriptionID, resourceGroupName, clusterName),
 	)
 }
 
 func (l *deleteDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.DeleteDesire, error) {
-	return listFromIndex[kubeapplier.DeleteDesire](
+) ([]*kubeapplierapi.DeleteDesire, error) {
+	return listFromIndex[kubeapplierapi.DeleteDesire](
 		l.indexer, ByNodePool, nodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName),
 	)
 }

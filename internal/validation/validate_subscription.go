@@ -23,20 +23,20 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
-func ValidateSubscriptionCreate(ctx context.Context, newObj *arm.Subscription) field.ErrorList {
+func ValidateSubscriptionCreate(ctx context.Context, newObj *armresourcesapi.Subscription) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	return validateSubscription(ctx, op, newObj, nil)
 }
 
-func validateSubscription(ctx context.Context, op operation.Operation, newObj, oldObj *arm.Subscription) field.ErrorList {
+func validateSubscription(ctx context.Context, op operation.Operation, newObj, oldObj *armresourcesapi.Subscription) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// these are the only two validated fields
 	//State            SubscriptionState       `json:"state"`
-	errs = append(errs, validate.Enum(ctx, op, field.NewPath("required"), &newObj.State, nil, arm.ValidSubscriptionStates, nil)...)
+	errs = append(errs, validate.Enum(ctx, op, field.NewPath("required"), &newObj.State, nil, armresourcesapi.ValidSubscriptionStates, nil)...)
 	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("id"), newObj.ResourceID, nil)...)
 	errs = append(errs, RestrictedResourceIDWithoutResourceGroup(ctx, op, field.NewPath("id"), newObj.ResourceID, nil, azcorearm.SubscriptionResourceType.String())...)
 	if newObj.ResourceID != nil {

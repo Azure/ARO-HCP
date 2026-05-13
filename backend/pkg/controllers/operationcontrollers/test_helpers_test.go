@@ -20,8 +20,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -57,42 +57,42 @@ type clusterTestFixture struct {
 	clusterResourceID         *azcorearm.ResourceID
 	operationID               *azcorearm.ResourceID
 	cosmosOperationResourceID *azcorearm.ResourceID
-	clusterInternalID         api.InternalID
+	clusterInternalID         resourcesapi.InternalID
 }
 
 func newClusterTestFixture() *clusterTestFixture {
 	return &clusterTestFixture{
-		clusterResourceID: api.Must(azcorearm.ParseResourceID(
+		clusterResourceID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 		)),
-		operationID: api.Must(azcorearm.ParseResourceID(
+		operationID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/providers/Microsoft.RedHatOpenShift/locations/" + testAzureLocation +
 				"/operationstatuses/" + testOperationName,
 		)),
-		cosmosOperationResourceID: api.Must(azcorearm.ParseResourceID(
+		cosmosOperationResourceID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + testOperationName,
 		)),
-		clusterInternalID: api.Must(api.NewInternalID(testClusterServiceIDStr)),
+		clusterInternalID: resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr)),
 	}
 }
 
-func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftCluster {
-	return &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+func (f *clusterTestFixture) newCluster(createdAt *time.Time) *resourcesapi.HCPOpenShiftCluster {
+	return &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   f.clusterResourceID,
 				Name: testClusterName,
 				Type: f.clusterResourceID.ResourceType.String(),
-				SystemData: &arm.SystemData{
+				SystemData: &armresourcesapi.SystemData{
 					CreatedAt: createdAt,
 				},
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID:  &f.clusterInternalID,
 			ActiveOperationID: testOperationName,
 			ClusterUID:        testClusterUID,
@@ -100,13 +100,13 @@ func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftC
 	}
 }
 
-func (f *clusterTestFixture) newOperation(request database.OperationRequest) *api.Operation {
-	return &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+func (f *clusterTestFixture) newOperation(request database.OperationRequest) *resourcesapi.Operation {
+	return &resourcesapi.Operation{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: f.cosmosOperationResourceID,
 		},
 		TenantID:    testTenantID,
-		Status:      arm.ProvisioningStateAccepted,
+		Status:      armresourcesapi.ProvisioningStateAccepted,
 		Request:     request,
 		ExternalID:  f.clusterResourceID,
 		InternalID:  f.clusterInternalID,
@@ -128,79 +128,79 @@ type nodePoolTestFixture struct {
 	nodePoolResourceID        *azcorearm.ResourceID
 	operationID               *azcorearm.ResourceID
 	cosmosOperationResourceID *azcorearm.ResourceID
-	clusterInternalID         api.InternalID
-	nodePoolInternalID        api.InternalID
+	clusterInternalID         resourcesapi.InternalID
+	nodePoolInternalID        resourcesapi.InternalID
 }
 
 func newNodePoolTestFixture() *nodePoolTestFixture {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 	return &nodePoolTestFixture{
 		clusterResourceID: clusterResourceID,
-		nodePoolResourceID: api.Must(azcorearm.ParseResourceID(
+		nodePoolResourceID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/nodePools/" + testNodePoolName,
 		)),
-		operationID: api.Must(azcorearm.ParseResourceID(
+		operationID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/providers/Microsoft.RedHatOpenShift/locations/" + testAzureLocation +
 				"/operationstatuses/" + testOperationName,
 		)),
-		cosmosOperationResourceID: api.Must(azcorearm.ParseResourceID(
+		cosmosOperationResourceID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + testOperationName,
 		)),
-		clusterInternalID:  api.Must(api.NewInternalID(testClusterServiceIDStr)),
-		nodePoolInternalID: api.Must(api.NewInternalID(testNodePoolIDStr)),
+		clusterInternalID:  resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr)),
+		nodePoolInternalID: resourcesapi.Must(resourcesapi.NewInternalID(testNodePoolIDStr)),
 	}
 }
 
-func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
-	return &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+func (f *nodePoolTestFixture) newCluster() *resourcesapi.HCPOpenShiftCluster {
+	return &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   f.clusterResourceID,
 				Name: testClusterName,
 				Type: f.clusterResourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID: &f.clusterInternalID,
 		},
 	}
 }
 
-func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
-	return &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+func (f *nodePoolTestFixture) newNodePool() *resourcesapi.HCPOpenShiftClusterNodePool {
+	return &resourcesapi.HCPOpenShiftClusterNodePool{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   f.nodePoolResourceID,
 				Name: testNodePoolName,
 				Type: f.nodePoolResourceID.ResourceType.String(),
 			},
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			ProvisioningState: arm.ProvisioningStateAccepted,
+		Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 			ClusterServiceID:  &f.nodePoolInternalID,
 			ActiveOperationID: testOperationName,
 		},
 	}
 }
 
-func (f *nodePoolTestFixture) newOperation(request database.OperationRequest) *api.Operation {
-	return &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+func (f *nodePoolTestFixture) newOperation(request database.OperationRequest) *resourcesapi.Operation {
+	return &resourcesapi.Operation{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: f.cosmosOperationResourceID,
 		},
 		TenantID:    testTenantID,
-		Status:      arm.ProvisioningStateAccepted,
+		Status:      armresourcesapi.ProvisioningStateAccepted,
 		Request:     request,
 		ExternalID:  f.nodePoolResourceID,
 		InternalID:  f.nodePoolInternalID,
@@ -222,79 +222,79 @@ type externalAuthTestFixture struct {
 	externalAuthResourceID    *azcorearm.ResourceID
 	operationID               *azcorearm.ResourceID
 	cosmosOperationResourceID *azcorearm.ResourceID
-	clusterInternalID         api.InternalID
-	externalAuthInternalID    api.InternalID
+	clusterInternalID         resourcesapi.InternalID
+	externalAuthInternalID    resourcesapi.InternalID
 }
 
 func newExternalAuthTestFixture() *externalAuthTestFixture {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 	return &externalAuthTestFixture{
 		clusterResourceID: clusterResourceID,
-		externalAuthResourceID: api.Must(azcorearm.ParseResourceID(
+		externalAuthResourceID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/externalAuths/" + testExternalAuthName,
 		)),
-		operationID: api.Must(azcorearm.ParseResourceID(
+		operationID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/providers/Microsoft.RedHatOpenShift/locations/" + testAzureLocation +
 				"/operationstatuses/" + testOperationName,
 		)),
-		cosmosOperationResourceID: api.Must(azcorearm.ParseResourceID(
+		cosmosOperationResourceID: resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + testOperationName,
 		)),
-		clusterInternalID:      api.Must(api.NewInternalID(testClusterServiceIDStr)),
-		externalAuthInternalID: api.Must(api.NewInternalID(testExternalAuthIDStr)),
+		clusterInternalID:      resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr)),
+		externalAuthInternalID: resourcesapi.Must(resourcesapi.NewInternalID(testExternalAuthIDStr)),
 	}
 }
 
-func (f *externalAuthTestFixture) newCluster() *api.HCPOpenShiftCluster {
-	return &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+func (f *externalAuthTestFixture) newCluster() *resourcesapi.HCPOpenShiftCluster {
+	return &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   f.clusterResourceID,
 				Name: testClusterName,
 				Type: f.clusterResourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID: &f.clusterInternalID,
 		},
 	}
 }
 
-func (f *externalAuthTestFixture) newExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
-	return &api.HCPOpenShiftClusterExternalAuth{
-		ProxyResource: arm.ProxyResource{
-			Resource: arm.Resource{
+func (f *externalAuthTestFixture) newExternalAuth() *resourcesapi.HCPOpenShiftClusterExternalAuth {
+	return &resourcesapi.HCPOpenShiftClusterExternalAuth{
+		ProxyResource: armresourcesapi.ProxyResource{
+			Resource: armresourcesapi.Resource{
 				ID:   f.externalAuthResourceID,
 				Name: testExternalAuthName,
 				Type: f.externalAuthResourceID.ResourceType.String(),
 			},
 		},
-		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-			ProvisioningState: arm.ProvisioningStateAccepted,
+		Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
 			ClusterServiceID:  &f.externalAuthInternalID,
 			ActiveOperationID: testOperationName,
 		},
 	}
 }
 
-func (f *externalAuthTestFixture) newOperation(request database.OperationRequest) *api.Operation {
-	return &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+func (f *externalAuthTestFixture) newOperation(request database.OperationRequest) *resourcesapi.Operation {
+	return &resourcesapi.Operation{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: f.cosmosOperationResourceID,
 		},
 		TenantID:    testTenantID,
-		Status:      arm.ProvisioningStateAccepted,
+		Status:      armresourcesapi.ProvisioningStateAccepted,
 		Request:     request,
 		ExternalID:  f.externalAuthResourceID,
 		InternalID:  f.externalAuthInternalID,

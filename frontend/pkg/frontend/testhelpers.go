@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
@@ -49,7 +49,7 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		mockLocksDBClient,
 		nil,
 		newNoopAuditClient(t),
-		api.TestLocation,
+		resourcesapi.TestLocation,
 		"", false, false, true,
 	)
 	return f

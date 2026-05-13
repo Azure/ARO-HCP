@@ -18,15 +18,15 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 type operationState struct {
-	provisioningState arm.ProvisioningState
+	provisioningState armresourcesapi.ProvisioningState
 	message           string
 }
 
-func newOperationState(provisioningState arm.ProvisioningState, message string) *operationState {
+func newOperationState(provisioningState armresourcesapi.ProvisioningState, message string) *operationState {
 	return &operationState{
 		provisioningState: provisioningState,
 		message:           message,
@@ -36,16 +36,16 @@ func newOperationState(provisioningState arm.ProvisioningState, message string) 
 // provisioningStatePriority is a logical merge order that decides what the most important state to return is.
 // For instance, if one check is succeeded, one is failed, and one is accepted, then failed is the most
 // reasonable state for the operation.
-var provisioningStatePriority = map[arm.ProvisioningState]int{
-	"":                                  -1, // causes an error
-	arm.ProvisioningStateFailed:         0,
-	arm.ProvisioningStateCanceled:       10,
-	arm.ProvisioningStateDeleting:       20,
-	arm.ProvisioningStateProvisioning:   30,
-	arm.ProvisioningStateAwaitingSecret: 35,
-	arm.ProvisioningStateUpdating:       40,
-	arm.ProvisioningStateAccepted:       50,
-	arm.ProvisioningStateSucceeded:      100,
+var provisioningStatePriority = map[armresourcesapi.ProvisioningState]int{
+	"":                                      -1, // causes an error
+	armresourcesapi.ProvisioningStateFailed: 0,
+	armresourcesapi.ProvisioningStateCanceled:       10,
+	armresourcesapi.ProvisioningStateDeleting:       20,
+	armresourcesapi.ProvisioningStateProvisioning:   30,
+	armresourcesapi.ProvisioningStateAwaitingSecret: 35,
+	armresourcesapi.ProvisioningStateUpdating:       40,
+	armresourcesapi.ProvisioningStateAccepted:       50,
+	armresourcesapi.ProvisioningStateSucceeded:      100,
 }
 
 func compareOperationState(lhs, rhs *operationState) int {

@@ -25,8 +25,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -35,66 +35,66 @@ import (
 
 func TestCheckForProvisioningStateConflict(t *testing.T) {
 
-	parentConflictFunc := func(s arm.ProvisioningState) bool {
-		return s == arm.ProvisioningStateProvisioning || s == arm.ProvisioningStateDeleting
+	parentConflictFunc := func(s armresourcesapi.ProvisioningState) bool {
+		return s == armresourcesapi.ProvisioningStateProvisioning || s == armresourcesapi.ProvisioningStateDeleting
 	}
 
 	tests := []struct {
 		name             string
 		resourceID       string
 		operationRequest database.OperationRequest
-		directConflict   func(arm.ProvisioningState) bool
-		parentConflict   func(arm.ProvisioningState) bool
+		directConflict   func(armresourcesapi.ProvisioningState) bool
+		parentConflict   func(armresourcesapi.ProvisioningState) bool
 	}{
 		{
 			name:             "Create cluster",
-			resourceID:       api.TestClusterResourceID,
+			resourceID:       resourcesapi.TestClusterResourceID,
 			operationRequest: database.OperationRequestCreate,
-			directConflict:   func(s arm.ProvisioningState) bool { return false },
+			directConflict:   func(s armresourcesapi.ProvisioningState) bool { return false },
 		},
 		{
 			name:             "Delete cluster",
-			resourceID:       api.TestClusterResourceID,
+			resourceID:       resourcesapi.TestClusterResourceID,
 			operationRequest: database.OperationRequestDelete,
-			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
+			directConflict:   func(s armresourcesapi.ProvisioningState) bool { return s == armresourcesapi.ProvisioningStateDeleting },
 		},
 		{
 			name:             "Update cluster",
-			resourceID:       api.TestClusterResourceID,
+			resourceID:       resourcesapi.TestClusterResourceID,
 			operationRequest: database.OperationRequestUpdate,
-			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+			directConflict:   func(s armresourcesapi.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Request cluster credential",
-			resourceID:       api.TestClusterResourceID,
+			resourceID:       resourcesapi.TestClusterResourceID,
 			operationRequest: database.OperationRequestRequestCredential,
-			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+			directConflict:   func(s armresourcesapi.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Revoke cluster credentials",
-			resourceID:       api.TestClusterResourceID,
+			resourceID:       resourcesapi.TestClusterResourceID,
 			operationRequest: database.OperationRequestRevokeCredentials,
-			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+			directConflict:   func(s armresourcesapi.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Create node pool",
-			resourceID:       api.TestNodePoolResourceID,
+			resourceID:       resourcesapi.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestCreate,
-			directConflict:   func(s arm.ProvisioningState) bool { return false },
+			directConflict:   func(s armresourcesapi.ProvisioningState) bool { return false },
 			parentConflict:   parentConflictFunc,
 		},
 		{
 			name:             "Delete node pool",
-			resourceID:       api.TestNodePoolResourceID,
+			resourceID:       resourcesapi.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestDelete,
-			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
+			directConflict:   func(s armresourcesapi.ProvisioningState) bool { return s == armresourcesapi.ProvisioningStateDeleting },
 			parentConflict:   parentConflictFunc,
 		},
 		{
 			name:             "Update node pool",
-			resourceID:       api.TestNodePoolResourceID,
+			resourceID:       resourcesapi.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestUpdate,
-			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
+			directConflict:   func(s armresourcesapi.ProvisioningState) bool { return !s.IsTerminal() },
 			parentConflict:   parentConflictFunc,
 		},
 	}
@@ -105,7 +105,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		resourceID, err := azcorearm.ParseResourceID(tt.resourceID)
 		require.NoError(t, err)
 
-		for provisioningState := range arm.ListProvisioningStates() {
+		for provisioningState := range armresourcesapi.ListProvisioningStates() {
 			name = fmt.Sprintf("%s (provisioningState=%s)", tt.name, provisioningState)
 			t.Run(name, func(t *testing.T) {
 				ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
@@ -121,15 +121,15 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 				// Pre-populate the parent cluster in the database for nested resources (node pool, external auth)
 				if tt.parentConflict != nil {
 					parentResourceID := resourceID.Parent
-					clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
-					parentCluster := &api.HCPOpenShiftCluster{
-						TrackedResource: arm.TrackedResource{
-							Resource: arm.Resource{
+					clusterInternalID := resourcesapi.Must(resourcesapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
+					parentCluster := &resourcesapi.HCPOpenShiftCluster{
+						TrackedResource: armresourcesapi.TrackedResource{
+							Resource: armresourcesapi.Resource{
 								ID: parentResourceID,
 							},
 						},
-						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-							ProvisioningState: arm.ProvisioningStateSucceeded,
+						ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+							ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 							ClusterServiceID:  &clusterInternalID,
 						},
 					}
@@ -143,15 +143,15 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						t.Errorf("Expected %d %s but got no error", http.StatusConflict, http.StatusText(http.StatusConflict))
 					}
 				} else {
-					if !tt.directConflict(provisioningState) || cloudError.(*arm.CloudError).StatusCode != http.StatusConflict {
-						t.Errorf("Got unexpected error: %d %s", cloudError.(*arm.CloudError).StatusCode, http.StatusText(cloudError.(*arm.CloudError).StatusCode))
+					if !tt.directConflict(provisioningState) || cloudError.(*armresourcesapi.CloudError).StatusCode != http.StatusConflict {
+						t.Errorf("Got unexpected error: %d %s", cloudError.(*armresourcesapi.CloudError).StatusCode, http.StatusText(cloudError.(*armresourcesapi.CloudError).StatusCode))
 					}
 				}
 			})
 		}
 
 		if tt.parentConflict != nil {
-			for provisioningState := range arm.ListProvisioningStates() {
+			for provisioningState := range armresourcesapi.ListProvisioningStates() {
 				name = fmt.Sprintf("%s (parent provisioningState=%s)", tt.name, provisioningState)
 				t.Run(name, func(t *testing.T) {
 					ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
@@ -163,19 +163,19 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 
 					doc := database.NewResourceDocument(resourceID)
 					// Hold the provisioning state to something benign.
-					doc.ProvisioningState = arm.ProvisioningStateSucceeded
+					doc.ProvisioningState = armresourcesapi.ProvisioningStateSucceeded
 
 					parentResourceID := resourceID.Parent
 					if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 						// Pre-populate the parent cluster with the test provisioning state
-						clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
-						parentCluster := &api.HCPOpenShiftCluster{
-							TrackedResource: arm.TrackedResource{
-								Resource: arm.Resource{
+						clusterInternalID := resourcesapi.Must(resourcesapi.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
+						parentCluster := &resourcesapi.HCPOpenShiftCluster{
+							TrackedResource: armresourcesapi.TrackedResource{
+								Resource: armresourcesapi.Resource{
 									ID: parentResourceID,
 								},
 							},
-							ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+							ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 								ProvisioningState: provisioningState,
 								ClusterServiceID:  &clusterInternalID,
 							},
@@ -194,8 +194,8 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 							t.Errorf("Expected %d %s but got no error", http.StatusConflict, http.StatusText(http.StatusConflict))
 						}
 					} else {
-						if !tt.parentConflict(provisioningState) || cloudError.(*arm.CloudError).StatusCode != http.StatusConflict {
-							t.Errorf("Got unexpected error: %d %s", cloudError.(*arm.CloudError).StatusCode, http.StatusText(cloudError.(*arm.CloudError).StatusCode))
+						if !tt.parentConflict(provisioningState) || cloudError.(*armresourcesapi.CloudError).StatusCode != http.StatusConflict {
+							t.Errorf("Got unexpected error: %d %s", cloudError.(*armresourcesapi.CloudError).StatusCode, http.StatusText(cloudError.(*armresourcesapi.CloudError).StatusCode))
 						}
 					}
 				})

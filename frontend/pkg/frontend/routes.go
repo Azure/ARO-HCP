@@ -23,7 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/errorutils"
 )
 
@@ -39,15 +39,15 @@ const (
 
 	PatternSubscriptions     = "subscriptions/" + WildcardSubscriptionID
 	PatternLocations         = "locations/" + WildcardLocation
-	PatternProviders         = "providers/" + api.ProviderNamespace
-	PatternClusters          = api.ClusterResourceTypeName + "/" + WildcardResourceName
-	PatternNodePools         = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
-	PatternVersions          = api.VersionResourceTypeName + "/" + WildcardResourceName
-	PatternExternalAuth      = api.ExternalAuthResourceTypeName + "/" + WildcardExternalAuthName
+	PatternProviders         = "providers/" + resourcesapi.ProviderNamespace
+	PatternClusters          = resourcesapi.ClusterResourceTypeName + "/" + WildcardResourceName
+	PatternNodePools         = resourcesapi.NodePoolResourceTypeName + "/" + WildcardNodePoolName
+	PatternVersions          = resourcesapi.VersionResourceTypeName + "/" + WildcardResourceName
+	PatternExternalAuth      = resourcesapi.ExternalAuthResourceTypeName + "/" + WildcardExternalAuthName
 	PatternDeployments       = "deployments/" + WildcardDeploymentName
 	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
-	PatternOperationResults  = api.OperationResultResourceTypeName + "/" + WildcardOperationID
-	PatternOperationStatuses = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
+	PatternOperationResults  = resourcesapi.OperationResultResourceTypeName + "/" + WildcardOperationID
+	PatternOperationStatuses = resourcesapi.OperationStatusResourceTypeName + "/" + WildcardOperationID
 
 	ActionRequestAdminCredential = "requestadmincredential"
 	ActionRevokeCredentials      = "revokecredentials"
@@ -90,19 +90,19 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.resourcesDBClient).handleRequest)
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, resourcesapi.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListClusters)))
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, api.ClusterResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, resourcesapi.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListClusters)))
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, resourcesapi.NodePoolResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListNodePools)))
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.ExternalAuthResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, resourcesapi.ExternalAuthResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListExternalAuths)))
 	middlewareMux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.VersionResourceTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, resourcesapi.VersionResourceTypeName),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListVersion)))
 
 	// Resource read endpoints
@@ -199,7 +199,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareLoggingPostMux,
 		newMiddlewareValidateSubscriptionState(f.resourcesDBClient).handleRequest)
 	middlewareMux.Handle(
-		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
+		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", resourcesapi.ProviderNamespace, PatternDeployments, "preflight"),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmDeploymentPreflight)))
 
 	mux := http.NewServeMux()

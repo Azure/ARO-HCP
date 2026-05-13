@@ -22,8 +22,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -33,7 +32,7 @@ import (
 // from cluster-service to cosmos DB. It uses the .platform.vmSize attribute to know that customerProperties are missing.
 // Old records will lack those fields and once we read from cluster-service, we'll have the information we need.
 type nodePoolCustomerPropertiesMigrationController struct {
-	cooldownChecker controllerutil.CooldownChecker
+	cooldownChecker controllerutils.CooldownChecker
 
 	nodePoolLister       listers.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
@@ -68,11 +67,11 @@ func NewNodePoolCustomerPropertiesMigrationController(
 	return controller
 }
 
-func (c *nodePoolCustomerPropertiesMigrationController) CooldownChecker() controllerutil.CooldownChecker {
+func (c *nodePoolCustomerPropertiesMigrationController) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *nodePoolCustomerPropertiesMigrationController) NeedsWork(ctx context.Context, existingNodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolCustomerPropertiesMigrationController) NeedsWork(ctx context.Context, existingNodePool *resourcesapi.HCPOpenShiftClusterNodePool) bool {
 	// Check if we have a Clusters Service's NodePool service ID to query. We will lack this information for newly created records when we
 	// transition to async Clusters Service's NodePool creation.
 	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {

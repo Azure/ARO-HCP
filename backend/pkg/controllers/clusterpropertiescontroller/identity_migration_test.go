@@ -29,8 +29,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -45,8 +45,8 @@ const (
 func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
 		name                        string
-		cachedCluster               *api.HCPOpenShiftCluster // cluster in cache, nil means use same as existingCluster
-		existingCluster             *api.HCPOpenShiftCluster // cluster in cosmos
+		cachedCluster               *resourcesapi.HCPOpenShiftCluster // cluster in cache, nil means use same as existingCluster
+		existingCluster             *resourcesapi.HCPOpenShiftCluster // cluster in cosmos
 		csCluster                   *arohcpv1alpha1.Cluster
 		csError                     error
 		expectCosmosGet             bool
@@ -59,9 +59,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "cache indicates no work needed - identity already set",
-			cachedCluster: newTestClusterForIdentityMigration(func(c *api.HCPOpenShiftCluster) {
-				c.Identity = &arm.ManagedServiceIdentity{
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+			cachedCluster: newTestClusterForIdentityMigration(func(c *resourcesapi.HCPOpenShiftCluster) {
+				c.Identity = &armresourcesapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*armresourcesapi.UserAssignedIdentity{
 						testIdentityResourceID: {
 							ClientID:    stringPtr(testClientID),
 							PrincipalID: stringPtr(testPrincipalID),
@@ -69,12 +69,12 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 					},
 				}
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
+					"test-operator": resourcesapi.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
 				}
 			}),
-			existingCluster: newTestClusterForIdentityMigration(func(c *api.HCPOpenShiftCluster) {
-				c.Identity = &arm.ManagedServiceIdentity{
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+			existingCluster: newTestClusterForIdentityMigration(func(c *resourcesapi.HCPOpenShiftCluster) {
+				c.Identity = &armresourcesapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*armresourcesapi.UserAssignedIdentity{
 						testIdentityResourceID: {
 							ClientID:    stringPtr(testClientID),
 							PrincipalID: stringPtr(testPrincipalID),
@@ -82,7 +82,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 					},
 				}
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
+					"test-operator": resourcesapi.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
 				}
 			}),
 			expectCosmosGet:             false,
@@ -96,10 +96,10 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 		{
 			name:          "cache says work needed but live data has identity",
 			cachedCluster: newTestClusterForIdentityMigration(), // cache has no identity
-			existingCluster: newTestClusterForIdentityMigration(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestClusterForIdentityMigration(func(c *resourcesapi.HCPOpenShiftCluster) {
 				// cosmos has identity (cache is stale)
-				c.Identity = &arm.ManagedServiceIdentity{
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+				c.Identity = &armresourcesapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*armresourcesapi.UserAssignedIdentity{
 						testIdentityResourceID: {
 							ClientID:    stringPtr(testClientID),
 							PrincipalID: stringPtr(testPrincipalID),
@@ -107,7 +107,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 					},
 				}
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
+					"test-operator": resourcesapi.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
 				}
 			}),
 			expectCosmosGet:             true,
@@ -120,9 +120,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "no work to do - identity already populated",
-			existingCluster: newTestClusterForIdentityMigration(func(c *api.HCPOpenShiftCluster) {
-				c.Identity = &arm.ManagedServiceIdentity{
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+			existingCluster: newTestClusterForIdentityMigration(func(c *resourcesapi.HCPOpenShiftCluster) {
+				c.Identity = &armresourcesapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*armresourcesapi.UserAssignedIdentity{
 						testIdentityResourceID: {
 							ClientID:    stringPtr(testClientID),
 							PrincipalID: stringPtr(testPrincipalID),
@@ -130,7 +130,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 					},
 				}
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
-					"test-operator": api.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
+					"test-operator": resourcesapi.Must(azcorearm.ParseResourceID(testIdentityResourceID)),
 				}
 			}),
 			expectCosmosGet:             false,
@@ -166,9 +166,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "success - migrate identity when empty map",
-			existingCluster: newTestClusterForIdentityMigration(func(c *api.HCPOpenShiftCluster) {
-				c.Identity = &arm.ManagedServiceIdentity{
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{},
+			existingCluster: newTestClusterForIdentityMigration(func(c *resourcesapi.HCPOpenShiftCluster) {
+				c.Identity = &armresourcesapi.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*armresourcesapi.UserAssignedIdentity{},
 				}
 			}),
 			csCluster:                   buildCSClusterWithIdentity(testIdentityResourceID, testClientID, testPrincipalID),
@@ -182,9 +182,9 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "success - migrate identity when Identity is set but UserAssignedIdentities is nil",
-			existingCluster: newTestClusterForIdentityMigration(func(c *api.HCPOpenShiftCluster) {
-				c.Identity = &arm.ManagedServiceIdentity{
-					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+			existingCluster: newTestClusterForIdentityMigration(func(c *resourcesapi.HCPOpenShiftCluster) {
+				c.Identity = &armresourcesapi.ManagedServiceIdentity{
+					Type: armresourcesapi.ManagedServiceIdentityTypeUserAssigned,
 				}
 			}),
 			csCluster:                   buildCSClusterWithIdentity(testIdentityResourceID, testClientID, testPrincipalID),
@@ -219,7 +219,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 				cachedCluster = tc.existingCluster
 			}
 			sliceClusterLister := &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{cachedCluster},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{cachedCluster},
 			}
 
 			// Setup mock CS client
@@ -227,7 +227,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 
 			if tc.expectCSCall {
 				mockCSClient.EXPECT().
-					GetCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					GetCluster(gomock.Any(), resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr))).
 					Return(tc.csCluster, tc.csError)
 			}
 
@@ -275,7 +275,7 @@ func TestIdentityMigrationSyncer_SyncOnce(t *testing.T) {
 
 // newTestClusterForIdentityMigration creates a test HCPOpenShiftCluster with default values
 // for identity migration testing.
-func newTestClusterForIdentityMigration(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
+func newTestClusterForIdentityMigration(opts ...func(*resourcesapi.HCPOpenShiftCluster)) *resourcesapi.HCPOpenShiftCluster {
 	cluster := newTestCluster(opts...)
 	cluster.Location = testLocation
 	return cluster

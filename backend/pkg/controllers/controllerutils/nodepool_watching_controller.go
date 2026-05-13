@@ -24,14 +24,13 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type NodePoolSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPNodePoolKey) error
-	CooldownChecker() controllerutil.CooldownChecker
+	CooldownChecker() CooldownChecker
 }
 
 type nodePoolWatchingController struct {
@@ -58,7 +57,7 @@ func NewNodePoolWatchingController(
 		resourcesDBClient: resourcesDBClient,
 		syncer:            syncer,
 	}
-	nodePoolController := newGenericWatchingController(name, api.NodePoolResourceType, nodePoolSyncer)
+	nodePoolController := newGenericWatchingController(name, resourcesapi.NodePoolResourceType, nodePoolSyncer)
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if informers != nil {
@@ -100,7 +99,7 @@ func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePo
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *nodePoolWatchingController) CooldownChecker() controllerutil.CooldownChecker {
+func (c *nodePoolWatchingController) CooldownChecker() CooldownChecker {
 	return c.syncer.CooldownChecker()
 }
 

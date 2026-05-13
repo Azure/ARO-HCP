@@ -20,11 +20,11 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
-func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAuth) (*ExternalAuth, error) {
+func InternalToCosmosExternalAuth(internalObj *resourcesapi.HCPOpenShiftClusterExternalAuth) (*ExternalAuth, error) {
 	if internalObj == nil {
 		return nil, nil
 	}
@@ -40,12 +40,12 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 		},
 		ExternalAuthProperties: ExternalAuthProperties{
 			HCPOpenShiftClusterExternalAuth: *internalObj,
-			CosmosMetadata: api.CosmosMetadata{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
-				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, resourcesapi.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          nil,
@@ -62,7 +62,7 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 	return cosmosObj, nil
 }
 
-func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
+func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*resourcesapi.HCPOpenShiftClusterExternalAuth, error) {
 	if cosmosObj == nil {
 		return nil, nil
 	}
@@ -75,8 +75,8 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	internalObj := &tempInternalAPI
 
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
-	internalObj.ProxyResource = arm.ProxyResource{
-		Resource: arm.Resource{
+	internalObj.ProxyResource = armresourcesapi.ProxyResource{
+		Resource: armresourcesapi.Resource{
 			ID:         resourceDoc.ResourceID,
 			Name:       resourceDoc.ResourceID.Name,
 			Type:       resourceDoc.ResourceID.ResourceType.String(),

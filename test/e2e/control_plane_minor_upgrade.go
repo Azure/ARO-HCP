@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -42,11 +42,11 @@ var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
 		func(ctx context.Context, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			targetVer := api.Must(semver.ParseTolerant(targetMinor))
+			targetVer := resourcesapi.Must(semver.ParseTolerant(targetMinor))
 
 			var previousMinor semver.Version
 			if targetMinor == "5.0" {
-				previousMinor = api.Must(semver.ParseTolerant("4.22"))
+				previousMinor = resourcesapi.Must(semver.ParseTolerant("4.22"))
 			} else {
 				previousMinor = semver.MustParse(fmt.Sprintf("%d.%d.0", targetVer.Major, targetVer.Minor-1))
 			}

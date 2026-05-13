@@ -25,7 +25,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -685,8 +685,8 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
 
-	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
-		versionName = api.OpenShiftVersionPrefix + versionName
+	if !strings.HasPrefix(versionName, resourcesapi.OpenShiftVersionPrefix) {
+		versionName = resourcesapi.OpenShiftVersionPrefix + versionName
 	}
 	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
 
@@ -812,7 +812,7 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 			}
 		}
 
-		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
+		csVersion = resourcesapi.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
 
 		// Only append channel group if it's not empty and not "stable"
 		// Versions will look as:
@@ -833,13 +833,13 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 
 // ConvertOpenShiftVersionNoPrefix strips off openshift-v prefix
 func ConvertOpenShiftVersionNoPrefix(v string) string {
-	return strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
+	return strings.Replace(v, resourcesapi.OpenShiftVersionPrefix, "", 1)
 }
 
 // ConvertOpenShiftVersionAddPrefix adds openshift-v prefix
 func ConvertOpenShiftVersionAddPrefix(v string) string {
-	if len(v) > 0 && !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
-		return api.OpenShiftVersionPrefix + v
+	if len(v) > 0 && !strings.HasPrefix(v, resourcesapi.OpenShiftVersionPrefix) {
+		return resourcesapi.OpenShiftVersionPrefix + v
 	}
 	return v
 }

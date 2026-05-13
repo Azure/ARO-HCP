@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 func TestRequestIDPropagator(t *testing.T) {
@@ -42,7 +42,7 @@ func TestRequestIDPropagator(t *testing.T) {
 		ctx := context.Background()
 		r, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, nil)
 		require.NoError(t, err)
-		correlationData := arm.NewCorrelationData(r)
+		correlationData := armresourcesapi.NewCorrelationData(r)
 		correlationData.RequestID = uuid.MustParse(testRequestID)
 		r = r.WithContext(ContextWithCorrelationData(ctx, correlationData))
 

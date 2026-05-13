@@ -28,8 +28,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -77,7 +77,7 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			if resourceIDStr, ok := currMap["resourceID"].(string); ok && len(resourceIDStr) > 0 {
 				resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
 				if err == nil {
-					if cosmosID, err := arm.ResourceIDToCosmosID(resourceID); err == nil {
+					if cosmosID, err := metaapi.ResourceIDToCosmosID(resourceID); err == nil {
 						currMap["id"] = cosmosID
 					}
 				}
@@ -98,13 +98,13 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			} else {
 				// otherwise start checking. operations are common
 				if _, ok := currMap["operationId"].(string); ok {
-					resourceType = api.OperationStatusResourceType.String()
+					resourceType = resourcesapi.OperationStatusResourceType.String()
 				}
 			}
 		}
 
 		switch {
-		case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
+		case strings.EqualFold(resourceType, resourcesapi.OperationStatusResourceType.String()):
 			// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
 			unstructured.RemoveNestedField(currMap, "id")
 			unstructured.RemoveNestedField(currMap, "resourceID")
@@ -151,7 +151,7 @@ func ResourceInstanceEquals(t *testing.T, expected, actual any) (string, bool) {
 			}
 
 			switch {
-			case strings.EqualFold(resourceType, api.OperationStatusResourceType.String()):
+			case strings.EqualFold(resourceType, resourcesapi.OperationStatusResourceType.String()):
 				// this field is UUID generated, so usually cannot be compared for operations, but CAN be compared for everything else.
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceId")...)
 				unstructured.RemoveNestedField(currMap, prepend(possiblePrepend, "resourceID")...)
@@ -173,9 +173,9 @@ func prepend(first string, rest ...string) []string {
 
 func ResourceName(resource any) string {
 	switch cast := resource.(type) {
-	case arm.CosmosMetadataAccessor:
+	case metaapi.CosmosMetadataAccessor:
 		return cast.GetResourceID().String()
-	case arm.CosmosPersistable:
+	case metaapi.CosmosPersistable:
 		return cast.GetCosmosData().ResourceID.String()
 
 	case database.TypedDocument:

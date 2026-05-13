@@ -29,15 +29,15 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func newTestBillingDocument(billingDocID, subscriptionID, resourceGroupName, clusterName string, deletedAt *time.Time) *database.BillingDocument {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
@@ -62,7 +62,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name             string
 		billingDocuments []*database.BillingDocument
-		clusters         []*api.HCPOpenShiftCluster
+		clusters         []*resourcesapi.HCPOpenShiftCluster
 		expectError      bool
 		verify           func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient)
 	}{
@@ -71,7 +71,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			billingDocuments: []*database.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, testClusterName, nil),
 			},
-			clusters:    []*api.HCPOpenShiftCluster{}, // No clusters
+			clusters:    []*resourcesapi.HCPOpenShiftCluster{}, // No clusters
 			expectError: false,
 			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
 				billingDocs := billingDBClient.GetBillingDocuments()
@@ -86,8 +86,8 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			billingDocuments: []*database.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, testClusterName, nil),
 			},
-			clusters: []*api.HCPOpenShiftCluster{
-				newTestCluster(t, "billing-doc-1", arm.ProvisioningStateSucceeded, &createdAt),
+			clusters: []*resourcesapi.HCPOpenShiftCluster{
+				newTestCluster(t, "billing-doc-1", armresourcesapi.ProvisioningStateSucceeded, &createdAt),
 			},
 			expectError: false,
 			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
@@ -103,7 +103,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 			billingDocuments: []*database.BillingDocument{
 				newTestBillingDocument("billing-doc-1", testSubscriptionID, testResourceGroupName, "cluster-1", ptr.To(mustParseTime("2025-01-19T10:30:00Z"))),
 			},
-			clusters:    []*api.HCPOpenShiftCluster{}, // No clusters
+			clusters:    []*resourcesapi.HCPOpenShiftCluster{}, // No clusters
 			expectError: false,
 			verify: func(t *testing.T, billingDBClient *databasetesting.MockBillingDBClient) {
 				billingDocs := billingDBClient.GetBillingDocuments()
@@ -123,23 +123,23 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 				newTestBillingDocument("billing-doc-2", testSubscriptionID, testResourceGroupName, "cluster-2", nil),
 				newTestBillingDocument("billing-doc-3", testSubscriptionID, testResourceGroupName, "cluster-3", nil),
 			},
-			clusters: []*api.HCPOpenShiftCluster{
+			clusters: []*resourcesapi.HCPOpenShiftCluster{
 				// Only cluster-2 exists
 				{
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{
-							ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-2")),
+					TrackedResource: armresourcesapi.TrackedResource{
+						Resource: armresourcesapi.Resource{
+							ID:   resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID + "/resourceGroups/" + testResourceGroupName + "/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-2")),
 							Name: "cluster-2",
 							Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-							SystemData: &arm.SystemData{
+							SystemData: &armresourcesapi.SystemData{
 								CreatedAt: &createdAt,
 							},
 						},
 					},
-					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-						ProvisioningState: arm.ProvisioningStateSucceeded,
+					ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+						ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 						ClusterUID:        "billing-doc-2",
-						ClusterServiceID:  api.Ptr(api.Must(api.NewInternalID(testClusterServiceIDStr))),
+						ClusterServiceID:  resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr))),
 					},
 				},
 			},

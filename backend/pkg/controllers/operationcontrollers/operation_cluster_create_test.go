@@ -37,8 +37,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -63,7 +63,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, op.Status)
 			},
 		},
 		{
@@ -74,7 +74,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateProvisioning, op.Status)
 			},
 		},
 	}
@@ -127,10 +127,10 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
 				clusterLister: &listertesting.SliceClusterLister{
-					Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+					Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 				},
 				clusterManagementClusterContentLister: &listertesting.SliceManagementClusterContentLister{
-					Contents: []*api.ManagementClusterContent{succeededContent},
+					Contents: []*resourcesapi.ManagementClusterContent{succeededContent},
 				},
 			}
 
@@ -154,13 +154,13 @@ type errorClusterLister struct {
 	err error
 }
 
-func (l *errorClusterLister) List(_ context.Context) ([]*api.HCPOpenShiftCluster, error) {
+func (l *errorClusterLister) List(_ context.Context) ([]*resourcesapi.HCPOpenShiftCluster, error) {
 	return nil, l.err
 }
-func (l *errorClusterLister) Get(_ context.Context, _, _, _ string) (*api.HCPOpenShiftCluster, error) {
+func (l *errorClusterLister) Get(_ context.Context, _, _, _ string) (*resourcesapi.HCPOpenShiftCluster, error) {
 	return nil, l.err
 }
-func (l *errorClusterLister) ListForResourceGroup(_ context.Context, _, _ string) ([]*api.HCPOpenShiftCluster, error) {
+func (l *errorClusterLister) ListForResourceGroup(_ context.Context, _, _ string) ([]*resourcesapi.HCPOpenShiftCluster, error) {
 	return nil, l.err
 }
 
@@ -169,20 +169,20 @@ type errorManagementClusterContentLister struct {
 	err error
 }
 
-func (l *errorManagementClusterContentLister) List(_ context.Context) ([]*api.ManagementClusterContent, error) {
+func (l *errorManagementClusterContentLister) List(_ context.Context) ([]*resourcesapi.ManagementClusterContent, error) {
 	return nil, l.err
 }
-func (l *errorManagementClusterContentLister) GetForCluster(_ context.Context, _, _, _, _ string) (*api.ManagementClusterContent, error) {
+func (l *errorManagementClusterContentLister) GetForCluster(_ context.Context, _, _, _, _ string) (*resourcesapi.ManagementClusterContent, error) {
 	return nil, l.err
 }
-func (l *errorManagementClusterContentLister) ListForCluster(_ context.Context, _, _, _ string) ([]*api.ManagementClusterContent, error) {
+func (l *errorManagementClusterContentLister) ListForCluster(_ context.Context, _, _, _ string) ([]*resourcesapi.ManagementClusterContent, error) {
 	return nil, l.err
 }
-func (l *errorManagementClusterContentLister) ListForNodePool(_ context.Context, _, _, _, _ string) ([]*api.ManagementClusterContent, error) {
+func (l *errorManagementClusterContentLister) ListForNodePool(_ context.Context, _, _, _, _ string) ([]*resourcesapi.ManagementClusterContent, error) {
 	return nil, l.err
 }
 
-func newHostedClusterContent(t *testing.T, hostedCluster *v1beta1.HostedCluster, conditions ...metav1.Condition) *api.ManagementClusterContent {
+func newHostedClusterContent(t *testing.T, hostedCluster *v1beta1.HostedCluster, conditions ...metav1.Condition) *resourcesapi.ManagementClusterContent {
 	t.Helper()
 	raw, err := json.Marshal(hostedCluster)
 	require.NoError(t, err)
@@ -193,17 +193,17 @@ func newHostedClusterContent(t *testing.T, hostedCluster *v1beta1.HostedCluster,
 		}
 	}
 
-	contentResourceID := api.Must(azcorearm.ParseResourceID(
+	contentResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-			"/managementClusterContents/" + string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)))
+			"/managementClusterContents/" + string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)))
 
-	return &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{
+	return &resourcesapi.ManagementClusterContent{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: contentResourceID,
 		},
-		Status: api.ManagementClusterContentStatus{
+		Status: resourcesapi.ManagementClusterContentStatus{
 			Conditions: conditions,
 			KubeContent: &metav1.List{
 				Items: []kruntime.RawExtension{{Raw: raw}},
@@ -212,10 +212,10 @@ func newHostedClusterContent(t *testing.T, hostedCluster *v1beta1.HostedCluster,
 	}
 }
 
-func newClusterWithAPIURL(url string) *api.HCPOpenShiftCluster {
+func newClusterWithAPIURL(url string) *resourcesapi.HCPOpenShiftCluster {
 	fixture := newClusterTestFixture()
 	cluster := fixture.newCluster(nil)
-	cluster.ServiceProviderProperties.API = api.ServiceProviderAPIProfile{URL: url}
+	cluster.ServiceProviderProperties.API = resourcesapi.ServiceProviderAPIProfile{URL: url}
 	return cluster
 }
 
@@ -227,7 +227,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 		name            string
 		clusterLister   listers.ClusterLister
 		contentLister   listers.ManagementClusterContentLister
-		expectedState   arm.ProvisioningState
+		expectedState   armresourcesapi.ProvisioningState
 		expectedMessage string
 		expectError     bool
 		errContains     string
@@ -235,10 +235,10 @@ func TestDetermineOperationStatus(t *testing.T) {
 		{
 			name: "both checks succeed → Succeeded",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
 			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
+				Contents: []*resourcesapi.ManagementClusterContent{
 					newHostedClusterContent(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
@@ -257,16 +257,16 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateSucceeded,
+			expectedState:   armresourcesapi.ProvisioningStateSucceeded,
 			expectedMessage: "",
 		},
 		{
 			name: "cluster API URL empty → Provisioning (lowest priority wins)",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("")},
 			},
 			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
+				Contents: []*resourcesapi.ManagementClusterContent{
 					newHostedClusterContent(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
@@ -285,22 +285,22 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
+			expectedState:   armresourcesapi.ProvisioningStateProvisioning,
 			expectedMessage: ".api.url is empty",
 		},
 		{
 			name: "hosted cluster not found → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
 			contentLister: &listertesting.SliceManagementClusterContentLister{},
-			expectedState: arm.ProvisioningStateProvisioning,
+			expectedState: armresourcesapi.ProvisioningStateProvisioning,
 		},
 		{
 			name:          "cluster lister error → error propagated",
 			clusterLister: &errorClusterLister{err: fmt.Errorf("cosmos error")},
 			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
+				Contents: []*resourcesapi.ManagementClusterContent{
 					newHostedClusterContent(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
@@ -325,7 +325,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 		{
 			name: "management content lister non-404 error → error propagated",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
 			contentLister: &errorManagementClusterContentLister{err: fmt.Errorf("maestro error")},
 			expectError:   true,
@@ -341,22 +341,22 @@ func TestDetermineOperationStatus(t *testing.T) {
 		{
 			name: "hosted cluster degraded → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
 			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
+				Contents: []*resourcesapi.ManagementClusterContent{
 					newHostedClusterContent(t, &v1beta1.HostedCluster{} /* no conditions → Degraded not false */),
 				},
 			},
-			expectedState: arm.ProvisioningStateProvisioning,
+			expectedState: armresourcesapi.ProvisioningStateProvisioning,
 		},
 		{
 			name: "hosted cluster not available → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
 			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
+				Contents: []*resourcesapi.ManagementClusterContent{
 					newHostedClusterContent(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
@@ -371,16 +371,16 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
+			expectedState:   armresourcesapi.ProvisioningStateProvisioning,
 			expectedMessage: "hosted cluster is not available: NotReady: cluster is not ready",
 		},
 		{
 			name: "no control plane endpoint host → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
 			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
+				Contents: []*resourcesapi.ManagementClusterContent{
 					newHostedClusterContent(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
@@ -395,16 +395,16 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
+			expectedState:   armresourcesapi.ProvisioningStateProvisioning,
 			expectedMessage: "hosted cluster has no control plane endpoint host",
 		},
 		{
 			name: "no control plane endpoint port → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
 			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
+				Contents: []*resourcesapi.ManagementClusterContent{
 					newHostedClusterContent(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
@@ -422,16 +422,16 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
+			expectedState:   armresourcesapi.ProvisioningStateProvisioning,
 			expectedMessage: "hosted cluster has no control plane endpoint port",
 		},
 		{
 			name: "version with valid success condition but not installed → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*resourcesapi.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
 			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
+				Contents: []*resourcesapi.ManagementClusterContent{
 					newHostedClusterContent(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
@@ -450,7 +450,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
+			expectedState:   armresourcesapi.ProvisioningStateProvisioning,
 			expectedMessage: "hosted cluster has no installed version",
 		},
 	}

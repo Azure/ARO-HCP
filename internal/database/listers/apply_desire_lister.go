@@ -20,32 +20,32 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 )
 
 // ApplyDesireLister lists and gets ApplyDesires from an informer's indexer.
 type ApplyDesireLister interface {
 	// List returns every ApplyDesire in the indexer.
-	List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error)
+	List(ctx context.Context) ([]*kubeapplierapi.ApplyDesire, error)
 
 	// GetForCluster fetches a single cluster-scoped ApplyDesire by its
 	// containing HCPOpenShiftCluster identity and the desire's name.
-	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplier.ApplyDesire, error)
+	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplierapi.ApplyDesire, error)
 
 	// GetForNodePool fetches a single nodepool-scoped ApplyDesire by its
 	// containing NodePool identity and the desire's name.
-	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ApplyDesire, error)
+	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplierapi.ApplyDesire, error)
 
 	// ListForManagementCluster returns every ApplyDesire whose
 	// spec.managementCluster matches (case-insensitively).
-	ListForManagementCluster(ctx context.Context, managementCluster string) ([]*kubeapplier.ApplyDesire, error)
+	ListForManagementCluster(ctx context.Context, managementCluster string) ([]*kubeapplierapi.ApplyDesire, error)
 
 	// ListForCluster returns every ApplyDesire under the given HCPOpenShiftCluster,
 	// covering both cluster- and node-pool-scoped desires.
-	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplier.ApplyDesire, error)
+	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplierapi.ApplyDesire, error)
 
 	// ListForNodePool returns every node-pool-scoped ApplyDesire under the given NodePool.
-	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplier.ApplyDesire, error)
+	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplierapi.ApplyDesire, error)
 }
 
 // applyDesireLister implements ApplyDesireLister backed by a SharedIndexInformer's indexer.
@@ -58,44 +58,44 @@ func NewApplyDesireLister(indexer cache.Indexer) ApplyDesireLister {
 	return &applyDesireLister{indexer: indexer}
 }
 
-func (l *applyDesireLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
-	return listAll[kubeapplier.ApplyDesire](l.indexer)
+func (l *applyDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ApplyDesire, error) {
+	return listAll[kubeapplierapi.ApplyDesire](l.indexer)
 }
 
 func (l *applyDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.ApplyDesire, error) {
-	key := kubeapplier.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
-	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+) (*kubeapplierapi.ApplyDesire, error) {
+	key := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
+	return getByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
 }
 
 func (l *applyDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.ApplyDesire, error) {
-	key := kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+) (*kubeapplierapi.ApplyDesire, error) {
+	key := kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
 	)
-	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+	return getByKey[kubeapplierapi.ApplyDesire](l.indexer, key)
 }
 
 func (l *applyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementCluster string,
-) ([]*kubeapplier.ApplyDesire, error) {
-	return listFromIndex[kubeapplier.ApplyDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster))
+) ([]*kubeapplierapi.ApplyDesire, error) {
+	return listFromIndex[kubeapplierapi.ApplyDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster))
 }
 
 func (l *applyDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.ApplyDesire, error) {
-	return listFromIndex[kubeapplier.ApplyDesire](
+) ([]*kubeapplierapi.ApplyDesire, error) {
+	return listFromIndex[kubeapplierapi.ApplyDesire](
 		l.indexer, ByCluster, clusterIndexKey(subscriptionID, resourceGroupName, clusterName),
 	)
 }
 
 func (l *applyDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.ApplyDesire, error) {
-	return listFromIndex[kubeapplier.ApplyDesire](
+) ([]*kubeapplierapi.ApplyDesire, error) {
+	return listFromIndex[kubeapplierapi.ApplyDesire](
 		l.indexer, ByNodePool, nodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName),
 	)
 }

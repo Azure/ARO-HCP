@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -44,9 +44,9 @@ func testAdminCRUD(t *testing.T, withMock bool) {
 	allCRUDDirFS, err := fs.Sub(artifacts, "artifacts/AdminCRUD")
 	require.NoError(t, err)
 
-	crudSuiteDirs := api.Must(fs.ReadDir(allCRUDDirFS, "."))
+	crudSuiteDirs := resourcesapi.Must(fs.ReadDir(allCRUDDirFS, "."))
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
-		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
+		crudSuiteDir := resourcesapi.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
 			testAdminCRUDSuite[any](
 				ctx,
@@ -59,9 +59,9 @@ func testAdminCRUD(t *testing.T, withMock bool) {
 }
 
 func testAdminCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
-	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
+	testDirs := resourcesapi.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {
-		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
+		testDir := resourcesapi.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
 
 		currTest, err := databasemutationhelpers.NewResourceMutationTest[InternalAPIType](
 			ctx,

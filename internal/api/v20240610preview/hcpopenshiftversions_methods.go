@@ -15,15 +15,15 @@
 package v20240610preview
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 type HcpOpenShiftVersion struct {
 	generated.HcpOpenShiftVersion
 }
 
-func (v version) NewHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) api.VersionedHCPOpenShiftVersion {
+func (v version) NewHCPOpenShiftVersion(from *resourcesapi.HCPOpenShiftVersion) resourcesapi.VersionedHCPOpenShiftVersion {
 	idString := ""
 	if from.ID != nil {
 		idString = from.ID.String()
@@ -31,19 +31,19 @@ func (v version) NewHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) api.Versi
 
 	return &HcpOpenShiftVersion{
 		generated.HcpOpenShiftVersion{
-			ID:   api.PtrOrNil(idString),
-			Name: api.PtrOrNil(from.Name),
-			Type: api.PtrOrNil(from.Type),
+			ID:   resourcesapi.PtrOrNil(idString),
+			Name: resourcesapi.PtrOrNil(from.Name),
+			Type: resourcesapi.PtrOrNil(from.Type),
 			Properties: &generated.HcpOpenShiftVersionProperties{
-				ChannelGroup: api.PtrOrNil(from.Properties.ChannelGroup),
+				ChannelGroup: resourcesapi.PtrOrNil(from.Properties.ChannelGroup),
 				// Use Ptr (not PtrOrNil) to ensure boolean is always present in JSON response, even when false
-				Enabled:            api.Ptr(from.Properties.Enabled),
-				EndOfLifeTimestamp: api.PtrOrNil(from.Properties.EndOfLifeTimestamp),
+				Enabled:            resourcesapi.Ptr(from.Properties.Enabled),
+				EndOfLifeTimestamp: resourcesapi.PtrOrNil(from.Properties.EndOfLifeTimestamp),
 			},
 		},
 	}
 }
 
-func (v *HcpOpenShiftVersion) GetVersion() api.Version {
+func (v *HcpOpenShiftVersion) GetVersion() resourcesapi.Version {
 	return versionedInterface
 }

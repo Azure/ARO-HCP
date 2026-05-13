@@ -18,8 +18,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 type ContextError struct {
@@ -104,12 +104,12 @@ func BodyFromContext(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
-func ContextWithVersion(ctx context.Context, version api.Version) context.Context {
+func ContextWithVersion(ctx context.Context, version resourcesapi.Version) context.Context {
 	return context.WithValue(ctx, contextKeyVersion, version)
 }
 
-func VersionFromContext(ctx context.Context) (api.Version, error) {
-	version, ok := ctx.Value(contextKeyVersion).(api.Version)
+func VersionFromContext(ctx context.Context) (resourcesapi.Version, error) {
+	version, ok := ctx.Value(contextKeyVersion).(resourcesapi.Version)
 	if !ok {
 		err := &ContextError{
 			got: version,
@@ -120,12 +120,12 @@ func VersionFromContext(ctx context.Context) (api.Version, error) {
 	return version, nil
 }
 
-func ContextWithCorrelationData(ctx context.Context, correlationData *arm.CorrelationData) context.Context {
+func ContextWithCorrelationData(ctx context.Context, correlationData *armresourcesapi.CorrelationData) context.Context {
 	return context.WithValue(ctx, contextKeyCorrelationData, correlationData)
 }
 
-func CorrelationDataFromContext(ctx context.Context) (*arm.CorrelationData, error) {
-	correlationData, ok := ctx.Value(contextKeyCorrelationData).(*arm.CorrelationData)
+func CorrelationDataFromContext(ctx context.Context) (*armresourcesapi.CorrelationData, error) {
+	correlationData, ok := ctx.Value(contextKeyCorrelationData).(*armresourcesapi.CorrelationData)
 	if !ok {
 		err := &ContextError{
 			got: correlationData,
@@ -136,12 +136,12 @@ func CorrelationDataFromContext(ctx context.Context) (*arm.CorrelationData, erro
 	return correlationData, nil
 }
 
-func ContextWithSystemData(ctx context.Context, systemData *arm.SystemData) context.Context {
+func ContextWithSystemData(ctx context.Context, systemData *armresourcesapi.SystemData) context.Context {
 	return context.WithValue(ctx, contextKeySystemData, systemData)
 }
 
-func SystemDataFromContext(ctx context.Context) (*arm.SystemData, error) {
-	systemData, ok := ctx.Value(contextKeySystemData).(*arm.SystemData)
+func SystemDataFromContext(ctx context.Context) (*armresourcesapi.SystemData, error) {
+	systemData, ok := ctx.Value(contextKeySystemData).(*armresourcesapi.SystemData)
 	if !ok {
 		err := &ContextError{
 			got: systemData,
@@ -161,13 +161,13 @@ func PatternFromContext(ctx context.Context) *string {
 	return pattern
 }
 
-func ContextWithSubscription(ctx context.Context, subscription *arm.Subscription) context.Context {
+func ContextWithSubscription(ctx context.Context, subscription *armresourcesapi.Subscription) context.Context {
 	return context.WithValue(ctx, contextKeySubscription, subscription)
 }
 
-func SubscriptionFromContext(ctx context.Context) (*arm.Subscription, error) {
+func SubscriptionFromContext(ctx context.Context) (*armresourcesapi.Subscription, error) {
 	rawValue := ctx.Value(contextKeySubscription)
-	subscription, ok := rawValue.(*arm.Subscription)
+	subscription, ok := rawValue.(*armresourcesapi.Subscription)
 	if !ok {
 		err := &ContextError{
 			got: rawValue,

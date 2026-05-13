@@ -24,14 +24,13 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type ExternalAuthSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPExternalAuthKey) error
-	CooldownChecker() controllerutil.CooldownChecker
+	CooldownChecker() CooldownChecker
 }
 
 type externalAuthWatchingController struct {
@@ -60,7 +59,7 @@ func NewExternalAuthWatchingController(
 		syncer:            syncer,
 	}
 
-	externalAuthGenericWatchingController := newGenericWatchingController(name, api.ExternalAuthResourceType, externalAuthController)
+	externalAuthGenericWatchingController := newGenericWatchingController(name, resourcesapi.ExternalAuthResourceType, externalAuthController)
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if informers != nil {
@@ -94,7 +93,7 @@ func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPEx
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *externalAuthWatchingController) CooldownChecker() controllerutil.CooldownChecker {
+func (c *externalAuthWatchingController) CooldownChecker() CooldownChecker {
 	return c.syncer.CooldownChecker()
 }
 

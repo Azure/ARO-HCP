@@ -14,7 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -205,12 +205,12 @@ func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {
 	}
 
 	switch strings.ToLower(typedDoc.ResourceType) {
-	case strings.ToLower(api.ClusterResourceType.String()):
-		return getCastResult[api.HCPOpenShiftCluster, HCPCluster](r, cosmosUID)
-	case strings.ToLower(api.NodePoolResourceType.String()):
-		return getCastResult[api.HCPOpenShiftClusterNodePool, NodePool](r, cosmosUID)
-	case strings.ToLower(api.ExternalAuthResourceType.String()):
-		return getCastResult[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](r, cosmosUID)
+	case strings.ToLower(resourcesapi.ClusterResourceType.String()):
+		return getCastResult[resourcesapi.HCPOpenShiftCluster, HCPCluster](r, cosmosUID)
+	case strings.ToLower(resourcesapi.NodePoolResourceType.String()):
+		return getCastResult[resourcesapi.HCPOpenShiftClusterNodePool, NodePool](r, cosmosUID)
+	case strings.ToLower(resourcesapi.ExternalAuthResourceType.String()):
+		return getCastResult[resourcesapi.HCPOpenShiftClusterExternalAuth, ExternalAuth](r, cosmosUID)
 	default:
 		return nil, fmt.Errorf("unknown resource type '%s'", typedDoc.ResourceType)
 	}

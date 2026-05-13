@@ -31,8 +31,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 // fuzzerFor can randomly populate api objects that are destined for version.
@@ -51,24 +51,24 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
-			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
+			*j = *resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
-		func(j *arm.Resource, c randfill.Continue) {
+		func(j *armresourcesapi.Resource, c randfill.Continue) {
 			c.FillNoCustom(j)
-			j.ID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
+			j.ID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
-		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
+		func(j *resourcesapi.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
 			}
 			// we must always have an internal ID
-			foo := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
+			foo := resourcesapi.Must(resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
 			j.ClusterServiceID = &foo
 		},
-		func(j *api.HCPOpenShiftCluster, c randfill.Continue) {
+		func(j *resourcesapi.HCPOpenShiftCluster, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -78,32 +78,32 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 			// Canonical defaults are applied on Cosmos read, so ensure
 			// defaulted fields are never zero during round-trip testing.
 			if len(j.CustomerProperties.Network.NetworkType) == 0 {
-				j.CustomerProperties.Network.NetworkType = api.NetworkTypeOVNKubernetes
+				j.CustomerProperties.Network.NetworkType = resourcesapi.NetworkTypeOVNKubernetes
 			}
 			if len(j.CustomerProperties.API.Visibility) == 0 {
-				j.CustomerProperties.API.Visibility = api.VisibilityPublic
+				j.CustomerProperties.API.Visibility = resourcesapi.VisibilityPublic
 			}
 			if len(j.CustomerProperties.Platform.OutboundType) == 0 {
-				j.CustomerProperties.Platform.OutboundType = api.OutboundTypeLoadBalancer
+				j.CustomerProperties.Platform.OutboundType = resourcesapi.OutboundTypeLoadBalancer
 			}
 			if len(j.CustomerProperties.ClusterImageRegistry.State) == 0 {
-				j.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryStateEnabled
+				j.CustomerProperties.ClusterImageRegistry.State = resourcesapi.ClusterImageRegistryStateEnabled
 			}
 			if len(j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
-				j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+				j.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = resourcesapi.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 			}
 			if j.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil &&
 				j.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil &&
 				len(j.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility) == 0 {
-				j.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = api.KeyVaultVisibilityPublic
+				j.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = resourcesapi.KeyVaultVisibilityPublic
 			}
 			for i := range j.CustomerProperties.ImageDigestMirrors {
 				if len(j.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy) == 0 {
-					j.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = api.MirrorSourcePolicyAllowContactingSource
+					j.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = resourcesapi.MirrorSourcePolicyAllowContactingSource
 				}
 			}
 		},
-		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
+		func(j *armresourcesapi.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
 
 			// we only round trip keys, so only fill in keys
@@ -117,9 +117,9 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 
 	// Try a few times, since runTest uses random values.
 	for i := 0; i < 20; i++ {
-		original := &api.HCPOpenShiftCluster{}
+		original := &resourcesapi.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
-		roundTripInternalToCosmosToInternal[api.HCPOpenShiftCluster, HCPCluster](t, original)
+		roundTripInternalToCosmosToInternal[resourcesapi.HCPOpenShiftCluster, HCPCluster](t, original)
 	}
 }
 
@@ -135,11 +135,11 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 
 	// this value is set during conversion, so we need clear for comparison
 	switch cast := any(final).(type) {
-	case *api.HCPOpenShiftCluster:
+	case *resourcesapi.HCPOpenShiftCluster:
 		cast.ServiceProviderProperties.ExistingCosmosUID = ""
-	case *api.HCPOpenShiftClusterNodePool:
+	case *resourcesapi.HCPOpenShiftClusterNodePool:
 		cast.ServiceProviderProperties.ExistingCosmosUID = ""
-	case *api.HCPOpenShiftClusterExternalAuth:
+	case *resourcesapi.HCPOpenShiftClusterExternalAuth:
 		cast.ServiceProviderProperties.ExistingCosmosUID = ""
 	}
 	//finalJSON, _ := json.MarshalIndent(final, "", "    ")
@@ -149,7 +149,7 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 		//t.Logf("original\n%s", string(originalBeforeJSON))
 		//t.Logf("intermediate\n%s", string(intermediateBeforeJSON))
 		//t.Logf("final\n%s", string(finalJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, final, api.CmpDiffOptions...))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, final, resourcesapi.CmpDiffOptions...))
 	}
 
 	// now check to be sure we didn't mutate the originals.  The copies still aren't deep, but at least we didn't nuke the inputs
@@ -171,7 +171,7 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 
 func TestCosmosToInternalClusterPreservesETag(t *testing.T) {
 	expectedETag := azcore.ETag("test-etag-value-12345")
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster"))
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster"))
 
 	cosmosObj := &HCPCluster{
 		TypedDocument: TypedDocument{
@@ -194,43 +194,43 @@ func TestCosmosToInternalClusterPreservesETag(t *testing.T) {
 func TestClusterEnsureDefaults(t *testing.T) {
 	tests := []struct {
 		name               string
-		networkType        api.NetworkType
-		visibility         api.Visibility
-		outboundType       api.OutboundType
-		imageRegistryState api.ClusterImageRegistryState
-		keyManagementMode  api.EtcdDataEncryptionKeyManagementModeType
-		wantNetworkType    api.NetworkType
-		wantVisibility     api.Visibility
-		wantOutboundType   api.OutboundType
-		wantImageRegState  api.ClusterImageRegistryState
-		wantKeyMgmtMode    api.EtcdDataEncryptionKeyManagementModeType
+		networkType        resourcesapi.NetworkType
+		visibility         resourcesapi.Visibility
+		outboundType       resourcesapi.OutboundType
+		imageRegistryState resourcesapi.ClusterImageRegistryState
+		keyManagementMode  resourcesapi.EtcdDataEncryptionKeyManagementModeType
+		wantNetworkType    resourcesapi.NetworkType
+		wantVisibility     resourcesapi.Visibility
+		wantOutboundType   resourcesapi.OutboundType
+		wantImageRegState  resourcesapi.ClusterImageRegistryState
+		wantKeyMgmtMode    resourcesapi.EtcdDataEncryptionKeyManagementModeType
 	}{
 		{
 			name:              "zero values get defaults",
-			wantNetworkType:   api.NetworkTypeOVNKubernetes,
-			wantVisibility:    api.VisibilityPublic,
-			wantOutboundType:  api.OutboundTypeLoadBalancer,
-			wantImageRegState: api.ClusterImageRegistryStateEnabled,
-			wantKeyMgmtMode:   api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+			wantNetworkType:   resourcesapi.NetworkTypeOVNKubernetes,
+			wantVisibility:    resourcesapi.VisibilityPublic,
+			wantOutboundType:  resourcesapi.OutboundTypeLoadBalancer,
+			wantImageRegState: resourcesapi.ClusterImageRegistryStateEnabled,
+			wantKeyMgmtMode:   resourcesapi.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 		},
 		{
 			name:               "explicit values preserved",
-			networkType:        api.NetworkTypeOVNKubernetes,
-			visibility:         api.VisibilityPrivate,
-			outboundType:       api.OutboundTypeLoadBalancer,
-			imageRegistryState: api.ClusterImageRegistryStateDisabled,
-			keyManagementMode:  api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-			wantNetworkType:    api.NetworkTypeOVNKubernetes,
-			wantVisibility:     api.VisibilityPrivate,
-			wantOutboundType:   api.OutboundTypeLoadBalancer,
-			wantImageRegState:  api.ClusterImageRegistryStateDisabled,
-			wantKeyMgmtMode:    api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+			networkType:        resourcesapi.NetworkTypeOVNKubernetes,
+			visibility:         resourcesapi.VisibilityPrivate,
+			outboundType:       resourcesapi.OutboundTypeLoadBalancer,
+			imageRegistryState: resourcesapi.ClusterImageRegistryStateDisabled,
+			keyManagementMode:  resourcesapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+			wantNetworkType:    resourcesapi.NetworkTypeOVNKubernetes,
+			wantVisibility:     resourcesapi.VisibilityPrivate,
+			wantOutboundType:   resourcesapi.OutboundTypeLoadBalancer,
+			wantImageRegState:  resourcesapi.ClusterImageRegistryStateDisabled,
+			wantKeyMgmtMode:    resourcesapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster := &api.HCPOpenShiftCluster{}
+			cluster := &resourcesapi.HCPOpenShiftCluster{}
 			cluster.CustomerProperties.Network.NetworkType = tt.networkType
 			cluster.CustomerProperties.API.Visibility = tt.visibility
 			cluster.CustomerProperties.Platform.OutboundType = tt.outboundType

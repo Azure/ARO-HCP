@@ -32,7 +32,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 )
 
@@ -95,7 +95,7 @@ func isRetryableVersionError(err error) bool {
 // When no version with an upgrade path is found, it still returns the configured version so the
 // caller can install and optionally skip upgrade assertions.
 func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
-	configuredVersion := api.Must(semver.ParseTolerant(configuredVersionID))
+	configuredVersion := resourcesapi.Must(semver.ParseTolerant(configuredVersionID))
 	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, configuredVersionID)
 	if err != nil {
 		return "", false, err
@@ -156,7 +156,7 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 
 	candidates := []semver.Version{fromVersion}
 	for _, release := range possibleUpgradeCandidates {
-		candidateVersion := api.Must(semver.ParseTolerant(release.Version))
+		candidateVersion := resourcesapi.Must(semver.ParseTolerant(release.Version))
 		if candidateVersion.Major != fromVersion.Major || candidateVersion.Minor != fromVersion.Minor {
 			continue
 		}
@@ -239,7 +239,7 @@ func GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx context.Context, channelGr
 
 	var out []semver.Version
 	for _, release := range possibleCandidates {
-		candidateVersion := api.Must(semver.ParseTolerant(release.Version))
+		candidateVersion := resourcesapi.Must(semver.ParseTolerant(release.Version))
 		if candidateVersion.Major != maxVer.Major || candidateVersion.Minor != maxVer.Minor {
 			continue
 		}

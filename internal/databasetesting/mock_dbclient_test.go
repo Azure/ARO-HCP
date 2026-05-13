@@ -25,8 +25,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
@@ -64,13 +64,13 @@ func TestMockResourcesDBClient_LoadFromDirectory(t *testing.T) {
 		}
 
 		switch {
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, api.ClusterResourceType):
+		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, resourcesapi.ClusterResourceType):
 			foundCluster = true
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, api.NodePoolResourceType):
+		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, resourcesapi.NodePoolResourceType):
 			foundNodePool = true
 		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, azcorearm.SubscriptionResourceType):
 			foundSubscription = true
-		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, api.OperationStatusResourceType):
+		case armhelpers.ResourceTypeStringEqual(typedDoc.ResourceType, resourcesapi.OperationStatusResourceType):
 			foundOperation = true
 		}
 	}
@@ -138,27 +138,27 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 	clusterName := "test-cluster"
 
 	// Create a cluster
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
 	if err != nil {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   clusterResourceID,
 				Name: clusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: resourcesapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
 	}
@@ -226,27 +226,27 @@ func TestMockResourcesDBClient_CRUD_Operation(t *testing.T) {
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
 
 	// Create an operation
-	operationID := api.Must(azcorearm.ParseResourceID(
+	operationID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/op-123"))
 
-	externalID := api.Must(azcorearm.ParseResourceID(
+	externalID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-123"))
 
 	now := time.Now().UTC()
-	operation := &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+	operation := &resourcesapi.Operation{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 		OperationID:        operationID,
 		ExternalID:         externalID,
-		Request:            api.OperationRequestCreate,
-		Status:             arm.ProvisioningStateAccepted,
+		Request:            resourcesapi.OperationRequestCreate,
+		Status:             armresourcesapi.ProvisioningStateAccepted,
 		StartTime:          now,
 		LastTransitionTime: now,
 	}
@@ -282,7 +282,7 @@ func TestMockResourcesDBClient_CRUD_Operation(t *testing.T) {
 	}
 
 	// List with filter
-	createRequest := api.OperationRequestCreate
+	createRequest := resourcesapi.OperationRequestCreate
 	iterFiltered := operationCRUD.ListActiveOperations(&database.ResourcesDBClientListActiveOperationDocsOptions{
 		Request: &createRequest,
 	})
@@ -308,15 +308,15 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 	ctx := context.Background()
 
 	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
-	subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
+	subscriptionResourceID := resourcesapi.Must(armresourcesapi.ToSubscriptionResourceID(subscriptionID))
 
 	registrationDate := "2025-01-01T00:00:00Z"
-	subscription := &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{
+	subscription := &armresourcesapi.Subscription{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: subscriptionResourceID,
 		},
 		ResourceID:       subscriptionResourceID,
-		State:            arm.SubscriptionStateRegistered,
+		State:            armresourcesapi.SubscriptionStateRegistered,
 		RegistrationDate: &registrationDate,
 	}
 
@@ -328,8 +328,8 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 		t.Fatalf("Failed to create subscription: %v", err)
 	}
 
-	if created.State != arm.SubscriptionStateRegistered {
-		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, created.State)
+	if created.State != armresourcesapi.SubscriptionStateRegistered {
+		t.Errorf("Expected state %s, got %s", armresourcesapi.SubscriptionStateRegistered, created.State)
 	}
 
 	// Get
@@ -338,19 +338,19 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 		t.Fatalf("Failed to get subscription: %v", err)
 	}
 
-	if retrieved.State != arm.SubscriptionStateRegistered {
-		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, retrieved.State)
+	if retrieved.State != armresourcesapi.SubscriptionStateRegistered {
+		t.Errorf("Expected state %s, got %s", armresourcesapi.SubscriptionStateRegistered, retrieved.State)
 	}
 
 	// Replace
-	subscription.State = arm.SubscriptionStateSuspended
+	subscription.State = armresourcesapi.SubscriptionStateSuspended
 	replaced, err := subscriptionCRUD.Replace(ctx, subscription, nil)
 	if err != nil {
 		t.Fatalf("Failed to replace subscription: %v", err)
 	}
 
-	if replaced.State != arm.SubscriptionStateSuspended {
-		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateSuspended, replaced.State)
+	if replaced.State != armresourcesapi.SubscriptionStateSuspended {
+		t.Errorf("Expected state %s, got %s", armresourcesapi.SubscriptionStateSuspended, replaced.State)
 	}
 
 	// Delete
@@ -375,27 +375,27 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 	clusterName := "test-cluster"
 
 	// Create a cluster via transaction
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
 	if err != nil {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   clusterResourceID,
 				Name: clusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: resourcesapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
 	}
@@ -433,27 +433,27 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 	clusterName := "test-cluster"
 
 	// First create a cluster using the typed CRUD
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
 	if err != nil {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   clusterResourceID,
 				Name: clusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: resourcesapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
 	}
@@ -465,7 +465,7 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 	}
 
 	// Now use untyped CRUD to access it
-	parentResourceID := api.Must(azcorearm.ParseResourceID(
+	parentResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName))
 
@@ -480,8 +480,8 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 		t.Fatalf("Failed to get cluster via untyped CRUD: %v", err)
 	}
 
-	if !armhelpers.ResourceTypeStringEqual(retrieved.ResourceType, api.ClusterResourceType) {
-		t.Errorf("Expected resource type %s, got %s", api.ClusterResourceType.String(), retrieved.ResourceType)
+	if !armhelpers.ResourceTypeStringEqual(retrieved.ResourceType, resourcesapi.ClusterResourceType) {
+		t.Errorf("Expected resource type %s, got %s", resourcesapi.ClusterResourceType.String(), retrieved.ResourceType)
 	}
 }
 
@@ -563,14 +563,14 @@ func TestMockResourcesDBClient_ServiceProviderCluster_ETagConditionalReplace(t *
 	clusterName := "test-cluster"
 
 	// Create the resource ID for the ServiceProviderCluster
-	serviceProviderClusterResourceID := api.Must(azcorearm.ParseResourceID(
+	serviceProviderClusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/serviceProviderClusters/default"))
 
-	serviceProviderCluster := &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
+	serviceProviderCluster := &resourcesapi.ServiceProviderCluster{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: serviceProviderClusterResourceID,
 		},
 	}
@@ -597,7 +597,7 @@ func TestMockResourcesDBClient_ServiceProviderCluster_ETagConditionalReplace(t *
 		}
 
 		// Update with the correct etag
-		loadBalancerResourceID := api.Must(azcorearm.ParseResourceID(
+		loadBalancerResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + subscriptionID +
 				"/resourceGroups/" + resourceGroupName +
 				"/providers/Microsoft.Network/loadBalancers/my-lb"))
@@ -651,23 +651,23 @@ func TestMockResourcesDBClient_Controller_ETagConditionalReplace(t *testing.T) {
 
 	// Create the resource ID for the Controller
 	// Note: The controller resource type is "hcpOpenShiftControllers" not "controller"
-	controllerResourceID := api.Must(azcorearm.ParseResourceID(
+	controllerResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/hcpOpenShiftControllers/" + controllerName))
 
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	controller := &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+	controller := &resourcesapi.Controller{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: controllerResourceID,
 		},
 		ExternalID: clusterResourceID,
-		Status: api.ControllerStatus{
+		Status: resourcesapi.ControllerStatus{
 			Conditions: []metav1.Condition{
 				{
 					Type:               "Degraded",
@@ -786,27 +786,27 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 	clusterName := "test-cluster"
 
 	// Test adding a cluster
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
 	if err != nil {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   clusterResourceID,
 				Name: clusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: resourcesapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
 	}
@@ -827,13 +827,13 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 	}
 
 	// Test adding a subscription
-	subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
-	subscription := &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{
+	subscriptionResourceID := resourcesapi.Must(armresourcesapi.ToSubscriptionResourceID(subscriptionID))
+	subscription := &armresourcesapi.Subscription{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: subscriptionResourceID,
 		},
 		ResourceID: subscriptionResourceID,
-		State:      arm.SubscriptionStateRegistered,
+		State:      armresourcesapi.SubscriptionStateRegistered,
 	}
 
 	err = mock.addResource(ctx, subscription)
@@ -847,8 +847,8 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get subscription: %v", err)
 	}
-	if retrievedSub.State != arm.SubscriptionStateRegistered {
-		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, retrievedSub.State)
+	if retrievedSub.State != armresourcesapi.SubscriptionStateRegistered {
+		t.Errorf("Expected state %s, got %s", armresourcesapi.SubscriptionStateRegistered, retrievedSub.State)
 	}
 
 	// Test adding an unsupported type
@@ -867,57 +867,57 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 	nodePoolName := "test-nodepool"
 
 	// Create cluster
-	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 
-	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
 	if err != nil {
 		t.Fatalf("Failed to create internal ID: %v", err)
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   clusterResourceID,
 				Name: clusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: resourcesapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			ClusterServiceID:  &internalID,
 		},
 	}
 
 	// Create node pool
-	nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
+	nodePoolResourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + subscriptionID +
 			"/resourceGroups/" + resourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
 			"/nodePools/" + nodePoolName))
 
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	nodePool := &resourcesapi.HCPOpenShiftClusterNodePool{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   nodePoolResourceID,
 				Name: nodePoolName,
-				Type: api.NodePoolResourceType.String(),
+				Type: resourcesapi.NodePoolResourceType.String(),
 			},
 			Location: "eastus",
 		},
 	}
 
 	// Create subscription
-	subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
-	subscription := &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{
+	subscriptionResourceID := resourcesapi.Must(armresourcesapi.ToSubscriptionResourceID(subscriptionID))
+	subscription := &armresourcesapi.Subscription{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: subscriptionResourceID,
 		},
 		ResourceID: subscriptionResourceID,
-		State:      arm.SubscriptionStateRegistered,
+		State:      armresourcesapi.SubscriptionStateRegistered,
 	}
 
 	// Create mockResourcesDBClient with all resources
@@ -952,8 +952,8 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get subscription: %v", err)
 	}
-	if retrievedSub.State != arm.SubscriptionStateRegistered {
-		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, retrievedSub.State)
+	if retrievedSub.State != armresourcesapi.SubscriptionStateRegistered {
+		t.Errorf("Expected state %s, got %s", armresourcesapi.SubscriptionStateRegistered, retrievedSub.State)
 	}
 }
 
@@ -967,7 +967,7 @@ func TestNewMockResourcesDBClientWithResources_Error(t *testing.T) {
 	}
 
 	// Test with nil resource ID
-	clusterWithNilID := &api.HCPOpenShiftCluster{}
+	clusterWithNilID := &resourcesapi.HCPOpenShiftCluster{}
 	_, err = NewMockResourcesDBClientWithResources(ctx, []any{clusterWithNilID})
 	if err == nil {
 		t.Error("Expected error for cluster with nil resource ID")

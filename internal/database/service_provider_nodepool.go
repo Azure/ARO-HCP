@@ -20,7 +20,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
@@ -29,10 +29,10 @@ import (
 // the given resource ID as its parent. The resource ID is assumed to be a
 // node pool resource ID.
 // The returned value can be used to consistently initialize a new ServiceProviderNodePool
-func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.ServiceProviderNodePool {
-	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", npResourceID.String(), api.ServiceProviderNodePoolResourceTypeName, api.ServiceProviderNodePoolResourceName)))
-	return &api.ServiceProviderNodePool{
-		CosmosMetadata: api.CosmosMetadata{
+func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *resourcesapi.ServiceProviderNodePool {
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", npResourceID.String(), resourcesapi.ServiceProviderNodePoolResourceTypeName, resourcesapi.ServiceProviderNodePoolResourceName)))
+	return &resourcesapi.ServiceProviderNodePool{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 	}
@@ -43,9 +43,9 @@ func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.
 // If it doesn't exist, it creates a new one.
 func GetOrCreateServiceProviderNodePool(
 	ctx context.Context, dbClient ResourcesDBClient, nodePoolResourceID *azcorearm.ResourceID,
-) (*api.ServiceProviderNodePool, error) {
-	if !armhelpers.ResourceTypeEqual(nodePoolResourceID.ResourceType, api.NodePoolResourceType) {
-		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.NodePoolResourceType, nodePoolResourceID.ResourceType))
+) (*resourcesapi.ServiceProviderNodePool, error) {
+	if !armhelpers.ResourceTypeEqual(nodePoolResourceID.ResourceType, resourcesapi.NodePoolResourceType) {
+		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", resourcesapi.NodePoolResourceType, nodePoolResourceID.ResourceType))
 	}
 
 	serviceProviderNodePoolsDBClient := dbClient.ServiceProviderNodePools(
@@ -55,7 +55,7 @@ func GetOrCreateServiceProviderNodePool(
 		nodePoolResourceID.Name,
 	)
 
-	existingServiceProviderNodePool, err := serviceProviderNodePoolsDBClient.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	existingServiceProviderNodePool, err := serviceProviderNodePoolsDBClient.Get(ctx, resourcesapi.ServiceProviderNodePoolResourceName)
 	if err == nil {
 		return existingServiceProviderNodePool, nil
 	}
@@ -78,7 +78,7 @@ func GetOrCreateServiceProviderNodePool(
 		return nil, utils.TrackError(fmt.Errorf("failed to create ServiceProviderNodePool: %w", err))
 	}
 
-	existingServiceProviderNodePool, err = serviceProviderNodePoolsDBClient.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	existingServiceProviderNodePool, err = serviceProviderNodePoolsDBClient.Get(ctx, resourcesapi.ServiceProviderNodePoolResourceName)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
 	}

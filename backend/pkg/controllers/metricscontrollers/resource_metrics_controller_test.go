@@ -29,26 +29,26 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
-func newTestCluster(t *testing.T, name string, state arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T, name string, state armresourcesapi.ProvisioningState, createdAt *time.Time) *resourcesapi.HCPOpenShiftCluster {
 	t.Helper()
 
-	var systemData *arm.SystemData
+	var systemData *armresourcesapi.SystemData
 	if createdAt != nil {
-		systemData = &arm.SystemData{CreatedAt: createdAt}
+		systemData = &armresourcesapi.SystemData{CreatedAt: createdAt}
 	}
 
-	return &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + name)),
+	return &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
+				ID:         resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + name)),
 				SystemData: systemData,
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ProvisioningState: state,
 		},
 	}
@@ -59,7 +59,7 @@ func TestClusterMetricsHandler_SetsProvisionStateAndCreatedTime(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewClusterMetricsHandler(reg)
 
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateProvisioning, &now)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateProvisioning, &now)
 	handler.Sync(context.Background(), cluster)
 
 	resourceID := resourceIDMetricLabel(cluster.ID)
@@ -83,10 +83,10 @@ func TestClusterMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewClusterMetricsHandler(reg)
 
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, &now)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateAccepted, &now)
 	handler.Sync(context.Background(), cluster)
 
-	cluster.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateProvisioning
+	cluster.ServiceProviderProperties.ProvisioningState = armresourcesapi.ProvisioningStateProvisioning
 	handler.Sync(context.Background(), cluster)
 
 	resourceID := resourceIDMetricLabel(cluster.ID)
@@ -102,7 +102,7 @@ func TestClusterMetricsHandler_NilCreatedAt(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewClusterMetricsHandler(reg)
 
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, nil)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateAccepted, nil)
 	handler.Sync(context.Background(), cluster)
 
 	resourceID := resourceIDMetricLabel(cluster.ID)
@@ -120,7 +120,7 @@ func TestClusterMetricsHandler_DeleteCleansUpAllGauges(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewClusterMetricsHandler(reg)
 
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, &now)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateSucceeded, &now)
 	handler.Sync(context.Background(), cluster)
 	handler.Delete(strings.ToLower(cluster.ID.String()))
 
@@ -132,15 +132,15 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewNodePoolMetricsHandler(reg)
 
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),
-				SystemData: &arm.SystemData{CreatedAt: &now},
+	nodePool := &resourcesapi.HCPOpenShiftClusterNodePool{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
+				ID:         resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),
+				SystemData: &armresourcesapi.SystemData{CreatedAt: &now},
 			},
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			ProvisioningState: arm.ProvisioningStateSucceeded,
+		Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 		},
 	}
 
@@ -166,15 +166,15 @@ func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	handler := NewExternalAuthMetricsHandler(reg)
 
-	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
-		ProxyResource: arm.ProxyResource{
-			Resource: arm.Resource{
-				ID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),
-				SystemData: &arm.SystemData{CreatedAt: &now},
+	externalAuth := &resourcesapi.HCPOpenShiftClusterExternalAuth{
+		ProxyResource: armresourcesapi.ProxyResource{
+			Resource: armresourcesapi.Resource{
+				ID:         resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),
+				SystemData: &armresourcesapi.SystemData{CreatedAt: &now},
 			},
 		},
-		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
-			ProvisioningState: arm.ProvisioningStateAccepted,
+		Properties: resourcesapi.HCPOpenShiftClusterExternalAuthProperties{
+			ProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 		},
 	}
 
@@ -199,12 +199,12 @@ func TestResourceControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	reg := prometheus.NewRegistry()
 	handler := NewClusterMetricsHandler(reg)
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, &now)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateSucceeded, &now)
 
 	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
 	require.NoError(t, indexer.Add(cluster))
 
-	controller := &Controller[*api.HCPOpenShiftCluster]{
+	controller := &Controller[*resourcesapi.HCPOpenShiftCluster]{
 		name:    "TestMetrics",
 		indexer: indexer,
 		handler: handler,
@@ -227,12 +227,12 @@ func TestResourceControllerSyncResource_DeletesMetricsWhenResourceRemoved(t *tes
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	reg := prometheus.NewRegistry()
 	handler := NewClusterMetricsHandler(reg)
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, &now)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateSucceeded, &now)
 
 	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
 	require.NoError(t, indexer.Add(cluster))
 
-	controller := &Controller[*api.HCPOpenShiftCluster]{
+	controller := &Controller[*resourcesapi.HCPOpenShiftCluster]{
 		name:    "TestMetrics",
 		indexer: indexer,
 		handler: handler,
@@ -248,21 +248,21 @@ func TestResourceControllerSyncResource_DeletesMetricsWhenResourceRemoved(t *tes
 }
 
 func TestResourceIDStoreKeyForObject_HandlesTombstone(t *testing.T) {
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, nil)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateAccepted, nil)
 	key, err := resourceIDStoreKeyForObject(cache.DeletedFinalStateUnknown{Obj: cluster})
 	require.NoError(t, err)
 	require.Equal(t, strings.ToLower(cluster.ID.String()), key)
 }
 
 func TestResourceIDStoreKeyForObject_HandlesKeyOnlyTombstone(t *testing.T) {
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, nil)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateAccepted, nil)
 	key, err := resourceIDStoreKeyForObject(cache.DeletedFinalStateUnknown{Key: strings.ToUpper(cluster.ID.String())})
 	require.NoError(t, err)
 	require.Equal(t, strings.ToLower(cluster.ID.String()), key)
 }
 
 func TestResourceIDStoreKeyForObject_HandlesNestedTombstones(t *testing.T) {
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, nil)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateAccepted, nil)
 	key, err := resourceIDStoreKeyForObject(cache.DeletedFinalStateUnknown{
 		Obj: &cache.DeletedFinalStateUnknown{Obj: cluster},
 	})
@@ -284,7 +284,7 @@ func TestResourceIDStoreKeyForObject_RejectsCyclicTombstones(t *testing.T) {
 }
 
 func TestResourceIDStoreKeyForObject_MatchesMetaNamespaceKeyFuncForCluster(t *testing.T) {
-	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, nil)
+	cluster := newTestCluster(t, "cluster-1", armresourcesapi.ProvisioningStateAccepted, nil)
 
 	got, err := resourceIDStoreKeyForObject(cluster)
 	require.NoError(t, err)

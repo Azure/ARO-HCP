@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -63,9 +63,9 @@ func NewClusterServiceClusterMatchingController(resourcesDBClient database.Resou
 	return c
 }
 
-func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*api.HCPOpenShiftCluster, []*api.HCPOpenShiftCluster, error) {
-	clusterServiceIDToCluster := map[string]*api.HCPOpenShiftCluster{}
-	ret := []*api.HCPOpenShiftCluster{}
+func (c *clusterServiceClusterMatching) getAllCosmosObjs(ctx context.Context) (map[string]*resourcesapi.HCPOpenShiftCluster, []*resourcesapi.HCPOpenShiftCluster, error) {
+	clusterServiceIDToCluster := map[string]*resourcesapi.HCPOpenShiftCluster{}
+	ret := []*resourcesapi.HCPOpenShiftCluster{}
 
 	allSubscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {

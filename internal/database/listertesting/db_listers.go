@@ -18,7 +18,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/listers"
 )
@@ -46,7 +46,7 @@ type DBApplyDesireLister struct {
 
 var _ listers.ApplyDesireLister = &DBApplyDesireLister{}
 
-func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
+func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ApplyDesire, error) {
 	iter, err := l.Client.GlobalListers().ApplyDesires().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -56,8 +56,8 @@ func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplier.ApplyDes
 
 func (l *DBApplyDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.ApplyDesire, error) {
-	mgmt, err := l.findManagementCluster(ctx, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+) (*kubeapplierapi.ApplyDesire, error) {
+	mgmt, err := l.findManagementCluster(ctx, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, name))
 	if err != nil {
 		return nil, err
@@ -74,8 +74,8 @@ func (l *DBApplyDesireLister) GetForCluster(
 
 func (l *DBApplyDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.ApplyDesire, error) {
-	mgmt, err := l.findManagementCluster(ctx, kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+) (*kubeapplierapi.ApplyDesire, error) {
+	mgmt, err := l.findManagementCluster(ctx, kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name))
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (l *DBApplyDesireLister) GetForNodePool(
 
 func (l *DBApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementCluster string,
-) ([]*kubeapplier.ApplyDesire, error) {
+) ([]*kubeapplierapi.ApplyDesire, error) {
 	iter, err := l.Client.PartitionListers(managementCluster).ApplyDesires().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -105,12 +105,12 @@ func (l *DBApplyDesireLister) ListForManagementCluster(
 
 func (l *DBApplyDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.ApplyDesire, error) {
+) ([]*kubeapplierapi.ApplyDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.ApplyDesire
+	var out []*kubeapplierapi.ApplyDesire
 	for _, d := range all {
 		if underCluster(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName) {
 			out = append(out, d)
@@ -121,12 +121,12 @@ func (l *DBApplyDesireLister) ListForCluster(
 
 func (l *DBApplyDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.ApplyDesire, error) {
+) ([]*kubeapplierapi.ApplyDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.ApplyDesire
+	var out []*kubeapplierapi.ApplyDesire
 	for _, d := range all {
 		if underNodePool(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
 			out = append(out, d)
@@ -165,7 +165,7 @@ type DBDeleteDesireLister struct {
 
 var _ listers.DeleteDesireLister = &DBDeleteDesireLister{}
 
-func (l *DBDeleteDesireLister) List(ctx context.Context) ([]*kubeapplier.DeleteDesire, error) {
+func (l *DBDeleteDesireLister) List(ctx context.Context) ([]*kubeapplierapi.DeleteDesire, error) {
 	iter, err := l.Client.GlobalListers().DeleteDesires().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -175,8 +175,8 @@ func (l *DBDeleteDesireLister) List(ctx context.Context) ([]*kubeapplier.DeleteD
 
 func (l *DBDeleteDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.DeleteDesire, error) {
-	mgmt, err := l.findManagementCluster(ctx, kubeapplier.ToClusterScopedDeleteDesireResourceIDString(
+) (*kubeapplierapi.DeleteDesire, error) {
+	mgmt, err := l.findManagementCluster(ctx, kubeapplierapi.ToClusterScopedDeleteDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, name))
 	if err != nil {
 		return nil, err
@@ -193,8 +193,8 @@ func (l *DBDeleteDesireLister) GetForCluster(
 
 func (l *DBDeleteDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.DeleteDesire, error) {
-	mgmt, err := l.findManagementCluster(ctx, kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
+) (*kubeapplierapi.DeleteDesire, error) {
+	mgmt, err := l.findManagementCluster(ctx, kubeapplierapi.ToNodePoolScopedDeleteDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name))
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func (l *DBDeleteDesireLister) GetForNodePool(
 
 func (l *DBDeleteDesireLister) ListForManagementCluster(
 	ctx context.Context, managementCluster string,
-) ([]*kubeapplier.DeleteDesire, error) {
+) ([]*kubeapplierapi.DeleteDesire, error) {
 	iter, err := l.Client.PartitionListers(managementCluster).DeleteDesires().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -224,12 +224,12 @@ func (l *DBDeleteDesireLister) ListForManagementCluster(
 
 func (l *DBDeleteDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.DeleteDesire, error) {
+) ([]*kubeapplierapi.DeleteDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.DeleteDesire
+	var out []*kubeapplierapi.DeleteDesire
 	for _, d := range all {
 		if underCluster(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName) {
 			out = append(out, d)
@@ -240,12 +240,12 @@ func (l *DBDeleteDesireLister) ListForCluster(
 
 func (l *DBDeleteDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.DeleteDesire, error) {
+) ([]*kubeapplierapi.DeleteDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.DeleteDesire
+	var out []*kubeapplierapi.DeleteDesire
 	for _, d := range all {
 		if underNodePool(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
 			out = append(out, d)
@@ -279,7 +279,7 @@ type DBReadDesireLister struct {
 
 var _ listers.ReadDesireLister = &DBReadDesireLister{}
 
-func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
+func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplierapi.ReadDesire, error) {
 	iter, err := l.Client.GlobalListers().ReadDesires().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -289,8 +289,8 @@ func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesir
 
 func (l *DBReadDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.ReadDesire, error) {
-	mgmt, err := l.findManagementCluster(ctx, kubeapplier.ToClusterScopedReadDesireResourceIDString(
+) (*kubeapplierapi.ReadDesire, error) {
+	mgmt, err := l.findManagementCluster(ctx, kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, name))
 	if err != nil {
 		return nil, err
@@ -307,8 +307,8 @@ func (l *DBReadDesireLister) GetForCluster(
 
 func (l *DBReadDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.ReadDesire, error) {
-	mgmt, err := l.findManagementCluster(ctx, kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+) (*kubeapplierapi.ReadDesire, error) {
+	mgmt, err := l.findManagementCluster(ctx, kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name))
 	if err != nil {
 		return nil, err
@@ -328,7 +328,7 @@ func (l *DBReadDesireLister) GetForNodePool(
 
 func (l *DBReadDesireLister) ListForManagementCluster(
 	ctx context.Context, managementCluster string,
-) ([]*kubeapplier.ReadDesire, error) {
+) ([]*kubeapplierapi.ReadDesire, error) {
 	iter, err := l.Client.PartitionListers(managementCluster).ReadDesires().List(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -338,12 +338,12 @@ func (l *DBReadDesireLister) ListForManagementCluster(
 
 func (l *DBReadDesireLister) ListForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.ReadDesire, error) {
+) ([]*kubeapplierapi.ReadDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.ReadDesire
+	var out []*kubeapplierapi.ReadDesire
 	for _, d := range all {
 		if underCluster(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName) {
 			out = append(out, d)
@@ -354,12 +354,12 @@ func (l *DBReadDesireLister) ListForCluster(
 
 func (l *DBReadDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.ReadDesire, error) {
+) ([]*kubeapplierapi.ReadDesire, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []*kubeapplier.ReadDesire
+	var out []*kubeapplierapi.ReadDesire
 	for _, d := range all {
 		if underNodePool(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
 			out = append(out, d)

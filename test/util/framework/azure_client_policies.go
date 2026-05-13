@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 // armSystemDataPolicy adds ARM system data headers for direct RP requests.
@@ -86,10 +86,10 @@ func (p *armResourceGroupValidationPolicy) Do(req *policy.Request) (*http.Respon
 	_, err = client.Get(req.Raw().Context(), rgName, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.ErrorCode == arm.CloudErrorCodeResourceGroupNotFound {
-			cloudErr := arm.NewCloudError(
+		if errors.As(err, &respErr) && respErr.ErrorCode == armresourcesapi.CloudErrorCodeResourceGroupNotFound {
+			cloudErr := armresourcesapi.NewCloudError(
 				http.StatusNotFound,
-				arm.CloudErrorCodeResourceGroupNotFound,
+				armresourcesapi.CloudErrorCodeResourceGroupNotFound,
 				"",
 				"Resource group '%s' could not be found.",
 				rgName,
@@ -137,8 +137,8 @@ func (p *correlationRequestIDPolicy) Do(req *policy.Request) (*http.Response, er
 		return nil, fmt.Errorf("failed to parse frontend address: %w", err)
 	}
 
-	if req.Raw().URL.Host == frontendURL.Host && req.Raw().Header.Get(arm.HeaderNameCorrelationRequestID) == "" {
-		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, uuid.New().String())
+	if req.Raw().URL.Host == frontendURL.Host && req.Raw().Header.Get(armresourcesapi.HeaderNameCorrelationRequestID) == "" {
+		req.Raw().Header.Set(armresourcesapi.HeaderNameCorrelationRequestID, uuid.New().String())
 	}
 	return req.Next()
 }

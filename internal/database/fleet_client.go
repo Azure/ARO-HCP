@@ -19,8 +19,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -39,21 +39,21 @@ type FleetDBClient interface {
 // StampsCRUD provides CRUD operations for stamps and access to their
 // nested management cluster sub-resources.
 type StampsCRUD interface {
-	ValidatingResourceCRUD[fleet.Stamp]
+	ValidatingResourceCRUD[fleetapi.Stamp]
 	ManagementClusters(stampIdentifier string) ManagementClustersCRUD
 }
 
 // ManagementClustersCRUD provides CRUD operations for management clusters
 // and access to their nested controller status documents.
 type ManagementClustersCRUD interface {
-	ValidatingResourceCRUD[fleet.ManagementCluster]
-	Controllers() ResourceCRUD[api.Controller]
+	ValidatingResourceCRUD[fleetapi.ManagementCluster]
+	Controllers() ResourceCRUD[resourcesapi.Controller]
 }
 
 // FleetGlobalListers provides cross-partition listers for fleet resource types.
 type FleetGlobalListers interface {
-	Stamps() GlobalLister[fleet.Stamp]
-	ManagementClusters() GlobalLister[fleet.ManagementCluster]
+	Stamps() GlobalLister[fleetapi.Stamp]
+	ManagementClusters() GlobalLister[fleetapi.ManagementCluster]
 }
 
 type cosmosFleetDBClient struct {
@@ -77,9 +77,9 @@ func NewFleetDBClientFromContainer(container *azcosmos.ContainerClient) FleetDBC
 }
 
 func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
-	inner := &fleetResourceCRUD[fleet.Stamp, GenericDocument[fleet.Stamp]]{
+	inner := &fleetResourceCRUD[fleetapi.Stamp, GenericDocument[fleetapi.Stamp]]{
 		containerClient: c.container,
-		resourceType:    fleet.StampResourceType,
+		resourceType:    fleetapi.StampResourceType,
 	}
 	return &cosmosStampsCRUD{
 		ValidatingResourceCRUD: NewValidatingCRUD(inner,
@@ -95,19 +95,19 @@ func (c *cosmosFleetDBClient) GlobalListers() FleetGlobalListers {
 }
 
 type cosmosStampsCRUD struct {
-	ValidatingResourceCRUD[fleet.Stamp]
+	ValidatingResourceCRUD[fleetapi.Stamp]
 	containerClient *azcosmos.ContainerClient
 }
 
 func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) ManagementClustersCRUD {
-	stampResourceID, err := fleet.ToStampResourceID(stampIdentifier)
+	stampResourceID, err := fleetapi.ToStampResourceID(stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
-	inner := &fleetResourceCRUD[fleet.ManagementCluster, GenericDocument[fleet.ManagementCluster]]{
+	inner := &fleetResourceCRUD[fleetapi.ManagementCluster, GenericDocument[fleetapi.ManagementCluster]]{
 		containerClient:  s.containerClient,
 		parentResourceID: stampResourceID,
-		resourceType:     fleet.ManagementClusterResourceType,
+		resourceType:     fleetapi.ManagementClusterResourceType,
 	}
 	return &cosmosManagementClustersCRUD{
 		ValidatingResourceCRUD: NewValidatingCRUD(inner,
@@ -120,20 +120,20 @@ func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) Management
 }
 
 type cosmosManagementClustersCRUD struct {
-	ValidatingResourceCRUD[fleet.ManagementCluster]
+	ValidatingResourceCRUD[fleetapi.ManagementCluster]
 	containerClient *azcosmos.ContainerClient
 	stampIdentifier string
 }
 
-func (m *cosmosManagementClustersCRUD) Controllers() ResourceCRUD[api.Controller] {
-	mcResourceID, err := fleet.ToManagementClusterResourceID(m.stampIdentifier)
+func (m *cosmosManagementClustersCRUD) Controllers() ResourceCRUD[resourcesapi.Controller] {
+	mcResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
-	return &fleetResourceCRUD[api.Controller, GenericDocument[api.Controller]]{
+	return &fleetResourceCRUD[resourcesapi.Controller, GenericDocument[resourcesapi.Controller]]{
 		containerClient:  m.containerClient,
 		parentResourceID: mcResourceID,
-		resourceType:     fleet.ManagementClusterControllerResourceType,
+		resourceType:     fleetapi.ManagementClusterControllerResourceType,
 	}
 }
 
@@ -143,16 +143,16 @@ type cosmosFleetGlobalListers struct {
 
 var _ FleetGlobalListers = &cosmosFleetGlobalListers{}
 
-func (g *cosmosFleetGlobalListers) Stamps() GlobalLister[fleet.Stamp] {
-	return &cosmosGlobalLister[fleet.Stamp, GenericDocument[fleet.Stamp]]{
+func (g *cosmosFleetGlobalListers) Stamps() GlobalLister[fleetapi.Stamp] {
+	return &cosmosGlobalLister[fleetapi.Stamp, GenericDocument[fleetapi.Stamp]]{
 		containerClient: g.container,
-		resourceType:    fleet.StampResourceType,
+		resourceType:    fleetapi.StampResourceType,
 	}
 }
 
-func (g *cosmosFleetGlobalListers) ManagementClusters() GlobalLister[fleet.ManagementCluster] {
-	return &cosmosGlobalLister[fleet.ManagementCluster, GenericDocument[fleet.ManagementCluster]]{
+func (g *cosmosFleetGlobalListers) ManagementClusters() GlobalLister[fleetapi.ManagementCluster] {
+	return &cosmosGlobalLister[fleetapi.ManagementCluster, GenericDocument[fleetapi.ManagementCluster]]{
 		containerClient: g.container,
-		resourceType:    fleet.ManagementClusterResourceType,
+		resourceType:    fleetapi.ManagementClusterResourceType,
 	}
 }

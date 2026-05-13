@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -46,8 +46,8 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                   string
-		cachedNodePool         *api.HCPOpenShiftClusterNodePool // nodePool in cache, nil means use same as existingNodePool
-		existingCosmosNodePool *api.HCPOpenShiftClusterNodePool // nodePool in cosmos
+		cachedNodePool         *resourcesapi.HCPOpenShiftClusterNodePool // nodePool in cache, nil means use same as existingNodePool
+		existingCosmosNodePool *resourcesapi.HCPOpenShiftClusterNodePool // nodePool in cosmos
 		csNodePool             *arohcpv1alpha1.NodePool
 		csError                error
 		expectCSCall           bool
@@ -56,10 +56,10 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "cache indicates no work needed - early return without cosmos lookup",
-			cachedNodePool: newTestNodePoolForMigration(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			cachedNodePool: newTestNodePoolForMigration(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Platform.VMSize = testNodePoolVMSize
 			}),
-			existingCosmosNodePool: newTestNodePoolForMigration(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingCosmosNodePool: newTestNodePoolForMigration(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Platform.VMSize = testNodePoolVMSize
 			}),
 			expectCSCall:   false,
@@ -68,8 +68,8 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:           "cache says work needed but live data says no work needed",
-			cachedNodePool: newTestNodePoolForMigration(t, func(np *api.HCPOpenShiftClusterNodePool) {}), // cache has no vmSize info
-			existingCosmosNodePool: newTestNodePoolForMigration(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			cachedNodePool: newTestNodePoolForMigration(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {}), // cache has no vmSize info
+			existingCosmosNodePool: newTestNodePoolForMigration(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				// cosmos has the version info (cache is stale)
 				np.Properties.Platform.VMSize = testNodePoolVMSize
 			}),
@@ -79,14 +79,14 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:                   "error reading from cluster-service",
-			existingCosmosNodePool: newTestNodePoolForMigration(t, func(np *api.HCPOpenShiftClusterNodePool) {}),
+			existingCosmosNodePool: newTestNodePoolForMigration(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {}),
 			csError:                fmt.Errorf("connection refused"),
 			expectCSCall:           true,
 			expectError:            true,
 		},
 		{
 			name:                   "success - migrate vmSize when missing",
-			existingCosmosNodePool: newTestNodePoolForMigration(t, func(np *api.HCPOpenShiftClusterNodePool) {}),
+			existingCosmosNodePool: newTestNodePoolForMigration(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {}),
 			csNodePool:             newTestFullCSNodePool(testNodePoolVMSize),
 			expectCSCall:           true,
 			expectError:            false,
@@ -114,7 +114,7 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 				cachedNodePool = tc.existingCosmosNodePool
 			}
 			sliceNodePoolLister := &listertesting.SliceNodePoolLister{
-				NodePools: []*api.HCPOpenShiftClusterNodePool{cachedNodePool},
+				NodePools: []*resourcesapi.HCPOpenShiftClusterNodePool{cachedNodePool},
 			}
 
 			// Setup mock CS client
@@ -122,7 +122,7 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 
 			if tc.expectCSCall {
 				mockCSClient.EXPECT().
-					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+					GetNodePool(gomock.Any(), resourcesapi.Must(resourcesapi.NewInternalID(testNodePoolCSIDStr))).
 					Return(tc.csNodePool, tc.csError)
 			}
 
@@ -159,10 +159,10 @@ func TestNodePoolCustomerPropertiesMigrationController_SyncOnce(t *testing.T) {
 
 // newTestNodePoolForMigration builds a node pool for customer-properties migration tests: it initializes a new
 // test nodepool without customer properties, and it then applies opts on top of it.
-func newTestNodePoolForMigration(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
+func newTestNodePoolForMigration(t *testing.T, opts func(*resourcesapi.HCPOpenShiftClusterNodePool)) *resourcesapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
 	nodePool := newTestNodePool(t, nil)
-	nodePool.Properties = api.HCPOpenShiftClusterNodePoolProperties{}
+	nodePool.Properties = resourcesapi.HCPOpenShiftClusterNodePoolProperties{}
 	if opts != nil {
 		opts(nodePool)
 	}
@@ -180,7 +180,7 @@ func newTestFullCSNodePool(vmSize string) *arohcpv1alpha1.NodePool {
 			ResourceName(testNodePoolName).
 			VMSize(vmSize).
 			EncryptionAtHost(arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State("disabled")).
-			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().SizeGibibytes(64).StorageAccountType(string(api.DiskStorageAccountTypePremium_LRS)).Persistence("persistent"))).
+			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().SizeGibibytes(64).StorageAccountType(string(resourcesapi.DiskStorageAccountTypePremium_LRS)).Persistence("persistent"))).
 		AvailabilityZone("1").
 		AutoRepair(true).
 		Labels(map[string]string{"key": "value"}).

@@ -28,7 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 )
 
 // PreCheckError is an error type controllers raise when they cannot even reach
@@ -54,19 +54,19 @@ func NewPreCheckError(err error) error { return &PreCheckError{Err: err} }
 func SetSuccessful(conds *[]metav1.Condition, err error) {
 	if err == nil {
 		meta.SetStatusCondition(conds, metav1.Condition{
-			Type:    kubeapplier.ConditionTypeSuccessful,
+			Type:    kubeapplierapi.ConditionTypeSuccessful,
 			Status:  metav1.ConditionTrue,
-			Reason:  kubeapplier.ConditionReasonNoErrors,
+			Reason:  kubeapplierapi.ConditionReasonNoErrors,
 			Message: "As expected.",
 		})
 		return
 	}
-	reason := kubeapplier.ConditionReasonKubeAPIError
+	reason := kubeapplierapi.ConditionReasonKubeAPIError
 	if _, ok := err.(*PreCheckError); ok {
-		reason = kubeapplier.ConditionReasonPreCheckFailed
+		reason = kubeapplierapi.ConditionReasonPreCheckFailed
 	}
 	meta.SetStatusCondition(conds, metav1.Condition{
-		Type:    kubeapplier.ConditionTypeSuccessful,
+		Type:    kubeapplierapi.ConditionTypeSuccessful,
 		Status:  metav1.ConditionFalse,
 		Reason:  reason,
 		Message: err.Error(),
@@ -79,9 +79,9 @@ func SetSuccessful(conds *[]metav1.Condition, err error) {
 // so consumers can correlate without an extra cluster read.
 func SetSuccessfulWaitingForDeletion(conds *[]metav1.Condition, deletionTime metav1.Time, uid types.UID) {
 	meta.SetStatusCondition(conds, metav1.Condition{
-		Type:   kubeapplier.ConditionTypeSuccessful,
+		Type:   kubeapplierapi.ConditionTypeSuccessful,
 		Status: metav1.ConditionFalse,
-		Reason: kubeapplier.ConditionReasonWaitingForDeletion,
+		Reason: kubeapplierapi.ConditionReasonWaitingForDeletion,
 		Message: fmt.Sprintf("waiting for deletion: deletionTimestamp=%s uid=%s",
 			deletionTime.UTC().Format(time.RFC3339), uid),
 	})
@@ -92,17 +92,17 @@ func SetSuccessfulWaitingForDeletion(conds *[]metav1.Condition, deletionTime met
 func SetDegraded(conds *[]metav1.Condition, err error) {
 	if err == nil {
 		meta.SetStatusCondition(conds, metav1.Condition{
-			Type:    kubeapplier.ConditionTypeDegraded,
+			Type:    kubeapplierapi.ConditionTypeDegraded,
 			Status:  metav1.ConditionFalse,
-			Reason:  kubeapplier.ConditionReasonNoErrors,
+			Reason:  kubeapplierapi.ConditionReasonNoErrors,
 			Message: "As expected.",
 		})
 		return
 	}
 	meta.SetStatusCondition(conds, metav1.Condition{
-		Type:    kubeapplier.ConditionTypeDegraded,
+		Type:    kubeapplierapi.ConditionTypeDegraded,
 		Status:  metav1.ConditionTrue,
-		Reason:  kubeapplier.ConditionReasonFailed,
+		Reason:  kubeapplierapi.ConditionReasonFailed,
 		Message: fmt.Sprintf("Had an error while syncing: %s", err.Error()),
 	})
 }

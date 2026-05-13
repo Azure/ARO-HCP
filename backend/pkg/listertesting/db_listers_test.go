@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
@@ -116,9 +116,9 @@ func TestDBSubscriptionLister(t *testing.T) {
 
 	// Create test subscriptions
 	sub1 := newTestSubscription(testSubscriptionID)
-	sub1.State = arm.SubscriptionStateRegistered
+	sub1.State = armresourcesapi.SubscriptionStateRegistered
 	sub2 := newTestSubscription(testSubscriptionID2)
-	sub2.State = arm.SubscriptionStateRegistered
+	sub2.State = armresourcesapi.SubscriptionStateRegistered
 
 	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{sub1, sub2})
 	require.NoError(t, err)
@@ -152,9 +152,9 @@ func TestDBActiveOperationLister(t *testing.T) {
 
 	// Create test operations
 	op1 := newTestOperation(testSubscriptionID, "op1", testSubscriptionID, testResourceGroupName, testClusterName)
-	op1.Status = arm.ProvisioningStateProvisioning
+	op1.Status = armresourcesapi.ProvisioningStateProvisioning
 	op2 := newTestOperation(testSubscriptionID, "op2", testSubscriptionID, testResourceGroupName, testClusterName)
-	op2.Status = arm.ProvisioningStateProvisioning
+	op2.Status = armresourcesapi.ProvisioningStateProvisioning
 
 	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2})
 	require.NoError(t, err)
@@ -628,9 +628,9 @@ func TestDBSubscriptionListerWithDeletes(t *testing.T) {
 
 	// Create test subscriptions
 	sub1 := newTestSubscription(testSubscriptionID)
-	sub1.State = arm.SubscriptionStateRegistered
+	sub1.State = armresourcesapi.SubscriptionStateRegistered
 	sub2 := newTestSubscription(testSubscriptionID2)
-	sub2.State = arm.SubscriptionStateRegistered
+	sub2.State = armresourcesapi.SubscriptionStateRegistered
 
 	subCRUD := mockResourcesDBClient.Subscriptions()
 	_, err := subCRUD.Create(ctx, sub1, nil)
@@ -670,7 +670,7 @@ func TestDBSubscriptionListerWithUpdates(t *testing.T) {
 
 	// Create test subscription
 	sub := newTestSubscription(testSubscriptionID)
-	sub.State = arm.SubscriptionStateRegistered
+	sub.State = armresourcesapi.SubscriptionStateRegistered
 
 	subCRUD := mockResourcesDBClient.Subscriptions()
 	createdSub, err := subCRUD.Create(ctx, sub, nil)
@@ -681,18 +681,18 @@ func TestDBSubscriptionListerWithUpdates(t *testing.T) {
 	t.Run("Get returns original state before update", func(t *testing.T) {
 		result, err := lister.Get(ctx, testSubscriptionID)
 		require.NoError(t, err)
-		assert.Equal(t, arm.SubscriptionStateRegistered, result.State)
+		assert.Equal(t, armresourcesapi.SubscriptionStateRegistered, result.State)
 	})
 
 	// Update the subscription
-	createdSub.State = arm.SubscriptionStateSuspended
+	createdSub.State = armresourcesapi.SubscriptionStateSuspended
 	_, err = subCRUD.Replace(ctx, createdSub, nil)
 	require.NoError(t, err)
 
 	t.Run("Get returns updated state after update", func(t *testing.T) {
 		result, err := lister.Get(ctx, testSubscriptionID)
 		require.NoError(t, err)
-		assert.Equal(t, arm.SubscriptionStateSuspended, result.State)
+		assert.Equal(t, armresourcesapi.SubscriptionStateSuspended, result.State)
 	})
 }
 
@@ -708,9 +708,9 @@ func TestDBActiveOperationListerWithDeletes(t *testing.T) {
 
 	// Create test operations
 	op1 := newTestOperation(testSubscriptionID, "op1", testSubscriptionID, testResourceGroupName, testClusterName)
-	op1.Status = arm.ProvisioningStateProvisioning
+	op1.Status = armresourcesapi.ProvisioningStateProvisioning
 	op2 := newTestOperation(testSubscriptionID, "op2", testSubscriptionID, testResourceGroupName, testClusterName)
-	op2.Status = arm.ProvisioningStateProvisioning
+	op2.Status = armresourcesapi.ProvisioningStateProvisioning
 
 	opCRUD := mockResourcesDBClient.Operations(testSubscriptionID)
 	_, err = opCRUD.Create(ctx, op1, nil)
@@ -756,7 +756,7 @@ func TestDBActiveOperationListerWithUpdates(t *testing.T) {
 
 	// Create test operation
 	op := newTestOperation(testSubscriptionID, "op1", testSubscriptionID, testResourceGroupName, testClusterName)
-	op.Status = arm.ProvisioningStateProvisioning
+	op.Status = armresourcesapi.ProvisioningStateProvisioning
 
 	opCRUD := mockResourcesDBClient.Operations(testSubscriptionID)
 	createdOp, err := opCRUD.Create(ctx, op, nil)
@@ -768,11 +768,11 @@ func TestDBActiveOperationListerWithUpdates(t *testing.T) {
 		result, err := lister.List(ctx)
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
-		assert.Equal(t, arm.ProvisioningStateProvisioning, result[0].Status)
+		assert.Equal(t, armresourcesapi.ProvisioningStateProvisioning, result[0].Status)
 	})
 
 	// Update operation to terminal state (Succeeded)
-	createdOp.Status = arm.ProvisioningStateSucceeded
+	createdOp.Status = armresourcesapi.ProvisioningStateSucceeded
 	_, err = opCRUD.Replace(ctx, createdOp, nil)
 	require.NoError(t, err)
 
@@ -787,7 +787,7 @@ func TestDBActiveOperationListerWithUpdates(t *testing.T) {
 		// Get retrieves by ID regardless of state
 		result, err := lister.Get(ctx, testSubscriptionID, "op1")
 		require.NoError(t, err)
-		assert.Equal(t, arm.ProvisioningStateSucceeded, result.Status)
+		assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, result.Status)
 	})
 }
 
@@ -860,9 +860,9 @@ func TestNewMockResourcesDBClientWithResources_Subscriptions(t *testing.T) {
 	ctx := context.Background()
 
 	sub1 := newTestSubscription(testSubscriptionID)
-	sub1.State = arm.SubscriptionStateRegistered
+	sub1.State = armresourcesapi.SubscriptionStateRegistered
 	sub2 := newTestSubscription(testSubscriptionID2)
-	sub2.State = arm.SubscriptionStateRegistered
+	sub2.State = armresourcesapi.SubscriptionStateRegistered
 
 	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{sub1, sub2})
 	require.NoError(t, err)
@@ -887,9 +887,9 @@ func TestNewMockResourcesDBClientWithResources_Operations(t *testing.T) {
 
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 	op1 := newTestOperation(testSubscriptionID, "op1", testSubscriptionID, testResourceGroupName, testClusterName)
-	op1.Status = arm.ProvisioningStateProvisioning
+	op1.Status = armresourcesapi.ProvisioningStateProvisioning
 	op2 := newTestOperation(testSubscriptionID, "op2", testSubscriptionID, testResourceGroupName, testClusterName)
-	op2.Status = arm.ProvisioningStateProvisioning
+	op2.Status = armresourcesapi.ProvisioningStateProvisioning
 
 	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2})
 	require.NoError(t, err)
@@ -984,11 +984,11 @@ func TestNewMockResourcesDBClientWithResources_MixedTypes(t *testing.T) {
 	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 	np := newTestNodePool(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
 	op := newTestOperation(testSubscriptionID, "op1", testSubscriptionID, testResourceGroupName, testClusterName)
-	op.Status = arm.ProvisioningStateProvisioning
+	op.Status = armresourcesapi.ProvisioningStateProvisioning
 	ea := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
 	spc := newTestServiceProviderCluster(testSubscriptionID, testResourceGroupName, testClusterName)
 	sub := newTestSubscription(testSubscriptionID)
-	sub.State = arm.SubscriptionStateRegistered
+	sub.State = armresourcesapi.SubscriptionStateRegistered
 
 	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{
 		cluster,
@@ -1069,7 +1069,7 @@ func TestNewMockResourcesDBClientWithResources_NilResourceID(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a cluster without a resource ID
-	clusterWithNilID := &api.HCPOpenShiftCluster{}
+	clusterWithNilID := &resourcesapi.HCPOpenShiftCluster{}
 
 	_, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{clusterWithNilID})
 	require.Error(t, err)

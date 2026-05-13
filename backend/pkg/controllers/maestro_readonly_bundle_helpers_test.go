@@ -39,8 +39,8 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
@@ -251,12 +251,12 @@ type callCountingMCCCRUD struct {
 	createCount  int
 }
 
-func (c *callCountingMCCCRUD) Replace(ctx context.Context, obj *api.ManagementClusterContent, opts *azcosmos.ItemOptions) (*api.ManagementClusterContent, error) {
+func (c *callCountingMCCCRUD) Replace(ctx context.Context, obj *resourcesapi.ManagementClusterContent, opts *azcosmos.ItemOptions) (*resourcesapi.ManagementClusterContent, error) {
 	c.replaceCount++
 	return c.ManagementClusterContentCRUD.Replace(ctx, obj, opts)
 }
 
-func (c *callCountingMCCCRUD) Create(ctx context.Context, obj *api.ManagementClusterContent, opts *azcosmos.ItemOptions) (*api.ManagementClusterContent, error) {
+func (c *callCountingMCCCRUD) Create(ctx context.Context, obj *resourcesapi.ManagementClusterContent, opts *azcosmos.ItemOptions) (*resourcesapi.ManagementClusterContent, error) {
 	c.createCount++
 	return c.ManagementClusterContentCRUD.Create(ctx, obj, opts)
 }
@@ -266,12 +266,12 @@ var _ database.ManagementClusterContentCRUD = &callCountingMCCCRUD{}
 // errorInjectingMCCCRUD wraps ManagementClusterContentCRUD to allow error injection for testing.
 type errorInjectingMCCCRUD struct {
 	database.ManagementClusterContentCRUD
-	getResult  *api.ManagementClusterContent
+	getResult  *resourcesapi.ManagementClusterContent
 	getErr     error
 	replaceErr error
 }
 
-func (e *errorInjectingMCCCRUD) Get(ctx context.Context, resourceID string) (*api.ManagementClusterContent, error) {
+func (e *errorInjectingMCCCRUD) Get(ctx context.Context, resourceID string) (*resourcesapi.ManagementClusterContent, error) {
 	if e.getErr != nil {
 		return nil, e.getErr
 	}
@@ -281,7 +281,7 @@ func (e *errorInjectingMCCCRUD) Get(ctx context.Context, resourceID string) (*ap
 	return e.ManagementClusterContentCRUD.Get(ctx, resourceID)
 }
 
-func (e *errorInjectingMCCCRUD) Replace(ctx context.Context, obj *api.ManagementClusterContent, opts *azcosmos.ItemOptions) (*api.ManagementClusterContent, error) {
+func (e *errorInjectingMCCCRUD) Replace(ctx context.Context, obj *resourcesapi.ManagementClusterContent, opts *azcosmos.ItemOptions) (*resourcesapi.ManagementClusterContent, error) {
 	if e.replaceErr != nil {
 		return nil, e.replaceErr
 	}
@@ -338,7 +338,7 @@ type errorInjectingSPCCRUD struct {
 	getErr error
 }
 
-func (e *errorInjectingSPCCRUD) Get(ctx context.Context, resourceID string) (*api.ServiceProviderCluster, error) {
+func (e *errorInjectingSPCCRUD) Get(ctx context.Context, resourceID string) (*resourcesapi.ServiceProviderCluster, error) {
 	if e.getErr != nil {
 		return nil, e.getErr
 	}
@@ -348,12 +348,12 @@ func (e *errorInjectingSPCCRUD) Get(ctx context.Context, resourceID string) (*ap
 var _ database.ServiceProviderClusterCRUD = &errorInjectingSPCCRUD{}
 
 func TestMaestroReadonlyBundleHelpers_calculateManagementClusterContentFromMaestroBundle(t *testing.T) {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{Resource: armresourcesapi.Resource{ID: clusterResourceID}},
 	}
-	ref := &api.MaestroBundleReference{
-		Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
+	ref := &resourcesapi.MaestroBundleReference{
+		Name:                        resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 		MaestroAPIMaestroBundleName: "bundle-name",
 	}
 
@@ -437,12 +437,12 @@ func TestMaestroReadonlyBundleHelpers_calculateManagementClusterContentFromMaest
 
 func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent(t *testing.T) {
 	ctx := context.Background()
-	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
+	clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{Resource: armresourcesapi.Resource{ID: clusterResourceID}},
 	}
-	ref := &api.MaestroBundleReference{
-		Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
+	ref := &resourcesapi.MaestroBundleReference{
+		Name:                        resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 		MaestroAPIMaestroBundleName: "bundle-name",
 	}
 	hc := hsv1beta1.HostedCluster{TypeMeta: metav1.TypeMeta{APIVersion: "hypershift.openshift.io/v1beta1", Kind: "HostedCluster"}, ObjectMeta: metav1.ObjectMeta{Name: "hc1", Namespace: "ns1"}}
@@ -463,7 +463,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		require.NoError(t, err)
 
 		// Content should have been created (name = bundle internal name)
-		got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+		got, err := mccCRUD.Get(ctx, string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.NotNil(t, got.Status.KubeContent)
@@ -479,10 +479,10 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 		mccCRUD := mockResourcesDBClient.HCPClusters("sub", "rg").ManagementClusterContents("cluster")
 		// Pre-create existing content with different payload
-		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
-		existing := &api.ManagementClusterContent{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			Status:         api.ManagementClusterContentStatus{KubeContent: &metav1.List{Items: []runtime.RawExtension{}}},
+		existingRID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
+		existing := &resourcesapi.ManagementClusterContent{
+			CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: existingRID},
+			Status:         resourcesapi.ManagementClusterContentStatus{KubeContent: &metav1.List{Items: []runtime.RawExtension{}}},
 		}
 		_, err := mccCRUD.Create(ctx, existing, nil)
 		require.NoError(t, err)
@@ -490,7 +490,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
 		require.NoError(t, err)
 
-		got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+		got, err := mccCRUD.Get(ctx, string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 		require.NoError(t, err)
 		require.NotNil(t, got.Status.KubeContent)
 		require.Len(t, got.Status.KubeContent.Items, 1)
@@ -513,11 +513,11 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 
 		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 		mccCRUD := mockResourcesDBClient.HCPClusters("sub", "rg").ManagementClusterContents("cluster")
-		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
+		existingRID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
 		existingContent := &metav1.List{Items: []runtime.RawExtension{{Raw: []byte(`{}`)}}}
-		existing := &api.ManagementClusterContent{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			Status:         api.ManagementClusterContentStatus{KubeContent: existingContent},
+		existing := &resourcesapi.ManagementClusterContent{
+			CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: existingRID},
+			Status:         resourcesapi.ManagementClusterContentStatus{KubeContent: existingContent},
 		}
 		_, err := mccCRUD.Create(ctx, existing, nil)
 		require.NoError(t, err)
@@ -525,7 +525,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
 		require.NoError(t, err)
 
-		got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+		got, err := mccCRUD.Get(ctx, string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 		require.NoError(t, err)
 		// Should have kept existing content
 		require.NotNil(t, got.Status.KubeContent)
@@ -541,14 +541,14 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 
 		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 		mccCRUD := mockResourcesDBClient.HCPClusters("sub", "rg").ManagementClusterContents("cluster")
-		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
+		existingRID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
 		// Pre-create content that matches exactly what the syncer would compute (same KubeContent and Degraded=False condition)
 		// so that DeepEqual(existing, desired) is true and Replace is not called.
 		desired, err := calculateManagementClusterContentFromMaestroBundle(ctx, cluster.ID, ref, mockMaestro)
 		require.NoError(t, err)
 		require.NotNil(t, desired)
-		existing := &api.ManagementClusterContent{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
+		existing := &resourcesapi.ManagementClusterContent{
+			CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: existingRID},
 			Status:         desired.Status,
 		}
 		_, err = mccCRUD.Create(ctx, existing, nil)
@@ -558,7 +558,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		require.NoError(t, err)
 
 		// Document should still exist with same content (no Replace was needed)
-		got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+		got, err := mccCRUD.Get(ctx, string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 		require.NoError(t, err)
 		require.NotNil(t, got.Status.KubeContent)
 		require.Len(t, got.Status.KubeContent.Items, 1)
@@ -602,10 +602,10 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		b := buildTestMaestroBundleWithStatusFeedback("bundle-name", "ns", validHCJSON)
 		mockMaestro.EXPECT().Get(gomock.Any(), "bundle-name", gomock.Any()).Return(b, nil)
 
-		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
-		existingDoc := &api.ManagementClusterContent{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			Status:         api.ManagementClusterContentStatus{KubeContent: &metav1.List{Items: []runtime.RawExtension{{Raw: []byte(validHCJSON)}}}},
+		existingRID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
+		existingDoc := &resourcesapi.ManagementClusterContent{
+			CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: existingRID},
+			Status:         resourcesapi.ManagementClusterContentStatus{KubeContent: &metav1.List{Items: []runtime.RawExtension{{Raw: []byte(validHCJSON)}}}},
 		}
 
 		// Use error-injecting wrapper to simulate 412 Precondition Failed on Replace
@@ -652,14 +652,14 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 
 		mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 		mccCRUD := mockResourcesDBClient.HCPClusters("sub", "rg").ManagementClusterContents("cluster")
-		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
+		existingRID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
 
 		u := &unstructured.Unstructured{}
 		require.NoError(t, json.Unmarshal([]byte(validHCJSON), u))
 		historicLTT := metav1.Time{Time: time.Date(2020, 6, 15, 12, 0, 0, 0, time.UTC)}
-		existing := &api.ManagementClusterContent{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			Status: api.ManagementClusterContentStatus{
+		existing := &resourcesapi.ManagementClusterContent{
+			CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: existingRID},
+			Status: resourcesapi.ManagementClusterContentStatus{
 				KubeContent: &metav1.List{
 					Items: []runtime.RawExtension{{Object: u}},
 				},
@@ -680,7 +680,7 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		err = readAndPersistMaestroReadonlyBundleContent(ctx, cluster.ID, ref, mockMaestro, mccCRUD)
 		require.NoError(t, err)
 
-		got, err := mccCRUD.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+		got, err := mccCRUD.Get(ctx, string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 		require.NoError(t, err)
 		degraded := meta.FindStatusCondition(got.Status.Conditions, "Degraded")
 		require.NotNil(t, degraded)

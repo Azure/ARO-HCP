@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 const frontendHost = "my-frontend.example.com:8443"
@@ -177,13 +177,13 @@ func TestArmSystemDataPolicy(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		systemData := capturedHeaders.Get(arm.HeaderNameARMResourceSystemData)
+		systemData := capturedHeaders.Get(armresourcesapi.HeaderNameARMResourceSystemData)
 		assert.NotEmpty(t, systemData)
 		assert.Contains(t, systemData, `"createdBy": "e2e-test"`)
 		assert.Contains(t, systemData, `"createdByType": "Application"`)
 		assert.Contains(t, systemData, `"createdAt":`)
 
-		identityURL := capturedHeaders.Get(arm.HeaderNameIdentityURL)
+		identityURL := capturedHeaders.Get(armresourcesapi.HeaderNameIdentityURL)
 		assert.Equal(t, "https://dummyhost.identity.azure.net", identityURL)
 	})
 
@@ -202,8 +202,8 @@ func TestArmSystemDataPolicy(t *testing.T) {
 		resp, err := pipeline.Do(req)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameARMResourceSystemData))
-		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameIdentityURL))
+		assert.Empty(t, capturedHeaders.Get(armresourcesapi.HeaderNameARMResourceSystemData))
+		assert.Empty(t, capturedHeaders.Get(armresourcesapi.HeaderNameIdentityURL))
 	})
 }
 
@@ -270,7 +270,7 @@ func TestCorrelationRequestIDPolicy(t *testing.T) {
 		_, err = pipeline.Do(req)
 		require.NoError(t, err)
 
-		correlationID := capturedHeaders.Get(arm.HeaderNameCorrelationRequestID)
+		correlationID := capturedHeaders.Get(armresourcesapi.HeaderNameCorrelationRequestID)
 		assert.NotEmpty(t, correlationID)
 		_, uuidErr := uuid.Parse(correlationID)
 		assert.NoError(t, uuidErr, "correlation ID should be a valid UUID")
@@ -288,12 +288,12 @@ func TestCorrelationRequestIDPolicy(t *testing.T) {
 		pipeline := newTestPipeline(pol, transport)
 		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/foo")
 		require.NoError(t, err)
-		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, existingID)
+		req.Raw().Header.Set(armresourcesapi.HeaderNameCorrelationRequestID, existingID)
 
 		_, err = pipeline.Do(req)
 		require.NoError(t, err)
 
-		assert.Equal(t, existingID, capturedHeaders.Get(arm.HeaderNameCorrelationRequestID))
+		assert.Equal(t, existingID, capturedHeaders.Get(armresourcesapi.HeaderNameCorrelationRequestID))
 	})
 
 	t.Run("does not add header for non-frontend requests", func(t *testing.T) {
@@ -311,7 +311,7 @@ func TestCorrelationRequestIDPolicy(t *testing.T) {
 		_, err = pipeline.Do(req)
 		require.NoError(t, err)
 
-		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameCorrelationRequestID))
+		assert.Empty(t, capturedHeaders.Get(armresourcesapi.HeaderNameCorrelationRequestID))
 	})
 }
 

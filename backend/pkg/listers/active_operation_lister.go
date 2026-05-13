@@ -19,14 +19,14 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 // ActiveOperationLister lists and gets active (non-terminal) operations from an informer's indexer.
 type ActiveOperationLister interface {
-	List(ctx context.Context) ([]*api.Operation, error)
-	Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error)
-	ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error)
+	List(ctx context.Context) ([]*resourcesapi.Operation, error)
+	Get(ctx context.Context, subscriptionID, name string) (*resourcesapi.Operation, error)
+	ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*resourcesapi.Operation, error)
 }
 
 // activeOperationLister implements ActiveOperationLister backed by a SharedIndexInformer.
@@ -41,20 +41,20 @@ func NewActiveOperationLister(indexer cache.Indexer) ActiveOperationLister {
 	}
 }
 
-func (l *activeOperationLister) List(ctx context.Context) ([]*api.Operation, error) {
-	return listAll[api.Operation](l.indexer)
+func (l *activeOperationLister) List(ctx context.Context) ([]*resourcesapi.Operation, error) {
+	return listAll[resourcesapi.Operation](l.indexer)
 }
 
 // Get retrieves a single active operation by subscription ID and name.
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/providers/microsoft.redhatopenshift/hcpoperationstatuses/<name>
-func (l *activeOperationLister) Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error) {
-	key := api.ToOperationResourceIDString(subscriptionID, name)
-	return getByKey[api.Operation](l.indexer, key)
+func (l *activeOperationLister) Get(ctx context.Context, subscriptionID, name string) (*resourcesapi.Operation, error) {
+	key := resourcesapi.ToOperationResourceIDString(subscriptionID, name)
+	return getByKey[resourcesapi.Operation](l.indexer, key)
 }
 
-func (l *activeOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error) {
-	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
-	return listFromIndex[api.Operation](l.indexer, ByCluster, key)
+func (l *activeOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*resourcesapi.Operation, error) {
+	key := resourcesapi.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
+	return listFromIndex[resourcesapi.Operation](l.indexer, ByCluster, key)
 }

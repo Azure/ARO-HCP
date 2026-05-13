@@ -19,19 +19,52 @@ import (
 	"time"
 
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+// CooldownChecker is an alias for the internal/controllerutils.CooldownChecker
+// type so that the backend-local and internal definitions are interchangeable.
+type CooldownChecker = controllerutil.CooldownChecker
+
+type TimeBasedCooldownChecker struct {
+	clock            utilsclock.PassiveClock
+	cooldownDuration time.Duration
+	nextExecTime     *lru.Cache
+}
+
+func NewTimeBasedCooldownChecker(cooldownDuration time.Duration) *TimeBasedCooldownChecker {
+	return &TimeBasedCooldownChecker{
+		clock:            utilsclock.RealClock{},
+		cooldownDuration: cooldownDuration,
+		nextExecTime:     lru.New(1000000), // only holding item keys, so they are small
+
+	}
+}
+
+func (c *TimeBasedCooldownChecker) CanSync(ctx context.Context, key any) bool {
+	now := c.clock.Now()
+
+	nextExecTime, ok := c.nextExecTime.Get(key)
+	if !ok || now.After(nextExecTime.(time.Time)) {
+		nextTime := now.Add(c.cooldownDuration)
+		c.nextExecTime.Add(key, nextTime)
+		return true
+	}
+
+	return false
+}
 
 type ActiveOperationBasedChecker struct {
 	clock                 utilsclock.PassiveClock
 	activeOperationLister listers.ActiveOperationLister
 
-	activeOperationTimer   controllerutil.CooldownChecker
-	inactiveOperationTimer controllerutil.CooldownChecker
+	activeOperationTimer   CooldownChecker
+	inactiveOperationTimer CooldownChecker
 }
 
 func DefaultActiveOperationPrioritizingCooldown(activeOperationLister listers.ActiveOperationLister) *ActiveOperationBasedChecker {
@@ -42,15 +75,15 @@ func NewActiveOperationPrioritizingCooldown(activeOperationLister listers.Active
 	return &ActiveOperationBasedChecker{
 		clock:                  utilsclock.RealClock{},
 		activeOperationLister:  activeOperationLister,
-		activeOperationTimer:   controllerutil.NewTimeBasedCooldownChecker(activeOperationCooldown),
-		inactiveOperationTimer: controllerutil.NewTimeBasedCooldownChecker(inactiveOperationCooldown),
+		activeOperationTimer:   NewTimeBasedCooldownChecker(activeOperationCooldown),
+		inactiveOperationTimer: NewTimeBasedCooldownChecker(inactiveOperationCooldown),
 	}
 }
 
 func (c *ActiveOperationBasedChecker) CanSync(ctx context.Context, key any) bool {
 	logger := utils.LoggerFromContext(ctx)
 
-	var activeOperations []*api.Operation
+	var activeOperations []*resourcesapi.Operation
 	var err error
 	switch castKey := key.(type) {
 	case HCPClusterKey:

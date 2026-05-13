@@ -15,11 +15,11 @@
 package database
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 type ManagementClusterContentCRUD interface {
-	ResourceCRUD[api.ManagementClusterContent]
+	ResourceCRUD[resourcesapi.ManagementClusterContent]
 }
 
 type ManagementClusterContentContainer interface {

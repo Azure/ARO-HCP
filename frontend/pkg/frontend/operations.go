@@ -23,8 +23,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -49,7 +49,7 @@ func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, 
 		u.RawQuery = values.Encode()
 	}
 
-	writer.Header().Set(arm.HeaderNameAsyncOperation, u.String())
+	writer.Header().Set(armresourcesapi.HeaderNameAsyncOperation, u.String())
 }
 
 // AddLocationHeader adds a "Location" header to the ResponseWriter with a URL of the
@@ -68,7 +68,7 @@ func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operat
 		"subscriptions", operationID.SubscriptionID,
 		"providers", operationID.ResourceType.Namespace,
 		"locations", operationID.Location,
-		api.OperationResultResourceTypeName, operationID.Name)
+		resourcesapi.OperationResultResourceTypeName, operationID.Name)
 
 	apiVersion := request.URL.Query().Get(APIVersionKey)
 	if apiVersion != "" {
@@ -82,13 +82,13 @@ func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operat
 
 // OperationIsVisible returns true if the request is being called from the same
 // tenant and subscription that the operation originated in.
-func (f *Frontend) OperationIsVisible(request *http.Request, operation *api.Operation) bool {
+func (f *Frontend) OperationIsVisible(request *http.Request, operation *resourcesapi.Operation) bool {
 	var visible = true
 
 	logger := utils.LoggerFromContext(request.Context())
 
-	tenantID := request.Header.Get(arm.HeaderNameHomeTenantID)
-	clientID := request.Header.Get(arm.HeaderNameClientObjectID)
+	tenantID := request.Header.Get(armresourcesapi.HeaderNameHomeTenantID)
+	clientID := request.Header.Get(armresourcesapi.HeaderNameClientObjectID)
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
 	if operation.OperationID != nil {

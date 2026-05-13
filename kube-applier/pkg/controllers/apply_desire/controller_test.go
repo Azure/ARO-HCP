@@ -33,8 +33,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
@@ -57,8 +57,8 @@ func fakeDynamic(t *testing.T, gvrToListKind map[schema.GroupVersionResource]str
 	return fake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToListKind)
 }
 
-func configMapTarget(name string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func configMapTarget(name string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group: "", Version: "v1", Resource: "configmaps", Namespace: "default", Name: name,
 	}
 }
@@ -89,11 +89,11 @@ func newCadenceController(t *testing.T, cfg Config) *ApplyDesireController {
 // Used to drive processNext down the AddRateLimited path.
 type errFetcher struct{ err error }
 
-func (f *errFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+func (f *errFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
 	return nil, f.err
 }
 
-func mustKey(t *testing.T, d *kubeapplier.ApplyDesire) keys.ApplyDesireKey {
+func mustKey(t *testing.T, d *kubeapplierapi.ApplyDesire) keys.ApplyDesireKey {
 	t.Helper()
 	key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
@@ -105,15 +105,15 @@ func mustKey(t *testing.T, d *kubeapplier.ApplyDesire) keys.ApplyDesireKey {
 // newApplyDesire builds an ApplyDesire with a populated TargetItem and
 // kubeContent JSON. Pass nil kubeContent to exercise the empty-kubeContent
 // PreCheck. Pass a partial target to exercise the targetItem-validation PreChecks.
-func newApplyDesire(t *testing.T, name string, target kubeapplier.ResourceReference, kubeContent []byte) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, name string, target kubeapplierapi.ResourceReference, kubeContent []byte) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	d := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+	d := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
 				"00000000-0000-0000-0000-000000000001", "rg", "cluster", name,
 			)),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: "mgmt-1",
 			TargetItem:        target,
 		},
@@ -127,7 +127,7 @@ func newApplyDesire(t *testing.T, name string, target kubeapplier.ResourceRefere
 // withEtag is a tiny helper for cadence tests that need to construct
 // before/after pairs distinguishable by the change-detection signal the
 // controller uses (CosmosETag).
-func withEtag(d *kubeapplier.ApplyDesire, etag string) *kubeapplier.ApplyDesire {
+func withEtag(d *kubeapplierapi.ApplyDesire, etag string) *kubeapplierapi.ApplyDesire {
 	d.CosmosETag = azcore.ETag(etag)
 	return d
 }
@@ -199,19 +199,19 @@ func TestApplyDesired_PreCheckErrors(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		target      kubeapplier.ResourceReference
+		target      kubeapplierapi.ResourceReference
 		kubeContent []byte
 		wantSubstr  string
 	}{
 		{
 			name:        "missing version in targetItem",
-			target:      kubeapplier.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"},
+			target:      kubeapplierapi.ResourceReference{Resource: "configmaps", Namespace: "default", Name: "x"},
 			kubeContent: validKubeContent,
 			wantSubstr:  "version, resource, and name",
 		},
 		{
 			name:        "missing resource in targetItem",
-			target:      kubeapplier.ResourceReference{Version: "v1", Namespace: "default", Name: "x"},
+			target:      kubeapplierapi.ResourceReference{Version: "v1", Namespace: "default", Name: "x"},
 			kubeContent: validKubeContent,
 			wantSubstr:  "version, resource, and name",
 		},

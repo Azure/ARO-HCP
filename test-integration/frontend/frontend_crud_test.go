@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
@@ -38,9 +38,9 @@ func testFrontendCRUD(t *testing.T, withMock bool) {
 	allCRUDDirFS, err := fs.Sub(artifacts, "artifacts/FrontendCRUD")
 	require.NoError(t, err)
 
-	crudSuiteDirs := api.Must(fs.ReadDir(allCRUDDirFS, "."))
+	crudSuiteDirs := resourcesapi.Must(fs.ReadDir(allCRUDDirFS, "."))
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
-		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
+		crudSuiteDir := resourcesapi.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
 			testCRUDSuite[any](
 				ctx,

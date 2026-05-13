@@ -36,7 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/admission"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -149,7 +149,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
 	desiredVersion, err := c.desiredControlPlaneZVersion(ctx, cincinnatiClient, key.GetResourceID(), customerDesiredMinor, channelGroup, activeVersions,
-		operation.HasOption(api.FeatureExperimentalReleaseFeatures))
+		operation.HasOption(resourcesapi.FeatureExperimentalReleaseFeatures))
 	logger := utils.LoggerFromContext(ctx)
 
 	if err != nil {
@@ -161,11 +161,11 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 			logger.Error(err, "desired version resolution failed, persisting IntentFailed condition")
 			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
 			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
-				func(ctrl *api.Controller) {
+				func(ctrl *resourcesapi.Controller) {
 					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-						Type:    api.ControllerConditionTypeIntentFailed,
+						Type:    resourcesapi.ControllerConditionTypeIntentFailed,
 						Status:  metav1.ConditionTrue,
-						Reason:  api.VersionUpgradeNotAcceptedReason,
+						Reason:  resourcesapi.VersionUpgradeNotAcceptedReason,
 						Message: utils.ErrorMessageWithoutLineTracking(err),
 					})
 				}); writeErr != nil {
@@ -197,11 +197,11 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 
 	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName)
 	if err = controllerutils.WriteController(ctx, controllerCRUD, controlPlaneDesiredVersionControllerName, key.InitialController,
-		func(ctrl *api.Controller) {
+		func(ctrl *resourcesapi.Controller) {
 			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
-				Type:    api.ControllerConditionTypeIntentFailed,
+				Type:    resourcesapi.ControllerConditionTypeIntentFailed,
 				Status:  metav1.ConditionFalse,
-				Reason:  api.ControllerConditionReasonAsExpected,
+				Reason:  resourcesapi.ControllerConditionReasonAsExpected,
 				Message: "",
 			})
 		}); err != nil {
@@ -223,7 +223,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 // customerDesiredMinor and channelGroup are required. If they are not specified, no version is returned.
 // Returns nil if no upgrade is needed.
 func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx context.Context, cincinnatiClient cincinnati.Client, clusterResourceID *azcorearm.ResourceID,
-	customerDesiredMinor string, channelGroup string, activeVersions []api.HCPClusterActiveVersion, allowExperimentalReleaseFeatures bool) (*semver.Version, error) {
+	customerDesiredMinor string, channelGroup string, activeVersions []resourcesapi.HCPClusterActiveVersion, allowExperimentalReleaseFeatures bool) (*semver.Version, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if len(customerDesiredMinor) == 0 {
@@ -239,7 +239,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		logger.Info("Resolving initial desired version", "customerDesiredMinor", customerDesiredMinor, "channelGroup", channelGroup)
 
 		// ParseTolerant handles both "4.19" and "4.19.0" formats
-		customerDotZeroRelease := api.Must(semver.ParseTolerant(customerDesiredMinor))
+		customerDotZeroRelease := resourcesapi.Must(semver.ParseTolerant(customerDesiredMinor))
 
 		initialDesiredVersion, err := c.findLatestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease})
 		if err != nil {
@@ -268,7 +268,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 
 	// ParseTolerant handles both "4.19", "4.19.0" and full versions like "4.20.15". Normalize to major.minor.0
 	// so that same-minor z-stream (e.g. 4.20.0 -> 4.20.15) is not mistaken for a y-stream upgrade.
-	parsedDesired := api.Must(semver.ParseTolerant(customerDesiredMinor))
+	parsedDesired := resourcesapi.Must(semver.ParseTolerant(customerDesiredMinor))
 	desiredMinorVersion := semver.MustParse(fmt.Sprintf("%d.%d.0", parsedDesired.Major, parsedDesired.Minor))
 
 	if desiredMinorVersion.LT(actualLatestMinorVersion) {

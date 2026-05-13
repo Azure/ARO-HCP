@@ -1,0 +1,188 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package resources
+
+import (
+	"io"
+	"log/slog"
+	"path"
+	"testing"
+	"time"
+
+	"dario.cat/mergo"
+	"github.com/stretchr/testify/require"
+
+	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
+)
+
+// The definitions in this file are meant for unit tests.
+
+const (
+	TestLocation                  = "westus3"
+	TestAPIVersion                = "2024-06-10-preview"
+	TestTenantID                  = "00000000-0000-0000-0000-000000000000"
+	TestSubscriptionID            = "11111111-1111-1111-1111-111111111111"
+	TestAltSubscriptionID         = "22222222-2222-2222-2222-222222222222"
+	TestResourceGroupName         = "testResourceGroup"
+	TestClusterName               = "testCluster"
+	TestNodePoolName              = "testNodePool"
+	TestExternalAuthName          = "testExternalAuth"
+	TestDeploymentName            = "testDeployment"
+	TestManagedResourceGroupName  = "testManagedResourceGroup"
+	TestNetworkSecurityGroupName  = "testNetworkSecurityGroup"
+	TestVirtualNetworkName        = "testVirtualNetwork"
+	TestSubnetName                = "testSubnet"
+	TestVnetIntegrationSubnetName = "testVnetIntegrationSubnet"
+)
+
+var (
+	TestSubscriptionResourceID                = path.Join("/subscriptions", TestSubscriptionID)
+	TestResourceGroupResourceID               = path.Join(TestSubscriptionResourceID, "resourceGroups", TestResourceGroupName)
+	TestClusterResourceID                     = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, ClusterResourceTypeName, TestClusterName)
+	TestNodePoolResourceID                    = path.Join(TestClusterResourceID, NodePoolResourceTypeName, TestNodePoolName)
+	TestExternalAuthResourceID                = path.Join(TestClusterResourceID, ExternalAuthResourceTypeName, TestExternalAuthName)
+	TestDeploymentResourceID                  = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, "deployments", TestDeploymentName)
+	TestNetworkSecurityGroupResourceID        = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", TestNetworkSecurityGroupName)
+	TestVirtualNetworkResourceID              = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName)
+	TestSubnetResourceID                      = path.Join(TestVirtualNetworkResourceID, "subnets", TestSubnetName)
+	TestVnetIntegrationSubnetResourceID       = path.Join(TestVirtualNetworkResourceID, "subnets", TestVnetIntegrationSubnetName)
+	TestManagedIdentitiesDataPlaneIdentityURL = "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue"
+)
+
+func NewTestLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func NewTestUserAssignedIdentity(name string) *azcorearm.ResourceID {
+	return Must(azcorearm.ParseResourceID(path.Join(TestResourceGroupResourceID, "providers", "Microsoft.ManagedIdentity", "userAssignedIdentities", name)))
+}
+
+func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
+	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
+	resource.CustomerProperties.Version.ID = "4.20"
+	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
+	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
+	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))
+	resource.CustomerProperties.Platform.VnetIntegrationSubnetID = Must(azcorearm.ParseResourceID(TestVnetIntegrationSubnetResourceID))
+	resource.CustomerProperties.Platform.NetworkSecurityGroupID = Must(azcorearm.ParseResourceID(TestNetworkSecurityGroupResourceID))
+	resource.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = TestManagedIdentitiesDataPlaneIdentityURL
+	// Add required systemData fields
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	resource.SystemData = &armresourcesapi.SystemData{
+		CreatedBy:     "test-user",
+		CreatedByType: armresourcesapi.CreatedByTypeUser,
+		CreatedAt:     &createdAt,
+	}
+	resource.ServiceProviderProperties.ClusterUID = "00000000-0000-0000-0000-000000000000"
+	return resource
+}
+
+func ClusterTestCase(t *testing.T, tweaks *HCPOpenShiftCluster) *HCPOpenShiftCluster {
+	resource := MinimumValidClusterTestCase()
+	require.NoError(t, mergo.Merge(resource, tweaks, mergo.WithOverride))
+	return resource
+}
+
+func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
+	resource := NewDefaultHCPOpenShiftClusterExternalAuth(Must(azcorearm.ParseResourceID(TestExternalAuthResourceID)))
+	resource.Properties.Issuer.URL = "https://www.redhat.com"
+	resource.Properties.Issuer.Audiences = []string{"audience1"}
+	resource.Properties.Claim.Mappings.Username.Claim = "my-cool-claim"
+	// Add required systemData fields
+	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	resource.SystemData = &armresourcesapi.SystemData{
+		CreatedBy:     "test-user",
+		CreatedByType: armresourcesapi.CreatedByTypeUser,
+		CreatedAt:     &createdAt,
+	}
+	return resource
+}
+
+func ExternalAuthTestCase(t *testing.T, tweaks *HCPOpenShiftClusterExternalAuth) *HCPOpenShiftClusterExternalAuth {
+	externalAuth := MinimumValidExternalAuthTestCase()
+	require.NoError(t, mergo.Merge(externalAuth, tweaks, mergo.WithOverride))
+	return externalAuth
+}
+
+// +k8s:deepcopy-gen=false
+type ExternalTestResource struct {
+	ID         *string
+	Name       *string
+	Type       *string
+	SystemData *generated.SystemData
+	Location   *string
+	Tags       map[string]*string
+	Identity   *generated.ManagedServiceIdentity
+}
+
+type InternalTestResource struct {
+	armresourcesapi.TrackedResource
+	Identity *armresourcesapi.ManagedServiceIdentity `json:"identity"`
+}
+
+var _ VersionedCreatableResource[InternalTestResource] = &ExternalTestResource{}
+
+func (m *ExternalTestResource) NewExternal() any {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *ExternalTestResource) GetVersion() Version {
+	// FIXME Implement if there's a need for it in tests.
+	return nil
+}
+
+func (m *ExternalTestResource) ConvertToInternal(_ *InternalTestResource) (*InternalTestResource, error) {
+	// FIXME Implement if there's a need for it in tests.
+	return nil, nil
+}
+
+// Must is a helper function that takes a value and error, returns the value if no error occurred,
+// or panics if an error occurred. This is useful for test setup where we don't expect errors.
+func Must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// CreateTestSubscription creates a test subscription with optional registered feature flags.
+// Call with no arguments for a standard subscription, or pass feature names to register them.
+func CreateTestSubscription(registeredFeatures ...string) *armresourcesapi.Subscription {
+	features := make([]armresourcesapi.Feature, len(registeredFeatures))
+	for i, feature := range registeredFeatures {
+		features[i] = armresourcesapi.Feature{
+			Name:  ptr.To(feature),
+			State: ptr.To("Registered"),
+		}
+	}
+
+	return &armresourcesapi.Subscription{
+		CosmosMetadata: CosmosMetadata{
+			ResourceID: Must(azcorearm.ParseResourceID(TestSubscriptionResourceID)),
+		},
+		ResourceID:       Must(azcorearm.ParseResourceID(TestSubscriptionResourceID)),
+		State:            armresourcesapi.SubscriptionStateRegistered,
+		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
+		Properties: &armresourcesapi.SubscriptionProperties{
+			RegisteredFeatures: &features,
+		},
+	}
+}

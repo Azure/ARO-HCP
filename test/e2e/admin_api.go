@@ -24,7 +24,7 @@ import (
 
 	"k8s.io/client-go/rest"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -90,7 +90,7 @@ var _ = Describe("SRE", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", resourcesapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
 			// commonVerifiers are run for both aro-sre-pso and aro-sre-csa access levels.
 			// They cover actual data access smoke tests and SSAR-based read permission
@@ -319,7 +319,7 @@ var _ = Describe("SRE", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", resourcesapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
 			By("resolving current Azure identity")
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
@@ -426,7 +426,7 @@ var _ = Describe("SRE", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
+			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", resourcesapi.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
 			By("resolving current Azure identity")
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)

@@ -28,8 +28,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -41,19 +41,19 @@ func TestMutateNodePool(t *testing.T) {
 	)
 
 	parseID := func(s string) *azcorearm.ResourceID {
-		return api.Must(azcorearm.ParseResourceID(s))
+		return resourcesapi.Must(azcorearm.ParseResourceID(s))
 	}
 
 	admissionContextWithClusterSubnet := func(subnetID string) *NodePoolAdmissionContext {
-		c := &api.HCPOpenShiftCluster{}
+		c := &resourcesapi.HCPOpenShiftCluster{}
 		if subnetID != "" {
 			c.CustomerProperties.Platform.SubnetID = parseID(subnetID)
 		}
 		return &NodePoolAdmissionContext{Cluster: c}
 	}
 
-	nodePoolWithSubnet := func(subnetID string) *api.HCPOpenShiftClusterNodePool {
-		np := &api.HCPOpenShiftClusterNodePool{}
+	nodePoolWithSubnet := func(subnetID string) *resourcesapi.HCPOpenShiftClusterNodePool {
+		np := &resourcesapi.HCPOpenShiftClusterNodePool{}
 		if subnetID != "" {
 			np.Properties.Platform.SubnetID = parseID(subnetID)
 		}
@@ -64,9 +64,9 @@ func TestMutateNodePool(t *testing.T) {
 		name             string
 		op               operation.Type
 		admissionContext *NodePoolAdmissionContext
-		oldObj           *api.HCPOpenShiftClusterNodePool // nil for create
-		newObj           *api.HCPOpenShiftClusterNodePool
-		expected         *api.HCPOpenShiftClusterNodePool
+		oldObj           *resourcesapi.HCPOpenShiftClusterNodePool // nil for create
+		newObj           *resourcesapi.HCPOpenShiftClusterNodePool
+		expected         *resourcesapi.HCPOpenShiftClusterNodePool
 	}{
 		{
 			name:             "create: nil nodepool subnet defaults to cluster subnet",
@@ -125,20 +125,20 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 	)
 
 	parseID := func(s string) *azcorearm.ResourceID {
-		return api.Must(azcorearm.ParseResourceID(s))
+		return resourcesapi.Must(azcorearm.ParseResourceID(s))
 	}
 
-	cluster := &api.HCPOpenShiftCluster{
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			Platform: api.CustomerPlatformProfile{SubnetID: parseID(clusterSubnet)},
-			Version:  api.VersionProfile{ChannelGroup: "stable"},
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		CustomerProperties: resourcesapi.HCPOpenShiftClusterCustomerProperties{
+			Platform: resourcesapi.CustomerPlatformProfile{SubnetID: parseID(clusterSubnet)},
+			Version:  resourcesapi.VersionProfile{ChannelGroup: "stable"},
 		},
 	}
 
-	nodePoolWithSubnet := func(subnetID string) *api.HCPOpenShiftClusterNodePool {
-		np := &api.HCPOpenShiftClusterNodePool{
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				Version: api.NodePoolVersionProfile{ChannelGroup: "stable"},
+	nodePoolWithSubnet := func(subnetID string) *resourcesapi.HCPOpenShiftClusterNodePool {
+		np := &resourcesapi.HCPOpenShiftClusterNodePool{
+			Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+				Version: resourcesapi.NodePoolVersionProfile{ChannelGroup: "stable"},
 			},
 		}
 		if subnetID != "" {
@@ -149,8 +149,8 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		newObj       *api.HCPOpenShiftClusterNodePool
-		oldObj       *api.HCPOpenShiftClusterNodePool
+		newObj       *resourcesapi.HCPOpenShiftClusterNodePool
+		oldObj       *resourcesapi.HCPOpenShiftClusterNodePool
 		expectErrors []utils.ExpectedError
 	}{
 		{
@@ -197,7 +197,7 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 // assertNodePoolEqual compares node pools via their JSON representations so
 // that pointers to types with unexported fields (e.g. *azcorearm.ResourceID)
 // are compared by their externally-visible state.
-func assertNodePoolEqual(t *testing.T, expected, actual *api.HCPOpenShiftClusterNodePool) {
+func assertNodePoolEqual(t *testing.T, expected, actual *resourcesapi.HCPOpenShiftClusterNodePool) {
 	t.Helper()
 	expectedJSON, err := json.MarshalIndent(expected, "", "  ")
 	require.NoError(t, err)
@@ -407,17 +407,17 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			newNodePool := &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
-					Version: api.NodePoolVersionProfile{
+			newNodePool := &resourcesapi.HCPOpenShiftClusterNodePool{
+				Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+					Version: resourcesapi.NodePoolVersionProfile{
 						ID:           tt.newVersion,
 						ChannelGroup: "stable",
 					},
 				},
 			}
-			oldNodePool := &api.HCPOpenShiftClusterNodePool{
-				Properties: api.HCPOpenShiftClusterNodePoolProperties{
-					Version: api.NodePoolVersionProfile{
+			oldNodePool := &resourcesapi.HCPOpenShiftClusterNodePool{
+				Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+					Version: resourcesapi.NodePoolVersionProfile{
 						ID: func() string {
 							if len(tt.activeVersions) > 0 {
 								return tt.activeVersions[0]
@@ -428,9 +428,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 					},
 				},
 			}
-			cluster := &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{
+			cluster := &resourcesapi.HCPOpenShiftCluster{
+				CustomerProperties: resourcesapi.HCPOpenShiftClusterCustomerProperties{
+					Version: resourcesapi.VersionProfile{
 						ID:           "4.18",
 						ChannelGroup: "stable",
 					},
@@ -442,8 +442,8 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			if tt.allowMajorUpgrades {
 				op = operation.Operation{
 					Type: operation.Update,
-					Options: validation.AFECsToValidationOptions([]arm.Feature{{
-						Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					Options: validation.AFECsToValidationOptions([]armresourcesapi.Feature{{
+						Name:  ptr.To(resourcesapi.FeatureExperimentalReleaseFeatures),
 						State: ptr.To("Registered"),
 					}}),
 				}
@@ -452,38 +452,38 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			}
 
 			// Build ServiceProviderNodePool with active versions
-			var activeVersions []api.HCPNodePoolActiveVersion
+			var activeVersions []resourcesapi.HCPNodePoolActiveVersion
 			for _, v := range tt.activeVersions {
 				ver := semver.MustParse(v)
-				activeVersions = append(activeVersions, api.HCPNodePoolActiveVersion{Version: &ver})
+				activeVersions = append(activeVersions, resourcesapi.HCPNodePoolActiveVersion{Version: &ver})
 			}
 			var desiredVer *semver.Version
 			if tt.desiredVersion != "" {
 				v := semver.MustParse(tt.desiredVersion)
 				desiredVer = &v
 			}
-			spNodePool := &api.ServiceProviderNodePool{
-				Spec: api.ServiceProviderNodePoolSpec{
-					NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+			spNodePool := &resourcesapi.ServiceProviderNodePool{
+				Spec: resourcesapi.ServiceProviderNodePoolSpec{
+					NodePoolVersion: resourcesapi.ServiceProviderNodePoolSpecVersion{
 						DesiredVersion: desiredVer,
 					},
 				},
-				Status: api.ServiceProviderNodePoolStatus{
-					NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
+				Status: resourcesapi.ServiceProviderNodePoolStatus{
+					NodePoolVersion: resourcesapi.ServiceProviderNodePoolStatusVersion{
 						ActiveVersions: activeVersions,
 					},
 				},
 			}
 
 			// Build ServiceProviderCluster with active versions
-			var clusterActiveVersions []api.HCPClusterActiveVersion
+			var clusterActiveVersions []resourcesapi.HCPClusterActiveVersion
 			for _, v := range tt.clusterVersions {
 				ver := semver.MustParse(v)
-				clusterActiveVersions = append(clusterActiveVersions, api.HCPClusterActiveVersion{Version: &ver})
+				clusterActiveVersions = append(clusterActiveVersions, resourcesapi.HCPClusterActiveVersion{Version: &ver})
 			}
-			spCluster := &api.ServiceProviderCluster{
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+			spCluster := &resourcesapi.ServiceProviderCluster{
+				Status: resourcesapi.ServiceProviderClusterStatus{
+					ControlPlaneVersion: resourcesapi.ServiceProviderClusterStatusVersion{
 						ActiveVersions: clusterActiveVersions,
 					},
 				},
@@ -497,25 +497,25 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 
 func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 	// Test that AdmitNodePoolUpdate also performs AdmitNodePool checks
-	newNodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
+	newNodePool := &resourcesapi.HCPOpenShiftClusterNodePool{
+		Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+			Version: resourcesapi.NodePoolVersionProfile{
 				ID:           "4.17.0",
 				ChannelGroup: "fast", // Different from cluster
 			},
 		},
 	}
-	oldNodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
+	oldNodePool := &resourcesapi.HCPOpenShiftClusterNodePool{
+		Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+			Version: resourcesapi.NodePoolVersionProfile{
 				ID:           "4.16.0",
 				ChannelGroup: "stable", // Different from cluster
 			},
 		},
 	}
-	cluster := &api.HCPOpenShiftCluster{
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			Version: api.VersionProfile{
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		CustomerProperties: resourcesapi.HCPOpenShiftClusterCustomerProperties{
+			Version: resourcesapi.VersionProfile{
 				ID:           "4.18",
 				ChannelGroup: "stable", // Different from node pool
 			},
@@ -524,24 +524,24 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 
 	// Create ServiceProviderNodePool with same version as new (so version validation is skipped)
 	ver := semver.MustParse("4.17.0")
-	spNodePool := &api.ServiceProviderNodePool{
-		Spec: api.ServiceProviderNodePoolSpec{
-			NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+	spNodePool := &resourcesapi.ServiceProviderNodePool{
+		Spec: resourcesapi.ServiceProviderNodePoolSpec{
+			NodePoolVersion: resourcesapi.ServiceProviderNodePoolSpecVersion{
 				DesiredVersion: &ver,
 			},
 		},
-		Status: api.ServiceProviderNodePoolStatus{
-			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []api.HCPNodePoolActiveVersion{{Version: &ver}},
+		Status: resourcesapi.ServiceProviderNodePoolStatus{
+			NodePoolVersion: resourcesapi.ServiceProviderNodePoolStatusVersion{
+				ActiveVersions: []resourcesapi.HCPNodePoolActiveVersion{{Version: &ver}},
 			},
 		},
 	}
 
 	clusterVer := semver.MustParse("4.18.0")
-	spCluster := &api.ServiceProviderCluster{
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{{Version: &clusterVer}},
+	spCluster := &resourcesapi.ServiceProviderCluster{
+		Status: resourcesapi.ServiceProviderClusterStatus{
+			ControlPlaneVersion: resourcesapi.ServiceProviderClusterStatusVersion{
+				ActiveVersions: []resourcesapi.HCPClusterActiveVersion{{Version: &clusterVer}},
 			},
 		},
 	}

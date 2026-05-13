@@ -26,9 +26,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -39,7 +38,7 @@ type ManagementClusterKey struct {
 }
 
 func (k ManagementClusterKey) GetResourceID() *azcorearm.ResourceID {
-	return api.Must(fleet.ToManagementClusterResourceID(k.StampIdentifier))
+	return resourcesapi.Must(fleetapi.ToManagementClusterResourceID(k.StampIdentifier))
 }
 
 func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
@@ -48,14 +47,14 @@ func (k ManagementClusterKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-func (k ManagementClusterKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + fleet.ControllerResourceTypeName + "/" + controllerName))
-	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{
+func (k ManagementClusterKey) InitialController(controllerName string) *resourcesapi.Controller {
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + fleetapi.ControllerResourceTypeName + "/" + controllerName))
+	return &resourcesapi.Controller{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 		ExternalID: k.GetResourceID(),
-		Status: api.ControllerStatus{
+		Status: resourcesapi.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
 	}
@@ -63,7 +62,7 @@ func (k ManagementClusterKey) InitialController(controllerName string) *api.Cont
 
 type ManagementClusterSyncer interface {
 	SyncOnce(ctx context.Context, key ManagementClusterKey) error
-	CooldownChecker() controllerutil.CooldownChecker
+	CooldownChecker() CooldownChecker
 }
 
 type managementClusterWatchingController struct {
@@ -85,7 +84,7 @@ func NewManagementClusterWatchingController(
 		syncer:        syncer,
 		fleetDBClient: fleetDBClient,
 	}
-	mcController := newGenericWatchingController(name, fleet.ManagementClusterResourceType, mcSyncer)
+	mcController := newGenericWatchingController(name, fleetapi.ManagementClusterResourceType, mcSyncer)
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if fleetInformers != nil {
@@ -121,7 +120,7 @@ func (c *managementClusterWatchingController) SyncOnce(ctx context.Context, key 
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *managementClusterWatchingController) CooldownChecker() controllerutil.CooldownChecker {
+func (c *managementClusterWatchingController) CooldownChecker() CooldownChecker {
 	return c.syncer.CooldownChecker()
 }
 

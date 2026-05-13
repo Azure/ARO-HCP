@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
 )
 
 // InternalToCosmosKubeApplier wraps a *Desire in a GenericDocument envelope whose
@@ -32,13 +32,13 @@ func InternalToCosmosKubeApplier[InternalAPIType any](
 		return nil, nil
 	}
 
-	metadata, ok := any(internalObj).(arm.CosmosMetadataAccessor)
+	metadata, ok := any(internalObj).(metaapi.CosmosMetadataAccessor)
 	if !ok {
-		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", internalObj)
+		return nil, fmt.Errorf("internalObj must be an metaapi.CosmosMetadataAccessor: %T", internalObj)
 	}
-	mgmtAccessor, ok := any(internalObj).(kubeapplier.ManagementClusterAccessor)
+	mgmtAccessor, ok := any(internalObj).(kubeapplierapi.ManagementClusterAccessor)
 	if !ok {
-		return nil, fmt.Errorf("internalObj must be a kubeapplier.ManagementClusterAccessor: %T", internalObj)
+		return nil, fmt.Errorf("internalObj must be a kubeapplierapi.ManagementClusterAccessor: %T", internalObj)
 	}
 	mgmtCluster := mgmtAccessor.GetManagementCluster()
 	if len(mgmtCluster) == 0 {

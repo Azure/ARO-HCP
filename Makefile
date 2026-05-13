@@ -24,42 +24,13 @@ all: test lint
 
 # There is currently no convenient way to run tests against a whole Go workspace
 # https://github.com/golang/go/issues/50745
-#
-# `export` is needed (rather than the `VAR=value command` form) because the
-# go list | xargs go test pipeline runs go test in a subprocess of xargs;
-# without export the env var only reaches go list.
-test: envtest-setup
-	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
-		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
+test:
+	go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test
 
-test-unit: envtest-setup
-	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
-		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
+test-unit:
+	go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test-unit
-
-# envtest-setup downloads the kubebuilder envtest binaries (etcd +
-# kube-apiserver) into $(ENVTEST_BIN_DIR) and prints their path on stdout.
-# The kube-applier integration tests under test-integration/kube-applier/
-# require KUBEBUILDER_ASSETS to point at this directory.
-#
-# Use as:   KUBEBUILDER_ASSETS=$(make -s envtest-setup) go test ./...
-#
-# The first run downloads ~50MB; subsequent runs just print the cached path.
-ENVTEST_K8S_VERSION ?= 1.34.1
-ENVTEST_BIN_DIR ?= $(abspath bin/envtest)
-ENVTEST := $(GOBIN)/setup-envtest
-# setup-envtest's release branches mirror controller-runtime's; pin to the
-# branch matching the controller-runtime version we depend on.
-ENVTEST_VERSION ?= release-0.22
-
-$(ENVTEST):
-	GOBIN=$(GOBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
-
-envtest-setup: $(ENVTEST)
-	@mkdir -p $(ENVTEST_BIN_DIR)
-	@$(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR)
-.PHONY: envtest-setup
 
 test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
@@ -73,7 +44,7 @@ verify-generate: generate
 
 deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/zz_generated.deepcopy.go internal/api/arm/zz_generated.deepcopy.go internal/api/kubeapplier/zz_generated.deepcopy.go
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/apis/meta/zz_generated.deepcopy.go internal/apis/resources/zz_generated.deepcopy.go internal/apis/resources/arm/zz_generated.deepcopy.go internal/apis/fleet/zz_generated.deepcopy.go internal/apis/kubeapplier/zz_generated.deepcopy.go
 	$(MAKE) all-tidy
 .PHONY: deepcopy
 

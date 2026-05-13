@@ -17,12 +17,12 @@ package apihelpers
 import (
 	"github.com/blang/semver/v4"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 // FindLowestAndHighestClusterVersion returns (lowest, highest) *semver.Version from activeVersions.
 // When activeVersions is empty, it returns (nil, nil).
-func FindLowestAndHighestClusterVersion(activeVersions []api.HCPClusterActiveVersion) (*semver.Version, *semver.Version) {
+func FindLowestAndHighestClusterVersion(activeVersions []resourcesapi.HCPClusterActiveVersion) (*semver.Version, *semver.Version) {
 	var low, high *semver.Version
 	for _, activeVersion := range activeVersions {
 		if low == nil || activeVersion.Version.LT(*low) {
@@ -37,7 +37,7 @@ func FindLowestAndHighestClusterVersion(activeVersions []api.HCPClusterActiveVer
 
 // FindLowestAndHighestNodePoolVersion returns the lowest and highest versions from the node pool active versions.
 // ActiveVersions can be in any order, so we iterate to find the actual minimum and maximum.
-func FindLowestAndHighestNodePoolVersion(activeVersions []api.HCPNodePoolActiveVersion) (*semver.Version, *semver.Version) {
+func FindLowestAndHighestNodePoolVersion(activeVersions []resourcesapi.HCPNodePoolActiveVersion) (*semver.Version, *semver.Version) {
 	var lowest, highest *semver.Version
 	for _, av := range activeVersions {
 		if lowest == nil || av.Version.LT(*lowest) {

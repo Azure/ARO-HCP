@@ -19,14 +19,14 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 // ServiceProviderNodePoolLister lists and gets ServiceProviderNodePools from an informer's indexer.
 type ServiceProviderNodePoolLister interface {
-	List(ctx context.Context) ([]*api.ServiceProviderNodePool, error)
-	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.ServiceProviderNodePool, error)
-	ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ServiceProviderNodePool, error)
+	List(ctx context.Context) ([]*resourcesapi.ServiceProviderNodePool, error)
+	Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*resourcesapi.ServiceProviderNodePool, error)
+	ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*resourcesapi.ServiceProviderNodePool, error)
 }
 
 // serviceProviderNodePoolLister implements ServiceProviderNodePoolLister backed by a SharedIndexInformer.
@@ -41,8 +41,8 @@ func NewServiceProviderNodePoolLister(indexer cache.Indexer) ServiceProviderNode
 	}
 }
 
-func (l *serviceProviderNodePoolLister) List(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
-	return listAll[api.ServiceProviderNodePool](l.indexer)
+func (l *serviceProviderNodePoolLister) List(ctx context.Context) ([]*resourcesapi.ServiceProviderNodePool, error) {
+	return listAll[resourcesapi.ServiceProviderNodePool](l.indexer)
 }
 
 // Get retrieves a single ServiceProviderNodePool by subscription ID, resource group name, cluster name, and node pool name.
@@ -50,12 +50,12 @@ func (l *serviceProviderNodePoolLister) List(ctx context.Context) ([]*api.Servic
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<sub>/resourcegroups/<rg>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster>/serviceproviderclusters/default
-func (l *serviceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.ServiceProviderNodePool, error) {
-	key := api.ToServiceProviderNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	return getByKey[api.ServiceProviderNodePool](l.indexer, key)
+func (l *serviceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*resourcesapi.ServiceProviderNodePool, error) {
+	key := resourcesapi.ToServiceProviderNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return getByKey[resourcesapi.ServiceProviderNodePool](l.indexer, key)
 }
 
-func (l *serviceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ServiceProviderNodePool, error) {
-	key := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
-	return listFromIndex[api.ServiceProviderNodePool](l.indexer, ByNodePool, key)
+func (l *serviceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*resourcesapi.ServiceProviderNodePool, error) {
+	key := resourcesapi.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	return listFromIndex[resourcesapi.ServiceProviderNodePool](l.indexer, ByNodePool, key)
 }

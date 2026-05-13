@@ -39,7 +39,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -135,7 +135,7 @@ func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
 	// The incoming request may not contain a correlation request ID (e.g.
 	// requests to /healthz).
 	if err == nil && cd.CorrelationRequestID != "" {
-		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, cd.CorrelationRequestID)
+		req.Raw().Header.Set(armresourcesapi.HeaderNameCorrelationRequestID, cd.CorrelationRequestID)
 	}
 
 	return req.Next()

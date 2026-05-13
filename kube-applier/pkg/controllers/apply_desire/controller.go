@@ -39,7 +39,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -103,9 +103,9 @@ func (c Config) withDefaults() Config {
 type ApplyDesireController struct {
 	name                string
 	applyDesireInformer cache.SharedIndexInformer
-	fetcher             desirestatuswriter.Fetcher[kubeapplier.ApplyDesire, keys.ApplyDesireKey]
+	fetcher             desirestatuswriter.Fetcher[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey]
 	dyn                 dynamic.Interface
-	writer              desirestatuswriter.StatusWriter[kubeapplier.ApplyDesire, keys.ApplyDesireKey]
+	writer              desirestatuswriter.StatusWriter[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey]
 	queue               workqueue.TypedRateLimitingInterface[keys.ApplyDesireKey]
 
 	cfg      Config
@@ -137,7 +137,7 @@ func NewApplyDesireController(
 		applyDesireInformer: applyDesireInformer,
 		fetcher:             fetcher,
 		dyn:                 dyn,
-		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey, *kubeapplierapi.ApplyDesire](
 			fetcher,
 			&applyDesireReplacer{crudByParent: crudByParent},
 		),
@@ -188,7 +188,7 @@ func (c *ApplyDesireController) Run(ctx context.Context, threadiness int) {
 // against; treat Adds the same way the backend's GenericWatchingController
 // does — as "changed" and immediate.
 func (c *ApplyDesireController) handleAdd(obj any) {
-	d, ok := obj.(*kubeapplier.ApplyDesire)
+	d, ok := obj.(*kubeapplierapi.ApplyDesire)
 	if !ok {
 		return
 	}
@@ -203,8 +203,8 @@ func (c *ApplyDesireController) handleAdd(obj any) {
 // reconcile (we want to see Successful conditions converge), but only at
 // cooldown cadence, not in a tight feedback loop.
 func (c *ApplyDesireController) handleUpdate(oldObj, newObj any) {
-	oldD, oldOK := oldObj.(*kubeapplier.ApplyDesire)
-	newD, newOK := newObj.(*kubeapplier.ApplyDesire)
+	oldD, oldOK := oldObj.(*kubeapplierapi.ApplyDesire)
+	newD, newOK := newObj.(*kubeapplierapi.ApplyDesire)
 	if !oldOK || !newOK {
 		return
 	}
@@ -213,7 +213,7 @@ func (c *ApplyDesireController) handleUpdate(oldObj, newObj any) {
 }
 
 // enqueue is the unconditional path used for Add events.
-func (c *ApplyDesireController) enqueue(d *kubeapplier.ApplyDesire) {
+func (c *ApplyDesireController) enqueue(d *kubeapplierapi.ApplyDesire) {
 	key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
 		// Should not happen for a desire produced by our own informers, but
@@ -227,7 +227,7 @@ func (c *ApplyDesireController) enqueue(d *kubeapplier.ApplyDesire) {
 // enqueueWithCooldown queues unconditionally on changed=true and consults
 // the cooldown gate otherwise. A cooldown rejection is silent; the next
 // resync (or a real change) will get its turn.
-func (c *ApplyDesireController) enqueueWithCooldown(d *kubeapplier.ApplyDesire, changed bool) {
+func (c *ApplyDesireController) enqueueWithCooldown(d *kubeapplierapi.ApplyDesire, changed bool) {
 	key, err := keys.ApplyDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -280,7 +280,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 
 	syncErr := c.applyDesired(ctx, desire)
 
-	return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
+	return c.writer.UpdateStatus(ctx, key, func(d *kubeapplierapi.ApplyDesire) {
 		conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 		conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 	})
@@ -294,7 +294,7 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 // PreCheckError is returned for pre-flight failures (parse, missing fields)
 // so they classify as PreCheckFailed; everything else is treated as a
 // kube-apiserver error.
-func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier.ApplyDesire) error {
+func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplierapi.ApplyDesire) error {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		return conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
@@ -363,9 +363,9 @@ type applyDesireFetcher struct {
 	crudByParent database.KubeApplierApplyDesireCRUD
 }
 
-var _ desirestatuswriter.Fetcher[kubeapplier.ApplyDesire, keys.ApplyDesireKey] = &applyDesireFetcher{}
+var _ desirestatuswriter.Fetcher[kubeapplierapi.ApplyDesire, keys.ApplyDesireKey] = &applyDesireFetcher{}
 
-func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+func (f *applyDesireFetcher) Fetch(ctx context.Context, key keys.ApplyDesireKey) (*kubeapplierapi.ApplyDesire, error) {
 	crud, err := f.crudByParent.ApplyDesires(key.ResourceParent())
 	if err != nil {
 		return nil, fmt.Errorf("crud for parent %v: %w", key.ResourceParent(), err)
@@ -381,9 +381,9 @@ type applyDesireReplacer struct {
 	crudByParent database.KubeApplierApplyDesireCRUD
 }
 
-var _ desirestatuswriter.Replacer[kubeapplier.ApplyDesire] = &applyDesireReplacer{}
+var _ desirestatuswriter.Replacer[kubeapplierapi.ApplyDesire] = &applyDesireReplacer{}
 
-func (r *applyDesireReplacer) Replace(ctx context.Context, desired *kubeapplier.ApplyDesire) error {
+func (r *applyDesireReplacer) Replace(ctx context.Context, desired *kubeapplierapi.ApplyDesire) error {
 	key, err := keys.ApplyDesireKeyFromResourceID(desired.GetResourceID())
 	if err != nil {
 		return fmt.Errorf("derive key for replace: %w", err)

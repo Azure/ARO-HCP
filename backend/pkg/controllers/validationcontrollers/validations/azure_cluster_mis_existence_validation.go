@@ -22,8 +22,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -45,7 +45,7 @@ func (v *AzureClusterManagedIdentitiesExistenceValidation) Name() string {
 	return "AzureClusterManagedIdentitiesExistenceValidation"
 }
 
-func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error {
+func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.Context, clusterSubscription *armresourcesapi.Subscription, cluster *resourcesapi.HCPOpenShiftCluster) error {
 	smiResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
 	// We check the existence of the Cluster's Service Managed Identity by
@@ -82,7 +82,7 @@ func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.
 
 // clusterOperatorsManagedIdentities returns a list of the control and data plane identities defined in the cluster.
 func (v *AzureClusterManagedIdentitiesExistenceValidation) clusterOperatorsManagedIdentities(
-	clusterUAIsProfile *api.UserAssignedIdentitiesProfile) []*azcorearm.ResourceID {
+	clusterUAIsProfile *resourcesapi.UserAssignedIdentitiesProfile) []*azcorearm.ResourceID {
 	var resourceIDs []*azcorearm.ResourceID
 
 	for _, miResourceID := range clusterUAIsProfile.ControlPlaneOperators {

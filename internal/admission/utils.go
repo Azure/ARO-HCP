@@ -24,7 +24,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
@@ -74,8 +74,8 @@ func clusterVersionSkewVersusNodePool(nodePoolName string, nodePoolVer, parsedCl
 
 	nodePoolMinorReleaseLine := fmt.Sprintf("%d.%d", nodePoolVer.Major, nodePoolVer.Minor)
 	clusterMinorReleaseLine := fmt.Sprintf("%d.%d", parsedClusterVersion.Major, parsedClusterVersion.Minor)
-	nodePoolMinorReleaseVersion := api.Must(semver.ParseTolerant(nodePoolMinorReleaseLine))
-	clusterMinorReleaseVersion := api.Must(semver.ParseTolerant(clusterMinorReleaseLine))
+	nodePoolMinorReleaseVersion := resourcesapi.Must(semver.ParseTolerant(nodePoolMinorReleaseLine))
+	clusterMinorReleaseVersion := resourcesapi.Must(semver.ParseTolerant(clusterMinorReleaseLine))
 
 	if nodePoolMinorReleaseVersion.EQ(clusterMinorReleaseVersion) {
 		return nil
@@ -91,7 +91,7 @@ func clusterVersionSkewVersusNodePool(nodePoolName string, nodePoolVer, parsedCl
 		)
 	}
 
-	allowedClusterVersions := api.AllowControlPlaneNodePoolMajorVersionSkew[nodePoolMinorReleaseLine]
+	allowedClusterVersions := resourcesapi.AllowControlPlaneNodePoolMajorVersionSkew[nodePoolMinorReleaseLine]
 	if slices.Contains(allowedClusterVersions, clusterMinorReleaseLine) {
 		return nil
 	}

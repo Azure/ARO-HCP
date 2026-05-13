@@ -27,8 +27,8 @@ import (
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -58,7 +58,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateCanceled, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateCanceled, op.Status)
 			},
 		},
 	}
@@ -74,7 +74,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			cluster := fixture.newCluster(nil)
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
 			operation := fixture.newOperation(database.OperationRequestRequestCredential)
-			operation.InternalID = api.InternalID{}
+			operation.InternalID = resourcesapi.InternalID{}
 
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)

@@ -23,8 +23,8 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -42,8 +42,8 @@ func TestConvertClusterStatus(t *testing.T) {
 	tests := []struct {
 		name                     string
 		clusterState             arohcpv1alpha1.ClusterState
-		currentProvisioningState arm.ProvisioningState
-		updatedProvisioningState arm.ProvisioningState
+		currentProvisioningState armresourcesapi.ProvisioningState
+		updatedProvisioningState armresourcesapi.ProvisioningState
 		expectCloudError         bool
 		expectConversionError    bool
 		internalId               ocm.InternalID
@@ -51,120 +51,120 @@ func TestConvertClusterStatus(t *testing.T) {
 		{
 			name:                     "Convert ClusterStateError",
 			clusterState:             arohcpv1alpha1.ClusterStateError,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateFailed,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateFailed,
 			expectCloudError:         true,
 			expectConversionError:    false,
 		},
 		{
 			name:                     "Convert ClusterStateHibernating",
 			clusterState:             arohcpv1alpha1.ClusterStateHibernating,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateAccepted,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 			expectCloudError:         false,
 			expectConversionError:    true,
 		},
 		{
 			name:                     "Convert ClusterStateInstalling",
 			clusterState:             arohcpv1alpha1.ClusterStateInstalling,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateProvisioning,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateProvisioning,
 			expectCloudError:         false,
 			expectConversionError:    false,
 		},
 		{
 			name:                     "Convert ClusterStatePending (while accepted)",
 			clusterState:             arohcpv1alpha1.ClusterStatePending,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateAccepted,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 			expectCloudError:         false,
 			expectConversionError:    false,
 		},
 		{
 			name:                     "Convert ClusterStatePending (while not accepted)",
 			clusterState:             arohcpv1alpha1.ClusterStatePending,
-			currentProvisioningState: arm.ProvisioningStateFailed,
-			updatedProvisioningState: arm.ProvisioningStateFailed,
+			currentProvisioningState: armresourcesapi.ProvisioningStateFailed,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateFailed,
 			expectCloudError:         false,
 			expectConversionError:    true,
 		},
 		{
 			name:                     "Convert ClusterStatePoweringDown",
 			clusterState:             arohcpv1alpha1.ClusterStatePoweringDown,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateAccepted,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 			expectCloudError:         false,
 			expectConversionError:    true,
 		},
 		{
 			name:                     "Convert ClusterStateReady",
 			clusterState:             arohcpv1alpha1.ClusterStateReady,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateSucceeded,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			expectCloudError:         false,
 			expectConversionError:    false,
 		},
 		{
 			name:                     "Convert ClusterStateUpdating",
 			clusterState:             arohcpv1alpha1.ClusterStateUpdating,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateUpdating,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateUpdating,
 			expectCloudError:         false,
 			expectConversionError:    false,
 		},
 		{
 			name:                     "Convert ClusterStateResuming",
 			clusterState:             arohcpv1alpha1.ClusterStateResuming,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateAccepted,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 			expectCloudError:         false,
 			expectConversionError:    true,
 		},
 		{
 			name:                     "Convert ClusterStateUninstalling",
 			clusterState:             arohcpv1alpha1.ClusterStateUninstalling,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateDeleting,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateDeleting,
 			expectCloudError:         false,
 			expectConversionError:    false,
 		},
 		{
 			name:                     "Convert ClusterStateUnknown",
 			clusterState:             arohcpv1alpha1.ClusterStateUnknown,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateAccepted,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 			expectCloudError:         false,
 			expectConversionError:    true,
 		},
 		{
 			name:                     "Convert ClusterStateValidating (while accepted)",
 			clusterState:             arohcpv1alpha1.ClusterStateValidating,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateAccepted,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 			expectCloudError:         false,
 			expectConversionError:    false,
 		},
 		{
 			name:                     "Convert ClusterStateValidating (while not accepted)",
 			clusterState:             arohcpv1alpha1.ClusterStateValidating,
-			currentProvisioningState: arm.ProvisioningStateFailed,
-			updatedProvisioningState: arm.ProvisioningStateFailed,
+			currentProvisioningState: armresourcesapi.ProvisioningStateFailed,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateFailed,
 			expectCloudError:         false,
 			expectConversionError:    true,
 		},
 		{
 			name:                     "Convert ClusterStateWaiting",
 			clusterState:             arohcpv1alpha1.ClusterStateWaiting,
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateAccepted,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 			expectCloudError:         false,
 			expectConversionError:    true,
 		},
 		{
 			name:                     "Convert unexpected cluster state",
 			clusterState:             arohcpv1alpha1.ClusterState("unexpected cluster state"),
-			currentProvisioningState: arm.ProvisioningStateAccepted,
-			updatedProvisioningState: arm.ProvisioningStateAccepted,
+			currentProvisioningState: armresourcesapi.ProvisioningStateAccepted,
+			updatedProvisioningState: armresourcesapi.ProvisioningStateAccepted,
 			expectCloudError:         false,
 			expectConversionError:    true,
 		},
@@ -182,7 +182,7 @@ func TestConvertClusterStatus(t *testing.T) {
 			ctx := context.Background()
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 
-			op := &api.Operation{
+			op := &resourcesapi.Operation{
 				InternalID: tt.internalId,
 				Status:     tt.currentProvisioningState,
 			}

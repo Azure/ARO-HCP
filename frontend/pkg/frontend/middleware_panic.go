@@ -20,7 +20,7 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -32,7 +32,7 @@ func MiddlewarePanic(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 				logger := utils.LoggerFromContext(r.Context())
 				panicErr := fmt.Errorf("panic: %#v", e)
 				logger.Error(panicErr, "panic recovered", "stack", string(debug.Stack()))
-				arm.WriteInternalServerError(w)
+				armresourcesapi.WriteInternalServerError(w)
 			}
 		}()
 	}

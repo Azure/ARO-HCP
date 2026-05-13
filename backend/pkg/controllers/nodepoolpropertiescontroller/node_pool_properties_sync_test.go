@@ -32,8 +32,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -57,12 +57,12 @@ func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
 func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
 		name              string
-		existingNodePool  *api.HCPOpenShiftClusterNodePool
-		existingCluster   *api.HCPOpenShiftCluster
-		cacheNodePool     *api.HCPOpenShiftClusterNodePool // when set, lister uses this instead of existingNodePool (e.g. stale cache)
+		existingNodePool  *resourcesapi.HCPOpenShiftClusterNodePool
+		existingCluster   *resourcesapi.HCPOpenShiftCluster
+		cacheNodePool     *resourcesapi.HCPOpenShiftClusterNodePool // when set, lister uses this instead of existingNodePool (e.g. stale cache)
 		csNodePool        *arohcpv1alpha1.NodePool
 		expectGetNodePool bool
-		wantNodePool      *api.HCPOpenShiftClusterNodePool
+		wantNodePool      *resourcesapi.HCPOpenShiftClusterNodePool
 		getNodePoolErr    error
 		wantErr           bool
 		wantErrContain    string
@@ -70,12 +70,12 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 		{
 			name:            "short-circuit when version is valid semver and channel group set",
 			existingCluster: newTestCluster(t),
-			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
 			expectGetNodePool: false,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
@@ -83,12 +83,12 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 		{
 			name:            "sync channel group from CS when version is valid semver and channel group empty",
 			existingCluster: newTestCluster(t),
-			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 			}),
 			csNodePool:        newCSNodePoolWithVersion(t, "4.21.5", "stable"),
 			expectGetNodePool: true,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
@@ -99,7 +99,7 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 			existingNodePool:  newTestNodePool(t, nil),
 			csNodePool:        newCSNodePoolWithVersion(t, "4.21.5", "stable"),
 			expectGetNodePool: true,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
@@ -107,10 +107,10 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 		{
 			name:              "sync version from CS when version ID is invalid",
 			existingCluster:   newTestCluster(t),
-			existingNodePool:  newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) { np.Properties.Version.ID = "4.20" }),
+			existingNodePool:  newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) { np.Properties.Version.ID = "4.20" }),
 			csNodePool:        newCSNodePoolWithVersion(t, "4.20.16", "stable"),
 			expectGetNodePool: true,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.20.16"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
@@ -124,12 +124,12 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 		{
 			name:            "nil ClusterServiceID skips CS call",
 			existingCluster: newTestCluster(t),
-			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = ""
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			expectGetNodePool: false,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = ""
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -137,14 +137,14 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 		{
 			name:            "empty ClusterServiceID skips CS call",
 			existingCluster: newTestCluster(t),
-			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = ""
-				np.ServiceProviderProperties.ClusterServiceID = &api.InternalID{}
+				np.ServiceProviderProperties.ClusterServiceID = &resourcesapi.InternalID{}
 			}),
 			expectGetNodePool: false,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = ""
-				np.ServiceProviderProperties.ClusterServiceID = &api.InternalID{}
+				np.ServiceProviderProperties.ClusterServiceID = &resourcesapi.InternalID{}
 			}),
 		},
 		{
@@ -160,17 +160,17 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 			name:            "when cache indicates needs work but Cosmos already has properties, skip Cluster Service",
 			existingCluster: newTestCluster(t),
 			// Cosmos has the node pool with version already set (no work needed).
-			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
 			expectGetNodePool: false,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
 			// Stale cache (empty version); Cosmos is up to date so we skip Cluster Service.
-			cacheNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			cacheNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = ""
 			}),
 		},
@@ -178,35 +178,35 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 			name:            "Cosmos version and channel correct; CS RawID behind desired (upgrade in progress) — do not overwrite",
 			existingCluster: newTestCluster(t),
 			// During upgrades, desired version in Cosmos can be ahead of Cluster Service's reported RawID until CS catches up; we must not pull CS and overwrite.
-			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.6"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
 			csNodePool:        newCSNodePoolWithVersion(t, "4.21.5", "stable"),
 			expectGetNodePool: false,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.6"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
-			cacheNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			cacheNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = ""
 			}),
 		},
 		{
 			name:            "Cosmos version and channel correct; CS channel group differs — do not overwrite",
 			existingCluster: newTestCluster(t),
-			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
 			csNodePool:        newCSNodePoolWithVersion(t, "4.21.5", "candidate"),
 			expectGetNodePool: false,
-			wantNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			wantNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = "stable"
 			}),
 			// Stale cache: channel empty so we read Cosmos; Cosmos is authoritative once both fields are set.
-			cacheNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			cacheNodePool: newTestNodePool(t, func(np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				np.Properties.Version.ID = "4.21.5"
 				np.Properties.Version.ChannelGroup = ""
 			}),
@@ -227,7 +227,7 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			if tc.expectGetNodePool {
 				call := mockCSClient.EXPECT().
-					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr)))
+					GetNodePool(gomock.Any(), resourcesapi.Must(resourcesapi.NewInternalID(testNodePoolCSIDStr)))
 				if tc.getNodePoolErr != nil {
 					call.Return(nil, tc.getNodePoolErr)
 				} else {
@@ -235,7 +235,7 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 				}
 			}
 
-			nodePoolsForLister := []*api.HCPOpenShiftClusterNodePool{}
+			nodePoolsForLister := []*resourcesapi.HCPOpenShiftClusterNodePool{}
 			if tc.cacheNodePool != nil {
 				nodePoolsForLister = append(nodePoolsForLister, tc.cacheNodePool)
 			} else if tc.existingNodePool != nil {
@@ -274,55 +274,55 @@ func TestNodePoolPropertiesSyncer_SyncOnce(t *testing.T) {
 	}
 }
 
-func newTestCluster(t *testing.T) *api.HCPOpenShiftCluster {
+func newTestCluster(t *testing.T) *resourcesapi.HCPOpenShiftCluster {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	clusterInternalID := api.Must(api.NewInternalID(testClusterServiceIDStr))
-	return &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	clusterInternalID := resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr))
+	return &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   resourceID,
 				Name: testClusterName,
-				Type: api.ClusterResourceType.String(),
+				Type: resourcesapi.ClusterResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID: &clusterInternalID,
 		},
 	}
 }
 
-func newTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
+func newTestNodePool(t *testing.T, opts func(*resourcesapi.HCPOpenShiftClusterNodePool)) *resourcesapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
-	nodePoolInternalID := api.Ptr(api.Must(api.NewInternalID(testNodePoolCSIDStr)))
-	np := &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	nodePoolInternalID := resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID(testNodePoolCSIDStr)))
+	np := &resourcesapi.HCPOpenShiftClusterNodePool{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   resourceID,
 				Name: testNodePoolName,
-				Type: api.NodePoolResourceType.String(),
+				Type: resourcesapi.NodePoolResourceType.String(),
 			},
 			Location: "eastus",
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{},
-			Platform: api.NodePoolPlatformProfile{
-				OSDisk: api.OSDiskProfile{
-					DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-					DiskType:               api.OsDiskTypeManaged,
+		Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+			Version: resourcesapi.NodePoolVersionProfile{},
+			Platform: resourcesapi.NodePoolPlatformProfile{
+				OSDisk: resourcesapi.OSDiskProfile{
+					DiskStorageAccountType: resourcesapi.DiskStorageAccountTypePremium_LRS,
+					DiskType:               resourcesapi.OsDiskTypeManaged,
 				},
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 			ClusterServiceID: nodePoolInternalID,
 		},
 	}

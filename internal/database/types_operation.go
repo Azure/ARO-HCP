@@ -22,12 +22,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-type OperationRequest = api.OperationRequest
+type OperationRequest = resourcesapi.OperationRequest
 
 const (
 	OperationRequestCreate OperationRequest = "Create"
@@ -44,12 +44,12 @@ func NewOperation(
 	externalID *azcorearm.ResourceID,
 	internalID ocm.InternalID,
 	location, tenantID, clientID, notificationURI string,
-	correlationData *arm.CorrelationData,
-) *api.Operation {
+	correlationData *armresourcesapi.CorrelationData,
+) *resourcesapi.Operation {
 
 	now := time.Now().UTC()
 
-	operation := &api.Operation{
+	operation := &resourcesapi.Operation{
 		Request:            request,
 		ExternalID:         externalID,
 		InternalID:         internalID,
@@ -58,23 +58,23 @@ func NewOperation(
 		NotificationURI:    notificationURI,
 		StartTime:          now,
 		LastTransitionTime: now,
-		Status:             arm.ProvisioningStateAccepted,
+		Status:             armresourcesapi.ProvisioningStateAccepted,
 	}
-	operation.OperationID = api.Must(azcorearm.ParseResourceID(path.Join("/",
+	operation.OperationID = resourcesapi.Must(azcorearm.ParseResourceID(path.Join("/",
 		"subscriptions", operation.ExternalID.SubscriptionID,
-		"providers", api.ProviderNamespace,
+		"providers", resourcesapi.ProviderNamespace,
 		"locations", location,
-		api.OperationStatusResourceTypeName,
+		resourcesapi.OperationStatusResourceTypeName,
 		uuid.New().String())))
 
 	// this ID does not include the location because doing so changes the resulting azcorearm.ParseResourceID().ResourceType to be
 	// Microsoft.RedHatOpenShift/locations/hcpOperationStatuses.  This type is not compatible with the current cosmos storage and
 	// nests in a way that doesn't match other types. Since our operationID.Name is a UID, this is still a globally unique
 	// resourceID.
-	operation.ResourceID = api.Must(azcorearm.ParseResourceID(path.Join("/",
+	operation.ResourceID = resourcesapi.Must(azcorearm.ParseResourceID(path.Join("/",
 		"subscriptions", operation.ExternalID.SubscriptionID,
-		"providers", api.ProviderNamespace,
-		api.OperationStatusResourceTypeName, operation.OperationID.Name,
+		"providers", resourcesapi.ProviderNamespace,
+		resourcesapi.OperationStatusResourceTypeName, operation.OperationID.Name,
 	)))
 
 	if correlationData != nil {
@@ -85,15 +85,15 @@ func NewOperation(
 	// When deleting, set Status directly to ProvisioningStateDeleting
 	// so any further deletion requests are rejected with 409 Conflict.
 	if request == OperationRequestDelete {
-		operation.Status = arm.ProvisioningStateDeleting
+		operation.Status = armresourcesapi.ProvisioningStateDeleting
 	}
 
 	return operation
 }
 
 // ToStatus converts an OperationDocument to the ARM operation status format.
-func ToStatus(doc *api.Operation) *arm.Operation {
-	operation := &arm.Operation{
+func ToStatus(doc *resourcesapi.Operation) *armresourcesapi.Operation {
+	operation := &armresourcesapi.Operation{
 		ID:        doc.OperationID,
 		Name:      doc.OperationID.Name,
 		Status:    doc.Status,

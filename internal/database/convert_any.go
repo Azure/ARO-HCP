@@ -20,9 +20,9 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -86,29 +86,29 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 	var cosmosObj any
 	var err error
 	switch internalObj := any(obj).(type) {
-	case *api.HCPOpenShiftClusterExternalAuth:
+	case *resourcesapi.HCPOpenShiftClusterExternalAuth:
 		cosmosObj, err = InternalToCosmosExternalAuth(internalObj)
 
-	case *api.HCPOpenShiftCluster:
+	case *resourcesapi.HCPOpenShiftCluster:
 		cosmosObj, err = InternalToCosmosCluster(internalObj)
 
-	case *api.HCPOpenShiftClusterNodePool:
+	case *resourcesapi.HCPOpenShiftClusterNodePool:
 		cosmosObj, err = InternalToCosmosNodePool(internalObj)
 
-	case *fleet.Stamp:
+	case *fleetapi.Stamp:
 		cosmosObj, err = InternalToCosmosFleet(internalObj)
 
-	case *fleet.ManagementCluster:
+	case *fleetapi.ManagementCluster:
 		cosmosObj, err = InternalToCosmosFleet(internalObj)
 
-	case *kubeapplier.ApplyDesire:
-		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplier.ApplyDesire](internalObj)
+	case *kubeapplierapi.ApplyDesire:
+		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplierapi.ApplyDesire](internalObj)
 
-	case *kubeapplier.DeleteDesire:
-		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplier.DeleteDesire](internalObj)
+	case *kubeapplierapi.DeleteDesire:
+		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplierapi.DeleteDesire](internalObj)
 
-	case *kubeapplier.ReadDesire:
-		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplier.ReadDesire](internalObj)
+	case *kubeapplierapi.ReadDesire:
+		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplierapi.ReadDesire](internalObj)
 
 	case *TypedDocument:
 		var expectedObj CosmosAPIType

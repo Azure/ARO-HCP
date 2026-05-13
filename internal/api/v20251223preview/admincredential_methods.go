@@ -15,18 +15,18 @@
 package v20251223preview
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
-func newHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
+func newHCPOpenShiftClusterAdminCredential(from *resourcesapi.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
 	return &generated.HcpOpenShiftClusterAdminCredential{
-		ExpirationTimestamp: api.PtrOrNil(from.ExpirationTimestamp),
-		Kubeconfig:          api.PtrOrNil(from.Kubeconfig),
+		ExpirationTimestamp: resourcesapi.PtrOrNil(from.ExpirationTimestamp),
+		Kubeconfig:          resourcesapi.PtrOrNil(from.Kubeconfig),
 	}
 }
 
-func (v version) MarshalHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCredential) ([]byte, error) {
-	return arm.MarshalJSON(newHCPOpenShiftClusterAdminCredential(from))
+func (v version) MarshalHCPOpenShiftClusterAdminCredential(from *resourcesapi.HCPOpenShiftClusterAdminCredential) ([]byte, error) {
+	return armresourcesapi.MarshalJSON(newHCPOpenShiftClusterAdminCredential(from))
 }

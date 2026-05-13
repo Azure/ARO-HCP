@@ -35,7 +35,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -47,8 +47,8 @@ var _ = Describe("Customer", func() {
 	DescribeTable("should upgrade and update a nodepool",
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			targetMinorVersion := api.Must(semver.ParseTolerant(targetMinor))
-			nodePoolMinorVersion := api.Must(semver.ParseTolerant(nodePoolMinor))
+			targetMinorVersion := resourcesapi.Must(semver.ParseTolerant(targetMinor))
+			nodePoolMinorVersion := resourcesapi.Must(semver.ParseTolerant(nodePoolMinor))
 
 			var (
 				nodePoolInitialVersion string

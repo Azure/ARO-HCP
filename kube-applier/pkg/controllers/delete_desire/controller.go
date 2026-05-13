@@ -39,7 +39,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -98,7 +98,7 @@ type DeleteDesireController struct {
 	deleteDesireInformer cache.SharedIndexInformer
 	fetcher              *deleteDesireFetcher
 	dyn                  dynamic.Interface
-	writer               desirestatuswriter.StatusWriter[kubeapplier.DeleteDesire, keys.DeleteDesireKey]
+	writer               desirestatuswriter.StatusWriter[kubeapplierapi.DeleteDesire, keys.DeleteDesireKey]
 	queue                workqueue.TypedRateLimitingInterface[keys.DeleteDesireKey]
 
 	cfg      Config
@@ -130,7 +130,7 @@ func NewDeleteDesireController(
 		deleteDesireInformer: deleteDesireInformer,
 		fetcher:              fetcher,
 		dyn:                  dyn,
-		writer: desirestatuswriter.New[kubeapplier.DeleteDesire, keys.DeleteDesireKey, *kubeapplier.DeleteDesire](
+		writer: desirestatuswriter.New[kubeapplierapi.DeleteDesire, keys.DeleteDesireKey, *kubeapplierapi.DeleteDesire](
 			fetcher,
 			&deleteDesireReplacer{crudByParent: crudByParent},
 		),
@@ -176,7 +176,7 @@ func (c *DeleteDesireController) Run(ctx context.Context, threadiness int) {
 // has never been reconciled, so the cooldown gate has nothing to compare
 // against.
 func (c *DeleteDesireController) handleAdd(obj any) {
-	d, ok := obj.(*kubeapplier.DeleteDesire)
+	d, ok := obj.(*kubeapplierapi.DeleteDesire)
 	if !ok {
 		return
 	}
@@ -189,8 +189,8 @@ func (c *DeleteDesireController) handleAdd(obj any) {
 // path is the periodic re-check that drives WaitingForDeletion to
 // Successful once finalizers complete.
 func (c *DeleteDesireController) handleUpdate(oldObj, newObj any) {
-	oldD, oldOK := oldObj.(*kubeapplier.DeleteDesire)
-	newD, newOK := newObj.(*kubeapplier.DeleteDesire)
+	oldD, oldOK := oldObj.(*kubeapplierapi.DeleteDesire)
+	newD, newOK := newObj.(*kubeapplierapi.DeleteDesire)
 	if !oldOK || !newOK {
 		return
 	}
@@ -209,7 +209,7 @@ func (c *DeleteDesireController) handleUpdate(oldObj, newObj any) {
 	c.queue.Add(key)
 }
 
-func (c *DeleteDesireController) enqueue(d *kubeapplier.DeleteDesire) {
+func (c *DeleteDesireController) enqueue(d *kubeapplierapi.DeleteDesire) {
 	key, err := keys.DeleteDesireKeyFromResourceID(d.GetResourceID())
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -276,11 +276,11 @@ func (c *DeleteDesireController) SyncOnce(ctx context.Context, key keys.DeleteDe
 // spec.targetItem, and scope is decided by namespace presence. If the GVR
 // doesn't resolve, the dynamic client surfaces a kube error that lands in
 // SetSuccessful as KubeAPIError.
-func (c *DeleteDesireController) evaluate(ctx context.Context, d *kubeapplier.DeleteDesire) (desirestatuswriter.MutateFunc[kubeapplier.DeleteDesire], error) {
+func (c *DeleteDesireController) evaluate(ctx context.Context, d *kubeapplierapi.DeleteDesire) (desirestatuswriter.MutateFunc[kubeapplierapi.DeleteDesire], error) {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
 		err := conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
-		return func(d *kubeapplier.DeleteDesire) {
+		return func(d *kubeapplierapi.DeleteDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}, err
@@ -300,14 +300,14 @@ func (c *DeleteDesireController) evaluate(ctx context.Context, d *kubeapplier.De
 		// the apiserver nor any prior status field carries the necessary
 		// signal, and the desired post-condition (target absent) is the same
 		// in both cases.
-		return func(d *kubeapplier.DeleteDesire) {
+		return func(d *kubeapplierapi.DeleteDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, nil)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}, nil
 	}
 	if getErr != nil {
 		err := fmt.Errorf("get target: %w", getErr)
-		return func(d *kubeapplier.DeleteDesire) {
+		return func(d *kubeapplierapi.DeleteDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}, err
@@ -315,7 +315,7 @@ func (c *DeleteDesireController) evaluate(ctx context.Context, d *kubeapplier.De
 
 	if dt := got.GetDeletionTimestamp(); dt != nil {
 		uid := got.GetUID()
-		return func(d *kubeapplier.DeleteDesire) {
+		return func(d *kubeapplierapi.DeleteDesire) {
 			conditions.SetSuccessfulWaitingForDeletion(&d.Status.Conditions, *dt, uid)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}, nil
@@ -324,13 +324,13 @@ func (c *DeleteDesireController) evaluate(ctx context.Context, d *kubeapplier.De
 	if delErr := kubeResourceAccessor.Delete(ctx, target.Name, metav1.DeleteOptions{}); delErr != nil {
 		// 404 just before delete is fine — the object disappeared between Get and Delete.
 		if apierrors.IsNotFound(delErr) {
-			return func(d *kubeapplier.DeleteDesire) {
+			return func(d *kubeapplierapi.DeleteDesire) {
 				conditions.SetSuccessful(&d.Status.Conditions, nil)
 				conditions.SetDegraded(&d.Status.Conditions, nil)
 			}, nil
 		}
 		err := fmt.Errorf("delete target: %w", delErr)
-		return func(d *kubeapplier.DeleteDesire) {
+		return func(d *kubeapplierapi.DeleteDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}, err
@@ -346,14 +346,14 @@ func (c *DeleteDesireController) evaluate(ctx context.Context, d *kubeapplier.De
 	// is a no-op at the apiserver.
 	post, postErr := kubeResourceAccessor.Get(ctx, target.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(postErr) {
-		return func(d *kubeapplier.DeleteDesire) {
+		return func(d *kubeapplierapi.DeleteDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, nil)
 			conditions.SetDegraded(&d.Status.Conditions, nil)
 		}, nil
 	}
 	if postErr != nil {
 		err := fmt.Errorf("post-delete get: %w", postErr)
-		return func(d *kubeapplier.DeleteDesire) {
+		return func(d *kubeapplierapi.DeleteDesire) {
 			conditions.SetSuccessful(&d.Status.Conditions, err)
 			conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(err))
 		}, err
@@ -366,7 +366,7 @@ func (c *DeleteDesireController) evaluate(ctx context.Context, d *kubeapplier.De
 		now := metav1.NewTime(time.Now())
 		dt = &now
 	}
-	return func(d *kubeapplier.DeleteDesire) {
+	return func(d *kubeapplierapi.DeleteDesire) {
 		conditions.SetSuccessfulWaitingForDeletion(&d.Status.Conditions, *dt, uid)
 		conditions.SetDegraded(&d.Status.Conditions, nil)
 	}, nil
@@ -397,9 +397,9 @@ type deleteDesireFetcher struct {
 	crudByParent database.KubeApplierDeleteDesireCRUD
 }
 
-var _ desirestatuswriter.Fetcher[kubeapplier.DeleteDesire, keys.DeleteDesireKey] = &deleteDesireFetcher{}
+var _ desirestatuswriter.Fetcher[kubeapplierapi.DeleteDesire, keys.DeleteDesireKey] = &deleteDesireFetcher{}
 
-func (f *deleteDesireFetcher) Fetch(ctx context.Context, key keys.DeleteDesireKey) (*kubeapplier.DeleteDesire, error) {
+func (f *deleteDesireFetcher) Fetch(ctx context.Context, key keys.DeleteDesireKey) (*kubeapplierapi.DeleteDesire, error) {
 	crud, err := f.crudByParent.DeleteDesires(key.ResourceParent())
 	if err != nil {
 		return nil, fmt.Errorf("crud for parent %v: %w", key.ResourceParent(), err)
@@ -414,9 +414,9 @@ type deleteDesireReplacer struct {
 	crudByParent database.KubeApplierDeleteDesireCRUD
 }
 
-var _ desirestatuswriter.Replacer[kubeapplier.DeleteDesire] = &deleteDesireReplacer{}
+var _ desirestatuswriter.Replacer[kubeapplierapi.DeleteDesire] = &deleteDesireReplacer{}
 
-func (r *deleteDesireReplacer) Replace(ctx context.Context, desired *kubeapplier.DeleteDesire) error {
+func (r *deleteDesireReplacer) Replace(ctx context.Context, desired *kubeapplierapi.DeleteDesire) error {
 	key, err := keys.DeleteDesireKeyFromResourceID(desired.GetResourceID())
 	if err != nil {
 		return fmt.Errorf("derive key for replace: %w", err)

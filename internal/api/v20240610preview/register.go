@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 type version struct {
@@ -33,13 +33,13 @@ func (v version) String() string {
 	return "2024-06-10-preview"
 }
 
-func (v version) ValidationPathRewriter(internalObj any) (api.ValidationPathMapperFunc, error) {
+func (v version) ValidationPathRewriter(internalObj any) (resourcesapi.ValidationPathMapperFunc, error) {
 	switch internalObj.(type) {
-	case *api.HCPOpenShiftClusterNodePool:
+	case *resourcesapi.HCPOpenShiftClusterNodePool:
 		return nil, nil
-	case *api.HCPOpenShiftClusterExternalAuth:
+	case *resourcesapi.HCPOpenShiftClusterExternalAuth:
 		return nil, nil
-	case *api.HCPOpenShiftCluster:
+	case *resourcesapi.HCPOpenShiftCluster:
 		return propertiesReplacer.Replace, nil
 
 	default:
@@ -52,7 +52,7 @@ var (
 	propertiesReplacer = strings.NewReplacer("customerProperties", "properties", "serviceProviderProperties", "properties")
 )
 
-func RegisterVersion(apiRegistry api.APIRegistry) error {
+func RegisterVersion(apiRegistry resourcesapi.APIRegistry) error {
 	if err := apiRegistry.Register(versionedInterface); err != nil {
 		return err
 	}

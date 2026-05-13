@@ -35,6 +35,16 @@ linters:
         alias: hcpsdk20240610preview
       - pkg: github.com/Azure/ARO-HCP/backend/pkg/azure/client
         alias: azureclient
+      - pkg: github.com/Azure/ARO-HCP/internal/apis/fleet
+        alias: fleetapi
+      - pkg: github.com/Azure/ARO-HCP/internal/apis/meta
+        alias: metaapi
+      - pkg: github.com/Azure/ARO-HCP/internal/apis/resources
+        alias: resourcesapi
+      - pkg: github.com/Azure/ARO-HCP/internal/apis/resources/arm
+        alias: armresourcesapi
+      - pkg: github.com/Azure/ARO-HCP/internal/apis/kubeapplier
+        alias: kubeapplierapi
     staticcheck:
       dot-import-whitelist:
       - "github.com/onsi/ginkgo"

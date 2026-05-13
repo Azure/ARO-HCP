@@ -25,7 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -76,22 +76,22 @@ func TestMiddlewareCorrelation(t *testing.T) {
 			name: "should set the request ID header",
 			r:    http.Request{},
 			expectedResponseFns: []responseTest{
-				headerPresent(arm.HeaderNameRequestID),
-				headerAbsent(arm.HeaderNameClientRequestID),
+				headerPresent(armresourcesapi.HeaderNameRequestID),
+				headerAbsent(armresourcesapi.HeaderNameClientRequestID),
 			},
 		},
 		{
 			name: "should set the clientRequestId header when the 'should return client request id' header is true",
 			r: http.Request{
 				Header: http.Header{
-					arm.HeaderNameClientRequestID:       []string{testClientRequestID},
-					arm.HeaderNameCorrelationRequestID:  []string{testCorrelationRequestID},
-					arm.HeaderNameReturnClientRequestID: []string{"true"},
+					armresourcesapi.HeaderNameClientRequestID:       []string{testClientRequestID},
+					armresourcesapi.HeaderNameCorrelationRequestID:  []string{testCorrelationRequestID},
+					armresourcesapi.HeaderNameReturnClientRequestID: []string{"true"},
 				},
 			},
 			expectedResponseFns: []responseTest{
-				headerPresent(arm.HeaderNameRequestID),
-				headerValueEqual(arm.HeaderNameClientRequestID, testClientRequestID),
+				headerPresent(armresourcesapi.HeaderNameRequestID),
+				headerValueEqual(armresourcesapi.HeaderNameClientRequestID, testClientRequestID),
 			},
 			expectedCorrelationID:   testCorrelationRequestID,
 			expectedClientRequestID: testClientRequestID,
@@ -100,14 +100,14 @@ func TestMiddlewareCorrelation(t *testing.T) {
 			name: "should not set the clientRequestId header when the 'should return client request id' header is false",
 			r: http.Request{
 				Header: http.Header{
-					arm.HeaderNameClientRequestID:       []string{testClientRequestID},
-					arm.HeaderNameCorrelationRequestID:  []string{testCorrelationRequestID},
-					arm.HeaderNameReturnClientRequestID: []string{"false"},
+					armresourcesapi.HeaderNameClientRequestID:       []string{testClientRequestID},
+					armresourcesapi.HeaderNameCorrelationRequestID:  []string{testCorrelationRequestID},
+					armresourcesapi.HeaderNameReturnClientRequestID: []string{"false"},
 				},
 			},
 			expectedResponseFns: []responseTest{
-				headerPresent(arm.HeaderNameRequestID),
-				headerAbsent(arm.HeaderNameClientRequestID),
+				headerPresent(armresourcesapi.HeaderNameRequestID),
+				headerAbsent(armresourcesapi.HeaderNameClientRequestID),
 			},
 			expectedCorrelationID:   testCorrelationRequestID,
 			expectedClientRequestID: testClientRequestID,
@@ -116,13 +116,13 @@ func TestMiddlewareCorrelation(t *testing.T) {
 			name: "should not set the clientRequestId header when the 'should return client request id' header is missing",
 			r: http.Request{
 				Header: http.Header{
-					arm.HeaderNameClientRequestID:      []string{testClientRequestID},
-					arm.HeaderNameCorrelationRequestID: []string{testCorrelationRequestID},
+					armresourcesapi.HeaderNameClientRequestID:      []string{testClientRequestID},
+					armresourcesapi.HeaderNameCorrelationRequestID: []string{testCorrelationRequestID},
 				},
 			},
 			expectedResponseFns: []responseTest{
-				headerPresent(arm.HeaderNameRequestID),
-				headerAbsent(arm.HeaderNameClientRequestID),
+				headerPresent(armresourcesapi.HeaderNameRequestID),
+				headerAbsent(armresourcesapi.HeaderNameClientRequestID),
 			},
 			expectedCorrelationID:   testCorrelationRequestID,
 			expectedClientRequestID: testClientRequestID,
@@ -135,7 +135,7 @@ func TestMiddlewareCorrelation(t *testing.T) {
 				req    = &tt.r
 				buf    bytes.Buffer
 				logger = logr.FromSlogHandler(slog.NewTextHandler(&buf, nil))
-				data   *arm.CorrelationData
+				data   *armresourcesapi.CorrelationData
 			)
 			req = req.WithContext(utils.ContextWithLogger(req.Context(), logger))
 
