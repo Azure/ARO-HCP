@@ -171,3 +171,4 @@ func TestArobitWatsonMDSDSocketConfiguration(t *testing.T) {
 			require.NotContains(t, output, "MDSD_OPTION")
 		})
 	}
+}

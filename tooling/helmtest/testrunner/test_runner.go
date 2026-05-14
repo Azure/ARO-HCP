@@ -15,8 +15,10 @@
 package testrunner
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -31,6 +33,8 @@ import (
 	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
+
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"sigs.k8s.io/yaml"
 
@@ -134,11 +138,8 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 func validateDaemonSetUpdateStrategies(t *testing.T, manifest string) {
 	t.Helper()
 
-	for _, doc := range strings.Split(strings.TrimPrefix(manifest, "---\n"), "\n---\n") {
-		if strings.TrimSpace(doc) == "" {
-			continue
-		}
-
+	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(manifest)), 4096)
+	for {
 		var obj struct {
 			Kind     string `json:"kind"`
 			Metadata struct {
@@ -155,7 +156,13 @@ func validateDaemonSetUpdateStrategies(t *testing.T, manifest string) {
 			} `json:"spec"`
 		}
 
-		assert.NoError(t, yaml.Unmarshal([]byte(doc), &obj))
+		err := decoder.Decode(&obj)
+		if err == io.EOF {
+			break
+		}
+		if !assert.NoError(t, err) {
+			continue
+		}
 
 		if obj.Kind != "DaemonSet" {
 			continue
