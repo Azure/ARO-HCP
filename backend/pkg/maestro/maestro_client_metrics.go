@@ -81,9 +81,9 @@ func NewMaestroMetrics(r prometheus.Registerer) *MaestroMetrics {
 	// Pre-initialize all operation label values so metrics appear even with zero values
 	operations := []string{"create", "get", "delete", "patch", "list"}
 	for _, op := range operations {
-		m.operationsTotal.WithLabelValues(op).Add(0)
-		m.errorsTotal.WithLabelValues(op).Add(0)
-		m.operationDuration.WithLabelValues(op).Observe(0)
+		m.operationsTotal.WithLabelValues(op)
+		m.errorsTotal.WithLabelValues(op)
+		m.operationDuration.WithLabelValues(op)
 	}
 
 	return m
