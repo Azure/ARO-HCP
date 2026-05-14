@@ -75,9 +75,13 @@ var swiftNodepoolTags = enableSwiftV2
       ? {
           'aks-nic-enable-multi-tenancy': 'true'
           'aks-nic-secondary-count': string(secondaryNicCount)
+          'delegate-ip-allocation-for-nics-without-subnet': 'true'
+          'delegate-ip-allocation-nic-prefix': 'delegate'
         }
       : {
           'aks-nic-enable-multi-tenancy': 'true'
+          'delegate-ip-allocation-for-nics-without-subnet': 'true'
+          'delegate-ip-allocation-nic-prefix': 'delegate'
         })
   : null
 

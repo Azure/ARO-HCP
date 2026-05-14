@@ -250,6 +250,8 @@ var advancedNetworking = networkDataplane == 'cilium'
 var swiftNodepoolTags = enableSwiftV2Nodepools
   ? {
       'aks-nic-enable-multi-tenancy': 'true'
+      'delegate-ip-allocation-for-nics-without-subnet': 'true'
+      'delegate-ip-allocation-nic-prefix': 'delegate'
     }
   : null
 
