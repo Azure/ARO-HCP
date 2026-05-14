@@ -567,7 +567,7 @@ resourceGroups:
         name: globalMSIId
     dependsOn:
     - resourceGroup: management
-      step: cluster
+      step: cleanup-pko-resources
   - name: service-lifecycle
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
