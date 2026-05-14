@@ -593,6 +593,12 @@ func (m *mockOperationCRUD) ListActiveOperations(options *database.ResourcesDBCl
 			continue
 		}
 
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
+			continue
+		}
+
 		var cosmosObj database.GenericDocument[api.Operation]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
