@@ -43,7 +43,7 @@ type crdInfo struct {
 }
 
 func main() {
-	timeout := 120 * time.Second
+	timeout := 10 * time.Minute
 	if v := os.Getenv("PKO_CLEANUP_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			timeout = d
@@ -77,7 +77,8 @@ func run(timeout time.Duration) error {
 		return fmt.Errorf("creating CRD client: %w", err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	var errors int
 
 	fmt.Println("=== Package Operator CR + CRD cleanup (best-effort) ===")
@@ -88,6 +89,7 @@ func run(timeout time.Duration) error {
 	}
 	if len(crds) == 0 {
 		fmt.Println("No package-operator.run CRDs found. Nothing to do.")
+		fmt.Println("\n=== PKO resource cleanup complete ===")
 		return nil
 	}
 
