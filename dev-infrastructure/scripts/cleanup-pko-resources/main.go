@@ -331,7 +331,11 @@ func stripFinalizersForCRD(ctx context.Context, client dynamic.Interface, c crdI
 			_, err = client.Resource(gvr(c)).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
 		}
 		if err != nil && !apierrors.IsNotFound(err) {
-			fmt.Fprintf(os.Stderr, "[ERROR] failed to patch finalizers on %s/%s: %v\n", resource, name, err)
+			if ns != "" {
+				fmt.Fprintf(os.Stderr, "[ERROR] failed to patch finalizers on %s/%s -n %s: %v\n", resource, name, ns, err)
+			} else {
+				fmt.Fprintf(os.Stderr, "[ERROR] failed to patch finalizers on %s/%s: %v\n", resource, name, err)
+			}
 			errors++
 		}
 	}
