@@ -160,6 +160,12 @@ type MaestroBundleReference struct {
 	// but the Maestro Bundle has not been created yet.
 	// Maestro's REST API Go client abstraction uses Maestro Bundle IDs to identify the Maestro Bundle.
 	MaestroAPIMaestroBundleID string `json:"maestroAPIMaestroBundleID"`
+	// StaleBundleDeleteCount tracks how many times this bundle has been
+	// deleted and recreated by the stale-bundle self-heal logic. Used as a
+	// circuit breaker to prevent infinite delete/recreate loops when the
+	// underlying failure is deterministic rather than the transient Maestro
+	// event-delivery race (AROSLSRE-833).
+	StaleBundleDeleteCount int `json:"staleBundleDeleteCount,omitempty"`
 }
 
 // MaestroBundleReferenceList is a list of Maestro Bundle references.
