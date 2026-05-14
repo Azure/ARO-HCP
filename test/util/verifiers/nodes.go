@@ -17,15 +17,19 @@ package verifiers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/onsi/ginkgo/v2"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/set"
@@ -34,6 +38,7 @@ import (
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -162,56 +167,6 @@ func formatNodesByPool(nodes []corev1.Node) string {
 		parts = append(parts, fmt.Sprintf("%s: [%s]", nodePoolName, strings.Join(nodeNames, ", ")))
 	}
 	return strings.Join(parts, ", ")
-}
-
-type verifyNodePoolReadyAndSchedulableNodeCount struct {
-	nodePoolName string
-	expected     int
-}
-
-func (v verifyNodePoolReadyAndSchedulableNodeCount) Name() string {
-	return fmt.Sprintf("VerifyNodePoolReadyAndSchedulableNodeCount(nodePool=%s, expected=%d)", v.nodePoolName, v.expected)
-}
-
-func (v verifyNodePoolReadyAndSchedulableNodeCount) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("can't list nodes in the cluster: %w", err)
-	}
-
-	matchingNodes, err := framework.SelectNodesBelongingToNodePool(nodes.Items, v.nodePoolName)
-	if err != nil {
-		return fmt.Errorf("failed to select nodes for node pool %q: %w", v.nodePoolName, err)
-	}
-
-	readyCount := 0
-	for i := range matchingNodes {
-		if nodeReadyAndSchedulable(&matchingNodes[i]) {
-			readyCount++
-		}
-	}
-
-	if readyCount != v.expected {
-		return fmt.Errorf("expected %d ready (and schedulable) nodes in node pool %q, found %d", v.expected, v.nodePoolName, readyCount)
-	}
-
-	return nil
-}
-
-// VerifyNodePoolReadyAndSchedulableNodeCount verifies that the specified node pool has exactly
-// the expected number of ready and schedulable nodes. This excludes cordoned nodes
-// (Unschedulable=true), which is useful during rolling upgrades when old nodes are
-// being replaced and the total node count may temporarily exceed the target replica count.
-func VerifyNodePoolReadyAndSchedulableNodeCount(nodePoolName string, expected int) HostedClusterVerifier {
-	return verifyNodePoolReadyAndSchedulableNodeCount{
-		nodePoolName: nodePoolName,
-		expected:     expected,
-	}
 }
 
 type verifyNodePoolUpgrade struct {
@@ -362,4 +317,178 @@ func (v verifyNodePoolUpgrade) nodeReleaseImagesUpdated(node *corev1.Node) strin
 		}
 	}
 	return fmt.Sprintf("%s (release images unchanged: %v)", node.Name, currentImgs)
+}
+
+type verifyNodesSchedulable struct{}
+
+func (v verifyNodesSchedulable) Name() string { return "VerifyNodesSchedulable" }
+
+func (v verifyNodesSchedulable) Verify(ctx context.Context, restConfig *rest.Config) error {
+	logger := ginkgo.GinkgoLogr
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	var lastErr error
+	var previousError string
+	err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (bool, error) {
+		nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			lastErr = fmt.Errorf("can't list nodes: %w", err)
+			return false, nil
+		}
+		if len(nodes.Items) == 0 {
+			lastErr = fmt.Errorf("no nodes found")
+			return false, nil
+		}
+		var unschedulable []string
+		for i := range nodes.Items {
+			if nodes.Items[i].Spec.Unschedulable {
+				unschedulable = append(unschedulable, nodes.Items[i].Name)
+			}
+		}
+		if len(unschedulable) > 0 {
+			lastErr = fmt.Errorf("%d of %d nodes unschedulable (cordoned): %v", len(unschedulable), len(nodes.Items), unschedulable)
+			currentError := lastErr.Error()
+			if currentError != previousError {
+				logger.Info("Verifier check", "name", v.Name(), "status", "failed", "error", currentError)
+				previousError = currentError
+			}
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		if lastErr != nil {
+			return fmt.Errorf("%s timed out: %w", v.Name(), lastErr)
+		}
+		return fmt.Errorf("%s: %w", v.Name(), err)
+	}
+	logger.Info("All nodes schedulable")
+	return nil
+}
+
+// VerifyNodesSchedulable returns a verifier that polls until no nodes are
+// cordoned (Unschedulable=true). Polls every 30s for up to 10 minutes with
+// delta-only logging.
+func VerifyNodesSchedulable() HostedClusterVerifier {
+	return verifyNodesSchedulable{}
+}
+
+type verifyNodePoolNodeCount struct {
+	nodePoolsClient *hcpsdk.NodePoolsClient
+	resourceGroup   string
+	clusterName     string
+}
+
+func (v verifyNodePoolNodeCount) Name() string {
+	return fmt.Sprintf("VerifyNodePoolNodeCount(cluster=%s)", v.clusterName)
+}
+
+func (v verifyNodePoolNodeCount) Verify(ctx context.Context, restConfig *rest.Config) error {
+	logger := ginkgo.GinkgoLogr
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	var lastErr error
+	var previousError string
+	err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (bool, error) {
+		expectedPools := make(map[string]int)
+		pager := v.nodePoolsClient.NewListByParentPager(v.resourceGroup, v.clusterName, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				lastErr = fmt.Errorf("list node pools: %w", err)
+				return false, nil
+			}
+			for _, np := range page.Value {
+				if np.Name == nil || np.Properties == nil {
+					continue
+				}
+				if np.Properties.ProvisioningState == nil || *np.Properties.ProvisioningState != hcpsdk.ProvisioningStateSucceeded {
+					continue
+				}
+				if np.Properties.Replicas == nil {
+					continue
+				}
+				expectedPools[*np.Name] = int(*np.Properties.Replicas)
+			}
+		}
+
+		if len(expectedPools) == 0 {
+			lastErr = fmt.Errorf("no successfully provisioned node pools found for cluster %s", v.clusterName)
+			return false, nil
+		}
+
+		nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			lastErr = fmt.Errorf("can't list nodes: %w", err)
+			return false, nil
+		}
+
+		var errs []error
+		expectedTotal := 0
+		for poolName, expectedReplicas := range expectedPools {
+			expectedTotal += expectedReplicas
+			matchingNodes, err := framework.SelectNodesBelongingToNodePool(nodes.Items, poolName)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("pool %q: %w", poolName, err))
+				continue
+			}
+			if len(matchingNodes) != expectedReplicas {
+				errs = append(errs, fmt.Errorf("pool %q: expected %d nodes, found %d",
+					poolName, expectedReplicas, len(matchingNodes)))
+			}
+		}
+		if len(nodes.Items) != expectedTotal {
+			errs = append(errs, fmt.Errorf("expected %d total nodes, found %d; nodes per pool: %s",
+				expectedTotal, len(nodes.Items), formatNodesByPool(nodes.Items)))
+		}
+
+		if len(errs) > 0 {
+			lastErr = errors.Join(errs...)
+			currentError := lastErr.Error()
+			if currentError != previousError {
+				logger.Info("Verifier check", "name", v.Name(), "status", "failed", "error", currentError)
+				previousError = currentError
+			}
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		if lastErr != nil {
+			return fmt.Errorf("%s timed out: %w", v.Name(), lastErr)
+		}
+		return fmt.Errorf("%s: %w", v.Name(), err)
+	}
+	logger.Info("Node pool node counts verified", "cluster", v.clusterName)
+	return nil
+}
+
+// VerifyNodePoolNodeCount returns a verifier that queries the ARM API for
+// successfully provisioned node pools, then polls until the per-pool
+// Kubernetes node counts match the expected replicas. Polls every 30s for
+// up to 10 minutes with delta-only logging.
+func VerifyNodePoolNodeCount(nodePoolsClient *hcpsdk.NodePoolsClient, resourceGroup, clusterName string) HostedClusterVerifier {
+	return verifyNodePoolNodeCount{
+		nodePoolsClient: nodePoolsClient,
+		resourceGroup:   resourceGroup,
+		clusterName:     clusterName,
+	}
+}
+
+// NodePoolVerifiers returns the standard set of node pool verifiers:
+// node readiness, schedulability, per-pool count matching, and deployment
+// log accessibility.
+func NodePoolVerifiers(nodePoolsClient *hcpsdk.NodePoolsClient, resourceGroup, clusterName string) []HostedClusterVerifier {
+	return []HostedClusterVerifier{
+		VerifyNodesReady(),
+		VerifyNodesSchedulable(),
+		VerifyNodePoolNodeCount(nodePoolsClient, resourceGroup, clusterName),
+		VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router"),
+	}
 }

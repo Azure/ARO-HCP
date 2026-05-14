@@ -256,9 +256,15 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying nodes count and ready status")
-			Expect(verifiers.VerifyNodeCount(customerClusterName, int(nodePoolParams.Replicas)).Verify(ctx, adminRESTConfig)).To(Succeed())
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
+			By("verifying nodes count, readiness, schedulability, and viability")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.NodePoolVerifiers(
+					tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+					*resourceGroup.Name,
+					customerClusterName,
+				)...,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a user-assigned managed identity for the test")
 			subscriptionID, err := tc.SubscriptionID(ctx)

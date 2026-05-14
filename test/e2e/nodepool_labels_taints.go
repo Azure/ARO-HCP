@@ -137,10 +137,15 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("waiting for nodes to be ready")
-			Eventually(func(ctx context.Context) error {
-				return verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)
-			}).WithContext(ctx).WithTimeout(10 * time.Minute).Should(Succeed())
+			By("waiting for nodes to be ready, schedulable, and viable")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.NodePoolVerifiers(
+					tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+					*resourceGroup.Name,
+					customerClusterName,
+				)...,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying initial labels are present on nodes")
 			k8sClient, err := kubernetes.NewForConfig(adminRESTConfig)

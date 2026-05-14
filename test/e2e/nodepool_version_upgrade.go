@@ -223,8 +223,15 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil())
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion))
 
-			By("verifying number of nodes ready and not draining meet the expected replicas")
-			Expect(verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(customerNodePoolName, updateReplicas).Verify(ctx, adminRESTConfig)).To(Succeed())
+			By("verifying number of nodes ready, schedulable, and viable meet the expected replicas")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+				verifiers.NodePoolVerifiers(
+					tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+					*resourceGroup.Name,
+					clusterName,
+				)...,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 		},
 		Entry("from 4.20.z to 4.21.zLatest",
