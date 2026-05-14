@@ -85,8 +85,9 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
-	// Wrap the single per-MC mock in the plural registry so the DB-backed lister
-	// can iterate it.
+	// Wrap the single per-MC mock in the plural registry under testMgmtID so the
+	// DB-backed lister's ListForManagementCluster(testMgmtID) call resolves to
+	// this mock via clients.For(rid).
 	clients := databasetesting.NewMockKubeApplierDBClients()
 	clients.Register(testMgmtID, mock)
 	l := &listertesting.DBApplyDesireLister{Clients: clients}

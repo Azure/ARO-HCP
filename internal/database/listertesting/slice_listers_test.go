@@ -233,9 +233,10 @@ func TestSliceApplyDesireLister_ListForManagementCluster(t *testing.T) {
 		t.Errorf("ListForManagementCluster mgmt-b: len = %d, want 2", len(gotB))
 	}
 
-	// Case-insensitive: a resourceID whose name segment differs only in case still matches.
-	upperA := mustParseID(t, "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/MGMT-A")
-	gotUpperA, err := l.ListForManagementCluster(ctx, upperA)
+	// Case-insensitive: a resourceID parsed from the same path but with mixed case
+	// still matches the fixtures (which stamped the lowercased form into Spec).
+	upperRID := mustParseID(t, strings.ToUpper(testMgmtAID.String()))
+	gotUpperA, err := l.ListForManagementCluster(ctx, upperRID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster uppercased mgmt-a: %v", err)
 	}

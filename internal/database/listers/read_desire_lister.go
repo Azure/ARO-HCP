@@ -30,7 +30,7 @@ type ReadDesireLister interface {
 	List(ctx context.Context) ([]*kubeapplier.ReadDesire, error)
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplier.ReadDesire, error)
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ReadDesire, error)
-	ListForManagementCluster(ctx context.Context, managementCluster *azcorearm.ResourceID) ([]*kubeapplier.ReadDesire, error)
+	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplier.ReadDesire, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplier.ReadDesire, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplier.ReadDesire, error)
 }
@@ -65,12 +65,12 @@ func (l *readDesireLister) GetForNodePool(
 }
 
 func (l *readDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster *azcorearm.ResourceID,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ReadDesire, error) {
-	if managementCluster == nil {
+	if managementClusterResourceID == nil {
 		return nil, nil
 	}
-	return listFromIndex[kubeapplier.ReadDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster.String()))
+	return listFromIndex[kubeapplier.ReadDesire](l.indexer, ByManagementCluster, strings.ToLower(managementClusterResourceID.String()))
 }
 
 func (l *readDesireLister) ListForCluster(

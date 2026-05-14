@@ -16,7 +16,6 @@ package listertesting
 
 import (
 	"context"
-	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -36,22 +35,6 @@ func collectFromIterator[T any](ctx context.Context, iter database.DBClientItera
 		return nil, err
 	}
 	return out, nil
-}
-
-// findClientByManagementClusterID scans Clients' configured MCs for one whose
-// resourceID matches (case-insensitively) the given management-cluster resourceID.
-// Returns nil if not found or if managementCluster is nil.
-func findClientByManagementClusterID(clients database.KubeApplierDBClients, managementCluster *azcorearm.ResourceID) database.KubeApplierDBClient {
-	if managementCluster == nil {
-		return nil
-	}
-	want := managementCluster.String()
-	for _, rid := range clients.ManagementClusterResourceIDs() {
-		if strings.EqualFold(rid.String(), want) {
-			return clients.For(rid)
-		}
-	}
-	return nil
 }
 
 // DBApplyDesireLister implements listers.ApplyDesireLister backed by a real
@@ -106,9 +89,9 @@ func (l *DBApplyDesireLister) GetForNodePool(
 }
 
 func (l *DBApplyDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster *azcorearm.ResourceID,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
-	client := findClientByManagementClusterID(l.Clients, managementCluster)
+	client := l.Clients.For(managementClusterResourceID)
 	if client == nil {
 		return nil, nil
 	}
@@ -226,9 +209,9 @@ func (l *DBDeleteDesireLister) GetForNodePool(
 }
 
 func (l *DBDeleteDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster *azcorearm.ResourceID,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.DeleteDesire, error) {
-	client := findClientByManagementClusterID(l.Clients, managementCluster)
+	client := l.Clients.For(managementClusterResourceID)
 	if client == nil {
 		return nil, nil
 	}
@@ -344,9 +327,9 @@ func (l *DBReadDesireLister) GetForNodePool(
 }
 
 func (l *DBReadDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster *azcorearm.ResourceID,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ReadDesire, error) {
-	client := findClientByManagementClusterID(l.Clients, managementCluster)
+	client := l.Clients.For(managementClusterResourceID)
 	if client == nil {
 		return nil, nil
 	}

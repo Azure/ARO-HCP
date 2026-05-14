@@ -127,12 +127,12 @@ func (l *SliceApplyDesireLister) GetForNodePool(
 }
 
 func (l *SliceApplyDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster *azcorearm.ResourceID,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
-	if managementCluster == nil {
+	if managementClusterResourceID == nil {
 		return nil, nil
 	}
-	want := managementCluster.String()
+	want := managementClusterResourceID.String()
 	var out []*kubeapplier.ApplyDesire
 	for _, d := range l.Desires {
 		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), want) {
@@ -206,12 +206,12 @@ func (l *SliceDeleteDesireLister) GetForNodePool(
 }
 
 func (l *SliceDeleteDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster *azcorearm.ResourceID,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.DeleteDesire, error) {
-	if managementCluster == nil {
+	if managementClusterResourceID == nil {
 		return nil, nil
 	}
-	want := managementCluster.String()
+	want := managementClusterResourceID.String()
 	var out []*kubeapplier.DeleteDesire
 	for _, d := range l.Desires {
 		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), want) {
@@ -285,12 +285,12 @@ func (l *SliceReadDesireLister) GetForNodePool(
 }
 
 func (l *SliceReadDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster *azcorearm.ResourceID,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ReadDesire, error) {
-	if managementCluster == nil {
+	if managementClusterResourceID == nil {
 		return nil, nil
 	}
-	want := managementCluster.String()
+	want := managementClusterResourceID.String()
 	var out []*kubeapplier.ReadDesire
 	for _, d := range l.Desires {
 		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), want) {

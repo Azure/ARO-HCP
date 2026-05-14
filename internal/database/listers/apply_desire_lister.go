@@ -39,9 +39,9 @@ type ApplyDesireLister interface {
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ApplyDesire, error)
 
 	// ListForManagementCluster returns every ApplyDesire whose
-	// spec.managementCluster matches (case-insensitively). A nil managementCluster
-	// returns no results.
-	ListForManagementCluster(ctx context.Context, managementCluster *azcorearm.ResourceID) ([]*kubeapplier.ApplyDesire, error)
+	// spec.managementCluster matches (case-insensitively). A nil
+	// managementClusterResourceID returns no results.
+	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplier.ApplyDesire, error)
 
 	// ListForCluster returns every ApplyDesire under the given HCPOpenShiftCluster,
 	// covering both cluster- and node-pool-scoped desires.
@@ -82,12 +82,12 @@ func (l *applyDesireLister) GetForNodePool(
 }
 
 func (l *applyDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster *azcorearm.ResourceID,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
-	if managementCluster == nil {
+	if managementClusterResourceID == nil {
 		return nil, nil
 	}
-	return listFromIndex[kubeapplier.ApplyDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster.String()))
+	return listFromIndex[kubeapplier.ApplyDesire](l.indexer, ByManagementCluster, strings.ToLower(managementClusterResourceID.String()))
 }
 
 func (l *applyDesireLister) ListForCluster(
