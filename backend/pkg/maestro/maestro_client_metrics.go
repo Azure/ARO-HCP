@@ -106,7 +106,6 @@ func (c *instrumentedMaestroClient) Create(ctx context.Context, manifestWork *wo
 	operation := "create"
 
 	c.metrics.operationsTotal.WithLabelValues(operation).Inc()
-	c.metrics.eventsPublished.Inc()
 
 	result, err := c.client.Create(ctx, manifestWork, opts)
 
@@ -114,6 +113,8 @@ func (c *instrumentedMaestroClient) Create(ctx context.Context, manifestWork *wo
 
 	if err != nil {
 		c.metrics.errorsTotal.WithLabelValues(operation).Inc()
+	} else {
+		c.metrics.eventsPublished.Inc()
 	}
 
 	return result, err
@@ -124,7 +125,6 @@ func (c *instrumentedMaestroClient) Get(ctx context.Context, name string, opts m
 	operation := "get"
 
 	c.metrics.operationsTotal.WithLabelValues(operation).Inc()
-	c.metrics.eventsSubscribed.Inc()
 
 	result, err := c.client.Get(ctx, name, opts)
 
@@ -132,6 +132,8 @@ func (c *instrumentedMaestroClient) Get(ctx context.Context, name string, opts m
 
 	if err != nil {
 		c.metrics.errorsTotal.WithLabelValues(operation).Inc()
+	} else {
+		c.metrics.eventsSubscribed.Inc()
 	}
 
 	return result, err
@@ -142,7 +144,6 @@ func (c *instrumentedMaestroClient) Delete(ctx context.Context, name string, opt
 	operation := "delete"
 
 	c.metrics.operationsTotal.WithLabelValues(operation).Inc()
-	c.metrics.eventsPublished.Inc()
 
 	err := c.client.Delete(ctx, name, opts)
 
@@ -150,6 +151,8 @@ func (c *instrumentedMaestroClient) Delete(ctx context.Context, name string, opt
 
 	if err != nil {
 		c.metrics.errorsTotal.WithLabelValues(operation).Inc()
+	} else {
+		c.metrics.eventsPublished.Inc()
 	}
 
 	return err
@@ -160,7 +163,6 @@ func (c *instrumentedMaestroClient) Patch(ctx context.Context, name string, pt t
 	operation := "patch"
 
 	c.metrics.operationsTotal.WithLabelValues(operation).Inc()
-	c.metrics.eventsPublished.Inc()
 
 	result, err := c.client.Patch(ctx, name, pt, data, opts, subresources...)
 
@@ -168,6 +170,8 @@ func (c *instrumentedMaestroClient) Patch(ctx context.Context, name string, pt t
 
 	if err != nil {
 		c.metrics.errorsTotal.WithLabelValues(operation).Inc()
+	} else {
+		c.metrics.eventsPublished.Inc()
 	}
 
 	return result, err
@@ -178,7 +182,6 @@ func (c *instrumentedMaestroClient) List(ctx context.Context, opts metav1.ListOp
 	operation := "list"
 
 	c.metrics.operationsTotal.WithLabelValues(operation).Inc()
-	c.metrics.eventsSubscribed.Inc()
 
 	result, err := c.client.List(ctx, opts)
 
@@ -186,6 +189,8 @@ func (c *instrumentedMaestroClient) List(ctx context.Context, opts metav1.ListOp
 
 	if err != nil {
 		c.metrics.errorsTotal.WithLabelValues(operation).Inc()
+	} else {
+		c.metrics.eventsSubscribed.Inc()
 	}
 
 	return result, err
