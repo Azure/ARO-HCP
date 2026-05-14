@@ -398,6 +398,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create fleet db client: %w", err))
 	}
 
+	kubeApplierDBClient, err := app.NewKubeApplierDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create kube-applier db client: %w", err))
+	}
+
 	clustersServiceClient, err := app.NewClustersServiceClient(ctx, f.ClustersServiceURL, f.ClustersServiceTLSInsecure)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create clusters service client: %w", err))
@@ -413,6 +418,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ResourcesDBClient:                  resourcesCosmosDBClient,
 		BillingDBClient:                    billingDBClient,
 		FleetDBClient:                      fleetDBClient,
+		KubeApplierDBClient:                kubeApplierDBClient,
 		ClustersServiceClient:              clustersServiceClient,
 		MetricsServerListenAddress:         f.MetricsServerListenAddress,
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,
