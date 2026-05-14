@@ -71,13 +71,13 @@ spec:
       # operations are failing or events are being dropped.
       expr: |
         (
-          sum by (cluster) (
+          sum by (operation, cluster) (
             max without(prometheus_replica) (
               rate(maestro_grpc_errors_total{namespace="aro-hcp"}[5m])
             )
           )
           /
-          sum by (cluster) (
+          sum by (operation, cluster) (
             max without(prometheus_replica) (
               rate(maestro_grpc_operations_total{namespace="aro-hcp"}[5m])
             )
@@ -87,9 +87,9 @@ spec:
       labels:
         severity: warning
       annotations:
-        description: 'Backend Maestro GRPC client error rate is above 5% for the last 5 minutes. Events may be dropped, affecting cluster operations. Current value: {{ $value | humanizePercentage }}.'
+        description: 'Backend Maestro GRPC client error rate for {{ $labels.operation }} is above 5% for the last 5 minutes. Events may be dropped, affecting cluster operations. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend Maestro GRPC client error rate is high'
+        summary: 'Backend Maestro GRPC client {{ $labels.operation }} error rate is high'
     - alert: BackendMaestroGRPCClientHighLatency
       # Fires when the backend→maestro GRPC client P95 latency exceeds 1s.
       # High latency in GRPC operations can contribute to cluster provisioning
