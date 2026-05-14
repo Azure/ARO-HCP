@@ -13,7 +13,7 @@ spec:
       for: 2m
       labels:
         long_window: 1h
-        severity: info
+        severity: warning
         short_window: 30m
       annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}"
@@ -23,7 +23,7 @@ spec:
       for: 15m
       labels:
         long_window: 6h
-        severity: info
+        severity: warning
         short_window: 30m
       annotations:
         summary: "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}"
