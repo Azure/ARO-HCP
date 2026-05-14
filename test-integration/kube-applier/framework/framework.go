@@ -54,10 +54,13 @@ import (
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/read_desire_manager"
 )
 
-// ManagementCluster is the partition key used by every test case. The
+// ManagementCluster is the partition-key value used by every test case. The
 // kube-applier process is single-tenant per management cluster, so a fixed
-// value is correct here.
-const ManagementCluster = "test-mgmt-1"
+// value is correct here. After the *Desire API changed Spec.ManagementCluster
+// from a free-form string to an azcorearm.ResourceID, the partition key value
+// must be the lowercased canonical form of that resourceID; tests' JSON fixtures
+// (e.g. artifacts/.../desire.json) likewise embed the same path string.
+const ManagementCluster = "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1"
 
 const (
 	// fastRelist is short enough that controller reactions happen within a

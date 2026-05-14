@@ -148,7 +148,11 @@ func (l *DBApplyDesireLister) findManagementCluster(ctx context.Context, resourc
 	for _, d := range iter.Items(ctx) {
 		id := d.GetResourceID()
 		if id != nil && strings.EqualFold(id.String(), resourceIDString) {
-			return d.GetManagementCluster(), nil
+			mc := d.GetManagementCluster()
+			if mc == nil {
+				return "", database.NewNotFoundError()
+			}
+			return strings.ToLower(mc.String()), nil
 		}
 	}
 	if err := iter.GetError(); err != nil {
@@ -262,7 +266,11 @@ func (l *DBDeleteDesireLister) findManagementCluster(ctx context.Context, resour
 	for _, d := range iter.Items(ctx) {
 		id := d.GetResourceID()
 		if id != nil && strings.EqualFold(id.String(), resourceIDString) {
-			return d.GetManagementCluster(), nil
+			mc := d.GetManagementCluster()
+			if mc == nil {
+				return "", database.NewNotFoundError()
+			}
+			return strings.ToLower(mc.String()), nil
 		}
 	}
 	if err := iter.GetError(); err != nil {
@@ -376,7 +384,11 @@ func (l *DBReadDesireLister) findManagementCluster(ctx context.Context, resource
 	for _, d := range iter.Items(ctx) {
 		id := d.GetResourceID()
 		if id != nil && strings.EqualFold(id.String(), resourceIDString) {
-			return d.GetManagementCluster(), nil
+			mc := d.GetManagementCluster()
+			if mc == nil {
+				return "", database.NewNotFoundError()
+			}
+			return strings.ToLower(mc.String()), nil
 		}
 	}
 	if err := iter.GetError(); err != nil {

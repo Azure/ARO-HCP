@@ -34,8 +34,15 @@ const (
 	testRG         = "myrg"
 	testCluster    = "mycluster"
 	testNodePool   = "mynodepool"
-	testMgmt       = "mgmt-1"
 	testDesireName = "mydesire"
+)
+
+// testMgmtID is the resourceID stamped into Spec.ManagementCluster; testMgmt
+// is its lowercased-string form, used as the Cosmos partition key.
+var (
+	testMgmtID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
+	testMgmt = strings.ToLower(testMgmtID.String())
 )
 
 func mustParse(t *testing.T, s string) *azcorearm.ResourceID {
@@ -55,7 +62,7 @@ func newClusterApplyDesire(t *testing.T) *kubeapplier.ApplyDesire {
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
-			ManagementCluster: testMgmt,
+			ManagementCluster: testMgmtID,
 			KubeContent: &runtime.RawExtension{
 				Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x"}}`),
 			},
@@ -72,7 +79,7 @@ func newNodePoolReadDesire(t *testing.T) *kubeapplier.ReadDesire {
 					testSub, testRG, testCluster, testNodePool, testDesireName)),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
-			ManagementCluster: testMgmt,
+			ManagementCluster: testMgmtID,
 			TargetItem: kubeapplier.ResourceReference{
 				Resource: "configmaps", Namespace: "default", Name: "x",
 			},
@@ -99,8 +106,8 @@ func TestMockKubeApplierCreateAndGet_ClusterScoped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Spec.ManagementCluster != testMgmt {
-		t.Errorf("ManagementCluster = %q want %q", got.Spec.ManagementCluster, testMgmt)
+	if mc := got.Spec.ManagementCluster; mc == nil || !strings.EqualFold(mc.String(), testMgmt) {
+		t.Errorf("ManagementCluster = %v want %q", mc, testMgmt)
 	}
 	if got.Spec.KubeContent == nil || !strings.Contains(string(got.Spec.KubeContent.Raw), "ConfigMap") {
 		t.Errorf("KubeContent did not round-trip: %v", got.Spec.KubeContent)
@@ -179,7 +186,7 @@ func TestMockKubeApplierGlobalLister_UnionsClusterAndNodePoolScopes(t *testing.T
 						testSub, testRG, testCluster, testNodePool, "other")),
 			},
 			Spec: kubeapplier.ApplyDesireSpec{
-				ManagementCluster: testMgmt,
+				ManagementCluster: testMgmtID,
 				KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"y"}}`)},
 			},
 		},

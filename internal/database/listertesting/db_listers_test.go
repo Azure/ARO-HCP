@@ -16,6 +16,7 @@ package listertesting_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +35,14 @@ const (
 	testRG       = "rg"
 	testCluster  = "c"
 	testNodePool = "np"
-	testMgmt     = "mgmt-a"
+)
+
+// Management cluster identifiers. testMgmtID goes into Spec.ManagementCluster;
+// testMgmt is the lowercased-string form (the partition-key value).
+var (
+	testMgmtID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
+	testMgmt = strings.ToLower(testMgmtID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -55,7 +63,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 				testSub, testRG, testCluster, "cluster-d")),
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
-			ManagementCluster: testMgmt,
+			ManagementCluster: testMgmtID,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
 		},
 	}
@@ -65,7 +73,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 				testSub, testRG, testCluster, testNodePool, "np-d")),
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
-			ManagementCluster: testMgmt,
+			ManagementCluster: testMgmtID,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret"}`)},
 		},
 	}
@@ -86,8 +94,8 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 
 	if got, err := l.GetForCluster(ctx, testSub, testRG, testCluster, "cluster-d"); err != nil {
 		t.Errorf("GetForCluster cluster-d: %v", err)
-	} else if got.GetManagementCluster() != testMgmt {
-		t.Errorf("GetForCluster cluster-d: management = %q, want %q", got.GetManagementCluster(), testMgmt)
+	} else if mc := got.GetManagementCluster(); mc == nil || !strings.EqualFold(mc.String(), testMgmt) {
+		t.Errorf("GetForCluster cluster-d: management = %v, want %q", mc, testMgmt)
 	}
 
 	if got, err := l.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "np-d"); err != nil {

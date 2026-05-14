@@ -41,7 +41,7 @@ func InternalToCosmosKubeApplier[InternalAPIType any](
 		return nil, fmt.Errorf("internalObj must be a kubeapplier.ManagementClusterAccessor: %T", internalObj)
 	}
 	mgmtCluster := mgmtAccessor.GetManagementCluster()
-	if len(mgmtCluster) == 0 {
+	if mgmtCluster == nil {
 		return nil, fmt.Errorf("kube-applier object %T is missing spec.managementCluster", internalObj)
 	}
 
@@ -50,7 +50,7 @@ func InternalToCosmosKubeApplier[InternalAPIType any](
 			BaseDocument: BaseDocument{
 				ID: metadata.GetCosmosUID(),
 			},
-			PartitionKey: strings.ToLower(mgmtCluster),
+			PartitionKey: strings.ToLower(mgmtCluster.String()),
 			ResourceID:   metadata.GetResourceID(),
 			ResourceType: metadata.GetResourceID().ResourceType.String(),
 		},

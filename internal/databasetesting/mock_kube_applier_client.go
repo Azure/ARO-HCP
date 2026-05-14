@@ -310,7 +310,7 @@ func (m *MockKubeApplierDBClient) addApplyDesire(ctx context.Context, d *kubeapp
 	if err != nil {
 		return err
 	}
-	crud, err := m.KubeApplier(d.GetManagementCluster()).ApplyDesires(parent)
+	crud, err := m.KubeApplier(managementClusterPartitionKey(d.GetManagementCluster())).ApplyDesires(parent)
 	if err != nil {
 		return err
 	}
@@ -323,7 +323,7 @@ func (m *MockKubeApplierDBClient) addDeleteDesire(ctx context.Context, d *kubeap
 	if err != nil {
 		return err
 	}
-	crud, err := m.KubeApplier(d.GetManagementCluster()).DeleteDesires(parent)
+	crud, err := m.KubeApplier(managementClusterPartitionKey(d.GetManagementCluster())).DeleteDesires(parent)
 	if err != nil {
 		return err
 	}
@@ -336,12 +336,23 @@ func (m *MockKubeApplierDBClient) addReadDesire(ctx context.Context, d *kubeappl
 	if err != nil {
 		return err
 	}
-	crud, err := m.KubeApplier(d.GetManagementCluster()).ReadDesires(parent)
+	crud, err := m.KubeApplier(managementClusterPartitionKey(d.GetManagementCluster())).ReadDesires(parent)
 	if err != nil {
 		return err
 	}
 	_, err = crud.Create(ctx, d, nil)
 	return err
+}
+
+// managementClusterPartitionKey reduces a *Desire's spec.managementCluster
+// resourceID to the lowercased string we use as the Cosmos partition key.
+// Returns "" when the resourceID is nil — callers that pass that to
+// KubeApplier(...) get the empty partition, which is acceptable in tests.
+func managementClusterPartitionKey(rid *azcorearm.ResourceID) string {
+	if rid == nil {
+		return ""
+	}
+	return strings.ToLower(rid.String())
 }
 
 // parentForKubeApplierDesire derives a database.ResourceParent from a *Desire's

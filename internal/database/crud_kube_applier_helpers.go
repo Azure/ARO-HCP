@@ -48,7 +48,7 @@ func serializeKubeApplierItem[InternalAPIType, CosmosAPIType any](
 	if !strings.EqualFold(cosmosUID, strings.ToLower(cosmosUID)) {
 		return nil, nil, fmt.Errorf("invalid cosmos id found in object")
 	}
-	if len(mgmtAccessor.GetManagementCluster()) == 0 {
+	if mgmtAccessor.GetManagementCluster() == nil {
 		return nil, nil, fmt.Errorf("kube-applier object %T is missing spec.managementCluster", newObj)
 	}
 
@@ -70,11 +70,11 @@ func kubeApplierPartitionKey[InternalAPIType any](newObj *InternalAPIType) (stri
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement ManagementClusterAccessor", newObj)
 	}
-	mgmt := strings.ToLower(mgmtAccessor.GetManagementCluster())
-	if len(mgmt) == 0 {
+	mgmt := mgmtAccessor.GetManagementCluster()
+	if mgmt == nil {
 		return "", fmt.Errorf("kube-applier object %T is missing spec.managementCluster", newObj)
 	}
-	return mgmt, nil
+	return strings.ToLower(mgmt.String()), nil
 }
 
 func createKubeApplier[InternalAPIType, CosmosAPIType any](

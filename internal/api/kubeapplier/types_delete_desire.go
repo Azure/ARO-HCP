@@ -17,6 +17,8 @@ package kubeapplier
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -46,8 +48,9 @@ type DeleteDesireSpec struct {
 	// reconcile this desire. It is the cosmos partition key for the
 	// kube-applier container; entries from one management cluster never see
 	// entries from another.
-	// TODO this may end up changing to be a resourceID
-	ManagementCluster string `json:"managementCluster"`
+	// This is the same resourceID as the fleetapi.ManagementCluster.CosmosMetadata.ResourceID
+	// Example: "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"
+	ManagementCluster *azcorearm.ResourceID `json:"managementCluster"`
 
 	// TargetItem identifies the single kube object to delete. The
 	// kube-applier will issue a delete and then wait for the item to actually

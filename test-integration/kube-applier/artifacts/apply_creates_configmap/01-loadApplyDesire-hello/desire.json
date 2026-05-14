@@ -14,7 +14,7 @@
 				"namespace": "apply-creates-configmap"
 			}
 		},
-		"managementCluster": "test-mgmt-1",
+		"managementCluster": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1",
 		"targetItem": {
 			"name": "hello",
 			"namespace": "apply-creates-configmap",

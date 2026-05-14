@@ -37,8 +37,19 @@ const (
 	testRG       = "rg"
 	testCluster  = "c"
 	testNodePool = "np"
-	testMgmtA    = "mgmt-a"
-	testMgmtB    = "mgmt-b"
+)
+
+// Management cluster identifiers. The *ID values are the resourceIDs the
+// fixtures stamp into Spec.ManagementCluster; the lowercased-string forms are
+// the partition-key values passed to lister.ListForManagementCluster, which
+// after the *Desire API change is the lowercased(rid.String()).
+var (
+	testMgmtAID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
+	testMgmtBID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/2/managementclusters/mgmt-b"))
+	testMgmtA = strings.ToLower(testMgmtAID.String())
+	testMgmtB = strings.ToLower(testMgmtBID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -50,7 +61,7 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newApplyDesire(t *testing.T, idStr, mgmt string) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
 	t.Helper()
 	return &kubeapplier.ApplyDesire{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
@@ -82,14 +93,14 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 		// mgmt-a: cluster-scoped + nodepool-scoped under cluster c
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
-			testMgmtA),
+			testMgmtAID),
 		newApplyDesire(t,
 			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
-			testMgmtA),
+			testMgmtAID),
 		// mgmt-b: cluster-scoped under a different cluster
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
-			testMgmtB),
+			testMgmtBID),
 	})
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
@@ -117,8 +128,9 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 		t.Errorf("ListForManagementCluster mgmt-a: len = %d, want 2", len(gotA))
 	}
 	for _, d := range gotA {
-		if !strings.EqualFold(d.GetManagementCluster(), testMgmtA) {
-			t.Errorf("ListForManagementCluster mgmt-a returned desire with mgmt=%q", d.GetManagementCluster())
+		mc := d.GetManagementCluster()
+		if mc == nil || !strings.EqualFold(mc.String(), testMgmtA) {
+			t.Errorf("ListForManagementCluster mgmt-a returned desire with mgmt=%v", mc)
 		}
 	}
 
@@ -138,14 +150,14 @@ func TestKubeApplierInformers_ListForCluster_UnionsClusterAndNodePool(t *testing
 	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
-			testMgmtA),
+			testMgmtAID),
 		newApplyDesire(t,
 			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
-			testMgmtA),
+			testMgmtAID),
 		// Different cluster: should NOT show up under our cluster's index.
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
-			testMgmtB),
+			testMgmtBID),
 	})
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
@@ -181,7 +193,7 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
-			testMgmtA),
+			testMgmtAID),
 	})
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
@@ -200,8 +212,9 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 	if got == nil {
 		t.Fatal("GetForCluster a1: nil result")
 	}
-	if got.GetManagementCluster() != testMgmtA {
-		t.Errorf("GetForCluster a1: management = %q, want %q", got.GetManagementCluster(), testMgmtA)
+	mc := got.GetManagementCluster()
+	if mc == nil || !strings.EqualFold(mc.String(), testMgmtA) {
+		t.Errorf("GetForCluster a1: management = %v, want %q", mc, testMgmtA)
 	}
 }
 
