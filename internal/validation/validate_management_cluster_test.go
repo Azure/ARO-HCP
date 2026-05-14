@@ -172,6 +172,16 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 				{fieldPath: "status.maestroConsumerName", message: "Required"},
 				{fieldPath: "status.maestroRESTAPIURL", message: "Required"},
 				{fieldPath: "status.maestroGRPCTarget", message: "Required"},
+				{fieldPath: "status.kubeApplierCosmosContainerName", message: "Required"},
+			},
+		},
+		{
+			name: "missing kubeApplierCosmosContainerName rejected on create",
+			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+				mc.Status.KubeApplierCosmosContainerName = ""
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.kubeApplierCosmosContainerName", message: "Required"},
 			},
 		},
 		{
@@ -357,6 +367,28 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 				{fieldPath: "resourceId", message: "immutable"},
 			},
 		},
+		// KubeApplierCosmosContainerName immutability — see the field validation in
+		// validateManagementClusterStatus: once non-empty, the value is frozen; the
+		// empty→set transition (migration backfill) is explicitly allowed below in
+		// TestValidateManagementClusterUpdate_KubeApplierContainerMigration.
+		{
+			name: "kubeApplierCosmosContainerName changed once set",
+			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+				mc.Status.KubeApplierCosmosContainerName = "Manifests-MC-DIFFERENT"
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.kubeApplierCosmosContainerName", message: "immutable"},
+			},
+		},
+		{
+			name: "kubeApplierCosmosContainerName cleared once set",
+			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+				mc.Status.KubeApplierCosmosContainerName = ""
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.kubeApplierCosmosContainerName", message: "immutable"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -384,6 +416,83 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 				if !found {
 					t.Errorf("expected error containing message %q at field %q but not found in: %v", expectedErr.message, expectedErr.fieldPath, errs)
 				}
+			}
+		})
+	}
+}
+
+// TestValidateManagementClusterUpdate_KubeApplierContainerMigration covers the
+// asymmetric immutability of Status.KubeApplierCosmosContainerName: the field
+// did not exist on older records, so an empty → non-empty transition during the
+// one-time migration backfill must be allowed even though the field is otherwise
+// immutable once set.
+func TestValidateManagementClusterUpdate_KubeApplierContainerMigration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		oldValue   string
+		newValue   string
+		wantErrSub string // empty → expect success
+	}{
+		{
+			name:     "empty old, set new is allowed (migration backfill)",
+			oldValue: "",
+			newValue: "Manifests-MC-1",
+		},
+		{
+			name:     "unchanged value is allowed",
+			oldValue: "Manifests-MC-1",
+			newValue: "Manifests-MC-1",
+		},
+		{
+			name:       "set value changed is rejected",
+			oldValue:   "Manifests-MC-1",
+			newValue:   "Manifests-MC-2",
+			wantErrSub: "immutable",
+		},
+		{
+			name:       "set value cleared is rejected",
+			oldValue:   "Manifests-MC-1",
+			newValue:   "",
+			wantErrSub: "immutable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			oldObj := validManagementCluster(t)
+			newObj := validManagementCluster(t)
+			oldObj.Status.KubeApplierCosmosContainerName = tt.oldValue
+			newObj.Status.KubeApplierCosmosContainerName = tt.newValue
+
+			errs := ValidateManagementClusterUpdate(context.Background(), newObj, oldObj)
+
+			// Filter to errors that involve this specific field so we don't pick up
+			// unrelated failures from the rest of the validator.
+			var fieldErrs []string
+			for _, e := range errs {
+				if strings.Contains(e.Field, "kubeApplierCosmosContainerName") {
+					fieldErrs = append(fieldErrs, e.Error())
+				}
+			}
+
+			if tt.wantErrSub == "" {
+				if len(fieldErrs) != 0 {
+					t.Errorf("expected no kubeApplierCosmosContainerName errors, got: %v", fieldErrs)
+				}
+				return
+			}
+			found := false
+			for _, e := range fieldErrs {
+				if strings.Contains(e, tt.wantErrSub) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected kubeApplierCosmosContainerName error containing %q, got: %v", tt.wantErrSub, fieldErrs)
 			}
 		})
 	}

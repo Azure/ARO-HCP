@@ -160,8 +160,14 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 
 	// KubeApplierCosmosContainerName — required, immutable
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
+	// for new records, require this. Old records won't have it.
+	if op.Type == operation.Create {
+		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
+	}
+	// allow the value to go from empty to set, but never change once set.
+	if op.Type == operation.Update && len(oldObj.KubeApplierCosmosContainerName) != 0 {
+		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
+	}
 
 	return errs
 }
