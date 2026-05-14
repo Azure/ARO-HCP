@@ -39,7 +39,7 @@ func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesD
 		return utils.TrackError(err)
 	}
 	logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
-		"currentResourceID", startingCosmosRecord.ResourceID.String(),
+		"currentResourceID", resourceIDToString(startingCosmosRecord.ResourceID),
 		"content", startingCosmosRecord,
 	)
 
@@ -51,7 +51,7 @@ func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesD
 	errs := []error{}
 	for _, typedDocument := range allCosmosRecords.Items(ctx) {
 		logger.Info(fmt.Sprintf("dumping resourceID %v", typedDocument.ResourceID),
-			"currentResourceID", typedDocument.ResourceID.String(),
+			"currentResourceID", resourceIDToString(typedDocument.ResourceID),
 			"content", typedDocument,
 		)
 	}

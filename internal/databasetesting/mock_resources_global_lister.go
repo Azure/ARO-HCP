@@ -191,6 +191,12 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *da
 			continue
 		}
 
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
+			continue
+		}
+
 		var cosmosObj database.GenericDocument[api.Operation]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
@@ -243,6 +249,12 @@ func (l *mockControllerGlobalLister) List(ctx context.Context, options *database
 			}
 		}
 		if !resourceTypeMatches {
+			continue
+		}
+
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
 			continue
 		}
 
@@ -309,6 +321,12 @@ func (l *mockManagementClusterContentGlobalLister) List(ctx context.Context, opt
 			}
 		}
 		if !resourceTypeMatches {
+			continue
+		}
+
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
 			continue
 		}
 
