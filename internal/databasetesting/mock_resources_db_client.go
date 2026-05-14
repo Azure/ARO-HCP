@@ -232,6 +232,12 @@ func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceTy
 			continue
 		}
 
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
+			continue
+		}
+
 		// Check resource type match if specified
 		if resourceType != nil {
 			if !strings.EqualFold(typedDoc.ResourceType, resourceType.String()) {

@@ -101,9 +101,9 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		PageSizeHint: -1,
 	}
 	if prefix == nil {
-		query = "SELECT * FROM c"
+		query = "SELECT * FROM c WHERE IS_DEFINED(c.resourceID)"
 	} else {
-		query = "SELECT * FROM c WHERE STARTSWITH(c.resourceID, @prefix, true)"
+		query = "SELECT * FROM c WHERE IS_DEFINED(c.resourceID) AND STARTSWITH(c.resourceID, @prefix, true)"
 		queryOptions = azcosmos.QueryOptions{
 			PageSizeHint: -1,
 			QueryParameters: []azcosmos.QueryParameter{
@@ -116,11 +116,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	}
 
 	if resourceType != nil {
-		if prefix == nil {
-			query += " WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
-		} else {
-			query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
-		}
+		query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
 		queryParameter := azcosmos.QueryParameter{
 			Name:  "@resourceType",
 			Value: resourceType.String(),

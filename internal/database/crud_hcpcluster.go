@@ -68,6 +68,7 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 
 	query := fmt.Sprintf(
 		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
+			"AND IS_DEFINED(c.resourceID) "+
 			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
 		api.OperationStatusResourceType.String(),
 		arm.ProvisioningStateSucceeded,
