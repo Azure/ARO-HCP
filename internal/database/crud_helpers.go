@@ -101,9 +101,9 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		PageSizeHint: -1,
 	}
 	if prefix == nil {
-		query = "SELECT * FROM c WHERE IS_DEFINED(c.resourceID)"
+		query = "SELECT * FROM c WHERE LENGTH(c.resourceID) > 0"
 	} else {
-		query = "SELECT * FROM c WHERE IS_DEFINED(c.resourceID) AND STARTSWITH(c.resourceID, @prefix, true)"
+		query = "SELECT * FROM c WHERE STARTSWITH(c.resourceID, @prefix, true)"
 		queryOptions = azcosmos.QueryOptions{
 			PageSizeHint: -1,
 			QueryParameters: []azcosmos.QueryParameter{
