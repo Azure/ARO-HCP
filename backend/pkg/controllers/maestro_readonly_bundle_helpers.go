@@ -45,6 +45,34 @@ const (
 // 2MB is the maximum size of a Cosmos DB item (https://learn.microsoft.com/en-us/azure/cosmos-db/concepts-limits#per-item-limits).
 const kubeContentMaxSizeBytes = 1887436 // 2MB * 0.9
 
+// resourceIdentifiersFromManifestWork builds the list of MaestroBundleResourceIdentifiers from a ManifestWork.
+// It pairs each ManifestConfig's ResourceIdentifier with the corresponding manifest's TypeMeta (by index)
+// to populate APIVersion, Kind, Resource, Name, and Namespace.
+func resourceIdentifiersFromManifestWork(mw *workv1.ManifestWork) []api.MaestroBundleResourceIdentifier {
+	result := make([]api.MaestroBundleResourceIdentifier, len(mw.Spec.ManifestConfigs))
+	for i, mc := range mw.Spec.ManifestConfigs {
+		rid := api.MaestroBundleResourceIdentifier{
+			Resource:  mc.ResourceIdentifier.Resource,
+			Name:      mc.ResourceIdentifier.Name,
+			Namespace: mc.ResourceIdentifier.Namespace,
+		}
+		if i < len(mw.Spec.Workload.Manifests) {
+			manifest := mw.Spec.Workload.Manifests[i]
+			if manifest.Object != nil {
+				gvk := manifest.Object.GetObjectKind().GroupVersionKind()
+				if gvk.Group == "" {
+					rid.APIVersion = gvk.Version
+				} else {
+					rid.APIVersion = gvk.Group + "/" + gvk.Version
+				}
+				rid.Kind = gvk.Kind
+			}
+		}
+		result[i] = rid
+	}
+	return result
+}
+
 // buildInitialReadonlyMaestroBundle builds an initial readonly Maestro Bundle for a given resource specified in obj.
 // objResourceIdentifier is the resource identifier of the resource specified in obj.
 // maestroBundleNamespacedName is the namespaced name of the Maestro Bundle.

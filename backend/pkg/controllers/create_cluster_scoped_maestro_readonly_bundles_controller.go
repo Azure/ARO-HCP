@@ -268,10 +268,21 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 		return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to get or create Maestro Bundle: %w", err))
 	}
 
-	// If the Maestro API MaestroBundle ID is not set we store the returned Maestro Bundle ID in the corresponding Maestro Bundle reference of the ServiceProviderCluster in Cosmos.
+	// Backfill any missing Maestro Bundle reference attributes individually,
+	// then persist at most once if anything changed.
+	needsUpdate := false
+
 	if len(existingMaestroBundleRef.MaestroAPIMaestroBundleID) == 0 {
-		bundleID := string(resultMaestroBundle.UID)
-		existingMaestroBundleRef.MaestroAPIMaestroBundleID = bundleID
+		existingMaestroBundleRef.MaestroAPIMaestroBundleID = string(resultMaestroBundle.UID)
+		needsUpdate = true
+	}
+
+	if len(existingMaestroBundleRef.ResourceIdentifiers) != len(desiredMaestroBundle.Spec.ManifestConfigs) {
+		existingMaestroBundleRef.ResourceIdentifiers = resourceIdentifiersFromManifestWork(desiredMaestroBundle)
+		needsUpdate = true
+	}
+
+	if needsUpdate {
 		err = existingServiceProviderCluster.Status.MaestroReadonlyBundles.Set(existingMaestroBundleRef)
 		if err != nil {
 			return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to set Maestro Bundle reference: %w", err))

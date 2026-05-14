@@ -210,6 +210,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: "existing-bundle-name",
 							MaestroAPIMaestroBundleID:   "new-bundle-uid",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -225,6 +234,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: "complete-bundle-name",
 							MaestroAPIMaestroBundleID:   "complete-bundle-id",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -242,6 +260,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: "complete-bundle-name",
 							MaestroAPIMaestroBundleID:   "complete-bundle-id",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -285,6 +312,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: "hosted-cluster-bundle-name",
 							MaestroAPIMaestroBundleID:   "hosted-cluster-bundle-uid",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -353,6 +389,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: syncMaestroBundleTestDeterministicUUID.String(),
 							MaestroAPIMaestroBundleID:   "new-bundle-uid",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -436,6 +481,8 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 				require.NotNil(t, gotRef, "result missing bundle ref for name %q", wantRef.Name)
 				assert.Equal(t, wantRef.Name, gotRef.Name)
 				assert.Equal(t, wantRef.MaestroAPIMaestroBundleName, gotRef.MaestroAPIMaestroBundleName)
+				assert.Equal(t, wantRef.MaestroAPIMaestroBundleID, gotRef.MaestroAPIMaestroBundleID)
+				assert.Equal(t, wantRef.ResourceIdentifiers, gotRef.ResourceIdentifiers)
 			}
 		})
 	}
