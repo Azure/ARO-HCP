@@ -386,7 +386,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		"ExternalAuthMetrics", externalAuthInformer, externalAuthHandler)
 
 	maestroMetrics := maestro.NewMaestroMetrics(b.options.MetricsRegisterer)
-	maestroClientBuilder := maestro.NewInstrumentedMaestroClientBuilder(maestroMetrics)
+	maestroClientBuilder := maestro.NewMaestroClientBuilder(maestroMetrics)
 
 	subscriptionNonClusterDataDumpController := datadumpcontrollers.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers)
 	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers)

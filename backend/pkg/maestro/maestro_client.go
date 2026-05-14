@@ -105,11 +105,7 @@ func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndp
 	return client, nil
 }
 
-func NewMaestroClientBuilder() MaestroClientBuilder {
-	return &maestroClientBuilder{}
-}
-
-func NewInstrumentedMaestroClientBuilder(metrics *MaestroMetrics) MaestroClientBuilder {
+func NewMaestroClientBuilder(metrics *MaestroMetrics) MaestroClientBuilder {
 	return &maestroClientBuilder{
 		metrics: metrics,
 	}
