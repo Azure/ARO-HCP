@@ -323,6 +323,10 @@ func getVersionPairWithoutUpgradeEdge(ctx context.Context, channelGroup string, 
 		if v.Major != requestedMinor.Major || v.Minor != requestedMinor.Minor {
 			continue
 		}
+		// Skip pre-release versions (ec, rc, nightly) — they may lack stable node images
+		if len(v.Pre) > 0 {
+			continue
+		}
 		versions = append(versions, indexedVersion{index: i, version: v})
 	}
 	if len(versions) < 2 {
