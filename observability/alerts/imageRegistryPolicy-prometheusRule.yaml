@@ -1,0 +1,44 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: image-registry-policy
+  namespace: monitoring
+spec:
+  groups:
+  - name: image-registry-policy
+    interval: 1m
+    rules:
+    - alert: ImageRegistryPolicyDenied
+      expr: |
+        sum by (cluster, policy, policy_binding) (
+          increase(apiserver_validating_admission_policy_check_total{
+            policy="image-registry-allowlist-policy",
+            enforcement_action="deny",
+            validation_result="denied"
+          }[15m])
+        ) > 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Image registry policy denied pod admission"
+        description: "The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running."
+        runbook_url: TBD
+        correlationId: "ImageRegistryPolicyDenied/{{ $labels.cluster }}"
+    - alert: ImageRegistryPolicyAuditViolation
+      expr: |
+        sum by (cluster, policy, policy_binding) (
+          increase(apiserver_validating_admission_policy_check_total{
+            policy="image-registry-allowlist-policy",
+            enforcement_action="audit",
+            validation_result="denied"
+          }[15m])
+        ) > 0
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Image registry policy audit violation detected"
+        description: "The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details."
+        runbook_url: TBD
+        correlationId: "ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}"
