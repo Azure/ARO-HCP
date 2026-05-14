@@ -97,9 +97,9 @@ spec:
       # >20min cluster provisioning times.
       expr: |
         max by (operation, cluster) (
-          max without(prometheus_replica) (
-            histogram_quantile(0.95,
-              sum by (operation, le, cluster) (
+          histogram_quantile(0.95,
+            sum by (operation, le, cluster) (
+              max without(prometheus_replica) (
                 rate(maestro_grpc_operation_duration_seconds_bucket{namespace="aro-hcp"}[5m])
               )
             )
