@@ -256,7 +256,7 @@ func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersio
 //   - The desired version is not less than the highest active node pool version (no downgrades)
 //   - The desired version is not greater than the lowest control plane version
 //   - No major version changes (unless FeatureExperimentalReleaseFeatures is registered)
-//   - No minor versions are skipped
+//   - Minor version upgrades limited to +2
 //   - The desired version exists in Cincinnati
 //
 // Cincinnati upgrade-edge validation is intentionally skipped — HCP nodepools use the Replace
