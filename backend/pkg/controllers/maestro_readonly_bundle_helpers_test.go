@@ -696,7 +696,7 @@ func TestMaestroReadonlyBundleHelpers_isStaleMaestroReadonlyBundle(t *testing.T)
 		bundle := &workv1.ManifestWork{
 			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
 		}
-		assert.False(t, isStaleMaestroReadonlyBundle(nil, bundle))
+		assert.False(t, isStaleMaestroReadonlyBundle(nil, bundle, 0, false))
 	})
 
 	t.Run("not stale when bundle is nil", func(t *testing.T) {
@@ -707,7 +707,7 @@ func TestMaestroReadonlyBundleHelpers_isStaleMaestroReadonlyBundle(t *testing.T)
 				},
 			},
 		}
-		assert.False(t, isStaleMaestroReadonlyBundle(mcc, nil))
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, nil, 0, false))
 	})
 
 	t.Run("not stale when MCC is not degraded", func(t *testing.T) {
@@ -721,7 +721,7 @@ func TestMaestroReadonlyBundleHelpers_isStaleMaestroReadonlyBundle(t *testing.T)
 		bundle := &workv1.ManifestWork{
 			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
 		}
-		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle, 0, false))
 	})
 
 	t.Run("not stale when degraded for a different reason", func(t *testing.T) {
@@ -735,7 +735,7 @@ func TestMaestroReadonlyBundleHelpers_isStaleMaestroReadonlyBundle(t *testing.T)
 		bundle := &workv1.ManifestWork{
 			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
 		}
-		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle, 0, false))
 	})
 
 	t.Run("not stale when bundle has zero CreationTimestamp", func(t *testing.T) {
@@ -749,7 +749,7 @@ func TestMaestroReadonlyBundleHelpers_isStaleMaestroReadonlyBundle(t *testing.T)
 		bundle := &workv1.ManifestWork{
 			ObjectMeta: metav1.ObjectMeta{},
 		}
-		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle, 0, false))
 	})
 
 	t.Run("not stale when bundle was created recently", func(t *testing.T) {
@@ -763,7 +763,7 @@ func TestMaestroReadonlyBundleHelpers_isStaleMaestroReadonlyBundle(t *testing.T)
 		bundle := &workv1.ManifestWork{
 			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Now()},
 		}
-		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle, 0, false))
 	})
 
 	t.Run("stale when bundle is old and has no status feedback", func(t *testing.T) {
@@ -777,6 +777,48 @@ func TestMaestroReadonlyBundleHelpers_isStaleMaestroReadonlyBundle(t *testing.T)
 		bundle := &workv1.ManifestWork{
 			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
 		}
-		assert.True(t, isStaleMaestroReadonlyBundle(mcc, bundle))
+		assert.True(t, isStaleMaestroReadonlyBundle(mcc, bundle, 0, false))
+	})
+
+	t.Run("not stale when cluster is being deleted", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "MaestroBundleStatusFeedbackNotAvailable"},
+				},
+			},
+		}
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
+		}
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle, 0, true))
+	})
+
+	t.Run("not stale when retry count has reached max", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "MaestroBundleStatusFeedbackNotAvailable"},
+				},
+			},
+		}
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
+		}
+		assert.False(t, isStaleMaestroReadonlyBundle(mcc, bundle, maxStaleBundleDeleteRetries, false))
+	})
+
+	t.Run("stale when retry count is below max", func(t *testing.T) {
+		mcc := &api.ManagementClusterContent{
+			Status: api.ManagementClusterContentStatus{
+				Conditions: []metav1.Condition{
+					{Type: "Degraded", Status: metav1.ConditionTrue, Reason: "MaestroBundleStatusFeedbackNotAvailable"},
+				},
+			},
+		}
+		bundle := &workv1.ManifestWork{
+			ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)}},
+		}
+		assert.True(t, isStaleMaestroReadonlyBundle(mcc, bundle, maxStaleBundleDeleteRetries-1, false))
 	})
 }
