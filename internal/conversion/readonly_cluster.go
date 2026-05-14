@@ -15,11 +15,11 @@
 package conversion
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
-func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
+func CopyReadOnlyTrackedResourceValues(dest, src *armresourcesapi.TrackedResource) {
 	dest.ID = src.ID
 	dest.Name = src.Name
 	dest.Type = src.Type
@@ -27,12 +27,12 @@ func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
 	dest.SystemData = src.SystemData.DeepCopy()
 }
 
-func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
+func CopyReadOnlyClusterValues(dest, src *resourcesapi.HCPOpenShiftCluster) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:
-		dest.Identity = &arm.ManagedServiceIdentity{}
+		dest.Identity = &armresourcesapi.ManagedServiceIdentity{}
 	case src.Identity == nil && dest.Identity != nil:
 		dest.Identity = nil
 	}
@@ -44,7 +44,7 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 	dest.CosmosETag = src.CosmosETag
 }
 
-func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdentity) {
+func copyReadOnlyManagedServiceIdentityValues(dest, src *armresourcesapi.ManagedServiceIdentity) {
 	dest.PrincipalID = src.PrincipalID
 	dest.TenantID = src.TenantID
 
@@ -59,13 +59,13 @@ func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdent
 			continue
 		}
 		if dest.UserAssignedIdentities == nil {
-			dest.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
+			dest.UserAssignedIdentities = make(map[string]*armresourcesapi.UserAssignedIdentity)
 		}
 		dest.UserAssignedIdentities[key] = srcVal.DeepCopy()
 	}
 }
 
-func hasClusterIdentityToSet(src *arm.ManagedServiceIdentity) bool {
+func hasClusterIdentityToSet(src *armresourcesapi.ManagedServiceIdentity) bool {
 	if src == nil {
 		return false
 	}

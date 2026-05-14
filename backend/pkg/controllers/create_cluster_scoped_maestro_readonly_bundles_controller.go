@@ -31,8 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -52,7 +51,7 @@ const (
 // As of now we support the creation of a Maestro readonly bundle for the Hypershift's HostedCluster CR associated to
 // the Cluster.
 type createClusterScopedMaestroReadonlyBundlesSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
+	cooldownChecker controllerutils.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
 
@@ -121,11 +120,11 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.C
 	// The list of Maestro Bundle internal names that are recognized by the controller.
 	// Any Maestro Bundle internal name that is not in this list will not be synced by the
 	// controller and reported as an error.
-	recognizedMaestroBundles := []api.MaestroBundleInternalName{
-		api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
+	recognizedMaestroBundles := []resourcesapi.MaestroBundleInternalName{
+		resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 	}
 
-	var maestroBundlesToSync []api.MaestroBundleInternalName
+	var maestroBundlesToSync []resourcesapi.MaestroBundleInternalName
 	// We first check if there's any recognized Maestro Bundle reference that needs to be synced.
 	for _, maestroBundleInternalName := range recognizedMaestroBundles {
 		currentMaestroBundleReference, err := existingServiceProviderCluster.Status.MaestroReadonlyBundles.Get(maestroBundleInternalName)
@@ -207,14 +206,14 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.C
 // caller can keep in-memory state in sync and subsequent bundle syncs in the same run never see stale data.
 func (c *createClusterScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 	ctx context.Context,
-	maestroBundleInternalName api.MaestroBundleInternalName,
-	existingServiceProviderCluster *api.ServiceProviderCluster,
-	existingCluster *api.HCPOpenShiftCluster,
+	maestroBundleInternalName resourcesapi.MaestroBundleInternalName,
+	existingServiceProviderCluster *resourcesapi.ServiceProviderCluster,
+	existingCluster *resourcesapi.HCPOpenShiftCluster,
 	maestroClient maestro.Client,
 	serviceProviderClustersDBClient database.ServiceProviderClusterCRUD,
 	clusterProvisionShard *arohcpv1alpha1.ProvisionShard,
 	csClusterDomainPrefix string,
-) (*api.ServiceProviderCluster, error) {
+) (*resourcesapi.ServiceProviderCluster, error) {
 	lastPersistedSPC := existingServiceProviderCluster
 
 	existingMaestroBundleRef, err := existingServiceProviderCluster.Status.MaestroReadonlyBundles.Get(maestroBundleInternalName)
@@ -257,7 +256,7 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 
 	var desiredMaestroBundle *workv1.ManifestWork
 	switch maestroBundleInternalName {
-	case api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster:
+	case resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster:
 		desiredMaestroBundle = c.buildInitialReadonlyMaestroBundleForHostedCluster(existingCluster, csClusterDomainPrefix, maestroBundleNamespacedName)
 	default:
 		return lastPersistedSPC, utils.TrackError(fmt.Errorf("unrecognized Maestro Bundle internal name: %s", maestroBundleInternalName))
@@ -324,7 +323,7 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildClusterEmptyHoste
 
 // buildInitialReadonlyMaestroBundleForHostedCluster builds an initial readonly Maestro Bundle for the Cluster's Hypershift HostedCluster.
 // Used to create the readonly Maestro bundle associated to it.
-func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundleForHostedCluster(cluster *api.HCPOpenShiftCluster, csClusterDomainPrefix string, maestroBundleNamespacedName types.NamespacedName) *workv1.ManifestWork {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) buildInitialReadonlyMaestroBundleForHostedCluster(cluster *resourcesapi.HCPOpenShiftCluster, csClusterDomainPrefix string, maestroBundleNamespacedName types.NamespacedName) *workv1.ManifestWork {
 	hostedCluster := c.buildClusterEmptyHostedCluster(cluster.ServiceProviderProperties.ClusterServiceID.ID(), csClusterDomainPrefix)
 	maestroBundleResourceIdentifier := workv1.ResourceIdentifier{
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
@@ -345,6 +344,6 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) getHostedClusterNamesp
 	return fmt.Sprintf("ocm-%s-%s", envName, csClusterID)
 }
 
-func (c *createClusterScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

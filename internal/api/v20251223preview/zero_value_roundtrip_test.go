@@ -25,8 +25,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 // TestNodePoolZeroValueRoundTripThroughJSON verifies that explicit zero values
@@ -44,17 +44,17 @@ import (
 func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func() *api.HCPOpenShiftClusterNodePool
-		check func(t *testing.T, result *api.HCPOpenShiftClusterNodePool)
+		setup func() *resourcesapi.HCPOpenShiftClusterNodePool
+		check func(t *testing.T, result *resourcesapi.HCPOpenShiftClusterNodePool)
 	}{
 		{
 			name: "AutoRepair false must survive round-trip",
-			setup: func() *api.HCPOpenShiftClusterNodePool {
+			setup: func() *resourcesapi.HCPOpenShiftClusterNodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.AutoRepair = false
 				return np
 			},
-			check: func(t *testing.T, np *api.HCPOpenShiftClusterNodePool) {
+			check: func(t *testing.T, np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				if np.Properties.AutoRepair != false {
 					t.Errorf("AutoRepair: got %v, want false (default=true clobbered explicit value)", np.Properties.AutoRepair)
 				}
@@ -62,12 +62,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "Replicas zero must survive round-trip",
-			setup: func() *api.HCPOpenShiftClusterNodePool {
+			setup: func() *resourcesapi.HCPOpenShiftClusterNodePool {
 				np := newBaselineInternalNodePool()
 				np.Properties.Replicas = 0
 				return np
 			},
-			check: func(t *testing.T, np *api.HCPOpenShiftClusterNodePool) {
+			check: func(t *testing.T, np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				if np.Properties.Replicas != 0 {
 					t.Errorf("Replicas: got %d, want 0", np.Properties.Replicas)
 				}
@@ -75,12 +75,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "AutoScaling.Min zero when Max is non-zero",
-			setup: func() *api.HCPOpenShiftClusterNodePool {
+			setup: func() *resourcesapi.HCPOpenShiftClusterNodePool {
 				np := newBaselineInternalNodePool()
-				np.Properties.AutoScaling = &api.NodePoolAutoScaling{Min: 0, Max: 5}
+				np.Properties.AutoScaling = &resourcesapi.NodePoolAutoScaling{Min: 0, Max: 5}
 				return np
 			},
-			check: func(t *testing.T, np *api.HCPOpenShiftClusterNodePool) {
+			check: func(t *testing.T, np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				require.NotNil(t, np.Properties.AutoScaling, "AutoScaling struct should not be nil")
 				if np.Properties.AutoScaling.Min != 0 {
 					t.Errorf("AutoScaling.Min: got %d, want 0", np.Properties.AutoScaling.Min)
@@ -89,12 +89,12 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "AutoScaling.Max zero when Min is non-zero",
-			setup: func() *api.HCPOpenShiftClusterNodePool {
+			setup: func() *resourcesapi.HCPOpenShiftClusterNodePool {
 				np := newBaselineInternalNodePool()
-				np.Properties.AutoScaling = &api.NodePoolAutoScaling{Min: 3, Max: 0}
+				np.Properties.AutoScaling = &resourcesapi.NodePoolAutoScaling{Min: 3, Max: 0}
 				return np
 			},
-			check: func(t *testing.T, np *api.HCPOpenShiftClusterNodePool) {
+			check: func(t *testing.T, np *resourcesapi.HCPOpenShiftClusterNodePool) {
 				require.NotNil(t, np.Properties.AutoScaling, "AutoScaling struct should not be nil")
 				if np.Properties.AutoScaling.Max != 0 {
 					t.Errorf("AutoScaling.Max: got %d, want 0", np.Properties.AutoScaling.Max)
@@ -118,17 +118,17 @@ func TestNodePoolZeroValueRoundTripThroughJSON(t *testing.T) {
 func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func() *api.HCPOpenShiftCluster
-		check func(t *testing.T, result *api.HCPOpenShiftCluster)
+		setup func() *resourcesapi.HCPOpenShiftCluster
+		check func(t *testing.T, result *resourcesapi.HCPOpenShiftCluster)
 	}{
 		{
 			name: "HostPrefix zero must survive round-trip",
-			setup: func() *api.HCPOpenShiftCluster {
+			setup: func() *resourcesapi.HCPOpenShiftCluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Network.HostPrefix = 0
 				return c
 			},
-			check: func(t *testing.T, c *api.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *resourcesapi.HCPOpenShiftCluster) {
 				if c.CustomerProperties.Network.HostPrefix != 0 {
 					t.Errorf("HostPrefix: got %d, want 0",
 						c.CustomerProperties.Network.HostPrefix)
@@ -137,12 +137,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "NodeDrainTimeoutMinutes zero must survive round-trip",
-			setup: func() *api.HCPOpenShiftCluster {
+			setup: func() *resourcesapi.HCPOpenShiftCluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 0
 				return c
 			},
-			check: func(t *testing.T, c *api.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *resourcesapi.HCPOpenShiftCluster) {
 				if c.CustomerProperties.NodeDrainTimeoutMinutes != 0 {
 					t.Errorf("NodeDrainTimeoutMinutes: got %d, want 0",
 						c.CustomerProperties.NodeDrainTimeoutMinutes)
@@ -151,12 +151,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "MaxNodesTotal zero must survive round-trip",
-			setup: func() *api.HCPOpenShiftCluster {
+			setup: func() *resourcesapi.HCPOpenShiftCluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 0
 				return c
 			},
-			check: func(t *testing.T, c *api.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *resourcesapi.HCPOpenShiftCluster) {
 				if c.CustomerProperties.Autoscaling.MaxNodesTotal != 0 {
 					t.Errorf("MaxNodesTotal: got %d, want 0",
 						c.CustomerProperties.Autoscaling.MaxNodesTotal)
@@ -165,12 +165,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "MaxPodGracePeriodSeconds zero must survive round-trip",
-			setup: func() *api.HCPOpenShiftCluster {
+			setup: func() *resourcesapi.HCPOpenShiftCluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds = 0
 				return c
 			},
-			check: func(t *testing.T, c *api.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *resourcesapi.HCPOpenShiftCluster) {
 				if c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds != 0 {
 					t.Errorf("MaxPodGracePeriodSeconds: got %d, want 0",
 						c.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds)
@@ -179,12 +179,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "MaxNodeProvisionTimeSeconds zero must survive round-trip",
-			setup: func() *api.HCPOpenShiftCluster {
+			setup: func() *resourcesapi.HCPOpenShiftCluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
 				return c
 			},
-			check: func(t *testing.T, c *api.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *resourcesapi.HCPOpenShiftCluster) {
 				if c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds != 0 {
 					t.Errorf("MaxNodeProvisionTimeSeconds: got %d, want 0",
 						c.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds)
@@ -193,12 +193,12 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 		},
 		{
 			name: "PodPriorityThreshold zero must survive round-trip",
-			setup: func() *api.HCPOpenShiftCluster {
+			setup: func() *resourcesapi.HCPOpenShiftCluster {
 				c := newBaselineInternalCluster()
 				c.CustomerProperties.Autoscaling.PodPriorityThreshold = 0
 				return c
 			},
-			check: func(t *testing.T, c *api.HCPOpenShiftCluster) {
+			check: func(t *testing.T, c *resourcesapi.HCPOpenShiftCluster) {
 				if c.CustomerProperties.Autoscaling.PodPriorityThreshold != 0 {
 					t.Errorf("PodPriorityThreshold: got %d, want 0",
 						c.CustomerProperties.Autoscaling.PodPriorityThreshold)
@@ -221,7 +221,7 @@ func TestClusterZeroValueRoundTripThroughJSON(t *testing.T) {
 //
 //	internal -> NewHCPOpenShiftClusterNodePool -> JSON marshal ->
 //	JSON unmarshal -> SetDefaultValuesNodePool (simulating constructor) -> ConvertToInternal
-func jsonRoundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePool {
+func jsonRoundTripNodePool(t *testing.T, original *resourcesapi.HCPOpenShiftClusterNodePool) *resourcesapi.HCPOpenShiftClusterNodePool {
 	t.Helper()
 	v := version{}
 	ext := v.NewHCPOpenShiftClusterNodePool(original)
@@ -239,7 +239,7 @@ func jsonRoundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePo
 }
 
 // jsonRoundTripCluster simulates a GET-then-PUT cycle through JSON.
-func jsonRoundTripCluster(t *testing.T, original *api.HCPOpenShiftCluster) *api.HCPOpenShiftCluster {
+func jsonRoundTripCluster(t *testing.T, original *resourcesapi.HCPOpenShiftCluster) *resourcesapi.HCPOpenShiftCluster {
 	t.Helper()
 	v := version{}
 	ext := v.NewHCPOpenShiftCluster(original)
@@ -259,33 +259,33 @@ func jsonRoundTripCluster(t *testing.T, original *api.HCPOpenShiftCluster) *api.
 // newBaselineInternalNodePool creates a valid node pool with all potentially
 // unsafe fields set to non-zero values. Test cases mutate specific fields
 // to zero before round-tripping.
-func newBaselineInternalNodePool() *api.HCPOpenShiftClusterNodePool {
-	return &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:   api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool"))),
+func newBaselineInternalNodePool() *resourcesapi.HCPOpenShiftClusterNodePool {
+	return &resourcesapi.HCPOpenShiftClusterNodePool{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
+				ID:   resourcesapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool"))),
 				Name: "myNodePool",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
 			},
 			Location: "eastus",
 		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
+		Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+			Version: resourcesapi.NodePoolVersionProfile{
 				ID:           "4.15.1",
 				ChannelGroup: "stable",
 			},
-			Platform: api.NodePoolPlatformProfile{
-				SubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet")),
+			Platform: resourcesapi.NodePoolPlatformProfile{
+				SubnetID: resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet")),
 				VMSize:   "Standard_D2s_v3",
-				OSDisk: api.OSDiskProfile{
+				OSDisk: resourcesapi.OSDiskProfile{
 					SizeGiB:                ptr.To(int32(128)),
-					DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+					DiskStorageAccountType: resourcesapi.DiskStorageAccountTypePremium_LRS,
 				},
 			},
 			Replicas:   3,
 			AutoRepair: true,
 			Labels:     map[string]string{},
-			Taints:     []api.Taint{},
+			Taints:     []resourcesapi.Taint{},
 		},
 	}
 }
@@ -293,50 +293,50 @@ func newBaselineInternalNodePool() *api.HCPOpenShiftClusterNodePool {
 // newBaselineInternalCluster creates a valid cluster with all potentially
 // unsafe fields set to non-zero values. Test cases mutate specific fields
 // to zero before round-tripping.
-func newBaselineInternalCluster() *api.HCPOpenShiftCluster {
-	return &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:   api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster"))),
+func newBaselineInternalCluster() *resourcesapi.HCPOpenShiftCluster {
+	return &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
+				ID:   resourcesapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster"))),
 				Name: "myCluster",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 			},
 			Location: "eastus",
 		},
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			Version: api.VersionProfile{
+		CustomerProperties: resourcesapi.HCPOpenShiftClusterCustomerProperties{
+			Version: resourcesapi.VersionProfile{
 				ID:           "4.15.1",
 				ChannelGroup: "stable",
 			},
-			Network: api.NetworkProfile{
-				NetworkType: api.NetworkTypeOVNKubernetes,
+			Network: resourcesapi.NetworkProfile{
+				NetworkType: resourcesapi.NetworkTypeOVNKubernetes,
 				PodCIDR:     "10.128.0.0/14",
 				ServiceCIDR: "172.30.0.0/16",
 				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
 			},
-			API: api.CustomerAPIProfile{
-				Visibility: api.VisibilityPublic,
+			API: resourcesapi.CustomerAPIProfile{
+				Visibility: resourcesapi.VisibilityPublic,
 			},
-			Platform: api.CustomerPlatformProfile{
-				OutboundType:            api.OutboundTypeLoadBalancer,
-				SubnetID:                api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet")),
-				VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet")),
+			Platform: resourcesapi.CustomerPlatformProfile{
+				OutboundType:            resourcesapi.OutboundTypeLoadBalancer,
+				SubnetID:                resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet")),
+				VnetIntegrationSubnetID: resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet")),
 			},
-			Autoscaling: api.ClusterAutoscalingProfile{
+			Autoscaling: resourcesapi.ClusterAutoscalingProfile{
 				MaxNodesTotal:               100,
 				MaxPodGracePeriodSeconds:    600,
 				MaxNodeProvisionTimeSeconds: 900,
 				PodPriorityThreshold:        -10,
 			},
 			NodeDrainTimeoutMinutes: 30,
-			Etcd: api.EtcdProfile{
-				DataEncryption: api.EtcdDataEncryptionProfile{
-					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+			Etcd: resourcesapi.EtcdProfile{
+				DataEncryption: resourcesapi.EtcdDataEncryptionProfile{
+					KeyManagementMode: resourcesapi.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 				},
 			},
-			ClusterImageRegistry: api.ClusterImageRegistryProfile{
-				State: api.ClusterImageRegistryStateEnabled,
+			ClusterImageRegistry: resourcesapi.ClusterImageRegistryProfile{
+				State: resourcesapi.ClusterImageRegistryStateEnabled,
 			},
 		},
 	}

@@ -30,8 +30,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -67,7 +67,7 @@ func NewDeleteOrphanedCosmosResourcesController(resourcesDBClient database.Resou
 func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Context, subscription string) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	subscriptionResourceID, err := arm.ToSubscriptionResourceID(subscription)
+	subscriptionResourceID, err := armresourcesapi.ToSubscriptionResourceID(subscription)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -121,14 +121,14 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	for _, currResourceIDString := range resourceIDStrings {
 		currResource := allSubscriptionResourceIDs[currResourceIDString]
 		switch {
-		case strings.EqualFold(currResource.ResourceID.ResourceType.String(), api.ClusterResourceType.String()):
+		case strings.EqualFold(currResource.ResourceID.ResourceType.String(), resourcesapi.ClusterResourceType.String()):
 			// clusters have an owning cluster by definition (themselves)
 			continue
 		case !strings.HasPrefix(strings.ToLower(currResourceIDString), strings.ToLower(resourceGroupPrefix)):
 			// skip anything outside a resourcegroup (operations for instance).  These have TTLs and logically need to live past clusters.
 			// For instance, a DNSReservation must exist for a week after the cluster using it is gone to avoid unexpected reuse.
 			continue
-		case !strings.EqualFold(currResource.ResourceID.ResourceType.Namespace, api.ProviderNamespace):
+		case !strings.EqualFold(currResource.ResourceID.ResourceType.Namespace, resourcesapi.ProviderNamespace):
 			// any resources outside our namespace we shouldn't delete. Subscriptions exist outside our namespace for instance.
 			continue
 		}

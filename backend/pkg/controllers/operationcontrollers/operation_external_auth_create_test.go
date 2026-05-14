@@ -26,7 +26,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -56,12 +56,12 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, op.Status)
 
 				// Verify external auth provisioning state was also updated
 				externalAuth, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, externalAuth.Properties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, externalAuth.Properties.ProvisioningState)
 				assert.Empty(t, externalAuth.ServiceProviderProperties.ActiveOperationID)
 			},
 		},

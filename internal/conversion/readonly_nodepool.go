@@ -15,16 +15,16 @@
 package conversion
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
-func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
+func CopyReadOnlyNodePoolValues(dest, src *resourcesapi.HCPOpenShiftClusterNodePool) {
 	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:
-		dest.Identity = &arm.ManagedServiceIdentity{}
+		dest.Identity = &armresourcesapi.ManagedServiceIdentity{}
 	case src.Identity == nil && dest.Identity != nil:
 		dest.Identity = nil
 	}

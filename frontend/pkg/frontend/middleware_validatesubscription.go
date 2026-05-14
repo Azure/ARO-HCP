@@ -19,7 +19,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -49,9 +49,9 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 
 	subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 	if subscriptionId == "" {
-		arm.WriteError(
+		armresourcesapi.WriteError(
 			w, http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidParameter, "",
+			armresourcesapi.CloudErrorCodeInvalidParameter, "",
 			SubscriptionMissingMessage,
 			PathSegmentSubscriptionID)
 		return
@@ -63,14 +63,14 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 
 		// subscription not found, treat as unregistered
 		if database.IsNotFoundError(err) {
-			arm.WriteError(
+			armresourcesapi.WriteError(
 				w, http.StatusBadRequest,
-				arm.CloudErrorCodeInvalidSubscriptionState, "",
+				armresourcesapi.CloudErrorCodeInvalidSubscriptionState, "",
 				UnregisteredSubscriptionStateMessage,
 				subscriptionId)
 			return
 		}
-		arm.WriteInternalServerError(w)
+		armresourcesapi.WriteInternalServerError(w)
 		return
 	}
 
@@ -78,12 +78,12 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	// in a "x-ms-home-tenant-id" header. But in test environments this
 	// header may not be present, in which case we can try to fudge it
 	// from the SubscriptionDocument.
-	if r.Header.Get(arm.HeaderNameHomeTenantID) == "" {
+	if r.Header.Get(armresourcesapi.HeaderNameHomeTenantID) == "" {
 		if subscription != nil &&
 			subscription.Properties != nil &&
 			subscription.Properties.TenantId != nil {
 			r.Header.Set(
-				arm.HeaderNameHomeTenantID,
+				armresourcesapi.HeaderNameHomeTenantID,
 				*subscription.Properties.TenantId)
 		}
 	}
@@ -98,34 +98,34 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 	r = r.WithContext(ctx)
 
 	switch subscription.State {
-	case arm.SubscriptionStateRegistered:
+	case armresourcesapi.SubscriptionStateRegistered:
 		next(w, r)
-	case arm.SubscriptionStateUnregistered:
+	case armresourcesapi.SubscriptionStateUnregistered:
 		logger.Error(nil, "subscription document indicates unregistered", "subscriptionId", subscriptionId)
-		arm.WriteError(
+		armresourcesapi.WriteError(
 			w, http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidSubscriptionState, "",
+			armresourcesapi.CloudErrorCodeInvalidSubscriptionState, "",
 			UnregisteredSubscriptionStateMessage,
 			subscriptionId)
-	case arm.SubscriptionStateWarned, arm.SubscriptionStateSuspended:
+	case armresourcesapi.SubscriptionStateWarned, armresourcesapi.SubscriptionStateSuspended:
 		if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 			logger.Error(nil, "subscription document indicates restricted state", "subscriptionId", subscriptionId, "state", subscription.State)
-			arm.WriteError(w, http.StatusConflict,
-				arm.CloudErrorCodeInvalidSubscriptionState, "",
+			armresourcesapi.WriteError(w, http.StatusConflict,
+				armresourcesapi.CloudErrorCodeInvalidSubscriptionState, "",
 				InvalidSubscriptionStateMessage,
 				subscription.State)
 			return
 		}
 		next(w, r)
-	case arm.SubscriptionStateDeleted:
+	case armresourcesapi.SubscriptionStateDeleted:
 		logger.Error(nil, "subscription document indicates deleted", "subscriptionId", subscriptionId)
-		arm.WriteError(
+		armresourcesapi.WriteError(
 			w, http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidSubscriptionState, "",
+			armresourcesapi.CloudErrorCodeInvalidSubscriptionState, "",
 			InvalidSubscriptionStateMessage,
 			subscription.State)
 	default:
 		logger.Error(nil, "unsupported subscription state", "subscriptionState", subscription.State)
-		arm.WriteInternalServerError(w)
+		armresourcesapi.WriteInternalServerError(w)
 	}
 }

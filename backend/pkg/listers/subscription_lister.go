@@ -19,13 +19,13 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 // InformerBasedSubscriptionLister lists and gets subscriptions from an informer's indexer.
 type SubscriptionLister interface {
-	List(ctx context.Context) ([]*arm.Subscription, error)
-	Get(ctx context.Context, subscriptionID string) (*arm.Subscription, error)
+	List(ctx context.Context) ([]*armresourcesapi.Subscription, error)
+	Get(ctx context.Context, subscriptionID string) (*armresourcesapi.Subscription, error)
 }
 
 // informerBasedSubscriptionLister implements SubscriptionLister backed by a SharedIndexInformer.
@@ -40,15 +40,15 @@ func NewSubscriptionLister(indexer cache.Indexer) SubscriptionLister {
 	}
 }
 
-func (l *informerBasedSubscriptionLister) List(ctx context.Context) ([]*arm.Subscription, error) {
-	return listAll[arm.Subscription](l.indexer)
+func (l *informerBasedSubscriptionLister) List(ctx context.Context) ([]*armresourcesapi.Subscription, error) {
+	return listAll[armresourcesapi.Subscription](l.indexer)
 }
 
 // Get retrieves a single subscription by subscription ID.
 // The store key is the lowercased ResourceID string:
 //
 //	/subscriptions/<subscriptionID>
-func (l *informerBasedSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*arm.Subscription, error) {
-	key := arm.ToSubscriptionResourceIDString(subscriptionID)
-	return getByKey[arm.Subscription](l.indexer, key)
+func (l *informerBasedSubscriptionLister) Get(ctx context.Context, subscriptionID string) (*armresourcesapi.Subscription, error) {
+	key := armresourcesapi.ToSubscriptionResourceIDString(subscriptionID)
+	return getByKey[armresourcesapi.Subscription](l.indexer, key)
 }

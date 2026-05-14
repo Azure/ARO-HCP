@@ -17,7 +17,7 @@ package cosmosdump
 import (
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -44,7 +44,7 @@ func (h *CosmosDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	_, err = arm.WriteJSONResponse(w, http.StatusOK, map[string]any{})
+	_, err = armresourcesapi.WriteJSONResponse(w, http.StatusOK, map[string]any{})
 	return err
 }
 
@@ -70,6 +70,6 @@ func (h *BillingDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	_, err = arm.WriteJSONResponse(w, http.StatusOK, map[string]any{})
+	_, err = armresourcesapi.WriteJSONResponse(w, http.StatusOK, map[string]any{})
 	return err
 }

@@ -23,7 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
 )
 
 // needsUpdateEqualities is a copy of equality.Semantic with extra equality functions for types
@@ -44,7 +44,7 @@ var needsUpdateEqualities = func() conversion.Equalities {
 	if err := e.AddFuncs(
 		// arm.CosmosMetadata: only compare ResourceID. CosmosETag is server-assigned and
 		// ExistingCosmosUID is an in-memory bridge.
-		func(a, b arm.CosmosMetadata) bool {
+		func(a, b metaapi.CosmosMetadata) bool {
 			return resourceIDStringsEqual(a.ResourceID, b.ResourceID)
 		},
 		// *azcorearm.ResourceID: compare by string so unrelated parent pointer chains don't

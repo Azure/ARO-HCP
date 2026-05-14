@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -36,17 +36,17 @@ func TestValidateSystemData(t *testing.T) {
 	tests := []struct {
 		name         string
 		op           operation.Operation
-		newObj       *arm.SystemData
-		oldObj       *arm.SystemData
+		newObj       *armresourcesapi.SystemData
+		oldObj       *armresourcesapi.SystemData
 		expectErrors []utils.ExpectedError
 	}{
 		// Required field tests
 		{
 			name: "missing createdBy - rejected",
 			op:   operation.Operation{Type: operation.Create},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			oldObj: nil,
@@ -57,9 +57,9 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "missing createdAt - rejected",
 			op:   operation.Operation{Type: operation.Create},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     nil,
 			},
 			oldObj: nil,
@@ -70,7 +70,7 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "missing createdByType - rejected",
 			op:   operation.Operation{Type: operation.Create},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
 				CreatedByType: "",
 				CreatedAt:     &now,
@@ -83,7 +83,7 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "missing all created fields - rejected for all",
 			op:   operation.Operation{Type: operation.Create},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "",
 				CreatedByType: "",
 				CreatedAt:     nil,
@@ -98,9 +98,9 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "all created fields present - allowed",
 			op:   operation.Operation{Type: operation.Create},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			oldObj:       nil,
@@ -110,14 +110,14 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old missing createdBy, new has createdBy - allowed",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "new-user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -125,14 +125,14 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old missing createdAt, new has createdAt - allowed",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     nil,
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -140,12 +140,12 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old missing createdByType, new has createdByType - allowed",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
 				CreatedByType: "",
 				CreatedAt:     &now,
@@ -155,12 +155,12 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old missing all created fields, new has all - allowed",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "new-user",
-				CreatedByType: arm.CreatedByTypeApplication,
+				CreatedByType: armresourcesapi.CreatedByTypeApplication,
 				CreatedAt:     &now,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "",
 				CreatedByType: "",
 				CreatedAt:     nil,
@@ -171,14 +171,14 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old has createdBy, new changes it - rejected",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "different-user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "original-user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			expectErrors: []utils.ExpectedError{
@@ -188,14 +188,14 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old has createdAt, new changes it - rejected",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &later,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			expectErrors: []utils.ExpectedError{
@@ -205,14 +205,14 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old has createdByType, new changes it - rejected",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeApplication,
+				CreatedByType: armresourcesapi.CreatedByTypeApplication,
 				CreatedAt:     &now,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			expectErrors: []utils.ExpectedError{
@@ -222,14 +222,14 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old has all fields, new changes all - rejected for all",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "different-user",
-				CreatedByType: arm.CreatedByTypeApplication,
+				CreatedByType: armresourcesapi.CreatedByTypeApplication,
 				CreatedAt:     &later,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "original-user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			expectErrors: []utils.ExpectedError{
@@ -242,14 +242,14 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "old has all fields, new keeps same values - allowed",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			oldObj: &arm.SystemData{
+			oldObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			expectErrors: []utils.ExpectedError{},
@@ -257,9 +257,9 @@ func TestValidateSystemData(t *testing.T) {
 		{
 			name: "nil oldObj with valid newObj - allowed",
 			op:   operation.Operation{Type: operation.Update},
-			newObj: &arm.SystemData{
+			newObj: &armresourcesapi.SystemData{
 				CreatedBy:     "user",
-				CreatedByType: arm.CreatedByTypeUser,
+				CreatedByType: armresourcesapi.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
 			oldObj:       nil,

@@ -23,7 +23,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -68,7 +68,7 @@ func NewDispatchRequestCredentialController(
 	return controller
 }
 
-func (c *dispatchRequestCredential) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *dispatchRequestCredential) ShouldProcess(ctx context.Context, operation *resourcesapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
@@ -135,7 +135,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 		return utils.TrackError(err)
 	}
 
-	csBreakGlassCredentialID, err := api.NewInternalID(csBreakGlassCredential.HREF())
+	csBreakGlassCredentialID, err := resourcesapi.NewInternalID(csBreakGlassCredential.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}

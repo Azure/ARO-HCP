@@ -35,8 +35,8 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -62,11 +62,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, op.Status)
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -77,11 +77,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateUpdating, op.Status)
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -92,12 +92,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -108,7 +108,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -117,23 +117,23 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			customerVersionID: "4.20",
 			controlPlaneDesiredVersionControllerConditions: []metav1.Condition{
 				{
-					Type:    api.ControllerConditionTypeIntentFailed,
+					Type:    resourcesapi.ControllerConditionTypeIntentFailed,
 					Status:  metav1.ConditionTrue,
-					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Reason:  resourcesapi.VersionUpgradeNotAcceptedReason,
 					Message: "no downgrades allowed",
 				},
 			},
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, arm.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Equal(t, armresourcesapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
 				assert.Contains(t, op.Error.Message, "no downgrades allowed")
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -144,7 +144,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateAccepted, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
@@ -161,7 +161,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateAccepted, op.Status)
 				assert.Nil(t, op.Error)
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
@@ -178,9 +178,9 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, op.Status)
 				require.NotNil(t, op.Error)
-				assert.Equal(t, arm.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Equal(t, armresourcesapi.CloudErrorCodeInvalidRequestContent, op.Error.Code)
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				)
 				assert.Equal(t, wantMsg, op.Error.Message)
 
-				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -210,32 +210,32 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
-			resourceId := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+			resourceId := resourcesapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
 				fixture.clusterResourceID.String(),
-				api.ServiceProviderClusterResourceTypeName,
-				api.ServiceProviderClusterResourceName,
+				resourcesapi.ServiceProviderClusterResourceTypeName,
+				resourcesapi.ServiceProviderClusterResourceName,
 			)))
 
-			_, err = mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, &api.ServiceProviderCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: resourceId},
-				Spec: api.ServiceProviderClusterSpec{
-					ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{
+			_, err = mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, &resourcesapi.ServiceProviderCluster{
+				CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: resourceId},
+				Spec: resourcesapi.ServiceProviderClusterSpec{
+					ControlPlaneVersion: resourcesapi.ServiceProviderClusterSpecVersion{
 						DesiredVersion: ptr.To(semver.MustParse("4.19.0")),
 					},
 				},
-				Status: api.ServiceProviderClusterStatus{
+				Status: resourcesapi.ServiceProviderClusterStatus{
 					Conditions: tt.serviceProviderClusterStatusConditions,
 				},
 			}, nil)
 			require.NoError(t, err)
 
-			rid := api.Must(azcorearm.ParseResourceID(
+			rid := resourcesapi.Must(azcorearm.ParseResourceID(
 				fixture.clusterResourceID.String() + "/hcpOpenShiftControllers/ControlPlaneDesiredVersion",
 			))
-			_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Controllers(testClusterName).Create(ctx, &api.Controller{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+			_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Controllers(testClusterName).Create(ctx, &resourcesapi.Controller{
+				CosmosMetadata: resourcesapi.CosmosMetadata{ResourceID: rid},
 				ExternalID:     fixture.clusterResourceID,
-				Status: api.ControllerStatus{
+				Status: resourcesapi.ControllerStatus{
 					Conditions: tt.controlPlaneDesiredVersionControllerConditions,
 				},
 			}, nil)

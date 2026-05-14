@@ -28,8 +28,8 @@ import (
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -73,7 +73,7 @@ func NewDispatchRevokeCredentialsController(
 	return controller
 }
 
-func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation *resourcesapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
@@ -87,7 +87,7 @@ func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation
 	// the credential revocation has not yet been dispatched to Clusters
 	// Service. Once dispatched, the operation status becomes "Deleting"
 	// and is ready for status polling.
-	if operation.Status != arm.ProvisioningStateAccepted {
+	if operation.Status != armresourcesapi.ProvisioningStateAccepted {
 		return false
 	}
 	return true
@@ -153,7 +153,7 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	// Update the operation status to "Deleting" to commence Clusters
 	// Service polling in the "OperationRevokeCredentials" controller.
 
-	operation.Status = arm.ProvisioningStateDeleting
+	operation.Status = armresourcesapi.ProvisioningStateDeleting
 
 	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
 	if err != nil {

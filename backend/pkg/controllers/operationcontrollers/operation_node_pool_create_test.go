@@ -25,7 +25,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -47,12 +47,12 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, op.Status)
 
 				// Verify node pool provisioning state was also updated
 				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateSucceeded, nodePool.Properties.ProvisioningState)
 				assert.Empty(t, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -63,12 +63,12 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateProvisioning, op.Status)
 
 				// Verify node pool still has active operation
 				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateProvisioning, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateProvisioning, nodePool.Properties.ProvisioningState)
 				assert.Equal(t, testOperationName, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -80,14 +80,14 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
 				assert.Equal(t, "node pool creation failed", op.Error.Message)
 
 				// Verify node pool shows failed
 				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, nodePool.Properties.ProvisioningState)
+				assert.Equal(t, armresourcesapi.ProvisioningStateFailed, nodePool.Properties.ProvisioningState)
 				assert.Empty(t, nodePool.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
@@ -98,7 +98,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 		{
@@ -108,7 +108,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+				assert.Equal(t, armresourcesapi.ProvisioningStateAccepted, op.Status)
 			},
 		},
 	}

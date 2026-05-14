@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
@@ -36,25 +36,25 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
-			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
+			*j = *resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
-		func(j *arm.Resource, c randfill.Continue) {
+		func(j *armresourcesapi.Resource, c randfill.Continue) {
 			c.FillNoCustom(j)
-			j.ID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
+			j.ID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
-		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
+		func(j *resourcesapi.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
 			}
 			clusterID := "r" + strings.ReplaceAll(c.String(10), "/", "-")
 			externalAuthID := strings.ReplaceAll(c.String(10), "/", "-")
-			foo := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterID + "/external_auth_config/external_auths/" + externalAuthID))
+			foo := resourcesapi.Must(resourcesapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterID + "/external_auth_config/external_auths/" + externalAuthID))
 			j.ClusterServiceID = &foo
 		},
-		func(j *api.HCPOpenShiftClusterExternalAuth, c randfill.Continue) {
+		func(j *resourcesapi.HCPOpenShiftClusterExternalAuth, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -64,10 +64,10 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 			// Canonical defaults are applied on Cosmos read, so ensure
 			// defaulted fields are never zero during round-trip testing.
 			if len(j.Properties.Claim.Mappings.Username.PrefixPolicy) == 0 {
-				j.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyNone
+				j.Properties.Claim.Mappings.Username.PrefixPolicy = resourcesapi.UsernameClaimPrefixPolicyNone
 			}
 		},
-		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
+		func(j *armresourcesapi.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
 
 			// we only round trip keys, so only fill in keys
@@ -81,15 +81,15 @@ func TestRoundTripExternalAuthInternalCosmosInternal(t *testing.T) {
 
 	// Try a few times, since runTest uses random values.
 	for i := 0; i < 20; i++ {
-		original := &api.HCPOpenShiftClusterExternalAuth{}
+		original := &resourcesapi.HCPOpenShiftClusterExternalAuth{}
 		fuzzer.Fill(original)
-		roundTripInternalToCosmosToInternal[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](t, original)
+		roundTripInternalToCosmosToInternal[resourcesapi.HCPOpenShiftClusterExternalAuth, ExternalAuth](t, original)
 	}
 }
 
 func TestCosmosToInternalExternalAuthPreservesETag(t *testing.T) {
 	expectedETag := azcore.ETag("test-etag-value-12345")
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster"))
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster"))
 
 	cosmosObj := &ExternalAuth{
 		TypedDocument: TypedDocument{

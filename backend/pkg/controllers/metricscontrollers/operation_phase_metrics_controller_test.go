@@ -29,23 +29,23 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 func TestPhaseMetricLabel(t *testing.T) {
 	tests := []struct {
-		input    arm.ProvisioningState
+		input    armresourcesapi.ProvisioningState
 		expected string
 	}{
-		{arm.ProvisioningStateAccepted, "accepted"},
-		{arm.ProvisioningStateProvisioning, "provisioning"},
-		{arm.ProvisioningStateUpdating, "updating"},
-		{arm.ProvisioningStateDeleting, "deleting"},
-		{arm.ProvisioningStateSucceeded, "succeeded"},
-		{arm.ProvisioningStateFailed, "failed"},
-		{arm.ProvisioningStateCanceled, "canceled"},
-		{arm.ProvisioningStateAwaitingSecret, "awaitingsecret"},
+		{armresourcesapi.ProvisioningStateAccepted, "accepted"},
+		{armresourcesapi.ProvisioningStateProvisioning, "provisioning"},
+		{armresourcesapi.ProvisioningStateUpdating, "updating"},
+		{armresourcesapi.ProvisioningStateDeleting, "deleting"},
+		{armresourcesapi.ProvisioningStateSucceeded, "succeeded"},
+		{armresourcesapi.ProvisioningStateFailed, "failed"},
+		{armresourcesapi.ProvisioningStateCanceled, "canceled"},
+		{armresourcesapi.ProvisioningStateAwaitingSecret, "awaitingsecret"},
 	}
 
 	for _, tt := range tests {
@@ -68,17 +68,17 @@ func TestResourceIDToTypeMetricLabel(t *testing.T) {
 		},
 		{
 			name:       "cluster resource type",
-			resourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
+			resourceID: resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
 			expected:   "microsoft.redhatopenshift/hcpopenshiftclusters",
 		},
 		{
 			name:       "nodepool resource type",
-			resourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),
+			resourceID: resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),
 			expected:   "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
 		},
 		{
 			name:       "externalauth resource type",
-			resourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),
+			resourceID: resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),
 			expected:   "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
 		},
 	}
@@ -103,7 +103,7 @@ func TestSubscriptionIDMetricLabel(t *testing.T) {
 		},
 		{
 			name:       "subscription is lowercased",
-			resourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/SUB-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
+			resourceID: resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/SUB-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
 			expected:   "sub-1",
 		},
 	}
@@ -117,14 +117,14 @@ func TestSubscriptionIDMetricLabel(t *testing.T) {
 
 func TestOperationTypeMetricLabel(t *testing.T) {
 	tests := []struct {
-		input    api.OperationRequest
+		input    resourcesapi.OperationRequest
 		expected string
 	}{
-		{api.OperationRequestCreate, "create"},
-		{api.OperationRequestUpdate, "update"},
-		{api.OperationRequestDelete, "delete"},
-		{api.OperationRequestRequestCredential, "requestcredential"},
-		{api.OperationRequestRevokeCredentials, "revokecredentials"},
+		{resourcesapi.OperationRequestCreate, "create"},
+		{resourcesapi.OperationRequestUpdate, "update"},
+		{resourcesapi.OperationRequestDelete, "delete"},
+		{resourcesapi.OperationRequestRequestCredential, "requestcredential"},
+		{resourcesapi.OperationRequestRevokeCredentials, "revokecredentials"},
 	}
 
 	for _, tt := range tests {
@@ -134,13 +134,13 @@ func TestOperationTypeMetricLabel(t *testing.T) {
 	}
 }
 
-func newTestOperation(t *testing.T, opName string, request api.OperationRequest, status arm.ProvisioningState, externalID string, startTime, lastTransition time.Time) *api.Operation {
+func newTestOperation(t *testing.T, opName string, request resourcesapi.OperationRequest, status armresourcesapi.ProvisioningState, externalID string, startTime, lastTransition time.Time) *resourcesapi.Operation {
 	t.Helper()
 
-	operationID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + opName))
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + opName))
-	op := &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+	operationID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + opName))
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + opName))
+	op := &resourcesapi.Operation{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 		OperationID:        operationID,
@@ -150,7 +150,7 @@ func newTestOperation(t *testing.T, opName string, request api.OperationRequest,
 		LastTransitionTime: lastTransition,
 	}
 	if externalID != "" {
-		op.ExternalID = api.Must(azcorearm.ParseResourceID(externalID))
+		op.ExternalID = resourcesapi.Must(azcorearm.ParseResourceID(externalID))
 	}
 	return op
 }
@@ -169,8 +169,8 @@ func TestOperationPhaseMetricsHandler_SetsAllThreeMetrics(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		resourcesapi.OperationRequestCreate,
+		armresourcesapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -189,8 +189,8 @@ func TestOperationPhaseMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		resourcesapi.OperationRequestCreate,
+		armresourcesapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -199,7 +199,7 @@ func TestOperationPhaseMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing
 	handler, reg := newTestOperationHandler(t)
 	handler.Sync(context.Background(), op)
 
-	op.Status = arm.ProvisioningStateProvisioning
+	op.Status = armresourcesapi.ProvisioningStateProvisioning
 	op.LastTransitionTime = now.Add(5 * time.Minute)
 	handler.Sync(context.Background(), op)
 
@@ -219,8 +219,8 @@ func TestOperationControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		resourcesapi.OperationRequestCreate,
+		armresourcesapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -230,7 +230,7 @@ func TestOperationControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	require.NoError(t, indexer.Add(op))
 
 	handler, reg := newTestOperationHandler(t)
-	controller := &Controller[*api.Operation]{
+	controller := &Controller[*resourcesapi.Operation]{
 		name:    "OperationPhaseMetrics",
 		indexer: indexer,
 		handler: handler,
@@ -254,8 +254,8 @@ func TestOperationControllerSyncResource_DeletesMetricsWhenOperationRemoved(t *t
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		resourcesapi.OperationRequestCreate,
+		armresourcesapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -265,7 +265,7 @@ func TestOperationControllerSyncResource_DeletesMetricsWhenOperationRemoved(t *t
 	require.NoError(t, indexer.Add(op))
 
 	handler, reg := newTestOperationHandler(t)
-	controller := &Controller[*api.Operation]{
+	controller := &Controller[*resourcesapi.Operation]{
 		name:    "OperationPhaseMetrics",
 		indexer: indexer,
 		handler: handler,
@@ -285,8 +285,8 @@ func TestResourceIDStoreKeyForObject_MatchesMetaNamespaceKeyFuncForOperation(t *
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		resourcesapi.OperationRequestCreate,
+		armresourcesapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -303,14 +303,14 @@ func TestResourceIDStoreKeyForObject_MatchesMetaNamespaceKeyFuncForOperation(t *
 
 func TestOperationPhaseMetricsHandler_SkipsNilOperationID(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-nil-id"))
-	op := &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-nil-id"))
+	op := &resourcesapi.Operation{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ExternalID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
-		Request:            api.OperationRequestCreate,
-		Status:             arm.ProvisioningStateAccepted,
+		ExternalID:         resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
+		Request:            resourcesapi.OperationRequestCreate,
+		Status:             armresourcesapi.ProvisioningStateAccepted,
 		StartTime:          now,
 		LastTransitionTime: now,
 	}
@@ -327,8 +327,8 @@ func TestOperationPhaseMetricsHandler_SkipsZeroTimestamps(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		resourcesapi.OperationRequestCreate,
+		armresourcesapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		time.Time{},
 		time.Time{},
@@ -347,8 +347,8 @@ func TestOperationPhaseMetricsHandler_MultipleOperations(t *testing.T) {
 	op1 := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateAccepted,
+		resourcesapi.OperationRequestCreate,
+		armresourcesapi.ProvisioningStateAccepted,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,
@@ -356,8 +356,8 @@ func TestOperationPhaseMetricsHandler_MultipleOperations(t *testing.T) {
 	op2 := newTestOperation(
 		t,
 		"op-2",
-		api.OperationRequestDelete,
-		arm.ProvisioningStateDeleting,
+		resourcesapi.OperationRequestDelete,
+		armresourcesapi.ProvisioningStateDeleting,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1",
 		now,
 		now,
@@ -377,8 +377,8 @@ func TestOperationPhaseMetricsHandler_VerifiesLabelValues(t *testing.T) {
 	op := newTestOperation(
 		t,
 		"op-1",
-		api.OperationRequestCreate,
-		arm.ProvisioningStateProvisioning,
+		resourcesapi.OperationRequestCreate,
+		armresourcesapi.ProvisioningStateProvisioning,
 		"/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1",
 		now,
 		now,

@@ -23,8 +23,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 type ResourceCRUD[InternalAPIType any] interface {
@@ -57,7 +58,7 @@ type nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 	resourceType     azcorearm.ResourceType
 }
 
-var _ ResourceCRUD[api.HCPOpenShiftClusterNodePool] = &nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool]{}
+var _ ResourceCRUD[resourcesapi.HCPOpenShiftClusterNodePool] = &nestedCosmosResourceCRUD[resourcesapi.HCPOpenShiftClusterNodePool, NodePool]{}
 
 func NewCosmosResourceCRUD[InternalAPIType, CosmosAPIType any](
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
@@ -73,7 +74,7 @@ func NewCosmosResourceCRUD[InternalAPIType, CosmosAPIType any](
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(resourceName string) (*azcorearm.ResourceID, error) {
 	if d.parentResourceID == nil {
-		return arm.ToSubscriptionResourceID(resourceName)
+		return armresourcesapi.ToSubscriptionResourceID(resourceName)
 	}
 
 	if len(d.parentResourceID.SubscriptionID) == 0 {
@@ -81,7 +82,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceI
 	}
 	parts := []string{d.parentResourceID.String()}
 
-	if !strings.EqualFold(d.parentResourceID.ResourceType.Namespace, api.ProviderNamespace) {
+	if !strings.EqualFold(d.parentResourceID.ResourceType.Namespace, resourcesapi.ProviderNamespace) {
 		if len(resourceName) == 0 {
 			// in this case, adding the actual provider type results in an illegal resourceID
 			// for instance /subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters does not parse
@@ -155,12 +156,12 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToT
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	partitionKey := strings.ToLower(any(newObj).(arm.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
+	partitionKey := strings.ToLower(any(newObj).(metaapi.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
 	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	partitionKey := strings.ToLower(any(newObj).(arm.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
+	partitionKey := strings.ToLower(any(newObj).(metaapi.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
 	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
 }
 

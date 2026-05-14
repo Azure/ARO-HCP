@@ -27,7 +27,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -77,7 +77,7 @@ func (m *MockResourcesDBClient) HCPClusters(subscriptionID, resourceGroupName st
 			"resourceGroups",
 			resourceGroupName)
 	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
+	parentResourceID := resourcesapi.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 
 	return newMockHCPClusterCRUD(m, parentResourceID)
 }
@@ -88,7 +88,7 @@ func (m *MockResourcesDBClient) Operations(subscriptionID string) database.Opera
 		"/subscriptions",
 		strings.ToLower(subscriptionID),
 	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+	parentResourceID := resourcesapi.Must(azcorearm.ParseResourceID(path.Join(parts...)))
 
 	return newMockOperationCRUD(m, parentResourceID)
 }
@@ -358,19 +358,19 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 	}
 
 	switch strings.ToLower(typedDoc.ResourceType) {
-	case strings.ToLower(api.ClusterResourceType.String()):
+	case strings.ToLower(resourcesapi.ClusterResourceType.String()):
 		var cosmosObj database.HCPCluster
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return database.CosmosToInternalCluster(&cosmosObj)
-	case strings.ToLower(api.NodePoolResourceType.String()):
+	case strings.ToLower(resourcesapi.NodePoolResourceType.String()):
 		var cosmosObj database.NodePool
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
 		return database.CosmosToInternalNodePool(&cosmosObj)
-	case strings.ToLower(api.ExternalAuthResourceType.String()):
+	case strings.ToLower(resourcesapi.ExternalAuthResourceType.String()):
 		var cosmosObj database.ExternalAuth
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
@@ -418,4 +418,4 @@ func (iter *mockIterator[T]) GetError() error {
 	return iter.err
 }
 
-var _ database.DBClientIterator[api.HCPOpenShiftCluster] = &mockIterator[api.HCPOpenShiftCluster]{}
+var _ database.DBClientIterator[resourcesapi.HCPOpenShiftCluster] = &mockIterator[resourcesapi.HCPOpenShiftCluster]{}

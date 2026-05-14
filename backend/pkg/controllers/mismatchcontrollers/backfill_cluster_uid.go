@@ -25,15 +25,14 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type backfillClusterUID struct {
 	clock             utilsclock.PassiveClock
-	cooldownChecker   controllerutil.CooldownChecker
+	cooldownChecker   controllerutils.CooldownChecker
 	clusterLister     listers.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 	billingDBClient   database.BillingDBClient
@@ -44,7 +43,7 @@ type backfillClusterUID struct {
 func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister) controllerutils.ClusterSyncer {
 	c := &backfillClusterUID{
 		clock:             clock,
-		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(60 * time.Minute),
+		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(60 * time.Minute),
 		clusterLister:     clusterLister,
 		resourcesDBClient: resourcesDBClient,
 		billingDBClient:   billingDBClient,
@@ -53,7 +52,7 @@ func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBC
 	return c
 }
 
-func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
+func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *resourcesapi.HCPOpenShiftCluster) bool {
 	// Skip if the cluster is deleted or already has ClusterUID.
 	if existingCluster == nil || len(existingCluster.ServiceProviderProperties.ClusterUID) != 0 {
 		return false
@@ -137,6 +136,6 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 	return nil
 }
 
-func (c *backfillClusterUID) CooldownChecker() controllerutil.CooldownChecker {
+func (c *backfillClusterUID) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

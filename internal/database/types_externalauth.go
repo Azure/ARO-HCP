@@ -15,7 +15,7 @@
 package database
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 type ExternalAuth struct {
@@ -29,11 +29,11 @@ type ExternalAuthProperties struct {
 	// which is where we want to end up.
 	// * to be compatible with prior versions, we must continue writing all previous fields and this new field
 	// * to be compatible with prior versions, we must continue reading only from previous fields
-	api.HCPOpenShiftClusterExternalAuth `json:",inline"`
+	resourcesapi.HCPOpenShiftClusterExternalAuth `json:",inline"`
 
 	// when we switch to inlining the internalObj, this will be in the right spot.  We add it now so that we can switch our
 	// queries to select on cosmosMetadata.ResourceID instead of resourceId
-	CosmosMetadata api.CosmosMetadata `json:"cosmosMetadata"`
+	CosmosMetadata resourcesapi.CosmosMetadata `json:"cosmosMetadata"`
 
 	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
 	// embed the InternalAPIType which has colliding serialization fields.
@@ -44,7 +44,7 @@ type ExternalAuthProperties struct {
 }
 
 type ExternalAuthInternalState struct {
-	InternalAPI api.HCPOpenShiftClusterExternalAuth `json:"internalAPI"`
+	InternalAPI resourcesapi.HCPOpenShiftClusterExternalAuth `json:"internalAPI"`
 }
 
 func (o *ExternalAuth) GetTypedDocument() *TypedDocument {

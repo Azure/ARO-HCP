@@ -29,7 +29,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -90,13 +90,13 @@ func getByKey[T any](indexer cache.Indexer, key string) (*T, error) {
 // clusterIndexKey returns the canonical (lower-cased) ByCluster index key for an
 // HCPOpenShiftCluster identified by subscription, resource group, and name.
 func clusterIndexKey(subscriptionID, resourceGroupName, clusterName string) string {
-	return strings.ToLower(api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
+	return strings.ToLower(resourcesapi.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
 }
 
 // nodePoolIndexKey returns the canonical (lower-cased) ByNodePool index key for a
 // NodePool identified by its containing cluster plus its own name.
 func nodePoolIndexKey(subscriptionID, resourceGroupName, clusterName, nodePoolName string) string {
-	return strings.ToLower(api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+	return strings.ToLower(resourcesapi.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 }
 
 // listFromIndex retrieves items from an indexer by index name and key, casting each to *T.

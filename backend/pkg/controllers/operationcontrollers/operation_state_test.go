@@ -19,7 +19,7 @@ import (
 
 	"github.com/tj/assert"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 func TestCompareOperationState(t *testing.T) {
@@ -39,25 +39,25 @@ func TestCompareOperationState(t *testing.T) {
 		{
 			name:     "lhs nil",
 			lhs:      nil,
-			rhs:      newOperationState(arm.ProvisioningStateSucceeded, ""),
+			rhs:      newOperationState(armresourcesapi.ProvisioningStateSucceeded, ""),
 			expected: -1,
 		},
 		{
 			name:     "rhs nil",
-			lhs:      newOperationState(arm.ProvisioningStateSucceeded, ""),
+			lhs:      newOperationState(armresourcesapi.ProvisioningStateSucceeded, ""),
 			rhs:      nil,
 			expected: 1,
 		},
 		{
 			name:     "Succeeded > Provisioning",
-			lhs:      newOperationState(arm.ProvisioningStateSucceeded, ""),
-			rhs:      newOperationState(arm.ProvisioningStateProvisioning, ""),
+			lhs:      newOperationState(armresourcesapi.ProvisioningStateSucceeded, ""),
+			rhs:      newOperationState(armresourcesapi.ProvisioningStateProvisioning, ""),
 			expected: 1,
 		},
 		{
 			name:     "Deleting < Provisioning",
-			lhs:      newOperationState(arm.ProvisioningStateDeleting, ""),
-			rhs:      newOperationState(arm.ProvisioningStateProvisioning, ""),
+			lhs:      newOperationState(armresourcesapi.ProvisioningStateDeleting, ""),
+			rhs:      newOperationState(armresourcesapi.ProvisioningStateProvisioning, ""),
 			expected: -1,
 		},
 	}
@@ -78,7 +78,7 @@ func TestPickWorstOperationState(t *testing.T) {
 		name        string
 		states      []*operationState
 		wantErr     string
-		wantProv    arm.ProvisioningState
+		wantProv    armresourcesapi.ProvisioningState
 		wantMessage string
 	}{
 		{
@@ -101,28 +101,28 @@ func TestPickWorstOperationState(t *testing.T) {
 		{
 			name: "single state",
 			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "first failure"),
+				newOperationState(armresourcesapi.ProvisioningStateFailed, "first failure"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    armresourcesapi.ProvisioningStateFailed,
 			wantMessage: "first failure",
 		},
 		{
 			name: "merges messages for consecutive same provisioning state",
 			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "a"),
-				newOperationState(arm.ProvisioningStateFailed, "b"),
-				newOperationState(arm.ProvisioningStateFailed, "c"),
+				newOperationState(armresourcesapi.ProvisioningStateFailed, "a"),
+				newOperationState(armresourcesapi.ProvisioningStateFailed, "b"),
+				newOperationState(armresourcesapi.ProvisioningStateFailed, "c"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    armresourcesapi.ProvisioningStateFailed,
 			wantMessage: "a; b; c",
 		},
 		{
 			name: "stops merging when provisioning state changes",
 			states: []*operationState{
-				newOperationState(arm.ProvisioningStateFailed, "worst"),
-				newOperationState(arm.ProvisioningStateSucceeded, "ignored"),
+				newOperationState(armresourcesapi.ProvisioningStateFailed, "worst"),
+				newOperationState(armresourcesapi.ProvisioningStateSucceeded, "ignored"),
 			},
-			wantProv:    arm.ProvisioningStateFailed,
+			wantProv:    armresourcesapi.ProvisioningStateFailed,
 			wantMessage: "worst",
 		},
 	}

@@ -23,7 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -45,7 +45,7 @@ func testDoNothingController(t *testing.T, withMock bool) {
 				ResourceGroupName: "partialIllustrator",
 				HCPClusterName:    "damagingKingdom",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
+			ArtifactDir: resourcesapi.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllers.NewDoNothingExampleController(input.ResourcesDBClient, input.SubscriptionLister), map[string]any{}
 			},
@@ -59,7 +59,7 @@ func testDoNothingController(t *testing.T, withMock bool) {
 				ResourceGroupName: "shrillEffectiveness",
 				HCPClusterName:    "lavishUnhappiness",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts"))),
+			ArtifactDir: resourcesapi.Must(fs.Sub(artifacts, path.Join("artifacts"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return controllers.NewDoNothingExampleController(input.ResourcesDBClient, input.SubscriptionLister), map[string]any{}
 			},

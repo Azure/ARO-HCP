@@ -15,9 +15,9 @@
 package database
 
 import (
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 type SubscriptionCRUD interface {
-	ResourceCRUD[arm.Subscription]
+	ResourceCRUD[armresourcesapi.Subscription]
 }

@@ -23,15 +23,14 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type cosmosExternalAuthMatching struct {
-	cooldownChecker      controllerutil.CooldownChecker
+	cooldownChecker      controllerutils.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -39,7 +38,7 @@ type cosmosExternalAuthMatching struct {
 // NewCosmosExternalAuthMatchingController periodically looks for mismatched cluster-service and cosmos externalauths
 func NewCosmosExternalAuthMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
 	syncer := &cosmosExternalAuthMatching{
-		cooldownChecker:      controllerutil.NewTimeBasedCooldownChecker(1 * time.Hour),
+		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -57,9 +56,9 @@ func NewCosmosExternalAuthMatchingController(resourcesDBClient database.Resource
 	return controller
 }
 
-func (c *cosmosExternalAuthMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.HCPOpenShiftClusterExternalAuth, []*api.HCPOpenShiftClusterExternalAuth, error) {
-	clusterServiceIDToExternalAuth := map[string]*api.HCPOpenShiftClusterExternalAuth{}
-	ret := []*api.HCPOpenShiftClusterExternalAuth{}
+func (c *cosmosExternalAuthMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*resourcesapi.HCPOpenShiftClusterExternalAuth, []*resourcesapi.HCPOpenShiftClusterExternalAuth, error) {
+	clusterServiceIDToExternalAuth := map[string]*resourcesapi.HCPOpenShiftClusterExternalAuth{}
+	ret := []*resourcesapi.HCPOpenShiftClusterExternalAuth{}
 
 	allExternalAuths, err := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).ExternalAuth(keyObj.HCPClusterName).List(ctx, nil)
 	if err != nil {
@@ -87,7 +86,7 @@ func (c *cosmosExternalAuthMatching) getAllCosmosObjs(ctx context.Context, keyOb
 	return clusterServiceIDToExternalAuth, ret, nil
 }
 
-func (c *cosmosExternalAuthMatching) getAllClusterServiceObjs(ctx context.Context, clusterServiceClusterID api.InternalID) (map[string]*arohcpv1alpha1.ExternalAuth, []*arohcpv1alpha1.ExternalAuth, error) {
+func (c *cosmosExternalAuthMatching) getAllClusterServiceObjs(ctx context.Context, clusterServiceClusterID resourcesapi.InternalID) (map[string]*arohcpv1alpha1.ExternalAuth, []*arohcpv1alpha1.ExternalAuth, error) {
 	clusterServiceIDToExternalAuth := map[string]*arohcpv1alpha1.ExternalAuth{}
 	ret := []*arohcpv1alpha1.ExternalAuth{}
 
@@ -171,6 +170,6 @@ func (c *cosmosExternalAuthMatching) SyncOnce(ctx context.Context, keyObj contro
 	return utils.TrackError(syncErr)
 }
 
-func (c *cosmosExternalAuthMatching) CooldownChecker() controllerutil.CooldownChecker {
+func (c *cosmosExternalAuthMatching) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

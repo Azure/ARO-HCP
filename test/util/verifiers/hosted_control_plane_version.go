@@ -29,7 +29,7 @@ import (
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
@@ -114,8 +114,8 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 	ginkgo.GinkgoLogr.Info("clusterversion status after y-stream upgrade",
 		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
 
-	parsedPreviousMinor := api.Must(semver.ParseTolerant(v.previousMinor))
-	parsedTargetMinor := api.Must(semver.ParseTolerant(v.targetMinor))
+	parsedPreviousMinor := resourcesapi.Must(semver.ParseTolerant(v.previousMinor))
+	parsedTargetMinor := resourcesapi.Must(semver.ParseTolerant(v.targetMinor))
 
 	var previousMinorFound, targetMinorFound bool
 	for _, historyEntry := range clusterVersion.Status.History {

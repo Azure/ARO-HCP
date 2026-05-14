@@ -32,9 +32,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -96,13 +95,13 @@ func TestControllerNotifications(t *testing.T) {
 			backendErrCh <- nil
 		}()
 
-		clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
+		clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/32350638-2403-4bc9-a36e-4922c8c99b52/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic"))
 		frontendClientAccessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, "2024-06-10-preview")
 
-		subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
-		subscriptionJSONBytes := api.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))
+		subscriptionResourceID := resourcesapi.Must(armresourcesapi.ToSubscriptionResourceID(clusterResourceID.SubscriptionID))
+		subscriptionJSONBytes := resourcesapi.Must(artifacts.ReadFile("artifacts/subscription-32350638-2403-4bc9-a36e-4922c8c99b52.json"))
 		require.NoError(t, frontendClientAccessor.CreateOrUpdate(ctx, subscriptionResourceID.String(), subscriptionJSONBytes))
-		clusterJSONBytes := api.Must(artifacts.ReadFile("artifacts/cluster-basic.json"))
+		clusterJSONBytes := resourcesapi.Must(artifacts.ReadFile("artifacts/cluster-basic.json"))
 		err = frontendClientAccessor.CreateOrUpdate(ctx, clusterResourceID.String(), clusterJSONBytes)
 		require.NoError(t, err)
 
@@ -123,7 +122,7 @@ func TestControllerNotifications(t *testing.T) {
 }
 
 type testController struct {
-	cooldownChecker controllerutil.CooldownChecker
+	cooldownChecker controllerutils.CooldownChecker
 
 	count        atomic.Int32
 	observedKeys sync.Map
@@ -154,6 +153,6 @@ func (c *testController) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 	return nil
 }
 
-func (c *testController) CooldownChecker() controllerutil.CooldownChecker {
+func (c *testController) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

@@ -23,15 +23,14 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type cosmosNodePoolMatching struct {
-	cooldownChecker      controllerutil.CooldownChecker
+	cooldownChecker      controllerutils.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -39,7 +38,7 @@ type cosmosNodePoolMatching struct {
 // NewCosmosNodePoolMatchingController periodically looks for mismatched cluster-service and cosmos nodepool
 func NewCosmosNodePoolMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
 	syncer := &cosmosNodePoolMatching{
-		cooldownChecker:      controllerutil.NewTimeBasedCooldownChecker(1 * time.Hour),
+		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -57,9 +56,9 @@ func NewCosmosNodePoolMatchingController(resourcesDBClient database.ResourcesDBC
 	return controller
 }
 
-func (c *cosmosNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*api.HCPOpenShiftClusterNodePool, []*api.HCPOpenShiftClusterNodePool, error) {
-	clusterServiceIDToNodePool := map[string]*api.HCPOpenShiftClusterNodePool{}
-	ret := []*api.HCPOpenShiftClusterNodePool{}
+func (c *cosmosNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj controllerutils.HCPClusterKey) (map[string]*resourcesapi.HCPOpenShiftClusterNodePool, []*resourcesapi.HCPOpenShiftClusterNodePool, error) {
+	clusterServiceIDToNodePool := map[string]*resourcesapi.HCPOpenShiftClusterNodePool{}
+	ret := []*resourcesapi.HCPOpenShiftClusterNodePool{}
 
 	allNodePools, err := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).NodePools(keyObj.HCPClusterName).List(ctx, nil)
 	if err != nil {
@@ -87,7 +86,7 @@ func (c *cosmosNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj co
 	return clusterServiceIDToNodePool, ret, nil
 }
 
-func (c *cosmosNodePoolMatching) getAllClusterServiceObjs(ctx context.Context, clusterServiceClusterID api.InternalID) (map[string]*arohcpv1alpha1.NodePool, []*arohcpv1alpha1.NodePool, error) {
+func (c *cosmosNodePoolMatching) getAllClusterServiceObjs(ctx context.Context, clusterServiceClusterID resourcesapi.InternalID) (map[string]*arohcpv1alpha1.NodePool, []*arohcpv1alpha1.NodePool, error) {
 	clusterServiceIDToNodePool := map[string]*arohcpv1alpha1.NodePool{}
 	ret := []*arohcpv1alpha1.NodePool{}
 
@@ -171,6 +170,6 @@ func (c *cosmosNodePoolMatching) SyncOnce(ctx context.Context, keyObj controller
 	return utils.TrackError(syncErr)
 }
 
-func (c *cosmosNodePoolMatching) CooldownChecker() controllerutil.CooldownChecker {
+func (c *cosmosNodePoolMatching) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

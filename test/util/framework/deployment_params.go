@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
@@ -181,7 +181,7 @@ func NewDefaultClusterParams() ClusterParams {
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
 		// registered for this tag to be honored.
 		Tags: map[string]*string{
-			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			resourcesapi.TagClusterSizeOverride: to.Ptr(string(resourcesapi.MinimalControlPlanePodSizing)),
 		},
 	}
 }

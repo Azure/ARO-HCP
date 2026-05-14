@@ -34,7 +34,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -68,7 +68,7 @@ func readSteps[InternalAPIType any](ctx context.Context, testDir fs.FS) ([]Integ
 	steps := []IntegrationTestStep{}
 
 	numLoadClusterServiceSteps := 0
-	testContent := api.Must(fs.ReadDir(testDir, "."))
+	testContent := resourcesapi.Must(fs.ReadDir(testDir, "."))
 	for _, dirEntry := range testContent {
 		filenameParts := strings.SplitN(dirEntry.Name(), "-", 3)
 		switch len(filenameParts) {
@@ -292,7 +292,7 @@ func (s byIndex) Less(i, j int) bool { return s[i].StepID().index < s[j].StepID(
 func (s byIndex) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func stringifyResource(controller any) string {
-	return string(api.Must(json.MarshalIndent(controller, "", "\t")))
+	return string(resourcesapi.Must(json.MarshalIndent(controller, "", "\t")))
 }
 
 type CosmosCRUDKey struct {
@@ -349,7 +349,7 @@ func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, err
 
 func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
 	contents := [][]byte{}
-	testContent := api.Must(fs.ReadDir(dir, "."))
+	testContent := resourcesapi.Must(fs.ReadDir(dir, "."))
 	for _, dirEntry := range testContent {
 		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
 			continue

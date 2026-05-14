@@ -29,7 +29,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 
 			// TEST CASE: ARO-23182
 			By("attempting to update nodepool version to higher than cluster version")
-			clusterVersion := api.Must(semver.ParseTolerant(clusterParams.OpenshiftVersionId))
+			clusterVersion := resourcesapi.Must(semver.ParseTolerant(clusterParams.OpenshiftVersionId))
 			invalidNodePoolVersion := fmt.Sprintf("%d.%d.0", clusterVersion.Major, clusterVersion.Minor+1) // +1 y-stream, z set to 0
 
 			npForVersionUpdate, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)

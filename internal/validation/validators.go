@@ -37,7 +37,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
@@ -165,7 +165,7 @@ func OpenshiftVersionAtMostOneMinorSkew(previousVersionID, newVersionID string) 
 		}
 		previousVersionReleaseLine := fmt.Sprintf("%d.%d", parsedPreviousVersion.Major, parsedPreviousVersion.Minor)
 		desiredVersionReleaseLine := fmt.Sprintf("%d.%d", parsedDesiredVersion.Major, parsedDesiredVersion.Minor)
-		allowedTargetReleaseLine := api.AllowMajorUpgradePaths[previousVersionReleaseLine]
+		allowedTargetReleaseLine := resourcesapi.AllowMajorUpgradePaths[previousVersionReleaseLine]
 		if desiredVersionReleaseLine != allowedTargetReleaseLine {
 			return fmt.Errorf("invalid upgrade path from %s to %s: cross-major upgrade from %s is only allowed to %s", previousVersionID, newVersionID, previousVersionReleaseLine, allowedTargetReleaseLine)
 		}
@@ -876,7 +876,7 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 	sourceKey := fmt.Sprintf("%d.%d", fromVersion.Major, fromVersion.Minor)
 	targetKey := fmt.Sprintf("%d.%d", toVersion.Major, toVersion.Minor)
 
-	allowedTargets, exists := api.AllowMajorUpgradePaths[sourceKey]
+	allowedTargets, exists := resourcesapi.AllowMajorUpgradePaths[sourceKey]
 	if !exists {
 		return fmt.Errorf("invalid upgrade path from %s to %s: major version upgrades are not supported",
 			fromVersion.String(), toVersion.String())
@@ -895,9 +895,9 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 // - Cannot exceed lowest control plane version
 // - No major version changes without AFEC (uses existing ValidateMajorUpgrade)
 // - No minor version skipping
-func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion *semver.Version, allowMajorUpgrade bool) error {
+func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []resourcesapi.HCPNodePoolActiveVersion, lowestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
-	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
+	if slices.ContainsFunc(activeVersions, func(av resourcesapi.HCPNodePoolActiveVersion) bool {
 		return av.Version != nil && av.Version.EQ(desiredVersion)
 	}) {
 		return nil

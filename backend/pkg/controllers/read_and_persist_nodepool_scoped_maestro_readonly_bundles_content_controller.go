@@ -23,8 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
-	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -39,7 +38,7 @@ import (
 // to the Cluster.
 // This controller assumes that it has full ownership of the ManagementClusterContent resource.
 type readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
+	cooldownChecker controllerutils.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
 
@@ -112,7 +111,7 @@ func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) SyncOn
 	// shard allocated.
 	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
 	csClusterHREF := ocm.GenerateAROHCPClusterHREF(csClusterID)
-	csClusterInternalID := api.Must(api.NewInternalID(csClusterHREF))
+	csClusterInternalID := resourcesapi.Must(resourcesapi.NewInternalID(csClusterHREF))
 	clusterProvisionShard, err := c.clusterServiceClient.GetClusterProvisionShard(ctx, csClusterInternalID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster Provision Shard from Cluster Service: %w", err))
@@ -140,6 +139,6 @@ func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) SyncOn
 	return utils.TrackError(errors.Join(syncErrors...))
 }
 
-func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

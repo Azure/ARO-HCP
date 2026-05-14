@@ -30,8 +30,8 @@ import (
 
 	"github.com/openshift/library-go/pkg/manifestclient"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
@@ -57,13 +57,13 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeapplier.ReadDesire {
+func newReadDesire(t *testing.T, target kubeapplierapi.ResourceReference) *kubeapplierapi.ReadDesire {
 	t.Helper()
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
 		},
-		Spec: kubeapplier.ReadDesireSpec{
+		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: testMgmt,
 			TargetItem:        target,
 		},
@@ -74,11 +74,11 @@ func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeappl
 // assert on what the controller would persist. The desire pointer is shared
 // with the test so subsequent reads see prior mutations.
 type recordingWriter struct {
-	updates []*kubeapplier.ReadDesire
-	desire  *kubeapplier.ReadDesire
+	updates []*kubeapplierapi.ReadDesire
+	desire  *kubeapplierapi.ReadDesire
 }
 
-func (w *recordingWriter) UpdateStatus(ctx context.Context, key keys.ReadDesireKey, mutate desirestatuswriter.MutateFunc[kubeapplier.ReadDesire]) error {
+func (w *recordingWriter) UpdateStatus(ctx context.Context, key keys.ReadDesireKey, mutate desirestatuswriter.MutateFunc[kubeapplierapi.ReadDesire]) error {
 	if w.desire == nil {
 		return nil
 	}
@@ -89,8 +89,8 @@ func (w *recordingWriter) UpdateStatus(ctx context.Context, key keys.ReadDesireK
 	return nil
 }
 
-func configMapTarget(name string) kubeapplier.ResourceReference {
-	return kubeapplier.ResourceReference{
+func configMapTarget(name string) kubeapplierapi.ResourceReference {
+	return kubeapplierapi.ResourceReference{
 		Group: "", Version: "v1", Resource: "configmaps", Namespace: testTargetNs, Name: name,
 	}
 }
@@ -115,8 +115,8 @@ func dynamicForTestdata(t *testing.T, dir string) dynamic.Interface {
 func startSyncedController(
 	t *testing.T,
 	ctx context.Context,
-	target kubeapplier.ResourceReference,
-	desire *kubeapplier.ReadDesire,
+	target kubeapplierapi.ResourceReference,
+	desire *kubeapplierapi.ReadDesire,
 	dyn dynamic.Interface,
 ) (*ReadDesireKubernetesController, *recordingWriter) {
 	t.Helper()
@@ -186,7 +186,7 @@ func TestSyncOnce_TargetExists_PopulatesKubeContent(t *testing.T) {
 	if got["kind"] != "ConfigMap" {
 		t.Errorf("kind = %v, want ConfigMap", got["kind"])
 	}
-	cond := findCond(last.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
+	cond := findCond(last.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	if cond == nil || cond.Status != metav1.ConditionTrue {
 		t.Errorf("Successful=%v, want True", cond)
 	}
@@ -211,7 +211,7 @@ func TestSyncOnce_TargetAbsent_ReportsSuccessful(t *testing.T) {
 	if last.Status.KubeContent != nil {
 		t.Errorf("KubeContent should be nil when target is absent, got %s", last.Status.KubeContent.Raw)
 	}
-	cond := findCond(last.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
+	cond := findCond(last.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	if cond == nil || cond.Status != metav1.ConditionTrue {
 		t.Errorf("Successful=%v, want True", cond)
 	}
@@ -223,19 +223,19 @@ func TestSyncOnce_TargetAbsent_ReportsSuccessful(t *testing.T) {
 func TestNewReadDesireKubernetesController_RejectsIncompleteTarget(t *testing.T) {
 	cases := []struct {
 		name   string
-		target kubeapplier.ResourceReference
+		target kubeapplierapi.ResourceReference
 	}{
 		{
 			name:   "missing version",
-			target: kubeapplier.ResourceReference{Resource: "configmaps", Name: "x"},
+			target: kubeapplierapi.ResourceReference{Resource: "configmaps", Name: "x"},
 		},
 		{
 			name:   "missing resource",
-			target: kubeapplier.ResourceReference{Version: "v1", Name: "x"},
+			target: kubeapplierapi.ResourceReference{Version: "v1", Name: "x"},
 		},
 		{
 			name:   "missing name",
-			target: kubeapplier.ResourceReference{Version: "v1", Resource: "configmaps"},
+			target: kubeapplierapi.ResourceReference{Version: "v1", Resource: "configmaps"},
 		},
 	}
 	for _, tc := range cases {

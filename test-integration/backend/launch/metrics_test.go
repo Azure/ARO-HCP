@@ -39,8 +39,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -67,9 +67,9 @@ func TestBackendExposesMetrics(t *testing.T) {
 		require.NoError(t, err)
 
 		clusterServiceMock := integrationutils.NewClusterServiceMock(t, storageIntegrationTestInfo.GetArtifactDir())
-		internalClusterID := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))
+		internalClusterID := resourcesapi.Must(resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))
 		clusterServiceMock.GetOrCreateMockData(t.Name() + "_clusters")[internalClusterID.String()] = []any{
-			api.Must(arohcpv1alpha1.NewCluster().ID("test-cluster").HREF(internalClusterID.String()).Build()),
+			resourcesapi.Must(arohcpv1alpha1.NewCluster().ID("test-cluster").HREF(internalClusterID.String()).Build()),
 		}
 		clusterServiceMock.MockClusterServiceClient.EXPECT().ListProvisionShards().Return(ocm.NewSimpleProvisionShardListIterator(nil, nil)).AnyTimes()
 		cleanupCtx := utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t))
@@ -84,14 +84,14 @@ func TestBackendExposesMetrics(t *testing.T) {
 
 		resourcesDBClient := storageIntegrationTestInfo.ResourcesDBClient()
 		billingDBClient := storageIntegrationTestInfo.BillingDBClient()
-		clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"))
+		clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"))
 		now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
-		cluster := newMetricsTestCluster(clusterResourceID, arm.ProvisioningStateProvisioning, &now)
+		cluster := newMetricsTestCluster(clusterResourceID, armresourcesapi.ProvisioningStateProvisioning, &now)
 		_, err = resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
 		require.NoError(t, err)
 
-		operation := newMetricsTestOperation(t, clusterResourceID.SubscriptionID, "op-1", clusterResourceID, api.OperationRequestCreate, arm.ProvisioningStateSucceeded, now, now)
+		operation := newMetricsTestOperation(t, clusterResourceID.SubscriptionID, "op-1", clusterResourceID, resourcesapi.OperationRequestCreate, armresourcesapi.ProvisioningStateSucceeded, now, now)
 		_, err = resourcesDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, operation, nil)
 		require.NoError(t, err)
 
@@ -149,28 +149,28 @@ func TestBackendExposesMetrics(t *testing.T) {
 	})
 }
 
-func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
-	return &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState armresourcesapi.ProvisioningState, createdAt *time.Time) *resourcesapi.HCPOpenShiftCluster {
+	return &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:         resourceID,
-				SystemData: &arm.SystemData{CreatedAt: createdAt},
+				SystemData: &armresourcesapi.SystemData{CreatedAt: createdAt},
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 			ProvisioningState: provisioningState,
-			ClusterServiceID:  api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
+			ClusterServiceID:  resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
 		},
 	}
 }
 
-func newMetricsTestOperation(t *testing.T, subscriptionID, name string, externalID *azcorearm.ResourceID, request api.OperationRequest, provisioningState arm.ProvisioningState, startTime, lastTransitionTime time.Time) *api.Operation {
+func newMetricsTestOperation(t *testing.T, subscriptionID, name string, externalID *azcorearm.ResourceID, request resourcesapi.OperationRequest, provisioningState armresourcesapi.ProvisioningState, startTime, lastTransitionTime time.Time) *resourcesapi.Operation {
 	t.Helper()
 
-	operationID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/%s", subscriptionID, name)))
-	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/%s", subscriptionID, name)))
-	return &api.Operation{
-		CosmosMetadata: api.CosmosMetadata{
+	operationID := resourcesapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/%s", subscriptionID, name)))
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/%s", subscriptionID, name)))
+	return &resourcesapi.Operation{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 		OperationID:        operationID,

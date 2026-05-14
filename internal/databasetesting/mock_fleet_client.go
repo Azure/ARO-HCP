@@ -23,8 +23,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -50,8 +50,8 @@ func NewMockFleetDBClient() *MockFleetDBClient {
 
 // NewMockFleetDBClientWithResources creates a MockFleetDBClient and populates
 // it with the given resources. Supported types:
-//   - *fleet.Stamp
-//   - *fleet.ManagementCluster
+//   - *fleetapi.Stamp
+//   - *fleetapi.ManagementCluster
 func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*MockFleetDBClient, error) {
 	mock := NewMockFleetDBClient()
 	for i, r := range resources {
@@ -64,16 +64,16 @@ func NewMockFleetDBClientWithResources(ctx context.Context, resources []any) (*M
 
 func (m *MockFleetDBClient) addResource(ctx context.Context, resource any) error {
 	switch r := resource.(type) {
-	case *fleet.Stamp:
+	case *fleetapi.Stamp:
 		return m.addStamp(ctx, r)
-	case *fleet.ManagementCluster:
+	case *fleetapi.ManagementCluster:
 		return m.addManagementCluster(ctx, r)
 	default:
 		return fmt.Errorf("unsupported resource type for MockFleetDBClient: %T", resource)
 	}
 }
 
-func (m *MockFleetDBClient) addStamp(ctx context.Context, stamp *fleet.Stamp) error {
+func (m *MockFleetDBClient) addStamp(ctx context.Context, stamp *fleetapi.Stamp) error {
 	stampIdentifier := stamp.GetStampIdentifier()
 	if len(stampIdentifier) == 0 {
 		return fmt.Errorf("stamp has empty stamp identifier")
@@ -83,7 +83,7 @@ func (m *MockFleetDBClient) addStamp(ctx context.Context, stamp *fleet.Stamp) er
 	return err
 }
 
-func (m *MockFleetDBClient) addManagementCluster(ctx context.Context, mc *fleet.ManagementCluster) error {
+func (m *MockFleetDBClient) addManagementCluster(ctx context.Context, mc *fleetapi.ManagementCluster) error {
 	stampIdentifier := mc.GetStampIdentifier()
 	if len(stampIdentifier) == 0 {
 		return fmt.Errorf("management cluster has empty stamp identifier")
@@ -178,8 +178,8 @@ func newMockFleetResourceCRUD[InternalAPIType, CosmosAPIType any](
 // --- FleetDBClient implementation ---
 
 func (m *MockFleetDBClient) Stamps() database.StampsCRUD {
-	inner := newMockFleetResourceCRUD[fleet.Stamp, database.GenericDocument[fleet.Stamp]](
-		m, nil, fleet.StampResourceType,
+	inner := newMockFleetResourceCRUD[fleetapi.Stamp, database.GenericDocument[fleetapi.Stamp]](
+		m, nil, fleetapi.StampResourceType,
 	)
 	return &mockStampsCRUD{
 		ValidatingResourceCRUD: database.NewValidatingCRUD(inner,
@@ -197,17 +197,17 @@ func (m *MockFleetDBClient) GlobalListers() database.FleetGlobalListers {
 // --- StampsCRUD ---
 
 type mockStampsCRUD struct {
-	database.ValidatingResourceCRUD[fleet.Stamp]
+	database.ValidatingResourceCRUD[fleetapi.Stamp]
 	store *MockFleetDBClient
 }
 
 func (s *mockStampsCRUD) ManagementClusters(stampIdentifier string) database.ManagementClustersCRUD {
-	parentResourceID, err := fleet.ToStampResourceID(stampIdentifier)
+	parentResourceID, err := fleetapi.ToStampResourceID(stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
-	inner := newMockFleetResourceCRUD[fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]](
-		s.store, parentResourceID, fleet.ManagementClusterResourceType,
+	inner := newMockFleetResourceCRUD[fleetapi.ManagementCluster, database.GenericDocument[fleetapi.ManagementCluster]](
+		s.store, parentResourceID, fleetapi.ManagementClusterResourceType,
 	)
 	return &mockManagementClustersCRUD{
 		ValidatingResourceCRUD: database.NewValidatingCRUD(inner,
@@ -222,18 +222,18 @@ func (s *mockStampsCRUD) ManagementClusters(stampIdentifier string) database.Man
 // --- ManagementClustersCRUD ---
 
 type mockManagementClustersCRUD struct {
-	database.ValidatingResourceCRUD[fleet.ManagementCluster]
+	database.ValidatingResourceCRUD[fleetapi.ManagementCluster]
 	store           *MockFleetDBClient
 	stampIdentifier string
 }
 
-func (m *mockManagementClustersCRUD) Controllers() database.ResourceCRUD[api.Controller] {
-	mcResourceID, err := fleet.ToManagementClusterResourceID(m.stampIdentifier)
+func (m *mockManagementClustersCRUD) Controllers() database.ResourceCRUD[resourcesapi.Controller] {
+	mcResourceID, err := fleetapi.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
-	return newMockFleetResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](
-		m.store, mcResourceID, fleet.ManagementClusterControllerResourceType,
+	return newMockFleetResourceCRUD[resourcesapi.Controller, database.GenericDocument[resourcesapi.Controller]](
+		m.store, mcResourceID, fleetapi.ManagementClusterControllerResourceType,
 	)
 }
 
@@ -245,16 +245,16 @@ type mockFleetGlobalListers struct {
 
 var _ database.FleetGlobalListers = &mockFleetGlobalListers{}
 
-func (g *mockFleetGlobalListers) Stamps() database.GlobalLister[fleet.Stamp] {
-	return &mockTypedGlobalLister[fleet.Stamp, database.GenericDocument[fleet.Stamp]]{
+func (g *mockFleetGlobalListers) Stamps() database.GlobalLister[fleetapi.Stamp] {
+	return &mockTypedGlobalLister[fleetapi.Stamp, database.GenericDocument[fleetapi.Stamp]]{
 		client:       g.client,
-		resourceType: fleet.StampResourceType,
+		resourceType: fleetapi.StampResourceType,
 	}
 }
 
-func (g *mockFleetGlobalListers) ManagementClusters() database.GlobalLister[fleet.ManagementCluster] {
-	return &mockTypedGlobalLister[fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]]{
+func (g *mockFleetGlobalListers) ManagementClusters() database.GlobalLister[fleetapi.ManagementCluster] {
+	return &mockTypedGlobalLister[fleetapi.ManagementCluster, database.GenericDocument[fleetapi.ManagementCluster]]{
 		client:       g.client,
-		resourceType: fleet.ManagementClusterResourceType,
+		resourceType: fleetapi.ManagementClusterResourceType,
 	}
 }

@@ -20,11 +20,11 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
-func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*NodePool, error) {
+func InternalToCosmosNodePool(internalObj *resourcesapi.HCPOpenShiftClusterNodePool) (*NodePool, error) {
 	if internalObj == nil {
 		return nil, nil
 	}
@@ -40,12 +40,12 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 		},
 		NodePoolProperties: NodePoolProperties{
 			HCPOpenShiftClusterNodePool: *internalObj,
-			CosmosMetadata: api.CosmosMetadata{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
-				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, resourcesapi.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          internalObj.Identity.DeepCopy(),
@@ -61,7 +61,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 	return cosmosObj, nil
 }
 
-func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+func CosmosToInternalNodePool(cosmosObj *NodePool) (*resourcesapi.HCPOpenShiftClusterNodePool, error) {
 	if cosmosObj == nil {
 		return nil, nil
 	}
@@ -74,8 +74,8 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj := &tempInternalAPI
 
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
-	internalObj.TrackedResource = arm.TrackedResource{
-		Resource: arm.Resource{
+	internalObj.TrackedResource = armresourcesapi.TrackedResource{
+		Resource: armresourcesapi.Resource{
 			ID:         resourceDoc.ResourceID,
 			Name:       resourceDoc.ResourceID.Name,
 			Type:       resourceDoc.ResourceID.ResourceType.String(),

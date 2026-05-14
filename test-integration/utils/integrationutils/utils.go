@@ -36,10 +36,10 @@ import (
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -183,7 +183,7 @@ func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient databa
 		if operation.ExternalID.Name != resourceName {
 			continue
 		}
-		err := operationcontrollers.UpdateOperationStatus(ctx, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
+		err := operationcontrollers.UpdateOperationStatus(ctx, resourcesDBClient, operation, armresourcesapi.ProvisioningStateSucceeded, nil, nil)
 		if err != nil {
 			return err
 		}
@@ -206,9 +206,9 @@ func (t *FakeOTELClient) Send(ctx context.Context, msg msgs.Msg, options ...base
 // IMPORTANT: When adding a new API version to frontend/pkg/frontend/frontend.go,
 // also add a RegisterVersion call here.
 func AllAPIVersions() []string {
-	registry := api.NewAPIRegistry()
-	api.Must[any](nil, v20240610preview.RegisterVersion(registry))
-	api.Must[any](nil, v20251223preview.RegisterVersion(registry))
+	registry := resourcesapi.NewAPIRegistry()
+	resourcesapi.Must[any](nil, v20240610preview.RegisterVersion(registry))
+	resourcesapi.Must[any](nil, v20251223preview.RegisterVersion(registry))
 
 	versions := registry.ListVersions().UnsortedList()
 	sort.Strings(versions)

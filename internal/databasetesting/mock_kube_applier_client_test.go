@@ -24,8 +24,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -47,14 +47,14 @@ func mustParse(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newClusterApplyDesire(t *testing.T) *kubeapplier.ApplyDesire {
+func newClusterApplyDesire(t *testing.T) *kubeapplierapi.ApplyDesire {
 	t.Helper()
-	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: mustParse(t,
-				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
+				kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
 		},
-		Spec: kubeapplier.ApplyDesireSpec{
+		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: testMgmt,
 			KubeContent: &runtime.RawExtension{
 				Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x"}}`),
@@ -63,17 +63,17 @@ func newClusterApplyDesire(t *testing.T) *kubeapplier.ApplyDesire {
 	}
 }
 
-func newNodePoolReadDesire(t *testing.T) *kubeapplier.ReadDesire {
+func newNodePoolReadDesire(t *testing.T) *kubeapplierapi.ReadDesire {
 	t.Helper()
-	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
+	return &kubeapplierapi.ReadDesire{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: mustParse(t,
-				kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+				kubeapplierapi.ToNodePoolScopedReadDesireResourceIDString(
 					testSub, testRG, testCluster, testNodePool, testDesireName)),
 		},
-		Spec: kubeapplier.ReadDesireSpec{
+		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: testMgmt,
-			TargetItem: kubeapplier.ResourceReference{
+			TargetItem: kubeapplierapi.ResourceReference{
 				Resource: "configmaps", Namespace: "default", Name: "x",
 			},
 		},
@@ -172,13 +172,13 @@ func TestMockKubeApplierGlobalLister_UnionsClusterAndNodePoolScopes(t *testing.T
 	mock, err := NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newClusterApplyDesire(t),
 		// A second ApplyDesire under a node pool, using a different desire name.
-		&kubeapplier.ApplyDesire{
-			CosmosMetadata: api.CosmosMetadata{
+		&kubeapplierapi.ApplyDesire{
+			CosmosMetadata: resourcesapi.CosmosMetadata{
 				ResourceID: mustParse(t,
-					kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+					kubeapplierapi.ToNodePoolScopedApplyDesireResourceIDString(
 						testSub, testRG, testCluster, testNodePool, "other")),
 			},
-			Spec: kubeapplier.ApplyDesireSpec{
+			Spec: kubeapplierapi.ApplyDesireSpec{
 				ManagementCluster: testMgmt,
 				KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"y"}}`)},
 			},

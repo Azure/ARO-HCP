@@ -25,7 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -33,13 +33,13 @@ import (
 // NodePoolAdmissionContext carries dependencies that node pool mutation needs
 // beyond the node pool object itself, currently the parent cluster.
 type NodePoolAdmissionContext struct {
-	Cluster *api.HCPOpenShiftCluster
+	Cluster *resourcesapi.HCPOpenShiftCluster
 }
 
 // MutateNodePool applies admission-time mutations to a node pool (e.g. defaulting
 // the subnet from the parent cluster on CREATE). It returns any field errors
 // produced by the mutation step.
-func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
+func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, newObj, oldObj *resourcesapi.HCPOpenShiftClusterNodePool) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
@@ -48,7 +48,7 @@ func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionCont
 	return errs
 }
 
-func mutateNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
+func mutateNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *resourcesapi.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	errs = append(errs, mutateNodePoolPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, validation.ToNodePoolPropertiesPlatform))...)
@@ -56,7 +56,7 @@ func mutateNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdm
 	return errs
 }
 
-func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolPlatformProfile) field.ErrorList {
+func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *resourcesapi.NodePoolPlatformProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	if op.Type == operation.Create {
@@ -70,7 +70,7 @@ func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmis
 
 // AdmitNodePool performs non-static checks of nodepool.  Checks that require more information than is contained inside of
 // of the nodepool instance itself.
-func AdmitNodePool(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) field.ErrorList {
+func AdmitNodePool(newNodePool, oldNodePool *resourcesapi.HCPOpenShiftClusterNodePool, cluster *resourcesapi.HCPOpenShiftCluster) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Check only if it is a creating nodepool or a change in the channelGroup
@@ -111,8 +111,8 @@ func AdmitNodePool(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cl
 // AdmitNodePoolUpdate performs update-specific validation that requires both the old and new node pool states.
 // It includes all validations from AdmitNodePool plus version upgrade constraints.
 // The spNodePool and spCluster parameters provide the service provider state for version validation.
-func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster,
-	spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
+func AdmitNodePoolUpdate(newNodePool, oldNodePool *resourcesapi.HCPOpenShiftClusterNodePool, cluster *resourcesapi.HCPOpenShiftCluster,
+	spNodePool *resourcesapi.ServiceProviderNodePool, spCluster *resourcesapi.ServiceProviderCluster, op operation.Operation) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Include all standard node pool admission checks
@@ -130,7 +130,7 @@ func AdmitNodePoolUpdate(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePo
 //   - No major version change: new major == old major (unless FeatureExperimentalReleaseFeatures is registered)
 //   - No skipping minor versions: new minor <= old minor + 1
 //   - Cannot exceed cluster version: new version <= cluster version
-func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftClusterNodePool, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster, op operation.Operation) field.ErrorList {
+func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *resourcesapi.HCPOpenShiftClusterNodePool, spNodePool *resourcesapi.ServiceProviderNodePool, spCluster *resourcesapi.ServiceProviderCluster, op operation.Operation) field.ErrorList {
 
 	// Skip validation if no version is specified or version didn't change
 	if len(newNodePool.Properties.Version.ID) == 0 || newNodePool.Properties.Version.ID == oldNodePool.Properties.Version.ID {
@@ -153,7 +153,7 @@ func validateNodePoolVersionUpgrade(newNodePool, oldNodePool *api.HCPOpenShiftCl
 	}
 
 	lowestCPVersion, _ := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
-	if err := validation.ValidateNodePoolUpgrade(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
+	if err := validation.ValidateNodePoolUpgrade(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, op.HasOption(resourcesapi.FeatureExperimentalReleaseFeatures)); err != nil {
 		errs = append(errs, field.Invalid(fldPath, newNodePool.Properties.Version.ID, err.Error()))
 	}
 

@@ -32,7 +32,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -195,7 +195,7 @@ func (a *attributes) resourceID() string {
 		"/subscriptions/%s/resourceGroups/%s/providers/%s/%s",
 		a.subscriptionID,
 		a.resourceGroup,
-		api.ClusterResourceType,
+		resourcesapi.ClusterResourceType,
 		a.resourceName,
 	)
 }

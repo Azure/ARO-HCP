@@ -26,8 +26,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
@@ -36,15 +36,15 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
-			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
+			*j = *resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
-		func(j *arm.Resource, c randfill.Continue) {
+		func(j *armresourcesapi.Resource, c randfill.Continue) {
 			c.FillNoCustom(j)
-			j.ID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
+			j.ID = resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
-		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
+		func(j *resourcesapi.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -53,10 +53,10 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			// must always carry a non-empty node pool ClusterServiceID (OCM node pool href).
 			clusterID := "r" + strings.ReplaceAll(c.String(10), "/", "-")
 			nodePoolID := strings.ReplaceAll(c.String(10), "/", "-")
-			foo := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterID + "/node_pools/" + nodePoolID))
+			foo := resourcesapi.Must(resourcesapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterID + "/node_pools/" + nodePoolID))
 			j.ClusterServiceID = &foo
 		},
-		func(j *api.HCPOpenShiftClusterNodePool, c randfill.Continue) {
+		func(j *resourcesapi.HCPOpenShiftClusterNodePool, c randfill.Continue) {
 			c.FillNoCustom(j)
 			if j == nil {
 				return
@@ -66,13 +66,13 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			// Canonical defaults are applied on Cosmos read, so ensure
 			// defaulted fields are never zero during round-trip testing.
 			if len(j.Properties.Platform.OSDisk.DiskStorageAccountType) == 0 {
-				j.Properties.Platform.OSDisk.DiskStorageAccountType = api.DiskStorageAccountTypePremium_LRS
+				j.Properties.Platform.OSDisk.DiskStorageAccountType = resourcesapi.DiskStorageAccountTypePremium_LRS
 			}
 			if len(j.Properties.Platform.OSDisk.DiskType) == 0 {
-				j.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeManaged
+				j.Properties.Platform.OSDisk.DiskType = resourcesapi.OsDiskTypeManaged
 			}
 		},
-		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
+		func(j *armresourcesapi.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
 
 			// we only round trip keys, so only fill in keys
@@ -86,15 +86,15 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 
 	// Try a few times, since runTest uses random values.
 	for i := 0; i < 20; i++ {
-		original := &api.HCPOpenShiftClusterNodePool{}
+		original := &resourcesapi.HCPOpenShiftClusterNodePool{}
 		fuzzer.Fill(original)
-		roundTripInternalToCosmosToInternal[api.HCPOpenShiftClusterNodePool, NodePool](t, original)
+		roundTripInternalToCosmosToInternal[resourcesapi.HCPOpenShiftClusterNodePool, NodePool](t, original)
 	}
 }
 
 func TestCosmosToInternalNodePoolPreservesETag(t *testing.T) {
 	expectedETag := azcore.ETag("test-etag-value-12345")
-	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster/nodePools/my-np"))
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster/nodePools/my-np"))
 
 	cosmosObj := &NodePool{
 		TypedDocument: TypedDocument{
@@ -117,44 +117,44 @@ func TestCosmosToInternalNodePoolPreservesETag(t *testing.T) {
 func TestNodePoolEnsureDefaults(t *testing.T) {
 	tests := []struct {
 		name                       string
-		diskStorageAccountType     api.DiskStorageAccountType
-		wantDiskStorageAccountType api.DiskStorageAccountType
-		diskType                   api.OsDiskType
-		wantDiskType               api.OsDiskType
+		diskStorageAccountType     resourcesapi.DiskStorageAccountType
+		wantDiskStorageAccountType resourcesapi.DiskStorageAccountType
+		diskType                   resourcesapi.OsDiskType
+		wantDiskType               resourcesapi.OsDiskType
 	}{
 		{
 			name:                       "zero values get defaults",
 			diskStorageAccountType:     "",
-			wantDiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+			wantDiskStorageAccountType: resourcesapi.DiskStorageAccountTypePremium_LRS,
 			diskType:                   "",
-			wantDiskType:               api.OsDiskTypeManaged,
+			wantDiskType:               resourcesapi.OsDiskTypeManaged,
 		},
 		{
 			name:                       "explicit Premium_LRS preserved",
-			diskStorageAccountType:     api.DiskStorageAccountTypePremium_LRS,
-			wantDiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
-			diskType:                   api.OsDiskTypeManaged,
-			wantDiskType:               api.OsDiskTypeManaged,
+			diskStorageAccountType:     resourcesapi.DiskStorageAccountTypePremium_LRS,
+			wantDiskStorageAccountType: resourcesapi.DiskStorageAccountTypePremium_LRS,
+			diskType:                   resourcesapi.OsDiskTypeManaged,
+			wantDiskType:               resourcesapi.OsDiskTypeManaged,
 		},
 		{
 			name:                       "explicit StandardSSD_LRS preserved",
-			diskStorageAccountType:     api.DiskStorageAccountTypeStandardSSD_LRS,
-			wantDiskStorageAccountType: api.DiskStorageAccountTypeStandardSSD_LRS,
-			diskType:                   api.OsDiskTypeEphemeral,
-			wantDiskType:               api.OsDiskTypeEphemeral,
+			diskStorageAccountType:     resourcesapi.DiskStorageAccountTypeStandardSSD_LRS,
+			wantDiskStorageAccountType: resourcesapi.DiskStorageAccountTypeStandardSSD_LRS,
+			diskType:                   resourcesapi.OsDiskTypeEphemeral,
+			wantDiskType:               resourcesapi.OsDiskTypeEphemeral,
 		},
 		{
 			name:                       "explicit Standard_LRS preserved",
-			diskStorageAccountType:     api.DiskStorageAccountTypeStandard_LRS,
-			wantDiskStorageAccountType: api.DiskStorageAccountTypeStandard_LRS,
-			diskType:                   api.OsDiskTypeManaged,
-			wantDiskType:               api.OsDiskTypeManaged,
+			diskStorageAccountType:     resourcesapi.DiskStorageAccountTypeStandard_LRS,
+			wantDiskStorageAccountType: resourcesapi.DiskStorageAccountTypeStandard_LRS,
+			diskType:                   resourcesapi.OsDiskTypeManaged,
+			wantDiskType:               resourcesapi.OsDiskTypeManaged,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			np := &api.HCPOpenShiftClusterNodePool{}
+			np := &resourcesapi.HCPOpenShiftClusterNodePool{}
 			np.Properties.Platform.OSDisk.DiskStorageAccountType = tt.diskStorageAccountType
 			np.Properties.Platform.OSDisk.DiskType = tt.diskType
 

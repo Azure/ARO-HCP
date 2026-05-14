@@ -24,7 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 func TestMiddlewareBody(t *testing.T) {
@@ -121,7 +121,7 @@ func TestMiddlewareBody(t *testing.T) {
 					return
 				}
 
-				var cloudErr arm.CloudError
+				var cloudErr armresourcesapi.CloudError
 				err = json.Unmarshal(b, &cloudErr)
 				assert.NoError(t, err)
 

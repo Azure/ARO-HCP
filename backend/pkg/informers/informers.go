@@ -28,8 +28,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
@@ -65,13 +66,13 @@ const (
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
 // using the default relist duration.
-func NewSubscriptionInformer(lister database.GlobalLister[arm.Subscription]) cache.SharedIndexInformer {
+func NewSubscriptionInformer(lister database.GlobalLister[armresourcesapi.Subscription]) cache.SharedIndexInformer {
 	return NewSubscriptionInformerWithRelistDuration(lister, SubscriptionRelistDuration)
 }
 
 // NewSubscriptionInformerWithRelistDuration creates an unstarted SharedIndexInformer for subscriptions
 // with a configurable relist duration.
-func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.Subscription], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[armresourcesapi.Subscription], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -83,7 +84,7 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 				return nil, err
 			}
 
-			list := &arm.SubscriptionList{}
+			list := &armresourcesapi.SubscriptionList{}
 			list.ResourceVersion = "0"
 			for _, sub := range iter.Items(ctx) {
 				list.Items = append(list.Items, *sub)
@@ -101,7 +102,7 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&arm.Subscription{},
+		&armresourcesapi.Subscription{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 		},
@@ -159,13 +160,13 @@ func NewBillingInformerWithRelistDuration(lister database.GlobalLister[database.
 
 // NewClusterInformer creates an unstarted SharedIndexInformer for clusters
 // with a resource group index using the default relist duration.
-func NewClusterInformer(lister database.GlobalLister[api.HCPOpenShiftCluster]) cache.SharedIndexInformer {
+func NewClusterInformer(lister database.GlobalLister[resourcesapi.HCPOpenShiftCluster]) cache.SharedIndexInformer {
 	return NewClusterInformerWithRelistDuration(lister, ClusterRelistDuration)
 }
 
 // NewClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for clusters
 // with a resource group index and a configurable relist duration.
-func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftCluster], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewClusterInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.HCPOpenShiftCluster], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -177,7 +178,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 				return nil, err
 			}
 
-			list := &api.HCPOpenShiftClusterList{}
+			list := &resourcesapi.HCPOpenShiftClusterList{}
 			list.ResourceVersion = "0"
 			for _, cluster := range iter.Items(ctx) {
 				list.Items = append(list.Items, *cluster)
@@ -195,7 +196,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.HCPOpenShiftCluster{},
+		&resourcesapi.HCPOpenShiftCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -207,13 +208,13 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 
 // NewNodePoolInformer creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes using the default relist duration.
-func NewNodePoolInformer(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool]) cache.SharedIndexInformer {
+func NewNodePoolInformer(lister database.GlobalLister[resourcesapi.HCPOpenShiftClusterNodePool]) cache.SharedIndexInformer {
 	return NewNodePoolInformerWithRelistDuration(lister, NodePoolRelistDuration)
 }
 
 // NewNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes and a configurable relist duration.
-func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.HCPOpenShiftClusterNodePool], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -225,7 +226,7 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 				return nil, err
 			}
 
-			list := &api.HCPOpenShiftClusterNodePoolList{}
+			list := &resourcesapi.HCPOpenShiftClusterNodePoolList{}
 			list.ResourceVersion = "0"
 			for _, np := range iter.Items(ctx) {
 				list.Items = append(list.Items, *np)
@@ -243,7 +244,7 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.HCPOpenShiftClusterNodePool{},
+		&resourcesapi.HCPOpenShiftClusterNodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -256,13 +257,13 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 
 // NewExternalAuthInformer creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes using the default relist duration.
-func NewExternalAuthInformer(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth]) cache.SharedIndexInformer {
+func NewExternalAuthInformer(lister database.GlobalLister[resourcesapi.HCPOpenShiftClusterExternalAuth]) cache.SharedIndexInformer {
 	return NewExternalAuthInformerWithRelistDuration(lister, ExternalAuthRelistDuration)
 }
 
 // NewExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes and a configurable relist duration.
-func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.HCPOpenShiftClusterExternalAuth], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -274,7 +275,7 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 				return nil, err
 			}
 
-			list := &api.HCPOpenShiftClusterExternalAuthList{}
+			list := &resourcesapi.HCPOpenShiftClusterExternalAuthList{}
 			list.ResourceVersion = "0"
 			for _, ea := range iter.Items(ctx) {
 				list.Items = append(list.Items, *ea)
@@ -292,7 +293,7 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.HCPOpenShiftClusterExternalAuth{},
+		&resourcesapi.HCPOpenShiftClusterExternalAuth{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -305,13 +306,13 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 
 // NewServiceProviderClusterInformer creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index using the default relist duration.
-func NewServiceProviderClusterInformer(lister database.GlobalLister[api.ServiceProviderCluster]) cache.SharedIndexInformer {
+func NewServiceProviderClusterInformer(lister database.GlobalLister[resourcesapi.ServiceProviderCluster]) cache.SharedIndexInformer {
 	return NewServiceProviderClusterInformerWithRelistDuration(lister, ServiceProviderClusterRelistDuration)
 }
 
 // NewServiceProviderClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index and a configurable relist duration.
-func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderCluster], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.ServiceProviderCluster], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -323,7 +324,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 				return nil, err
 			}
 
-			list := &api.ServiceProviderClusterList{}
+			list := &resourcesapi.ServiceProviderClusterList{}
 			list.ResourceVersion = "0"
 			for _, spc := range iter.Items(ctx) {
 				list.Items = append(list.Items, *spc)
@@ -341,7 +342,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.ServiceProviderCluster{},
+		&resourcesapi.ServiceProviderCluster{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -353,13 +354,13 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 
 // NewManagementClusterContentInformer creates an unstarted SharedIndexInformer for management cluster contents
 // with cluster and node pool indexes using the default relist duration.
-func NewManagementClusterContentInformer(lister database.GlobalLister[api.ManagementClusterContent]) cache.SharedIndexInformer {
+func NewManagementClusterContentInformer(lister database.GlobalLister[resourcesapi.ManagementClusterContent]) cache.SharedIndexInformer {
 	return NewManagementClusterContentInformerWithRelistDuration(lister, ManagementClusterContentRelistDuration)
 }
 
 // NewManagementClusterContentInformerWithRelistDuration creates an unstarted SharedIndexInformer for management cluster contents
 // with cluster and node pool indexes and a configurable relist duration.
-func NewManagementClusterContentInformerWithRelistDuration(lister database.GlobalLister[api.ManagementClusterContent], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewManagementClusterContentInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.ManagementClusterContent], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -371,7 +372,7 @@ func NewManagementClusterContentInformerWithRelistDuration(lister database.Globa
 				return nil, err
 			}
 
-			list := &api.ManagementClusterContentList{}
+			list := &resourcesapi.ManagementClusterContentList{}
 			list.ResourceVersion = "0"
 			for _, mcc := range iter.Items(ctx) {
 				list.Items = append(list.Items, *mcc)
@@ -389,7 +390,7 @@ func NewManagementClusterContentInformerWithRelistDuration(lister database.Globa
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.ManagementClusterContent{},
+		&resourcesapi.ManagementClusterContent{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -402,13 +403,13 @@ func NewManagementClusterContentInformerWithRelistDuration(lister database.Globa
 
 // NewServiceProviderNodePoolInformer creates an unstarted SharedIndexInformer for service provider node pools
 // with a node pool index using the default relist duration.
-func NewServiceProviderNodePoolInformer(lister database.GlobalLister[api.ServiceProviderNodePool]) cache.SharedIndexInformer {
+func NewServiceProviderNodePoolInformer(lister database.GlobalLister[resourcesapi.ServiceProviderNodePool]) cache.SharedIndexInformer {
 	return NewServiceProviderNodePoolInformerWithRelistDuration(lister, ServiceProviderNodePoolRelistDuration)
 }
 
 // NewServiceProviderNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider node pools
 // with a node pool index and a configurable relist duration.
-func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderNodePool], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.ServiceProviderNodePool], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -420,7 +421,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 				return nil, err
 			}
 
-			list := &api.ServiceProviderNodePoolList{}
+			list := &resourcesapi.ServiceProviderNodePoolList{}
 			list.ResourceVersion = "0"
 			for _, spnp := range iter.Items(ctx) {
 				list.Items = append(list.Items, *spnp)
@@ -438,7 +439,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.ServiceProviderNodePool{},
+		&resourcesapi.ServiceProviderNodePool{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -450,13 +451,13 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 
 // NewControllerInformer creates an unstarted SharedIndexInformer for controllers
 // using the default relist duration.
-func NewControllerInformer(lister database.GlobalLister[api.Controller]) cache.SharedIndexInformer {
+func NewControllerInformer(lister database.GlobalLister[resourcesapi.Controller]) cache.SharedIndexInformer {
 	return NewControllerInformerWithRelistDuration(lister, ControllerRelistDuration)
 }
 
 // NewControllerInformerWithRelistDuration creates an unstarted SharedIndexInformer for controllers
 // with a configurable relist duration.
-func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Controller], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewControllerInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.Controller], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -468,7 +469,7 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 				return nil, err
 			}
 
-			list := &api.ControllerList{}
+			list := &resourcesapi.ControllerList{}
 			list.ResourceVersion = "0"
 			for _, controller := range iter.Items(ctx) {
 				list.Items = append(list.Items, *controller)
@@ -486,7 +487,7 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.Controller{},
+		&resourcesapi.Controller{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
 			Indexers: cache.Indexers{
@@ -503,13 +504,13 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 // operations (including terminal) using the default relist duration. This is
 // used by the metrics controller so that completed operations remain visible
 // in Prometheus until the 7-day Cosmos TTL removes them.
-func NewOperationInformer(lister database.GlobalLister[api.Operation]) cache.SharedIndexInformer {
+func NewOperationInformer(lister database.GlobalLister[resourcesapi.Operation]) cache.SharedIndexInformer {
 	return NewOperationInformerWithRelistDuration(lister, AllOperationsRelistDuration)
 }
 
 // NewOperationInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for all operations (including terminal) with a configurable relist duration.
-func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewOperationInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.Operation], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -521,7 +522,7 @@ func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Ope
 				return nil, err
 			}
 
-			list := &api.OperationList{}
+			list := &resourcesapi.OperationList{}
 			list.ResourceVersion = "0"
 			for _, op := range iter.Items(ctx) {
 				list.Items = append(list.Items, *op)
@@ -539,7 +540,7 @@ func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Ope
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.Operation{},
+		&resourcesapi.Operation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour,
 		},
@@ -549,14 +550,14 @@ func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Ope
 // NewActiveOperationInformer creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // using the default relist duration.
-func NewActiveOperationInformer(lister database.GlobalLister[api.Operation]) cache.SharedIndexInformer {
+func NewActiveOperationInformer(lister database.GlobalLister[resourcesapi.Operation]) cache.SharedIndexInformer {
 	return NewActiveOperationInformerWithRelistDuration(lister, ActiveOperationsRelistDuration)
 }
 
 // NewActiveOperationInformerWithRelistDuration creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // and a configurable relist duration.
-func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], relistDuration time.Duration) cache.SharedIndexInformer {
+func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[resourcesapi.Operation], relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			logger := utils.LoggerFromContext(ctx)
@@ -568,7 +569,7 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 				return nil, err
 			}
 
-			list := &api.OperationList{}
+			list := &resourcesapi.OperationList{}
 			list.ResourceVersion = "0"
 			for _, op := range iter.Items(ctx) {
 				list.Items = append(list.Items, *op)
@@ -586,7 +587,7 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
-		&api.Operation{},
+		&resourcesapi.Operation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
@@ -599,16 +600,16 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 
 func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case arm.CosmosMetadataAccessor:
+	case metaapi.CosmosMetadataAccessor:
 		if castObj.GetResourceID() == nil {
 			return nil, utils.TrackError(fmt.Errorf("obj is missing resourceID: %T %v", obj, obj))
 		}
-		return []string{api.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
-	case arm.CosmosPersistable:
+		return []string{resourcesapi.ToResourceGroupResourceIDString(castObj.GetResourceID().SubscriptionID, castObj.GetResourceID().ResourceGroupName)}, nil
+	case metaapi.CosmosPersistable:
 		if castObj.GetCosmosData() == nil || castObj.GetCosmosData().ResourceID == nil {
 			return nil, utils.TrackError(fmt.Errorf("obj is missing resourceID: %T %v", obj, obj))
 		}
-		return []string{api.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
+		return []string{resourcesapi.ToResourceGroupResourceIDString(castObj.GetCosmosData().ResourceID.SubscriptionID, castObj.GetCosmosData().ResourceID.ResourceGroupName)}, nil
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
 	}
@@ -632,9 +633,9 @@ func findAncestorResourceID(resourceType azcorearm.ResourceType, resourceID *azc
 
 func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case arm.CosmosMetadataAccessor:
+	case metaapi.CosmosMetadataAccessor:
 		return clusterResourceIDFromResourceID(castObj.GetResourceID())
-	case arm.CosmosPersistable:
+	case metaapi.CosmosPersistable:
 		return clusterResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
@@ -642,14 +643,14 @@ func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
 }
 
 func clusterResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return findAncestorResourceID(api.ClusterResourceType, resourceID)
+	return findAncestorResourceID(resourcesapi.ClusterResourceType, resourceID)
 }
 
 func externalAuthResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case arm.CosmosMetadataAccessor:
+	case metaapi.CosmosMetadataAccessor:
 		return externalAuthResourceIDFromResourceID(castObj.GetResourceID())
-	case arm.CosmosPersistable:
+	case metaapi.CosmosPersistable:
 		return externalAuthResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
 		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected api.CosmosMetadataAccessor or api.CosmosPersistable", obj))
@@ -657,13 +658,13 @@ func externalAuthResourceIDIndexFunc(obj interface{}) ([]string, error) {
 }
 
 func externalAuthResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return findAncestorResourceID(api.ExternalAuthResourceType, resourceID)
+	return findAncestorResourceID(resourcesapi.ExternalAuthResourceType, resourceID)
 }
 
 // activeOperationResourceGroupIndexFunc indexes operations by the resource group
 // of their ExternalID.
 func activeOperationResourceGroupIndexFunc(obj interface{}) ([]string, error) {
-	op, ok := obj.(*api.Operation)
+	op, ok := obj.(*resourcesapi.Operation)
 	if !ok {
 		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
 	}
@@ -671,7 +672,7 @@ func activeOperationResourceGroupIndexFunc(obj interface{}) ([]string, error) {
 		return nil, nil
 	}
 
-	return []string{api.ToResourceGroupResourceIDString(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName)}, nil
+	return []string{resourcesapi.ToResourceGroupResourceIDString(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName)}, nil
 }
 
 // activeOperationClusterIndexFunc indexes operations by their associated cluster
@@ -679,7 +680,7 @@ func activeOperationResourceGroupIndexFunc(obj interface{}) ([]string, error) {
 // it is used directly. If it is a child resource (nodepool, externalauth), the
 // parent cluster resource ID is used.
 func activeOperationClusterIndexFunc(obj interface{}) ([]string, error) {
-	op, ok := obj.(*api.Operation)
+	op, ok := obj.(*resourcesapi.Operation)
 	if !ok {
 		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
 	}
@@ -691,17 +692,17 @@ func activeOperationClusterIndexFunc(obj interface{}) ([]string, error) {
 // nodePool ancestor in the ARM path (Cosmos metadata resource ID).
 func nodePoolResourceIDIndexFunc(obj interface{}) ([]string, error) {
 	switch castObj := obj.(type) {
-	case arm.CosmosMetadataAccessor:
+	case metaapi.CosmosMetadataAccessor:
 		return nodePoolResourceIDFromResourceID(castObj.GetResourceID())
-	case arm.CosmosPersistable:
+	case metaapi.CosmosPersistable:
 		return nodePoolResourceIDFromResourceID(castObj.GetCosmosData().ResourceID)
 	default:
-		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected arm.CosmosMetadataAccessor or arm.CosmosPersistable", obj))
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected metaapi.CosmosMetadataAccessor or metaapi.CosmosPersistable", obj))
 	}
 }
 
 func nodePoolResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return findAncestorResourceID(api.NodePoolResourceType, resourceID)
+	return findAncestorResourceID(resourcesapi.NodePoolResourceType, resourceID)
 }
 
 // billingDocSubscriptionIndexFunc indexes billing documents by their subscription ID.

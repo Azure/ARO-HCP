@@ -25,8 +25,8 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -76,7 +76,7 @@ func NewOperationRequestCredentialController(
 	return controller
 }
 
-func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, operation *resourcesapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
@@ -109,22 +109,22 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 		return utils.TrackError(err)
 	}
 
-	var newOperationStatus arm.ProvisioningState
-	var newOperationError *arm.CloudErrorBody
+	var newOperationStatus armresourcesapi.ProvisioningState
+	var newOperationError *armresourcesapi.CloudErrorBody
 
 	switch status := breakGlassCredential.Status(); status {
 	case cmv1.BreakGlassCredentialStatusCreated:
-		newOperationStatus = arm.ProvisioningStateProvisioning
+		newOperationStatus = armresourcesapi.ProvisioningStateProvisioning
 	case cmv1.BreakGlassCredentialStatusFailed:
 		// XXX Cluster Service does not provide a reason for the failure,
 		//     so we have no choice but to use a generic error message.
-		newOperationStatus = arm.ProvisioningStateFailed
-		newOperationError = &arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInternalServerError,
+		newOperationStatus = armresourcesapi.ProvisioningStateFailed
+		newOperationError = &armresourcesapi.CloudErrorBody{
+			Code:    armresourcesapi.CloudErrorCodeInternalServerError,
 			Message: "Failed to provision cluster credential",
 		}
 	case cmv1.BreakGlassCredentialStatusIssued:
-		newOperationStatus = arm.ProvisioningStateSucceeded
+		newOperationStatus = armresourcesapi.ProvisioningStateSucceeded
 	default:
 		return fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
 	}

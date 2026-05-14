@@ -24,9 +24,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -36,7 +35,7 @@ import (
 // from Cluster Service to Cosmos DB. It ensures that the Identity.UserAssignedIdentities
 // field is populated for clusters that were created before all identity state was held in Cosmos.
 type identityMigrationSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
+	cooldownChecker controllerutils.CooldownChecker
 
 	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
@@ -75,11 +74,11 @@ func NewIdentityMigrationController(
 	return controller
 }
 
-func (c *identityMigrationSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (c *identityMigrationSyncer) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
+func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster *resourcesapi.HCPOpenShiftCluster) bool {
 	// Check if we have a cluster service ID to query
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil || len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return false
@@ -136,7 +135,7 @@ func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster
 
 // needsWorkForIdentityKey returns true when the identity at key is missing or has empty
 // client/principal IDs, signalling that the migration controller should fill it in.
-func needsWorkForIdentityKey(userAssignedIdentities map[string]*arm.UserAssignedIdentity, key string) bool {
+func needsWorkForIdentityKey(userAssignedIdentities map[string]*armresourcesapi.UserAssignedIdentity, key string) bool {
 	identity, ok := userAssignedIdentities[key]
 	if !ok || identity == nil {
 		return true
@@ -199,7 +198,7 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	// Only assign the Identity.UserAssignedIdentities from the converted cluster
 	if existingCluster.Identity == nil {
-		existingCluster.Identity = &arm.ManagedServiceIdentity{}
+		existingCluster.Identity = &armresourcesapi.ManagedServiceIdentity{}
 	}
 	existingCluster.Identity.UserAssignedIdentities = userAssignedIdentities
 

@@ -27,17 +27,17 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) {
-	testNodePoolServiceID, _ := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id/node_pools/test-nodepool-id")
+	testNodePoolServiceID, _ := resourcesapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id/node_pools/test-nodepool-id")
 
 	tests := []struct {
 		name                         string
 		desiredVersion               *semver.Version
-		nodePoolServiceID            api.InternalID
+		nodePoolServiceID            resourcesapi.InternalID
 		mockSetup                    func(*ocm.MockClusterServiceClientSpec)
 		expectError                  bool
 		expectedErrorContains        string
@@ -49,8 +49,8 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 			desiredVersion:    ptr.To(semver.MustParse("4.19.20")),
 			nodePoolServiceID: testNodePoolServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
-				latestPolicy := api.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.20").Build())
-				olderPolicy := api.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.15").Build())
+				latestPolicy := resourcesapi.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.20").Build())
+				olderPolicy := resourcesapi.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.15").Build())
 
 				mc.EXPECT().
 					ListNodePoolUpgradePolicies(testNodePoolServiceID, "creation_timestamp desc").
@@ -64,8 +64,8 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 			desiredVersion:    ptr.To(semver.MustParse("4.19.20")),
 			nodePoolServiceID: testNodePoolServiceID,
 			mockSetup: func(mc *ocm.MockClusterServiceClientSpec) {
-				latestPolicy := api.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.18").Build())
-				olderPolicy := api.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.15").Build())
+				latestPolicy := resourcesapi.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.18").Build())
+				olderPolicy := resourcesapi.Must(arohcpv1alpha1.NewNodePoolUpgradePolicy().Version("4.19.15").Build())
 
 				mc.EXPECT().
 					ListNodePoolUpgradePolicies(testNodePoolServiceID, "creation_timestamp desc").
@@ -78,7 +78,7 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 						testNodePoolServiceID,
 						expectedBuilder,
 					).
-					Return(api.Must(expectedBuilder.Build()), nil)
+					Return(resourcesapi.Must(expectedBuilder.Build()), nil)
 			},
 			expectError:                  false,
 			expectPolicyCreation:         true,
@@ -100,7 +100,7 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 						testNodePoolServiceID,
 						expectedBuilder,
 					).
-					Return(api.Must(expectedBuilder.Build()), nil)
+					Return(resourcesapi.Must(expectedBuilder.Build()), nil)
 			},
 			expectError:                  false,
 			expectPolicyCreation:         true,

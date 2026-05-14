@@ -29,8 +29,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -57,7 +58,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 	}{
 		{
 			name:       "missing vmName parameter",
-			resourceID: api.TestClusterResourceID,
+			resourceID: resourcesapi.TestClusterResourceID,
 			vmName:     "",
 			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 			},
@@ -67,7 +68,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 		},
 		{
 			name:       "invalid vmName format",
-			resourceID: api.TestClusterResourceID,
+			resourceID: resourcesapi.TestClusterResourceID,
 			vmName:     "-invalid-vm-name",
 			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 			},
@@ -77,7 +78,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 		},
 		{
 			name:       "HCP cluster not found in database",
-			resourceID: api.TestClusterResourceID,
+			resourceID: resourcesapi.TestClusterResourceID,
 			vmName:     "test-vm",
 			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 			},
@@ -87,17 +88,17 @@ func TestSerialConsoleHandler(t *testing.T) {
 		},
 		{
 			name:       "subscription not found",
-			resourceID: api.TestClusterResourceID,
+			resourceID: resourcesapi.TestClusterResourceID,
 			vmName:     "test-vm",
 			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 				// Create HCP cluster with InternalID
-				internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
+				internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
 				require.NoError(t, err)
-				hcp := &api.HCPOpenShiftCluster{
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{ID: resourceID},
+				hcp := &resourcesapi.HCPOpenShiftCluster{
+					TrackedResource: armresourcesapi.TrackedResource{
+						Resource: armresourcesapi.Resource{ID: resourceID},
 					},
-					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: &internalID,
 					},
 				}
@@ -110,17 +111,17 @@ func TestSerialConsoleHandler(t *testing.T) {
 		},
 		{
 			name:       "FPA credential retrieval fails",
-			resourceID: api.TestClusterResourceID,
+			resourceID: resourcesapi.TestClusterResourceID,
 			vmName:     "test-vm",
 			setupData: func(ctx context.Context, t *testing.T, mockResourcesDBClient *databasetesting.MockResourcesDBClient, resourceID *azcorearm.ResourceID) {
 				// Create HCP cluster with InternalID
-				internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
+				internalID, err := resourcesapi.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
 				require.NoError(t, err)
-				hcp := &api.HCPOpenShiftCluster{
-					TrackedResource: arm.TrackedResource{
-						Resource: arm.Resource{ID: resourceID},
+				hcp := &resourcesapi.HCPOpenShiftCluster{
+					TrackedResource: armresourcesapi.TrackedResource{
+						Resource: armresourcesapi.Resource{ID: resourceID},
 					},
-					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
 						ClusterServiceID: &internalID,
 					},
 				}
@@ -129,14 +130,14 @@ func TestSerialConsoleHandler(t *testing.T) {
 
 				// Create subscription with tenant ID
 				tenantID := "test-tenant-id"
-				subscriptionResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + resourceID.SubscriptionID))
-				subscription := &arm.Subscription{
-					CosmosMetadata: arm.CosmosMetadata{
+				subscriptionResourceID := resourcesapi.Must(azcorearm.ParseResourceID("/subscriptions/" + resourceID.SubscriptionID))
+				subscription := &armresourcesapi.Subscription{
+					CosmosMetadata: metaapi.CosmosMetadata{
 						ResourceID: subscriptionResourceID,
 					},
 					ResourceID: subscriptionResourceID,
-					State:      arm.SubscriptionStateRegistered,
-					Properties: &arm.SubscriptionProperties{
+					State:      armresourcesapi.SubscriptionStateRegistered,
+					Properties: &armresourcesapi.SubscriptionProperties{
 						TenantId: &tenantID,
 					},
 				}
@@ -191,7 +192,7 @@ func TestSerialConsoleHandler(t *testing.T) {
 
 				// Check if it's a CloudError when status is 400 or 404
 				if tt.expectedStatusCode == http.StatusBadRequest || tt.expectedStatusCode == http.StatusNotFound {
-					var cloudErr *arm.CloudError
+					var cloudErr *armresourcesapi.CloudError
 					if !errors.As(err, &cloudErr) {
 						t.Errorf("Expected CloudError but got %T: %v", err, err)
 						return
@@ -237,7 +238,7 @@ func TestSerialConsoleHandler_InvalidResourceID(t *testing.T) {
 	}
 
 	// Should be a CloudError with 400 status
-	var cloudErr *arm.CloudError
+	var cloudErr *armresourcesapi.CloudError
 	if !errors.As(err, &cloudErr) {
 		t.Errorf("Expected CloudError but got %T: %v", err, err)
 		return

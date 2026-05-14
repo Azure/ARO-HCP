@@ -19,15 +19,15 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 // NewInitialManagementClusterContent returns a new ManagementClusterContent with
 // the given full managementClusterContents ARM resource ID.
 // The returned value can be used to consistently initialize a new ManagementClusterContent
-func NewInitialManagementClusterContent(managementClusterContentResourceID *azcorearm.ResourceID) *api.ManagementClusterContent {
-	return &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{
+func NewInitialManagementClusterContent(managementClusterContentResourceID *azcorearm.ResourceID) *resourcesapi.ManagementClusterContent {
+	return &resourcesapi.ManagementClusterContent{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
 			ResourceID: managementClusterContentResourceID,
 		},
 	}
@@ -36,6 +36,6 @@ func NewInitialManagementClusterContent(managementClusterContentResourceID *azco
 // ManagementClusterContentResourceIDFromParentResourceID returns the resource ID for the
 // ManagementClusterContent nested under parentResourceID with the given
 // maestro bundle internal name.
-func ManagementClusterContentResourceIDFromParentResourceID(parentResourceID *azcorearm.ResourceID, maestroBundleInternalName api.MaestroBundleInternalName) *azcorearm.ResourceID {
-	return api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", parentResourceID.String(), api.ManagementClusterContentResourceTypeName, maestroBundleInternalName)))
+func ManagementClusterContentResourceIDFromParentResourceID(parentResourceID *azcorearm.ResourceID, maestroBundleInternalName resourcesapi.MaestroBundleInternalName) *azcorearm.ResourceID {
+	return resourcesapi.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", parentResourceID.String(), resourcesapi.ManagementClusterContentResourceTypeName, maestroBundleInternalName)))
 }

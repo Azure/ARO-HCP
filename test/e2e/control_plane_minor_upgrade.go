@@ -35,7 +35,7 @@ import (
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -47,7 +47,7 @@ var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
 		func(ctx context.Context, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
-			targetVer := api.Must(semver.ParseTolerant(targetMinor))
+			targetVer := resourcesapi.Must(semver.ParseTolerant(targetMinor))
 			targetPlusOneVer := semver.Version{Major: targetVer.Major, Minor: targetVer.Minor + 1}
 			if targetMinor == "4.22" {
 				targetPlusOneVer = semver.Version{Major: 5, Minor: 0}

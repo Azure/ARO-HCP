@@ -23,7 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -57,9 +57,9 @@ func NewHCPSerialConsoleHandler(
 func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
 	resourceID, err := utils.ResourceIDFromContext(request.Context())
 	if err != nil {
-		return arm.NewCloudError(
+		return armresourcesapi.NewCloudError(
 			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent,
+			armresourcesapi.CloudErrorCodeInvalidRequestContent,
 			"",
 			"invalid resource identifier in request",
 		)
@@ -67,18 +67,18 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 
 	vmName := request.URL.Query().Get("vmName")
 	if vmName == "" {
-		return arm.NewCloudError(
+		return armresourcesapi.NewCloudError(
 			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent,
+			armresourcesapi.CloudErrorCodeInvalidRequestContent,
 			"",
 			"vmName query parameter is required",
 		)
 	}
 
 	if !validation.IsValidAzureVMName(vmName) {
-		return arm.NewCloudError(
+		return armresourcesapi.NewCloudError(
 			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent,
+			armresourcesapi.CloudErrorCodeInvalidRequestContent,
 			"",
 			"vmName contains invalid characters or format",
 		)
@@ -91,9 +91,9 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 
 	subscription, err := h.resourcesDBClient.Subscriptions().Get(request.Context(), resourceID.SubscriptionID)
 	if database.IsNotFoundError(err) {
-		return arm.NewCloudError(
+		return armresourcesapi.NewCloudError(
 			http.StatusNotFound,
-			arm.CloudErrorCodeNotFound,
+			armresourcesapi.CloudErrorCodeNotFound,
 			"",
 			"subscription %s not found", resourceID.SubscriptionID,
 		)
@@ -127,17 +127,17 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		var azErr *azcore.ResponseError
 		if ok := errors.As(err, &azErr); ok && azErr != nil {
 			if azErr.StatusCode == http.StatusNotFound {
-				return arm.NewCloudError(
+				return armresourcesapi.NewCloudError(
 					http.StatusNotFound,
-					arm.CloudErrorCodeNotFound,
+					armresourcesapi.CloudErrorCodeNotFound,
 					"",
 					"VM %s not found in resource group %s", vmName, managedResourceGroup,
 				)
 			}
 			if azErr.StatusCode == http.StatusConflict {
-				return arm.NewCloudError(
+				return armresourcesapi.NewCloudError(
 					http.StatusConflict,
-					arm.CloudErrorCodeConflict,
+					armresourcesapi.CloudErrorCodeConflict,
 					"",
 					"Boot diagnostics are unexpectedly not enabled for VM %s. Serial console logs require boot diagnostics to be enabled.", vmName,
 				)
@@ -147,9 +147,9 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	}
 
 	if result.SerialConsoleLogBlobURI == nil || *result.SerialConsoleLogBlobURI == "" {
-		return arm.NewCloudError(
+		return armresourcesapi.NewCloudError(
 			http.StatusNotFound,
-			arm.CloudErrorCodeNotFound,
+			armresourcesapi.CloudErrorCodeNotFound,
 			"",
 			"serial console not available for VM %s",
 			vmName,

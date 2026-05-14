@@ -25,8 +25,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -36,14 +37,14 @@ func TestSubscriptionCollector(t *testing.T) {
 
 	// Create subscription with proper CosmosMetadata
 	subID := "00000000-0000-0000-0000-000000000000"
-	resourceID := api.Must(arm.ToSubscriptionResourceID(subID))
-	testSub := &arm.Subscription{
-		CosmosMetadata: arm.CosmosMetadata{
+	resourceID := resourcesapi.Must(armresourcesapi.ToSubscriptionResourceID(subID))
+	testSub := &armresourcesapi.Subscription{
+		CosmosMetadata: metaapi.CosmosMetadata{
 			ResourceID: resourceID,
 		},
 		ResourceID:       resourceID,
-		State:            arm.SubscriptionStateRegistered,
-		RegistrationDate: api.Ptr(time.Now().String()),
+		State:            armresourcesapi.SubscriptionStateRegistered,
+		RegistrationDate: resourcesapi.Ptr(time.Now().String()),
 	}
 
 	t.Run("no subscription", func(t *testing.T) {

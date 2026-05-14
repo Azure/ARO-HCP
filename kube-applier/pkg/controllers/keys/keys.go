@@ -24,7 +24,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -158,7 +158,7 @@ func parseDesireParts(id *azcorearm.ResourceID) (desireParts, error) {
 	if parent == nil {
 		return desireParts{}, fmt.Errorf("desire %q has no parent in its resource ID", id.String())
 	}
-	if matchesType(parent.ResourceType, api.NodePoolResourceType) {
+	if matchesType(parent.ResourceType, resourcesapi.NodePoolResourceType) {
 		out.NodePoolName = parent.Name
 		if parent.Parent == nil {
 			return desireParts{}, fmt.Errorf(
@@ -168,7 +168,7 @@ func parseDesireParts(id *azcorearm.ResourceID) (desireParts, error) {
 		out.ClusterName = parent.Parent.Name
 		return out, nil
 	}
-	if matchesType(parent.ResourceType, api.ClusterResourceType) {
+	if matchesType(parent.ResourceType, resourcesapi.ClusterResourceType) {
 		out.ClusterName = parent.Name
 		return out, nil
 	}

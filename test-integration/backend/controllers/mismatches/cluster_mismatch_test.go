@@ -30,7 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
@@ -52,14 +52,14 @@ func testClusterMismatchController(t *testing.T, withMock bool) {
 				ResourceGroupName: "unimportantPostponement",
 				HCPClusterName:    "monstrousPrecinct",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
+			ArtifactDir: resourcesapi.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				// nil BackendInformers: test drives SyncOnce directly; see controllerutils.NewClusterWatchingController.
 				return mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.ResourcesDBClient, input.BillingDBClient, input.ClusterServiceClient, nil),
 					map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
-				clusterResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct")))
+				clusterResourceID := resourcesapi.Must(azcorearm.ParseResourceID(strings.ToLower("/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct")))
 				crud, err := input.ResourcesDBClient.UntypedCRUD(*clusterResourceID)
 				require.NoError(t, err)
 				_, err = crud.Get(ctx, clusterResourceID)
@@ -84,7 +84,7 @@ func testClusterMismatchController(t *testing.T, withMock bool) {
 				ResourceGroupName: "unimportantPostponement",
 				HCPClusterName:    "monstrousPrecinct",
 			},
-			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
+			ArtifactDir: resourcesapi.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				// nil BackendInformers: test drives SyncOnce directly; see controllerutils.NewClusterWatchingController.
 				return mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.ResourcesDBClient, input.BillingDBClient, input.ClusterServiceClient, nil),

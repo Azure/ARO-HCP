@@ -22,7 +22,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 // ClusterOperatorIdentifier is the identifier of a cluster operator
@@ -461,11 +461,11 @@ func newServiceManagedIdentityRoleDefinitionSpecs() []*clusterScopedIdentityRole
 		{
 			Dev: &ClusterScopedIdentityRoleDefinition{
 				DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity",
-				ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4")),
+				ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4")),
 			},
 			Public: &ClusterScopedIdentityRoleDefinition{
 				DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity",
-				ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4")),
+				ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4")),
 			},
 		},
 	}
@@ -478,17 +478,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierClusterAPIAzure: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
 							},
 						},
 					},
@@ -498,17 +498,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierControlPlane: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed")),
 							},
 						},
 					},
@@ -518,17 +518,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierCloudControllerManager: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Cloud Controller Manager",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Cloud Controller Manager",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4")),
 							},
 						},
 					},
@@ -538,17 +538,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierIngress: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Cluster Ingress Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Cluster Ingress Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c")),
 							},
 						},
 					},
@@ -558,17 +558,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierDiskCSIDriver: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
 							},
 						},
 					},
@@ -576,17 +576,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 			},
 			DataPlane: &clusterScopedDataPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
 							},
 						},
 					},
@@ -606,17 +606,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierFileCSIDriver: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
 							},
 						},
 					},
@@ -624,17 +624,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 			},
 			DataPlane: &clusterScopedDataPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
 							},
 						},
 					},
@@ -658,17 +658,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierImageRegistry: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
 							},
 						},
 					},
@@ -676,17 +676,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 			},
 			DataPlane: &clusterScopedDataPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
 							},
 						},
 					},
@@ -706,17 +706,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierCloudNetworkConfig: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Network Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Azure Red Hat OpenShift Network Operator",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f")),
 							},
 						},
 					},
@@ -726,17 +726,17 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 		ClusterOperatorIdentifierKMS: {
 			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
 				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
-					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					MinVersionInclusive: to.Ptr(resourcesapi.Must(semver.ParseTolerant("4.19"))),
 					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeOnEnablement},
 					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
 						{
 							Dev: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Key Vault Crypto User",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
 							},
 							Public: &ClusterScopedIdentityRoleDefinition{
 								DescriptiveName: "Key Vault Crypto User",
-								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
+								ResourceID:      resourcesapi.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
 							},
 						},
 					},

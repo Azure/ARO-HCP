@@ -27,12 +27,12 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 // AFECsToValidationOptions converts the API logic into validation compatible options.
 // Feature names are normalized to lowercase for case-insensitive comparison.
-func AFECsToValidationOptions(features []arm.Feature) []string {
+func AFECsToValidationOptions(features []armresourcesapi.Feature) []string {
 	ret := []string{}
 
 	for _, curr := range features {
@@ -48,11 +48,11 @@ func AFECsToValidationOptions(features []arm.Feature) []string {
 }
 
 var (
-	toTrackedResourceResource = func(oldObj *arm.TrackedResource) *arm.Resource { return &oldObj.Resource }
-	toTrackedResourceLocation = func(oldObj *arm.TrackedResource) *string { return &oldObj.Location }
+	toTrackedResourceResource = func(oldObj *armresourcesapi.TrackedResource) *armresourcesapi.Resource { return &oldObj.Resource }
+	toTrackedResourceLocation = func(oldObj *armresourcesapi.TrackedResource) *string { return &oldObj.Location }
 )
 
-func validateTrackedResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.TrackedResource) field.ErrorList {
+func validateTrackedResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *armresourcesapi.TrackedResource) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//Resource
@@ -68,14 +68,14 @@ func validateTrackedResource(ctx context.Context, op operation.Operation, fldPat
 }
 
 var (
-	toResourceID         = func(oldObj *arm.Resource) *azcorearm.ResourceID { return oldObj.ID }
-	toResourceName       = func(oldObj *arm.Resource) *string { return &oldObj.Name }
-	toResourceType       = func(oldObj *arm.Resource) *string { return &oldObj.Type }
-	toResourceSystemData = func(oldObj *arm.Resource) *arm.SystemData { return oldObj.SystemData }
+	toResourceID         = func(oldObj *armresourcesapi.Resource) *azcorearm.ResourceID { return oldObj.ID }
+	toResourceName       = func(oldObj *armresourcesapi.Resource) *string { return &oldObj.Name }
+	toResourceType       = func(oldObj *armresourcesapi.Resource) *string { return &oldObj.Type }
+	toResourceSystemData = func(oldObj *armresourcesapi.Resource) *armresourcesapi.SystemData { return oldObj.SystemData }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
-func validateResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.Resource) field.ErrorList {
+func validateResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *armresourcesapi.Resource) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ID         string      `json:"id,omitempty"`
@@ -103,12 +103,12 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 }
 
 var (
-	toSystemDataCreatedAt     = func(oldObj *arm.SystemData) *time.Time { return oldObj.CreatedAt }
-	toSystemDataCreatedBy     = func(oldObj *arm.SystemData) *string { return &oldObj.CreatedBy }
-	toSystemDataCreatedByType = func(oldObj *arm.SystemData) *arm.CreatedByType { return &oldObj.CreatedByType }
+	toSystemDataCreatedAt     = func(oldObj *armresourcesapi.SystemData) *time.Time { return oldObj.CreatedAt }
+	toSystemDataCreatedBy     = func(oldObj *armresourcesapi.SystemData) *string { return &oldObj.CreatedBy }
+	toSystemDataCreatedByType = func(oldObj *armresourcesapi.SystemData) *armresourcesapi.CreatedByType { return &oldObj.CreatedByType }
 )
 
-func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.SystemData) field.ErrorList {
+func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *armresourcesapi.SystemData) field.ErrorList {
 	if newObj == nil {
 		return nil
 	}

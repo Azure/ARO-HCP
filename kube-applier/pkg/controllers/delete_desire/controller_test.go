@@ -30,8 +30,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	kubeapplierapi "github.com/Azure/ARO-HCP/internal/apis/kubeapplier"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -43,15 +43,15 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newDeleteDesire(t *testing.T, name string, target kubeapplier.ResourceReference) *kubeapplier.DeleteDesire {
+func newDeleteDesire(t *testing.T, name string, target kubeapplierapi.ResourceReference) *kubeapplierapi.DeleteDesire {
 	t.Helper()
-	return &kubeapplier.DeleteDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedDeleteDesireResourceIDString(
+	return &kubeapplierapi.DeleteDesire{
+		CosmosMetadata: resourcesapi.CosmosMetadata{
+			ResourceID: mustParseID(t, kubeapplierapi.ToClusterScopedDeleteDesireResourceIDString(
 				"00000000-0000-0000-0000-000000000001", "rg", "cluster", name,
 			)),
 		},
-		Spec: kubeapplier.DeleteDesireSpec{
+		Spec: kubeapplierapi.DeleteDesireSpec{
 			ManagementCluster: "mgmt-1",
 			TargetItem:        target,
 		},
@@ -77,7 +77,7 @@ func TestEvaluate_TargetGoneIsSuccessful(t *testing.T) {
 	})
 	c := &DeleteDesireController{dyn: dyn}
 
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "missing",
 	})
 	mutate, err := c.evaluate(context.Background(), desire)
@@ -85,7 +85,7 @@ func TestEvaluate_TargetGoneIsSuccessful(t *testing.T) {
 		t.Fatalf("evaluate: %v", err)
 	}
 	mutate(desire)
-	if got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful); got == nil ||
+	if got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful); got == nil ||
 		got.Status != metav1.ConditionTrue {
 		t.Errorf("Successful=%v, want True (target absent)", got)
 	}
@@ -99,7 +99,7 @@ func TestEvaluate_TargetWithDeletionTimestampWaits(t *testing.T) {
 		newConfigMap("doomed", "default", true))
 	c := &DeleteDesireController{dyn: dyn}
 
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "doomed",
 	})
 	mutate, err := c.evaluate(context.Background(), desire)
@@ -107,12 +107,12 @@ func TestEvaluate_TargetWithDeletionTimestampWaits(t *testing.T) {
 		t.Fatalf("evaluate: %v", err)
 	}
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
 	if got == nil || got.Status != metav1.ConditionFalse {
 		t.Fatalf("Successful=%v, want False (waiting)", got)
 	}
-	if got.Reason != kubeapplier.ConditionReasonWaitingForDeletion {
-		t.Errorf("Reason = %q, want %q", got.Reason, kubeapplier.ConditionReasonWaitingForDeletion)
+	if got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
+		t.Errorf("Reason = %q, want %q", got.Reason, kubeapplierapi.ConditionReasonWaitingForDeletion)
 	}
 	if !contains(got.Message, "doomed-uid") {
 		t.Errorf("Message %q does not contain UID", got.Message)
@@ -159,7 +159,7 @@ func TestEvaluate_PresentNoTSIssuesDelete_ThenWaitsForFinalizers(t *testing.T) {
 	})
 
 	c := &DeleteDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "d1",
 	})
 	mutate, err := c.evaluate(context.Background(), desire)
@@ -167,8 +167,8 @@ func TestEvaluate_PresentNoTSIssuesDelete_ThenWaitsForFinalizers(t *testing.T) {
 		t.Fatalf("evaluate: %v", err)
 	}
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplier.ConditionReasonWaitingForDeletion {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonWaitingForDeletion {
 		t.Errorf("Successful=%v, want False/WaitingForDeletion", got)
 	}
 }
@@ -184,13 +184,13 @@ func TestEvaluate_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 		return true, nil, apierrors.NewServiceUnavailable("apiserver unavailable")
 	})
 	c := &DeleteDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		Version: "v1", Resource: "configmaps", Namespace: "default", Name: "d2",
 	})
 	mutate, _ := c.evaluate(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplier.ConditionReasonKubeAPIError {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Status != metav1.ConditionFalse || got.Reason != kubeapplierapi.ConditionReasonKubeAPIError {
 		t.Errorf("Successful=%v, want False/KubeAPIError", got)
 	}
 }
@@ -198,13 +198,13 @@ func TestEvaluate_DeleteAPIErrorClassifiesAsKubeAPIError(t *testing.T) {
 func TestEvaluate_BadTargetIsPreCheckFailed(t *testing.T) {
 	dyn := fake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), nil)
 	c := &DeleteDesireController{dyn: dyn}
-	desire := newDeleteDesire(t, "d", kubeapplier.ResourceReference{
+	desire := newDeleteDesire(t, "d", kubeapplierapi.ResourceReference{
 		// Missing Resource and Name.
 	})
 	mutate, _ := c.evaluate(context.Background(), desire)
 	mutate(desire)
-	got := findCond(desire.Status.Conditions, kubeapplier.ConditionTypeSuccessful)
-	if got == nil || got.Reason != kubeapplier.ConditionReasonPreCheckFailed {
+	got := findCond(desire.Status.Conditions, kubeapplierapi.ConditionTypeSuccessful)
+	if got == nil || got.Reason != kubeapplierapi.ConditionReasonPreCheckFailed {
 		t.Errorf("Successful=%v, want PreCheckFailed", got)
 	}
 }

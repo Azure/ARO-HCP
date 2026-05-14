@@ -20,15 +20,15 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 // ManagementClusterLister lists and gets management clusters from an informer's indexer.
 type ManagementClusterLister interface {
-	List(ctx context.Context) ([]*fleet.ManagementCluster, error)
-	Get(ctx context.Context, stampIdentifier string) (*fleet.ManagementCluster, error)
-	GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleet.ManagementCluster, error)
+	List(ctx context.Context) ([]*fleetapi.ManagementCluster, error)
+	Get(ctx context.Context, stampIdentifier string) (*fleetapi.ManagementCluster, error)
+	GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleetapi.ManagementCluster, error)
 }
 
 // informerBasedManagementClusterLister implements ManagementClusterLister backed by a SharedIndexInformer.
@@ -43,19 +43,19 @@ func NewManagementClusterLister(indexer cache.Indexer) ManagementClusterLister {
 	}
 }
 
-func (l *informerBasedManagementClusterLister) List(ctx context.Context) ([]*fleet.ManagementCluster, error) {
-	return listAll[fleet.ManagementCluster](l.indexer)
+func (l *informerBasedManagementClusterLister) List(ctx context.Context) ([]*fleetapi.ManagementCluster, error) {
+	return listAll[fleetapi.ManagementCluster](l.indexer)
 }
 
 // Get retrieves a single management cluster by stamp identifier.
-func (l *informerBasedManagementClusterLister) Get(ctx context.Context, stampIdentifier string) (*fleet.ManagementCluster, error) {
-	key := fleet.ToManagementClusterResourceIDString(stampIdentifier)
-	return getByKey[fleet.ManagementCluster](l.indexer, key)
+func (l *informerBasedManagementClusterLister) Get(ctx context.Context, stampIdentifier string) (*fleetapi.ManagementCluster, error) {
+	key := fleetapi.ToManagementClusterResourceIDString(stampIdentifier)
+	return getByKey[fleetapi.ManagementCluster](l.indexer, key)
 }
 
 // GetByCSProvisionShardID retrieves a single management cluster by its CS provision shard ID.
-func (l *informerBasedManagementClusterLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleet.ManagementCluster, error) {
-	results, err := listFromIndex[fleet.ManagementCluster](l.indexer, ByCSProvisionShard, shardID)
+func (l *informerBasedManagementClusterLister) GetByCSProvisionShardID(ctx context.Context, shardID string) (*fleetapi.ManagementCluster, error) {
+	results, err := listFromIndex[fleetapi.ManagementCluster](l.indexer, ByCSProvisionShard, shardID)
 	if err != nil {
 		return nil, err
 	}

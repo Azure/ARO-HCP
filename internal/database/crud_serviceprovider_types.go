@@ -20,11 +20,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 type ServiceProviderClusterCRUD interface {
-	ResourceCRUD[api.ServiceProviderCluster]
+	ResourceCRUD[resourcesapi.ServiceProviderCluster]
 }
 
 func NewClusterResourceID(subscriptionID, resourceGroupName, clusterName string) *azcorearm.ResourceID {
@@ -34,9 +34,9 @@ func NewClusterResourceID(subscriptionID, resourceGroupName, clusterName string)
 		"resourceGroups",
 		resourceGroupName,
 		"providers",
-		api.ClusterResourceType.Namespace,
-		api.ClusterResourceType.Type,
+		resourcesapi.ClusterResourceType.Namespace,
+		resourcesapi.ClusterResourceType.Type,
 		clusterName,
 	}
-	return api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
+	return resourcesapi.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 }

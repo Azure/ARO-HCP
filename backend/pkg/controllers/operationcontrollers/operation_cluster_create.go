@@ -35,8 +35,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -92,14 +92,14 @@ func NewOperationClusterCreateController(
 	return controller
 }
 
-func (c *operationClusterCreate) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (c *operationClusterCreate) ShouldProcess(ctx context.Context, operation *resourcesapi.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
 	if operation.Request != database.OperationRequestCreate {
 		return false
 	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.ClusterResourceType.String()) {
+	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), resourcesapi.ClusterResourceType.String()) {
 		return false
 	}
 	return true
@@ -143,7 +143,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
 
-	if newOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.provisioningState != arm.ProvisioningStateSucceeded {
+	if newOperationStatus == armresourcesapi.ProvisioningStateSucceeded && cosmosNewOperationState.provisioningState != armresourcesapi.ProvisioningStateSucceeded {
 		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
 		// that our ability to read maestro is successful.
 		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
@@ -159,7 +159,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, operation *resourcesapi.Operation) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	errs := []error{}
@@ -198,7 +198,7 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	return picked, nil
 }
 
-func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *resourcesapi.Operation) (*operationState, error) {
 	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -206,27 +206,27 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 
 	if len(cluster.ServiceProviderProperties.API.URL) == 0 {
 		message := ".api.url is empty"
-		return newOperationState(arm.ProvisioningStateProvisioning, message), nil
+		return newOperationState(armresourcesapi.ProvisioningStateProvisioning, message), nil
 	}
 
-	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	return newOperationState(armresourcesapi.ProvisioningStateSucceeded, ""), nil
 }
 
 // minVersionsWithValidSuccessCondition maps from <major>.<micro> to the first z-stream version that includes the fix for
 // control plane validation success.
 var minVersionsWithValidSuccessCondition = map[string]semver.Version{
-	"4.19": api.Must(semver.Parse("4.19.999")),
-	"4.20": api.Must(semver.Parse("4.20.999")),
-	"4.21": api.Must(semver.Parse("4.21.999")),
-	"4.22": api.Must(semver.Parse("4.22.999")),
+	"4.19": resourcesapi.Must(semver.Parse("4.19.999")),
+	"4.20": resourcesapi.Must(semver.Parse("4.20.999")),
+	"4.21": resourcesapi.Must(semver.Parse("4.21.999")),
+	"4.22": resourcesapi.Must(semver.Parse("4.22.999")),
 }
 
-func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Context, operation *resourcesapi.Operation) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	hostedClusterContent, err := c.clusterManagementClusterContentLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+	hostedClusterContent, err := c.clusterManagementClusterContentLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, string(resourcesapi.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
 	if database.IsNotFoundError(err) {
-		return newOperationState(arm.ProvisioningStateProvisioning, ""), nil
+		return newOperationState(armresourcesapi.ProvisioningStateProvisioning, ""), nil
 	}
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -237,14 +237,14 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 			message = fmt.Sprintf("maestro bundle is degraded: %s: %s", degradedCondition.Reason, degradedCondition.Message)
 		}
 		logger.Info("maestro bundle is degraded", "hostedClusterContent.Status.Conditions", hostedClusterContent.Status.Conditions)
-		return newOperationState(arm.ProvisioningStateProvisioning, message), nil
+		return newOperationState(armresourcesapi.ProvisioningStateProvisioning, message), nil
 	}
 
 	if hostedClusterContent.Status.KubeContent == nil {
-		return newOperationState(arm.ProvisioningStateProvisioning, "maestro bundle has no kube content"), nil
+		return newOperationState(armresourcesapi.ProvisioningStateProvisioning, "maestro bundle has no kube content"), nil
 	}
 	if len(hostedClusterContent.Status.KubeContent.Items) == 0 {
-		return newOperationState(arm.ProvisioningStateProvisioning, "maestro bundle has no items in kube content"), nil
+		return newOperationState(armresourcesapi.ProvisioningStateProvisioning, "maestro bundle has no items in kube content"), nil
 	}
 	if len(hostedClusterContent.Status.KubeContent.Items) > 1 {
 		return nil, utils.TrackError(fmt.Errorf("unexpected number of kube content items: %d", len(hostedClusterContent.Status.KubeContent.Items)))
@@ -283,26 +283,26 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 				message = fmt.Sprintf("hosted cluster is not available: %s: %s", availableCondition.Reason, availableCondition.Message)
 			}
 			logger.Info("hosted cluster is not available", "hostedCluster.Status.Conditions", hostedCluster.Status.Conditions)
-			return newOperationState(arm.ProvisioningStateProvisioning, message), nil
+			return newOperationState(armresourcesapi.ProvisioningStateProvisioning, message), nil
 		}
 
 		if !anyVersionInstalled {
 			// can only check this when the success condition works, because this is unreliable otherwise
 			logger.Info("hosted cluster has no installed version", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
-			return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster has no installed version"), nil
+			return newOperationState(armresourcesapi.ProvisioningStateProvisioning, "hosted cluster has no installed version"), nil
 		}
 	}
 
 	if len(hostedCluster.Status.ControlPlaneEndpoint.Host) == 0 {
-		return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster has no control plane endpoint host"), nil
+		return newOperationState(armresourcesapi.ProvisioningStateProvisioning, "hosted cluster has no control plane endpoint host"), nil
 	}
 	if hostedCluster.Status.ControlPlaneEndpoint.Port == 0 {
-		return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster has no control plane endpoint port"), nil
+		return newOperationState(armresourcesapi.ProvisioningStateProvisioning, "hosted cluster has no control plane endpoint port"), nil
 	}
 
 	// if we got here,
 	// 1. the hosted cluster is available via condition
 	// 2. the hosted cluster has successfully installed at least one version
 	// 3. the hosted cluster has a control plane endpoint host and port
-	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	return newOperationState(armresourcesapi.ProvisioningStateSucceeded, ""), nil
 }

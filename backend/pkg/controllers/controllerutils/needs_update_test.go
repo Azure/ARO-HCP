@@ -28,8 +28,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 )
 
 func mustParseRID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -41,11 +41,11 @@ func mustParseRID(t *testing.T, s string) *azcorearm.ResourceID {
 
 func TestNeedsUpdate_CosmosMetadata_IgnoresEtag(t *testing.T) {
 	ridStr := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c"
-	a := arm.CosmosMetadata{
+	a := metaapi.CosmosMetadata{
 		ResourceID: mustParseRID(t, ridStr),
 		CosmosETag: azcore.ETag("etag-1"),
 	}
-	b := arm.CosmosMetadata{
+	b := metaapi.CosmosMetadata{
 		ResourceID: mustParseRID(t, ridStr),
 		CosmosETag: azcore.ETag("etag-2"),
 	}
@@ -54,11 +54,11 @@ func TestNeedsUpdate_CosmosMetadata_IgnoresEtag(t *testing.T) {
 
 func TestNeedsUpdate_CosmosMetadata_IgnoresExistingCosmosUID(t *testing.T) {
 	ridStr := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c"
-	a := arm.CosmosMetadata{
+	a := metaapi.CosmosMetadata{
 		ResourceID:        mustParseRID(t, ridStr),
 		ExistingCosmosUID: "uid-from-cosmos",
 	}
-	b := arm.CosmosMetadata{
+	b := metaapi.CosmosMetadata{
 		ResourceID: mustParseRID(t, ridStr),
 		// freshly built desired - no UID yet
 	}
@@ -66,10 +66,10 @@ func TestNeedsUpdate_CosmosMetadata_IgnoresExistingCosmosUID(t *testing.T) {
 }
 
 func TestNeedsUpdate_CosmosMetadata_DetectsResourceIDDifference(t *testing.T) {
-	a := arm.CosmosMetadata{
+	a := metaapi.CosmosMetadata{
 		ResourceID: mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/a"),
 	}
-	b := arm.CosmosMetadata{
+	b := metaapi.CosmosMetadata{
 		ResourceID: mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/b"),
 	}
 	assert.True(t, NeedsUpdate(a, b), "different ResourceIDs must trigger an update")
@@ -106,9 +106,9 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	// End-to-end check: a ManagementClusterContent built fresh and then marshalled+unmarshalled
 	// (the path through cosmos read) must compare as not needing an update.
 	rid := mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c/managementClusterContents/readonlyHypershiftHostedCluster")
-	desired := &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid},
-		Status: api.ManagementClusterContentStatus{
+	desired := &resourcesapi.ManagementClusterContent{
+		CosmosMetadata: metaapi.CosmosMetadata{ResourceID: rid},
+		Status: resourcesapi.ManagementClusterContentStatus{
 			Conditions: []metav1.Condition{
 				{
 					Type:    "Degraded",
@@ -133,7 +133,7 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	// new etag/UID.
 	bytes, err := json.Marshal(desired)
 	require.NoError(t, err)
-	roundTripped := &api.ManagementClusterContent{}
+	roundTripped := &resourcesapi.ManagementClusterContent{}
 	require.NoError(t, json.Unmarshal(bytes, roundTripped))
 	roundTripped.CosmosETag = azcore.ETag("server-assigned-etag")
 	roundTripped.ExistingCosmosUID = "server-assigned-uid"

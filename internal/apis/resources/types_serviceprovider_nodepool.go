@@ -1,0 +1,124 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package resources
+
+import (
+	"github.com/blang/semver/v4"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	// ServiceProviderNodePoolResourceName is the name of the ServiceProviderNodePool resource.
+	// ServiceProviderNodePool is a singleton resource and ARM convention is to
+	// use the name "default" for singleton resources.
+	ServiceProviderNodePoolResourceName = "default"
+)
+
+// ServiceProviderNodePool is used internally by controllers to track and pass information between them.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceProviderNodePool struct {
+	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
+	// it will be the ServiceProviderNodePool type and the name default
+	CosmosMetadata `json:"cosmosMetadata"`
+
+	// Spec contains the desired state of the nodepool
+	Spec ServiceProviderNodePoolSpec `json:"spec,omitempty"`
+
+	// Status contains the observed state of the nodepool
+	Status ServiceProviderNodePoolStatus `json:"status,omitempty"`
+}
+
+// ServiceProviderNodePoolSpec contains the desired state of the nodepool.
+type ServiceProviderNodePoolSpec struct {
+	// NodePoolVersion contains the desired node pool version information.
+	// Example JSON structure:
+	// {
+	//   "nodePoolVersion": {
+	//     "desiredVersion": "4.19.2"
+	//   }
+	// }
+	NodePoolVersion ServiceProviderNodePoolSpecVersion `json:"nodePoolVersion,omitempty"`
+}
+
+// ServiceProviderNodePoolSpecVersion contains the desired version information.
+type ServiceProviderNodePoolSpecVersion struct {
+	// DesiredVersion is the full version the controller wants to upgrade to (format: x.y.z)
+	DesiredVersion *semver.Version `json:"desiredVersion,omitempty"`
+}
+
+// ServiceProviderNodePoolStatus contains the observed state of the node pool.
+type ServiceProviderNodePoolStatus struct {
+	// Conditions are the top-level ServiceProviderNodePoolStatus status conditions.
+	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	// Known condition types are:
+	// - "Progressing": True when the cluster is in the process of being created, updated, or deleted. Both end-user initiated actions as
+	//   well as internal actions such as upgrades or other maintenance operations are in progress are included in thsi condition.
+	// - "Degraded": True when the cluster is in a degraded state
+	// Addition of new conditions here should be done only when strictly necessary, sparingly and only done
+	// when there is a clear benefit to doing so. We expect the number of conditions at this
+	// level to be kept to a minimum. Take into consideration that conditions at other levels can be specified within
+	// ServiceProviderNodePoolStatus too.
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+	// NodePoolActiveVersions contains the actual node pool versions information
+	// ServiceProviderNodePoolActiveVersions contains all versions currently active in the NodePool
+	// During an upgrade, multiple versions can be active simultaneously. Meaning, there are nodes
+	// with different versions. For example:
+	// - Simple upgrade: [vNew, vOld]
+	// - Sequential upgrades before completion: [vNewer, vNew, vOld]
+	//
+	// The list is ordered with the most recent version first.
+	//
+	// Example JSON structure:
+	// {
+	//   "nodePoolVersion":{
+	//		"activeVersions": [
+	//       {"version": "4.19.2"},
+	//       {"version": "4.19.1"}
+	//     ]
+	//   }
+	// }
+	NodePoolVersion ServiceProviderNodePoolStatusVersion `json:"nodePoolVersion,omitempty"`
+
+	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
+	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
+	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
+	// and the Maestro Bundle Name and ID at the Maestro API level.
+	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
+}
+
+// ServiceProviderNodePoolStatusVersion contains the actual version information.
+type ServiceProviderNodePoolStatusVersion struct {
+	// ActiveVersions is an array of versions currently active in the nodepool, ordered with the most recent first.
+	// During upgrades, multiple versions can be active simultaneously.
+	ActiveVersions []HCPNodePoolActiveVersion `json:"activeVersions,omitempty"`
+}
+
+const (
+	// MaestroBundleInternalNameReadonlyHypershiftNodePool is the internal name of the Maestro Bundle that represents
+	// the NodePool's Hypershift's NodePool K8s resource.
+	MaestroBundleInternalNameReadonlyHypershiftNodePool MaestroBundleInternalName = "readonlyHypershiftNodePool"
+)
+
+// HCPNodePoolActiveVersion represents a single version active in the nodepool.
+type HCPNodePoolActiveVersion struct {
+	// Version is the full version in x.y.z format (e.g., "4.19.2")
+	Version *semver.Version `json:"version,omitempty"`
+}

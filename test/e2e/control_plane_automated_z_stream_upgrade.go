@@ -29,9 +29,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	azcore "github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -53,7 +53,7 @@ var _ = Describe("Service Provider", func() {
 			if len(baseInstallVersion) == 0 {
 				baseInstallVersion = minorVersion // set it to minor so that we defaul to .0 as the patch version
 			}
-			configuredVersionID := api.Must(semver.ParseTolerant(baseInstallVersion))
+			configuredVersionID := resourcesapi.Must(semver.ParseTolerant(baseInstallVersion))
 			installVersion, hasUpgradePath, err := framework.GetInstallVersionForZStreamUpgrade(ctx, "candidate", configuredVersionID.String())
 			if err != nil {
 				if cincinnati.IsCincinnatiVersionNotFoundError(err) {

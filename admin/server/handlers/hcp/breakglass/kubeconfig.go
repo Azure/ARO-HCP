@@ -26,7 +26,7 @@ import (
 	clientcmd "k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	sessiongateapiv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	sessiongateclientv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned/typed/sessiongate/v1alpha1"
 	sessiongatelisterv1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/listers/sessiongate/v1alpha1"
@@ -55,14 +55,14 @@ func NewHCPBreakglassSessionKubeconfigHandler(sessionLister sessiongatelisterv1a
 func (h *HCPBreakglassSessionKubeconfigHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
 	sessionName := request.PathValue("sessionName")
 	if sessionName == "" {
-		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "session parameter is required")
+		return armresourcesapi.NewCloudError(http.StatusBadRequest, armresourcesapi.CloudErrorCodeInvalidRequestContent, "", "session parameter is required")
 	}
 
 	// Try to get session from lister first (cached)
 	session, err := h.getSession(request.Context(), sessionName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "", "session %q not found", sessionName)
+			return armresourcesapi.NewCloudError(http.StatusNotFound, armresourcesapi.CloudErrorCodeNotFound, "", "session %q not found", sessionName)
 		}
 		return fmt.Errorf("failed to get session %q: %w", sessionName, err)
 	}

@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
 )
 
 // InternalToCosmosFleet wraps a fleet resource in a GenericDocument envelope whose
@@ -32,7 +32,7 @@ func InternalToCosmosFleet[InternalAPIType any](
 		return nil, nil
 	}
 
-	metadata, ok := any(internalObj).(arm.CosmosMetadataAccessor)
+	metadata, ok := any(internalObj).(metaapi.CosmosMetadataAccessor)
 	if !ok {
 		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", internalObj)
 	}

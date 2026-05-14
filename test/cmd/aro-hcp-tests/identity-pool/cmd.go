@@ -20,7 +20,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/test/pkg/logger"
 )
 
@@ -39,7 +39,7 @@ func NewCommand() (*cobra.Command, error) {
 		ctx := logr.NewContext(cmd.Context(), logger.NewWithVerbosity(logVerbosity))
 		cmd.SetContext(ctx)
 	}
-	cmd.AddCommand(api.Must(newApplyCommand()))
+	cmd.AddCommand(resourcesapi.Must(newApplyCommand()))
 
 	return cmd, nil
 }

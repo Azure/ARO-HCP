@@ -28,8 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -38,9 +38,9 @@ import (
 // MutateCluster sets internal cluster state derived from subscription features
 // and resource tags. Must be called before validation. Returns field errors if
 // any experimental tag has an invalid value or is unrecognized.
-func MutateCluster(cluster *api.HCPOpenShiftCluster, subscription *arm.Subscription) field.ErrorList {
-	if subscription == nil || !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
-		cluster.ServiceProviderProperties.ExperimentalFeatures = api.ExperimentalFeatures{}
+func MutateCluster(cluster *resourcesapi.HCPOpenShiftCluster, subscription *armresourcesapi.Subscription) field.ErrorList {
+	if subscription == nil || !subscription.HasRegisteredFeature(resourcesapi.FeatureExperimentalReleaseFeatures) {
+		cluster.ServiceProviderProperties.ExperimentalFeatures = resourcesapi.ExperimentalFeatures{}
 		return nil
 	}
 
@@ -49,39 +49,39 @@ func MutateCluster(cluster *api.HCPOpenShiftCluster, subscription *arm.Subscript
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride)
+	knownTags := sets.New(resourcesapi.TagClusterSingleReplica, resourcesapi.TagClusterSizeOverride)
 	for k := range tags {
-		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
+		if strings.HasPrefix(strings.ToLower(k), resourcesapi.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(fldPath.Key(k), k, "unrecognized experimental tag"))
 			return errs
 		}
 	}
 
-	var experimentalFeatures api.ExperimentalFeatures
+	var experimentalFeatures resourcesapi.ExperimentalFeatures
 
-	singleReplicaValue := lookupTag(tags, api.TagClusterSingleReplica)
-	switch api.ControlPlaneAvailability(singleReplicaValue) {
-	case api.SingleReplicaControlPlane:
-		experimentalFeatures.ControlPlaneAvailability = api.SingleReplicaControlPlane
-	case api.DefaultControlPlaneAvailability:
+	singleReplicaValue := lookupTag(tags, resourcesapi.TagClusterSingleReplica)
+	switch resourcesapi.ControlPlaneAvailability(singleReplicaValue) {
+	case resourcesapi.SingleReplicaControlPlane:
+		experimentalFeatures.ControlPlaneAvailability = resourcesapi.SingleReplicaControlPlane
+	case resourcesapi.DefaultControlPlaneAvailability:
 		// absent or empty
 	default:
 		errs = append(errs, field.Invalid(
-			fldPath.Key(api.TagClusterSingleReplica), singleReplicaValue,
-			fmt.Sprintf("must be %q or empty", api.SingleReplicaControlPlane),
+			fldPath.Key(resourcesapi.TagClusterSingleReplica), singleReplicaValue,
+			fmt.Sprintf("must be %q or empty", resourcesapi.SingleReplicaControlPlane),
 		))
 	}
 
-	sizeOverrideValue := lookupTag(tags, api.TagClusterSizeOverride)
-	switch api.ControlPlanePodSizing(sizeOverrideValue) {
-	case api.MinimalControlPlanePodSizing:
-		experimentalFeatures.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
-	case api.DefaultControlPlanePodSizing:
+	sizeOverrideValue := lookupTag(tags, resourcesapi.TagClusterSizeOverride)
+	switch resourcesapi.ControlPlanePodSizing(sizeOverrideValue) {
+	case resourcesapi.MinimalControlPlanePodSizing:
+		experimentalFeatures.ControlPlanePodSizing = resourcesapi.MinimalControlPlanePodSizing
+	case resourcesapi.DefaultControlPlanePodSizing:
 		// absent or empty
 	default:
 		errs = append(errs, field.Invalid(
-			fldPath.Key(api.TagClusterSizeOverride), sizeOverrideValue,
-			fmt.Sprintf("must be %q or empty", api.MinimalControlPlanePodSizing),
+			fldPath.Key(resourcesapi.TagClusterSizeOverride), sizeOverrideValue,
+			fmt.Sprintf("must be %q or empty", resourcesapi.MinimalControlPlanePodSizing),
 		))
 	}
 
@@ -107,7 +107,7 @@ func lookupTag(tags map[string]string, key string) string {
 
 // MutateClusterCreate sets fields that are generated on cluster creation.
 // Must be called after decoding and before validation on CREATE operations only.
-func MutateClusterCreate(cluster *api.HCPOpenShiftCluster) {
+func MutateClusterCreate(cluster *resourcesapi.HCPOpenShiftCluster) {
 	if len(cluster.ServiceProviderProperties.ClusterUID) == 0 {
 		cluster.ServiceProviderProperties.ClusterUID = uuid.New().String()
 	}
@@ -115,7 +115,7 @@ func MutateClusterCreate(cluster *api.HCPOpenShiftCluster) {
 
 // AdmitClusterOnCreate performs non-static checks of cluster. Checks that
 // require more information than is contained inside of the cluster instance itself.
-func AdmitClusterOnCreate(ctx context.Context, newVersion *api.HCPOpenShiftCluster, subscription *arm.Subscription) field.ErrorList {
+func AdmitClusterOnCreate(ctx context.Context, newVersion *resourcesapi.HCPOpenShiftCluster, subscription *armresourcesapi.Subscription) field.ErrorList {
 	// to be filled in
 	errs := field.ErrorList{}
 
@@ -124,7 +124,7 @@ func AdmitClusterOnCreate(ctx context.Context, newVersion *api.HCPOpenShiftClust
 
 // AdmitClusterOnUpdate performs non-static checks of cluster. Checks that
 // require more information than is contained inside of the cluster instance itself.
-func AdmitClusterOnUpdate(ctx context.Context, op operation.Operation, resourcesDBClient database.ResourcesDBClient, oldCluster, newCluster *api.HCPOpenShiftCluster) field.ErrorList {
+func AdmitClusterOnUpdate(ctx context.Context, op operation.Operation, resourcesDBClient database.ResourcesDBClient, oldCluster, newCluster *resourcesapi.HCPOpenShiftCluster) field.ErrorList {
 	var errs field.ErrorList
 
 	// Version                 VersionProfile              `json:"version,omitempty"`
@@ -135,7 +135,7 @@ func AdmitClusterOnUpdate(ctx context.Context, op operation.Operation, resources
 
 // admitVersionProfileOnClusterUpdate runs admission checks when properties.version changes
 // (skew against active control-plane versions and existing node pool minor skew).
-func admitVersionProfileOnClusterUpdate(ctx context.Context, op operation.Operation, resourcesDBClient database.ResourcesDBClient, oldCluster, newCluster *api.HCPOpenShiftCluster) field.ErrorList {
+func admitVersionProfileOnClusterUpdate(ctx context.Context, op operation.Operation, resourcesDBClient database.ResourcesDBClient, oldCluster, newCluster *resourcesapi.HCPOpenShiftCluster) field.ErrorList {
 	if len(newCluster.CustomerProperties.Version.ID) == 0 ||
 		oldCluster.CustomerProperties.Version.ID == newCluster.CustomerProperties.Version.ID {
 		return nil

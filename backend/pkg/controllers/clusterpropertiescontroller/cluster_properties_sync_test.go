@@ -27,8 +27,8 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -50,7 +50,7 @@ const (
 func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 	testCases := []struct {
 		name                       string
-		existingCluster            *api.HCPOpenShiftCluster
+		existingCluster            *resourcesapi.HCPOpenShiftCluster
 		csCluster                  *arohcpv1alpha1.Cluster
 		expectCSCall               bool
 		expectCosmosUpdate         bool
@@ -63,7 +63,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "short-circuit when all properties already set",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *resourcesapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
@@ -102,7 +102,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "sync only missing Console.URL",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *resourcesapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
@@ -128,7 +128,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "sync only missing DNS.BaseDomain",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *resourcesapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.API.URL = testAPIURL
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
@@ -154,7 +154,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "sync only missing API.URL",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *resourcesapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = testManagedIdentityURL
@@ -180,7 +180,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "sync only missing DNS.BaseDomainPrefix",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *resourcesapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
@@ -219,7 +219,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "sync only missing ManagedIdentitiesDataPlaneIdentityURL",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *resourcesapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
@@ -245,7 +245,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "sync only missing Platform.IssuerURL",
-			existingCluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			existingCluster: newTestCluster(func(c *resourcesapi.HCPOpenShiftCluster) {
 				c.ServiceProviderProperties.Console.URL = testConsoleURL
 				c.ServiceProviderProperties.DNS.BaseDomain = testBaseDomain
 				c.ServiceProviderProperties.API.URL = testAPIURL
@@ -286,7 +286,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 
 			if tc.expectCSCall {
 				mockCSClient.EXPECT().
-					GetCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
+					GetCluster(gomock.Any(), resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr))).
 					Return(tc.csCluster, nil)
 			}
 
@@ -322,23 +322,23 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 
 // newTestCluster creates a test HCPOpenShiftCluster with default values.
 // Options can be provided to customize the cluster.
-func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+func newTestCluster(opts ...func(*resourcesapi.HCPOpenShiftCluster)) *resourcesapi.HCPOpenShiftCluster {
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID +
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 
-	cluster := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
+	cluster := &resourcesapi.HCPOpenShiftCluster{
+		TrackedResource: armresourcesapi.TrackedResource{
+			Resource: armresourcesapi.Resource{
 				ID:   resourceID,
 				Name: testClusterName,
 				Type: resourceID.ResourceType.String(),
 			},
 		},
-		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID(testClusterServiceIDStr))),
+		ServiceProviderProperties: resourcesapi.HCPOpenShiftClusterServiceProviderProperties{
+			ClusterServiceID: resourcesapi.Ptr(resourcesapi.Must(resourcesapi.NewInternalID(testClusterServiceIDStr))),
 		},
 	}
 

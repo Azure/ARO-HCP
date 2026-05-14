@@ -29,8 +29,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -129,7 +129,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	// Get the ServiceProviderCluster for control plane version validation
-	clusterResourceID := api.Must(api.ToClusterResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName))
+	clusterResourceID := resourcesapi.Must(resourcesapi.ToClusterResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName))
 	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterResourceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
@@ -237,14 +237,14 @@ func (c *nodePoolVersionSyncer) CooldownChecker() controllerutil.CooldownChecker
 // with the new version prepended if it differs from the most recent version.
 // If the most recent version matches the new version, returns the original slice unchanged.
 // The returned slice is capped to the 2 most recent versions.
-func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersion, newVersion semver.Version) []api.HCPNodePoolActiveVersion {
+func prependActiveVersionIfChanged(currentVersions []resourcesapi.HCPNodePoolActiveVersion, newVersion semver.Version) []resourcesapi.HCPNodePoolActiveVersion {
 	// Check if the tip (most recent version) is already the new version
 	if len(currentVersions) > 0 && currentVersions[0].Version != nil && currentVersions[0].Version.EQ(newVersion) {
 		return currentVersions
 	}
 
 	// Create new list with at most 2 versions: new version + most recent old version
-	newVersions := []api.HCPNodePoolActiveVersion{{Version: &newVersion}}
+	newVersions := []resourcesapi.HCPNodePoolActiveVersion{{Version: &newVersion}}
 	if len(currentVersions) > 0 {
 		newVersions = append(newVersions, currentVersions[0])
 	}
@@ -263,9 +263,9 @@ func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersio
 func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 	ctx context.Context,
 	desiredVersion *semver.Version,
-	spNodePool *api.ServiceProviderNodePool,
-	spCluster *api.ServiceProviderCluster,
-	subscription *arm.Subscription,
+	spNodePool *resourcesapi.ServiceProviderNodePool,
+	spCluster *resourcesapi.ServiceProviderCluster,
+	subscription *armresourcesapi.Subscription,
 	channelGroup string,
 	clusterUUID uuid.UUID,
 ) error {
@@ -286,7 +286,7 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
 
-	if err := validation.ValidateNodePoolUpgrade(*desiredVersion, nodePoolActiveVersions, lowestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
+	if err := validation.ValidateNodePoolUpgrade(*desiredVersion, nodePoolActiveVersions, lowestCPVersion, op.HasOption(resourcesapi.FeatureExperimentalReleaseFeatures)); err != nil {
 		return err
 	}
 

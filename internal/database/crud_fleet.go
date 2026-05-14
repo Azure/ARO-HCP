@@ -22,7 +22,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	metaapi "github.com/Azure/ARO-HCP/internal/apis/meta"
 )
 
 // fleetResourceCRUD is a ResourceCRUD for Cosmos containers
@@ -57,7 +57,7 @@ func topLevelResourceName(rid *azcorearm.ResourceID) string {
 // partitionKeyFromObject extracts the partition key from an object's
 // CosmosMetadata resource ID by walking to the top-level ancestor.
 func partitionKeyFromObject[InternalAPIType any](obj *InternalAPIType) (string, error) {
-	persistable, ok := any(obj).(arm.CosmosPersistable)
+	persistable, ok := any(obj).(metaapi.CosmosPersistable)
 	if !ok {
 		return "", fmt.Errorf("type %T does not implement CosmosPersistable", obj)
 	}

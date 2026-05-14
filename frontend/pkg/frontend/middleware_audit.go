@@ -20,7 +20,7 @@ import (
 
 	"github.com/microsoft/go-otel-audit/audit/msgs"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -45,7 +45,7 @@ func (h *middlewareAudit) handleRequest(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	logger := utils.LoggerFromContext(ctx)
 
-	correlationData := arm.NewCorrelationData(r)
+	correlationData := armresourcesapi.NewCorrelationData(r)
 	callerIdentities := getCallerIdentitesMap(correlationData)
 	msg := audit.CreateOtelAuditMsg(ctx, r, operationCategoryDescription, operationAccessLevel, callerIdentities)
 
@@ -64,7 +64,7 @@ func (h *middlewareAudit) handleRequest(w http.ResponseWriter, r *http.Request, 
 }
 
 // used for otelaudit via "github.com/microsoft/go-otel-audit/audit/msgs"
-func getCallerIdentitesMap(correlationData *arm.CorrelationData) map[msgs.CallerIdentityType][]msgs.CallerIdentityEntry {
+func getCallerIdentitesMap(correlationData *armresourcesapi.CorrelationData) map[msgs.CallerIdentityType][]msgs.CallerIdentityEntry {
 	caller := make(map[msgs.CallerIdentityType][]msgs.CallerIdentityEntry)
 	if correlationData.ClientPrincipalName != "" {
 		caller[msgs.UPN] = []msgs.CallerIdentityEntry{

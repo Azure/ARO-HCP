@@ -33,8 +33,8 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	fleetapi "github.com/Azure/ARO-HCP/internal/apis/fleet"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting"
@@ -68,12 +68,12 @@ func testPublicDNSZoneResourceIDString() string {
 }
 
 var managementClusterCmpOptions = append(
-	api.CmpDiffOptions,
-	cmpopts.IgnoreFields(fleet.ManagementCluster{}, "CosmosMetadata", "ResourceID"),
+	resourcesapi.CmpDiffOptions,
+	cmpopts.IgnoreFields(fleetapi.ManagementCluster{}, "CosmosMetadata", "ResourceID"),
 	cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime"),
 )
 
-func assertManagementClusterEqual(t *testing.T, expected, got *fleet.ManagementCluster) {
+func assertManagementClusterEqual(t *testing.T, expected, got *fleetapi.ManagementCluster) {
 	t.Helper()
 	if diff := cmp.Diff(expected, got, managementClusterCmpOptions...); diff != "" {
 		t.Errorf("ManagementCluster mismatch (-expected +got):\n%s", diff)
@@ -84,38 +84,38 @@ func testProvisionShardHREF(shardID string) string {
 	return "/api/aro_hcp/v1alpha1/provision_shards/" + shardID
 }
 
-func buildExpectedManagementCluster(t *testing.T, shardID, consumerName, aksName string) *fleet.ManagementCluster {
+func buildExpectedManagementCluster(t *testing.T, shardID, consumerName, aksName string) *fleetapi.ManagementCluster {
 	t.Helper()
-	aksResourceID := api.Must(azcorearm.ParseResourceID(testAKSResourceIDString(aksName)))
-	publicDNSZoneResourceID := api.Must(azcorearm.ParseResourceID(testPublicDNSZoneResourceIDString()))
-	return &fleet.ManagementCluster{
-		Spec: fleet.ManagementClusterSpec{
-			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
+	aksResourceID := resourcesapi.Must(azcorearm.ParseResourceID(testAKSResourceIDString(aksName)))
+	publicDNSZoneResourceID := resourcesapi.Must(azcorearm.ParseResourceID(testPublicDNSZoneResourceIDString()))
+	return &fleetapi.ManagementCluster{
+		Spec: fleetapi.ManagementClusterSpec{
+			SchedulingPolicy: fleetapi.ManagementClusterSchedulingPolicySchedulable,
 		},
-		Status: fleet.ManagementClusterStatus{
+		Status: fleetapi.ManagementClusterStatus{
 			AKSResourceID:                                        aksResourceID,
 			PublicDNSZoneResourceID:                              publicDNSZoneResourceID,
 			HostedClustersSecretsKeyVaultURL:                     testHostedClustersSecretsKeyVaultURL,
 			HostedClustersManagedIdentitiesKeyVaultURL:           testHostedClustersManagedIdentitiesKeyVaultURL,
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: testHostedClustersSecretsKeyVaultManagedIdentityClientID,
-			ClusterServiceProvisionShardID:                       ptr.To(api.Must(api.NewInternalID(testProvisionShardHREF(shardID)))),
+			ClusterServiceProvisionShardID:                       ptr.To(resourcesapi.Must(resourcesapi.NewInternalID(testProvisionShardHREF(shardID)))),
 			MaestroConsumerName:                                  consumerName,
 			MaestroRESTAPIURL:                                    testMaestroRestURL,
 			MaestroGRPCTarget:                                    testMaestroGRPCURL,
 			Conditions: []metav1.Condition{
 				{
-					Type:   string(fleet.ManagementClusterConditionReady),
+					Type:   string(fleetapi.ManagementClusterConditionReady),
 					Status: metav1.ConditionTrue,
-					Reason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+					Reason: string(fleetapi.ManagementClusterConditionReasonProvisionShardActive),
 				},
 			},
 		},
 	}
 }
 
-func getManagementCluster(t *testing.T, ctx context.Context, client database.FleetDBClient, stampIdentifier string) *fleet.ManagementCluster {
+func getManagementCluster(t *testing.T, ctx context.Context, client database.FleetDBClient, stampIdentifier string) *fleetapi.ManagementCluster {
 	t.Helper()
-	mc, err := client.Stamps().ManagementClusters(stampIdentifier).Get(ctx, fleet.ManagementClusterResourceName)
+	mc, err := client.Stamps().ManagementClusters(stampIdentifier).Get(ctx, fleetapi.ManagementClusterResourceName)
 	require.NoError(t, err)
 	return mc
 }
@@ -152,7 +152,7 @@ type errorManagementClusterLister struct {
 	err error
 }
 
-func (e *errorManagementClusterLister) Get(_ context.Context, _ string) (*fleet.ManagementCluster, error) {
+func (e *errorManagementClusterLister) Get(_ context.Context, _ string) (*fleetapi.ManagementCluster, error) {
 	return nil, e.err
 }
 
@@ -196,7 +196,7 @@ func TestSyncOnce(t *testing.T) {
 			validate: func(t *testing.T, ctx context.Context, client *databasetesting.MockFleetDBClient) {
 				t.Helper()
 				doc := getManagementCluster(t, ctx, client, "1")
-				assert.Equal(t, fleet.ManagementClusterResourceName, doc.ResourceID.Name, "resource name should be 'default'")
+				assert.Equal(t, fleetapi.ManagementClusterResourceName, doc.ResourceID.Name, "resource name should be 'default'")
 				assert.Equal(t, "1", doc.ResourceID.Parent.Name, "parent name should be the stamp identifier")
 				expected := buildExpectedManagementCluster(t, testShardID, "test-consumer", "test-westus3-mgmt-1")
 				assertManagementClusterEqual(t, expected, doc)
@@ -212,14 +212,14 @@ func TestSyncOnce(t *testing.T) {
 				shard := buildTestProvisionShard(t, testShardID, "test-consumer", "test-westus3-mgmt-1", "active")
 				existing, err := ocm.ConvertCSManagementClusterToInternal(shard)
 				require.NoError(t, err)
-				existing.Spec.SchedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
+				existing.Spec.SchedulingPolicy = fleetapi.ManagementClusterSchedulingPolicyUnschedulable
 				_, err = fleetClient.Stamps().ManagementClusters("1").Create(t.Context(), existing, nil)
 				require.NoError(t, err)
 
 				mockCS.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{shard}, nil),
 				)
-				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleet.ManagementCluster{existing}}
+				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{existing}}
 			},
 			validate: func(t *testing.T, ctx context.Context, client *databasetesting.MockFleetDBClient) {
 				t.Helper()
@@ -242,7 +242,7 @@ func TestSyncOnce(t *testing.T) {
 				mockCS.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{shard}, nil),
 				)
-				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleet.ManagementCluster{existing}}
+				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{existing}}
 			},
 		},
 		{
@@ -310,22 +310,22 @@ func TestSyncOnce(t *testing.T) {
 				mockCS.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{activeShard}, nil),
 				)
-				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleet.ManagementCluster{existing}}
+				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleetapi.ManagementCluster{existing}}
 			},
 			validate: func(t *testing.T, ctx context.Context, client *databasetesting.MockFleetDBClient) {
 				t.Helper()
 				doc := getManagementCluster(t, ctx, client, "1")
-				assert.Equal(t, fleet.ManagementClusterSchedulingPolicySchedulable, doc.Spec.SchedulingPolicy, "should be schedulable")
+				assert.Equal(t, fleetapi.ManagementClusterSchedulingPolicySchedulable, doc.Spec.SchedulingPolicy, "should be schedulable")
 				var readyCond *metav1.Condition
 				for i := range doc.Status.Conditions {
-					if doc.Status.Conditions[i].Type == string(fleet.ManagementClusterConditionReady) {
+					if doc.Status.Conditions[i].Type == string(fleetapi.ManagementClusterConditionReady) {
 						readyCond = &doc.Status.Conditions[i]
 						break
 					}
 				}
 				require.NotNil(t, readyCond, "Ready condition must exist")
 				assert.Equal(t, metav1.ConditionTrue, readyCond.Status, "Ready condition should be True")
-				assert.Equal(t, string(fleet.ManagementClusterConditionReasonProvisionShardActive), readyCond.Reason)
+				assert.Equal(t, string(fleetapi.ManagementClusterConditionReasonProvisionShardActive), readyCond.Reason)
 			},
 		},
 		{

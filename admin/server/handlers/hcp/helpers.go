@@ -21,7 +21,7 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 // ClusterServiceError checks if err is an OCM not-found error and returns a
@@ -31,7 +31,7 @@ import (
 func ClusterServiceError(err error, what string) error {
 	var ocmErr *ocmerrors.Error
 	if errors.As(err, &ocmErr) && ocmErr.Status() == http.StatusNotFound {
-		return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "",
+		return armresourcesapi.NewCloudError(http.StatusNotFound, armresourcesapi.CloudErrorCodeNotFound, "",
 			"%s not found in cluster service", what)
 	}
 	return fmt.Errorf("failed to get %s from cluster service: %w", what, err)

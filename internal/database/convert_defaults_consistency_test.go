@@ -21,10 +21,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	v20240610preview "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	v20251223preview "github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	resourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources"
+	armresourcesapi "github.com/Azure/ARO-HCP/internal/apis/resources/arm"
 )
 
 // TestEnsureDefaultsConsistencyNodePool verifies that the defaults applied by
@@ -34,13 +34,13 @@ import (
 // docs/api-version-defaults-and-storage.md.
 func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 	// 1. Internal API constructor defaults
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
 	))
-	internalDefault := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID, "eastus")
+	internalDefault := resourcesapi.NewDefaultHCPOpenShiftClusterNodePool(resourceID, "eastus")
 
 	// 3. EnsureDefaults
-	ensuredDefault := &api.HCPOpenShiftClusterNodePool{}
+	ensuredDefault := &resourcesapi.HCPOpenShiftClusterNodePool{}
 	ensuredDefault.EnsureDefaults()
 
 	// Verify DiskStorageAccountType against internal constructor
@@ -91,13 +91,13 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 // NewDefaultHCPOpenShiftCluster and the versioned constructors.
 func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 	// 1. Internal API constructor defaults
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 	))
-	internalDefault := api.NewDefaultHCPOpenShiftCluster(resourceID, "eastus")
+	internalDefault := resourcesapi.NewDefaultHCPOpenShiftCluster(resourceID, "eastus")
 
 	// 3. EnsureDefaults
-	ensuredDefault := &api.HCPOpenShiftCluster{}
+	ensuredDefault := &resourcesapi.HCPOpenShiftCluster{}
 	ensuredDefault.EnsureDefaults()
 
 	// Each canonically-defaulted field must match the internal constructor default.
@@ -198,7 +198,7 @@ func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 // canonical defaults when reading a Cosmos document that predates the
 // introduction of canonically-defaulted fields.
 func TestPreExistingDataCluster(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 	))
 
@@ -213,11 +213,11 @@ func TestPreExistingDataCluster(t *testing.T) {
 		HCPClusterProperties: HCPClusterProperties{
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
+				InternalID:        resourcesapi.Must(resourcesapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
+				ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			},
 			InternalState: ClusterInternalState{
-				InternalAPI: api.HCPOpenShiftCluster{
+				InternalAPI: resourcesapi.HCPOpenShiftCluster{
 					// All canonically-defaulted fields are intentionally zero-valued:
 					// NetworkType, Visibility, OutboundType,
 					// ClusterImageRegistry.State, Etcd.DataEncryption.KeyManagementMode
@@ -237,11 +237,11 @@ func TestPreExistingDataCluster(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"NetworkType", string(internalCluster.CustomerProperties.Network.NetworkType), string(api.NetworkTypeOVNKubernetes)},
-		{"Visibility", string(internalCluster.CustomerProperties.API.Visibility), string(api.VisibilityPublic)},
-		{"OutboundType", string(internalCluster.CustomerProperties.Platform.OutboundType), string(api.OutboundTypeLoadBalancer)},
-		{"ClusterImageRegistry.State", string(internalCluster.CustomerProperties.ClusterImageRegistry.State), string(api.ClusterImageRegistryStateEnabled)},
-		{"Etcd.DataEncryption.KeyManagementMode", string(internalCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode), string(api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)},
+		{"NetworkType", string(internalCluster.CustomerProperties.Network.NetworkType), string(resourcesapi.NetworkTypeOVNKubernetes)},
+		{"Visibility", string(internalCluster.CustomerProperties.API.Visibility), string(resourcesapi.VisibilityPublic)},
+		{"OutboundType", string(internalCluster.CustomerProperties.Platform.OutboundType), string(resourcesapi.OutboundTypeLoadBalancer)},
+		{"ClusterImageRegistry.State", string(internalCluster.CustomerProperties.ClusterImageRegistry.State), string(resourcesapi.ClusterImageRegistryStateEnabled)},
+		{"Etcd.DataEncryption.KeyManagementMode", string(internalCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode), string(resourcesapi.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)},
 	}
 	for _, c := range checks {
 		t.Run(c.name, func(t *testing.T) {
@@ -257,7 +257,7 @@ func TestPreExistingDataCluster(t *testing.T) {
 // This scenario occurs when clusters are created via v2024_06_10_preview, which
 // doesn't expose the visibility field and assumes public KeyVaults.
 func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 	))
 
@@ -271,19 +271,19 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 		HCPClusterProperties: HCPClusterProperties{
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
+				InternalID:        resourcesapi.Must(resourcesapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster")),
+				ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			},
 			InternalState: ClusterInternalState{
-				InternalAPI: api.HCPOpenShiftCluster{
-					CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-						Etcd: api.EtcdProfile{
-							DataEncryption: api.EtcdDataEncryptionProfile{
-								KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-								CustomerManaged: &api.CustomerManagedEncryptionProfile{
-									EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-									Kms: &api.KmsEncryptionProfile{
-										ActiveKey: api.KmsKey{
+				InternalAPI: resourcesapi.HCPOpenShiftCluster{
+					CustomerProperties: resourcesapi.HCPOpenShiftClusterCustomerProperties{
+						Etcd: resourcesapi.EtcdProfile{
+							DataEncryption: resourcesapi.EtcdDataEncryptionProfile{
+								KeyManagementMode: resourcesapi.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+								CustomerManaged: &resourcesapi.CustomerManagedEncryptionProfile{
+									EncryptionType: resourcesapi.CustomerManagedEncryptionTypeKMS,
+									Kms: &resourcesapi.KmsEncryptionProfile{
+										ActiveKey: resourcesapi.KmsKey{
 											Name:      "test-key",
 											VaultName: "test-vault",
 											Version:   "v1",
@@ -312,10 +312,10 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 	if internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms == nil {
 		t.Fatal("Kms is nil")
 	}
-	if internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility != api.KeyVaultVisibilityPublic {
+	if internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility != resourcesapi.KeyVaultVisibilityPublic {
 		t.Errorf("got Visibility = %q, want %q",
 			internalCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility,
-			api.KeyVaultVisibilityPublic)
+			resourcesapi.KeyVaultVisibilityPublic)
 	}
 }
 
@@ -323,7 +323,7 @@ func TestKMSVisibilityDefaultsToPublic(t *testing.T) {
 // canonical defaults when reading a Cosmos document that predates the
 // introduction of DiskStorageAccountType.
 func TestPreExistingDataNodePool(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
 	))
 
@@ -336,15 +336,15 @@ func TestPreExistingDataNodePool(t *testing.T) {
 		NodePoolProperties: NodePoolProperties{
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/node_pools/test-np")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
+				InternalID:        resourcesapi.Must(resourcesapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/node_pools/test-np")),
+				ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			},
 			InternalState: NodePoolInternalState{
-				InternalAPI: api.HCPOpenShiftClusterNodePool{
+				InternalAPI: resourcesapi.HCPOpenShiftClusterNodePool{
 					// DiskStorageAccountType is intentionally zero-valued
-					Properties: api.HCPOpenShiftClusterNodePoolProperties{
-						Platform: api.NodePoolPlatformProfile{
-							OSDisk: api.OSDiskProfile{
+					Properties: resourcesapi.HCPOpenShiftClusterNodePoolProperties{
+						Platform: resourcesapi.NodePoolPlatformProfile{
+							OSDisk: resourcesapi.OSDiskProfile{
 								// DiskStorageAccountType: "" — simulates pre-existing document
 							},
 						},
@@ -359,15 +359,15 @@ func TestPreExistingDataNodePool(t *testing.T) {
 		t.Fatalf("CosmosToInternalNodePool failed: %v", err)
 	}
 
-	if internalNodePool.Properties.Platform.OSDisk.DiskStorageAccountType != api.DiskStorageAccountTypePremium_LRS {
+	if internalNodePool.Properties.Platform.OSDisk.DiskStorageAccountType != resourcesapi.DiskStorageAccountTypePremium_LRS {
 		t.Errorf("got DiskStorageAccountType = %q, want %q",
 			internalNodePool.Properties.Platform.OSDisk.DiskStorageAccountType,
-			api.DiskStorageAccountTypePremium_LRS)
+			resourcesapi.DiskStorageAccountTypePremium_LRS)
 	}
-	if internalNodePool.Properties.Platform.OSDisk.DiskType != api.OsDiskTypeManaged {
+	if internalNodePool.Properties.Platform.OSDisk.DiskType != resourcesapi.OsDiskTypeManaged {
 		t.Errorf("got DiskType = %q, want %q",
 			internalNodePool.Properties.Platform.OSDisk.DiskType,
-			api.OsDiskTypeManaged)
+			resourcesapi.OsDiskTypeManaged)
 	}
 }
 
@@ -375,77 +375,77 @@ func TestPreExistingDataNodePool(t *testing.T) {
 // defaults match the canonical api.Default* constants. This provides compile-time
 // linkage between the constants and the actual defaulting behavior.
 func TestCanonicalDefaultsConsistencyCluster(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 	))
-	internalDefault := api.NewDefaultHCPOpenShiftCluster(resourceID, "eastus")
+	internalDefault := resourcesapi.NewDefaultHCPOpenShiftCluster(resourceID, "eastus")
 
 	// Non-enum defaults (from defaults.go)
-	if internalDefault.CustomerProperties.Version.ChannelGroup != api.DefaultClusterVersionChannelGroup {
-		t.Errorf("ChannelGroup = %q, want %q", internalDefault.CustomerProperties.Version.ChannelGroup, api.DefaultClusterVersionChannelGroup)
+	if internalDefault.CustomerProperties.Version.ChannelGroup != resourcesapi.DefaultClusterVersionChannelGroup {
+		t.Errorf("ChannelGroup = %q, want %q", internalDefault.CustomerProperties.Version.ChannelGroup, resourcesapi.DefaultClusterVersionChannelGroup)
 	}
-	if internalDefault.CustomerProperties.Network.PodCIDR != api.DefaultClusterNetworkPodCIDR {
-		t.Errorf("PodCIDR = %q, want %q", internalDefault.CustomerProperties.Network.PodCIDR, api.DefaultClusterNetworkPodCIDR)
+	if internalDefault.CustomerProperties.Network.PodCIDR != resourcesapi.DefaultClusterNetworkPodCIDR {
+		t.Errorf("PodCIDR = %q, want %q", internalDefault.CustomerProperties.Network.PodCIDR, resourcesapi.DefaultClusterNetworkPodCIDR)
 	}
-	if internalDefault.CustomerProperties.Network.ServiceCIDR != api.DefaultClusterNetworkServiceCIDR {
-		t.Errorf("ServiceCIDR = %q, want %q", internalDefault.CustomerProperties.Network.ServiceCIDR, api.DefaultClusterNetworkServiceCIDR)
+	if internalDefault.CustomerProperties.Network.ServiceCIDR != resourcesapi.DefaultClusterNetworkServiceCIDR {
+		t.Errorf("ServiceCIDR = %q, want %q", internalDefault.CustomerProperties.Network.ServiceCIDR, resourcesapi.DefaultClusterNetworkServiceCIDR)
 	}
-	if internalDefault.CustomerProperties.Network.MachineCIDR != api.DefaultClusterNetworkMachineCIDR {
-		t.Errorf("MachineCIDR = %q, want %q", internalDefault.CustomerProperties.Network.MachineCIDR, api.DefaultClusterNetworkMachineCIDR)
+	if internalDefault.CustomerProperties.Network.MachineCIDR != resourcesapi.DefaultClusterNetworkMachineCIDR {
+		t.Errorf("MachineCIDR = %q, want %q", internalDefault.CustomerProperties.Network.MachineCIDR, resourcesapi.DefaultClusterNetworkMachineCIDR)
 	}
-	if internalDefault.CustomerProperties.Network.HostPrefix != api.DefaultClusterNetworkHostPrefix {
-		t.Errorf("HostPrefix = %d, want %d", internalDefault.CustomerProperties.Network.HostPrefix, api.DefaultClusterNetworkHostPrefix)
+	if internalDefault.CustomerProperties.Network.HostPrefix != resourcesapi.DefaultClusterNetworkHostPrefix {
+		t.Errorf("HostPrefix = %d, want %d", internalDefault.CustomerProperties.Network.HostPrefix, resourcesapi.DefaultClusterNetworkHostPrefix)
 	}
-	if internalDefault.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds != api.DefaultClusterMaxPodGracePeriodSeconds {
-		t.Errorf("MaxPodGracePeriodSeconds = %d, want %d", internalDefault.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds, api.DefaultClusterMaxPodGracePeriodSeconds)
+	if internalDefault.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds != resourcesapi.DefaultClusterMaxPodGracePeriodSeconds {
+		t.Errorf("MaxPodGracePeriodSeconds = %d, want %d", internalDefault.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds, resourcesapi.DefaultClusterMaxPodGracePeriodSeconds)
 	}
-	if internalDefault.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds != api.DefaultClusterMaxNodeProvisionTimeSeconds {
-		t.Errorf("MaxNodeProvisionTimeSeconds = %d, want %d", internalDefault.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds, api.DefaultClusterMaxNodeProvisionTimeSeconds)
+	if internalDefault.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds != resourcesapi.DefaultClusterMaxNodeProvisionTimeSeconds {
+		t.Errorf("MaxNodeProvisionTimeSeconds = %d, want %d", internalDefault.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds, resourcesapi.DefaultClusterMaxNodeProvisionTimeSeconds)
 	}
-	if internalDefault.CustomerProperties.Autoscaling.PodPriorityThreshold != api.DefaultClusterPodPriorityThreshold {
-		t.Errorf("PodPriorityThreshold = %d, want %d", internalDefault.CustomerProperties.Autoscaling.PodPriorityThreshold, api.DefaultClusterPodPriorityThreshold)
+	if internalDefault.CustomerProperties.Autoscaling.PodPriorityThreshold != resourcesapi.DefaultClusterPodPriorityThreshold {
+		t.Errorf("PodPriorityThreshold = %d, want %d", internalDefault.CustomerProperties.Autoscaling.PodPriorityThreshold, resourcesapi.DefaultClusterPodPriorityThreshold)
 	}
 
 	// Enum defaults (from enums.go — verify compile-time linkage)
-	if internalDefault.CustomerProperties.Network.NetworkType != api.NetworkTypeOVNKubernetes {
-		t.Errorf("NetworkType = %q, want %q", internalDefault.CustomerProperties.Network.NetworkType, api.NetworkTypeOVNKubernetes)
+	if internalDefault.CustomerProperties.Network.NetworkType != resourcesapi.NetworkTypeOVNKubernetes {
+		t.Errorf("NetworkType = %q, want %q", internalDefault.CustomerProperties.Network.NetworkType, resourcesapi.NetworkTypeOVNKubernetes)
 	}
-	if internalDefault.CustomerProperties.API.Visibility != api.VisibilityPublic {
-		t.Errorf("Visibility = %q, want %q", internalDefault.CustomerProperties.API.Visibility, api.VisibilityPublic)
+	if internalDefault.CustomerProperties.API.Visibility != resourcesapi.VisibilityPublic {
+		t.Errorf("Visibility = %q, want %q", internalDefault.CustomerProperties.API.Visibility, resourcesapi.VisibilityPublic)
 	}
-	if internalDefault.CustomerProperties.Platform.OutboundType != api.OutboundTypeLoadBalancer {
-		t.Errorf("OutboundType = %q, want %q", internalDefault.CustomerProperties.Platform.OutboundType, api.OutboundTypeLoadBalancer)
+	if internalDefault.CustomerProperties.Platform.OutboundType != resourcesapi.OutboundTypeLoadBalancer {
+		t.Errorf("OutboundType = %q, want %q", internalDefault.CustomerProperties.Platform.OutboundType, resourcesapi.OutboundTypeLoadBalancer)
 	}
-	if internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged {
-		t.Errorf("KeyManagementMode = %q, want %q", internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode, api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)
+	if internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != resourcesapi.EtcdDataEncryptionKeyManagementModeTypePlatformManaged {
+		t.Errorf("KeyManagementMode = %q, want %q", internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode, resourcesapi.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)
 	}
-	if internalDefault.CustomerProperties.ClusterImageRegistry.State != api.ClusterImageRegistryStateEnabled {
-		t.Errorf("ClusterImageRegistryState = %q, want %q", internalDefault.CustomerProperties.ClusterImageRegistry.State, api.ClusterImageRegistryStateEnabled)
+	if internalDefault.CustomerProperties.ClusterImageRegistry.State != resourcesapi.ClusterImageRegistryStateEnabled {
+		t.Errorf("ClusterImageRegistryState = %q, want %q", internalDefault.CustomerProperties.ClusterImageRegistry.State, resourcesapi.ClusterImageRegistryStateEnabled)
 	}
 }
 
 // TestCanonicalDefaultsConsistencyNodePool verifies that the internal constructor
 // defaults match the canonical api.Default* constants for node pools.
 func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
 	))
-	internalDefault := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID, "eastus")
+	internalDefault := resourcesapi.NewDefaultHCPOpenShiftClusterNodePool(resourceID, "eastus")
 
-	if internalDefault.Properties.Version.ChannelGroup != api.DefaultNodePoolVersionChannelGroup {
-		t.Errorf("ChannelGroup = %q, want %q", internalDefault.Properties.Version.ChannelGroup, api.DefaultNodePoolVersionChannelGroup)
+	if internalDefault.Properties.Version.ChannelGroup != resourcesapi.DefaultNodePoolVersionChannelGroup {
+		t.Errorf("ChannelGroup = %q, want %q", internalDefault.Properties.Version.ChannelGroup, resourcesapi.DefaultNodePoolVersionChannelGroup)
 	}
-	if ptr.Deref(internalDefault.Properties.Platform.OSDisk.SizeGiB, 0) != api.DefaultNodePoolOSDiskSizeGiB {
-		t.Errorf("OSDiskSizeGiB = %d, want %d", ptr.Deref(internalDefault.Properties.Platform.OSDisk.SizeGiB, 0), api.DefaultNodePoolOSDiskSizeGiB)
+	if ptr.Deref(internalDefault.Properties.Platform.OSDisk.SizeGiB, 0) != resourcesapi.DefaultNodePoolOSDiskSizeGiB {
+		t.Errorf("OSDiskSizeGiB = %d, want %d", ptr.Deref(internalDefault.Properties.Platform.OSDisk.SizeGiB, 0), resourcesapi.DefaultNodePoolOSDiskSizeGiB)
 	}
 	if internalDefault.Properties.AutoRepair != true {
 		t.Errorf("AutoRepair = %v, want %v", internalDefault.Properties.AutoRepair, true)
 	}
-	if internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType != api.DiskStorageAccountTypePremium_LRS {
-		t.Errorf("DiskStorageAccountType = %q, want %q", internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, api.DiskStorageAccountTypePremium_LRS)
+	if internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType != resourcesapi.DiskStorageAccountTypePremium_LRS {
+		t.Errorf("DiskStorageAccountType = %q, want %q", internalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, resourcesapi.DiskStorageAccountTypePremium_LRS)
 	}
-	if internalDefault.Properties.Platform.OSDisk.DiskType != api.OsDiskTypeManaged {
-		t.Errorf("DiskType = %q, want %q", internalDefault.Properties.Platform.OSDisk.DiskType, api.OsDiskTypeManaged)
+	if internalDefault.Properties.Platform.OSDisk.DiskType != resourcesapi.OsDiskTypeManaged {
+		t.Errorf("DiskType = %q, want %q", internalDefault.Properties.Platform.OSDisk.DiskType, resourcesapi.OsDiskTypeManaged)
 	}
 }
 
@@ -454,7 +454,7 @@ func TestCanonicalDefaultsConsistencyNodePool(t *testing.T) {
 // versioned constructors. This catches drift between the defaulting layers
 // described in docs/api-version-defaults-and-storage.md.
 func TestEnsureDefaultsConsistencyExternalAuth(t *testing.T) {
-	ensuredDefault := &api.HCPOpenShiftClusterExternalAuth{}
+	ensuredDefault := &resourcesapi.HCPOpenShiftClusterExternalAuth{}
 	ensuredDefault.EnsureDefaults()
 
 	// Verify against each versioned API's SetDefaultValues
@@ -488,7 +488,7 @@ func TestEnsureDefaultsConsistencyExternalAuth(t *testing.T) {
 // applies canonical defaults when reading a Cosmos document that predates the
 // introduction of the PrefixPolicy field.
 func TestPreExistingDataExternalAuth(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
+	resourceID := resourcesapi.Must(azcorearm.ParseResourceID(
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/externalAuths/default",
 	))
 
@@ -500,11 +500,11 @@ func TestPreExistingDataExternalAuth(t *testing.T) {
 		ExternalAuthProperties: ExternalAuthProperties{
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default")),
-				ProvisioningState: arm.ProvisioningStateSucceeded,
+				InternalID:        resourcesapi.Must(resourcesapi.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default")),
+				ProvisioningState: armresourcesapi.ProvisioningStateSucceeded,
 			},
 			InternalState: ExternalAuthInternalState{
-				InternalAPI: api.HCPOpenShiftClusterExternalAuth{
+				InternalAPI: resourcesapi.HCPOpenShiftClusterExternalAuth{
 					// PrefixPolicy is intentionally zero-valued to simulate
 					// a pre-existing document that predates the field.
 				},
@@ -517,10 +517,10 @@ func TestPreExistingDataExternalAuth(t *testing.T) {
 		t.Fatalf("CosmosToInternalExternalAuth failed: %v", err)
 	}
 
-	if internalExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy != api.UsernameClaimPrefixPolicyNone {
+	if internalExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy != resourcesapi.UsernameClaimPrefixPolicyNone {
 		t.Errorf("got PrefixPolicy = %q, want %q",
 			internalExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy,
-			api.UsernameClaimPrefixPolicyNone)
+			resourcesapi.UsernameClaimPrefixPolicyNone)
 	}
 }
 
