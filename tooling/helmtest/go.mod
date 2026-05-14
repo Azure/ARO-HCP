@@ -8,6 +8,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	helm.sh/helm/v4 v4.1.4
+	k8s.io/apimachinery v0.35.3
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -142,9 +143,8 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.35.3 // indirect
-	k8s.io/apiextensions-apiserver v0.35.3 // indirect
-	k8s.io/apimachinery v0.35.3 // indirect
-	k8s.io/apiserver v0.35.3 // indirect
+	k8s.io/apiextensions-apiserver v0.35.2 // indirect
+	k8s.io/apiserver v0.35.2 // indirect
 	k8s.io/cli-runtime v0.35.3 // indirect
 	k8s.io/client-go v0.35.3 // indirect
 	k8s.io/component-base v0.35.3 // indirect
