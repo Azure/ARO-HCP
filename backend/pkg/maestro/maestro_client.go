@@ -88,14 +88,31 @@ type MaestroClientBuilder interface {
 
 var _ MaestroClientBuilder = (*maestroClientBuilder)(nil)
 
-type maestroClientBuilder struct{}
+type maestroClientBuilder struct {
+	metrics *MaestroMetrics
+}
 
 func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error) {
-	return NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+	client, err := NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if b.metrics != nil {
+		return NewInstrumentedMaestroClient(client, b.metrics), nil
+	}
+
+	return client, nil
 }
 
 func NewMaestroClientBuilder() MaestroClientBuilder {
 	return &maestroClientBuilder{}
+}
+
+func NewInstrumentedMaestroClientBuilder(metrics *MaestroMetrics) MaestroClientBuilder {
+	return &maestroClientBuilder{
+		metrics: metrics,
+	}
 }
 
 // GenerateMaestroSourceID generates a Maestro Source ID of the form "<envName>-<provisionShardID>".
