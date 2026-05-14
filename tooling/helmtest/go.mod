@@ -3,8 +3,8 @@ module github.com/Azure/ARO-HCP/tooling/helmtest
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260506174442-621e0b33dfa1
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/config v0.0.0-20260512140819-ecd1d9a0477a
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260512140819-ecd1d9a0477a
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	helm.sh/helm/v4 v4.1.4
@@ -14,9 +14,9 @@ require (
 require (
 	cel.dev/expr v0.25.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260506174442-621e0b33dfa1 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260506174442-621e0b33dfa1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260506174442-621e0b33dfa1 // indirect
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260512140819-ecd1d9a0477a // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260512140819-ecd1d9a0477a // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260512140819-ecd1d9a0477a // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect

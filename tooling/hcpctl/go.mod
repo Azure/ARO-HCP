@@ -4,7 +4,7 @@ go 1.25.7
 
 require (
 	cloud.google.com/go/storage v1.62.1
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260512140819-ecd1d9a0477a
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
