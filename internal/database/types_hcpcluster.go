@@ -25,26 +25,10 @@ type HCPCluster struct {
 }
 
 type HCPClusterProperties struct {
-	// HCPOpenShiftCluster is where we're migrating to.  It is compatible with a GenericDocument[api.HCPOpenShiftCluster]
-	// which is where we want to end up.
-	// * to be compatible with prior versions, we must continue writing all previous fields and this new field
-	// * to be compatible with prior versions, we must continue reading only from previous fields
+	// HCPOpenShiftCluster is inlined directly. The on-disk shape now matches
+	// GenericDocument[api.HCPOpenShiftCluster] and HCPCluster only exists as a
+	// distinct type while the migration to that generic surface completes.
 	api.HCPOpenShiftCluster `json:",inline"`
-
-	// when we switch to inlining the internalObj, this will be in the right spot.  We add it now so that we can switch our
-	// queries to select on cosmosMetadata.ResourceID instead of resourceId
-	CosmosMetadata api.CosmosMetadata `json:"cosmosMetadata"`
-
-	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
-	// embed the InternalAPIType which has colliding serialization fields.
-	IntermediateResourceDoc *ResourceDocument `json:"intermediateResourceDoc"`
-
-	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
-	InternalState ClusterInternalState `json:"internalState"`
-}
-
-type ClusterInternalState struct {
-	InternalAPI api.HCPOpenShiftCluster `json:"internalAPI"`
 }
 
 func (o *HCPCluster) GetTypedDocument() *TypedDocument {

@@ -282,6 +282,9 @@ func newTestCluster(t *testing.T) *api.HCPOpenShiftCluster {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
 	clusterInternalID := api.Must(api.NewInternalID(testClusterServiceIDStr))
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: resourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,

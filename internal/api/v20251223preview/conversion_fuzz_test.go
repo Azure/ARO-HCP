@@ -39,6 +39,12 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
+		func(j *api.CosmosMetadata, c randfill.Continue) {
+			c.FillNoCustom(j)
+			j.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
+			j.ExistingCosmosUID = ""
+			j.CosmosETag = ""
+		},
 		func(j *api.ImageDigestMirror, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// MirrorSourcePolicy does not roundtrip through the external type because it is purely an internal detail
@@ -52,7 +58,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.RevokeCredentialsOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = nil
-			j.ExistingCosmosUID = ""
 			// ExperimentalFeatures does not roundtrip through the external type because it is purely an internal detail
 			j.ExperimentalFeatures = api.ExperimentalFeatures{}
 			// ManagedIdentitiesDataPlaneIdentityURL does not roundtrip through the external type because
@@ -100,8 +105,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
-		// CosmosETag does not roundtrip through the external type because it is purely a database concern
-		original.CosmosETag = ""
 		roundTripHCPCluster(t, original)
 	}
 
