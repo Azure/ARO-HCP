@@ -69,6 +69,8 @@ spec:
       # The backend uses GRPC to publish and subscribe to Maestro for
       # resource distribution. Sustained errors mean cluster/nodepool
       # operations are failing or events are being dropped.
+      # Minimum volume guard (> 0.01 ops/sec ≈ 3 ops per 5m window) prevents
+      # division-by-zero and noisy alerts on very low traffic.
       expr: |
         (
           sum by (operation, cluster) (
@@ -83,6 +85,12 @@ spec:
             )
           )
         ) > 0.05
+        and
+        sum by (operation, cluster) (
+          max without(prometheus_replica) (
+            rate(maestro_grpc_operations_total{namespace="aro-hcp"}[5m])
+          )
+        ) > 0.01
       for: 5m
       labels:
         severity: warning
