@@ -102,7 +102,7 @@ func run(timeout time.Duration) error {
 
 	if remaining != 0 {
 		fmt.Printf("\nWARNING: %d CR(s) stuck after 180s — removing finalizers.\n", remaining)
-		errors += stripFinalizers(ctx, dynamicClient, crds)
+		errors += stripFinalizers(ctx, dynamicClient, crds, timeout)
 
 		time.Sleep(10 * time.Second)
 
@@ -129,7 +129,9 @@ func run(timeout time.Duration) error {
 }
 
 func discoverPKOCRDs(ctx context.Context, client apiextensionsclient.Interface) ([]crdInfo, error) {
-	list, err := client.ApiextensionsV1().CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
+	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	list, err := client.ApiextensionsV1().CustomResourceDefinitions().List(listCtx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -271,48 +273,55 @@ func waitForDeletion(ctx context.Context, client dynamic.Interface, crds []crdIn
 	return remaining
 }
 
-func stripFinalizers(ctx context.Context, client dynamic.Interface, crds []crdInfo) int {
+func stripFinalizers(ctx context.Context, client dynamic.Interface, crds []crdInfo, timeout time.Duration) int {
 	patch := []byte(`{"metadata":{"finalizers":[]}}`)
 	errors := 0
 
 	for _, c := range crds {
-		resource := fmt.Sprintf("%s.%s", c.Plural, c.Group)
+		crdCtx, cancel := context.WithTimeout(ctx, timeout)
+		errors += stripFinalizersForCRD(crdCtx, client, c, patch)
+		cancel()
+	}
+	return errors
+}
 
-		var list *unstructured.UnstructuredList
-		var err error
-		if c.Scope == apiextensionsv1.NamespaceScoped {
-			list, err = client.Resource(gvr(c)).Namespace("").List(ctx, metav1.ListOptions{})
-		} else {
-			list, err = client.Resource(gvr(c)).List(ctx, metav1.ListOptions{})
+func stripFinalizersForCRD(ctx context.Context, client dynamic.Interface, c crdInfo, patch []byte) int {
+	resource := fmt.Sprintf("%s.%s", c.Plural, c.Group)
+	errors := 0
+
+	var list *unstructured.UnstructuredList
+	var err error
+	if c.Scope == apiextensionsv1.NamespaceScoped {
+		list, err = client.Resource(gvr(c)).Namespace("").List(ctx, metav1.ListOptions{})
+	} else {
+		list, err = client.Resource(gvr(c)).List(ctx, metav1.ListOptions{})
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] failed to list %s for finalizer removal: %v\n", resource, err)
+		return 1
+	}
+
+	for _, item := range list.Items {
+		if len(item.GetFinalizers()) == 0 {
+			continue
 		}
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR] failed to list %s for finalizer removal: %v\n", resource, err)
-			errors++
+		if item.GetDeletionTimestamp() == nil {
+			fmt.Printf("  Skipping %s/%s — not being deleted\n", resource, item.GetName())
 			continue
 		}
 
-		for _, item := range list.Items {
-			if len(item.GetFinalizers()) == 0 {
-				continue
-			}
-			if item.GetDeletionTimestamp() == nil {
-				fmt.Printf("  Skipping %s/%s — not being deleted\n", resource, item.GetName())
-				continue
-			}
-
-			ns := item.GetNamespace()
-			name := item.GetName()
-			if ns != "" {
-				fmt.Printf("  Patching finalizers on %s/%s -n %s\n", resource, name, ns)
-				_, err = client.Resource(gvr(c)).Namespace(ns).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
-			} else {
-				fmt.Printf("  Patching finalizers on %s/%s\n", resource, name)
-				_, err = client.Resource(gvr(c)).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
-			}
-			if err != nil && !apierrors.IsNotFound(err) {
-				fmt.Fprintf(os.Stderr, "[ERROR] failed to patch finalizers on %s/%s: %v\n", resource, name, err)
-				errors++
-			}
+		ns := item.GetNamespace()
+		name := item.GetName()
+		if ns != "" {
+			fmt.Printf("  Patching finalizers on %s/%s -n %s\n", resource, name, ns)
+			_, err = client.Resource(gvr(c)).Namespace(ns).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
+		} else {
+			fmt.Printf("  Patching finalizers on %s/%s\n", resource, name)
+			_, err = client.Resource(gvr(c)).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
+		}
+		if err != nil && !apierrors.IsNotFound(err) {
+			fmt.Fprintf(os.Stderr, "[ERROR] failed to patch finalizers on %s/%s: %v\n", resource, name, err)
+			errors++
 		}
 	}
 	return errors
