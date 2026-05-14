@@ -92,10 +92,15 @@ func (m *MockKubeApplierDBClient) ListDocuments(resourceType *azcorearm.Resource
 		if err := json.Unmarshal(data, &td); err != nil {
 			continue
 		}
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if td.ResourceID == nil {
+			continue
+		}
 		if resourceType != nil && !strings.EqualFold(td.ResourceType, resourceType.String()) {
 			continue
 		}
-		if len(prefix) != 0 && td.ResourceID != nil &&
+		if len(prefix) != 0 &&
 			!strings.HasPrefix(strings.ToLower(td.ResourceID.String()), strings.ToLower(prefix)) {
 			continue
 		}

@@ -160,6 +160,7 @@ type cosmosActiveOperationsGlobalLister struct {
 func (l *cosmosActiveOperationsGlobalLister) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[api.Operation], error) {
 	query := fmt.Sprintf(
 		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
+			"AND LENGTH(c.resourceID) > 0 "+
 			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
 		api.OperationStatusResourceType.String(),
 		arm.ProvisioningStateSucceeded,
@@ -197,7 +198,7 @@ func (l *cosmosControllerGlobalLister) List(ctx context.Context, options *DBClie
 		resourceTypeConditions = append(resourceTypeConditions, fmt.Sprintf("STRINGEQUALS(c.resourceType, %q, true)", resourceType.String()))
 	}
 	whereClause := strings.Join(resourceTypeConditions, " OR ")
-	query := fmt.Sprintf("SELECT * FROM c WHERE %s", whereClause)
+	query := fmt.Sprintf("SELECT * FROM c WHERE LENGTH(c.resourceID) > 0 AND (%s)", whereClause)
 
 	queryOptions := azcosmos.QueryOptions{
 		PageSizeHint: -1,
@@ -258,7 +259,7 @@ func (l *cosmosManagementClusterContentGlobalLister) List(ctx context.Context, o
 		resourceTypeConditions = append(resourceTypeConditions, fmt.Sprintf("STRINGEQUALS(c.resourceType, %q, true)", resourceType.String()))
 	}
 	whereClause := strings.Join(resourceTypeConditions, " OR ")
-	query := fmt.Sprintf("SELECT * FROM c WHERE %s", whereClause)
+	query := fmt.Sprintf("SELECT * FROM c WHERE LENGTH(c.resourceID) > 0 AND (%s)", whereClause)
 
 	queryOptions := azcosmos.QueryOptions{
 		PageSizeHint: -1,
