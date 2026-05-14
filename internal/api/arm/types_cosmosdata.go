@@ -30,6 +30,14 @@ import (
 type CosmosMetadata struct {
 	ResourceID *azcorearm.ResourceID `json:"resourceID"`
 
+	// PartitionKey is the Cosmos partition-key value for this document. It is stored
+	// lower-cased; SetPartitionKey normalises on input and GetPartitionKey on output.
+	// When unset, GetPartitionKey falls back to the lower-cased ResourceID.SubscriptionID,
+	// which preserves the historical behaviour for every container that is partitioned
+	// by subscription ID. Containers partitioned by something else (e.g. management
+	// cluster name for the kube-applier container) populate this field explicitly.
+	PartitionKey string `json:"partitionKey,omitempty"`
+
 	// ExistingCosmosUID exists to allow for a migration path from where we are today to a uuid based cosmosID
 	// and this will be deleted afterwards.
 	ExistingCosmosUID string `json:"-"`
@@ -57,8 +65,24 @@ func (o *CosmosMetadata) GetCosmosUID() string {
 	return Must(ResourceIDToCosmosID(o.ResourceID))
 }
 
+// GetPartitionKey returns the lower-cased partition key for this document.
+// If the explicit PartitionKey field has been set it is used; otherwise the
+// historical default (lower-cased ResourceID.SubscriptionID) is returned so that
+// existing subscription-keyed containers continue to work without changes.
 func (o *CosmosMetadata) GetPartitionKey() string {
+	if len(o.PartitionKey) > 0 {
+		return strings.ToLower(o.PartitionKey)
+	}
+	if o.ResourceID == nil {
+		return ""
+	}
 	return strings.ToLower(o.ResourceID.SubscriptionID)
+}
+
+// SetPartitionKey records partitionKey on the metadata, normalising to lower
+// case so reads and writes always agree on a single canonical form.
+func (o *CosmosMetadata) SetPartitionKey(partitionKey string) {
+	o.PartitionKey = strings.ToLower(partitionKey)
 }
 
 func (o *CosmosMetadata) GetResourceID() *azcorearm.ResourceID {
@@ -87,6 +111,8 @@ type CosmosMetadataAccessor interface {
 	SetResourceID(*azcorearm.ResourceID)
 	GetEtag() azcore.ETag
 	SetEtag(cosmosETag azcore.ETag)
+	GetPartitionKey() string
+	SetPartitionKey(partitionKey string)
 }
 
 func ResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {

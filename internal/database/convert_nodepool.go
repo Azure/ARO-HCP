@@ -16,7 +16,6 @@ package database
 
 import (
 	"fmt"
-	"strings"
 
 	"k8s.io/utils/ptr"
 
@@ -29,19 +28,21 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 		return nil, nil
 	}
 
+	partitionKey := internalObj.GetCosmosData().GetPartitionKey()
 	cosmosObj := &NodePool{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
-			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
+			PartitionKey: partitionKey,
 			ResourceID:   internalObj.ID,
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
 			HCPOpenShiftClusterNodePool: *internalObj,
 			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: internalObj.ID,
+				ResourceID:   internalObj.ID,
+				PartitionKey: partitionKey,
 			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
