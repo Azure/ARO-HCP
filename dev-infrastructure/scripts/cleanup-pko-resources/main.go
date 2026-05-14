@@ -54,7 +54,7 @@ func main() {
 
 	if err := run(timeout); err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
-		fmt.Println("=== PKO cleanup completed with errors (best-effort, not blocking rollout) ===")
+		fmt.Printf("\n=== PKO cleanup completed with 1 error(s) (best-effort, not blocking rollout) ===\n")
 		return
 	}
 }
@@ -103,10 +103,10 @@ func run(timeout time.Duration) error {
 	remaining := waitForDeletion(ctx, dynamicClient, crds, 180*time.Second)
 
 	if remaining < 0 {
-		fmt.Println("\nWARNING: unable to determine CR count after waiting — removing finalizers as precaution.")
+		fmt.Fprintf(os.Stderr, "[WARNING] unable to determine CR count after waiting — removing finalizers as precaution.\n")
 		errors++
 	} else if remaining > 0 {
-		fmt.Printf("\nWARNING: %d CR(s) stuck after 180s — removing finalizers.\n", remaining)
+		fmt.Fprintf(os.Stderr, "[WARNING] %d CR(s) stuck after 180s — removing finalizers.\n", remaining)
 	}
 	if remaining != 0 {
 		errors += stripFinalizers(ctx, dynamicClient, crds, timeout)
