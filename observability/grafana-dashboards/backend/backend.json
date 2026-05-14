@@ -231,7 +231,7 @@
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_services-.*$",
+        "regex": "",
         "skipUrlSync": false,
         "type": "datasource"
       },
