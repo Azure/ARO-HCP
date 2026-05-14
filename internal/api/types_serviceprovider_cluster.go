@@ -163,6 +163,12 @@ type MaestroBundleReference struct {
 	// ResourceIdentifiers contains the identifiers for all resources within the Maestro Bundle.
 	// Each entry corresponds to a ResourceIdentifier in the ManifestWork's ManifestConfigs.
 	ResourceIdentifiers []MaestroBundleResourceIdentifier `json:"resourceIdentifiers,omitempty"`
+	// StaleBundleDeleteCount tracks how many times this bundle has been
+	// deleted and recreated by the stale-bundle self-heal logic. Used as a
+	// circuit breaker to prevent infinite delete/recreate loops when the
+	// underlying failure is deterministic rather than the transient Maestro
+	// event-delivery race (AROSLSRE-833).
+	StaleBundleDeleteCount int `json:"staleBundleDeleteCount,omitempty"`
 }
 
 // MaestroBundleResourceIdentifier identifies a single resource within a Maestro Bundle.

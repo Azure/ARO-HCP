@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -132,6 +133,8 @@ func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) SyncOnc
 
 	logger := utils.LoggerFromContext(ctx)
 
+	clusterDeleting := existingCluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting
+
 	var syncErrors []error
 	spcModified := false
 	for _, maestroBundleReference := range existingServiceProviderCluster.Status.MaestroReadonlyBundles {
@@ -141,36 +144,40 @@ func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) SyncOnc
 			continue
 		}
 
-		if !isStaleMaestroReadonlyBundle(desiredMCC, bundle) {
+		if !isStaleMaestroReadonlyBundle(desiredMCC, bundle, maestroBundleReference.StaleBundleDeleteCount, clusterDeleting) {
 			continue
 		}
 
-		logger.Info("self-healing stale Maestro readonly bundle (AROSLSRE-833): deleting bundle and clearing ID so the create controller can recreate it",
+		logger.Info("self-healing stale Maestro readonly bundle (AROSLSRE-833): clearing ID and deleting bundle so the create controller can recreate it",
 			"bundleName", string(maestroBundleReference.Name),
 			"maestroAPIMaestroBundleName", maestroBundleReference.MaestroAPIMaestroBundleName,
 			"maestroAPIMaestroBundleID", maestroBundleReference.MaestroAPIMaestroBundleID,
+			"staleBundleDeleteCount", maestroBundleReference.StaleBundleDeleteCount,
 		)
+
+		maestroBundleReference.MaestroAPIMaestroBundleID = ""
+		maestroBundleReference.StaleBundleDeleteCount++
+		if setErr := existingServiceProviderCluster.Status.MaestroReadonlyBundles.Set(maestroBundleReference); setErr != nil {
+			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to update Maestro Bundle reference in ServiceProviderCluster: %w", setErr)))
+			continue
+		}
+		spcModified = true
+
+		_, replaceErr := serviceProviderClustersDBClient.Replace(ctx, existingServiceProviderCluster, nil)
+		if replaceErr != nil {
+			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to persist ServiceProviderCluster after clearing stale Maestro bundle ID: %w", replaceErr)))
+			continue
+		}
 
 		err = maestroClient.Delete(ctx, maestroBundleReference.MaestroAPIMaestroBundleName, metav1.DeleteOptions{})
 		if err != nil && !k8serrors.IsNotFound(err) {
 			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to delete stale Maestro readonly bundle %s: %w", maestroBundleReference.Name, err)))
 			continue
 		}
-
-		maestroBundleReference.MaestroAPIMaestroBundleID = ""
-		if setErr := existingServiceProviderCluster.Status.MaestroReadonlyBundles.Set(maestroBundleReference); setErr != nil {
-			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to update Maestro Bundle reference in ServiceProviderCluster: %w", setErr)))
-			continue
-		}
-		spcModified = true
 	}
 
-	if spcModified {
-		_, err = serviceProviderClustersDBClient.Replace(ctx, existingServiceProviderCluster, nil)
-		if err != nil {
-			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to persist ServiceProviderCluster after clearing stale Maestro bundle IDs: %w", err)))
-		}
-	}
+	// spcModified is already persisted per-bundle above, no batch Replace needed.
+	_ = spcModified
 
 	return utils.TrackError(errors.Join(syncErrors...))
 }

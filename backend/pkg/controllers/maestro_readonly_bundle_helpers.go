@@ -81,6 +81,12 @@ func resourceIdentifiersFromManifestWork(mw *workv1.ManifestWork) []api.MaestroB
 // broker (AROSLSRE-833).
 const staleReadonlyBundleThreshold = 5 * time.Minute
 
+// maxStaleBundleDeleteRetries is the maximum number of times the self-heal
+// logic will delete and recreate a stale readonly bundle before giving up.
+// This acts as a circuit breaker against infinite delete/recreate loops when
+// the failure is deterministic rather than the transient event-delivery race.
+const maxStaleBundleDeleteRetries = 3
+
 // buildInitialReadonlyMaestroBundle builds an initial readonly Maestro Bundle for a given resource specified in obj.
 // objResourceIdentifier is the resource identifier of the resource specified in obj.
 // maestroBundleNamespacedName is the namespaced name of the Maestro Bundle.
@@ -308,8 +314,18 @@ func calculateManagementClusterContentFromMaestroBundle(
 func isStaleMaestroReadonlyBundle(
 	mcc *api.ManagementClusterContent,
 	bundle *workv1.ManifestWork,
+	staleBundleDeleteCount int,
+	clusterDeleting bool,
 ) bool {
 	if mcc == nil || bundle == nil {
+		return false
+	}
+
+	if clusterDeleting {
+		return false
+	}
+
+	if staleBundleDeleteCount >= maxStaleBundleDeleteRetries {
 		return false
 	}
 
