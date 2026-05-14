@@ -285,7 +285,8 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-np-ne-"+suffix, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-ne-"+suffix, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
@@ -415,7 +416,8 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-np-sm-"+suffix, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-sm-"+suffix, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
@@ -450,7 +452,9 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
 			err = tc.CreateNodePoolFromParam(
 				ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				clusterName,
 				nodePoolParams,
 				45*time.Minute,
