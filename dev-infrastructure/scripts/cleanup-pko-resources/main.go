@@ -100,8 +100,13 @@ func run(timeout time.Duration) error {
 
 	remaining := waitForDeletion(ctx, dynamicClient, crds, 180*time.Second)
 
-	if remaining != 0 {
+	if remaining < 0 {
+		fmt.Println("\nWARNING: unable to determine CR count after waiting — removing finalizers as precaution.")
+		errors++
+	} else if remaining > 0 {
 		fmt.Printf("\nWARNING: %d CR(s) stuck after 180s — removing finalizers.\n", remaining)
+	}
+	if remaining != 0 {
 		errors += stripFinalizers(ctx, dynamicClient, crds, timeout)
 
 		time.Sleep(10 * time.Second)
@@ -268,7 +273,7 @@ func waitForDeletion(ctx context.Context, client dynamic.Interface, crds []crdIn
 
 	remaining := countAllCRs(ctx, client, crds)
 	if remaining < 0 {
-		return 1
+		return -1
 	}
 	return remaining
 }
@@ -306,7 +311,11 @@ func stripFinalizersForCRD(ctx context.Context, client dynamic.Interface, c crdI
 			continue
 		}
 		if item.GetDeletionTimestamp() == nil {
-			fmt.Printf("  Skipping %s/%s — not being deleted\n", resource, item.GetName())
+			if ns := item.GetNamespace(); ns != "" {
+				fmt.Printf("  Skipping %s/%s -n %s — not being deleted\n", resource, item.GetName(), ns)
+			} else {
+				fmt.Printf("  Skipping %s/%s — not being deleted\n", resource, item.GetName())
+			}
 			continue
 		}
 
