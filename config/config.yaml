@@ -182,6 +182,7 @@ defaults:
       repository: kube-applier
       digest: sha256:0535faa7e94c83856cc6f578d64bc01c1201c36eebd92139b4ae9283d9c8e2d5 # 6d1cdc8 (2026-05-15 20:18)
     cosmosContainerName: "Manifests-MC-{{ .ctx.stamp }}"
+    partitionKey: "/providers/microsoft.redhatopenshift/stamps/{{ .ctx.stamp }}/managementclusters/default"
     cosmosContainerMaxScale: 4000
     managedIdentityName: kube-applier
     k8s:

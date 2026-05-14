@@ -194,7 +194,7 @@ spec:
       - name: kube-applier
         image: 'arohcpsvcdev.azurecr.io/kube-applier@sha256:1234567890'
         args:
-        - --management-cluster=hcp-underlay-usw3-mgmt-1
+        - --management-cluster=/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default
         - --cosmos-name=arohcpdev-rp-usw3
         - --cosmos-url=__cosmosDBDocumentEndpoint__
         - --cosmos-container=Manifests-MC-1

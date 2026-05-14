@@ -41,6 +41,7 @@ ignore:
 - 'backend/deploy/templates/backend.service-key-vault.secretproviderclass.yaml'
 - 'backend/deploy/templates/backend.deployment.yaml'
 - 'tooling/aro-hcp-exporter/deploy/templates/deployment.yaml'
+- 'kube-applier/deploy/templates/deployment.yaml'
 rules:
   brackets: enable
   colons: enable

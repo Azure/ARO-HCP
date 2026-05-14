@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
-
 // NewKubeApplierPartitionKey creates a partition key for the kube-applier container,
 // which is partitioned by the lower-cased management cluster name. This deviates
 // from the subscription-ID partitioning used by every other container so that a

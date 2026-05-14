@@ -13,7 +13,7 @@ deployment:
       memory: "{{ .kubeApplier.k8s.resources.requests.memory }}"
     limits:
       memory: "{{ .kubeApplier.k8s.resources.limits.memory }}"
-managementCluster: "{{ .maestro.agent.consumerName }}"
+managementCluster: "{{ .kubeApplier.partitionKey }}"
 cosmosDB:
   endpoint: "__cosmosDBDocumentEndpoint__"
   databaseName: "{{ .frontend.cosmosDB.name }}"
