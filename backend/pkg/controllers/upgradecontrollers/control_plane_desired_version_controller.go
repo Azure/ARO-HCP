@@ -108,6 +108,8 @@ func (c *controlPlaneDesiredVersionSyncer) CooldownChecker() controllerutil.Cool
 //     - Update the DesiredVersion field
 //  5. Save the updated service provider cluster state
 func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
@@ -127,13 +129,13 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
+	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
 	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.clusterManagementClusterContentLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return err
+		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}
 	if !found {
-		// will reappear once the informer relists; without the UUID we cannot build the Cincinnati client
-		return nil
+		logger.Info("missing cluster UUID, continuing with empty")
 	}
 	cincinnatiClient := c.cincinnatiClientCache.GetOrCreateClient(clusterUUID)
 
@@ -150,7 +152,6 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	}
 	desiredVersion, err := c.desiredControlPlaneZVersion(ctx, cincinnatiClient, key.GetResourceID(), customerDesiredMinor, channelGroup, activeVersions,
 		operation.HasOption(api.FeatureExperimentalReleaseFeatures))
-	logger := utils.LoggerFromContext(ctx)
 
 	if err != nil {
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
