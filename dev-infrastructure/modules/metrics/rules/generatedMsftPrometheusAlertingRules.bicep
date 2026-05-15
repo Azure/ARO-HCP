@@ -110,7 +110,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'info'
         }
         annotations: {
-          correlationId: 'KubeQuotaAlmostFull/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.resource }}'
+          correlationId: 'KubeQuotaAlmostFull/{{ $labels.cluster }}'
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaalmostfull'
@@ -137,7 +137,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'info'
         }
         annotations: {
-          correlationId: 'KubeQuotaFullyUsed/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.resource }}'
+          correlationId: 'KubeQuotaFullyUsed/{{ $labels.cluster }}'
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotafullyused'
@@ -164,7 +164,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeQuotaExceeded/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.resource }}'
+          correlationId: 'KubeQuotaExceeded/{{ $labels.cluster }}'
           description: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           info: 'Namespace {{ $labels.namespace }} is using {{ $value | humanizePercentage }} of its {{ $labels.resource }} quota.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaexceeded'
@@ -204,7 +204,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'KubePersistentVolumeErrors/{{ $labels.cluster }}/{{ $labels.persistentvolume }}/{{ $labels.phase }}'
+          correlationId: 'KubePersistentVolumeErrors/{{ $labels.cluster }}'
           description: 'The persistent volume {{ $labels.persistentvolume }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} has status {{ $labels.phase }}.'
           info: 'The persistent volume {{ $labels.persistentvolume }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} has status {{ $labels.phase }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeerrors'
@@ -244,7 +244,7 @@ resource msftKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeClientErrors/{{ $labels.cluster }}/{{ $labels.instance }}/{{ $labels.job }}'
+          correlationId: 'KubeClientErrors/{{ $labels.cluster }}'
           description: 'Kubernetes API server client \'{{ $labels.job }}/{{ $labels.instance }}\' is experiencing {{ $value | humanizePercentage }} errors.\''
           info: 'Kubernetes API server client \'{{ $labels.job }}/{{ $labels.instance }}\' is experiencing {{ $value | humanizePercentage }} errors.\''
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeclienterrors'
@@ -467,7 +467,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeAggregatedAPIErrors/{{ $labels.cluster }}/{{ $labels.name }}/{{ $labels.namespace }}'
+          correlationId: 'KubeAggregatedAPIErrors/{{ $labels.cluster }}'
           description: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has reported errors. It has appeared unavailable {{ $value | humanize }} times averaged over the past 10m.'
           info: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has reported errors. It has appeared unavailable {{ $value | humanize }} times averaged over the past 10m.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeaggregatedapierrors'
@@ -493,7 +493,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeAggregatedAPIDown/{{ $labels.cluster }}/{{ $labels.name }}/{{ $labels.namespace }}'
+          correlationId: 'KubeAggregatedAPIDown/{{ $labels.cluster }}'
           description: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has been only {{ $value | humanize }}% available over the last 10m.'
           info: 'Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has been only {{ $value | humanize }}% available over the last 10m.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeaggregatedapidown'
@@ -587,7 +587,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeNodeNotReady/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeNodeNotReady/{{ $labels.cluster }}'
           description: '{{ $labels.node }} has been unready for more than 15 minutes.'
           info: '{{ $labels.node }} has been unready for more than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodenotready'
@@ -614,7 +614,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeNodeUnreachable/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeNodeUnreachable/{{ $labels.cluster }}'
           description: '{{ $labels.node }} is unreachable and some workloads may be rescheduled.'
           info: '{{ $labels.node }} is unreachable and some workloads may be rescheduled.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodeunreachable'
@@ -641,7 +641,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'info'
         }
         annotations: {
-          correlationId: 'KubeletTooManyPods/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletTooManyPods/{{ $labels.cluster }}'
           description: 'Kubelet \'{{ $labels.node }}\' is running at {{ $value | humanizePercentage }} of its Pod capacity.'
           info: 'Kubelet \'{{ $labels.node }}\' is running at {{ $value | humanizePercentage }} of its Pod capacity.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubelettoomanypods'
@@ -668,7 +668,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeNodeReadinessFlapping/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeNodeReadinessFlapping/{{ $labels.cluster }}'
           description: 'The readiness status of node {{ $labels.node }} has changed {{ $value }} times in the last 15 minutes.'
           info: 'The readiness status of node {{ $labels.node }} has changed {{ $value }} times in the last 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodereadinessflapping'
@@ -695,7 +695,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletPlegDurationHigh/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletPlegDurationHigh/{{ $labels.cluster }}'
           description: 'The Kubelet Pod Lifecycle Event Generator has a 99th percentile duration of {{ $value }} seconds on node {{ $labels.node }}.'
           info: 'The Kubelet Pod Lifecycle Event Generator has a 99th percentile duration of {{ $value }} seconds on node {{ $labels.node }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletplegdurationhigh'
@@ -722,7 +722,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletPodStartUpLatencyHigh/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletPodStartUpLatencyHigh/{{ $labels.cluster }}'
           description: 'Kubelet Pod startup 99th percentile latency is {{ $value }} seconds on node {{ $labels.node }}.'
           info: 'Kubelet Pod startup 99th percentile latency is {{ $value }} seconds on node {{ $labels.node }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletpodstartuplatencyhigh'
@@ -749,7 +749,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}'
           description: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificateexpiration'
@@ -775,7 +775,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}'
           description: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificateexpiration'
@@ -801,7 +801,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}'
           description: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificateexpiration'
@@ -827,7 +827,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}'
           description: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           info: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificateexpiration'
@@ -853,7 +853,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletClientCertificateRenewalErrors/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletClientCertificateRenewalErrors/{{ $labels.cluster }}'
           description: 'Kubelet on node {{ $labels.node }} has failed to renew its client certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           info: 'Kubelet on node {{ $labels.node }} has failed to renew its client certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletclientcertificaterenewalerrors'
@@ -880,7 +880,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeletServerCertificateRenewalErrors/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeletServerCertificateRenewalErrors/{{ $labels.cluster }}'
           description: 'Kubelet on node {{ $labels.node }} has failed to renew its server certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           info: 'Kubelet on node {{ $labels.node }} has failed to renew its server certificate ({{ $value | humanize }} errors in the last 5 minutes).'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletservercertificaterenewalerrors'
@@ -1180,7 +1180,7 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusRemoteStorageFailures/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.remote_name }}/{{ $labels.url }}'
+          correlationId: 'PrometheusRemoteStorageFailures/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures'
@@ -1207,7 +1207,7 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusNotIngestingSamples/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusNotIngestingSamples/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples'
@@ -1234,7 +1234,7 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusBadConfig/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusBadConfig/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig'
@@ -1261,7 +1261,7 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusScrapeSampleLimitHit/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusScrapeSampleLimitHit/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit'
@@ -1301,7 +1301,7 @@ resource msftPrometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleG
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.controller }}/{{ $labels.namespace }}'
+          correlationId: 'PrometheusOperatorNotReady/{{ $labels.cluster }}'
           description: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
           info: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready'
