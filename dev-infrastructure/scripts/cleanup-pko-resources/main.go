@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -29,10 +30,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-const apiGroup = "package-operator.run"
+const (
+	apiGroup     = "package-operator.run"
+	pkoNamespace = "package-operator-system"
+)
 
 type crdInfo struct {
 	Name    string
@@ -77,19 +82,32 @@ func run(timeout time.Duration) error {
 		return fmt.Errorf("creating CRD client: %w", err)
 	}
 
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("creating kubernetes client: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	var errors int
 
-	fmt.Println("=== Package Operator CR + CRD cleanup (best-effort) ===")
+	fmt.Println("=== Package Operator cleanup (best-effort) ===")
 
 	crds, err := discoverPKOCRDs(ctx, crdClient)
 	if err != nil {
-		return fmt.Errorf("discovering CRDs: %w", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] discovering CRDs: %v (skipping CR/CRD cleanup, continuing with operator cleanup)\n", err)
+		errors++
 	}
 	if len(crds) == 0 {
-		fmt.Println("No package-operator.run CRDs found. Nothing to do.")
-		fmt.Println("\n=== PKO resource cleanup complete ===")
+		if err == nil {
+			fmt.Println("No package-operator.run CRDs found.")
+		}
+		errors += cleanupPKOOperator(ctx, kubeClient)
+		if errors > 0 {
+			fmt.Printf("\n=== PKO cleanup completed with %d error(s) (best-effort, not blocking rollout) ===\n", errors)
+		} else {
+			fmt.Println("\n=== PKO cleanup complete ===")
+		}
 		return nil
 	}
 
@@ -127,10 +145,12 @@ func run(timeout time.Duration) error {
 
 	errors += deleteCRDs(ctx, crdClient, crds, timeout)
 
+	errors += cleanupPKOOperator(ctx, kubeClient)
+
 	if errors > 0 {
 		fmt.Printf("\n=== PKO cleanup completed with %d error(s) (best-effort, not blocking rollout) ===\n", errors)
 	} else {
-		fmt.Println("\n=== PKO resource cleanup complete ===")
+		fmt.Println("\n=== PKO cleanup complete ===")
 	}
 	return nil
 }
@@ -339,6 +359,59 @@ func stripFinalizersForCRD(ctx context.Context, client dynamic.Interface, c crdI
 			errors++
 		}
 	}
+	return errors
+}
+
+func cleanupPKOOperator(ctx context.Context, client kubernetes.Interface) int {
+	errors := 0
+
+	fmt.Println("\n--- Cleaning up PKO operator ---")
+
+	fmt.Println("Removing ClusterRoleBinding package-operator...")
+	if err := client.RbacV1().ClusterRoleBindings().Delete(ctx, "package-operator", metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		fmt.Fprintf(os.Stderr, "[ERROR] failed to delete ClusterRoleBinding package-operator: %v\n", err)
+		errors++
+	}
+
+	_, err := client.CoreV1().Namespaces().Get(ctx, pkoNamespace, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		fmt.Printf("Namespace %s does not exist. Nothing else to clean up.\n", pkoNamespace)
+		return errors
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[ERROR] failed to check namespace %s: %v\n", pkoNamespace, err)
+		return errors + 1
+	}
+
+	fmt.Printf("Found namespace %s, cleaning up PKO operator...\n", pkoNamespace)
+
+	helmPath, lookupErr := exec.LookPath("helm")
+	if lookupErr != nil {
+		fmt.Fprintf(os.Stderr, "[WARNING] helm not found in PATH, skipping Helm uninstall: %v\n", lookupErr)
+	} else {
+		cmd := exec.CommandContext(ctx, helmPath, "status", "package-operator", "-n", pkoNamespace)
+		if cmd.Run() == nil {
+			fmt.Println("Uninstalling Helm release 'package-operator'...")
+			uninstall := exec.CommandContext(ctx, helmPath, "uninstall", "package-operator", "-n", pkoNamespace, "--wait")
+			uninstall.Stdout = os.Stdout
+			uninstall.Stderr = os.Stderr
+			if err := uninstall.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "[ERROR] failed to uninstall Helm release: %v\n", err)
+				errors++
+			} else {
+				fmt.Println("Helm release removed.")
+			}
+		} else {
+			fmt.Println("No Helm release 'package-operator' found.")
+		}
+	}
+
+	fmt.Printf("Removing namespace %s...\n", pkoNamespace)
+	if err := client.CoreV1().Namespaces().Delete(ctx, pkoNamespace, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		fmt.Fprintf(os.Stderr, "[ERROR] failed to delete namespace %s: %v\n", pkoNamespace, err)
+		errors++
+	}
+
 	return errors
 }
 
