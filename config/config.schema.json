@@ -2211,6 +2211,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "subscriptionKey": {
+              "type": "string"
+            },
             "rg": {
               "$ref": "#/definitions/resourceGroupName"
             },
@@ -2219,6 +2222,7 @@
             }
           },
           "required": [
+            "subscriptionKey",
             "rg",
             "digest"
           ]
