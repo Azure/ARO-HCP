@@ -4,6 +4,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersS
 | where log.msg has 'successfully sent create request of maestro bundle with maestro bundle id'
 | extend bundleId = extract("bundle id '([^']+)'", 1, tostring(log.msg))
 | extend bundleName = extract("maestro bundle name '([^']+)'", 1, tostring(log.msg))
-| extend manifestWork = extract("containing resource '([^']+)'", 1, tostring(log.msg))
-| where isnotempty(manifestWork)
-| distinct bundleId, bundleName, manifestWork
+| extend resource = extract("containing resource '([^']+)'", 1, tostring(log.msg))
+| extend resource_kind = extract("Kind=([^']+)'", 1, tostring(log.msg))
+| where isnotempty(resource)
+| distinct bundleId, bundleName, resource, resource_kind
