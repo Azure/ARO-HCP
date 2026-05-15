@@ -6,6 +6,14 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | where log.resource_name == '{{ .ClusterResourceName }}'
 | where log.content.resourceType =~ '{{ .ServiceProviderResourceType }}'
 | summarize content = take_any(log.content) by etag = tostring(log.content._etag)
-| extend resourceID = tostring(content.resourceID)
 | mv-expand readOnlyBundle = content.properties.status.maestroReadonlyBundles
-| distinct resourceID, name = tostring(readOnlyBundle.name), bundleName = tostring(readOnlyBundle.maestroAPIMaestroBundleName), bundleId = tostring(readOnlyBundle.maestroAPIMaestroBundleID)
+| where readOnlyBundle != ''
+| mv-expand resourceIdentifier = readOnlyBundle.resourceIdentifiers
+| distinct
+    bundleName = tostring(readOnlyBundle.name),
+    maestroBundleName = tostring(readOnlyBundle.maestroAPIMaestroBundleName),
+    maestroBundleId = tostring(readOnlyBundle.maestroAPIMaestroBundleID),
+    groupVersion = tostring(resourceIdentifier.apiVersion),
+    resourceKind = tostring(resourceIdentifier.kind),
+    resourceNamespace = tostring(resourceIdentifier.namespace),
+    resourceName = tostring(resourceIdentifier.name)

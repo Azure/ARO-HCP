@@ -3,4 +3,5 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendL
 | where log.correlation_request_id == '{{ .CorrelationID }}'
 | where log.msg == 'response complete'
 | project resource_id=tostring(log.resource_id)
-| limit 1
+| where resource_id != ''
+| distinct resource_id

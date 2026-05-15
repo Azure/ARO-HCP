@@ -2,26 +2,17 @@
 let bundleMapCS = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
 | where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
 | where cid == '{{ .ClusterID }}'
-| where log.msg has 'successfully sent create request of maestro bundle with maestro bundle id'
+| where log.msg has 'successfully sent create request of maestro bundle' and log.msg has 'containing resource'
 | extend bundleId = extract("bundle id '([^']+)'", 1, tostring(log.msg))
 | extend resource = extract("containing resource '([^']+)'", 1, tostring(log.msg))
-| extend resource_kind = extract("Kind=([^']+)'", 1, tostring(log.msg))
+| extend groupVersion = extract("with GVK '([^,]+),", 1, tostring(log.msg))
+| extend resourceKind = extract("Kind=([^']+)", 1, tostring(log.msg))
 | where isnotempty(bundleId) and isnotempty(resource)
 | extend resourceNamespace = extract("^([^/]+)/", 1, resource)
 | extend resourceName = extract("/(.+)$", 1, resource)
-| distinct bundleId, resourceNamespace, resourceName, source = 'clustersService', label = strcat(resource_kind, ' ', resource);
+| distinct bundleId, resourceNamespace, resourceName, source = 'clustersService', label = strcat(resourceKind, ' ', resource);
 {{ end -}}
 {{ if and .ResourceGroup .ClusterResourceName .ServiceProviderResourceType -}}
-let bundleNameToResourceName = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'createclusterscopedmaestroreadonlybundles'
-| where log.resource_group == '{{ .ResourceGroup }}'
-| where log.resource_name == '{{ .ClusterResourceName }}'
-| extend bundleName = extract('maestro bundle name ([^ ]+) ', 1, tostring(log.msg))
-| extend resourceName = extract('resource name ([^ ]+)', 1, tostring(log.msg))
-| where bundleName != '' and resourceName != ''
-| distinct bundleName, resourceName;
 let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
 | where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
 | where container_name == 'aro-hcp-backend'
@@ -30,14 +21,16 @@ let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabas
 | where log.resource_name == '{{ .ClusterResourceName }}'
 | where log.content.resourceType =~ '{{ .ServiceProviderResourceType }}'
 | summarize content = take_any(log.content) by etag = tostring(log.content._etag)
-| extend resourceID = tostring(content.resourceID)
 | mv-expand readOnlyBundle = content.properties.status.maestroReadonlyBundles
+| where readOnlyBundle != ''
+| mv-expand resourceIdentifier = readOnlyBundle.resourceIdentifiers
 | extend bundleId = tostring(readOnlyBundle.maestroAPIMaestroBundleID)
 | extend bundleName = tostring(readOnlyBundle.name)
-| extend bundleAPIName = tostring(readOnlyBundle.maestroAPIMaestroBundleName)
+| extend resourceKind = tostring(resourceIdentifier.kind)
+| extend resourceNamespace = tostring(resourceIdentifier.namespace)
+| extend resourceName = tostring(resourceIdentifier.name)
 | where isnotempty(bundleId)
-| distinct bundleId, bundleName, bundleAPIName, source = 'backend', label = strcat(bundleName, ' (', resourceID, ')')
-| lookup bundleNameToResourceName on $left.bundleAPIName == $right.bundleName;
+| distinct bundleId, resourceNamespace, resourceName, source = 'backend', label = strcat(resourceKind, ' ', resourceNamespace, '/', resourceName);
 {{ end -}}
 let bundleMap = union
 {{ if .ClusterID -}}

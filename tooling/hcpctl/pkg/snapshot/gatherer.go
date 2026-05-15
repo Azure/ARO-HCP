@@ -157,9 +157,9 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	}
 
 	// Phase 1: Run initial context queries (frontendRequests) to discover all ARM requests.
-	contextDir := filepath.Join(outputDir, "context")
+	eventsDir := filepath.Join(outputDir, "events")
 	for _, q := range contextQueries {
-		if _, err := g.executeQuery(ctx, q, &seedData, contextDir, input); err != nil {
+		if _, err := g.executeQuery(ctx, q, &seedData, outputDir, input); err != nil {
 			return nil, nil, fmt.Errorf("context query %s failed: %w", q.key(), err)
 		}
 	}
@@ -294,6 +294,48 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 		}
 
+		// Run conditions queries.
+		conditionsDir := filepath.Join(resDir, "conditions")
+		for _, q := range queriesByCategory(categoryConditions) {
+			if q.ready != nil && !q.ready(rs.data) {
+				logger.Info("Skipping conditions query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+				skipped = append(skipped, skippedQuery{key: q.key(), prerequisites: q.prerequisites})
+				recordVerification(report, key, q, rs.data, 0, true)
+				continue
+			}
+
+			results, err := g.executeQuery(ctx, q, &rs.data, conditionsDir, input)
+			if err != nil {
+				logger.Error(err, "Conditions query failed, continuing", "query", q.key())
+				continue
+			}
+			recordVerification(report, key, q, rs.data, len(results), false)
+			if q.storeResult != nil && len(results) > 0 {
+				q.storeResult(&rs.data, results)
+			}
+		}
+
+		// Run logs queries.
+		logsDir := filepath.Join(resDir, "logs")
+		for _, q := range queriesByCategory(categoryLogs) {
+			if q.ready != nil && !q.ready(rs.data) {
+				logger.Info("Skipping logs query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+				skipped = append(skipped, skippedQuery{key: q.key(), prerequisites: q.prerequisites})
+				recordVerification(report, key, q, rs.data, 0, true)
+				continue
+			}
+
+			results, err := g.executeQuery(ctx, q, &rs.data, logsDir, input)
+			if err != nil {
+				logger.Error(err, "Logs query failed, continuing", "query", q.key())
+				continue
+			}
+			recordVerification(report, key, q, rs.data, len(results), false)
+			if q.storeResult != nil && len(results) > 0 {
+				q.storeResult(&rs.data, results)
+			}
+		}
+
 		// Phase 4: Per-request trace queries + write request discovery output.
 		for _, tr := range rs.requests {
 			reqDir := filepath.Join(resDir, "requests", tr.req.CorrelationID)
@@ -321,17 +363,38 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 				recordVerification(report, reqSuite, q, traceData, rowCount, false)
 			}
 
-			// Run trace queries.
-			for _, q := range queriesByCategory(categoryTrace) {
+			// Run trace state queries.
+			traceStateDir := filepath.Join(reqDir, "state")
+			for _, q := range queriesByCategory(categoryTraceState) {
 				if q.ready != nil && !q.ready(traceData) {
-					logger.Info("Skipping trace query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+					logger.Info("Skipping trace state query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
 					recordVerification(report, reqSuite, q, traceData, 0, true)
 					continue
 				}
 
-				results, err := g.executeQuery(ctx, q, &traceData, reqDir, input)
+				results, err := g.executeQuery(ctx, q, &traceData, traceStateDir, input)
 				if err != nil {
-					logger.Error(err, "Trace query failed, continuing", "query", q.key())
+					logger.Error(err, "Trace state query failed, continuing", "query", q.key())
+					continue
+				}
+				recordVerification(report, reqSuite, q, traceData, len(results), false)
+				if q.storeResult != nil && len(results) > 0 {
+					q.storeResult(&traceData, results)
+				}
+			}
+
+			// Run trace logs queries.
+			traceLogsDir := filepath.Join(reqDir, "logs")
+			for _, q := range queriesByCategory(categoryTraceLogs) {
+				if q.ready != nil && !q.ready(traceData) {
+					logger.Info("Skipping trace logs query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+					recordVerification(report, reqSuite, q, traceData, 0, true)
+					continue
+				}
+
+				results, err := g.executeQuery(ctx, q, &traceData, traceLogsDir, input)
+				if err != nil {
+					logger.Error(err, "Trace logs query failed, continuing", "query", q.key())
 					continue
 				}
 				recordVerification(report, reqSuite, q, traceData, len(results), false)
@@ -341,17 +404,16 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 		}
 
-		// Run context queries that need resource-level data (e.g. hypershift events
-		// need HostedControlPlaneNamespace). These are deduplicated per resource since context
-		// queries with prerequisites will produce the same output for the same resource.
-		for _, q := range queriesByCategory(categoryContext) {
+		// Run events queries that need resource-level data (e.g. hypershift events
+		// need HostedControlPlaneNamespace).
+		for _, q := range queriesByCategory(categoryEvents) {
 			if q.ready != nil && !q.ready(rs.data) {
-				logger.Info("Skipping context query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+				logger.Info("Skipping events query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
 				skipped = append(skipped, skippedQuery{key: q.key(), prerequisites: q.prerequisites})
 				continue
 			}
-			if _, err := g.executeQuery(ctx, q, &rs.data, contextDir, input); err != nil {
-				logger.Error(err, "Context query failed, continuing", "query", q.key())
+			if _, err := g.executeQuery(ctx, q, &rs.data, eventsDir, input); err != nil {
+				logger.Error(err, "Events query failed, continuing", "query", q.key())
 			}
 		}
 
@@ -540,6 +602,11 @@ func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryDat
 		return nil, fmt.Errorf("failed to write query file: %w", err)
 	}
 
+	// Copy the README if one exists for this query.
+	if err := copyQueryReadme(q, outDir); err != nil {
+		return nil, err
+	}
+
 	db := input.ServiceDatabase
 	if q.database == "hcp" {
 		db = input.HCPDatabase
@@ -614,6 +681,11 @@ func writeQueryOutput(q querySpec, data queryData, baseDir string, cachedRows []
 		return fmt.Errorf("failed to write query file: %w", err)
 	}
 
+	// Copy the README if one exists for this query.
+	if err := copyQueryReadme(q, outDir); err != nil {
+		return err
+	}
+
 	if len(cachedRows) > 0 {
 		md := renderMarkdownTable(cachedRows)
 		mdFile := filepath.Join(outDir, "output.md")
@@ -622,6 +694,21 @@ func writeQueryOutput(q querySpec, data queryData, baseDir string, cachedRows []
 		}
 	}
 
+	return nil
+}
+
+// copyQueryReadme copies the embedded README.md for a query spec into the output directory, if one exists.
+func copyQueryReadme(q querySpec, outDir string) error {
+	readmePath := filepath.Join("queries", q.component, q.queryName, "README.md")
+	readmeData, err := queriesFS.ReadFile(readmePath)
+	if err != nil {
+		// No README for this query, that's fine.
+		return nil
+	}
+	readmeFile := filepath.Join(outDir, "README.md")
+	if err := os.WriteFile(readmeFile, readmeData, 0o644); err != nil {
+		return fmt.Errorf("failed to write README: %w", err)
+	}
 	return nil
 }
 

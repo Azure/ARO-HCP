@@ -49,10 +49,27 @@ const (
 	// unique resource and are written to resources/<type>/<name>/state/<component>/<queryName>/.
 	categoryState queryCategory = "state"
 
-	// categoryTrace queries are per-request and depend on request-specific data
-	// (e.g. AsyncOperationId). They are written to
-	// resources/<type>/<name>/requests/<correlationID>/<component>/<queryName>/.
-	categoryTrace queryCategory = "trace"
+	// categoryConditions queries extract status condition summaries. They run once per
+	// unique resource and are written to resources/<type>/<name>/conditions/<component>/<queryName>/.
+	categoryConditions queryCategory = "conditions"
+
+	// categoryLogs queries extract filtered or aggregated container/audit logs. They run once per
+	// unique resource and are written to resources/<type>/<name>/logs/<component>/<queryName>/.
+	categoryLogs queryCategory = "logs"
+
+	// categoryTraceState queries are per-request and produce state dumps specific to a request
+	// (e.g. async operation state). They are written to
+	// resources/<type>/<name>/requests/<correlationID>/state/<component>/<queryName>/.
+	categoryTraceState queryCategory = "traceState"
+
+	// categoryTraceLogs queries are per-request and produce log output specific to a request
+	// (e.g. async operation polling history). They are written to
+	// resources/<type>/<name>/requests/<correlationID>/logs/<component>/<queryName>/.
+	categoryTraceLogs queryCategory = "traceLogs"
+
+	// categoryEvents queries produce event logs scoped to a component. They run once
+	// per snapshot and are written to events/<component>/.
+	categoryEvents queryCategory = "events"
 )
 
 // querySpec describes a single KQL query in the dependency chain.
@@ -205,7 +222,7 @@ var allQueries = []querySpec{
 		queryName:    "asyncOperationRequests",
 		templatePath: "queries/frontend/asyncOperationRequests/query.kql",
 		database:     "service",
-		category:     categoryTrace,
+		category:     categoryTraceLogs,
 		ready: func(d queryData) bool {
 			return d.AsyncOperationPath != ""
 		},
@@ -217,7 +234,7 @@ var allQueries = []querySpec{
 		queryName:    "asyncOperationState",
 		templatePath: "queries/backend/asyncOperationState/query.kql",
 		database:     "service",
-		category:     categoryTrace,
+		category:     categoryTraceState,
 		ready: func(d queryData) bool {
 			return d.AsyncOperationId != ""
 		},
@@ -296,17 +313,19 @@ var allQueries = []querySpec{
 		prerequisites: "ResourceGroup, ClusterResourceName, ServiceProviderResourceType",
 		requiredWhen:  isClusterOrNodePool,
 		storeResult: func(d *queryData, rows []resultRow) {
-			// Columns: resourceID, name, bundleName, bundleId
+			// Columns: bundleName, maestroBundleName, maestroBundleId, groupVersion, resourceKind, resourceNamespace, resourceName
 			for _, row := range rows {
-				if len(row.values) >= 4 {
-					if mw := strings.TrimSpace(row.values[1]); mw != "" {
-						d.ManifestWorkNames = append(d.ManifestWorkNames, mw)
-					}
-					if name := strings.TrimSpace(row.values[2]); name != "" {
+				if len(row.values) >= 7 {
+					if name := strings.TrimSpace(row.values[1]); name != "" {
 						d.BundleNames = append(d.BundleNames, name)
 					}
-					if id := strings.TrimSpace(row.values[3]); id != "" {
+					if id := strings.TrimSpace(row.values[2]); id != "" {
 						d.BundleIDs = append(d.BundleIDs, id)
+					}
+					ns := strings.TrimSpace(row.values[5])
+					n := strings.TrimSpace(row.values[6])
+					if ns != "" && n != "" {
+						d.ManifestWorkNames = append(d.ManifestWorkNames, ns+"/"+n)
 					}
 				}
 			}
@@ -347,7 +366,7 @@ var allQueries = []querySpec{
 		queryName:    "resourceControllerConditions",
 		templatePath: "queries/backend/resourceControllerConditions/query.kql",
 		database:     "service",
-		category:     categoryState,
+		category:     categoryConditions,
 		ready: func(d queryData) bool {
 			return d.ResourceGroup != "" && d.ResourceType != ""
 		},
@@ -407,24 +426,13 @@ var allQueries = []querySpec{
 		prerequisites: "ResourceGroup, ClusterResourceName, ResourceType is nodepool",
 		requiredWhen:  isNodePoolType,
 	},
-	{
-		component:    "clustersService",
-		queryName:    "maestroInteractions",
-		templatePath: "queries/clustersService/maestroInteractions/query.kql",
-		database:     "service",
-		category:     categoryState,
-		ready: func(d queryData) bool {
-			return d.ClusterID != ""
-		},
-		prerequisites: "ClusterID",
-		requiredWhen:  func(d queryData) bool { return d.ClusterID != "" },
-	},
+
 	{
 		component:    "hypershift",
 		queryName:    "hostedClusterConditions",
 		templatePath: "queries/hypershift/hostedClusterConditions/query.kql",
 		database:     "service",
-		category:     categoryState,
+		category:     categoryConditions,
 		ready: func(d queryData) bool {
 			return d.ResourceGroup != "" && d.ResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
@@ -436,7 +444,7 @@ var allQueries = []querySpec{
 		queryName:    "nodePoolConditions",
 		templatePath: "queries/hypershift/nodePoolConditions/query.kql",
 		database:     "service",
-		category:     categoryState,
+		category:     categoryConditions,
 		ready: func(d queryData) bool {
 			return d.ResourceGroup != "" && d.ClusterResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools")
 		},
@@ -448,7 +456,7 @@ var allQueries = []querySpec{
 		queryName:    "serverLogs",
 		templatePath: "queries/maestro/serverLogs/query.kql",
 		database:     "service",
-		category:     categoryState,
+		category:     categoryLogs,
 		ready: func(d queryData) bool {
 			return len(d.BundleIDs) > 0
 		},
@@ -460,7 +468,7 @@ var allQueries = []querySpec{
 		queryName:    "agentLogs",
 		templatePath: "queries/maestro/agentLogs/query.kql",
 		database:     "service",
-		category:     categoryState,
+		category:     categoryLogs,
 		ready: func(d queryData) bool {
 			return len(d.BundleIDs) > 0
 		},
@@ -472,7 +480,7 @@ var allQueries = []querySpec{
 		queryName:    "mgmtAuditLogs",
 		templatePath: "queries/maestro/mgmtAuditLogs/query.kql",
 		database:     "service",
-		category:     categoryState,
+		category:     categoryLogs,
 		ready: func(d queryData) bool {
 			return len(d.ManifestWorkNames) > 0
 		},
@@ -493,41 +501,41 @@ var allQueries = []querySpec{
 		requiredWhen:  func(d queryData) bool { return len(d.BundleIDs) > 0 },
 	},
 
-	// --- Context: time-windowed, resource-group-scoped ---
+	// --- Events: time-windowed, component-scoped ---
 	{
 		component:    "frontend",
 		queryName:    "events",
 		templatePath: "queries/frontend/events/query.kql",
 		database:     "service",
-		category:     categoryContext,
+		category:     categoryEvents,
 	},
 	{
 		component:    "backend",
 		queryName:    "events",
 		templatePath: "queries/backend/events/query.kql",
 		database:     "service",
-		category:     categoryContext,
+		category:     categoryEvents,
 	},
 	{
 		component:    "clustersService",
 		queryName:    "events",
 		templatePath: "queries/clustersService/events/query.kql",
 		database:     "service",
-		category:     categoryContext,
+		category:     categoryEvents,
 	},
 	{
 		component:    "maestro",
 		queryName:    "events",
 		templatePath: "queries/maestro/events/query.kql",
 		database:     "service",
-		category:     categoryContext,
+		category:     categoryEvents,
 	},
 	{
 		component:    "hypershift",
 		queryName:    "events",
 		templatePath: "queries/hypershift/events/query.kql",
 		database:     "service",
-		category:     categoryContext,
+		category:     categoryEvents,
 		ready: func(d queryData) bool {
 			return d.HostedControlPlaneNamespace != ""
 		},
@@ -538,7 +546,7 @@ var allQueries = []querySpec{
 		queryName:    "controlPlaneEvents",
 		templatePath: "queries/hypershift/controlPlaneEvents/query.kql",
 		database:     "service",
-		category:     categoryContext,
+		category:     categoryEvents,
 		ready: func(d queryData) bool {
 			return d.HostedControlPlaneNamespace != ""
 		},
@@ -549,7 +557,7 @@ var allQueries = []querySpec{
 		queryName:    "pkiOperatorEvents",
 		templatePath: "queries/hypershift/pkiOperatorEvents/query.kql",
 		database:     "service",
-		category:     categoryContext,
+		category:     categoryEvents,
 		ready: func(d queryData) bool {
 			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/requestadmincredential")
 		},
@@ -560,7 +568,7 @@ var allQueries = []querySpec{
 		queryName:    "hypershiftOperatorLogs",
 		templatePath: "queries/hypershift/hypershiftOperatorLogs/query.kql",
 		database:     "service",
-		category:     categoryContext,
+		category:     categoryLogs,
 		ready: func(d queryData) bool {
 			return d.HostedClusterNamespace != "" && (strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters") || strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"))
 		},
@@ -571,7 +579,7 @@ var allQueries = []querySpec{
 		queryName:    "controlPlaneOperatorLogs",
 		templatePath: "queries/hypershift/controlPlaneOperatorLogs/query.kql",
 		database:     "hcp",
-		category:     categoryContext,
+		category:     categoryLogs,
 		ready: func(d queryData) bool {
 			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
@@ -581,9 +589,10 @@ var allQueries = []querySpec{
 
 // contextQueries are broader queries not tied to a specific correlation ID.
 // They discover all frontend requests in the resource group during the time window.
+// These are written directly to the top-level output directory.
 var contextQueries = []querySpec{
 	{
-		component:    "context",
+		component:    "",
 		queryName:    "frontendRequests",
 		templatePath: "queries/frontend/frontendRequests/query.kql",
 		database:     "service",

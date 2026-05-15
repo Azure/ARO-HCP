@@ -95,11 +95,14 @@ type ResourceEntry struct {
 // directoryLayout returns the static directory layout descriptions.
 func directoryLayout() map[string]string {
 	return map[string]string{
-		"context":   "context/ — resource-group-scoped event logs and the full list of frontend requests",
-		"discovery": "resources/<type>/<name>/discovery/ — intermediate query results used to derive IDs, cluster associations, etc.",
-		"state":     "resources/<type>/<name>/state/ — time-windowed state snapshots for each resource (ARM state, CS state, HyperShift conditions, Maestro logs, etc.)",
-		"requests":  "resources/<type>/<name>/requests/<correlation_id>/ — per-request trace data (async operation state, polling history)",
-		"summary":   "resources/<type>/<name>/SUMMARY.md — per-resource summary of discovered facts, requests, and skipped queries",
+		"frontendRequests": "frontendRequests/ — all ARM requests in the resource group during the time window",
+		"events":           "events/ — Kubernetes events for each component during the time window",
+		"discovery":        "resources/<type>/<name>/discovery/ — intermediate query results used to derive IDs, cluster associations, etc.",
+		"state":            "resources/<type>/<name>/state/ — time-windowed raw resource state dumps (ARM state, CS state, Maestro logs, etc.)",
+		"conditions":       "resources/<type>/<name>/conditions/ — status condition transition summaries (HyperShift conditions, controller conditions)",
+		"logs":             "resources/<type>/<name>/logs/ — filtered or aggregated container and audit logs (operator logs, Maestro server/agent logs)",
+		"requests":         "resources/<type>/<name>/requests/<correlation_id>/ — per-request trace data with state/ and logs/ subdirectories",
+		"summary":          "resources/<type>/<name>/SUMMARY.md — per-resource summary of discovered facts, requests, and skipped queries",
 	}
 }
 
