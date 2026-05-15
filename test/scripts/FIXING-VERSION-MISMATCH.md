@@ -32,12 +32,12 @@ See `test/util/framework/deployment_params.go`:
 
 **What Changed**:
 
-1. **Enhanced synchronization logic** (`deployment_params.go:135-163`)
+1. **Enhanced synchronization logic** (`deployment_params.go:DefaultOpenshiftNodePoolVersionId()`)
    - Now ALWAYS uses control plane version when channel groups match
    - Fixed edge case where versions could diverge
    - Added clear comments explaining the critical synchronization
 
-2. **Early validation** (`deployment_params.go:213-235`)
+2. **Early validation** (`deployment_params.go:NewDefaultNodePoolParams()`)
    - Added version comparison in `NewDefaultNodePoolParams()`
    - Fails fast with helpful error message if mismatch detected
    - Shows exact configuration causing the issue
