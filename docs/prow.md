@@ -56,8 +56,17 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 | frontend-simulation | Yes | Yes | - |
 | e2e-parallel | Yes | No | Dev (westus3) |
 | integration-e2e-parallel | No | No | Int (uksouth) |
+| integration-e2e-parallel-ocp-fast | No | No | Int (uksouth) |
+| integration-e2e-parallel-ocp-stable | No | No | Int (uksouth) |
+| integration-e2e-parallel-ocp-nightly | No | No | Int (uksouth) |
 | stage-e2e-parallel | No | No | Stage (uksouth) |
+| stage-e2e-parallel-ocp-fast | No | No | Stage (uksouth) |
+| stage-e2e-parallel-ocp-stable | No | No | Stage (uksouth) |
+| stage-e2e-parallel-ocp-nightly | No | No | Stage (uksouth) |
 | prod-e2e-parallel | No | No | Prod (uksouth) |
+| prod-e2e-parallel-ocp-fast | No | No | Prod (uksouth) |
+| prod-e2e-parallel-ocp-stable | No | No | Prod (uksouth) |
+| prod-e2e-parallel-ocp-nightly | No | No | Prod (uksouth) |
 
 #### Images
 
@@ -108,6 +117,17 @@ These optional jobs allow testing against specific Azure environments before mer
 | **Step Registry** | [integration-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=integration-e2e-parallel) |
 | **Purpose** | Runs end-to-end tests against the integration environment in the Microsoft Int tenant. |
 
+| Property | Value |
+|----------|-------|
+| **Job Name** | [pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel-ocp-fast](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel-ocp-fast) |
+| **Status** | Optional (runs only when triggered) |
+| **Environment** | Int (uksouth) |
+| **Step Registry** | [integration-e2e-parallel-ocp-fast](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=integration-e2e-parallel-ocp-fast) |
+| **Purpose** | Runs end-to-end tests, using OCP fast channel, against the integration environment in the Microsoft Int tenant. |
+
+> [!NOTE]
+> The same jobs exist for OCP channels _stable_ and _nightly_.
+
 ##### Stage Environment E2E
 
 | Property | Value |
@@ -118,6 +138,17 @@ These optional jobs allow testing against specific Azure environments before mer
 | **Step Registry** | [stage-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=stage-e2e-parallel) |
 | **Purpose** | Runs end-to-end tests against the staging environment in the Microsoft Stage tenant. |
 
+| Property | Value |
+|----------|-------|
+| **Job Name** | [pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel-ocp-fast](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel-ocp-fast) |
+| **Status** | Optional (runs only when triggered) |
+| **Environment** | Stage (uksouth) |
+| **Step Registry** | [stage-e2e-parallel-ocp-fast](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=stage-e2e-parallel-ocp-fast) |
+| **Purpose** | Runs end-to-end tests, using OCP fast channel, against the stage environment in the Microsoft Stage tenant. |
+
+> [!NOTE]
+> The same jobs exist for OCP channels _stable_ and _nightly_.
+
 ##### Production Environment E2E
 
 | Property | Value |
@@ -127,6 +158,17 @@ These optional jobs allow testing against specific Azure environments before mer
 | **Environment** | Prod (uksouth) |
 | **Step Registry** | [prod-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=prod-e2e-parallel) |
 | **Purpose** | Runs end-to-end tests against the production environment in the Microsoft Prod tenant. |
+
+| Property | Value |
+|----------|-------|
+| **Job Name** | [pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel-ocp-fast](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel-ocp-fast) |
+| **Status** | Optional (runs only when triggered) |
+| **Environment** | Prod (uksouth) |
+| **Step Registry** | [prod-e2e-parallel-ocp-fast](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=prod-e2e-parallel-ocp-fast) |
+| **Purpose** | Runs end-to-end tests, using OCP fast channel, against the production environment in the Microsoft Prod tenant. |
+
+> [!NOTE]
+> The same jobs exist for OCP channels _stable_ and _nightly_.
 
 > [!WARNING]
 > Exercise caution when running tests against production environments. These should only be used when absolutely necessary.
@@ -296,6 +338,14 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 | **Step Registry** | [stage-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=stage-e2e-parallel) |
 | **Purpose** | Runs end-to-end parallel tests against the staging environment daily to validate the environment's health and catch any regressions. |
 
+| Property | Value |
+|----------|-------|
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel-ocp-nightly](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel-ocp-nightly) |
+| **Schedule** | Daily at 11:00 PM UTC (`0 23 * * *`) |
+| **Environment** | Stage (uksouth) |
+| **Step Registry** | [stage-e2e-parallel-ocp-nightly](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=stage-e2e-parallel-ocp-nightly) |
+| **Purpose** | Runs end-to-end parallel tests against the staging environment daily to validate the environment's health and catch any regressions, using the latest build of OCP in the nightly channel. |
+
 ##### Periodic Production E2E
 
 | Property | Value |
@@ -305,6 +355,14 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 | **Environment** | Prod (uksouth) |
 | **Step Registry** | [prod-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=prod-e2e-parallel) |
 | **Purpose** | Runs end-to-end parallel tests against the production environment daily to ensure production environment health. |
+
+| Property | Value |
+|----------|-------|
+| **Job Name** | [periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel-ocp-nightly](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel-ocp-nightly) |
+| **Schedule** | Daily at 11:00 PM UTC (`0 23 * * *`) |
+| **Environment** | Prod (uksouth) |
+| **Step Registry** | [prod-e2e-parallel-ocp-nightly](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=prod-e2e-parallel-ocp-nightly) |
+| **Purpose** | Runs end-to-end parallel tests against the production environment daily to ensure production environment health, using the latest build of OCP in the nightly channel. |
 
 ## Managed Identity Reuse for E2E Tests
 
