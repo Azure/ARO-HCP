@@ -67,7 +67,7 @@ echo "  export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=\"$VERSION\""
 echo "  export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=\"$VERSION\""
 echo ""
 echo "To apply these in your current shell, run:"
-echo "  source $0 $CHANNEL_GROUP $VERSION_MINOR"
+echo "  source ${BASH_SOURCE[0]} $CHANNEL_GROUP $VERSION_MINOR"
 echo ""
 echo "Or copy and paste:"
 cat <<EOF
