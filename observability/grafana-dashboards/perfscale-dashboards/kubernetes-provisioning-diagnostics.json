@@ -153,7 +153,7 @@
           "refId": "A"
         }
       ],
-      "title": "Ready Pods per Namespace",
+      "title": "Running Pods per Namespace",
       "type": "timeseries"
     },
     {
@@ -1250,7 +1250,7 @@
       },
       "id": 16,
       "options": {
-        "calculate": false,
+        "calculate": true,
         "cellGap": 2,
         "cellValues": {
           "decimals": 0
@@ -1343,7 +1343,7 @@
         "name": "cluster",
         "options": [],
         "query": {
-          "query": "label_values(kube_pod_info, cluster)",
+          "query": "label_values(up{job=\"kube-state-metrics\"}, cluster)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
@@ -1381,7 +1381,7 @@
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "browser",
+  "timezone": "utc",
   "title": "HCP Kubernetes Provisioning Diagnostics",
   "uid": "hcp-k8s-provisioning-diagnostics",
   "version": 1,
