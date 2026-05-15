@@ -312,7 +312,18 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 	}
 
 	// User-requested control plane minor has no path yet; advance to latest patch on the current minor toward a gateway for a later user-initiated upgrade.
-	return FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, actualLatestMinorVersion, activeVersionList)
+	fallbackVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, actualLatestMinorVersion, activeVersionList)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if fallbackVersion != nil {
+		return fallbackVersion, nil
+	}
+
+	return nil, utils.TrackError(fmt.Errorf(
+		"no upgrade path found from %s to %s: no reachable versions in target minor and no gateway version in current minor",
+		actualLatestVersion.String(), desiredMinorVersion.String(),
+	))
 }
 
 // FindAllUpgradeTargetVersionsInMinor queries Cincinnati and finds the latest version within the specified target minor.
