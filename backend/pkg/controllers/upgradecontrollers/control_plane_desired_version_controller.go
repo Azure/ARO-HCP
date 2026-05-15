@@ -414,7 +414,7 @@ func FindAllUpgradeTargetVersionsInMinor(
 //     - For each candidate, check if it has an upgrade path to the next minor
 //     - If yes: return this version (latest gateway found)
 //     - If no: continue checking older versions
-//  8. If no gateway found: return nil
+//  8. If no gateway found: return the latest candidate (prioritize security over y-stream path)
 //
 // Examples:
 //   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or latest 4.19.z
@@ -449,9 +449,9 @@ func FindBestVersionInMinor(
 //  2. Check if the next minor channel exists in Cincinnati
 //  3. If next minor doesn't exist: return the latest candidate
 //  4. If next minor exists: iterate through candidates to find a gateway version to the next minor
-//  5. If no gateway found: return nil
+//  5. If no gateway found: return the latest candidate (prioritize security over y-stream path)
 //
-// Returns nil if no suitable version is found.
+// Returns nil only if no candidates are provided.
 func selectBestVersionFromCandidates(
 	ctx context.Context,
 	cincinnatiClient cincinnati.Client,
@@ -491,7 +491,7 @@ func selectBestVersionFromCandidates(
 		return &candidates[0], nil
 	}
 
-	// otherwise return the candidate that is a gateway to next minor
+	// Prefer a candidate that is a gateway to the next minor
 	for _, candidate := range candidates {
 		isGateway, err := isGatewayToNextMinor(ctx, candidate, cincinnatiClient, channelGroup, nextMinor)
 		if err != nil {
@@ -503,5 +503,7 @@ func selectBestVersionFromCandidates(
 		}
 	}
 
-	return nil, nil
+	// No gateway found. Return the latest candidate anyway so clusters get
+	// security fixes rather than staying on a stale version indefinitely.
+	return &candidates[0], nil
 }
