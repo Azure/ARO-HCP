@@ -29,6 +29,7 @@ ignore:
 - 'observability/arobit/deploy/templates/serviceaccount.yaml'
 - 'observability/arobit/deploy/templates/forwarder-secretprovider.yaml'
 - 'observability/kube-events/deploy/templates/deployment.yaml'
+- 'mgmt-agent/deploy/templates/deployment.yaml'
 - 'mgmt-fixes/deploy/kubelet-ds/templates/ds-kubelet-parameters.yaml'
 - 'sessiongate/deploy/templates/deployment.yaml'
 - 'sessiongate/deploy/templates/ext-authz.authorizationpolicy.yaml'

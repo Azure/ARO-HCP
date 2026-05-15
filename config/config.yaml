@@ -165,10 +165,15 @@ defaults:
       digest: sha256:2a09e619593b66ec89a722b92eafbb2f247b06b22b5257d6255e1e8281d83df7 # 8085265 (2026-05-07 05:12)
   # Mgmt Agent Controller
   mgmtAgent:
+    managedIdentityName: mgmt-agent
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: mgmt-agent
       digest: ""
+    k8s:
+      namespace: mgmt-agent
+      serviceAccountName: mgmt-agent
+      replicas: 2
   # Kube Applier Controller
   kubeApplier:
     image:

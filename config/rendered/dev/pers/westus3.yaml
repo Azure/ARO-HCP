@@ -681,6 +681,11 @@ mgmtAgent:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
     repository: mgmt-agent
+  k8s:
+    namespace: mgmt-agent
+    replicas: 2
+    serviceAccountName: mgmt-agent
+  managedIdentityName: mgmt-agent
 mgmtKeyVault:
   name: ah-pers-mg-usw3test-1
   private: false

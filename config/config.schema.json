@@ -1123,7 +1123,10 @@
         },
         "provisionShardStatus": {
           "type": "string",
-          "enum": ["active", "maintenance"],
+          "enum": [
+            "active",
+            "maintenance"
+          ],
           "description": "Status of the provision shard"
         },
         "k8s": {
@@ -1352,11 +1355,20 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the mgmt-agent to interact with Azure"
         }
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "k8s",
+        "managedIdentityName"
       ]
     },
     "kubeApplier": {
@@ -3028,7 +3040,12 @@
             "targetVersion": {
               "description": "The target istio version that will be updated to",
               "type": "string",
-              "enum": ["asm-1-26", "asm-1-27", "asm-1-28", "asm-1-29"]
+              "enum": [
+                "asm-1-26",
+                "asm-1-27",
+                "asm-1-28",
+                "asm-1-29"
+              ]
             },
             "ingressGatewayIPAddressName": {
               "type": "string"

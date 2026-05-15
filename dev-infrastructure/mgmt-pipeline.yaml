@@ -332,6 +332,29 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: exporterPrincipalId
+  - name: mgmt-agent-output
+    action: ARM
+    template: modules/mgmt-agent/mgmt-agent-lookup.bicep
+    parameters: configurations/mgmt-agent-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+  - name: mgmt-agent-permissions
+    action: ARM
+    template: templates/mgmt-agent-permissions.bicep
+    parameters: configurations/mgmt-agent-permissions.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: mgmtAgentPrincipalId
+      input:
+        resourceGroup: management
+        step: mgmt-agent-output
+        name: msiPrincipalId
+    dependsOn:
+    - resourceGroup: management
+      step: mgmt-agent-output
   - name: kusto-grant-ingest
     action: ARM
     template: templates/kusto-grant-ingest.bicep
