@@ -19,9 +19,10 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	workv1 "open-cluster-management.io/api/work/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	workv1 "open-cluster-management.io/api/work/v1"
 )
 
 type MaestroMetrics struct {
