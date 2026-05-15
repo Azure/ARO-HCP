@@ -15,6 +15,9 @@
 * **Nodepool creation:** To create a nodepool, utilize the `CreateNodePoolFromParam` method. Beforehand, the default nodepool parameters should be prepared using the `NewDefaultNodePoolParams` method. Both of these methods are located within the `framework` module. Like cluster parameters, custom configurations can be assigned to the nodepool parameter values.
 * **Timeout of deployment:** Timeouts should be defined as named constants in `test/util/framework/constants.go` to ensure reusability and consistency across the test suite. Use the appropriate constant (e.g. `framework.ClusterCreationTimeout`, `framework.NodePoolCreationTimeout`, `framework.ExternalAuthCreationTimeout`) rather than hardcoding duration values. When a new timeout category is needed, add a constant to that file first.
 
+> [!NOTE]
+All cluster and node pool operations are tied to a specific API version. This means that the actual method names have the form `CreateHCPClusterFromParamYYYYMMDD`, `CreateNodePoolFromParamYYYYMMDD`, etc. New methods for new API versions should be added as needed.
+
 ## Resource naming \- Independence and Isolation
 
 * **Self-Contained:** Every test case must be self-contained, ensuring no dependencies on the state or results of other test cases.
