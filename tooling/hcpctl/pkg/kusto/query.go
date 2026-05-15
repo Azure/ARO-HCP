@@ -30,6 +30,7 @@ type QueryOptions struct {
 	ResourceGroupName string
 	InfraClusterName  string
 	ClusterIds        []string
+	ClusterNames      []string
 	TimestampMin      time.Time
 	TimestampMax      time.Time
 	Limit             int
@@ -111,6 +112,7 @@ type TemplateData struct {
 	ResourceGroupName  string
 	ClusterId          string
 	ClusterIds         string
+	FilterClusterName  string
 	HCPNamespacePrefix string
 }
 
@@ -131,6 +133,12 @@ func WithClusterId(clusterId string) TemplateDataOptions {
 func WithClusterIds(clusterIds []string) TemplateDataOptions {
 	return func(d *TemplateData) {
 		d.ClusterIds = kqlEscStrList(clusterIds)
+	}
+}
+
+func WithFilterClusterName(name string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.FilterClusterName = kqlEscStr(name)
 	}
 }
 
