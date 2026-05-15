@@ -99,6 +99,11 @@ var _ = Describe("Customer", func() {
 				}
 			}
 
+			if installVersion == nil {
+				Skip(fmt.Sprintf("no install version in %s found with upgrade path to %s",
+					previousMinor.String(), targetVer.String()))
+			}
+
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
