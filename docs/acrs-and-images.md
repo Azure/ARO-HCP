@@ -81,7 +81,19 @@ clustersService:
 
 ARO HCP combines various service components to form the hosted control plane management stack. Images for components that are not ARO HCP specific are sourced from Red Hat registries and repositories like quay.io (OCP, CS, Maestro, Hypershift) or registry.redhat.io (ACM).
 
-The component images that are ARO HCP specific (RP frontend, RP backend, Admin API, oc-mirror), are built by [Prow CI](prow.md) using job definitions from the [openshift/release](https://github.com/openshift/release/tree/master/ci-operator/jobs/Azure/ARO-HCP) repository and pushed to the `arohcpsvcdev` ACR in the RH DEV environment. These images are then mirrored to the respective service ACRs in the other environments using the [on-demand sync](#on-demand-sync) process.
+CI produces two different kinds of image outputs:
+
+- **CI-only images** used by OpenShift CI itself, such as the shared build root `aro-hcp-e2e-base-ci` and the reusable test runner image `aro-hcp-e2e-tests`
+- **service images** built in CI and then made available for actual ARO HCP environment deployment
+
+For the full CI-side model, including shared CI images, job-local `pipeline:*` builds, local E2E image injection, and CI promotion, see [CI Image Lifecycle](ci/image-lifecycle.md).
+
+The ARO HCP-specific service images are first built by CI in the build-farm job namespace. After merge, the `images-push-postsubmit` flow mirrors selected service images into the `arohcpsvcdev` ACR in the RH DEV environment. Those digests are then mirrored onward to the respective service ACRs in the other environments using the [on-demand sync](#on-demand-sync) process.
+
+The key boundary is:
+
+- [CI Image Lifecycle](ci/image-lifecycle.md) explains how images are built, reused, and promoted inside OpenShift CI
+- this document explains how service images move from CI outputs into environment ACRs and are then pulled by deployed services
 
 ## Image Pulling
 
