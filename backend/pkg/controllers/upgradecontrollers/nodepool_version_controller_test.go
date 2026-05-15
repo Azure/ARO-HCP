@@ -693,6 +693,24 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			allowMajorUpgrades:   true,
 			expectError:          false,
 		},
+		{
+			name:                 "major downgrade to unsupported minor - fail",
+			desiredVersion:       "4.20.0",
+			activeVersions:       []string{"5.0.1"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "not allowed to coexist with a different-major control plane",
+		},
+		{
+			name:                 "major downgrade to incompatible CP minor - fail",
+			desiredVersion:       "4.23.0",
+			activeVersions:       []string{"5.0.1"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "cannot coexist with control plane version",
+		},
 	}
 
 	for _, tt := range tests {

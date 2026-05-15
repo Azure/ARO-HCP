@@ -274,6 +274,28 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 		},
 		{
+			name:               "cross-major downgrade to unsupported minor fails",
+			activeVersions:     []string{"5.0.1"},
+			newVersion:         "4.20.0",
+			clusterVersions:    []string{"5.0.1"},
+			desiredVersion:     "5.0.1",
+			allowMajorUpgrades: true,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
+			},
+		},
+		{
+			name:               "cross-major downgrade to incompatible CP minor fails",
+			activeVersions:     []string{"5.0.1"},
+			newVersion:         "4.23.0",
+			clusterVersions:    []string{"5.0.1"},
+			desiredVersion:     "5.0.1",
+			allowMajorUpgrades: true,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot coexist with control plane version"},
+			},
+		},
+		{
 			name:            "downgrade at N-2 boundary succeeds (4.21 to 4.19)",
 			activeVersions:  []string{"4.21.5"},
 			newVersion:      "4.19.0",

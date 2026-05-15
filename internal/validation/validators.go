@@ -869,6 +869,24 @@ func MaximumIfNoAZ[T constraints.Integer](ctx context.Context, op operation.Oper
 	return Maximum(ctx, op, fldPath, value, oldValue, max)
 }
 
+// ValidateCrossMajorNodePoolSkew checks that a node pool at a different major version
+// than the control plane is within the supported version skew (e.g., NP 4.22 with CP 5.0).
+func ValidateCrossMajorNodePoolSkew(nodePoolVersion, controlPlaneVersion semver.Version) error {
+	npKey := fmt.Sprintf("%d.%d", nodePoolVersion.Major, nodePoolVersion.Minor)
+	cpKey := fmt.Sprintf("%d.%d", controlPlaneVersion.Major, controlPlaneVersion.Minor)
+
+	allowedCPs, exists := api.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
+	if !exists {
+		return fmt.Errorf("node pool version %s is not allowed to coexist with a different-major control plane",
+			nodePoolVersion.String())
+	}
+	if !slices.Contains(allowedCPs, cpKey) {
+		return fmt.Errorf("node pool version %s cannot coexist with control plane version %s",
+			nodePoolVersion.String(), controlPlaneVersion.String())
+	}
+	return nil
+}
+
 // ValidateMajorUpgrade validates that a cross-major version upgrade follows the allowed upgrade paths.
 // Returns an error if the upgrade path is not allowed, nil otherwise.
 // Use the n-1 skew
@@ -934,6 +952,9 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 		}
 		if isCrossMajorUpgrade {
 			return ValidateMajorUpgrade(*lowest, desiredVersion)
+		}
+		if lowestCPVersion != nil {
+			return ValidateCrossMajorNodePoolSkew(desiredVersion, *lowestCPVersion)
 		}
 		return nil
 	}
