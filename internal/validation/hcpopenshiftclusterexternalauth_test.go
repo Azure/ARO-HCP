@@ -348,7 +348,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must match an audience in issuer audiences",
-					FieldPath: "properties.clients",
+					FieldPath: "properties.clients[0].clientId",
 				},
 			},
 		},
@@ -388,7 +388,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "Duplicate value",
-					FieldPath: "properties.clients",
+					FieldPath: "properties.clients[1]",
 				},
 			},
 		},

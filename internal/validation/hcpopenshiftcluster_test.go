@@ -593,7 +593,7 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "Required value",
-					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]",
 				},
 				{
 					Message:   "identity is not assigned to this resource",
@@ -620,7 +620,7 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "Required value",
-					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]",
 				},
 			},
 		},
@@ -887,7 +887,7 @@ func TestClusterValidate(t *testing.T) {
 				},
 				{
 					Message:   "identity is assigned to this resource but not used",
-					FieldPath: "identity.userAssignedIdentities",
+					FieldPath: "identity.userAssignedIdentities[/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/myManagedIdentity3]",
 				},
 				{
 					Message:   "identity is not assigned to this resource",
@@ -921,7 +921,7 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "identity is used multiple times",
-					FieldPath: "identity.userAssignedIdentities",
+					FieldPath: "identity.userAssignedIdentities[/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/myManagedIdentity1]",
 				},
 			},
 		},
@@ -949,7 +949,7 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "identity is assigned to this resource but not used",
-					FieldPath: "identity.userAssignedIdentities",
+					FieldPath: "identity.userAssignedIdentities[/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/myManagedIdentity1]",
 				},
 				{
 					Message:   "cannot use identity assigned to this resource by .identities.userAssignedIdentities",

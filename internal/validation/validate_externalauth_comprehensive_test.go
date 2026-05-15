@@ -630,7 +630,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				return obj
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.clients[0]", Message: "must match an audience in issuer audiences"},
+				{FieldPath: "properties.clients[0].clientId", Message: "must match an audience in issuer audiences"},
 			},
 		},
 		{

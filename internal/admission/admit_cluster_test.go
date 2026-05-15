@@ -126,7 +126,7 @@ func TestMutateCluster(t *testing.T) {
 			subscription: afecRegistered,
 			tags:         map[string]string{api.TagClusterSingleReplica: "yes"},
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "tags", Message: "Invalid value"},
+				{FieldPath: "tags[aro-hcp.experimental.cluster.single-replica]", Message: "Invalid value"},
 			},
 		},
 		{
@@ -134,7 +134,7 @@ func TestMutateCluster(t *testing.T) {
 			subscription: afecRegistered,
 			tags:         map[string]string{api.TagClusterSingleReplica: "true"},
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "tags", Message: "Invalid value"},
+				{FieldPath: "tags[aro-hcp.experimental.cluster.single-replica]", Message: "Invalid value"},
 			},
 		},
 		{
@@ -142,7 +142,7 @@ func TestMutateCluster(t *testing.T) {
 			subscription: afecRegistered,
 			tags:         map[string]string{api.TagClusterSizeOverride: "1"},
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "tags", Message: "Invalid value"},
+				{FieldPath: "tags[aro-hcp.experimental.cluster.size-override]", Message: "Invalid value"},
 			},
 		},
 		{
@@ -150,7 +150,7 @@ func TestMutateCluster(t *testing.T) {
 			subscription: afecRegistered,
 			tags:         map[string]string{"aro-hcp.experimental.cluster.unknown-feature": string(api.SingleReplicaControlPlane)},
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+				{FieldPath: "tags[aro-hcp.experimental.cluster.unknown-feature]", Message: "unrecognized experimental tag"},
 			},
 		},
 		{
@@ -165,7 +165,7 @@ func TestMutateCluster(t *testing.T) {
 			subscription: afecRegistered,
 			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Unknown-Feature": string(api.SingleReplicaControlPlane)},
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+				{FieldPath: "tags[ARO-HCP.Experimental.Cluster.Unknown-Feature]", Message: "unrecognized experimental tag"},
 			},
 		},
 		{
@@ -180,7 +180,7 @@ func TestMutateCluster(t *testing.T) {
 			subscription: afecRegistered,
 			tags:         map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), "aro-hcp.experimental.cluster.unknown": "value"},
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+				{FieldPath: "tags[aro-hcp.experimental.cluster.unknown]", Message: "unrecognized experimental tag"},
 			},
 		},
 		{

@@ -43,7 +43,7 @@ func VerifyErrorsMatch(t *testing.T, expectedErrors []ExpectedError, errs field.
 		found := false
 		for _, err := range errs {
 			messageMatch := strings.Contains(err.Detail, expectedErr.Message) || strings.Contains(err.Error(), expectedErr.Message)
-			fieldMatch := strings.Contains(err.Field, expectedErr.FieldPath)
+			fieldMatch := err.Field == expectedErr.FieldPath
 			if messageMatch && fieldMatch {
 				found = true
 				break
@@ -58,7 +58,7 @@ func VerifyErrorsMatch(t *testing.T, expectedErrors []ExpectedError, errs field.
 		found := false
 		for _, expectedErr := range expectedErrors {
 			messageMatch := strings.Contains(err.Detail, expectedErr.Message) || strings.Contains(err.Error(), expectedErr.Message)
-			fieldMatch := strings.Contains(err.Field, expectedErr.FieldPath)
+			fieldMatch := err.Field == expectedErr.FieldPath
 			if messageMatch && fieldMatch {
 				found = true
 				break

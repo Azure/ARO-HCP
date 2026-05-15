@@ -520,10 +520,10 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "Required value", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
+				{Message: "Required value", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -539,7 +539,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "resource ID must reference an instance of type", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -557,7 +557,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "Required value", FieldPath: "identity.type"},
 				{Message: "Unsupported value", FieldPath: "identity.state"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -575,7 +575,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "Unsupported value", FieldPath: "identity.state"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -591,8 +591,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "resource ID must reference an instance of type", FieldPath: "identity.userAssignedIdentities"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "resource ID must reference an instance of type", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet]"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 			},
 		},
@@ -816,7 +816,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
