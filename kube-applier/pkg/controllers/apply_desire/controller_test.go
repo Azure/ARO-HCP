@@ -40,6 +40,10 @@ import (
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
 
+// testMgmtClusterID is the resourceID stamped into Spec.ManagementCluster.
+var testMgmtClusterID = api.Must(azcorearm.ParseResourceID(
+	"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
+
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	t.Helper()
 	id, err := azcorearm.ParseResourceID(s)
@@ -114,7 +118,7 @@ func newApplyDesire(t *testing.T, name string, target kubeapplier.ResourceRefere
 			)),
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
-			ManagementCluster: "mgmt-1",
+			ManagementCluster: testMgmtClusterID,
 			TargetItem:        target,
 		},
 	}

@@ -44,8 +44,15 @@ const (
 	testRG       = "rg"
 	testCluster  = "c"
 	testDesire   = "d"
-	testMgmt     = "mgmt-1"
 	testTargetNs = "default"
+)
+
+// testMgmtID is the resourceID stamped into Spec.ManagementCluster; testMgmt
+// is the lowercased-string form used as the Cosmos partition key.
+var (
+	testMgmtID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
+	testMgmt = strings.ToLower(testMgmtID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -64,7 +71,7 @@ func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeappl
 			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
-			ManagementCluster: testMgmt,
+			ManagementCluster: testMgmtID,
 			TargetItem:        target,
 		},
 	}

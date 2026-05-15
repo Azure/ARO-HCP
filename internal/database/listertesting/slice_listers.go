@@ -129,7 +129,7 @@ func (l *SliceApplyDesireLister) ListForManagementCluster(
 ) ([]*kubeapplier.ApplyDesire, error) {
 	var out []*kubeapplier.ApplyDesire
 	for _, d := range l.Desires {
-		if strings.EqualFold(d.GetManagementCluster(), managementCluster) {
+		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), managementCluster) {
 			out = append(out, d)
 		}
 	}
@@ -204,7 +204,7 @@ func (l *SliceDeleteDesireLister) ListForManagementCluster(
 ) ([]*kubeapplier.DeleteDesire, error) {
 	var out []*kubeapplier.DeleteDesire
 	for _, d := range l.Desires {
-		if strings.EqualFold(d.GetManagementCluster(), managementCluster) {
+		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), managementCluster) {
 			out = append(out, d)
 		}
 	}
@@ -279,7 +279,7 @@ func (l *SliceReadDesireLister) ListForManagementCluster(
 ) ([]*kubeapplier.ReadDesire, error) {
 	var out []*kubeapplier.ReadDesire
 	for _, d := range l.Desires {
-		if strings.EqualFold(d.GetManagementCluster(), managementCluster) {
+		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), managementCluster) {
 			out = append(out, d)
 		}
 	}

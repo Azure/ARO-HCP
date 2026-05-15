@@ -27,6 +27,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
+// fixtureMgmtClusterID is the parsed-once test management cluster resourceID
+// (stamp "1", management cluster "mgmt-1"). The fixtures below use it for
+// Spec.ManagementCluster.
+func fixtureMgmtClusterID(t *testing.T) *azcorearm.ResourceID {
+	t.Helper()
+	rid, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1")
+	if err != nil {
+		t.Fatalf("parse mgmt cluster resource id: %v", err)
+	}
+	return rid
+}
+
 // fixtureApplyDesire builds a populated ApplyDesire whose JSON form exercises
 // every nontrivial field, so deep-copy and round-trip tests can compare bytes.
 func fixtureApplyDesire(t *testing.T) *ApplyDesire {
@@ -40,7 +52,7 @@ func fixtureApplyDesire(t *testing.T) *ApplyDesire {
 	return &ApplyDesire{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: id},
 		Spec: ApplyDesireSpec{
-			ManagementCluster: "mgmt-1",
+			ManagementCluster: fixtureMgmtClusterID(t),
 			KubeContent: &runtime.RawExtension{
 				Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x","namespace":"default"},"data":{"key":"value"}}`),
 			},
@@ -64,7 +76,7 @@ func fixtureDeleteDesire(t *testing.T) *DeleteDesire {
 	return &DeleteDesire{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: id},
 		Spec: DeleteDesireSpec{
-			ManagementCluster: "mgmt-1",
+			ManagementCluster: fixtureMgmtClusterID(t),
 			TargetItem: ResourceReference{
 				Group: "apps", Resource: "deployments", Namespace: "ns", Name: "x",
 			},
@@ -88,7 +100,7 @@ func fixtureReadDesire(t *testing.T) *ReadDesire {
 	return &ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: id},
 		Spec: ReadDesireSpec{
-			ManagementCluster: "mgmt-1",
+			ManagementCluster: fixtureMgmtClusterID(t),
 			TargetItem: ResourceReference{
 				Group: "", Resource: "configmaps", Namespace: "default", Name: "x",
 			},

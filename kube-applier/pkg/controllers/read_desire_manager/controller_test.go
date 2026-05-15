@@ -16,6 +16,7 @@ package read_desire_manager
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
@@ -30,11 +31,18 @@ import (
 )
 
 const (
-	testSub        = "00000000-0000-0000-0000-000000000001"
-	testRG         = "rg"
-	testCluster    = "c"
-	testDesire     = "d"
-	testManagement = "mgmt-1"
+	testSub     = "00000000-0000-0000-0000-000000000001"
+	testRG      = "rg"
+	testCluster = "c"
+	testDesire  = "d"
+)
+
+// testManagementID is the resourceID stamped into Spec.ManagementCluster;
+// testManagement is the lowercased-string form used as the Cosmos partition key.
+var (
+	testManagementID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
+	testManagement = strings.ToLower(testManagementID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -55,7 +63,7 @@ func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeappl
 			)),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
-			ManagementCluster: testManagement,
+			ManagementCluster: testManagementID,
 			TargetItem:        target,
 		},
 	}
