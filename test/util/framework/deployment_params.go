@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo/v2"
 
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -136,19 +137,29 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if len(version) == 0 {
 		channelGroup := DefaultOpenshiftNodePoolChannelGroup()
-		if channelGroup == DefaultOpenshiftChannelGroup() {
+		cpChannelGroup := DefaultOpenshiftChannelGroup()
+
+		// CRITICAL: When channel groups match, ALWAYS use the control plane version
+		// to prevent version mismatches due to Cincinnati timing differences.
+		// This ensures node pool version never exceeds control plane version.
+		if channelGroup == cpChannelGroup {
 			return DefaultOpenshiftControlPlaneVersionId()
 		}
+
+		// Only fetch separately if using a different channel group
 		if channelGroup != "stable" {
 			var err error
 			version, err = GetLatestInstallVersion(context.Background(), channelGroup, DefaultOCPVersionId)
 			if err != nil {
 				if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrVersionNotFound) {
-					Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", version, channelGroup, err.Error()))
+					Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", DefaultOCPVersionId, channelGroup, err.Error()))
 				} else {
 					Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", channelGroup, err.Error()))
 				}
 			}
+		} else {
+			// For stable channel, also use control plane version to avoid mismatches
+			version = DefaultOCPVersionId
 		}
 	}
 	return version
@@ -211,8 +222,31 @@ type NodePoolAutoScalingParams struct {
 }
 
 func NewDefaultNodePoolParams() NodePoolParams {
+	npVersion := DefaultOpenshiftNodePoolVersionId()
+	cpVersion := DefaultOpenshiftControlPlaneVersionId()
+
+	// Validate that node pool version doesn't exceed control plane version
+	// This catches configuration errors early before they reach the API validation
+	npVer, npErr := semver.ParseTolerant(npVersion)
+	cpVer, cpErr := semver.ParseTolerant(cpVersion)
+	if npErr == nil && cpErr == nil && npVer.GT(cpVer) {
+		Fail(fmt.Sprintf(
+			"Configuration error: Node pool version (%s) exceeds control plane version (%s). "+
+				"This will fail API validation. Check your channel group settings:\n"+
+				"  ARO_HCP_OPENSHIFT_CHANNEL_GROUP=%s\n"+
+				"  ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP=%s\n"+
+				"  ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=%s\n"+
+				"  ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=%s",
+			npVersion, cpVersion,
+			DefaultOpenshiftChannelGroup(),
+			DefaultOpenshiftNodePoolChannelGroup(),
+			os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION"),
+			os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION"),
+		))
+	}
+
 	return NodePoolParams{
-		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
+		OpenshiftVersionId:     npVersion,
 		Replicas:               int32(2),
 		VMSize:                 "Standard_D8s_v3",
 		OSDiskSizeGiB:          int32(64),
