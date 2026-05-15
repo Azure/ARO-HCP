@@ -40,6 +40,65 @@ func TestValidate_ClusterIds_RejectsEmpty(t *testing.T) {
 	assert.Contains(t, err.Error(), "--cluster-id was specified with an empty value")
 }
 
+func TestValidate_ClusterNames_RejectsEmpty(t *testing.T) {
+	opts := &RawQueryOptions{
+		BaseGatherOptions: BaseGatherOptions{
+			Kusto:        "test-kusto",
+			Region:       "eastus",
+			QueryTimeout: 5 * time.Minute,
+			TimestampMin: time.Now().Add(-1 * time.Hour),
+			TimestampMax: time.Now(),
+		},
+		SubscriptionID: "test-sub",
+		ResourceGroup:  "test-rg",
+		ClusterNames:   []string{"valid-name", ""},
+	}
+
+	_, err := opts.Validate(t.Context())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "--cluster-name was specified with an empty value")
+}
+
+func TestValidate_ClusterNames_AcceptsValid(t *testing.T) {
+	opts := &RawQueryOptions{
+		BaseGatherOptions: BaseGatherOptions{
+			Kusto:        "test-kusto",
+			Region:       "eastus",
+			QueryTimeout: 5 * time.Minute,
+			TimestampMin: time.Now().Add(-1 * time.Hour),
+			TimestampMax: time.Now(),
+		},
+		SubscriptionID: "test-sub",
+		ResourceGroup:  "test-rg",
+		ClusterNames:   []string{"my-cluster", "other-cluster"},
+	}
+
+	validated, err := opts.Validate(t.Context())
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"my-cluster", "other-cluster"}, validated.QueryOptions.ClusterNames)
+}
+
+func TestValidate_CombinedClusterIdAndName(t *testing.T) {
+	opts := &RawQueryOptions{
+		BaseGatherOptions: BaseGatherOptions{
+			Kusto:        "test-kusto",
+			Region:       "eastus",
+			QueryTimeout: 5 * time.Minute,
+			TimestampMin: time.Now().Add(-1 * time.Hour),
+			TimestampMax: time.Now(),
+		},
+		SubscriptionID: "test-sub",
+		ResourceGroup:  "test-rg",
+		ClusterIds:     []string{"explicit-cid"},
+		ClusterNames:   []string{"my-cluster"},
+	}
+
+	validated, err := opts.Validate(t.Context())
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"explicit-cid"}, validated.QueryOptions.ClusterIds)
+	assert.Equal(t, []string{"my-cluster"}, validated.QueryOptions.ClusterNames)
+}
+
 func TestValidate_ClusterIds_AcceptsValid(t *testing.T) {
 	opts := &RawQueryOptions{
 		BaseGatherOptions: BaseGatherOptions{

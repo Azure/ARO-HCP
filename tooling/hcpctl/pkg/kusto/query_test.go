@@ -214,6 +214,19 @@ func TestClusterNamesQuery(t *testing.T) {
 	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
 }
 
+func TestClusterIdByNameQuery(t *testing.T) {
+	f, err := NewQueryFactory()
+	require.NoError(t, err)
+	opts := baseOptions()
+	def, err := f.GetBuiltinQueryDefinition("clusterIdByName")
+	require.NoError(t, err)
+	queries, err := f.Build(*def, NewTemplateDataFromOptions(opts, WithFilterClusterName("test-hcp")))
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+
+	testutil.CompareWithFixture(t, queryToFixture(queries[0]))
+}
+
 func TestBuildMerged_SingleTemplate(t *testing.T) {
 	f, err := NewQueryFactory()
 	require.NoError(t, err)

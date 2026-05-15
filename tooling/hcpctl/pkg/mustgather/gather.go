@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -341,12 +342,37 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 
 	logger.V(1).Info("Query options", "queryOptions", g.GetQueryOptions())
 
-	// Get cluster IDs: use explicit IDs if provided, otherwise discover them
+	// Get cluster IDs: merge explicit IDs, resolved names, or discover all from RG
 	var clusterIds []string
 	if len(g.opts.QueryOptions.ClusterIds) > 0 {
-		clusterIds = g.opts.QueryOptions.ClusterIds
-		logger.V(1).Info("Using explicitly provided clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
-	} else {
+		clusterIds = append(clusterIds, g.opts.QueryOptions.ClusterIds...)
+		logger.V(1).Info("Using explicitly provided clusterIDs", "clusterIds", strings.Join(g.opts.QueryOptions.ClusterIds, ", "))
+	}
+	if len(g.opts.QueryOptions.ClusterNames) > 0 {
+		clusterIdByNameDef, err := queryFactory.GetBuiltinQueryDefinition("clusterIdByName")
+		if err != nil {
+			return fmt.Errorf("failed to get clusterIdByName query definition: %w", err)
+		}
+		for _, name := range g.opts.QueryOptions.ClusterNames {
+			templateData := kusto.NewTemplateDataFromOptions(g.GetQueryOptions(), kusto.WithFilterClusterName(name))
+			nameQueries, err := queryFactory.Build(*clusterIdByNameDef, templateData)
+			if err != nil {
+				return fmt.Errorf("failed to build clusterIdByName query for %q: %w", name, err)
+			}
+			resolvedIds, err := executeQueryAndConvert[ClusterIdRow](ctx, g, nameQueries[0])
+			if err != nil {
+				return fmt.Errorf("failed to resolve cluster name %q to ID: %w", name, err)
+			}
+			if len(resolvedIds) == 0 {
+				return fmt.Errorf("cluster name %q did not resolve to any cluster ID", name)
+			}
+			for _, row := range resolvedIds {
+				clusterIds = append(clusterIds, row.ClusterId)
+			}
+		}
+		logger.V(1).Info("Resolved cluster names to IDs", "clusterNames", strings.Join(g.opts.QueryOptions.ClusterNames, ", "), "resolvedIds", strings.Join(clusterIds, ", "))
+	}
+	if len(clusterIds) == 0 {
 		clusterIdDef, err := queryFactory.GetBuiltinQueryDefinition("clusterId")
 		if err != nil {
 			return fmt.Errorf("failed to get cluster id query definition: %w", err)
@@ -362,7 +388,14 @@ func (g *Gatherer) GatherLogs(ctx context.Context) error {
 		for _, row := range allClusterIds {
 			clusterIds = append(clusterIds, row.ClusterId)
 		}
-		logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
+		logger.V(1).Info("Discovered clusterIDs from resource group", "clusterIds", strings.Join(clusterIds, ", "))
+	}
+
+	slices.Sort(clusterIds)
+	clusterIds = slices.Compact(clusterIds)
+	clusterIds = slices.DeleteFunc(clusterIds, func(s string) bool { return s == "" })
+	if len(clusterIds) == 0 && (len(g.opts.QueryOptions.ClusterIds) > 0 || len(g.opts.QueryOptions.ClusterNames) > 0) {
+		return fmt.Errorf("no valid cluster IDs found for resource group %q", g.opts.QueryOptions.ResourceGroupName)
 	}
 
 	// Gather service logs
