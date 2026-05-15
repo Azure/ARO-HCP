@@ -504,9 +504,6 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	// We use slog.Level(flags.LogVerbosity * -1) to convert the verbosity level to a slog.Level.
 	// A value of 0 is equivalent to INFO. Higher values mean more verbose output.
 	handlerOptions := &slog.HandlerOptions{Level: slog.Level(flags.LogVerbosity * -1), AddSource: true}
-	// Temporary hardcode the log level to -4 to see increased klog logging
-	// verbosity.
-	handlerOptions.Level = slog.Level(-4)
 	slogJSONHandler := slog.NewJSONHandler(os.Stdout, handlerOptions)
 	logger := logr.FromSlogHandler(slogJSONHandler)
 	ctx = utils.ContextWithLogger(ctx, logger)
