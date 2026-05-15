@@ -167,6 +167,7 @@ spec:
         - "--maestro-source-environment-identifier"
         - "arohcpdev"
         - "--exit-on-panic=true"
+        - "--log-verbosity=4"
         - "--azure-cluster-scoped-identities-role-set-name"
         - "dev"
         env:

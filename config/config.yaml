@@ -677,6 +677,7 @@ defaults:
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
     exitOnPanic: true
+    logVerbosity: 4
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
   # Admin API
@@ -757,6 +758,7 @@ defaults:
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
     exitOnPanic: true
+    logVerbosity: 0
   # Billing
   billing:
     rg: "placeholder"

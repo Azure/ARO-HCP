@@ -115,6 +115,7 @@ backend:
         cpu: 100m
         memory: 500Mi
     serviceAccountName: backend
+  logVerbosity: 4
   maestro:
     sourceEnvironmentIdentifier: arohcpprow
   managedIdentityName: backend
@@ -281,6 +282,7 @@ frontend:
         cpu: 100m
         memory: 512Mi
     serviceAccountName: frontend
+  logVerbosity: 0
   managedIdentityName: frontend
   tracing:
     address: http://ingest.observability:4318
