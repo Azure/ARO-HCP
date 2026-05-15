@@ -57,6 +57,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator
           pipelinePath: route-monitor-operator/pipeline.yaml
           purpose: Deploy the Route Monitor Operator.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
+          pipelinePath: mgmt-agent/pipeline.yaml
+          purpose: Deploy the Management Agent.
         pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
         purpose: Deploy a management cluster and backing infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
