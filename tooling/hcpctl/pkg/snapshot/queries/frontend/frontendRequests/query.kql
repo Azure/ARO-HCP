@@ -4,6 +4,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendL
 | where log.msg == 'response complete'
 | summarize count() by
     correlation_id = tostring(log.correlation_request_id),
+    client_request_id = tostring(log.client_request_id),
     method = tostring(log.method),
     path = tostring(log.resource_id),
     status = toint(log.response_status_code),

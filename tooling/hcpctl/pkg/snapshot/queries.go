@@ -113,8 +113,9 @@ type queryData struct {
 	EndTime         time.Time
 	ResourceGroup   string
 
-	// Per-request context — set when tracing a specific correlation ID.
-	CorrelationID string
+	// Per-request context — set when tracing a specific request.
+	CorrelationID   string
+	ClientRequestID string
 
 	// Discovered by queries.
 	ResourceID                  string
@@ -166,14 +167,14 @@ func isClusterOrNodePool(d queryData) bool {
 // across requests for the same resource. Queries are executed in order within
 // each phase of the gathering pipeline.
 var allQueries = []querySpec{
-	// --- Request discovery: per correlation ID ---
+	// --- Request discovery: per client request ID ---
 	{
 		component:    "frontend",
 		queryName:    "resourceId",
 		templatePath: "queries/frontend/resourceId/query.kql",
 		database:     "service",
 		category:     categoryRequestDiscovery,
-		requiredWhen: func(d queryData) bool { return d.CorrelationID != "" },
+		requiredWhen: func(d queryData) bool { return d.ClientRequestID != "" },
 		storeResult: func(d *queryData, rows []resultRow) {
 			d.ResourceID = rows[0].values[0]
 			parsed, err := azcorearm.ParseResourceID(rows[0].values[0])
@@ -199,7 +200,7 @@ var allQueries = []querySpec{
 		templatePath: "queries/frontend/asyncOperationId/query.kql",
 		database:     "service",
 		category:     categoryRequestDiscovery,
-		requiredWhen: func(d queryData) bool { return d.CorrelationID != "" },
+		requiredWhen: func(d queryData) bool { return d.ClientRequestID != "" },
 		storeResult: func(d *queryData, rows []resultRow) {
 			d.AsyncOperationId = rows[0].values[0]
 		},
@@ -210,7 +211,7 @@ var allQueries = []querySpec{
 		templatePath: "queries/frontend/asyncOperationPath/query.kql",
 		database:     "service",
 		category:     categoryRequestDiscovery,
-		requiredWhen: func(d queryData) bool { return d.CorrelationID != "" },
+		requiredWhen: func(d queryData) bool { return d.ClientRequestID != "" },
 		storeResult: func(d *queryData, rows []resultRow) {
 			d.AsyncOperationPath = rows[0].values[0]
 		},

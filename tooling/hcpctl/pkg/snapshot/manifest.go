@@ -101,7 +101,7 @@ func directoryLayout() map[string]string {
 		"state":            "resources/<type>/<name>/state/ — time-windowed raw resource state dumps (ARM state, CS state, Maestro logs, etc.)",
 		"conditions":       "resources/<type>/<name>/conditions/ — status condition transition summaries (HyperShift conditions, controller conditions)",
 		"logs":             "resources/<type>/<name>/logs/ — filtered or aggregated container and audit logs (operator logs, Maestro server/agent logs)",
-		"requests":         "resources/<type>/<name>/requests/<correlation_id>/ — per-request trace data with state/ and logs/ subdirectories",
+		"requests":         "resources/<type>/<name>/requests/<client_request_id>/ — per-request trace data with discovery/, state/, and logs/ subdirectories",
 		"summary":          "resources/<type>/<name>/SUMMARY.md — per-resource summary of discovered facts, requests, and skipped queries",
 	}
 }

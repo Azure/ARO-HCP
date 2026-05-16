@@ -187,10 +187,11 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			continue
 		}
 
-		logger.Info("Running request discovery", "correlationId", req.CorrelationID, "method", req.Method, "path", req.Path)
+		logger.Info("Running request discovery", "clientRequestId", req.ClientRequestID, "correlationId", req.CorrelationID, "method", req.Method, "path", req.Path)
 
 		reqData := seedData // copy seed values
 		reqData.CorrelationID = req.CorrelationID
+		reqData.ClientRequestID = req.ClientRequestID
 
 		cachedResults := make(map[string][]resultRow)
 
@@ -230,7 +231,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		tr := &trackedRequests[i]
 		key := resourceKey(tr.data)
 		if key == "" {
-			key = "unknown/" + tr.req.CorrelationID
+			key = "unknown/" + tr.req.ClientRequestID
 		}
 		if _, ok := resources[key]; !ok {
 			resources[key] = &resourceState{data: tr.data}
@@ -241,11 +242,11 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 	for _, key := range resourceOrder {
 		rs := resources[key]
-		// Use the first request's correlation ID as a fallback identifier
+		// Use the first request's client request ID as a fallback identifier
 		// when resource type/name are unknown (discovery failed).
 		var fallbackID string
 		if len(rs.requests) > 0 {
-			fallbackID = rs.requests[0].req.CorrelationID
+			fallbackID = rs.requests[0].req.ClientRequestID
 		}
 		resDir := resourceDir(outputDir, rs.data, fallbackID)
 
@@ -338,8 +339,8 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 		// Phase 4: Per-request trace queries + write request discovery output.
 		for _, tr := range rs.requests {
-			reqDir := filepath.Join(resDir, "requests", tr.req.CorrelationID)
-			reqSuite := key + "/" + tr.req.CorrelationID
+			reqDir := filepath.Join(resDir, "requests", tr.req.ClientRequestID)
+			reqSuite := key + "/" + tr.req.ClientRequestID
 
 			// Write request discovery output now that we know the resource directory.
 			reqDiscoveryDir := filepath.Join(reqDir, "discovery")
@@ -478,13 +479,14 @@ func mergeResourceData(dst *queryData, src queryData) {
 
 // frontendRequest represents a single ARM request discovered in frontend logs.
 type frontendRequest struct {
-	CorrelationID string
-	Method        string
-	Path          string
-	ResourceType  string
-	ResourceName  string
-	Status        int
-	Timestamp     time.Time
+	CorrelationID   string
+	ClientRequestID string
+	Method          string
+	Path            string
+	ResourceType    string
+	ResourceName    string
+	Status          int
+	Timestamp       time.Time
 }
 
 // discoverRequests queries frontend logs to find all ARM requests in the resource group
@@ -508,6 +510,8 @@ func (g *Gatherer) discoverRequests(ctx context.Context, input GatherInput, data
 			switch col {
 			case "correlation_id":
 				req.CorrelationID = val
+			case "client_request_id":
+				req.ClientRequestID = val
 			case "method":
 				req.Method = strings.ToUpper(val)
 			case "path":
@@ -858,11 +862,11 @@ func writeResourceSummary(dir string, data queryData, requests []trackedRequest,
 	if len(requests) == 0 {
 		buf.WriteString("No mutating requests were traced.\n")
 	} else {
-		buf.WriteString("| Correlation ID | Method | Path | Status | Timestamp |\n")
-		buf.WriteString("|----------------|--------|------|--------|----------|\n")
+		buf.WriteString("| Client Request ID | Correlation ID | Method | Path | Status | Timestamp |\n")
+		buf.WriteString("|-------------------|----------------|--------|------|--------|----------|\n")
 		for _, tr := range requests {
-			buf.WriteString(fmt.Sprintf("| `%s` | %s | `%s` | %d | %s |\n",
-				tr.req.CorrelationID, tr.req.Method, tr.req.Path, tr.req.Status, tr.req.Timestamp.Format(time.RFC3339)))
+			buf.WriteString(fmt.Sprintf("| `%s` | `%s` | %s | `%s` | %d | %s |\n",
+				tr.req.ClientRequestID, tr.req.CorrelationID, tr.req.Method, tr.req.Path, tr.req.Status, tr.req.Timestamp.Format(time.RFC3339)))
 		}
 	}
 
