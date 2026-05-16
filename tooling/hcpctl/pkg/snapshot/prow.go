@@ -59,11 +59,12 @@ type ProwJobConfig struct {
 	ServiceDatabase string
 }
 
-// FailedTest represents a single failed test with its metadata.
-type FailedTest struct {
+// TestResult represents a single test with its metadata.
+type TestResult struct {
 	Name          string
 	Output        string
 	Error         string
+	Failed        bool
 	StartTime     time.Time
 	EndTime       time.Time
 	ResourceGroup string // extracted from test output
@@ -128,20 +129,20 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 }
 
 // FetchProwJobData downloads config and test results from a Prow job's GCS artifacts.
-// Returns the Kusto config, all failed tests, and the full set of test results.
-func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, []FailedTest, extensiontests.ExtensionTestResults, error) {
+// Returns the Kusto config and all test results.
+func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, []TestResult, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create GCS client: %w", err)
+		return nil, nil, fmt.Errorf("failed to create GCS client: %w", err)
 	}
 	defer gcsClient.Close()
 
 	// Find the artifact directory.
 	artifactDir, err := findArtifactDir(ctx, gcsClient, info.JobName, info.GCSPrefix)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to find artifact directory: %w", err)
+		return nil, nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
 	logger.Info("Found artifact directory", "dir", artifactDir)
 
@@ -151,12 +152,12 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 	configGCSPath := fmt.Sprintf("%s/%s", artifactPrefix, configPath)
 	configData, err := downloadObject(ctx, gcsClient, configGCSPath)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
+		return nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
 	}
 
 	jobConfig, err := parseConfig(configData, info.IsPR)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to parse config.yaml: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse config.yaml: %w", err)
 	}
 	logger.Info("Parsed job config",
 		"region", jobConfig.Region,
@@ -173,10 +174,10 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 	testResultsPrefix := fmt.Sprintf("%s/%s/artifacts/extension_test_result_e2e_", artifactPrefix, testStep)
 	testResultFiles, err := listObjects(ctx, gcsClient, testResultsPrefix)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to list test result files: %w", err)
+		return nil, nil, fmt.Errorf("failed to list test result files: %w", err)
 	}
 	if len(testResultFiles) == 0 {
-		return nil, nil, nil, fmt.Errorf("no extension_test_result_e2e_*.json files found under %s", testResultsPrefix)
+		return nil, nil, fmt.Errorf("no extension_test_result_e2e_*.json files found under %s", testResultsPrefix)
 	}
 
 	var allResults extensiontests.ExtensionTestResults
@@ -194,29 +195,31 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 		allResults = append(allResults, results...)
 	}
 
-	// Extract failed tests.
-	var failed []FailedTest
+	// Convert all test results.
+	var tests []TestResult
+	numFailed := 0
 	for _, result := range allResults {
-		if result.Result != extensiontests.ResultFailed {
-			continue
-		}
-		ft := FailedTest{
+		tr := TestResult{
 			Name:   result.Name,
 			Output: result.Output,
 			Error:  result.Error,
+			Failed: result.Result == extensiontests.ResultFailed,
 		}
 		if result.StartTime != nil {
-			ft.StartTime = time.Time(*result.StartTime)
+			tr.StartTime = time.Time(*result.StartTime)
 		}
 		if result.EndTime != nil {
-			ft.EndTime = time.Time(*result.EndTime)
+			tr.EndTime = time.Time(*result.EndTime)
 		}
-		ft.ResourceGroup = ExtractResourceGroup(result.Output)
-		failed = append(failed, ft)
+		tr.ResourceGroup = ExtractResourceGroup(result.Output)
+		tests = append(tests, tr)
+		if tr.Failed {
+			numFailed++
+		}
 	}
 
-	logger.Info("Found test results", "total", len(allResults), "failed", len(failed))
-	return jobConfig, failed, allResults, nil
+	logger.Info("Found test results", "total", len(tests), "failed", numFailed)
+	return jobConfig, tests, nil
 }
 
 // resourceGroupRegex matches log lines like:

@@ -1,4 +1,5 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
 | where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
-| where log.aro_hcp_cluster_resource_id =~ '{{ .ResourceID }}'
+| where log.aro_hcp_cluster_resource_id =~ '{{ .ClusterResourceID }}'
+| where tostring(cid) != ''
 | distinct cid
