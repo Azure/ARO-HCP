@@ -170,6 +170,26 @@ images:
     targets:
     - jsonPath: defaults.secretSyncController.providerImage.digest
       filePath: ../../config/config.yaml
+  # Mgmt Agent image
+  mgmt-agent:
+    group: mgmt-agent
+    source:
+      image: arohcpsvcdev.azurecr.io/mgmt-agent
+      tagPattern: "^[a-f0-9]{7}$"
+      useAuth: true
+    targets:
+    - jsonPath: defaults.mgmtAgent.image.digest
+      filePath: ../../config/config.yaml
+  # Kube Applier image
+  kube-applier:
+    group: kube-applier
+    source:
+      image: arohcpsvcdev.azurecr.io/kube-applier
+      tagPattern: "^[a-f0-9]{7}$"
+      useAuth: true
+    targets:
+    - jsonPath: defaults.kubeApplier.image.digest
+      filePath: ../../config/config.yaml
   # Image Sync
   imageSync:
     group: aro-deps
