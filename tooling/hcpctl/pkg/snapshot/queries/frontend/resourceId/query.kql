@@ -2,6 +2,6 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendL
 | where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
 | where log.client_request_id == '{{ .ClientRequestID }}'
 | where log.msg == 'response complete'
-| project resource_id=tostring(log.resource_id)
+| project resource_id=tostring(log.resource_id), cluster_resource_id=tostring(log.hcp_cluster_name)
 | where resource_id != ''
-| distinct resource_id
+| distinct resource_id, cluster_resource_id

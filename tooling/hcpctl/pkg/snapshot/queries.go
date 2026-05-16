@@ -121,6 +121,7 @@ type queryData struct {
 	ResourceID                  string
 	ResourceType                string
 	ResourceName                string
+	ClusterResourceID           string
 	ClusterResourceName         string
 	ServiceProviderResourceType string
 	AsyncOperationId            string
@@ -184,14 +185,14 @@ var allQueries = []querySpec{
 			d.ResourceGroup = parsed.ResourceGroupName
 			d.ResourceType = parsed.ResourceType.String()
 			d.ResourceName = parsed.Name
-			// Walk up the resource ID to find the HCP cluster name.
-			for r := parsed; r != nil; r = r.Parent {
-				if strings.EqualFold(r.ResourceType.Type, "hcpopenshiftclusters") {
-					d.ClusterResourceName = r.Name
-					break
+			d.ServiceProviderResourceType = serviceProviderResourceType(d.ResourceType)
+			// Use the cluster resource ID from the frontend log to identify the parent cluster.
+			if len(rows[0].values) > 1 && rows[0].values[1] != "" {
+				d.ClusterResourceID = rows[0].values[1]
+				if clusterParsed, err := azcorearm.ParseResourceID(rows[0].values[1]); err == nil {
+					d.ClusterResourceName = clusterParsed.Name
 				}
 			}
-			d.ServiceProviderResourceType = serviceProviderResourceType(d.ResourceType)
 		},
 	},
 	{
@@ -266,9 +267,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryResourceDiscovery,
 		ready: func(d queryData) bool {
-			return d.ResourceID != ""
+			return d.ClusterResourceID != ""
 		},
-		prerequisites: "ResourceID",
+		prerequisites: "ClusterResourceID",
 		requiredWhen:  isClusterType,
 		storeResult: func(d *queryData, rows []resultRow) {
 			d.ClusterID = rows[0].values[0]
@@ -451,6 +452,23 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "ResourceGroup, ClusterResourceName, ResourceType is nodepool",
 		requiredWhen:  isNodePoolType,
+	},
+	{
+		component:    "clustersService",
+		queryName:    "logs",
+		templatePath: "queries/clustersService/logs/query.kql",
+		database:     "service",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			if d.ResourceID == "" {
+				return false
+			}
+			rt := strings.ToLower(d.ResourceType)
+			return rt == "microsoft.redhatopenshift/hcpopenshiftclusters" ||
+				rt == "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+		},
+		prerequisites: "ResourceID, ResourceType is cluster or nodepool",
+		requiredWhen:  isClusterOrNodePool,
 	},
 	{
 		component:    "maestro",

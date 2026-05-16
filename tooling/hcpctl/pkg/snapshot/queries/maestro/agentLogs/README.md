@@ -10,4 +10,4 @@ For bundle identifiers that look anomalous in the `transitions` query, filter do
 
 ## Where to Go Next
 
-Check the maestro `events` query to see if the agent pods were experiencing any issues.
+Check `events/maestro` to see if the agent pods were experiencing any issues.

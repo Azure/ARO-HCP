@@ -10,4 +10,4 @@ An ARM resource ID for the operation state as stored in the backend.
 
 ## Where to Go Next
 
-Check the aync operation state to see what the client would see during polling.
+Check `state/backend/asyncOperationState` in the request directory to see what the client would see during polling.

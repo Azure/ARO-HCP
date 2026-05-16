@@ -10,4 +10,4 @@ A client - even one that failed to see what they were expecting - should have a 
 
 ## Where to Go Next
 
-Check the asynchronous operation resource state in the backend to see what the client saw, and the related backend resource state for the next layer in the stack.
+Check `state/backend/asyncOperationState` in the request directory to see what the client saw, and `state/backend/resourceState` in the resource directory for the next layer in the stack.

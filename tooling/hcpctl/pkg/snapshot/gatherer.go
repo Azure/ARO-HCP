@@ -434,6 +434,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			Name:                        rs.data.ResourceName,
 			Dir:                         relDir,
 			ResourceID:                  rs.data.ResourceID,
+			ClusterResourceID:           rs.data.ClusterResourceID,
 			ClusterResourceName:         rs.data.ClusterResourceName,
 			InternalID:                  rs.data.InternalID,
 			ClusterID:                   rs.data.ClusterID,
@@ -777,6 +778,15 @@ func extractRowValues(row azkquery.Row) []string {
 	return strs
 }
 
+// escapeMarkdownCell escapes a value for use inside a GitHub-flavored markdown table cell.
+func escapeMarkdownCell(s string) string {
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\r\n", "<br>")
+	s = strings.ReplaceAll(s, "\n", "<br>")
+	s = strings.ReplaceAll(s, "\r", "<br>")
+	return s
+}
+
 // renderMarkdownTable produces a GitHub-flavored markdown table from result rows.
 func renderMarkdownTable(rows []resultRow) string {
 	if len(rows) == 0 {
@@ -804,7 +814,7 @@ func renderMarkdownTable(rows []resultRow) string {
 		for i := range cols {
 			buf.WriteString(" ")
 			if i < len(row.values) {
-				buf.WriteString(strings.ReplaceAll(row.values[i], "|", "\\|"))
+				buf.WriteString(escapeMarkdownCell(row.values[i]))
 			}
 			buf.WriteString(" |")
 		}
@@ -842,6 +852,7 @@ func writeResourceSummary(dir string, data queryData, requests []trackedRequest,
 		{"Resource Type", data.ResourceType},
 		{"Resource Group", data.ResourceGroup},
 		{"Resource Name", data.ResourceName},
+		{"Cluster Resource ID", data.ClusterResourceID},
 		{"Cluster Resource Name", data.ClusterResourceName},
 		{"Service Provider Resource Type", data.ServiceProviderResourceType},
 		{"Internal ID", data.InternalID},

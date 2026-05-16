@@ -70,6 +70,9 @@ type ResourceEntry struct {
 	// ResourceID is the full ARM resource ID.
 	ResourceID string `json:"resource_id,omitempty"`
 
+	// ClusterResourceID is the full ARM resource ID of the parent HCP cluster.
+	ClusterResourceID string `json:"cluster_resource_id,omitempty"`
+
 	// ClusterResourceName is the HCP cluster name (the parent cluster for child resources).
 	ClusterResourceName string `json:"cluster_resource_name,omitempty"`
 

@@ -28,5 +28,5 @@ Node pools do something similar, without an uninstalling phase:
 ## Where to Go Next
 
 If the cluster or node pool:
-- never reaches the 'installing' phase, review Clusters Service logs for failed Azure infrastructure provisioning or Maestro interactions.
-- reaches the 'installing' but never reaches the 'ready' phase, review the HyperShift `HostedCluster` or `NodePool` conditions for the next layer of the stack
+- never reaches the 'installing' phase, review the `logs/clustersService/logs` query output for failed Azure infrastructure provisioning or Maestro interactions.
+- reaches the 'installing' but never reaches the 'ready' phase, review `conditions/hypershift/hostedClusterConditions` or `conditions/hypershift/nodePoolConditions` for the next layer of the stack

@@ -10,4 +10,4 @@ Each row is a distinct record of the object, refine the query to pick out specif
 
 ## Where to Go Next
 
-Check the backend controller conditions for the object this operation was mutating to go to the next layer of the stack.
+Check `conditions/backend/resourceControllerConditions` for the object this operation was mutating to go to the next layer of the stack.
