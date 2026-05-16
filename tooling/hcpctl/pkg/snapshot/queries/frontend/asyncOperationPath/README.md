@@ -10,4 +10,4 @@ An ARM resource ID for the operation that a client will poll for updates.
 
 ## Where to Go Next
 
-Check `logs/frontend/asyncOperationRequests` in the request directory to review client behavior.
+Check `logs/frontend/asyncOperationRequests.md` in the request directory to review client behavior.

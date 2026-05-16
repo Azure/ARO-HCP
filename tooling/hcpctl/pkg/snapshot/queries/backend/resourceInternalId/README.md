@@ -10,4 +10,4 @@ A URI referring to the Clusters Service API related to this document.
 
 ## Where to Go Next
 
-If this does not exist, check `conditions/backend/resourceControllerConditions` to see why a Clusters Service document was not created.
+If this does not exist, check `conditions/backend/resourceControllerConditions.md` to see why a Clusters Service document was not created.

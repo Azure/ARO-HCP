@@ -29,4 +29,4 @@ Roughly speaking, bundles should have:
 
 ## Where to Go Next
 
-Determine the bundle ID experiencing layer transition issues using `discovery/clustersService/maestroBundleAssociations` and `discovery/backend/maestroBundleAssociations`, then review `logs/maestro/serverLogs` and `logs/maestro/agentLogs` for that bundle specifically.
+Determine the bundle ID experiencing layer transition issues using `discovery/clustersService/maestroBundleAssociations.md` and `discovery/backend/maestroBundleAssociations.md`, then review `logs/maestro/serverLogs.md` and `logs/maestro/agentLogs.md` for that bundle specifically.

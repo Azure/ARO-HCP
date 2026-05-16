@@ -10,5 +10,5 @@ Each row is a distinct record of the object, refine the query to pick out specif
 
 ## Where to Go Next
 
-For clusters, review `conditions/backend/resourceControllerConditions` or `conditions/hypershift/hostedClusterConditions` to go to the next layer of the stack.
-For node pools, review `conditions/backend/resourceControllerConditions` or `conditions/hypershift/nodePoolConditions` to go to the next layer of the stack.
+For clusters, review `conditions/backend/resourceControllerConditions.md` or `conditions/hypershift/hostedClusterConditions.md` to go to the next layer of the stack.
+For node pools, review `conditions/backend/resourceControllerConditions.md` or `conditions/hypershift/nodePoolConditions.md` to go to the next layer of the stack.

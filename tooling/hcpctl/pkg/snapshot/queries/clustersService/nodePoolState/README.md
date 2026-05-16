@@ -10,4 +10,4 @@ Each row is a distinct record of the object, refine the query to pick out specif
 
 ## Where to Go Next
 
-Review `conditions/hypershift/nodePoolConditions` to go to the next layer of the stack.
+Review `conditions/hypershift/nodePoolConditions.md` to go to the next layer of the stack.

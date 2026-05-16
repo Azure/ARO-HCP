@@ -87,19 +87,45 @@ type ResourceEntry struct {
 
 	// HostedControlPlaneNamespace is the management cluster namespace for the hosted control plane.
 	HostedControlPlaneNamespace string `json:"hosted_control_plane_namespace,omitempty"`
+
+	// Requests lists the ARM requests traced for this resource.
+	Requests []RequestInfo `json:"requests,omitempty"`
+}
+
+// RequestInfo describes a single ARM request traced during diagnostic gathering.
+type RequestInfo struct {
+	// ClientRequestID is the unique client request identifier.
+	ClientRequestID string `json:"client_request_id"`
+
+	// CorrelationID is the correlation identifier grouping related requests.
+	CorrelationID string `json:"correlation_id"`
+
+	// Method is the HTTP method (GET, PUT, DELETE, etc.).
+	Method string `json:"method"`
+
+	// Path is the ARM resource path.
+	Path string `json:"path"`
+
+	// Status is the HTTP response status code.
+	Status int `json:"status"`
+
+	// Timestamp is when the request was received.
+	Timestamp time.Time `json:"timestamp"`
+
+	// Dir is the path to this request's output directory, relative to the snapshot root.
+	Dir string `json:"dir"`
 }
 
 // directoryLayout returns the static directory layout descriptions.
 func directoryLayout() map[string]string {
 	return map[string]string{
-		"frontendRequests": "frontendRequests/ — all ARM requests in the resource group during the time window",
+		"frontendRequests": "frontend/frontendRequests.md — all ARM requests in the resource group during the time window; start your analysis here",
 		"events":           "events/ — Kubernetes events for each component during the time window",
 		"discovery":        "resources/<type>/<name>/discovery/ — intermediate query results used to derive IDs, cluster associations, etc.",
 		"state":            "resources/<type>/<name>/state/ — time-windowed raw resource state dumps (ARM state, CS state, Maestro logs, etc.)",
 		"conditions":       "resources/<type>/<name>/conditions/ — status condition transition summaries (HyperShift conditions, controller conditions)",
 		"logs":             "resources/<type>/<name>/logs/ — filtered or aggregated container and audit logs (operator logs, Maestro server/agent logs)",
-		"requests":         "resources/<type>/<name>/requests/<client_request_id>/ — per-request trace data with discovery/, state/, and logs/ subdirectories",
-		"summary":          "resources/<type>/<name>/SUMMARY.md — per-resource summary of discovered facts, requests, and skipped queries",
+		"requests":         "resources/<type>/<name>/requests/<METHOD>-<client_request_id>/ — per-request trace data with discovery/, state/, and logs/ subdirectories",
 	}
 }
 

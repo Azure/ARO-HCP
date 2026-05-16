@@ -20,4 +20,4 @@ An overview of the Maestro bundles created, with the resource GVK and identifier
 
 ## Where to Go Next
 
-If this query returns no values, review `logs/clustersService/logs` to see what went wrong.
+If this query returns no values, review `logs/clustersService/logs.md` to see what went wrong.

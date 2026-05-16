@@ -15,4 +15,4 @@ A list of resources with the bundles that contain them:
 
 ## Where to Go Next
 
-If no resources are present, check `conditions/backend/resourceControllerConditions` for Maestro-related controller conditions.
+If no resources are present, check `conditions/backend/resourceControllerConditions.md` for Maestro-related controller conditions.

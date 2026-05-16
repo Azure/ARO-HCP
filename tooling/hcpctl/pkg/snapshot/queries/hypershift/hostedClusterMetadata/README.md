@@ -15,4 +15,4 @@ resolve.
 
 ## Where to Go Next
 
-If this query is empty, check `state/maestro/transitions` for the backend read-only bundles.
+If this query is empty, check `state/maestro/transitions.md` for the backend read-only bundles.

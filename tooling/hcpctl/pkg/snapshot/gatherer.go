@@ -258,11 +258,9 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 		// Run resource discovery queries.
 		discoveryDir := filepath.Join(resDir, "discovery")
-		var skipped []skippedQuery
 		for _, q := range queriesByCategory(categoryResourceDiscovery) {
 			if q.ready != nil && !q.ready(rs.data) {
 				logger.Info("Skipping resource discovery query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				skipped = append(skipped, skippedQuery{key: q.key(), prerequisites: q.prerequisites})
 				recordVerification(report, key, q, rs.data, 0, true)
 				continue
 			}
@@ -285,7 +283,6 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		for _, q := range queriesByCategory(categoryState) {
 			if q.ready != nil && !q.ready(rs.data) {
 				logger.Info("Skipping state query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				skipped = append(skipped, skippedQuery{key: q.key(), prerequisites: q.prerequisites})
 				recordVerification(report, key, q, rs.data, 0, true)
 				continue
 			}
@@ -308,7 +305,6 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		for _, q := range queriesByCategory(categoryConditions) {
 			if q.ready != nil && !q.ready(rs.data) {
 				logger.Info("Skipping conditions query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				skipped = append(skipped, skippedQuery{key: q.key(), prerequisites: q.prerequisites})
 				recordVerification(report, key, q, rs.data, 0, true)
 				continue
 			}
@@ -331,7 +327,6 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		for _, q := range queriesByCategory(categoryLogs) {
 			if q.ready != nil && !q.ready(rs.data) {
 				logger.Info("Skipping logs query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				skipped = append(skipped, skippedQuery{key: q.key(), prerequisites: q.prerequisites})
 				recordVerification(report, key, q, rs.data, 0, true)
 				continue
 			}
@@ -351,8 +346,8 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 		// Phase 4: Per-request trace queries + write request discovery output.
 		for _, tr := range rs.requests {
-			reqDir := filepath.Join(resDir, "requests", tr.req.ClientRequestID)
-			reqSuite := key + "/" + tr.req.ClientRequestID
+			reqDir := filepath.Join(resDir, "requests", tr.req.Method+"-"+tr.req.ClientRequestID)
+			reqSuite := key + "/" + tr.req.Method + "-" + tr.req.ClientRequestID
 
 			// Write request discovery output now that we know the resource directory.
 			reqDiscoveryDir := filepath.Join(reqDir, "discovery")
@@ -427,17 +422,11 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		for _, q := range queriesByCategory(categoryEvents) {
 			if q.ready != nil && !q.ready(rs.data) {
 				logger.Info("Skipping events query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				skipped = append(skipped, skippedQuery{key: q.key(), prerequisites: q.prerequisites})
 				continue
 			}
 			if _, err := g.executeQuery(ctx, q, &rs.data, eventsDir, input); err != nil {
 				logger.Error(err, "Events query failed, continuing", "query", q.key())
 			}
-		}
-
-		// Write per-resource SUMMARY.md.
-		if err := writeResourceSummary(resDir, rs.data, rs.requests, skipped); err != nil {
-			logger.Error(err, "Failed to write resource summary")
 		}
 
 		// Record in manifest — skip resources where we never discovered a type.
@@ -446,6 +435,19 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			continue
 		}
 		relDir, _ := filepath.Rel(outputDir, resDir)
+		var requestInfos []RequestInfo
+		for _, tr := range rs.requests {
+			reqRelDir := filepath.Join(relDir, "requests", tr.req.Method+"-"+tr.req.ClientRequestID)
+			requestInfos = append(requestInfos, RequestInfo{
+				ClientRequestID: tr.req.ClientRequestID,
+				CorrelationID:   tr.req.CorrelationID,
+				Method:          tr.req.Method,
+				Path:            tr.req.Path,
+				Status:          tr.req.Status,
+				Timestamp:       tr.req.Timestamp,
+				Dir:             reqRelDir,
+			})
+		}
 		manifest.Resources = append(manifest.Resources, ResourceEntry{
 			Type:                        rs.data.ResourceType,
 			Name:                        rs.data.ResourceName,
@@ -457,6 +459,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			ClusterID:                   rs.data.ClusterID,
 			HostedClusterNamespace:      rs.data.HostedClusterNamespace,
 			HostedControlPlaneNamespace: rs.data.HostedControlPlaneNamespace,
+			Requests:                    requestInfos,
 		})
 	}
 
@@ -592,30 +595,52 @@ type resultRow struct {
 	values  []string
 }
 
-// executeQuery renders and executes a single query spec, writes output files,
-// and returns the result rows for downstream dependency resolution.
+// readQueryReadme reads the embedded README.md for a query spec and returns its
+// content as a string. Returns an empty string if no README exists.
+func readQueryReadme(q querySpec) string {
+	readmePath := filepath.Join("queries", q.component, q.queryName, "README.md")
+	data, err := queriesFS.ReadFile(readmePath)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// composeOutput builds a single markdown document combining the README content,
+// the rendered KQL query, and the results table.
+func composeOutput(readme string, rendered string, rows []resultRow) string {
+	var buf bytes.Buffer
+	if readme != "" {
+		buf.WriteString(readme)
+		if !strings.HasSuffix(readme, "\n") {
+			buf.WriteString("\n")
+		}
+		buf.WriteString("\n")
+	}
+	buf.WriteString("## Query\n\n```kql\n")
+	buf.WriteString(rendered)
+	if !strings.HasSuffix(rendered, "\n") {
+		buf.WriteString("\n")
+	}
+	buf.WriteString("```\n\n")
+	buf.WriteString("## Results\n\n")
+	if len(rows) > 0 {
+		buf.WriteString(renderMarkdownTable(rows))
+	} else {
+		buf.WriteString("No results returned.\n")
+	}
+	return buf.String()
+}
+
+// executeQuery renders and executes a single query spec, writes a combined
+// output file (<queryName>.md), and returns the result rows for downstream
+// dependency resolution.
 func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryData, baseDir string, input GatherInput) ([]resultRow, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	rendered, err := renderQuery(q.templatePath, *data)
 	if err != nil {
 		return nil, fmt.Errorf("query %s: %w", q.key(), err)
-	}
-
-	outDir := filepath.Join(baseDir, q.component, q.queryName)
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Write the rendered query for reproducibility.
-	queryFile := filepath.Join(outDir, "query.kql")
-	if err := os.WriteFile(queryFile, []byte(rendered), 0o644); err != nil {
-		return nil, fmt.Errorf("failed to write query file: %w", err)
-	}
-
-	// Copy the README if one exists for this query.
-	if err := copyQueryReadme(q, outDir); err != nil {
-		return nil, err
 	}
 
 	db := input.ServiceDatabase
@@ -628,13 +653,20 @@ func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryDat
 		return nil, fmt.Errorf("query %s failed: %w", q.key(), err)
 	}
 
-	// Write markdown output.
+	// Write combined output file: README + query + results.
+	outDir := filepath.Join(baseDir, q.component)
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	readme := readQueryReadme(q)
+	md := composeOutput(readme, rendered, rows)
+	mdFile := filepath.Join(outDir, q.queryName+".md")
+	if err := os.WriteFile(mdFile, []byte(md), 0o644); err != nil {
+		return nil, fmt.Errorf("failed to write output: %w", err)
+	}
+
 	if len(rows) > 0 {
-		md := renderMarkdownTable(rows)
-		mdFile := filepath.Join(outDir, "output.md")
-		if err := os.WriteFile(mdFile, []byte(md), 0o644); err != nil {
-			return nil, fmt.Errorf("failed to write markdown: %w", err)
-		}
 		logger.Info("Wrote query output", "query", q.key(), "rows", len(rows), "file", mdFile)
 	} else {
 		logger.Info("Query returned no results", "query", q.key())
@@ -673,8 +705,8 @@ func (g *Gatherer) executeQueryToDir(ctx context.Context, q querySpec, data *que
 	return rows, nil
 }
 
-// writeQueryOutput renders a query template and writes the query.kql and output.md
-// files using previously cached results, avoiding re-execution against Kusto.
+// writeQueryOutput renders a query template and writes a combined output file
+// using previously cached results, avoiding re-execution against Kusto.
 // Used to write request discovery output after the resource directory is known.
 func writeQueryOutput(q querySpec, data queryData, baseDir string, cachedRows []resultRow) error {
 	rendered, err := renderQuery(q.templatePath, data)
@@ -682,44 +714,18 @@ func writeQueryOutput(q querySpec, data queryData, baseDir string, cachedRows []
 		return fmt.Errorf("query %s: %w", q.key(), err)
 	}
 
-	outDir := filepath.Join(baseDir, q.component, q.queryName)
+	outDir := filepath.Join(baseDir, q.component)
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	queryFile := filepath.Join(outDir, "query.kql")
-	if err := os.WriteFile(queryFile, []byte(rendered), 0o644); err != nil {
-		return fmt.Errorf("failed to write query file: %w", err)
+	readme := readQueryReadme(q)
+	md := composeOutput(readme, rendered, cachedRows)
+	mdFile := filepath.Join(outDir, q.queryName+".md")
+	if err := os.WriteFile(mdFile, []byte(md), 0o644); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
 	}
 
-	// Copy the README if one exists for this query.
-	if err := copyQueryReadme(q, outDir); err != nil {
-		return err
-	}
-
-	if len(cachedRows) > 0 {
-		md := renderMarkdownTable(cachedRows)
-		mdFile := filepath.Join(outDir, "output.md")
-		if err := os.WriteFile(mdFile, []byte(md), 0o644); err != nil {
-			return fmt.Errorf("failed to write markdown: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// copyQueryReadme copies the embedded README.md for a query spec into the output directory, if one exists.
-func copyQueryReadme(q querySpec, outDir string) error {
-	readmePath := filepath.Join("queries", q.component, q.queryName, "README.md")
-	readmeData, err := queriesFS.ReadFile(readmePath)
-	if err != nil {
-		// No README for this query, that's fine.
-		return nil
-	}
-	readmeFile := filepath.Join(outDir, "README.md")
-	if err := os.WriteFile(readmeFile, readmeData, 0o644); err != nil {
-		return fmt.Errorf("failed to write README: %w", err)
-	}
 	return nil
 }
 
@@ -873,74 +879,6 @@ func renderMarkdownTable(rows []resultRow) string {
 	}
 
 	return buf.String()
-}
-
-// skippedQuery records a query that was not executed.
-type skippedQuery struct {
-	key           string
-	prerequisites string
-}
-
-// writeResourceSummary generates a SUMMARY.md for a resource directory, including
-// discovered facts, the list of requests, and any skipped queries.
-func writeResourceSummary(dir string, data queryData, requests []trackedRequest, skipped []skippedQuery) error {
-	var buf bytes.Buffer
-	buf.WriteString("# Resource Summary\n\n")
-
-	buf.WriteString("## Discovered Facts\n\n")
-	buf.WriteString("| Fact | Value |\n")
-	buf.WriteString("|------|-------|\n")
-
-	buf.WriteString(fmt.Sprintf("| Start Time | `%s` |\n", data.StartTime.Format(time.RFC3339)))
-	buf.WriteString(fmt.Sprintf("| End Time | `%s` |\n", data.EndTime.Format(time.RFC3339)))
-
-	type fact struct {
-		label string
-		value string
-	}
-	facts := []fact{
-		{"Resource ID", data.ResourceID},
-		{"Resource Type", data.ResourceType},
-		{"Resource Group", data.ResourceGroup},
-		{"Resource Name", data.ResourceName},
-		{"Cluster Resource ID", data.ClusterResourceID},
-		{"Cluster Resource Name", data.ClusterResourceName},
-		{"Service Provider Resource Type", data.ServiceProviderResourceType},
-		{"Internal ID", data.InternalID},
-		{"Cluster ID", data.ClusterID},
-		{"Hosted Cluster Namespace", data.HostedClusterNamespace},
-		{"Hosted Control Plane Namespace", data.HostedControlPlaneNamespace},
-	}
-	for _, f := range facts {
-		if f.value != "" {
-			buf.WriteString(fmt.Sprintf("| %s | `%s` |\n", f.label, f.value))
-		}
-	}
-
-	buf.WriteString("\n## Requests\n\n")
-	if len(requests) == 0 {
-		buf.WriteString("No mutating requests were traced.\n")
-	} else {
-		buf.WriteString("| Client Request ID | Correlation ID | Method | Path | Status | Timestamp |\n")
-		buf.WriteString("|-------------------|----------------|--------|------|--------|----------|\n")
-		for _, tr := range requests {
-			buf.WriteString(fmt.Sprintf("| `%s` | `%s` | %s | `%s` | %d | %s |\n",
-				tr.req.ClientRequestID, tr.req.CorrelationID, tr.req.Method, tr.req.Path, tr.req.Status, tr.req.Timestamp.Format(time.RFC3339)))
-		}
-	}
-
-	buf.WriteString("\n## Skipped Queries\n\n")
-	if len(skipped) == 0 {
-		buf.WriteString("All queries were executed.\n")
-	} else {
-		buf.WriteString("| Query | Missing Prerequisites |\n")
-		buf.WriteString("|-------|-----------------------|\n")
-		for _, s := range skipped {
-			buf.WriteString(fmt.Sprintf("| %s | %s |\n", s.key, s.prerequisites))
-		}
-	}
-
-	return os.WriteFile(filepath.Join(dir, "SUMMARY.md"), buf.Bytes(), 0o644)
 }
 
 // sanitizePath replaces characters that are problematic in file paths.

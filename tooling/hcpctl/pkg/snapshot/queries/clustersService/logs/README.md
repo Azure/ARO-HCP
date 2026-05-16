@@ -10,4 +10,4 @@ Generally verbose logs, but may exhibit repeated errors when Azure infrastructur
 
 ## Where to Go Next
 
-Review `events/clustersService/events` to confirm that Clusters Service is functioning properly.
+Review `events/clustersService/events.md` to confirm that Clusters Service is functioning properly.

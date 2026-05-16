@@ -34,38 +34,38 @@ type queryCategory string
 
 const (
 	// categoryContext queries are time-windowed and resource-group-scoped. They run once
-	// per snapshot and are written to context/<component>/<queryName>/.
+	// per snapshot and are written to context/<component>/<queryName>.md.
 	categoryContext queryCategory = "context"
 
 	// categoryRequestDiscovery queries depend on a specific correlation ID. They run
-	// per-request and are written to resources/<type>/<name>/requests/<correlationID>/discovery/<component>/<queryName>/.
+	// per-request and are written to resources/<type>/<name>/requests/<METHOD>-<client_request_id>/discovery/<component>/<queryName>.md.
 	categoryRequestDiscovery queryCategory = "requestDiscovery"
 
 	// categoryResourceDiscovery queries depend on data discovered per-request but produce
 	// results that are stable per-resource. They run once per unique resource and are
-	// written to resources/<type>/<name>/discovery/<component>/<queryName>/.
+	// written to resources/<type>/<name>/discovery/<component>/<queryName>.md.
 	categoryResourceDiscovery queryCategory = "resourceDiscovery"
 
 	// categoryState queries are time-windowed and resource-scoped. They run once per
-	// unique resource and are written to resources/<type>/<name>/state/<component>/<queryName>/.
+	// unique resource and are written to resources/<type>/<name>/state/<component>/<queryName>.md.
 	categoryState queryCategory = "state"
 
 	// categoryConditions queries extract status condition summaries. They run once per
-	// unique resource and are written to resources/<type>/<name>/conditions/<component>/<queryName>/.
+	// unique resource and are written to resources/<type>/<name>/conditions/<component>/<queryName>.md.
 	categoryConditions queryCategory = "conditions"
 
 	// categoryLogs queries extract filtered or aggregated container/audit logs. They run once per
-	// unique resource and are written to resources/<type>/<name>/logs/<component>/<queryName>/.
+	// unique resource and are written to resources/<type>/<name>/logs/<component>/<queryName>.md.
 	categoryLogs queryCategory = "logs"
 
 	// categoryTraceState queries are per-request and produce state dumps specific to a request
 	// (e.g. async operation state). They are written to
-	// resources/<type>/<name>/requests/<correlationID>/state/<component>/<queryName>/.
+	// resources/<type>/<name>/requests/<METHOD>-<client_request_id>/state/<component>/<queryName>.md.
 	categoryTraceState queryCategory = "traceState"
 
 	// categoryTraceLogs queries are per-request and produce log output specific to a request
 	// (e.g. async operation polling history). They are written to
-	// resources/<type>/<name>/requests/<correlationID>/logs/<component>/<queryName>/.
+	// resources/<type>/<name>/requests/<METHOD>-<client_request_id>/logs/<component>/<queryName>.md.
 	categoryTraceLogs queryCategory = "traceLogs"
 
 	// categoryEvents queries produce event logs scoped to a component. They run once
@@ -77,7 +77,7 @@ const (
 type querySpec struct {
 	// component is the top-level directory name (e.g. "frontend").
 	component string
-	// queryName is the sub-directory name (e.g. "asyncOperationId").
+	// queryName is the output file name stem (e.g. "asyncOperationId" produces "asyncOperationId.md").
 	queryName string
 	// templatePath is the path within the embedded FS.
 	templatePath string
@@ -629,7 +629,7 @@ var allQueries = []querySpec{
 // These are written directly to the top-level output directory.
 var contextQueries = []querySpec{
 	{
-		component:    "",
+		component:    "frontend",
 		queryName:    "frontendRequests",
 		templatePath: "queries/frontend/frontendRequests/query.kql",
 		database:     "service",
