@@ -351,6 +351,7 @@ global:
   billing:
     digest: placeholder
     rg: placeholder
+    subscriptionKey: hcp-billng-ci01
   globalMSIName: global-rollout-identity
   groupQuota:
     displayName: empty-sentinel
