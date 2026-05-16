@@ -541,11 +541,11 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  # TODO: Remove this step once all management clusters have been cleaned up (ARO-23308)
+  # TODO: Remove this PKO cleanup step once all management clusters have been cleaned up (ARO-23308)
   - name: cleanup-pko
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
-    command: ./scripts/cleanup-pko.sh
+    command: go run ./scripts/cleanup-pko-resources || echo "[WARNING] cleanup-pko exited non-zero, continuing (best-effort)"
     workingDir: .
     shellIdentity:
       input:
