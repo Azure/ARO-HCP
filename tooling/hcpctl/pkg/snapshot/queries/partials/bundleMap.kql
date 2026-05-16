@@ -25,6 +25,7 @@ let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabas
 | where log.resource_group == '{{ .ResourceGroup }}'
 | where log.resource_name == '{{ .ClusterResourceName }}'
 | where log.content.resourceType =~ '{{ .ServiceProviderResourceType }}'
+| where log.content.resourceID has '{{ .ResourceName }}'
 | summarize content = take_any(log.content) by etag = tostring(log.content._etag)
 | mv-expand readOnlyBundle = content.properties.status.maestroReadonlyBundles
 | where tostring(readOnlyBundle) != ''
