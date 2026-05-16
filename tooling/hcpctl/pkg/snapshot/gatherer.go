@@ -17,7 +17,10 @@ package snapshot
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -720,6 +723,51 @@ func copyQueryReadme(q querySpec, outDir string) error {
 // executeKQL runs a KQL query string against the given database and returns
 // the result rows with column names and string values.
 func (g *Gatherer) executeKQL(ctx context.Context, kqlStr, database string, timeout time.Duration) ([]resultRow, error) {
+	const maxAttempts = 3
+	logger := logr.FromContextOrDiscard(ctx)
+	var lastErr error
+	for attempt := range maxAttempts {
+		if attempt > 0 {
+			backoff := time.Duration(1<<(attempt-1)) * time.Second
+			logger.Info("Retrying query after transient error", "attempt", attempt+1, "backoff", backoff, "error", lastErr)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+		rows, err := g.executeKQLOnce(ctx, kqlStr, database, timeout)
+		if err == nil {
+			return rows, nil
+		}
+		if !isRetryableError(err) {
+			return nil, err
+		}
+		lastErr = err
+	}
+	return nil, lastErr
+}
+
+// isRetryableError returns true for transient network errors that warrant a retry.
+func isRetryableError(err error) bool {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	// Some wrapped errors lose the net.Error type; check the message as a fallback.
+	msg := err.Error()
+	for _, substr := range []string{"connection reset", "TLS handshake", "broken pipe"} {
+		if strings.Contains(msg, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *Gatherer) executeKQLOnce(ctx context.Context, kqlStr, database string, timeout time.Duration) ([]resultRow, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
