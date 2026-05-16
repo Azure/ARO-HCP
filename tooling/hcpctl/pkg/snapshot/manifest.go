@@ -87,12 +87,6 @@ type ResourceEntry struct {
 
 	// HostedControlPlaneNamespace is the management cluster namespace for the hosted control plane.
 	HostedControlPlaneNamespace string `json:"hosted_control_plane_namespace,omitempty"`
-
-	// BundleIDs lists the Maestro bundle IDs associated with this cluster.
-	BundleIDs []string `json:"bundle_ids,omitempty"`
-
-	// ManifestWorkNames lists the ManifestWork namespace/name pairs for this cluster.
-	ManifestWorkNames []string `json:"manifest_work_names,omitempty"`
 }
 
 // directoryLayout returns the static directory layout descriptions.

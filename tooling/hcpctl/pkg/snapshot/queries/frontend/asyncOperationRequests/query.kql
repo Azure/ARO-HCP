@@ -6,5 +6,5 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendL
     first_occurrence = min(timestamp),
     last_occurrence = max(timestamp),
     occurrences = count()
-  by method=tostring(log.method), response_status_code=tostring(log.response_status_code), msg=tostring(log.msg), error=tostring(log.error)
+  by method=tostring(log.method), response_status_code=tostring(log.response_status_code), error=tostring(log.error)
 | order by first_occurrence asc

@@ -10,7 +10,7 @@ Mutating calls for resources covered by Maestro bundles should result from agent
 
 ## Where to Go Next
 
-If we expected to see mutating calls on an object but didn't, it depend on which object:
+If we expected to see mutating calls on an object but didn't, it depends on which object:
 
 - `HostedCluster` or contents in the Hosted Cluster namespace: review the HyperShift `HostedCluster` conditions and controller logs
 - `*PodNetwork*`: the class of network-related CRDs are owned by Azure networking and SWIFT, review the events for these objects and otherwise raise an IcM to get logs from the Azure team

@@ -6,8 +6,8 @@ Aggregates all Clusters Service log messages for the resource by unique message,
 
 ## What to Look For
 
-<!-- TODO: describe expected output and what anomalies to watch for -->
+Generally verbose logs, but may exhibit repeated errors when Azure infrastructure issues occur or Maestro connection problems exist.
 
 ## Where to Go Next
 
-<!-- TODO: describe follow-up queries or investigation steps -->
+Review `events/clustersService/events` to confirm that Clusters Service is functioning properly.

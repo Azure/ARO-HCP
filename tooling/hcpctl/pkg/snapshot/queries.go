@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"io/fs"
 	"strings"
 	"text/template"
 	"time"
@@ -94,8 +95,10 @@ type querySpec struct {
 	// empty results are always acceptable (it will not appear in verification output).
 	requiredWhen func(queryData) bool
 	// storeResult is called with the full result rows from the query.
-	// It stores discovered values for downstream queries.
-	storeResult func(*queryData, []resultRow)
+	// It stores discovered values for downstream queries. If the results
+	// are ambiguous (e.g. multiple distinct values for a single-valued field),
+	// storeResult should return an error.
+	storeResult func(*queryData, []resultRow) error
 }
 
 // key returns the "component/queryName" identifier for this query.
@@ -128,9 +131,6 @@ type queryData struct {
 	AsyncOperationPath          string
 	InternalID                  string
 	ClusterID                   string
-	BundleIDs                   []string
-	BundleNames                 []string
-	ManifestWorkNames           []string
 	HostedClusterNamespace      string
 	HostedControlPlaneNamespace string
 }
@@ -171,16 +171,41 @@ var allQueries = []querySpec{
 	// --- Request discovery: per client request ID ---
 	{
 		component:    "frontend",
+		queryName:    "clientRequestId",
+		templatePath: "queries/frontend/clientRequestId/query.kql",
+		database:     "service",
+		category:     categoryRequestDiscovery,
+		ready: func(d queryData) bool {
+			return d.CorrelationID != "" && d.ClientRequestID == ""
+		},
+		prerequisites: "CorrelationID (and ClientRequestID not already set)",
+		storeResult: func(d *queryData, rows []resultRow) error {
+			if len(rows) > 1 {
+				return fmt.Errorf("query returned %d distinct client request IDs for correlation_request_id, expected 1", len(rows))
+			}
+			d.ClientRequestID = rows[0].values[0]
+			return nil
+		},
+	},
+	{
+		component:    "frontend",
 		queryName:    "resourceId",
 		templatePath: "queries/frontend/resourceId/query.kql",
 		database:     "service",
 		category:     categoryRequestDiscovery,
-		requiredWhen: func(d queryData) bool { return d.ClientRequestID != "" },
-		storeResult: func(d *queryData, rows []resultRow) {
+		ready: func(d queryData) bool {
+			return d.ClientRequestID != ""
+		},
+		prerequisites: "ClientRequestID",
+		requiredWhen:  func(d queryData) bool { return d.ClientRequestID != "" || d.CorrelationID != "" },
+		storeResult: func(d *queryData, rows []resultRow) error {
+			if len(rows) > 1 {
+				return fmt.Errorf("query returned %d distinct resource IDs for client_request_id, expected 1", len(rows))
+			}
 			d.ResourceID = rows[0].values[0]
 			parsed, err := azcorearm.ParseResourceID(rows[0].values[0])
 			if err != nil {
-				return
+				return nil
 			}
 			d.ResourceGroup = parsed.ResourceGroupName
 			d.ResourceType = parsed.ResourceType.String()
@@ -193,6 +218,7 @@ var allQueries = []querySpec{
 					d.ClusterResourceName = clusterParsed.Name
 				}
 			}
+			return nil
 		},
 	},
 	{
@@ -201,9 +227,17 @@ var allQueries = []querySpec{
 		templatePath: "queries/frontend/asyncOperationId/query.kql",
 		database:     "service",
 		category:     categoryRequestDiscovery,
-		requiredWhen: func(d queryData) bool { return d.ClientRequestID != "" },
-		storeResult: func(d *queryData, rows []resultRow) {
+		ready: func(d queryData) bool {
+			return d.ClientRequestID != ""
+		},
+		prerequisites: "ClientRequestID",
+		requiredWhen:  func(d queryData) bool { return d.ClientRequestID != "" || d.CorrelationID != "" },
+		storeResult: func(d *queryData, rows []resultRow) error {
+			if len(rows) > 1 {
+				return fmt.Errorf("query returned %d distinct async operation IDs for client_request_id, expected 1", len(rows))
+			}
 			d.AsyncOperationId = rows[0].values[0]
+			return nil
 		},
 	},
 	{
@@ -212,9 +246,17 @@ var allQueries = []querySpec{
 		templatePath: "queries/frontend/asyncOperationPath/query.kql",
 		database:     "service",
 		category:     categoryRequestDiscovery,
-		requiredWhen: func(d queryData) bool { return d.ClientRequestID != "" },
-		storeResult: func(d *queryData, rows []resultRow) {
+		ready: func(d queryData) bool {
+			return d.ClientRequestID != ""
+		},
+		prerequisites: "ClientRequestID",
+		requiredWhen:  func(d queryData) bool { return d.ClientRequestID != "" || d.CorrelationID != "" },
+		storeResult: func(d *queryData, rows []resultRow) error {
+			if len(rows) > 1 {
+				return fmt.Errorf("query returned %d distinct async operation paths for client_request_id, expected 1", len(rows))
+			}
 			d.AsyncOperationPath = rows[0].values[0]
+			return nil
 		},
 	},
 
@@ -256,8 +298,12 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "ResourceGroup, ResourceType",
 		requiredWhen:  isClusterOrNodePool,
-		storeResult: func(d *queryData, rows []resultRow) {
+		storeResult: func(d *queryData, rows []resultRow) error {
+			if len(rows) > 1 {
+				return fmt.Errorf("query returned %d distinct internal IDs, expected 1", len(rows))
+			}
 			d.InternalID = rows[0].values[0]
+			return nil
 		},
 	},
 	{
@@ -271,8 +317,12 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "ClusterResourceID",
 		requiredWhen:  isClusterType,
-		storeResult: func(d *queryData, rows []resultRow) {
+		storeResult: func(d *queryData, rows []resultRow) error {
+			if len(rows) > 1 {
+				return fmt.Errorf("query returned %d distinct cluster IDs, expected 1", len(rows))
+			}
 			d.ClusterID = rows[0].values[0]
+			return nil
 		},
 	},
 	{
@@ -286,22 +336,6 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "ClusterID",
 		requiredWhen:  func(d queryData) bool { return d.ClusterID != "" },
-		storeResult: func(d *queryData, rows []resultRow) {
-			// Columns: bundleId, bundleName, resource, kind
-			for _, row := range rows {
-				if len(row.values) >= 3 {
-					if id := strings.TrimSpace(row.values[0]); id != "" {
-						d.BundleIDs = append(d.BundleIDs, id)
-					}
-					if name := strings.TrimSpace(row.values[1]); name != "" {
-						d.BundleNames = append(d.BundleNames, name)
-					}
-					if mw := strings.TrimSpace(row.values[2]); mw != "" {
-						d.ManifestWorkNames = append(d.ManifestWorkNames, mw)
-					}
-				}
-			}
-		},
 	},
 	{
 		component:    "backend",
@@ -314,24 +348,6 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "ResourceGroup, ClusterResourceName, ServiceProviderResourceType",
 		requiredWhen:  isClusterOrNodePool,
-		storeResult: func(d *queryData, rows []resultRow) {
-			// Columns: bundleName, maestroBundleName, maestroBundleId, groupVersion, resourceKind, resourceNamespace, resourceName
-			for _, row := range rows {
-				if len(row.values) >= 7 {
-					if name := strings.TrimSpace(row.values[1]); name != "" {
-						d.BundleNames = append(d.BundleNames, name)
-					}
-					if id := strings.TrimSpace(row.values[2]); id != "" {
-						d.BundleIDs = append(d.BundleIDs, id)
-					}
-					ns := strings.TrimSpace(row.values[5])
-					n := strings.TrimSpace(row.values[6])
-					if ns != "" && n != "" {
-						d.ManifestWorkNames = append(d.ManifestWorkNames, ns+"/"+n)
-					}
-				}
-			}
-		},
 	},
 	{
 		component:    "hypershift",
@@ -344,9 +360,13 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "ResourceGroup, ClusterResourceName",
 		requiredWhen:  func(d queryData) bool { return d.ClusterResourceName != "" },
-		storeResult: func(d *queryData, rows []resultRow) {
+		storeResult: func(d *queryData, rows []resultRow) error {
+			if len(rows) > 1 {
+				return fmt.Errorf("query returned %d distinct hosted cluster metadata rows, expected 1", len(rows))
+			}
 			d.HostedClusterNamespace = rows[0].values[0]
 			d.HostedControlPlaneNamespace = rows[0].values[0] + "-" + rows[0].values[1]
+			return nil
 		},
 	},
 
@@ -477,10 +497,10 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
-			return len(d.BundleIDs) > 0
+			return d.ClusterID != "" || (d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "")
 		},
-		prerequisites: "BundleIDs",
-		requiredWhen:  func(d queryData) bool { return len(d.BundleIDs) > 0 },
+		prerequisites: "ClusterID, or ResourceGroup + ClusterResourceName + ServiceProviderResourceType",
+		requiredWhen:  isClusterOrNodePool,
 	},
 	{
 		component:    "maestro",
@@ -489,10 +509,10 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
-			return len(d.BundleIDs) > 0
+			return d.ClusterID != "" || (d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "")
 		},
-		prerequisites: "BundleIDs",
-		requiredWhen:  func(d queryData) bool { return len(d.BundleIDs) > 0 },
+		prerequisites: "ClusterID, or ResourceGroup + ClusterResourceName + ServiceProviderResourceType",
+		requiredWhen:  isClusterOrNodePool,
 	},
 	{
 		component:    "maestro",
@@ -501,9 +521,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
-			return len(d.ManifestWorkNames) > 0
+			return d.ClusterID != "" || (d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "")
 		},
-		prerequisites: "ManifestWorkNames",
+		prerequisites: "ClusterID, or ResourceGroup + ClusterResourceName + ServiceProviderResourceType",
 	},
 	{
 		component:    "maestro",
@@ -512,12 +532,10 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryState,
 		ready: func(d queryData) bool {
-			hasCS := d.ClusterID != ""
-			hasBackend := d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != ""
-			return len(d.BundleIDs) > 0 && (hasCS || hasBackend)
+			return d.ClusterID != "" || (d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "")
 		},
-		prerequisites: "BundleIDs, and one of (ClusterID) or (ResourceGroup, ClusterResourceName, ServiceProviderResourceType)",
-		requiredWhen:  func(d queryData) bool { return len(d.BundleIDs) > 0 },
+		prerequisites: "ClusterID, or ResourceGroup + ClusterResourceName + ServiceProviderResourceType",
+		requiredWhen:  isClusterOrNodePool,
 	},
 
 	// --- Events: time-windowed, component-scoped ---
@@ -639,21 +657,10 @@ func kqlDatetime(t time.Time) string {
 var templateFuncMap = template.FuncMap{
 	"kqlDatetime": kqlDatetime,
 	"toLower":     strings.ToLower,
-	"manifestWorkName": func(s string) string {
-		if i := strings.LastIndex(s, "/"); i >= 0 {
-			return s[i+1:]
-		}
-		return s
-	},
-	"manifestWorkNamespace": func(s string) string {
-		if i := strings.LastIndex(s, "/"); i >= 0 {
-			return s[:i]
-		}
-		return s
-	},
 }
 
 // renderQuery reads and renders an embedded KQL template with the given data.
+// Shared partial templates from queries/_partials/ are automatically available.
 func renderQuery(templatePath string, data queryData) (string, error) {
 	tmplBytes, err := queriesFS.ReadFile(templatePath)
 	if err != nil {
@@ -662,6 +669,20 @@ func renderQuery(templatePath string, data queryData) (string, error) {
 	tmpl, err := template.New(templatePath).Funcs(templateFuncMap).Parse(string(tmplBytes))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse query template %s: %w", templatePath, err)
+	}
+	// Parse shared partial templates so queries can use {{ template "bundleMap" . }} etc.
+	partials, err := fs.Glob(queriesFS, "queries/partials/*.kql")
+	if err != nil {
+		return "", fmt.Errorf("failed to glob partial templates: %w", err)
+	}
+	for _, p := range partials {
+		pBytes, err := queriesFS.ReadFile(p)
+		if err != nil {
+			return "", fmt.Errorf("failed to read partial %s: %w", p, err)
+		}
+		if _, err := tmpl.Parse(string(pBytes)); err != nil {
+			return "", fmt.Errorf("failed to parse partial %s: %w", p, err)
+		}
 	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {

@@ -160,7 +160,6 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	}
 
 	// Phase 1: Run initial context queries (frontendRequests) to discover all ARM requests.
-	eventsDir := filepath.Join(outputDir, "events")
 	for _, q := range contextQueries {
 		if _, err := g.executeQuery(ctx, q, &seedData, outputDir, input); err != nil {
 			return nil, nil, fmt.Errorf("context query %s failed: %w", q.key(), err)
@@ -213,7 +212,9 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 			cachedResults[q.key()] = results
 			if q.storeResult != nil && len(results) > 0 {
-				q.storeResult(&reqData, results)
+				if err := q.storeResult(&reqData, results); err != nil {
+					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				}
 			}
 		}
 
@@ -273,7 +274,9 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 			recordVerification(report, key, q, rs.data, len(results), false)
 			if q.storeResult != nil && len(results) > 0 {
-				q.storeResult(&rs.data, results)
+				if err := q.storeResult(&rs.data, results); err != nil {
+					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				}
 			}
 		}
 
@@ -294,7 +297,9 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 			recordVerification(report, key, q, rs.data, len(results), false)
 			if q.storeResult != nil && len(results) > 0 {
-				q.storeResult(&rs.data, results)
+				if err := q.storeResult(&rs.data, results); err != nil {
+					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				}
 			}
 		}
 
@@ -315,7 +320,9 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 			recordVerification(report, key, q, rs.data, len(results), false)
 			if q.storeResult != nil && len(results) > 0 {
-				q.storeResult(&rs.data, results)
+				if err := q.storeResult(&rs.data, results); err != nil {
+					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				}
 			}
 		}
 
@@ -336,7 +343,9 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 			recordVerification(report, key, q, rs.data, len(results), false)
 			if q.storeResult != nil && len(results) > 0 {
-				q.storeResult(&rs.data, results)
+				if err := q.storeResult(&rs.data, results); err != nil {
+					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				}
 			}
 		}
 
@@ -349,7 +358,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			reqDiscoveryDir := filepath.Join(reqDir, "discovery")
 			traceData := tr.data
 			// Merge resource-level discoveries into the per-request data so trace
-			// queries have access to ClusterID, BundleIDs, HostedClusterNamespace, etc.
+			// queries have access to ClusterID, HostedClusterNamespace, etc.
 			mergeResourceData(&traceData, rs.data)
 
 			for _, q := range queriesByCategory(categoryRequestDiscovery) {
@@ -383,7 +392,9 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 				}
 				recordVerification(report, reqSuite, q, traceData, len(results), false)
 				if q.storeResult != nil && len(results) > 0 {
-					q.storeResult(&traceData, results)
+					if err := q.storeResult(&traceData, results); err != nil {
+						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+					}
 				}
 			}
 
@@ -403,13 +414,16 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 				}
 				recordVerification(report, reqSuite, q, traceData, len(results), false)
 				if q.storeResult != nil && len(results) > 0 {
-					q.storeResult(&traceData, results)
+					if err := q.storeResult(&traceData, results); err != nil {
+						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+					}
 				}
 			}
 		}
 
 		// Run events queries that need resource-level data (e.g. hypershift events
 		// need HostedControlPlaneNamespace).
+		eventsDir := filepath.Join(outputDir, "events")
 		for _, q := range queriesByCategory(categoryEvents) {
 			if q.ready != nil && !q.ready(rs.data) {
 				logger.Info("Skipping events query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
@@ -443,8 +457,6 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			ClusterID:                   rs.data.ClusterID,
 			HostedClusterNamespace:      rs.data.HostedClusterNamespace,
 			HostedControlPlaneNamespace: rs.data.HostedControlPlaneNamespace,
-			BundleIDs:                   rs.data.BundleIDs,
-			ManifestWorkNames:           rs.data.ManifestWorkNames,
 		})
 	}
 
@@ -463,15 +475,6 @@ func mergeResourceData(dst *queryData, src queryData) {
 	}
 	if dst.ClusterID == "" {
 		dst.ClusterID = src.ClusterID
-	}
-	if len(dst.BundleIDs) == 0 {
-		dst.BundleIDs = src.BundleIDs
-	}
-	if len(dst.BundleNames) == 0 {
-		dst.BundleNames = src.BundleNames
-	}
-	if len(dst.ManifestWorkNames) == 0 {
-		dst.ManifestWorkNames = src.ManifestWorkNames
 	}
 	if dst.HostedClusterNamespace == "" {
 		dst.HostedClusterNamespace = src.HostedClusterNamespace
@@ -907,9 +910,6 @@ func writeResourceSummary(dir string, data queryData, requests []trackedRequest,
 		{"Cluster ID", data.ClusterID},
 		{"Hosted Cluster Namespace", data.HostedClusterNamespace},
 		{"Hosted Control Plane Namespace", data.HostedControlPlaneNamespace},
-		{"Bundle IDs", strings.Join(data.BundleIDs, ", ")},
-		{"Bundle Names", strings.Join(data.BundleNames, ", ")},
-		{"Manifest Work Names", strings.Join(data.ManifestWorkNames, ", ")},
 	}
 	for _, f := range facts {
 		if f.value != "" {

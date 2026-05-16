@@ -250,12 +250,12 @@ func TestArmResourceGroupValidationPolicy(t *testing.T) {
 	}
 }
 
-func TestCorrelationRequestIDPolicy(t *testing.T) {
+func TestRequestIDPolicy(t *testing.T) {
 	t.Setenv("FRONTEND_ADDRESS", "https://"+frontendHost)
 
-	pol := &correlationRequestIDPolicy{}
+	pol := &requestIDPolicy{}
 
-	t.Run("generates UUID when header is absent", func(t *testing.T) {
+	t.Run("generates UUIDs when headers are absent", func(t *testing.T) {
 		var capturedHeaders http.Header
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
@@ -274,10 +274,18 @@ func TestCorrelationRequestIDPolicy(t *testing.T) {
 		assert.NotEmpty(t, correlationID)
 		_, uuidErr := uuid.Parse(correlationID)
 		assert.NoError(t, uuidErr, "correlation ID should be a valid UUID")
+
+		clientRequestID := capturedHeaders.Get(arm.HeaderNameClientRequestID)
+		assert.NotEmpty(t, clientRequestID)
+		_, uuidErr = uuid.Parse(clientRequestID)
+		assert.NoError(t, uuidErr, "client request ID should be a valid UUID")
+
+		assert.NotEqual(t, correlationID, clientRequestID, "correlation ID and client request ID should be different UUIDs")
 	})
 
-	t.Run("preserves existing header", func(t *testing.T) {
-		existingID := "existing-correlation-id"
+	t.Run("preserves existing headers", func(t *testing.T) {
+		existingCorrelationID := "existing-correlation-id"
+		existingClientRequestID := "existing-client-request-id"
 		var capturedHeaders http.Header
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
@@ -288,15 +296,17 @@ func TestCorrelationRequestIDPolicy(t *testing.T) {
 		pipeline := newTestPipeline(pol, transport)
 		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/foo")
 		require.NoError(t, err)
-		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, existingID)
+		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, existingCorrelationID)
+		req.Raw().Header.Set(arm.HeaderNameClientRequestID, existingClientRequestID)
 
 		_, err = pipeline.Do(req)
 		require.NoError(t, err)
 
-		assert.Equal(t, existingID, capturedHeaders.Get(arm.HeaderNameCorrelationRequestID))
+		assert.Equal(t, existingCorrelationID, capturedHeaders.Get(arm.HeaderNameCorrelationRequestID))
+		assert.Equal(t, existingClientRequestID, capturedHeaders.Get(arm.HeaderNameClientRequestID))
 	})
 
-	t.Run("does not add header for non-frontend requests", func(t *testing.T) {
+	t.Run("does not add headers for non-frontend requests", func(t *testing.T) {
 		var capturedHeaders http.Header
 		transport := &fakeTransport{
 			do: func(r *http.Request) (*http.Response, error) {
@@ -312,6 +322,7 @@ func TestCorrelationRequestIDPolicy(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameCorrelationRequestID))
+		assert.Empty(t, capturedHeaders.Get(arm.HeaderNameClientRequestID))
 	})
 }
 
