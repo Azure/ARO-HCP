@@ -147,6 +147,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		logger.Info("cluster-service node pool state dump",
 			"clusterServiceID", csID.String(),
 			"nodePoolClusterServiceID", npCSID.String(),
+			"hcp_nodepool_name", nodePool.ID,
 			"csNodePool", nodePoolData,
 		)
 	}
