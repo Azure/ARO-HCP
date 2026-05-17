@@ -41,6 +41,8 @@ ignore:
 - 'backend/deploy/templates/backend.service-key-vault.secretproviderclass.yaml'
 - 'backend/deploy/templates/backend.deployment.yaml'
 - 'tooling/aro-hcp-exporter/deploy/templates/deployment.yaml'
+- 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
+- 'image-registry-policy/values.yaml'
 rules:
   brackets: enable
   colons: enable
