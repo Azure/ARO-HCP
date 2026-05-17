@@ -17,6 +17,7 @@ package gathersnapshot
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
@@ -29,6 +30,37 @@ import (
 
 //go:embed artifacts
 var artifactsFS embed.FS
+
+// snapshotData pairs manifests with their verification reports. This is the
+// raw input from which both the HTML overview and jUnit XML are rendered.
+// It is serialized to snapshot-data.json in the artifact directory so that
+// the rendering pipeline can be tested locally with real data.
+type snapshotData struct {
+	Manifests []*snapshot.Manifest           `json:"manifests"`
+	Reports   []*snapshot.VerificationReport `json:"reports"`
+}
+
+// WriteSnapshotData serializes the raw snapshot inputs to a JSON file in the
+// given directory. The resulting file can be used as test fixture data for
+// unit-testing the HTML and jUnit rendering without a live Kusto connection.
+func WriteSnapshotData(dir string, manifests []*snapshot.Manifest, reports []*snapshot.VerificationReport) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	data := snapshotData{
+		Manifests: manifests,
+		Reports:   reports,
+	}
+	raw, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal snapshot data: %w", err)
+	}
+	outPath := filepath.Join(dir, "snapshot-data.json")
+	if err := os.WriteFile(outPath, raw, 0o644); err != nil {
+		return fmt.Errorf("failed to write snapshot data to %s: %w", outPath, err)
+	}
+	return nil
+}
 
 // htmlTreeData is the top-level data structure passed to the HTML template.
 type htmlTreeData struct {
@@ -76,10 +108,22 @@ type htmlQuery struct {
 	Status     string
 }
 
+// htmlStatus constants are the CSS filter tokens used in data-has attributes.
+// These must match the selectors in snapshot-overview.html.tmpl exactly.
+const (
+	htmlStatusPass = "pass"
+	htmlStatusFail = "fail"
+	htmlStatusSkip = "skip"
+)
+
+// allHTMLStatuses is the canonical ordering of status tokens, used by
+// joinStatuses to produce deterministic data-has attribute values.
+var allHTMLStatuses = []string{htmlStatusPass, htmlStatusFail, htmlStatusSkip}
+
 // joinStatuses returns a deduplicated, space-separated string of status tokens.
 func joinStatuses(statuses map[string]bool) string {
 	var parts []string
-	for _, s := range []string{"pass", "fail", "skip"} {
+	for _, s := range allHTMLStatuses {
 		if statuses[s] {
 			parts = append(parts, s)
 		}
@@ -172,20 +216,20 @@ func buildHTMLSection(manifest *snapshot.Manifest, report *snapshot.Verification
 			q.Icon = "\u2713"
 			q.BadgeClass = "badge-pass"
 			q.BadgeText = "results"
-			q.Status = "pass"
+			q.Status = htmlStatusPass
 			section.PassCount++
 		case snapshot.VerificationFail:
 			q.Icon = "\u2717"
 			q.BadgeClass = "badge-fail"
 			q.BadgeText = "NO RESULTS"
-			q.Status = "fail"
+			q.Status = htmlStatusFail
 			section.FailCount++
 			sd.failCount++
 		case snapshot.VerificationSkipped:
 			q.Icon = "\u2298"
 			q.BadgeClass = "badge-skip"
 			q.BadgeText = "skipped"
-			q.Status = "skip"
+			q.Status = htmlStatusSkip
 			section.SkipCount++
 		}
 
