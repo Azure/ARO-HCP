@@ -29,27 +29,27 @@ const (
 // VerificationCase records the outcome of a single query's verification check.
 type VerificationCase struct {
 	// Suite is the grouping key for this case (e.g. "type/name" or "context").
-	Suite string
+	Suite string `json:"suite"`
 	// Query is the "component/queryName" identifier.
-	Query string
+	Query string `json:"query"`
 	// Category is the query category for display purposes.
-	Category string
+	Category string `json:"category"`
 	// ResourceType is the ARM resource type (e.g. "microsoft.redhatopenshift/hcpopenshiftclusters").
 	// Used to produce stable jUnit test identifiers that don't change with resource names.
-	ResourceType string
+	ResourceType string `json:"resource_type"`
 	// Status is the verification outcome.
-	Status VerificationStatus
+	Status VerificationStatus `json:"status"`
 	// Message provides context about the failure or skip reason.
-	Message string
+	Message string `json:"message,omitempty"`
 	// RenderedKQL is the fully rendered KQL query text, provided so that
 	// downstream consumers (e.g. HTML overview) can display it without
 	// needing access to the query templates or data.
-	RenderedKQL string
+	RenderedKQL string `json:"rendered_kql,omitempty"`
 }
 
 // VerificationReport collects all verification cases from a gathering run.
 type VerificationReport struct {
-	Cases []VerificationCase
+	Cases []VerificationCase `json:"cases"`
 }
 
 // Failures returns the number of failed verification cases.

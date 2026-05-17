@@ -274,6 +274,12 @@ func (o Options) Run(ctx context.Context) error {
 		logger.Error(err, "Failed to write HTML overview")
 	}
 
+	// Dump the raw snapshot data so the rendering pipeline can be tested
+	// locally with real fixture data.
+	if err := WriteSnapshotData(o.OutputDir, allManifests, allReports); err != nil {
+		logger.Error(err, "Failed to write snapshot data")
+	}
+
 	// Check for failures.
 	var totalFailures int
 	for _, r := range allReports {
