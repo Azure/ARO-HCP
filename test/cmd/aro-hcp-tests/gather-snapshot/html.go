@@ -21,6 +21,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
@@ -46,6 +47,7 @@ type htmlSection struct {
 	PassCount     int
 	FailCount     int
 	SkipCount     int
+	Statuses      string
 	Nodes         []htmlNode
 }
 
@@ -53,13 +55,15 @@ type htmlSection struct {
 type htmlNode struct {
 	Name      string
 	FailCount int
+	Statuses  string
 	Children  []htmlCategory
 }
 
 // htmlCategory groups queries by category within a node.
 type htmlCategory struct {
-	Name    string
-	Queries []htmlQuery
+	Name     string
+	Statuses string
+	Queries  []htmlQuery
 }
 
 // htmlQuery represents a single query in the tree.
@@ -69,6 +73,18 @@ type htmlQuery struct {
 	BadgeClass string
 	BadgeText  string
 	KQL        string
+	Status     string
+}
+
+// joinStatuses returns a deduplicated, space-separated string of status tokens.
+func joinStatuses(statuses map[string]bool) string {
+	var parts []string
+	for _, s := range []string{"pass", "fail", "skip"} {
+		if statuses[s] {
+			parts = append(parts, s)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // WriteHTMLOverview renders a single snapshot tree-viewer HTML page covering all
@@ -156,17 +172,20 @@ func buildHTMLSection(manifest *snapshot.Manifest, report *snapshot.Verification
 			q.Icon = "\u2713"
 			q.BadgeClass = "badge-pass"
 			q.BadgeText = "results"
+			q.Status = "pass"
 			section.PassCount++
 		case snapshot.VerificationFail:
 			q.Icon = "\u2717"
 			q.BadgeClass = "badge-fail"
 			q.BadgeText = "NO RESULTS"
+			q.Status = "fail"
 			section.FailCount++
 			sd.failCount++
 		case snapshot.VerificationSkipped:
 			q.Icon = "\u2298"
 			q.BadgeClass = "badge-skip"
 			q.BadgeText = "skipped"
+			q.Status = "skip"
 			section.SkipCount++
 		}
 
@@ -176,20 +195,38 @@ func buildHTMLSection(manifest *snapshot.Manifest, report *snapshot.Verification
 		sd.categories[c.Category] = append(sd.categories[c.Category], q)
 	}
 
+	sectionStatuses := make(map[string]bool)
 	for _, suiteName := range suiteOrder {
 		sd := suites[suiteName]
 		node := htmlNode{
 			Name:      suiteName,
 			FailCount: sd.failCount,
 		}
+		nodeStatuses := make(map[string]bool)
 		for _, cat := range sd.catOrder {
+			catStatuses := make(map[string]bool)
+			queries := sd.categories[cat]
+			for _, q := range queries {
+				if q.Status != "" {
+					catStatuses[q.Status] = true
+				}
+			}
+			for s := range catStatuses {
+				nodeStatuses[s] = true
+			}
 			node.Children = append(node.Children, htmlCategory{
-				Name:    cat,
-				Queries: sd.categories[cat],
+				Name:     cat,
+				Statuses: joinStatuses(catStatuses),
+				Queries:  queries,
 			})
 		}
+		for s := range nodeStatuses {
+			sectionStatuses[s] = true
+		}
+		node.Statuses = joinStatuses(nodeStatuses)
 		section.Nodes = append(section.Nodes, node)
 	}
+	section.Statuses = joinStatuses(sectionStatuses)
 
 	return section
 }
