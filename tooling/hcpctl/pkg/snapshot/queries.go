@@ -117,8 +117,9 @@ type queryData struct {
 	ResourceGroup   string
 
 	// Per-request context — set when tracing a specific request.
-	CorrelationID   string
-	ClientRequestID string
+	CorrelationID      string
+	ClientRequestID    string
+	ResponseStatusCode int
 
 	// Discovered by queries.
 	ResourceID                  string
@@ -163,6 +164,26 @@ func isClusterOrNodePool(d queryData) bool {
 	return isClusterType(d) || isNodePoolType(d)
 }
 
+// hasAsyncOperations returns true if the resource type uses async operations.
+// Action-style sub-resources like requestadmincredential, revokecredentials,
+// and externalauths do not have async operations.
+func hasAsyncOperations(d queryData) bool {
+	rt := strings.ToLower(d.ResourceType)
+	switch rt {
+	case "microsoft.redhatopenshift/hcpopenshiftclusters/requestadmincredential",
+		"microsoft.redhatopenshift/hcpopenshiftclusters/revokecredentials",
+		"microsoft.redhatopenshift/hcpopenshiftclusters/externalauths":
+		return false
+	default:
+		return true
+	}
+}
+
+// isClientError returns true if the response status code is a 4xx client error.
+func isClientError(d queryData) bool {
+	return d.ResponseStatusCode >= 400 && d.ResponseStatusCode < 500
+}
+
 // allQueries defines the complete ordered query chain. Each query has a category
 // that determines where its output is written and whether it is deduplicated
 // across requests for the same resource. Queries are executed in order within
@@ -197,7 +218,7 @@ var allQueries = []querySpec{
 			return d.ClientRequestID != ""
 		},
 		prerequisites: "ClientRequestID",
-		requiredWhen:  func(d queryData) bool { return d.ClientRequestID != "" || d.CorrelationID != "" },
+		requiredWhen:  func(d queryData) bool { return (d.ClientRequestID != "" || d.CorrelationID != "") && !isClientError(d) },
 		storeResult: func(d *queryData, rows []resultRow) error {
 			if len(rows) > 1 {
 				return fmt.Errorf("query returned %d distinct resource IDs for client_request_id, expected 1", len(rows))
@@ -231,7 +252,9 @@ var allQueries = []querySpec{
 			return d.ClientRequestID != ""
 		},
 		prerequisites: "ClientRequestID",
-		requiredWhen:  func(d queryData) bool { return d.ClientRequestID != "" || d.CorrelationID != "" },
+		requiredWhen: func(d queryData) bool {
+			return (d.ClientRequestID != "" || d.CorrelationID != "") && hasAsyncOperations(d) && !isClientError(d)
+		},
 		storeResult: func(d *queryData, rows []resultRow) error {
 			if len(rows) > 1 {
 				return fmt.Errorf("query returned %d distinct async operation IDs for client_request_id, expected 1", len(rows))
@@ -250,7 +273,9 @@ var allQueries = []querySpec{
 			return d.ClientRequestID != ""
 		},
 		prerequisites: "ClientRequestID",
-		requiredWhen:  func(d queryData) bool { return d.ClientRequestID != "" || d.CorrelationID != "" },
+		requiredWhen: func(d queryData) bool {
+			return (d.ClientRequestID != "" || d.CorrelationID != "") && hasAsyncOperations(d) && !isClientError(d)
+		},
 		storeResult: func(d *queryData, rows []resultRow) error {
 			if len(rows) > 1 {
 				return fmt.Errorf("query returned %d distinct async operation paths for client_request_id, expected 1", len(rows))
@@ -263,6 +288,18 @@ var allQueries = []querySpec{
 	// --- Trace: per-request, depends on request-specific data ---
 	{
 		component:    "frontend",
+		queryName:    "requestLogs",
+		templatePath: "queries/frontend/requestLogs/query.kql",
+		database:     "service",
+		category:     categoryTraceLogs,
+		ready: func(d queryData) bool {
+			return d.ClientRequestID != ""
+		},
+		prerequisites: "ClientRequestID",
+		requiredWhen:  func(d queryData) bool { return d.ClientRequestID != "" },
+	},
+	{
+		component:    "frontend",
 		queryName:    "asyncOperationRequests",
 		templatePath: "queries/frontend/asyncOperationRequests/query.kql",
 		database:     "service",
@@ -271,19 +308,7 @@ var allQueries = []querySpec{
 			return d.AsyncOperationPath != ""
 		},
 		prerequisites: "AsyncOperationPath",
-		requiredWhen:  func(d queryData) bool { return d.AsyncOperationPath != "" },
-	},
-	{
-		component:    "backend",
-		queryName:    "asyncOperationState",
-		templatePath: "queries/backend/asyncOperationState/query.kql",
-		database:     "service",
-		category:     categoryTraceState,
-		ready: func(d queryData) bool {
-			return d.AsyncOperationId != ""
-		},
-		prerequisites: "AsyncOperationId",
-		requiredWhen:  func(d queryData) bool { return d.AsyncOperationId != "" },
+		requiredWhen:  func(d queryData) bool { return d.AsyncOperationPath != "" && !isClientError(d) },
 	},
 
 	// --- Resource discovery: stable per-resource ---
@@ -294,9 +319,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryResourceDiscovery,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ResourceType != ""
+			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceID != ""
 		},
-		prerequisites: "ResourceGroup, ResourceType",
+		prerequisites: "ResourceGroup, ResourceType, ResourceID",
 		requiredWhen:  isClusterOrNodePool,
 		storeResult: func(d *queryData, rows []resultRow) error {
 			if len(rows) > 1 {
@@ -344,9 +369,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryResourceDiscovery,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != ""
+			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "" && d.ResourceName != ""
 		},
-		prerequisites: "ResourceGroup, ClusterResourceName, ServiceProviderResourceType",
+		prerequisites: "ResourceGroup, ClusterResourceName, ServiceProviderResourceType, ResourceName",
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
@@ -390,9 +415,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ResourceType != ""
+			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceName != ""
 		},
-		prerequisites: "ResourceGroup, ResourceType",
+		prerequisites: "ResourceGroup, ResourceType, ResourceName",
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
@@ -402,9 +427,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryState,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ServiceProviderResourceType != ""
+			return d.ResourceGroup != "" && d.ServiceProviderResourceType != "" && d.ResourceName != ""
 		},
-		prerequisites: "ResourceGroup, ServiceProviderResourceType",
+		prerequisites: "ResourceGroup, ServiceProviderResourceType, ResourceName",
 		requiredWhen:  func(d queryData) bool { return d.ServiceProviderResourceType != "" },
 	},
 	{
@@ -443,9 +468,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryState,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools")
+			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ResourceID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools")
 		},
-		prerequisites: "ResourceGroup, ClusterResourceName, ResourceType is nodepool",
+		prerequisites: "ResourceGroup, ClusterResourceName, ResourceID, ResourceType is nodepool",
 		requiredWhen:  isNodePoolType,
 	},
 
@@ -468,9 +493,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools")
+			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools")
 		},
-		prerequisites: "ResourceGroup, ClusterResourceName, ResourceType is nodepool",
+		prerequisites: "ResourceGroup, ClusterResourceName, ResourceName, ResourceType is nodepool",
 		requiredWhen:  isNodePoolType,
 	},
 	{

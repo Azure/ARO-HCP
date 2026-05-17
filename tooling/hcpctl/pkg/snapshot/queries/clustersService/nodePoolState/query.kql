@@ -5,6 +5,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | where log.msg == 'cluster-service node pool state dump'
 | where log.resource_group == '{{ .ResourceGroup }}'
 | where log.resource_name == '{{ .ClusterResourceName }}'
+| where log.hcp_nodepool_name =~ '{{ .ResourceID }}'
 | summarize csNodePool=take_any(log.csNodePool) by timestamp
 | sort by timestamp asc
 | project csNodePool

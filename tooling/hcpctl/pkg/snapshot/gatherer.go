@@ -194,6 +194,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		reqData := seedData // copy seed values
 		reqData.CorrelationID = req.CorrelationID
 		reqData.ClientRequestID = req.ClientRequestID
+		reqData.ResponseStatusCode = req.Status
 
 		cachedResults := make(map[string][]resultRow)
 
@@ -238,7 +239,11 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			key = "unknown/" + tr.req.ClientRequestID
 		}
 		if _, ok := resources[key]; !ok {
-			resources[key] = &resourceState{data: tr.data}
+			resData := tr.data
+			// ResponseStatusCode is per-request context and should not
+			// influence resource-level query decisions.
+			resData.ResponseStatusCode = 0
+			resources[key] = &resourceState{data: resData}
 			resourceOrder = append(resourceOrder, key)
 		}
 		resources[key].requests = append(resources[key].requests, *tr)
@@ -254,95 +259,108 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		}
 		resDir := resourceDir(outputDir, rs.data, fallbackID)
 
+		// If all requests for this resource were client errors (4xx), skip
+		// resource-level queries — the backend never processed these requests
+		// so there is no resource-level data to gather.
+		allClientErrors := len(rs.requests) > 0
+		for _, tr := range rs.requests {
+			if tr.req.Status < 400 || tr.req.Status >= 500 {
+				allClientErrors = false
+				break
+			}
+		}
+
 		logger.Info("Running resource discovery and state queries", "resource", key)
 
-		// Run resource discovery queries.
-		discoveryDir := filepath.Join(resDir, "discovery")
-		for _, q := range queriesByCategory(categoryResourceDiscovery) {
-			if q.ready != nil && !q.ready(rs.data) {
-				logger.Info("Skipping resource discovery query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				recordVerification(report, key, q, rs.data, 0, true)
-				continue
-			}
+		if !allClientErrors {
+			// Run resource discovery queries.
+			discoveryDir := filepath.Join(resDir, "discovery")
+			for _, q := range queriesByCategory(categoryResourceDiscovery) {
+				if q.ready != nil && !q.ready(rs.data) {
+					logger.Info("Skipping resource discovery query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+					recordVerification(report, key, q, rs.data, 0, true)
+					continue
+				}
 
-			results, err := g.executeQuery(ctx, q, &rs.data, discoveryDir, input)
-			if err != nil {
-				logger.Error(err, "Resource discovery query failed, continuing", "query", q.key())
-				continue
-			}
-			recordVerification(report, key, q, rs.data, len(results), false)
-			if q.storeResult != nil && len(results) > 0 {
-				if err := q.storeResult(&rs.data, results); err != nil {
-					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				results, err := g.executeQuery(ctx, q, &rs.data, discoveryDir, input)
+				if err != nil {
+					logger.Error(err, "Resource discovery query failed, continuing", "query", q.key())
+					continue
+				}
+				recordVerification(report, key, q, rs.data, len(results), false)
+				if q.storeResult != nil && len(results) > 0 {
+					if err := q.storeResult(&rs.data, results); err != nil {
+						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+					}
 				}
 			}
-		}
 
-		// Run state queries.
-		stateDir := filepath.Join(resDir, "state")
-		for _, q := range queriesByCategory(categoryState) {
-			if q.ready != nil && !q.ready(rs.data) {
-				logger.Info("Skipping state query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				recordVerification(report, key, q, rs.data, 0, true)
-				continue
-			}
+			// Run state queries.
+			stateDir := filepath.Join(resDir, "state")
+			for _, q := range queriesByCategory(categoryState) {
+				if q.ready != nil && !q.ready(rs.data) {
+					logger.Info("Skipping state query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+					recordVerification(report, key, q, rs.data, 0, true)
+					continue
+				}
 
-			results, err := g.executeQuery(ctx, q, &rs.data, stateDir, input)
-			if err != nil {
-				logger.Error(err, "State query failed, continuing", "query", q.key())
-				continue
-			}
-			recordVerification(report, key, q, rs.data, len(results), false)
-			if q.storeResult != nil && len(results) > 0 {
-				if err := q.storeResult(&rs.data, results); err != nil {
-					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				results, err := g.executeQuery(ctx, q, &rs.data, stateDir, input)
+				if err != nil {
+					logger.Error(err, "State query failed, continuing", "query", q.key())
+					continue
+				}
+				recordVerification(report, key, q, rs.data, len(results), false)
+				if q.storeResult != nil && len(results) > 0 {
+					if err := q.storeResult(&rs.data, results); err != nil {
+						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+					}
 				}
 			}
-		}
 
-		// Run conditions queries.
-		conditionsDir := filepath.Join(resDir, "conditions")
-		for _, q := range queriesByCategory(categoryConditions) {
-			if q.ready != nil && !q.ready(rs.data) {
-				logger.Info("Skipping conditions query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				recordVerification(report, key, q, rs.data, 0, true)
-				continue
-			}
+			// Run conditions queries.
+			conditionsDir := filepath.Join(resDir, "conditions")
+			for _, q := range queriesByCategory(categoryConditions) {
+				if q.ready != nil && !q.ready(rs.data) {
+					logger.Info("Skipping conditions query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+					recordVerification(report, key, q, rs.data, 0, true)
+					continue
+				}
 
-			results, err := g.executeQuery(ctx, q, &rs.data, conditionsDir, input)
-			if err != nil {
-				logger.Error(err, "Conditions query failed, continuing", "query", q.key())
-				continue
-			}
-			recordVerification(report, key, q, rs.data, len(results), false)
-			if q.storeResult != nil && len(results) > 0 {
-				if err := q.storeResult(&rs.data, results); err != nil {
-					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				results, err := g.executeQuery(ctx, q, &rs.data, conditionsDir, input)
+				if err != nil {
+					logger.Error(err, "Conditions query failed, continuing", "query", q.key())
+					continue
+				}
+				recordVerification(report, key, q, rs.data, len(results), false)
+				if q.storeResult != nil && len(results) > 0 {
+					if err := q.storeResult(&rs.data, results); err != nil {
+						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+					}
 				}
 			}
-		}
 
-		// Run logs queries.
-		logsDir := filepath.Join(resDir, "logs")
-		for _, q := range queriesByCategory(categoryLogs) {
-			if q.ready != nil && !q.ready(rs.data) {
-				logger.Info("Skipping logs query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				recordVerification(report, key, q, rs.data, 0, true)
-				continue
-			}
+			// Run logs queries.
+			logsDir := filepath.Join(resDir, "logs")
+			for _, q := range queriesByCategory(categoryLogs) {
+				if q.ready != nil && !q.ready(rs.data) {
+					logger.Info("Skipping logs query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+					recordVerification(report, key, q, rs.data, 0, true)
+					continue
+				}
 
-			results, err := g.executeQuery(ctx, q, &rs.data, logsDir, input)
-			if err != nil {
-				logger.Error(err, "Logs query failed, continuing", "query", q.key())
-				continue
-			}
-			recordVerification(report, key, q, rs.data, len(results), false)
-			if q.storeResult != nil && len(results) > 0 {
-				if err := q.storeResult(&rs.data, results); err != nil {
-					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+				results, err := g.executeQuery(ctx, q, &rs.data, logsDir, input)
+				if err != nil {
+					logger.Error(err, "Logs query failed, continuing", "query", q.key())
+					continue
+				}
+				recordVerification(report, key, q, rs.data, len(results), false)
+				if q.storeResult != nil && len(results) > 0 {
+					if err := q.storeResult(&rs.data, results); err != nil {
+						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
+					}
 				}
 			}
-		}
+		} // end if !allClientErrors
 
 		// Phase 4: Per-request trace queries + write request discovery output.
 		for _, tr := range rs.requests {
@@ -418,14 +436,16 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 		// Run events queries that need resource-level data (e.g. hypershift events
 		// need HostedControlPlaneNamespace).
-		eventsDir := filepath.Join(outputDir, "events")
-		for _, q := range queriesByCategory(categoryEvents) {
-			if q.ready != nil && !q.ready(rs.data) {
-				logger.Info("Skipping events query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				continue
-			}
-			if _, err := g.executeQuery(ctx, q, &rs.data, eventsDir, input); err != nil {
-				logger.Error(err, "Events query failed, continuing", "query", q.key())
+		if !allClientErrors {
+			eventsDir := filepath.Join(outputDir, "events")
+			for _, q := range queriesByCategory(categoryEvents) {
+				if q.ready != nil && !q.ready(rs.data) {
+					logger.Info("Skipping events query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
+					continue
+				}
+				if _, err := g.executeQuery(ctx, q, &rs.data, eventsDir, input); err != nil {
+					logger.Error(err, "Events query failed, continuing", "query", q.key())
+				}
 			}
 		}
 

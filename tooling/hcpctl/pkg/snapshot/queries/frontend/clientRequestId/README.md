@@ -16,5 +16,4 @@ them.
 
 ## Where to Go Next
 
-- `state/backend/asyncOperationState.md` — async operation state for each request
 - `logs/frontend/asyncOperationRequests.md` — polling history for each request
