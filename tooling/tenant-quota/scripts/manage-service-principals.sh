@@ -540,13 +540,13 @@ if [[ -n "${KV_ONLY_SECRET_FILE}" && "${KEYVAULT_ONLY}" != "true" ]]; then
     exit 1
 fi
 
-if [[ "${SKIP_KEYVAULT}" == true && "${KEYVAULT_ONLY}" == true ]]; then
+if [[ "${SKIP_KEYVAULT}" == "true" && "${KEYVAULT_ONLY}" == "true" ]]; then
     print_error "Cannot combine --skip-keyvault and --keyvault-only"
     usage
     exit 1
 fi
 
-if [[ "${KEYVAULT_ONLY}" == true ]]; then
+if [[ "${KEYVAULT_ONLY}" == "true" ]]; then
     if [[ -n "${KV_ONLY_SECRET_FILE}" ]]; then
         if [[ -z "${KV_ONLY_SECRET_NAME}" ]]; then
             print_error "--keyvault-only with --secret-file requires --secret-name"
@@ -578,7 +578,7 @@ if [[ "${KEYVAULT_ONLY}" == true ]]; then
 fi
 
 if [[ -z "${TENANT}" ]]; then
-    if [[ "${SKIP_KEYVAULT}" == true ]]; then
+    if [[ "${SKIP_KEYVAULT}" == "true" ]]; then
         print_error "--skip-keyvault requires --tenant <name>"
         usage
         exit 1
