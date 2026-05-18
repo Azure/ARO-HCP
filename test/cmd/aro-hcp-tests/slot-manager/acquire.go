@@ -55,7 +55,7 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ClusterProfileDir, "cluster-profile-dir", opts.ClusterProfileDir, "Path to CLUSTER_PROFILE_DIR")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Deploy environment name (prow, ci01, int, stg, prod)")
 	cmd.Flags().StringVar(&opts.SubscriptionName, "subscription-name", opts.SubscriptionName, "Optional subscription name selector for environments with multiple pools.")
-	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Optional region selector for environments with multiple pools.")
+	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Optional runtime region selector. For fixed pools it also participates in pool selection.")
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
@@ -87,6 +87,7 @@ type completedAcquireOptions struct {
 	SharedDir            string
 	LeaseProxyURL        string
 	LeaseProxyTimeout    time.Duration
+	RuntimeRegion        string
 	CustomerSubscription string
 	Pool                 slots.Pool
 	PoolEnvironment      string
@@ -160,6 +161,11 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 		return nil, err
 	}
 
+	runtimeRegion := strings.TrimSpace(o.Region)
+	if runtimeRegion == "" {
+		runtimeRegion = pool.Region
+	}
+
 	customerSubscription, err := slots.ResolveCustomerSubscriptionName(o.ClusterProfileDir, pool.SubscriptionName)
 	if err != nil {
 		return nil, err
@@ -171,6 +177,7 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 			SharedDir:            o.SharedDir,
 			LeaseProxyURL:        o.LeaseProxyServerURL,
 			LeaseProxyTimeout:    o.LeaseProxyTimeout,
+			RuntimeRegion:        runtimeRegion,
 			CustomerSubscription: customerSubscription,
 			Pool:                 pool,
 			PoolEnvironment:      environment,
@@ -219,6 +226,7 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 	state := &slots.AcquiredSlotState{
 		Version:            1,
 		DeployEnvironment:  o.DeployEnvironment,
+		RuntimeRegion:      o.RuntimeRegion,
 		Slot:               *slot,
 		LeasedResourceName: leasedName,
 	}

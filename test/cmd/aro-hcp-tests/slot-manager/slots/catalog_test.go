@@ -48,11 +48,11 @@ environments:
         identity_container_count: 15
 `
 
-func loadSyntheticCatalog(t *testing.T) *Catalog {
+func loadCatalogFromYAML(t *testing.T, catalogYAML string) *Catalog {
 	t.Helper()
 
 	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
-	if err := os.WriteFile(catalogPath, []byte(syntheticCatalogYAML), 0o644); err != nil {
+	if err := os.WriteFile(catalogPath, []byte(catalogYAML), 0o644); err != nil {
 		t.Fatalf("expected synthetic catalog write to succeed: %v", err)
 	}
 
@@ -62,6 +62,11 @@ func loadSyntheticCatalog(t *testing.T) *Catalog {
 	}
 
 	return catalog
+}
+
+func loadSyntheticCatalog(t *testing.T) *Catalog {
+	t.Helper()
+	return loadCatalogFromYAML(t, syntheticCatalogYAML)
 }
 
 func TestLoadCatalogAndExpandSlots(t *testing.T) {
@@ -115,6 +120,140 @@ func TestResolvePool(t *testing.T) {
 	}
 	if pool.ResourceType != "aro-hcp-dev-shard0-westus3-slot" {
 		t.Fatalf("unexpected resource type %q", pool.ResourceType)
+	}
+}
+
+func TestLoadCatalogDefaultsRegionModeToFixed(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadSyntheticCatalog(t)
+
+	if got := catalog.Environments["dev"].Pools[0].RegionMode; got != RegionModeFixed {
+		t.Fatalf("expected default region_mode %q, got %q", RegionModeFixed, got)
+	}
+}
+
+func TestLoadCatalogRejectsMixedRegionModesWithinEnvironment(t *testing.T) {
+	t.Parallel()
+
+	invalidCatalog := `version: 1
+environments:
+  prod:
+    deploy_envs: [prod]
+    pools:
+      - subscription_name: prod-sub-1
+        region: uksouth
+        region_mode: fixed
+        resource_type: aro-hcp-prod-uksouth-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-a
+        identity_container_count: 1
+      - subscription_name: prod-sub-2
+        region: eastus2
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard1-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-b
+        identity_container_count: 1
+`
+
+	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
+	if err := os.WriteFile(catalogPath, []byte(invalidCatalog), 0o644); err != nil {
+		t.Fatalf("expected invalid catalog write to succeed: %v", err)
+	}
+
+	if _, err := LoadCatalog(catalogPath); err == nil {
+		t.Fatal("expected mixed region_mode catalog load to fail")
+	}
+}
+
+func TestLoadCatalogRejectsDuplicateRuntimeSelectedSubscriptionPools(t *testing.T) {
+	t.Parallel()
+
+	invalidCatalog := `version: 1
+environments:
+  prod:
+    deploy_envs: [prod]
+    pools:
+      - subscription_name: prod-sub
+        region: uksouth
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard0-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-a
+        identity_container_count: 1
+      - subscription_name: prod-sub
+        region: eastus2
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard1-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-b
+        identity_container_count: 1
+`
+
+	catalogPath := filepath.Join(t.TempDir(), "e2e-slots.yaml")
+	if err := os.WriteFile(catalogPath, []byte(invalidCatalog), 0o644); err != nil {
+		t.Fatalf("expected invalid catalog write to succeed: %v", err)
+	}
+
+	if _, err := LoadCatalog(catalogPath); err == nil {
+		t.Fatal("expected duplicate runtime-selected subscription pools to fail validation")
+	}
+}
+
+func TestResolvePoolRuntimeSelectedIgnoresRegion(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadCatalogFromYAML(t, `version: 1
+environments:
+  prod:
+    deploy_envs: [prod]
+    pools:
+      - subscription_name: prod-sub
+        region: uksouth
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard0-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod
+        identity_container_count: 1
+`)
+
+	pool, err := catalog.ResolvePool("prod", "", "eastus2")
+	if err != nil {
+		t.Fatalf("expected runtime-selected pool resolution to ignore region: %v", err)
+	}
+	if pool.ResourceType != "aro-hcp-prod-shard0-slot" {
+		t.Fatalf("unexpected resource type %q", pool.ResourceType)
+	}
+}
+
+func TestResolvePoolRuntimeSelectedRequiresSubscriptionToDisambiguate(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadCatalogFromYAML(t, `version: 1
+environments:
+  prod:
+    deploy_envs: [prod]
+    pools:
+      - subscription_name: prod-sub-1
+        region: uksouth
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard0-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-a
+        identity_container_count: 1
+      - subscription_name: prod-sub-2
+        region: westus3
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard1-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-b
+        identity_container_count: 1
+`)
+
+	_, err := catalog.ResolvePool("prod", "", "eastus2")
+	if err == nil {
+		t.Fatal("expected runtime-selected pool resolution to require subscription selector when multiple pools exist")
 	}
 }
 

@@ -29,6 +29,7 @@ const acquiredSlotStateVersion = 1
 type AcquiredSlotState struct {
 	Version            int          `yaml:"version"`
 	DeployEnvironment  string       `yaml:"deploy_environment"`
+	RuntimeRegion      string       `yaml:"runtime_region"`
 	Slot               ExpandedSlot `yaml:"slot"`
 	LeasedResourceName string       `yaml:"leased_resource_name"`
 }
@@ -108,13 +109,21 @@ func RemoveStateFiles(sharedDir string) error {
 }
 
 func (s *AcquiredSlotState) Validate() error {
-	switch {
-	case s == nil:
+	if s == nil {
 		return errors.New("slot state is nil")
+	}
+
+	if strings.TrimSpace(s.RuntimeRegion) == "" {
+		s.RuntimeRegion = strings.TrimSpace(s.Slot.Region)
+	}
+
+	switch {
 	case s.Version != acquiredSlotStateVersion:
 		return fmt.Errorf("unsupported slot state version %d", s.Version)
 	case strings.TrimSpace(s.DeployEnvironment) == "":
 		return errors.New("slot state has empty deploy_environment")
+	case strings.TrimSpace(s.RuntimeRegion) == "":
+		return errors.New("slot state has empty runtime_region")
 	case strings.TrimSpace(s.Slot.Environment) == "":
 		return errors.New("slot state has empty slot environment")
 	case strings.TrimSpace(s.Slot.ResourceType) == "":
@@ -149,7 +158,7 @@ func WriteEnvFile(sharedDir string, state *AcquiredSlotState, customerSubscripti
 		"ARO_HCP_E2E_SLOT_RESOURCE_TYPE": state.Slot.ResourceType,
 		"CUSTOMER_SUBSCRIPTION":          customerSubscription,
 		"LEASED_MSI_CONTAINERS":          strings.Join(state.Slot.IdentityContainerNames(), " "),
-		"LOCATION":                       state.Slot.Region,
+		"LOCATION":                       state.RuntimeRegion,
 	}
 
 	var builder strings.Builder
