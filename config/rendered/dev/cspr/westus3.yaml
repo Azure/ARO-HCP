@@ -421,7 +421,7 @@ imageRegistryPolicy:
   - docker.io/jaegertracing
   - docker.io/grafana
   - docker.io/otel
-  - docker.io/library
+  - docker.io/library/postgres
   validationActions:
   - Deny
 imageSync:

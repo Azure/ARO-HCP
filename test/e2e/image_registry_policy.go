@@ -17,9 +17,11 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -116,6 +118,8 @@ var _ = Describe("Image Registry Policy", func() {
 				Expect(err).To(HaveOccurred(), "Pod with disallowed image should be denied")
 				Expect(apierrors.IsForbidden(err)).To(BeTrue(),
 					"Expected Forbidden error for disallowed image, got: %v", err)
+				Expect(err.Error()).To(ContainSubstring("not from an allowed registry"),
+					"Denial should come from the image registry policy, got: %v", err)
 			}
 		})
 
@@ -140,10 +144,11 @@ var _ = Describe("Image Registry Policy", func() {
 				ctx, "image-registry-allowlist-config", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred(), "ConfigMap image-registry-allowlist-config should exist")
 			Expect(cm.Data["allowedRegistries"]).NotTo(BeEmpty(), "allowedRegistries should not be empty")
-			Expect(cm.Data["allowedRegistries"]).To(ContainSubstring(allowedRegistryMCR),
-				"%s should be in the allowlist", allowedRegistryMCR)
-			Expect(cm.Data["allowedRegistries"]).To(ContainSubstring(allowedRegistryKubeShared),
-				"%s should be in the allowlist", allowedRegistryKubeShared)
+			prefixes := strings.Split(cm.Data["allowedRegistries"], ",")
+			Expect(prefixes).To(ContainElement(allowedRegistryMCR),
+				"%s should be an exact entry in the allowlist", allowedRegistryMCR)
+			Expect(prefixes).To(ContainElement(allowedRegistryKubeShared),
+				"%s should be an exact entry in the allowlist", allowedRegistryKubeShared)
 
 			By("creating a test namespace")
 			ns := &corev1.Namespace{
