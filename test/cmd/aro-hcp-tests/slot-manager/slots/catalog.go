@@ -230,14 +230,35 @@ func (c *Catalog) ResolveEnvironmentForDeployEnv(deployEnv string) (string, erro
 }
 
 func (c *Catalog) ResolvePool(environment, subscriptionName, region string) (Pool, error) {
+	matches, err := c.CandidatePools(environment, subscriptionName, region)
+	if err != nil {
+		return Pool{}, err
+	}
+
+	switch len(matches) {
+	case 1:
+		return matches[0], nil
+	default:
+		environmentRegionMode, err := c.RegionModeForEnvironment(environment)
+		if err != nil {
+			return Pool{}, err
+		}
+		if environmentRegionMode == RegionModeRuntimeSelected {
+			return Pool{}, fmt.Errorf("environment %q has %d matching pools; specify --subscription-name to disambiguate runtime-selected pools", environment, len(matches))
+		}
+		return Pool{}, fmt.Errorf("environment %q has %d matching pools; specify both --subscription-name and --region to disambiguate", environment, len(matches))
+	}
+}
+
+func (c *Catalog) CandidatePools(environment, subscriptionName, region string) ([]Pool, error) {
 	environmentConfig, found := c.Environments[environment]
 	if !found {
-		return Pool{}, fmt.Errorf("unknown environment %q", environment)
+		return nil, fmt.Errorf("unknown environment %q", environment)
 	}
 
 	environmentRegionMode, err := c.RegionModeForEnvironment(environment)
 	if err != nil {
-		return Pool{}, err
+		return nil, err
 	}
 
 	subscriptionName = strings.TrimSpace(subscriptionName)
@@ -254,27 +275,21 @@ func (c *Catalog) ResolvePool(environment, subscriptionName, region string) (Poo
 		matches = append(matches, pool)
 	}
 
-	switch len(matches) {
-	case 0:
-		selectors := []string{}
-		if subscriptionName != "" {
-			selectors = append(selectors, fmt.Sprintf("subscription_name=%q", subscriptionName))
-		}
-		if environmentRegionMode == RegionModeFixed && region != "" {
-			selectors = append(selectors, fmt.Sprintf("region=%q", region))
-		}
-		if len(selectors) == 0 {
-			return Pool{}, fmt.Errorf("environment %q has no pools", environment)
-		}
-		return Pool{}, fmt.Errorf("no pool found for environment %q matching %s", environment, strings.Join(selectors, ", "))
-	case 1:
-		return matches[0], nil
-	default:
-		if environmentRegionMode == RegionModeRuntimeSelected {
-			return Pool{}, fmt.Errorf("environment %q has %d matching pools; specify --subscription-name to disambiguate runtime-selected pools", environment, len(matches))
-		}
-		return Pool{}, fmt.Errorf("environment %q has %d matching pools; specify both --subscription-name and --region to disambiguate", environment, len(matches))
+	if len(matches) > 0 {
+		return matches, nil
 	}
+
+	selectors := []string{}
+	if subscriptionName != "" {
+		selectors = append(selectors, fmt.Sprintf("subscription_name=%q", subscriptionName))
+	}
+	if environmentRegionMode == RegionModeFixed && region != "" {
+		selectors = append(selectors, fmt.Sprintf("region=%q", region))
+	}
+	if len(selectors) == 0 {
+		return nil, fmt.Errorf("environment %q has no pools", environment)
+	}
+	return nil, fmt.Errorf("no pool found for environment %q matching %s", environment, strings.Join(selectors, ", "))
 }
 
 func (c *Catalog) RegionModeForEnvironment(environment string) (string, error) {

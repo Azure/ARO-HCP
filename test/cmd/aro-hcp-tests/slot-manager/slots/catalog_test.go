@@ -123,6 +123,43 @@ func TestResolvePool(t *testing.T) {
 	}
 }
 
+func TestCandidatePoolsFixedPreservesCatalogOrder(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadSyntheticCatalog(t)
+
+	pools, err := catalog.CandidatePools("dev", "", "")
+	if err != nil {
+		t.Fatalf("expected candidate pool resolution to succeed: %v", err)
+	}
+	if len(pools) != 2 {
+		t.Fatalf("expected 2 candidate pools, got %d", len(pools))
+	}
+	if pools[0].ResourceType != "aro-hcp-dev-shard0-westus3-slot" {
+		t.Fatalf("unexpected first candidate resource type %q", pools[0].ResourceType)
+	}
+	if pools[1].ResourceType != "aro-hcp-dev-shard1-eastus2-slot" {
+		t.Fatalf("unexpected second candidate resource type %q", pools[1].ResourceType)
+	}
+}
+
+func TestCandidatePoolsFixedFiltersByRegion(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadSyntheticCatalog(t)
+
+	pools, err := catalog.CandidatePools("dev", "", "eastus2")
+	if err != nil {
+		t.Fatalf("expected candidate pool resolution to succeed: %v", err)
+	}
+	if len(pools) != 1 {
+		t.Fatalf("expected 1 candidate pool, got %d", len(pools))
+	}
+	if pools[0].ResourceType != "aro-hcp-dev-shard1-eastus2-slot" {
+		t.Fatalf("unexpected candidate resource type %q", pools[0].ResourceType)
+	}
+}
+
 func TestLoadCatalogDefaultsRegionModeToFixed(t *testing.T) {
 	t.Parallel()
 
@@ -224,6 +261,42 @@ environments:
 	}
 	if pool.ResourceType != "aro-hcp-prod-shard0-slot" {
 		t.Fatalf("unexpected resource type %q", pool.ResourceType)
+	}
+}
+
+func TestCandidatePoolsRuntimeSelectedIgnoresRegion(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadCatalogFromYAML(t, `version: 1
+environments:
+  prod:
+    deploy_envs: [prod]
+    pools:
+      - subscription_name: prod-sub-1
+        region: uksouth
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard0-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-a
+        identity_container_count: 1
+      - subscription_name: prod-sub-2
+        region: westus3
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard1-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-b
+        identity_container_count: 1
+`)
+
+	pools, err := catalog.CandidatePools("prod", "", "eastus2")
+	if err != nil {
+		t.Fatalf("expected runtime-selected candidate pool resolution to ignore region: %v", err)
+	}
+	if len(pools) != 2 {
+		t.Fatalf("expected 2 candidate pools, got %d", len(pools))
+	}
+	if pools[0].ResourceType != "aro-hcp-prod-shard0-slot" || pools[1].ResourceType != "aro-hcp-prod-shard1-slot" {
+		t.Fatalf("unexpected candidate pool ordering: %q, %q", pools[0].ResourceType, pools[1].ResourceType)
 	}
 }
 
