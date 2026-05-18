@@ -24,6 +24,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/onsi/ginkgo/v2"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -34,20 +35,52 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
 
+var subscriptionLookupBackoff = wait.Backoff{
+	Steps:    4,
+	Duration: 15 * time.Second,
+	Factor:   2.0,
+	Jitter:   0.1,
+}
+
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
-	pager := subscriptionClient.NewListPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return "", err
+	var subscriptionID string
+	attempt := 0
+
+	err := wait.ExponentialBackoffWithContext(ctx, subscriptionLookupBackoff, func(ctx context.Context) (bool, error) {
+		attempt++
+		if attempt > 1 {
+			ginkgo.GinkgoLogr.Info("Retrying subscription lookup",
+				"subscription", subscriptionName,
+				"attempt", attempt)
 		}
-		for _, sub := range page.Value {
-			if *sub.DisplayName == subscriptionName {
-				return *sub.SubscriptionID, nil
+
+		pager := subscriptionClient.NewListPager(nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				ginkgo.GinkgoLogr.Info("Subscription list API error, will retry",
+					"error", err,
+					"attempt", attempt)
+				return false, nil
+			}
+			for _, sub := range page.Value {
+				if *sub.DisplayName == subscriptionName {
+					subscriptionID = *sub.SubscriptionID
+					return true, nil
+				}
 			}
 		}
+
+		ginkgo.GinkgoLogr.Info("Subscription not found in list, will retry",
+			"subscription", subscriptionName,
+			"attempt", attempt)
+		return false, nil
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("subscription with name '%s' not found after %d attempts: %w", subscriptionName, attempt, err)
 	}
-	return "", fmt.Errorf("subscription with name '%s' not found", subscriptionName)
+	return subscriptionID, nil
 }
 
 // CreateResourceGroup creates a resource group
