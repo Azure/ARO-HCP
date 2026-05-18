@@ -50,7 +50,6 @@ Management Cluster (MGMT)
 ├── Namespace: ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} (HostedCluster namespace)
 │   ├── HostedCluster (Primary HCP resource)
 │   │   └── Finalizer: hypershift.openshift.io/finalizer
-│   ├── HostedControlPlane (Control plane configuration)
 │   ├── NodePool(s) (one per worker pool)
 │   │   └── Finalizer: hypershift.openshift.io/finalizer
 │   ├── Secrets (credentials, certificates, pull secrets)
@@ -74,6 +73,8 @@ Management Cluster (MGMT)
     ├── Services, Pods, Secrets, ConfigMaps
     └── PersistentVolumeClaims (etcd storage)
 ```
+
+> **Note**: `HostedControlPlane` lives in the **Control Plane namespace** (the `ocm-${CLUSTER_PREFIX}-${CLUSTER_ID}-${CLUSTER_NAME}` namespace), not in the `HostedCluster` namespace.
 
 ### Deletion Chain Dependencies
 
@@ -279,16 +280,18 @@ kubectl patch deployment <name> -n <cp-namespace> \
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
 
 # AzureMachines (infrastructure.cluster.x-k8s.io)
+# Uses a merge patch so the command is idempotent even if .metadata.finalizers is absent
+# on some items (JSONPatch `replace` would fail on those).
 for name in $(kubectl get azuremachines.infrastructure.cluster.x-k8s.io -n <cp-namespace> -o jsonpath='{.items[*].metadata.name}'); do
   kubectl patch azuremachines.infrastructure.cluster.x-k8s.io $name -n <cp-namespace> \
-    --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+    --type=merge -p='{"metadata":{"finalizers":null}}'
 done
 
 # Machines / MachineSets / MachineDeployments (cluster.x-k8s.io)
 for kind in machines.cluster.x-k8s.io machinesets.cluster.x-k8s.io machinedeployments.cluster.x-k8s.io; do
   for name in $(kubectl get $kind -n <cp-namespace> -o jsonpath='{.items[*].metadata.name}'); do
     kubectl patch $kind $name -n <cp-namespace> \
-      --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+      --type=merge -p='{"metadata":{"finalizers":null}}'
   done
 done
 
@@ -301,9 +304,10 @@ kubectl patch hostedcontrolplanes.hypershift.openshift.io <name> -n <cp-namespac
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
 
 # 3. Remove NodePool finalizers in the HostedCluster namespace
+# Uses a merge patch (idempotent when .metadata.finalizers is absent).
 for name in $(kubectl get nodepool -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} -o jsonpath='{.items[*].metadata.name}'); do
   kubectl patch nodepool $name -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
-    --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+    --type=merge -p='{"metadata":{"finalizers":null}}'
 done
 
 # 4. Remove HostedCluster finalizer (only after CP namespace resources and NodePools are cleared)
