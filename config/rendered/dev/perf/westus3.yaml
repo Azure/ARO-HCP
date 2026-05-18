@@ -416,6 +416,14 @@ hypershift:
     digest: sha256:5e22710fe440869655329ecc0ef57b4ae15f4ef96e74a8904b1e6fafc0d87678
     registry: quay.io
     repository: redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main
+imageRegistryPolicy:
+  extraAllowedRegistries:
+  - docker.io/jaegertracing
+  - docker.io/grafana
+  - docker.io/otel
+  - docker.io/library
+  validationActions:
+  - Deny
 imageSync:
   environmentName: aro-hcp-image-sync
   ocMirror:

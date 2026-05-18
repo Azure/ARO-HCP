@@ -1,0 +1,89 @@
+---
+# Source: image-registry-policy/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "image-registry-allowlist-config"
+  namespace: 'image-registry-policy'
+  labels:
+    app.kubernetes.io/name: image-registry-policy
+    app.kubernetes.io/managed-by: Helm
+data:
+  allowedRegistries: 'arohcpsvcdev.azurecr.io,arohcpocpdev.azurecr.io,mcr.microsoft.com,kubernetesshared.azurecr.io,docker.io/jaegertracing,docker.io/grafana,docker.io/otel,docker.io/library'
+---
+# Source: image-registry-policy/templates/validatingadmissionpolicy.yaml
+# This policy enforces FSI image sourcing requirements by restricting all pod
+# container images to a set of allowed registries. The enforcement action
+# (Deny or Audit) is configured per-environment via the policy binding.
+#
+# The allowed registry list is provided via a ConfigMap parameter so it can be
+# managed independently of the policy definition.
+#
+# CPO images (quay.io/redhat-user-workloads/crt-redhat-acm-tenant/control-plane-operator-*)
+# are temporarily excluded per-image until registryOverride + ACR pull-through
+# cache are deployed (AROSLSRE-777).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "image-registry-allowlist-policy"
+  labels:
+    app.kubernetes.io/name: image-registry-policy
+    app.kubernetes.io/managed-by: Helm
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConstraints:
+    matchPolicy: Equivalent
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+        - kube-system
+        - kube-node-lease
+        - kube-public
+        - gatekeeper-system
+    objectSelector: {}
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["pods"]
+      scope: Namespaced
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["UPDATE"]
+      resources: ["pods/ephemeralcontainers"]
+      scope: Namespaced
+  variables:
+  - name: allImages
+    expression: >-
+      object.spec.containers.map(c, c.image) + object.spec.?initContainers.orValue([]).map(c, c.image) + object.spec.?ephemeralContainers.orValue([]).map(c, c.image)
+  - name: allowedPrefixes
+    expression: "params.data.allowedRegistries.split(',')"
+  - name: disallowedImages
+    expression: "variables.allImages.filter(img, !img.startsWith('quay.io/redhat-user-workloads/crt-redhat-acm-tenant/control-plane-operator-') && !variables.allowedPrefixes.exists(prefix, img.startsWith(prefix + '/') || img.startsWith(prefix + '@')))"
+  validations:
+  - expression: "variables.disallowedImages.size() == 0"
+    messageExpression: "'One or more container images are not from an allowed registry. Allowed registries: ' + params.data.allowedRegistries + '. Images: ' + variables.disallowedImages.join(', ')"
+    reason: Forbidden
+---
+# Source: image-registry-policy/templates/validatingadmissionpolicybinding.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "image-registry-allowlist-policy-binding"
+  labels:
+    app.kubernetes.io/name: image-registry-policy
+    app.kubernetes.io/managed-by: Helm
+spec:
+  policyName: "image-registry-allowlist-policy"
+  validationActions:
+  - Deny
+  paramRef:
+    name: "image-registry-allowlist-config"
+    namespace: 'image-registry-policy'
+    parameterNotFoundAction: Deny
+
