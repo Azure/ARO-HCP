@@ -861,7 +861,7 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 			ClusterServiceProvisionShardID:                       &shardID,
 			// i hate this a lot but there is no representation of the cosmosdb container as of now
 			// in CS or the RP so we replicate the naming convention here.
-			// his will resolve once we don't migrate mgmt clusters from CS anymore but ingest them
+			// This will resolve once we don't migrate mgmt clusters from CS anymore but ingest them
 			// from the pipeline, where this information is available (a.k.a. phase 2)
 			KubeApplierCosmosContainerName: fmt.Sprintf("Manifests-MC-%s", stampIdentifier),
 			Conditions:                     []metav1.Condition{readyCondition},

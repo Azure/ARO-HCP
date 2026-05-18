@@ -16,7 +16,6 @@ package database
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"testing"
 
@@ -69,30 +68,7 @@ func newFakeMC(t *testing.T, stampIdentifier, containerName, consumerName string
 func TestKubeApplierDBClients_ForReturnsNilForUnknownMC(t *testing.T) {
 	clients := NewKubeApplierDBClients(nil, &fakeManagementClusterLister{})
 	rid := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
-	assert.Nil(t, clients.For(rid), "unknown management cluster should return nil")
-}
-
-// TestKubeApplierDBClients_ManagementClusterResourceIDs verifies the lister
-// drives ManagementClusterResourceIDs() — adding an MC to the lister makes it
-// visible without rebuilding the registry. The orphan controller relies on
-// this iteration to walk every reachable MC's container.
-func TestKubeApplierDBClients_ManagementClusterResourceIDs(t *testing.T) {
-	lister := &fakeManagementClusterLister{}
-	lister.mcs = []*fleet.ManagementCluster{
-		newFakeMC(t, "1", "container-a", "mc-a"),
-		newFakeMC(t, "2", "container-b", "mc-b"),
-	}
-	clients := NewKubeApplierDBClients(nil, lister)
-
-	rids := clients.ManagementClusterResourceIDs()
-	require.Len(t, rids, 2)
-
-	got := map[string]bool{}
-	for _, rid := range rids {
-		got[strings.ToLower(rid.String())] = true
-	}
-	assert.True(t, got["/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"], "mc-a resourceID round-trips")
-	assert.True(t, got["/providers/microsoft.redhatopenshift/stamps/2/managementclusters/default"], "mc-b resourceID round-trips")
+	assert.Nil(t, clients.For(context.Background(), rid), "unknown management cluster should return nil")
 }
 
 // TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing covers the
@@ -106,7 +82,7 @@ func TestKubeApplierDBClients_ForUsesLister_ReturnsNilWhenMissing(t *testing.T) 
 	clients := NewKubeApplierDBClients(nil, lister)
 
 	missing := mustParseResourceIDForKubeApplierTest(t, "/providers/microsoft.redhatopenshift/stamps/missing/managementclusters/default")
-	assert.Nil(t, clients.For(missing))
+	assert.Nil(t, clients.For(context.Background(), missing))
 	assert.GreaterOrEqual(t, lister.calls, 1, "For() must consult the lister")
 }
 
@@ -121,11 +97,11 @@ func TestKubeApplierDBClients_ForIsThreadSafe_UnknownReturnsNilUnderRace(t *test
 	const goroutines = 50
 	wg := sync.WaitGroup{}
 	wg.Add(goroutines)
+	ctx := context.Background()
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			assert.Nil(t, clients.For(rid))
-			_ = clients.ManagementClusterResourceIDs()
+			assert.Nil(t, clients.For(ctx, rid))
 		}()
 	}
 	wg.Wait()

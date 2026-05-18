@@ -24,6 +24,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting"
@@ -90,7 +91,12 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 	// this mock via clients.For(rid).
 	clients := databasetesting.NewMockKubeApplierDBClients()
 	clients.Register(testMgmtID, mock)
-	l := &listertesting.DBApplyDesireLister{Clients: clients}
+	lister := &listertesting.SliceManagementClusterLister{
+		ManagementClusters: []*fleet.ManagementCluster{
+			{CosmosMetadata: api.CosmosMetadata{ResourceID: testMgmtID}, ResourceID: testMgmtID},
+		},
+	}
+	l := &listertesting.DBApplyDesireLister{Clients: clients, Lister: lister}
 
 	all, err := l.List(ctx)
 	if err != nil {

@@ -336,13 +336,7 @@ type KubeApplierDBClients interface {
 	// from the management cluster's Status.KubeApplierCosmosContainerName.
 	// Returns nil if no management cluster matches, if the lister errors, or
 	// if the matched management cluster has no container name configured.
-	For(managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient
-
-	// ManagementClusterResourceIDs returns the resourceID of every management
-	// cluster currently visible through the lister. Order is not stable.
-	// Callers use this to iterate every container in the registry (e.g. the
-	// orphan-cleanup controller sweeping all MCs).
-	ManagementClusterResourceIDs() []*azcorearm.ResourceID
+	For(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient
 }
 
 // kubeApplierDBClients is the cosmos-backed implementation of KubeApplierDBClients.
@@ -351,9 +345,9 @@ type kubeApplierDBClients struct {
 
 	// mcLister is the source of truth for which management clusters exist and
 	// what their per-container configuration looks like. It is queried fresh
-	// on each For() / ManagementClusterResourceIDs() call so additions and
-	// removals at the lister level are picked up without restarting the
-	// backend; only the per-MC azcosmos client construction is cached.
+	// on each For() call so additions and removals at the lister level are
+	// picked up without restarting the backend; only the per-MC azcosmos
+	// client construction is cached.
 	mcLister ManagementClusterLister
 
 	mu      sync.Mutex
@@ -376,7 +370,7 @@ func NewKubeApplierDBClients(database *azcosmos.DatabaseClient, mcLister Managem
 	}
 }
 
-func (c *kubeApplierDBClients) For(managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient {
+func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient {
 	if managementClusterResourceID == nil {
 		return nil
 	}
@@ -389,7 +383,7 @@ func (c *kubeApplierDBClients) For(managementClusterResourceID *azcorearm.Resour
 		return existing
 	}
 
-	mc := c.findManagementClusterLocked(managementClusterResourceID)
+	mc := c.findManagementClusterLocked(ctx, managementClusterResourceID)
 	if mc == nil {
 		return nil
 	}
@@ -413,32 +407,13 @@ func (c *kubeApplierDBClients) For(managementClusterResourceID *azcorearm.Resour
 	return client
 }
 
-func (c *kubeApplierDBClients) ManagementClusterResourceIDs() []*azcorearm.ResourceID {
-	// The lister is the source of truth; we do not cache the set, only the
-	// constructed per-MC clients. This lets MCs added after backend startup
-	// become visible on the next sync without recycling the backend.
-	mcs, err := c.mcLister.List(context.TODO())
-	if err != nil {
-		// No logger is plumbed here; on a lister error the orphan-sweep caller
-		// will simply not iterate this round and try again next sync.
-		return nil
-	}
-	out := make([]*azcorearm.ResourceID, 0, len(mcs))
-	for _, mc := range mcs {
-		if rid := managementClusterResourceID(mc); rid != nil {
-			out = append(out, rid)
-		}
-	}
-	return out
-}
-
 // findManagementClusterLocked walks the lister looking for the management cluster
 // whose ResourceID matches the caller's. Linear iteration is intentional: the
 // fleet is small (low hundreds of MCs at the worst case) and walking the list
 // keeps us tolerant of any resourceID-format mismatch between the caller's input
 // and the canonical form from the lister.
-func (c *kubeApplierDBClients) findManagementClusterLocked(rid *azcorearm.ResourceID) *fleet.ManagementCluster {
-	mcs, err := c.mcLister.List(context.TODO())
+func (c *kubeApplierDBClients) findManagementClusterLocked(ctx context.Context, rid *azcorearm.ResourceID) *fleet.ManagementCluster {
+	mcs, err := c.mcLister.List(ctx)
 	if err != nil {
 		return nil
 	}

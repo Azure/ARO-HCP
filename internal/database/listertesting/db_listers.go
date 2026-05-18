@@ -37,20 +37,47 @@ func collectFromIterator[T any](ctx context.Context, iter database.DBClientItera
 	return out, nil
 }
 
+// managementClusterResourceIDs queries the provided lister and projects each
+// management cluster to its resourceID. Used by the per-Type *Desire listers to
+// fan out across every configured management cluster.
+func managementClusterResourceIDs(ctx context.Context, lister database.ManagementClusterLister) ([]*azcorearm.ResourceID, error) {
+	mcs, err := lister.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*azcorearm.ResourceID, 0, len(mcs))
+	for _, mc := range mcs {
+		rid := mc.ResourceID
+		if rid == nil {
+			rid = mc.CosmosMetadata.ResourceID
+		}
+		if rid == nil {
+			continue
+		}
+		out = append(out, rid)
+	}
+	return out, nil
+}
+
 // DBApplyDesireLister implements listers.ApplyDesireLister backed by a real
 // database.KubeApplierDBClients. Each call iterates the configured management
 // clusters and aggregates per-container results — exercising the registry's
 // thread-safe lookup path and per-MC listers.
 type DBApplyDesireLister struct {
 	Clients database.KubeApplierDBClients
+	Lister  database.ManagementClusterLister
 }
 
 var _ listers.ApplyDesireLister = &DBApplyDesireLister{}
 
 func (l *DBApplyDesireLister) List(ctx context.Context) ([]*kubeapplier.ApplyDesire, error) {
+	rids, err := managementClusterResourceIDs(ctx, l.Lister)
+	if err != nil {
+		return nil, err
+	}
 	var all []*kubeapplier.ApplyDesire
-	for _, rid := range l.Clients.ManagementClusterResourceIDs() {
-		client := l.Clients.For(rid)
+	for _, rid := range rids {
+		client := l.Clients.For(ctx, rid)
 		if client == nil {
 			continue
 		}
@@ -73,7 +100,7 @@ func (l *DBApplyDesireLister) GetForCluster(
 	parent := database.ResourceParent{
 		SubscriptionID: subscriptionID, ResourceGroupName: resourceGroupName, ClusterName: clusterName,
 	}
-	return findApplyDesireInAnyClient(ctx, l.Clients, parent, name)
+	return findApplyDesireInAnyClient(ctx, l.Clients, l.Lister, parent, name)
 }
 
 func (l *DBApplyDesireLister) GetForNodePool(
@@ -85,13 +112,13 @@ func (l *DBApplyDesireLister) GetForNodePool(
 		ClusterName:       clusterName,
 		NodePoolName:      nodePoolName,
 	}
-	return findApplyDesireInAnyClient(ctx, l.Clients, parent, name)
+	return findApplyDesireInAnyClient(ctx, l.Clients, l.Lister, parent, name)
 }
 
 func (l *DBApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
-	client := l.Clients.For(managementClusterResourceID)
+	client := l.Clients.For(ctx, managementClusterResourceID)
 	if client == nil {
 		return nil, nil
 	}
@@ -137,10 +164,14 @@ func (l *DBApplyDesireLister) ListForNodePool(
 // findApplyDesireInAnyClient tries Get on each configured per-MC client; first hit
 // wins. Stops on the first non-NotFound error.
 func findApplyDesireInAnyClient(
-	ctx context.Context, clients database.KubeApplierDBClients, parent database.ResourceParent, name string,
+	ctx context.Context, clients database.KubeApplierDBClients, lister database.ManagementClusterLister, parent database.ResourceParent, name string,
 ) (*kubeapplier.ApplyDesire, error) {
-	for _, rid := range clients.ManagementClusterResourceIDs() {
-		client := clients.For(rid)
+	rids, err := managementClusterResourceIDs(ctx, lister)
+	if err != nil {
+		return nil, err
+	}
+	for _, rid := range rids {
+		client := clients.For(ctx, rid)
 		if client == nil {
 			continue
 		}
@@ -163,14 +194,19 @@ func findApplyDesireInAnyClient(
 // database.KubeApplierDBClients.
 type DBDeleteDesireLister struct {
 	Clients database.KubeApplierDBClients
+	Lister  database.ManagementClusterLister
 }
 
 var _ listers.DeleteDesireLister = &DBDeleteDesireLister{}
 
 func (l *DBDeleteDesireLister) List(ctx context.Context) ([]*kubeapplier.DeleteDesire, error) {
+	rids, err := managementClusterResourceIDs(ctx, l.Lister)
+	if err != nil {
+		return nil, err
+	}
 	var all []*kubeapplier.DeleteDesire
-	for _, rid := range l.Clients.ManagementClusterResourceIDs() {
-		client := l.Clients.For(rid)
+	for _, rid := range rids {
+		client := l.Clients.For(ctx, rid)
 		if client == nil {
 			continue
 		}
@@ -193,7 +229,7 @@ func (l *DBDeleteDesireLister) GetForCluster(
 	parent := database.ResourceParent{
 		SubscriptionID: subscriptionID, ResourceGroupName: resourceGroupName, ClusterName: clusterName,
 	}
-	return findDeleteDesireInAnyClient(ctx, l.Clients, parent, name)
+	return findDeleteDesireInAnyClient(ctx, l.Clients, l.Lister, parent, name)
 }
 
 func (l *DBDeleteDesireLister) GetForNodePool(
@@ -205,13 +241,13 @@ func (l *DBDeleteDesireLister) GetForNodePool(
 		ClusterName:       clusterName,
 		NodePoolName:      nodePoolName,
 	}
-	return findDeleteDesireInAnyClient(ctx, l.Clients, parent, name)
+	return findDeleteDesireInAnyClient(ctx, l.Clients, l.Lister, parent, name)
 }
 
 func (l *DBDeleteDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.DeleteDesire, error) {
-	client := l.Clients.For(managementClusterResourceID)
+	client := l.Clients.For(ctx, managementClusterResourceID)
 	if client == nil {
 		return nil, nil
 	}
@@ -255,10 +291,14 @@ func (l *DBDeleteDesireLister) ListForNodePool(
 }
 
 func findDeleteDesireInAnyClient(
-	ctx context.Context, clients database.KubeApplierDBClients, parent database.ResourceParent, name string,
+	ctx context.Context, clients database.KubeApplierDBClients, lister database.ManagementClusterLister, parent database.ResourceParent, name string,
 ) (*kubeapplier.DeleteDesire, error) {
-	for _, rid := range clients.ManagementClusterResourceIDs() {
-		client := clients.For(rid)
+	rids, err := managementClusterResourceIDs(ctx, lister)
+	if err != nil {
+		return nil, err
+	}
+	for _, rid := range rids {
+		client := clients.For(ctx, rid)
 		if client == nil {
 			continue
 		}
@@ -281,14 +321,19 @@ func findDeleteDesireInAnyClient(
 // database.KubeApplierDBClients.
 type DBReadDesireLister struct {
 	Clients database.KubeApplierDBClients
+	Lister  database.ManagementClusterLister
 }
 
 var _ listers.ReadDesireLister = &DBReadDesireLister{}
 
 func (l *DBReadDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
+	rids, err := managementClusterResourceIDs(ctx, l.Lister)
+	if err != nil {
+		return nil, err
+	}
 	var all []*kubeapplier.ReadDesire
-	for _, rid := range l.Clients.ManagementClusterResourceIDs() {
-		client := l.Clients.For(rid)
+	for _, rid := range rids {
+		client := l.Clients.For(ctx, rid)
 		if client == nil {
 			continue
 		}
@@ -311,7 +356,7 @@ func (l *DBReadDesireLister) GetForCluster(
 	parent := database.ResourceParent{
 		SubscriptionID: subscriptionID, ResourceGroupName: resourceGroupName, ClusterName: clusterName,
 	}
-	return findReadDesireInAnyClient(ctx, l.Clients, parent, name)
+	return findReadDesireInAnyClient(ctx, l.Clients, l.Lister, parent, name)
 }
 
 func (l *DBReadDesireLister) GetForNodePool(
@@ -323,13 +368,13 @@ func (l *DBReadDesireLister) GetForNodePool(
 		ClusterName:       clusterName,
 		NodePoolName:      nodePoolName,
 	}
-	return findReadDesireInAnyClient(ctx, l.Clients, parent, name)
+	return findReadDesireInAnyClient(ctx, l.Clients, l.Lister, parent, name)
 }
 
 func (l *DBReadDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ReadDesire, error) {
-	client := l.Clients.For(managementClusterResourceID)
+	client := l.Clients.For(ctx, managementClusterResourceID)
 	if client == nil {
 		return nil, nil
 	}
@@ -373,10 +418,14 @@ func (l *DBReadDesireLister) ListForNodePool(
 }
 
 func findReadDesireInAnyClient(
-	ctx context.Context, clients database.KubeApplierDBClients, parent database.ResourceParent, name string,
+	ctx context.Context, clients database.KubeApplierDBClients, lister database.ManagementClusterLister, parent database.ResourceParent, name string,
 ) (*kubeapplier.ReadDesire, error) {
-	for _, rid := range clients.ManagementClusterResourceIDs() {
-		client := clients.For(rid)
+	rids, err := managementClusterResourceIDs(ctx, lister)
+	if err != nil {
+		return nil, err
+	}
+	for _, rid := range rids {
+		client := clients.For(ctx, rid)
 		if client == nil {
 			continue
 		}

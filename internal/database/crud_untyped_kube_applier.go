@@ -37,8 +37,9 @@ import (
 //
 // Get and Delete(resourceID) intentionally return errors: both need a partition key derivable
 // from the resourceID, and a *Desire's resourceID does not encode its management cluster.
-// Callers that have the partition key in hand should reach for KubeApplier(mc).<Type>Desires(...)
-// instead; cleanup callers should use DeleteByCosmosID.
+// Callers that have the partition key in hand should reach for
+// KubeApplierDBClients.For(mc).{ApplyDesires,DeleteDesires,ReadDesires}(parent) instead;
+// cleanup callers should use DeleteByCosmosID.
 type kubeApplierUntypedCRUD struct {
 	containerClient  *azcosmos.ContainerClient
 	parentResourceID azcorearm.ResourceID

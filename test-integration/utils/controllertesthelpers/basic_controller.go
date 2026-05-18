@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -35,11 +37,12 @@ import (
 )
 
 type ControllerInitializationInput struct {
-	ResourcesDBClient    database.ResourcesDBClient
-	BillingDBClient      database.BillingDBClient
-	KubeApplierDBClients database.KubeApplierDBClients
-	SubscriptionLister   listers.SubscriptionLister
-	ClusterServiceClient ocm.ClusterServiceClientSpec
+	ResourcesDBClient       database.ResourcesDBClient
+	BillingDBClient         database.BillingDBClient
+	KubeApplierDBClients    database.KubeApplierDBClients
+	SubscriptionLister      listers.SubscriptionLister
+	ManagementClusterLister dblisters.ManagementClusterLister
+	ClusterServiceClient    ocm.ClusterServiceClientSpec
 }
 
 type ControllerInitializerFunc func(ctx context.Context, t *testing.T, input *ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any)
@@ -119,7 +122,10 @@ func (tc *BasicControllerTest) RunTest(t *testing.T) {
 		// exercising a nil kube-applier registry; iterating an empty registry is exactly
 		// what "no management clusters configured" means in those scenarios.
 		KubeApplierDBClients: databasetesting.NewMockKubeApplierDBClients(),
-		ClusterServiceClient: clusterServiceMockInfo.MockClusterServiceClient,
+		// Empty lister by default — tests that need actual management clusters
+		// in the sweep should overlay a populated SliceManagementClusterLister.
+		ManagementClusterLister: &listertesting.SliceManagementClusterLister{},
+		ClusterServiceClient:    clusterServiceMockInfo.MockClusterServiceClient,
 	}
 
 	controllerInstance, testMemory := tc.ControllerInitializerFn(ctx, t, controllerInput)

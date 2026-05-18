@@ -483,7 +483,7 @@ func (c *MockKubeApplierDBClients) Register(managementClusterResourceID *azcorea
 	c.clients[strings.ToLower(managementClusterResourceID.String())] = client
 }
 
-func (c *MockKubeApplierDBClients) For(managementClusterResourceID *azcorearm.ResourceID) database.KubeApplierDBClient {
+func (c *MockKubeApplierDBClients) For(_ context.Context, managementClusterResourceID *azcorearm.ResourceID) database.KubeApplierDBClient {
 	if managementClusterResourceID == nil {
 		return nil
 	}
@@ -494,18 +494,4 @@ func (c *MockKubeApplierDBClients) For(managementClusterResourceID *azcorearm.Re
 		return nil
 	}
 	return client
-}
-
-func (c *MockKubeApplierDBClients) ManagementClusterResourceIDs() []*azcorearm.ResourceID {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	out := make([]*azcorearm.ResourceID, 0, len(c.clients))
-	for ridString := range c.clients {
-		rid, err := azcorearm.ParseResourceID(ridString)
-		if err != nil {
-			continue
-		}
-		out = append(out, rid)
-	}
-	return out
 }

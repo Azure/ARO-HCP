@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -35,15 +34,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type deleteOrphanedCosmosResources struct {
 	name string
 
-	subscriptionLister   listers.SubscriptionLister
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	subscriptionLister      listers.SubscriptionLister
+	managementClusterLister dblisters.ManagementClusterLister
+	resourcesDBClient       database.ResourcesDBClient
+	kubeApplierDBClients    database.KubeApplierDBClients
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -63,12 +64,14 @@ func NewDeleteOrphanedCosmosResourcesController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
 	subscriptionLister listers.SubscriptionLister,
+	managementClusterLister dblisters.ManagementClusterLister,
 ) controllerutils.Controller {
 	c := &deleteOrphanedCosmosResources{
-		name:                 "DeleteOrphanedCosmosResources",
-		subscriptionLister:   subscriptionLister,
-		resourcesDBClient:    resourcesDBClient,
-		kubeApplierDBClients: kubeApplierDBClients,
+		name:                    "DeleteOrphanedCosmosResources",
+		subscriptionLister:      subscriptionLister,
+		managementClusterLister: managementClusterLister,
+		resourcesDBClient:       resourcesDBClient,
+		kubeApplierDBClients:    kubeApplierDBClients,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -91,10 +94,11 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	paginatedListOptions := &database.DBClientListResourceDocsOptions{
-		PageSizeHint: ptr.To(int32(500)),
-	}
-	subscriptionResourceIterator, err := untypedSubscriptionCRUD.ListRecursive(ctx, paginatedListOptions)
+	// nil options → all-pages iterator. A positive PageSizeHint switches to a
+	// single-page iterator with a continuation token we don't follow, which
+	// would silently truncate the resource set and let orphan checks miss
+	// live parents on later pages.
+	subscriptionResourceIterator, err := untypedSubscriptionCRUD.ListRecursive(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -183,9 +187,10 @@ func (c *deleteOrphanedCosmosResources) synchronizeSubscription(ctx context.Cont
 // allSubscriptionResourceIDs.
 //
 // In the per-management-cluster container model, the controller cannot use a single client
-// to span all *Desires — it iterates the configured KubeApplierDBClients registry. Each
-// per-MC UntypedCRUD walks one container; the partition key is internal to the container,
-// so deletion goes through DeleteByCosmosID using the listed row's partitionKey.
+// to span all *Desires — it iterates the management clusters from the lister and looks up
+// each one's KubeApplierDBClient. Each per-MC UntypedCRUD walks one container; the partition
+// key is internal to the container, so deletion goes through DeleteByCosmosID using the
+// listed row's partitionKey.
 func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 	ctx context.Context,
 	subscriptionResourceID *azcorearm.ResourceID,
@@ -193,21 +198,23 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	if c.kubeApplierDBClients == nil {
-		// Defensive: kube-applier wiring is optional only for test scenarios that don't load
-		// any *Desires. Production callers always pass a non-nil registry.
-		return nil
-	}
-
-	paginatedListOptions := &database.DBClientListResourceDocsOptions{
-		PageSizeHint: ptr.To(int32(500)),
+	managementClusters, err := c.managementClusterLister.List(ctx)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("listing management clusters for kube-applier sweep: %w", err))
 	}
 
 	errs := []error{}
-	for _, mcResourceID := range c.kubeApplierDBClients.ManagementClusterResourceIDs() {
+	for _, mc := range managementClusters {
+		mcResourceID := mc.ResourceID
+		if mcResourceID == nil {
+			mcResourceID = mc.CosmosMetadata.ResourceID
+		}
+		if mcResourceID == nil {
+			continue
+		}
 		mcLogger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))
 
-		client := c.kubeApplierDBClients.For(mcResourceID)
+		client := c.kubeApplierDBClients.For(ctx, mcResourceID)
 		if client == nil {
 			mcLogger.Error(nil, "no kube-applier client configured for management cluster; skipping")
 			continue
@@ -218,7 +225,7 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 			errs = append(errs, utils.TrackError(err))
 			continue
 		}
-		desireIterator, err := desireCRUD.ListRecursive(ctx, paginatedListOptions)
+		desireIterator, err := desireCRUD.ListRecursive(ctx, nil)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
 			continue
@@ -227,7 +234,12 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 		for _, desire := range desireIterator.Items(ctx) {
 			if desire.ResourceID == nil {
 				localLogger := mcLogger.WithValues(utils.LogValues{}.AddCosmosResourceID(desire.CosmosResourceID))
-				localLogger.Error(errors.New("kube-applier document has no resource ID"), "found invalid document")
+				localLogger.Error(errors.New("kube-applier document has no resource ID"), "deleting invalid document by cosmos ID")
+				ctxWithLocalLogger := utils.ContextWithLogger(ctx, localLogger)
+				if err := desireCRUD.DeleteByCosmosID(ctxWithLocalLogger, desire.PartitionKey, desire.ID); err != nil {
+					localLogger.Error(err, "unable to delete invalid kube-applier desire")
+					errs = append(errs, utils.TrackError(fmt.Errorf("unable to delete invalid desire %v: %w", desire.CosmosResourceID, err)))
+				}
 				continue
 			}
 			if desire.ResourceID.Parent == nil {
