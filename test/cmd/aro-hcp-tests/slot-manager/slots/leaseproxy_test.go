@@ -17,6 +17,7 @@ package slots
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -105,6 +106,47 @@ func TestAcquireLeaseRejectsUnexpectedStatus(t *testing.T) {
 
 	if _, err := AcquireLease(context.Background(), server.URL, "missing-type", DefaultLeaseProxyTimeout); err == nil {
 		t.Fatalf("expected lease acquire to fail for non-2xx status")
+	}
+}
+
+func TestAcquireLeaseClassifiesPoolExhaustionWithoutRetry(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`Failed to acquire lease "aro-hcp-dev-westus3-slot": resource not found`))
+	}))
+	defer server.Close()
+
+	_, err := AcquireLease(context.Background(), server.URL, "aro-hcp-dev-westus3-slot", 5*time.Second)
+	if err == nil {
+		t.Fatal("expected lease acquire to fail for an exhausted pool")
+	}
+	if !errors.Is(err, ErrLeasePoolExhausted) {
+		t.Fatalf("expected exhausted-pool error classification, got %v", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("expected exactly 1 attempt for exhausted pool, got %d", attempts)
+	}
+}
+
+func TestAcquireLeaseDoesNotClassifyTypeNotFoundAsPoolExhausted(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`Failed to acquire lease "missing-type": resource type not found`))
+	}))
+	defer server.Close()
+
+	_, err := AcquireLease(context.Background(), server.URL, "missing-type", DefaultLeaseProxyTimeout)
+	if err == nil {
+		t.Fatal("expected lease acquire to fail for missing resource type")
+	}
+	if errors.Is(err, ErrLeasePoolExhausted) {
+		t.Fatalf("expected missing resource type to remain a hard failure, got %v", err)
 	}
 }
 

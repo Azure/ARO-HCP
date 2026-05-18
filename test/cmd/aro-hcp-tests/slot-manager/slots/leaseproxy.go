@@ -18,7 +18,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -28,6 +30,8 @@ import (
 )
 
 const DefaultLeaseProxyTimeout = 2 * time.Minute
+
+var ErrLeasePoolExhausted = errors.New("lease pool exhausted")
 
 var leaseProxyRequestBackoff = wait.Backoff{
 	Duration: 1 * time.Second,
@@ -45,6 +49,23 @@ type releaseLeaseRequest struct {
 	Names []string `json:"names"`
 }
 
+type LeasePoolExhaustedError struct {
+	ResourceType string
+	Message      string
+}
+
+func (e *LeasePoolExhaustedError) Error() string {
+	message := strings.TrimSpace(e.Message)
+	if message == "" {
+		message = ErrLeasePoolExhausted.Error()
+	}
+	return fmt.Sprintf("failed to acquire lease type %q: %s", e.ResourceType, message)
+}
+
+func (e *LeasePoolExhaustedError) Is(target error) bool {
+	return target == ErrLeasePoolExhausted
+}
+
 func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string, timeout time.Duration) (string, error) {
 	if strings.TrimSpace(leaseProxyServerURL) == "" {
 		return "", fmt.Errorf("LEASE_PROXY_SERVER_URL must be set")
@@ -60,21 +81,36 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 	query.Set("type", resourceType)
 	query.Set("count", "1")
 
-	response, err := doLeaseProxyRequestWithRetry(ctx, timeout, func(ctx context.Context, client *http.Client) (*http.Response, error) {
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(leaseProxyServerURL, "/")+"/lease/acquire?"+query.Encode(), nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create lease acquire request: %w", err)
-		}
-		return client.Do(request)
-	})
+	response, err := doLeaseProxyRequestWithRetry(
+		ctx,
+		timeout,
+		func(ctx context.Context, client *http.Client) (*http.Response, error) {
+			request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(leaseProxyServerURL, "/")+"/lease/acquire?"+query.Encode(), nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create lease acquire request: %w", err)
+			}
+			return client.Do(request)
+		},
+		func(response *http.Response, responseBody []byte) (bool, error) {
+			if response.StatusCode >= 200 && response.StatusCode < 300 {
+				return true, nil
+			}
+			if isLeasePoolExhaustedResponse(response.StatusCode, responseBody) {
+				return false, &LeasePoolExhaustedError{
+					ResourceType: resourceType,
+					Message:      strings.TrimSpace(string(responseBody)),
+				}
+			}
+			if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500 {
+				return false, nil
+			}
+			return false, fmt.Errorf("failed to acquire lease type %q: %s", resourceType, leaseProxyResponseMessage(response.Status, responseBody))
+		},
+	)
 	if err != nil {
-		return "", fmt.Errorf("failed to acquire lease type %q: %w", resourceType, err)
+		return "", err
 	}
 	defer response.Body.Close()
-
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", fmt.Errorf("failed to acquire lease type %q: unexpected status %s", resourceType, response.Status)
-	}
 
 	acquireResponse := &acquireLeaseResponse{}
 	if err := json.NewDecoder(response.Body).Decode(acquireResponse); err != nil {
@@ -102,27 +138,41 @@ func ReleaseLease(ctx context.Context, leaseProxyServerURL, name string, timeout
 		return fmt.Errorf("failed to marshal lease release request: %w", err)
 	}
 
-	response, err := doLeaseProxyRequestWithRetry(ctx, timeout, func(ctx context.Context, client *http.Client) (*http.Response, error) {
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(leaseProxyServerURL, "/")+"/lease/release", bytes.NewReader(requestBody))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create lease release request: %w", err)
-		}
-		request.Header.Set("Content-Type", "application/json")
-		return client.Do(request)
-	})
+	response, err := doLeaseProxyRequestWithRetry(
+		ctx,
+		timeout,
+		func(ctx context.Context, client *http.Client) (*http.Response, error) {
+			request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(leaseProxyServerURL, "/")+"/lease/release", bytes.NewReader(requestBody))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create lease release request: %w", err)
+			}
+			request.Header.Set("Content-Type", "application/json")
+			return client.Do(request)
+		},
+		func(response *http.Response, responseBody []byte) (bool, error) {
+			if response.StatusCode >= 200 && response.StatusCode < 300 {
+				return true, nil
+			}
+			if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500 {
+				return false, nil
+			}
+			return false, fmt.Errorf("failed to release lease %q: %s", name, leaseProxyResponseMessage(response.Status, responseBody))
+		},
+	)
 	if err != nil {
-		return fmt.Errorf("failed to release lease %q: %w", name, err)
+		return err
 	}
 	defer response.Body.Close()
-
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("failed to release lease %q: unexpected status %s", name, response.Status)
-	}
 
 	return nil
 }
 
-func doLeaseProxyRequestWithRetry(ctx context.Context, timeout time.Duration, requestFunc func(context.Context, *http.Client) (*http.Response, error)) (*http.Response, error) {
+func doLeaseProxyRequestWithRetry(
+	ctx context.Context,
+	timeout time.Duration,
+	requestFunc func(context.Context, *http.Client) (*http.Response, error),
+	responseHandler func(*http.Response, []byte) (bool, error),
+) (*http.Response, error) {
 	client := &http.Client{Timeout: timeout}
 
 	var response *http.Response
@@ -133,9 +183,21 @@ func doLeaseProxyRequestWithRetry(ctx context.Context, timeout time.Duration, re
 			lastErr = err
 			return false, nil
 		}
-		if currentResponse.StatusCode == http.StatusTooManyRequests || currentResponse.StatusCode >= 500 {
+		responseBody, err := io.ReadAll(currentResponse.Body)
+		currentResponse.Body.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("failed to read lease proxy response body: %w", err)
+			return false, nil
+		}
+		currentResponse.Body = io.NopCloser(bytes.NewReader(responseBody))
+
+		stop, err := responseHandler(currentResponse, responseBody)
+		if err != nil {
+			lastErr = err
+			return false, err
+		}
+		if !stop {
 			lastErr = fmt.Errorf("unexpected retryable status %s", currentResponse.Status)
-			currentResponse.Body.Close()
 			return false, nil
 		}
 
@@ -151,4 +213,21 @@ func doLeaseProxyRequestWithRetry(ctx context.Context, timeout time.Duration, re
 	}
 
 	return response, nil
+}
+
+func isLeasePoolExhaustedResponse(statusCode int, responseBody []byte) bool {
+	if statusCode < http.StatusInternalServerError {
+		return false
+	}
+
+	message := strings.ToLower(strings.TrimSpace(string(responseBody)))
+	return strings.Contains(message, "resource not found") && !strings.Contains(message, "resource type not found")
+}
+
+func leaseProxyResponseMessage(status string, responseBody []byte) string {
+	message := strings.TrimSpace(string(responseBody))
+	if message == "" {
+		return fmt.Sprintf("unexpected status %s", status)
+	}
+	return fmt.Sprintf("unexpected status %s: %s", status, message)
 }
