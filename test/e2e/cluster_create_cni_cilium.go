@@ -150,8 +150,11 @@ var _ = Describe("Customer", func() {
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolErr := tc.CreateNodePoolFromParam(ctx,
+			nodePoolErr := tc.CreateNodePoolFromParam(
+				ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				clusterParams.ManagedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,

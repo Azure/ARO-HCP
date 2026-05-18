@@ -60,6 +60,14 @@ export FRONTEND_COSMOS_ENDPOINT="${DEFAULT_COSMOS_ENDPOINT}"
 #TODO these are sent over HTTP, so it's only safe because the emulator is personal and well-known.  Fix the trust before sending real creds
 export FRONTEND_COSMOS_KEY="${DEFAULT_COSMOS_KEY}"
 
+# The kube-applier integration tests need envtest's kube-apiserver + etcd
+# binaries. The repo's top-level Makefile owns the download/cache logic;
+# call into it so this script and `make test-unit` use the same path.
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+KUBEBUILDER_ASSETS="$(make -C "${REPO_ROOT}" -s envtest-setup)"
+export KUBEBUILDER_ASSETS
+echo "envtest binaries: ${KUBEBUILDER_ASSETS}"
+
 
 if [ "${USE_GOTESTSUM}" = "true" ]; then
     echo "Running tests with gotestsum (CI mode) with ARTIFACTS in ${ARTIFACT_DIR} and GOPATH=${GOPATH}..."

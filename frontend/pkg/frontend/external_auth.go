@@ -265,10 +265,11 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(csExternalAuth.HREF())
+	csExternalAuthID, err := api.NewInternalID(csExternalAuth.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID = &csExternalAuthID
 
 	operationRequest := database.OperationRequestCreate
 
@@ -277,7 +278,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	createExternalAuthOperation := database.NewOperation(
 		operationRequest,
 		newInternalExternalAuth.ID,
-		newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
+		*newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -470,13 +471,18 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
+	// Temporary check until creation and update interaction with CS is moved to the backend: If an update arrives after the externalauth
+	// has been created in Cosmos but before it exists in CS, or before its ClusterServiceID has been persisted in Cosmos, return an error.
+	if oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to update an external auth"))
+	}
+
 	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, newInternalExternalAuth, true)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalExternalAuth.ID))
-	_, err = f.clusterServiceClient.UpdateExternalAuth(ctx, oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, csExternalAuthBuilder)
+	_, err = f.clusterServiceClient.UpdateExternalAuth(ctx, *oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, csExternalAuthBuilder)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -486,7 +492,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	externalAuthUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalExternalAuth.ID,
-		newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
+		ptr.Deref(newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -571,7 +577,13 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	err = f.clusterServiceClient.DeleteExternalAuth(ctx, externalAuth.ServiceProviderProperties.ClusterServiceID)
+	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the external
+	// auth has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
+	if externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete an external auth"))
+	}
+
+	err = f.clusterServiceClient.DeleteExternalAuth(ctx, *externalAuth.ServiceProviderProperties.ClusterServiceID)
 	var ocmError *ocmerrors.Error
 	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 		// StatusNotFound means we have stale data in Cosmos DB.
@@ -615,10 +627,16 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
+	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the external
+	// auth has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
+	if externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete an external auth"))
+	}
+
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		externalAuth.ID,
-		externalAuth.ServiceProviderProperties.ClusterServiceID,
+		*externalAuth.ServiceProviderProperties.ClusterServiceID,
 		f.azureLocation,
 		"",
 		"",

@@ -18,9 +18,10 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAuth) (*ExternalAuth, error) {
@@ -38,12 +39,13 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		ExternalAuthProperties: ExternalAuthProperties{
+			HCPOpenShiftClusterExternalAuth: *internalObj,
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
-				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
+				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          nil,
@@ -56,14 +58,6 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 			},
 		},
 	}
-
-	// some pieces of data in the internalExternalAuth conflict with ResourceDocument fields.  We may evolve over time, but for
-	// now avoid persisting those.
-	cosmosObj.InternalState.InternalAPI.ProxyResource = arm.ProxyResource{}
-	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
-	cosmosObj.InternalState.InternalAPI.SystemData = nil
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
 	return cosmosObj, nil
 }
@@ -92,11 +86,17 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	// we carry over the CosmosETag from the cosmos object to the internal object into a
 	// temporary field until we have inlined and serialized CosmosMetadata in
 	// HCPOpenShiftClusterExternalAuth.
-	internalObj.CosmosETag = cosmosObj.CosmosETag
+	internalObj.CosmosETag = cosmosObj.BaseDocument.CosmosETag
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
-	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
+	if len(resourceDoc.InternalID.String()) == 0 {
+		// preserve the nil on read
+		internalObj.ServiceProviderProperties.ClusterServiceID = nil
+	} else {
+		internalObj.ServiceProviderProperties.ClusterServiceID = &resourceDoc.InternalID
+	}
+
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
 	internalObj.EnsureDefaults()

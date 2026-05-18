@@ -23,13 +23,14 @@ import (
 	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/require"
 
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type mockClusterSyncer struct {
 	syncOnceFunc func(ctx context.Context, key HCPClusterKey) error
-	cooldown     CooldownChecker
+	cooldown     controllerutil.CooldownChecker
 }
 
 func (m *mockClusterSyncer) SyncOnce(ctx context.Context, key HCPClusterKey) error {
@@ -39,11 +40,11 @@ func (m *mockClusterSyncer) SyncOnce(ctx context.Context, key HCPClusterKey) err
 	return nil
 }
 
-func (m *mockClusterSyncer) CooldownChecker() CooldownChecker {
+func (m *mockClusterSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	if m.cooldown != nil {
 		return m.cooldown
 	}
-	return NewTimeBasedCooldownChecker(time.Minute)
+	return controllerutil.NewTimeBasedCooldownChecker(time.Minute)
 }
 
 func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {

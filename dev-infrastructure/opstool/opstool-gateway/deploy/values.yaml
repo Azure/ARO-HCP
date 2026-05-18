@@ -1,0 +1,10 @@
+gateway:
+  enabled: false
+  name: "opstool-gateway"
+  className: "istio"
+  sectionName: "tools-https"
+  wildcardHostname: ""
+  credentialName: "tools-ingress-credential"
+  clusterIssuerName: "letsencrypt-dns01"
+  publicIpName: ""
+  publicIpResourceGroup: ""

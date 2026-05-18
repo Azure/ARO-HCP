@@ -30,6 +30,7 @@ const (
 	ComponentBackend         Component = "backend"
 	ComponentAdmin           Component = "admin"
 	ComponentResourceCleaner Component = "resource-cleaner"
+	ComponentMgmtAgent       Component = "mgmt-agent"
 	ComponentE2E             Component = "e2e"
 )
 

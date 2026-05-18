@@ -22,16 +22,17 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type subscriptionNonClusterDataDump struct {
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
-	nextDataDumpChecker controllerutils.CooldownChecker
+	nextDataDumpChecker controllerutil.CooldownChecker
 }
 
 // NewSubscriptionNonClusterDataDumpController periodically dumps data for a subscription that is NOT related to a cluster.
@@ -43,7 +44,7 @@ func NewSubscriptionNonClusterDataDumpController(
 	syncer := &subscriptionNonClusterDataDump{
 		cooldownChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:   resourcesDBClient,
-		nextDataDumpChecker: controllerutils.NewTimeBasedCooldownChecker(4 * time.Minute),
+		nextDataDumpChecker: controllerutil.NewTimeBasedCooldownChecker(4 * time.Minute),
 	}
 
 	return controllerutils.NewSubscriptionWatchingController(
@@ -81,6 +82,6 @@ func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key contr
 	return nil
 }
 
-func (c *subscriptionNonClusterDataDump) CooldownChecker() controllerutils.CooldownChecker {
+func (c *subscriptionNonClusterDataDump) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

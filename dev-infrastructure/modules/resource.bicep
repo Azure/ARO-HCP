@@ -65,6 +65,18 @@ func monitoringWorkspaceRefFromId(monitoringWorkspaceResourceId string) monitori
 }
 
 @export()
+type cosmosDBAccountRef = {
+  resourceGroup: resourceGroupReference
+  name: string
+}
+
+@export()
+func cosmosDBAccountRefFromId(cosmosDBAccountResourceId string) cosmosDBAccountRef => {
+  resourceGroup: resourceGroupFromResourceId(cosmosDBAccountResourceId)
+  name: last(split(cosmosDBAccountResourceId, '/'))
+}
+
+@export()
 type eventgridNamespaceRef = {
   resourceGroup: resourceGroupReference
   name: string

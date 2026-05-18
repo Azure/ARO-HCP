@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Snapshot Overview</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #1a1a2e; color: #e0e0e0; padding: 16px; font-size: 13px; }
+h1 { font-size: 18px; margin-bottom: 8px; color: #fff; }
+.tree { list-style: none; padding-left: 0; }
+.tree ul { list-style: none; padding-left: 20px; }
+.tree details > summary { list-style: none; }
+.tree details > summary::-webkit-details-marker { display: none; }
+.tree details > summary::marker { display: none; }
+.node { display: flex; align-items: center; padding: 3px 6px; cursor: pointer; border-radius: 3px; margin: 1px 0; }
+.node:hover { background: #2a2a4a; }
+.toggle { width: 16px; flex-shrink: 0; text-align: center; color: #666; font-size: 10px; }
+details > summary .toggle::after { content: '\25B6'; }
+details[open] > summary .toggle::after { content: '\25BC'; }
+.icon { width: 18px; flex-shrink: 0; text-align: center; margin-right: 4px; }
+.label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 8px; font-weight: bold; flex-shrink: 0; }
+.badge-pass { background: #1b5e20; color: #a5d6a7; }
+.badge-fail { background: #b71c1c; color: #ffcdd2; }
+.badge-skip { background: #f57f17; color: #000; }
+.badge-info { background: #1a237e; color: #90caf9; }
+.filter-toggle { display: none; }
+.filter-label { padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; user-select: none; border: 2px solid transparent; margin-right: 8px; margin-bottom: 12px; display: inline-block; }
+.filter-toggle:checked + .filter-label { border-color: #fff; }
+.kql { background: #0d0d1a; border: 1px solid #333; border-radius: 4px; padding: 8px; margin: 4px 0 4px 38px; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; color: #ccc; }
+.leaf { display: flex; align-items: center; padding: 3px 6px; border-radius: 3px; margin: 1px 0; }
+.leaf-dot { width: 16px; flex-shrink: 0; text-align: center; color: #666; font-size: 10px; }
+
+/* When a filter checkbox is checked, hide tree nodes that lack the matching status. */
+#filter-pass:checked ~ .tree li:not([data-has~="pass"]) { display: none; }
+#filter-fail:checked ~ .tree li:not([data-has~="fail"]) { display: none; }
+#filter-skip:checked ~ .tree li:not([data-has~="skip"]) { display: none; }
+</style>
+</head>
+<body>
+<h1>Snapshot Query Overview</h1>
+<input type="checkbox" id="filter-pass" class="filter-toggle"><label for="filter-pass" class="filter-label badge-pass">{{.TotalPassCount}} passed</label>
+<input type="checkbox" id="filter-fail" class="filter-toggle"><label for="filter-fail" class="filter-label badge-fail">{{.TotalFailCount}} failed</label>
+<input type="checkbox" id="filter-skip" class="filter-toggle"><label for="filter-skip" class="filter-label badge-skip">{{.TotalSkipCount}} skipped</label>
+<ul class="tree">
+{{range $si, $section := .Sections}}
+  <li data-has="{{$section.Statuses}}">
+    <details open>
+      <summary class="node">
+        <span class="toggle"></span>
+        <span class="icon">&#x1F9EA;</span>
+        <span class="label">{{$section.TestName}} / {{$section.ResourceGroup}}</span>
+        {{if $section.FailCount}}<span class="badge badge-fail">{{$section.FailCount}} failed</span>{{end}}
+        <span class="badge badge-info">{{$section.StartTime}} &mdash; {{$section.EndTime}}</span>
+      </summary>
+      <ul>
+      {{range $ni, $node := $section.Nodes}}
+        <li data-has="{{$node.Statuses}}">
+          <details open>
+            <summary class="node">
+              <span class="toggle"></span>
+              <span class="icon">&#x1F4C1;</span>
+              <span class="label">{{$node.Name}}</span>
+              {{if $node.FailCount}}<span class="badge badge-fail">{{$node.FailCount}} failed</span>{{end}}
+            </summary>
+            <ul>
+            {{range $ci, $child := $node.Children}}
+              <li data-has="{{$child.Statuses}}">
+                <details open>
+                  <summary class="node">
+                    <span class="toggle"></span>
+                    <span class="icon">&#x1F4C2;</span>
+                    <span class="label">{{$child.Name}}</span>
+                  </summary>
+                  <ul>
+                  {{range $qi, $query := $child.Queries}}
+                    <li data-has="{{$query.Status}}">
+                    {{if $query.KQL}}
+                      <details>
+                        <summary class="node">
+                          <span class="toggle"></span>
+                          <span class="icon">{{$query.Icon}}</span>
+                          <span class="label">{{$query.Key}}</span>
+                          <span class="badge {{$query.BadgeClass}}">{{$query.BadgeText}}</span>
+                        </summary>
+                        <div class="kql">{{$query.KQL}}</div>
+                      </details>
+                    {{else}}
+                      <div class="leaf">
+                        <span class="leaf-dot">&middot;</span>
+                        <span class="icon">{{$query.Icon}}</span>
+                        <span class="label">{{$query.Key}}</span>
+                        <span class="badge {{$query.BadgeClass}}">{{$query.BadgeText}}</span>
+                      </div>
+                    {{end}}
+                    </li>
+                  {{end}}
+                  </ul>
+                </details>
+              </li>
+            {{end}}
+            </ul>
+          </details>
+        </li>
+      {{end}}
+      </ul>
+    </details>
+  </li>
+{{end}}
+</ul>
+</body>
+</html>

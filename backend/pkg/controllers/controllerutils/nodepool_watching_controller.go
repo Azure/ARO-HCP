@@ -25,12 +25,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type NodePoolSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPNodePoolKey) error
-	CooldownChecker() CooldownChecker
+	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type nodePoolWatchingController struct {
@@ -99,7 +100,7 @@ func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePo
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *nodePoolWatchingController) CooldownChecker() CooldownChecker {
+func (c *nodePoolWatchingController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.syncer.CooldownChecker()
 }
 

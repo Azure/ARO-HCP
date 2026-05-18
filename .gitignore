@@ -14,6 +14,7 @@ node_modules
 env
 */archive.tar.gz
 tooling/bin
+bin/envtest
 **/venv
 **/__pycache__
 **/charts/*.tgz

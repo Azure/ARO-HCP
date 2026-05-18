@@ -34,7 +34,7 @@ defaults:
   administration:
     readerGroupId: ""
     releaseManagementGroupId: ""
-    sreServiceTag: ""
+    sreServiceTag: "CorpNetSaw"
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
@@ -65,6 +65,7 @@ defaults:
     billing:
       rg: "placeholder"
       digest: "placeholder"
+      subscriptionKey: "hcp-billng-{{ .ctx.environment }}"
     globalMSIName: global-ev2-identity
     nsp:
       name: nsp-global
@@ -76,6 +77,11 @@ defaults:
       tagKey: aroHCPPurpose
       tagValue: global
       encryptionKeyName: secretSyncKey
+    managementGroup:
+      id: "empty-sentinel"
+    groupQuota:
+      id: "empty-sentinel"
+      displayName: "empty-sentinel"
   # ACR
   acr:
     svc:
@@ -158,6 +164,29 @@ defaults:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
       digest: sha256:2a09e619593b66ec89a722b92eafbb2f247b06b22b5257d6255e1e8281d83df7 # 8085265 (2026-05-07 05:12)
+  # Mgmt Agent Controller
+  mgmtAgent:
+    managedIdentityName: mgmt-agent
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: mgmt-agent
+      digest: sha256:c767d194d71665ddf1b86f22d64b02eb1cfe353871558e0a6122ca92396ea474 # 6d1cdc8 (2026-05-15 20:18)
+    k8s:
+      namespace: mgmt-agent
+      serviceAccountName: mgmt-agent
+      replicas: 2
+  # Kube Applier Controller
+  kubeApplier:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: kube-applier
+      digest: sha256:0535faa7e94c83856cc6f578d64bc01c1201c36eebd92139b4ae9283d9c8e2d5 # 6d1cdc8 (2026-05-15 20:18)
+    cosmosContainerName: "Manifests-MC-{{ .ctx.stamp }}"
+    cosmosContainerMaxScale: 4000
+    managedIdentityName: kube-applier
+    k8s:
+      namespace: kube-applier
+      serviceAccountName: kube-applier
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -649,6 +678,7 @@ defaults:
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
     exitOnPanic: true
+    logVerbosity: 4
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
   # Admin API
@@ -718,7 +748,6 @@ defaults:
         limits:
           memory: unlimited
     cosmosDB:
-      deploy: true
       disableLocalAuth: true
       name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
       private: true
@@ -726,9 +755,11 @@ defaults:
       resourceContainerMaxScale: 4000
       billingContainerMaxScale: 4000
       locksContainerMaxScale: 4000
+      fleetContainerMaxScale: 4000
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
     exitOnPanic: true
+    logVerbosity: 0
   # Billing
   billing:
     rg: "placeholder"
@@ -840,7 +871,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:b7cec6a44aca2b9577e63285f8cb1be4d697187b8c47d6910a075ed456131031 # 1.28.3-1-azl3.0.20260401 (2026-04-01 10:10)
+          digest: sha256:60d3d847959a511469283035a8b09d3c58f97fcadb9b5e3850e515796cd427b6 # 1.28.3-1-azl3.0.20260510 (2026-05-10 23:07)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -867,7 +898,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:d140d4cda106081c5f2b97a127cb0a785f9b7d7df3f9a58628edbf9d175dd906 # 39b636373c595310b1cf10a873a4a0722db699b8 (2026-05-04 19:57)
+      digest: sha256:f60dde9bb1653a0fd1428d644e32439915f80daba93d8aec5c76ba8feaf86bee # 2f5431f66c8260c1d79fda8e4ee69feada8b1234 (2026-05-14 20:37)
   # ACM
   acm:
     operator:
@@ -1625,15 +1656,15 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D4ads_v6
               userAgentPool:
                 maxCount: 14
                 minCount: 3
                 osDiskSizeGB: 100
-                vmSize: Standard_D16ds_v6
+                vmSize: Standard_D16ads_v6
                 secondaryNicCount: 7
               infraAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D4ads_v6
                 osDiskSizeGB: 64
               enableSwiftV2Nodepools: true
               enableSwiftV2Vnet: true
@@ -1648,13 +1679,13 @@ clouds:
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               systemAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D4ads_v6
               userAgentPool:
-                name: 'u64d8dsv6'
-                vmSize: Standard_D8ds_v6
+                name: 'u8adsv6'
+                vmSize: Standard_D8ads_v6
                 osDiskSizeGB: 64
               infraAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D4ads_v6
             jaeger:
               deploy: true
         regions:

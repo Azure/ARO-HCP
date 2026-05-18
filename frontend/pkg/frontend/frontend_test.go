@@ -625,7 +625,6 @@ func TestRequestAdminCredential(t *testing.T) {
 					CosmosMetadata: api.CosmosMetadata{
 						ResourceID: resourceID,
 					},
-					ResourceID:  resourceID,
 					OperationID: operationID,
 					Request:     database.OperationRequestRevokeCredentials,
 					ExternalID:  clusterResourceID,
@@ -736,7 +735,6 @@ func TestRevokeCredentials(t *testing.T) {
 					CosmosMetadata: api.CosmosMetadata{
 						ResourceID: resourceID,
 					},
-					ResourceID:  resourceID,
 					OperationID: operationID,
 					Request:     database.OperationRequestRevokeCredentials,
 					ExternalID:  clusterResourceID,
@@ -755,7 +753,6 @@ func TestRevokeCredentials(t *testing.T) {
 					CosmosMetadata: api.CosmosMetadata{
 						ResourceID: resourceID,
 					},
-					ResourceID:  resourceID,
 					OperationID: operationID,
 					Request:     database.OperationRequestRequestCredential,
 					ExternalID:  clusterResourceID,

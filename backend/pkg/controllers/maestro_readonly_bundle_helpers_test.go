@@ -482,7 +482,6 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
 		existing := &api.ManagementClusterContent{
 			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			ResourceID:     *existingRID,
 			Status:         api.ManagementClusterContentStatus{KubeContent: &metav1.List{Items: []runtime.RawExtension{}}},
 		}
 		_, err := mccCRUD.Create(ctx, existing, nil)
@@ -518,7 +517,6 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		existingContent := &metav1.List{Items: []runtime.RawExtension{{Raw: []byte(`{}`)}}}
 		existing := &api.ManagementClusterContent{
 			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			ResourceID:     *existingRID,
 			Status:         api.ManagementClusterContentStatus{KubeContent: existingContent},
 		}
 		_, err := mccCRUD.Create(ctx, existing, nil)
@@ -551,7 +549,6 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		require.NotNil(t, desired)
 		existing := &api.ManagementClusterContent{
 			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			ResourceID:     *existingRID,
 			Status:         desired.Status,
 		}
 		_, err = mccCRUD.Create(ctx, existing, nil)
@@ -608,7 +605,6 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		existingRID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/managementClusterContents/readonlyHypershiftHostedCluster"))
 		existingDoc := &api.ManagementClusterContent{
 			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			ResourceID:     *existingRID,
 			Status:         api.ManagementClusterContentStatus{KubeContent: &metav1.List{Items: []runtime.RawExtension{{Raw: []byte(validHCJSON)}}}},
 		}
 
@@ -663,7 +659,6 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 		historicLTT := metav1.Time{Time: time.Date(2020, 6, 15, 12, 0, 0, 0, time.UTC)}
 		existing := &api.ManagementClusterContent{
 			CosmosMetadata: api.CosmosMetadata{ResourceID: existingRID},
-			ResourceID:     *existingRID,
 			Status: api.ManagementClusterContentStatus{
 				KubeContent: &metav1.List{
 					Items: []runtime.RawExtension{{Object: u}},

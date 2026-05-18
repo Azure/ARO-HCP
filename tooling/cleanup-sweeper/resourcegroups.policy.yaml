@@ -1,17 +1,19 @@
-# This policy implements the cleanup-sweeper behavior:
-# - Global default: delete RGs older than 2 days.
-# - Always skip managed resource groups (ManagedBy is set).
-# - persist=true normally protects RGs from 2-day deletion.
-# - Exception for hcp-underlay-pers-*:
-#   - delete after 2 days when persist != true
-#   - delete after 15 days when persist == true
-# - hcp-underlay-prow-* groups are deleted after 6 hours.
+# cleanup-sweeper rg-ordered discovery policy (first matching rule wins).
+# - excludedResourceGroups: never candidates (global, hcp-kusto-us, westus3-shared-resources).
+# - Skip managed RGs (managedBy set).
+# - hcp-underlay-pers-*: delete after 15d if persist=true; after 2d if persist is absent or not "true".
+# - hcp-underlay-prow-*: delete after 6h.
+# - Name prefix hcp-underlay-ci*: delete after 6h (covers ci01, etc.).
+# - Skip any RG with persist=true (after pers-* and CI rules).
+# - Default: delete any other RG after 2d.
+# Delete rules need a parseable tags.createdAt; see docs/cleanup.md and scripts/ for Azure Policy.
 rgOrdered:
   # Keep known long-lived/shared groups out of rg-ordered deletion candidates.
   excludedResourceGroups:
   - global
   - hcp-kusto-us
   - westus3-shared-resources
+  - centralus-shared-resources
   discovery:
     # Rules are evaluated in order; first match wins.
     rules:
@@ -41,6 +43,11 @@ rgOrdered:
       action: delete
       match:
         namePrefix: "hcp-underlay-prow-"
+      olderThan: "6h"
+    - name: ci-delete-after-6h
+      action: delete
+      match:
+        namePrefix: "hcp-underlay-ci"
       olderThan: "6h"
     - name: skip-persist-true-globally
       action: skip

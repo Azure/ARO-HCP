@@ -58,7 +58,7 @@ func TestBuildClusterScopedMaestroAPIMaestroBundleNamesByShard(t *testing.T) {
 			spcsByShard: map[string][]*api.ServiceProviderCluster{
 				"shard1": {
 					{
-						ResourceID: *spcRID,
+						CosmosMetadata: arm.CosmosMetadata{ResourceID: spcRID},
 						Status: api.ServiceProviderClusterStatus{
 							MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 								{Name: "logical-name", MaestroAPIMaestroBundleName: ""},
@@ -75,7 +75,7 @@ func TestBuildClusterScopedMaestroAPIMaestroBundleNamesByShard(t *testing.T) {
 			spcsByShard: map[string][]*api.ServiceProviderCluster{
 				"shard1": {
 					{
-						ResourceID: *spcRID,
+						CosmosMetadata: arm.CosmosMetadata{ResourceID: spcRID},
 						Status: api.ServiceProviderClusterStatus{
 							MaestroReadonlyBundles: api.MaestroBundleReferenceList{nil},
 						},
@@ -98,7 +98,7 @@ func TestBuildClusterScopedMaestroAPIMaestroBundleNamesByShard(t *testing.T) {
 			spcsByShard: map[string][]*api.ServiceProviderCluster{
 				"s": {
 					{
-						ResourceID: *spcRID,
+						CosmosMetadata: arm.CosmosMetadata{ResourceID: spcRID},
 						Status: api.ServiceProviderClusterStatus{
 							MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 								{MaestroAPIMaestroBundleName: "bundle-one"},
@@ -145,7 +145,7 @@ func TestBuildNodePoolScopedMaestroAPIMaestroBundleNamesByShard(t *testing.T) {
 			spnpsByShard: map[string][]*api.ServiceProviderNodePool{
 				"shard1": {
 					{
-						ResourceID: *spnpRID,
+						CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpRID},
 						Status: api.ServiceProviderNodePoolStatus{
 							MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 								{Name: "logical-name", MaestroAPIMaestroBundleName: ""},
@@ -162,7 +162,7 @@ func TestBuildNodePoolScopedMaestroAPIMaestroBundleNamesByShard(t *testing.T) {
 			spnpsByShard: map[string][]*api.ServiceProviderNodePool{
 				"shard1": {
 					{
-						ResourceID: *spnpRID,
+						CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpRID},
 						Status: api.ServiceProviderNodePoolStatus{
 							MaestroReadonlyBundles: api.MaestroBundleReferenceList{nil},
 						},
@@ -185,7 +185,7 @@ func TestBuildNodePoolScopedMaestroAPIMaestroBundleNamesByShard(t *testing.T) {
 			spnpsByShard: map[string][]*api.ServiceProviderNodePool{
 				"s": {
 					{
-						ResourceID: *spnpRID,
+						CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpRID},
 						Status: api.ServiceProviderNodePoolStatus{
 							MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 								{MaestroAPIMaestroBundleName: "bundle-np"},
@@ -309,7 +309,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_getAllServiceProviderClusters(t *t
 			setupDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-					ResourceID:     *spcResourceID,
 				}
 				spcCRUD := mockResourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 				_, err := spcCRUD.Create(ctx, spc, nil)
@@ -359,7 +358,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_getAllServiceProviderNodePools(t *
 			setupDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					ResourceID:     *spnpResourceID,
 				}
 				spnpCRUD := mockResourcesDBClient.ServiceProviderNodePools(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, "worker")
 				_, err := spnpCRUD.Create(ctx, spnp, nil)
@@ -774,7 +772,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderClustersByProvis
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-					ResourceID:     *spcResourceID,
 				}
 				return &deleteOrphanedMaestroReadonlyBundles{resourcesDBClient: mockResourcesDBClient, clusterServiceClient: mockCS},
 					map[string]*shardMaestroClient{"unused-shard": noopMaestroShardClient},
@@ -790,7 +787,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderClustersByProvis
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-					ResourceID:     *spcResourceID,
 				}
 				return &deleteOrphanedMaestroReadonlyBundles{resourcesDBClient: mockResourcesDBClient, clusterServiceClient: mockCS},
 					map[string]*shardMaestroClient{"unused-shard": noopMaestroShardClient},
@@ -815,7 +811,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderClustersByProvis
 				require.NoError(t, err)
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-					ResourceID:     *spcResourceID,
 				}
 				mockCS.EXPECT().GetClusterProvisionShard(gomock.Any(), *cluster.ServiceProviderProperties.ClusterServiceID).Return(nil, fmt.Errorf("provision shard error"))
 				return &deleteOrphanedMaestroReadonlyBundles{resourcesDBClient: mockResourcesDBClient, clusterServiceClient: mockCS},
@@ -840,7 +835,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderClustersByProvis
 				require.NoError(t, err)
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-					ResourceID:     *spcResourceID,
 				}
 				shardInClientsMap := buildTestProvisionShard("consumer-in-list")
 				shard2ID := "33333333333333333333333333333333"
@@ -878,7 +872,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderClustersByProvis
 				require.NoError(t, err)
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-					ResourceID:     *spcResourceID,
 				}
 				provisionShard := buildTestProvisionShard("test-consumer")
 				mockCS.EXPECT().GetClusterProvisionShard(gomock.Any(), *cluster.ServiceProviderProperties.ClusterServiceID).Return(provisionShard, nil)
@@ -922,11 +915,9 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderClustersByProvis
 				spc2ResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub2/resourceGroups/rg2/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster2/serviceProviderClusters/default"))
 				spc1 := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spc1ResourceID},
-					ResourceID:     *spc1ResourceID,
 				}
 				spc2 := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spc2ResourceID},
-					ResourceID:     *spc2ResourceID,
 				}
 
 				shard1 := buildTestProvisionShard("consumer1")
@@ -1048,7 +1039,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderNodePoolsByProvi
 				broken.Parent = nil
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: &broken},
-					ResourceID:     broken,
 				}
 				return &deleteOrphanedMaestroReadonlyBundles{resourcesDBClient: mockResourcesDBClient, clusterServiceClient: mockCS},
 					map[string]*shardMaestroClient{"unused-shard": noopMaestroShardClient},
@@ -1068,7 +1058,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderNodePoolsByProvi
 				noGrand.Parent = &npOnly
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: &noGrand},
-					ResourceID:     noGrand,
 				}
 				return &deleteOrphanedMaestroReadonlyBundles{resourcesDBClient: mockResourcesDBClient, clusterServiceClient: mockCS},
 					map[string]*shardMaestroClient{"unused-shard": noopMaestroShardClient},
@@ -1087,7 +1076,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderNodePoolsByProvi
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					ResourceID:     *spnpResourceID,
 				}
 				return &deleteOrphanedMaestroReadonlyBundles{resourcesDBClient: mockResourcesDBClient, clusterServiceClient: mockCS},
 					map[string]*shardMaestroClient{"unused-shard": noopMaestroShardClient},
@@ -1103,7 +1091,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderNodePoolsByProvi
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					ResourceID:     *spnpResourceID,
 				}
 				return &deleteOrphanedMaestroReadonlyBundles{resourcesDBClient: mockResourcesDBClient, clusterServiceClient: mockCS},
 					map[string]*shardMaestroClient{"unused-shard": noopMaestroShardClient},
@@ -1128,7 +1115,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderNodePoolsByProvi
 				require.NoError(t, err)
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					ResourceID:     *spnpResourceID,
 				}
 				mockCS.EXPECT().GetClusterProvisionShard(gomock.Any(), *cluster.ServiceProviderProperties.ClusterServiceID).Return(nil, fmt.Errorf("provision shard error"))
 				return &deleteOrphanedMaestroReadonlyBundles{resourcesDBClient: mockResourcesDBClient, clusterServiceClient: mockCS},
@@ -1153,7 +1139,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderNodePoolsByProvi
 				require.NoError(t, err)
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					ResourceID:     *spnpResourceID,
 				}
 				shardInClientsMap := buildTestProvisionShard("consumer-in-list")
 				shard2ID := "33333333333333333333333333333333"
@@ -1191,7 +1176,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderNodePoolsByProvi
 				require.NoError(t, err)
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					ResourceID:     *spnpResourceID,
 				}
 				provisionShard := buildTestProvisionShard("test-consumer")
 				mockCS.EXPECT().GetClusterProvisionShard(gomock.Any(), *cluster.ServiceProviderProperties.ClusterServiceID).Return(provisionShard, nil)
@@ -1235,11 +1219,9 @@ func TestDeleteOrphanedMaestroReadonlyBundles_mapServiceProviderNodePoolsByProvi
 				spnp2ResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub2/resourceGroups/rg2/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster2/nodePools/worker/serviceProviderNodePools/default"))
 				spnp1 := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnp1ResourceID},
-					ResourceID:     *spnp1ResourceID,
 				}
 				spnp2 := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnp2ResourceID},
-					ResourceID:     *spnp2ResourceID,
 				}
 
 				shard1 := buildTestProvisionShard("consumer1")
@@ -1374,7 +1356,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureClusterScopedOrphanedMaestro
 				mockCS.EXPECT().GetClusterProvisionShard(gomock.Any(), *cluster.ServiceProviderProperties.ClusterServiceID).Return(shard, nil).AnyTimes()
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-					ResourceID:     *spcResourceID,
 					Status: api.ServiceProviderClusterStatus{
 						MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 							{MaestroAPIMaestroBundleName: "referenced-bundle"},
@@ -1415,7 +1396,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureClusterScopedOrphanedMaestro
 				mockCS.EXPECT().GetClusterProvisionShard(gomock.Any(), *cluster.ServiceProviderProperties.ClusterServiceID).Return(shard, nil).AnyTimes()
 				spc := &api.ServiceProviderCluster{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-					ResourceID:     *spcResourceID,
 					Status: api.ServiceProviderClusterStatus{
 						MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 							{MaestroAPIMaestroBundleName: "referenced-bundle"},
@@ -1597,7 +1577,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedNodePoolScopedMaestr
 				mockCS.EXPECT().GetClusterProvisionShard(gomock.Any(), *cluster.ServiceProviderProperties.ClusterServiceID).Return(shard, nil).AnyTimes()
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					ResourceID:     *spnpResourceID,
 					Status: api.ServiceProviderNodePoolStatus{
 						MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 							{MaestroAPIMaestroBundleName: "referenced-np-bundle"},
@@ -1638,7 +1617,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureOrphanedNodePoolScopedMaestr
 				mockCS.EXPECT().GetClusterProvisionShard(gomock.Any(), *cluster.ServiceProviderProperties.ClusterServiceID).Return(shard, nil).AnyTimes()
 				spnp := &api.ServiceProviderNodePool{
 					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					ResourceID:     *spnpResourceID,
 					Status: api.ServiceProviderNodePoolStatus{
 						MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 							{MaestroAPIMaestroBundleName: "kept-np-bundle"},
@@ -1728,7 +1706,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureClusterScopedOrphanedMaestro
 
 	spcOnShard1 := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcOnShard1ResourceID},
-		ResourceID:     *spcOnShard1ResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{MaestroAPIMaestroBundleName: "bundle-X"},
@@ -1811,7 +1788,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureClusterScopedOrphanedMaestro
 
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{MaestroAPIMaestroBundleName: "bundle-N"},
@@ -1869,7 +1845,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_ensureClusterScopedOrphanedMaestro
 
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{MaestroAPIMaestroBundleName: "only-in-global-list"},
@@ -1928,7 +1903,6 @@ func TestDeleteOrphanedMaestroReadonlyBundles_SyncOnce_FullFlow_DeletesOrphanedB
 	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/serviceProviderClusters/default"))
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{MaestroAPIMaestroBundleName: "kept-bundle"},

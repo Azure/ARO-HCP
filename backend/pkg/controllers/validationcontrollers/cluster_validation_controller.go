@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -34,7 +35,7 @@ import (
 // clusterValidationSyncer is a Cluster syncer that performs a Cluster
 // validation.
 type clusterValidationSyncer struct {
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 
 	// validation is the validation to perform on the cluster.
@@ -127,6 +128,6 @@ func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *api.Serv
 	return !meta.IsStatusConditionTrue(serviceProviderCluster.Status.Validations, c.validation.Name())
 }
 
-func (c *clusterValidationSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *clusterValidationSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

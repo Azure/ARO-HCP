@@ -7,6 +7,9 @@ param hcpAzureMonitorWorkspaceName string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
+@description('The name of the Cosmos DB for the RP')
+param rpCosmosDbName string
+
 //
 //   A Z U R E   M O N I T O R
 //
@@ -35,3 +38,13 @@ resource maestroEventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-pr
 
 output maestroEventGridNamespaceId string = maestroEventGridNamespace.id
 output maestroEventGridNamespacesHostname string = maestroEventGridNamespace.properties.topicSpacesConfiguration.hostname
+
+//
+//  C O S M O S D B
+//
+
+resource rpCosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
+  name: rpCosmosDbName
+}
+
+output rpCosmosDbAccountId string = rpCosmosDbAccount.id

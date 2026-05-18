@@ -44,11 +44,26 @@ param aksEnableSwiftNodepools = {{ .mgmt.aks.enableSwiftV2Nodepools }}
 param maestroConsumerMIName = '{{ .maestro.agent.managedIdentityName }}'
 param maestroConsumerNamespace = '{{ .maestro.agent.k8s.namespace }}'
 param maestroConsumerServiceAccountName = '{{ .maestro.agent.k8s.serviceAccountName }}'
+
+// Mgmt Agent
+param mgmtAgentMIName = '{{ .mgmtAgent.managedIdentityName }}'
+param mgmtAgentNamespace = '{{ .mgmtAgent.k8s.namespace }}'
+param mgmtAgentServiceAccountName = '{{ .mgmtAgent.k8s.serviceAccountName }}'
+
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
 param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
 param maestroCertDomain = '{{ .maestro.certDomain }}'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+
+// Kube Applier
+param kubeApplierMIName = '{{ .kubeApplier.managedIdentityName }}'
+param kubeApplierNamespace = '{{ .kubeApplier.k8s.namespace }}'
+param kubeApplierServiceAccountName = '{{ .kubeApplier.k8s.serviceAccountName }}'
+param kubeApplierContainerName = '{{ .kubeApplier.cosmosContainerName }}'
+param kubeApplierContainerMaxScale = {{ .kubeApplier.cosmosContainerMaxScale }}
+param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
+param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 
 // ACR
 param ocpAcrResourceId = '__ocpAcrResourceId__'

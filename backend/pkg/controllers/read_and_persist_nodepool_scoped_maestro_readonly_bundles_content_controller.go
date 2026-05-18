@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,7 +39,7 @@ import (
 // to the Cluster.
 // This controller assumes that it has full ownership of the ManagementClusterContent resource.
 type readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer struct {
-	cooldownChecker controllerutils.CooldownChecker
+	cooldownChecker controllerutil.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
 
@@ -89,7 +90,7 @@ func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) SyncOn
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
-	if len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		// TODO remove this once we have the information all in cosmos.
 		return nil
 	}
@@ -139,6 +140,6 @@ func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) SyncOn
 	return utils.TrackError(errors.Join(syncErrors...))
 }
 
-func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

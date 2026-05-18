@@ -29,7 +29,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestRoundTripInternalExternalInternal(t *testing.T) {
@@ -70,7 +69,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = ocm.InternalID{}
+			j.ClusterServiceID = nil
 			j.ExistingCosmosUID = ""
 		},
 		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
@@ -78,7 +77,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = ocm.InternalID{}
+			j.ClusterServiceID = nil
 			j.ExistingCosmosUID = ""
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {

@@ -25,12 +25,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type ExternalAuthSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPExternalAuthKey) error
-	CooldownChecker() CooldownChecker
+	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type externalAuthWatchingController struct {
@@ -93,7 +94,7 @@ func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPEx
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *externalAuthWatchingController) CooldownChecker() CooldownChecker {
+func (c *externalAuthWatchingController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.syncer.CooldownChecker()
 }
 

@@ -294,17 +294,18 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	newInternalNodePool.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(csNodePool.HREF())
+	csNodePoolID, err := api.NewInternalID(csNodePool.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	newInternalNodePool.ServiceProviderProperties.ClusterServiceID = &csNodePoolID
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
 
 	createNodePoolOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalNodePool.ID,
-		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		*newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -571,13 +572,18 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
+	// Temporary check until creation and update interaction with CS is moved to the backend: If an update arrives after the node pool
+	// has been created in Cosmos but before it exists in CS, or before its ClusterServiceID has been persisted in Cosmos, return an error.
+	if oldInternalNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(oldInternalNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to update a node pool"))
+	}
+
 	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalNodePool.ID))
-	_, err = f.clusterServiceClient.UpdateNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
+	_, err = f.clusterServiceClient.UpdateNodePool(ctx, *oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -596,7 +602,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	nodePoolUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,
-		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		ptr.Deref(newInternalNodePool.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
@@ -681,7 +687,13 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	err = f.clusterServiceClient.DeleteNodePool(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
+	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the node
+	// pool has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete a node pool"))
+	}
+
+	err = f.clusterServiceClient.DeleteNodePool(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
 	var ocmError *ocmerrors.Error
 	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 		// StatusNotFound means we have stale data in Cosmos DB.
@@ -725,10 +737,16 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
+	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the node pool
+	// has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete a node pool"))
+	}
+
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		nodePool.ID,
-		nodePool.ServiceProviderProperties.ClusterServiceID,
+		*nodePool.ServiceProviderProperties.ClusterServiceID,
 		f.azureLocation,
 		"",
 		"",

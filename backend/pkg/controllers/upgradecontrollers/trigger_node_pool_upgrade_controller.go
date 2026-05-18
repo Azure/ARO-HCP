@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -34,7 +35,7 @@ import (
 
 // triggerNodePoolUpgradeSyncer is a NodePool syncer that triggers node pool upgrades
 type triggerNodePoolUpgradeSyncer struct {
-	cooldownChecker      controllerutils.CooldownChecker
+	cooldownChecker      controllerutil.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -67,7 +68,7 @@ func NewTriggerNodePoolUpgradeController(
 	return controller
 }
 
-func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
@@ -85,6 +86,10 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
+	}
+	// if we have no clusterservice nodepool, we have nothing to trigger.
+	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return nil
 	}
 
 	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
@@ -108,7 +113,7 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 		return nil
 	}
 
-	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, existingNodePool.ServiceProviderProperties.ClusterServiceID)
+	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingNodePool.ServiceProviderProperties.ClusterServiceID)
 }
 
 // createUpgradePolicyIfNeeded ensures a node pool upgrade policy exists for the desired version.

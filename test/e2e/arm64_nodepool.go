@@ -101,7 +101,9 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.VMSize = nodePoolVMSize
 
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,

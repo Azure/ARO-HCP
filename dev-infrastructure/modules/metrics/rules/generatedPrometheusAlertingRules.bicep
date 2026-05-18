@@ -982,39 +982,6 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
             }
           }
         ]
-        alert: 'LowOutputBytesProcessed'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'LowOutputBytesProcessed/{{ $labels.cluster }}/{{ $labels.pod }}'
-          description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} output is low.
-The metric fluentbit_output_proc_bytes_total only counts bytes from chunks that were sent successfully, this indicates a problem with the output plugin or low input.
-Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-'''
-          info: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} output is low.
-The metric fluentbit_output_proc_bytes_total only counts bytes from chunks that were sent successfully, this indicates a problem with the output plugin or low input.
-Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-'''
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
-          summary: 'No log data delivered to Kusto by {{ $labels.pod }} for 15 minutes.'
-          title: 'No log data delivered to Kusto by {{ $labels.pod }} for 15 minutes.'
-        }
-        expression: 'sum(rate(fluentbit_output_proc_bytes_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) < 50'
-        for: 'PT15M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
         alert: 'FluentBitIngestionPaused'
         enabled: true
         labels: {
@@ -1031,8 +998,8 @@ Ingestion pauses when Fluent Bit\'s internal memory or storage buffers are full,
 Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
-          summary: 'Fluent Bit input ingestion paused on {{ $labels.pod }} due to backpressure.'
-          title: 'Fluent Bit input ingestion paused on {{ $labels.pod }} due to backpressure.'
+          summary: 'Fluent Bit input ingestion paused due to backpressure.'
+          title: 'Fluent Bit input ingestion paused due to backpressure.'
         }
         expression: 'sum(fluentbit_input_ingestion_paused) by (cluster, pod) > 0'
         for: 'PT5M'
@@ -1064,10 +1031,10 @@ Retries occur when the azure_kusto output encounters a recoverable error (e.g. t
 Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
-          summary: 'High Kusto output retry rate on {{ $labels.pod }} (> 3/s for 5 min).'
-          title: 'High Kusto output retry rate on {{ $labels.pod }} (> 3/s for 5 min).'
+          summary: 'High Kusto output retries'
+          title: 'High Kusto output retries'
         }
-        expression: 'sum(rate(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 3'
+        expression: 'sum(increase(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 3'
         for: 'PT5M'
         severity: 3
       }
@@ -1095,10 +1062,10 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
 Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
-          summary: 'Unrecoverable Kusto output errors on {{ $labels.pod }} - log data is being dropped.'
-          title: 'Unrecoverable Kusto output errors on {{ $labels.pod }} - log data is being dropped.'
+          summary: 'Unrecoverable Kusto output errors - log data is being dropped.'
+          title: 'Unrecoverable Kusto output errors - log data is being dropped.'
         }
-        expression: 'sum(rate(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
+        expression: 'sum(increase(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
         for: 'PT5M'
         severity: 3
       }
@@ -1126,10 +1093,10 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
 Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
-          summary: 'Kusto output retries exhausted on {{ $labels.pod }} - chunks discarded after max retries.'
-          title: 'Kusto output retries exhausted on {{ $labels.pod }} - chunks discarded after max retries.'
+          summary: 'Kusto output retries exhausted - chunks discarded after max retries.'
+          title: 'Kusto output retries exhausted - chunks discarded after max retries.'
         }
-        expression: 'sum(rate(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
+        expression: 'sum(increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
         for: 'PT5M'
         severity: 3
       }
@@ -1473,8 +1440,8 @@ This may indicate that finalizers are stuck or resources are failing to cleanup.
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
           runbook_url: 'TBD'
-          summary: 'Cluster {{ $labels.exported_namespace }} stuck deleting'
-          title: 'Cluster {{ $labels.exported_namespace }} stuck deleting'
+          summary: 'Cluster stuck deleting'
+          title: 'Cluster stuck deleting'
         }
         expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
         for: 'PT5M'
@@ -1513,8 +1480,8 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
           description: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} on cluster {{ $labels.cluster }} has been OOMKilled. This indicates the container exceeded its memory limit and was terminated by the kernel.'
           info: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} on cluster {{ $labels.cluster }} has been OOMKilled. This indicates the container exceeded its memory limit and was terminated by the kernel.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/service-lifecycle.html'
-          summary: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled'
-          title: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled'
+          summary: 'Container {{ $labels.container }} was OOMKilled'
+          title: 'Container {{ $labels.container }} was OOMKilled'
         }
         expression: 'kube_pod_container_status_last_terminated_reason{reason="OOMKilled", job="kube-state-metrics"} == 1'
         severity: 3

@@ -52,7 +52,7 @@ adminApi:
 administration:
   readerGroupId: ""
   releaseManagementGroupId: ""
-  sreServiceTag: ""
+  sreServiceTag: CorpNetSaw
 aksCommandRuntime:
   image:
     digest: sha256:a249d179ee44de7951020ebf0f141e689dadd7207c228b355734b35b772c3333
@@ -115,6 +115,7 @@ backend:
         cpu: 100m
         memory: 500Mi
     serviceAccountName: backend
+  logVerbosity: 4
   maestro:
     sourceEnvironmentIdentifier: arohcpprow
   managedIdentityName: backend
@@ -259,8 +260,8 @@ frontend:
     name: frontend-cert-prow-j7654321
   cosmosDB:
     billingContainerMaxScale: 4000
-    deploy: true
     disableLocalAuth: true
+    fleetContainerMaxScale: 4000
     locksContainerMaxScale: 4000
     name: arohcpprow-rp-j7654321
     private: false
@@ -281,6 +282,7 @@ frontend:
         cpu: 100m
         memory: 512Mi
     serviceAccountName: frontend
+  logVerbosity: 0
   managedIdentityName: frontend
   tracing:
     address: http://ingest.observability:4318
@@ -349,7 +351,11 @@ global:
   billing:
     digest: placeholder
     rg: placeholder
+    subscriptionKey: hcp-billng-prow
   globalMSIName: global-rollout-identity
+  groupQuota:
+    displayName: empty-sentinel
+    id: empty-sentinel
   keyVault:
     encryptionKeyName: secretSyncKey
     name: arohcpdev-global
@@ -357,6 +363,8 @@ global:
     softDelete: true
     tagKey: aroHCPPurpose
     tagValue: global
+  managementGroup:
+    id: empty-sentinel
   nsp:
     accessMode: Learning
     name: nsp-global
@@ -423,6 +431,17 @@ imageSync:
     pullSecretName: component-sync-pull-secret
   outboundServiceTags: ""
 keyVaultDNSSuffix: vault.azure.net
+kubeApplier:
+  cosmosContainerMaxScale: 4000
+  cosmosContainerName: Manifests-MC-1
+  image:
+    digest: sha256:0535faa7e94c83856cc6f578d64bc01c1201c36eebd92139b4ae9283d9c8e2d5
+    registry: arohcpsvcdev.azurecr.io
+    repository: kube-applier
+  k8s:
+    namespace: kube-applier
+    serviceAccountName: kube-applier
+  managedIdentityName: kube-applier
 kubeEvents:
   enabled: true
   image:
@@ -478,7 +497,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:b7cec6a44aca2b9577e63285f8cb1be4d697187b8c47d6910a075ed456131031
+        digest: sha256:60d3d847959a511469283035a8b09d3c58f97fcadb9b5e3850e515796cd427b6
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
@@ -488,7 +507,7 @@ maestro:
     name: arohcp-prow-maestro-j7654321
     private: false
   image:
-    digest: sha256:d140d4cda106081c5f2b97a127cb0a785f9b7d7df3f9a58628edbf9d175dd906
+    digest: sha256:f60dde9bb1653a0fd1428d644e32439915f80daba93d8aec5c76ba8feaf86bee
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -660,6 +679,16 @@ mgmt:
       Microsoft.Storage:
         poll: true
     usePlannedQuota: true
+mgmtAgent:
+  image:
+    digest: sha256:c767d194d71665ddf1b86f22d64b02eb1cfe353871558e0a6122ca92396ea474
+    registry: arohcpsvcdev.azurecr.io
+    repository: mgmt-agent
+  k8s:
+    namespace: mgmt-agent
+    replicas: 2
+    serviceAccountName: mgmt-agent
+  managedIdentityName: mgmt-agent
 mgmtKeyVault:
   name: ah-prow-mg-j7654321-1
   private: false

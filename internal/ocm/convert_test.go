@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 )
 
 const (
@@ -79,7 +81,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.20.17").
+					ID("openshift-v4.20.20").
 					ChannelGroup("stable"))),
 		},
 		{
@@ -120,7 +122,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.27").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.30").ChannelGroup("stable"))),
 		},
 		{
 			name: "with version 4.21",
@@ -130,7 +132,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.9").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.14").ChannelGroup("stable"))),
 		},
 	}
 
@@ -216,8 +218,6 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID("azure")).
 		DomainPrefix("testcluster").
-		Flavour(arohcpv1alpha1.NewFlavour().
-			ID("osd-4")).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(true)).
 		Name(strings.ToLower(api.TestClusterName)).
@@ -236,7 +236,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.20.17").
+			ID("openshift-v4.20.20").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled)).
@@ -337,7 +337,7 @@ func TestBuildCSNodePool(t *testing.T) {
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.20.17").
+					ID("openshift-v4.20.20").
 					ChannelGroup("stable")),
 		},
 		{
@@ -1091,6 +1091,206 @@ func TestBuildCSCluster(t *testing.T) {
 
 			// Compare
 			assert.Equal(t, expected, actual)
+		})
+	}
+}
+
+// validProvisionShardBuilder returns a builder pre-populated with all required fields
+// for a valid management cluster conversion. Tests can override individual fields.
+func validProvisionShardBuilder(t *testing.T) *arohcpv1alpha1.ProvisionShardBuilder {
+	t.Helper()
+	return arohcpv1alpha1.NewProvisionShard().
+		ID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").
+		HREF("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").
+		Status(csProvisioningShardStatusActive).
+		Topology("shared").
+		AzureShard(arohcpv1alpha1.NewAzureShard().
+			AksManagementClusterResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/test-westus3-mgmt-1").
+			PublicDnsZoneResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/test.example.com").
+			CxSecretsKeyVaultUrl("https://cx-kv.vault.azure.net/").
+			CxManagedIdentitiesKeyVaultUrl("https://mi-kv.vault.azure.net/").
+			CxSecretsKeyVaultManagedIdentityClientId("c2bde1aa-d904-48cd-a728-9de33e3ddca9"),
+		).
+		MaestroConfig(
+			arohcpv1alpha1.NewProvisionShardMaestroConfig().
+				ConsumerName("test-consumer").
+				RestApiConfig(arohcpv1alpha1.NewProvisionShardMaestroRestApiConfig().
+					Url("http://maestro.maestro.svc.cluster.local:8000")).
+				GrpcApiConfig(arohcpv1alpha1.NewProvisionShardMaestroGrpcApiConfig().
+					Url("maestro-grpc.maestro.svc.cluster.local:8090")),
+		)
+}
+
+func TestConvertCSManagementClusterToInternal(t *testing.T) {
+	tests := []struct {
+		name                string
+		build               func(t *testing.T) *arohcpv1alpha1.ProvisionShard
+		expectedErrorSubstr string
+		validate            func(t *testing.T, mc *fleet.ManagementCluster)
+	}{
+		{
+			name: "nil shard",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				return nil
+			},
+			expectedErrorSubstr: "provision shard is nil",
+		},
+		{
+			name: "empty shard HREF",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				shard, err := arohcpv1alpha1.NewProvisionShard().Build()
+				require.NoError(t, err)
+				return shard
+			},
+			expectedErrorSubstr: "provision shard has empty HREF",
+		},
+		{
+			name: "invalid AKS resource ID",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				shard, err := arohcpv1alpha1.NewProvisionShard().
+					ID("11111111-2222-3333-4444-555555555555").
+					HREF("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555").
+					AzureShard(arohcpv1alpha1.NewAzureShard().
+						AksManagementClusterResourceId("not-a-valid-resource-id")).
+					Build()
+				require.NoError(t, err)
+				return shard
+			},
+			expectedErrorSubstr: "failed to parse management cluster AKS resource ID",
+		},
+		{
+			name: "invalid public DNS zone resource ID",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				shard, err := arohcpv1alpha1.NewProvisionShard().
+					ID("11111111-2222-3333-4444-555555555555").
+					HREF("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555").
+					AzureShard(arohcpv1alpha1.NewAzureShard().
+						AksManagementClusterResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/test-westus3-mgmt-1").
+						PublicDnsZoneResourceId("not-valid")).
+					Build()
+				require.NoError(t, err)
+				return shard
+			},
+			expectedErrorSubstr: "failed to parse public DNS zone resource ID",
+		},
+		{
+			name: "missing maestro config",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				shard, err := arohcpv1alpha1.NewProvisionShard().
+					ID("11111111-2222-3333-4444-555555555555").
+					HREF("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555").
+					AzureShard(arohcpv1alpha1.NewAzureShard().
+						AksManagementClusterResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/test-westus3-mgmt-1").
+						PublicDnsZoneResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/test.example.com").
+						CxSecretsKeyVaultUrl("https://cx-kv.vault.azure.net/").
+						CxManagedIdentitiesKeyVaultUrl("https://mi-kv.vault.azure.net/").
+						CxSecretsKeyVaultManagedIdentityClientId("c2bde1aa-d904-48cd-a728-9de33e3ddca9"),
+					).
+					Build()
+				require.NoError(t, err)
+				return shard
+			},
+			expectedErrorSubstr: "no maestro config",
+		},
+		{
+			name: "successful conversion populates all fields",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				shard, err := validProvisionShardBuilder(t).Build()
+				require.NoError(t, err)
+				return shard
+			},
+			validate: func(t *testing.T, mc *fleet.ManagementCluster) {
+				// ResourceID
+				expectedResourceID := api.Must(fleet.ToManagementClusterResourceID("1"))
+				require.NotNil(t, mc.ResourceID)
+				assert.Equal(t, expectedResourceID.String(), mc.ResourceID.String())
+				assert.Equal(t, mc.ResourceID, mc.CosmosMetadata.ResourceID)
+
+				assert.Equal(t, "1", mc.GetStampIdentifier(), "stamp identifier should be suffix after last '-' in AKS cluster name")
+				assert.Equal(t, fleet.ManagementClusterSchedulingPolicySchedulable, mc.Spec.SchedulingPolicy, "active shard should be schedulable")
+
+				// Status
+				require.NotNil(t, mc.Status.AKSResourceID)
+				assert.Equal(t, "test-westus3-mgmt-1", mc.Status.AKSResourceID.Name)
+				require.NotNil(t, mc.Status.PublicDNSZoneResourceID)
+				assert.Equal(t, "https://cx-kv.vault.azure.net/", mc.Status.HostedClustersSecretsKeyVaultURL)
+				assert.Equal(t, "https://mi-kv.vault.azure.net/", mc.Status.HostedClustersManagedIdentitiesKeyVaultURL)
+				assert.Equal(t, "c2bde1aa-d904-48cd-a728-9de33e3ddca9", mc.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID)
+				require.NotNil(t, mc.Status.ClusterServiceProvisionShardID)
+				assert.Equal(t, api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")), *mc.Status.ClusterServiceProvisionShardID)
+
+				// Maestro config
+				assert.Equal(t, "test-consumer", mc.Status.MaestroConsumerName)
+				assert.Equal(t, "http://maestro.maestro.svc.cluster.local:8000", mc.Status.MaestroRESTAPIURL)
+				assert.Equal(t, "maestro-grpc.maestro.svc.cluster.local:8090", mc.Status.MaestroGRPCTarget)
+			},
+		},
+		{
+			name: "maintenance shard is unschedulable",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				shard, err := validProvisionShardBuilder(t).Status("maintenance").Build()
+				require.NoError(t, err)
+				return shard
+			},
+			validate: func(t *testing.T, mc *fleet.ManagementCluster) {
+				assert.Equal(t, fleet.ManagementClusterSchedulingPolicyUnschedulable, mc.Spec.SchedulingPolicy, "maintenance shard should be unschedulable")
+				require.Len(t, mc.Status.Conditions, 1)
+				assert.Equal(t, string(fleet.ManagementClusterConditionReady), mc.Status.Conditions[0].Type)
+				assert.Equal(t, metav1.ConditionFalse, mc.Status.Conditions[0].Status)
+				assert.Equal(t, string(fleet.ManagementClusterConditionReasonProvisionShardMaintenance), mc.Status.Conditions[0].Reason)
+				assert.Contains(t, mc.Status.Conditions[0].Message, "maintenance")
+			},
+		},
+		{
+			name: "offline shard is unschedulable",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				shard, err := validProvisionShardBuilder(t).Status("offline").Build()
+				require.NoError(t, err)
+				return shard
+			},
+			validate: func(t *testing.T, mc *fleet.ManagementCluster) {
+				assert.Equal(t, fleet.ManagementClusterSchedulingPolicyUnschedulable, mc.Spec.SchedulingPolicy, "offline shard should be unschedulable")
+				require.Len(t, mc.Status.Conditions, 1)
+				assert.Equal(t, string(fleet.ManagementClusterConditionReady), mc.Status.Conditions[0].Type)
+				assert.Equal(t, metav1.ConditionFalse, mc.Status.Conditions[0].Status)
+				assert.Equal(t, string(fleet.ManagementClusterConditionReasonProvisionShardOffline), mc.Status.Conditions[0].Reason)
+				assert.Contains(t, mc.Status.Conditions[0].Message, "offline")
+			},
+		},
+		{
+			name: "unknown shard status produces ConditionUnknown",
+			build: func(t *testing.T) *arohcpv1alpha1.ProvisionShard {
+				shard, err := validProvisionShardBuilder(t).Status("some-new-status").Build()
+				require.NoError(t, err)
+				return shard
+			},
+			validate: func(t *testing.T, mc *fleet.ManagementCluster) {
+				assert.Equal(t, fleet.ManagementClusterSchedulingPolicyUnschedulable, mc.Spec.SchedulingPolicy, "unknown status shard should be unschedulable")
+				require.Len(t, mc.Status.Conditions, 1)
+				assert.Equal(t, string(fleet.ManagementClusterConditionReady), mc.Status.Conditions[0].Type)
+				assert.Equal(t, metav1.ConditionUnknown, mc.Status.Conditions[0].Status)
+				assert.Equal(t, string(fleet.ManagementClusterConditionReasonProvisionShardStatusUnknown), mc.Status.Conditions[0].Reason)
+				assert.Contains(t, mc.Status.Conditions[0].Message, "some-new-status")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			shard := tt.build(t)
+			mc, err := ConvertCSManagementClusterToInternal(shard)
+			if len(tt.expectedErrorSubstr) > 0 {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrorSubstr)
+				assert.Nil(t, mc)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, mc)
+				if tt.validate != nil {
+					tt.validate(t, mc)
+				}
+			}
 		})
 	}
 }

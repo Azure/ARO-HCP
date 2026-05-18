@@ -24,13 +24,14 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type cosmosNodePoolMatching struct {
-	cooldownChecker      controllerutils.CooldownChecker
+	cooldownChecker      controllerutil.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -38,7 +39,7 @@ type cosmosNodePoolMatching struct {
 // NewCosmosNodePoolMatchingController periodically looks for mismatched cluster-service and cosmos nodepool
 func NewCosmosNodePoolMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
 	syncer := &cosmosNodePoolMatching{
-		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
+		cooldownChecker:      controllerutil.NewTimeBasedCooldownChecker(1 * time.Hour),
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -66,6 +67,12 @@ func (c *cosmosNodePoolMatching) getAllCosmosObjs(ctx context.Context, keyObj co
 	}
 
 	for _, nodePool := range allNodePools.Items(ctx) {
+		// we skip cosmos nodepools that don't have a clusterServiceID because if we don't have it there's nothing we
+		// can delete. It means that the nodepool hasn't been created in cluster service yet or we haven't persisted
+		// the clusterServiceID in cosmos yet.
+		if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+			continue
+		}
 		ret = append(ret, nodePool)
 		existingCluster, exists := clusterServiceIDToNodePool[nodePool.ServiceProviderProperties.ClusterServiceID.String()]
 		if exists {
@@ -164,6 +171,6 @@ func (c *cosmosNodePoolMatching) SyncOnce(ctx context.Context, keyObj controller
 	return utils.TrackError(syncErr)
 }
 
-func (c *cosmosNodePoolMatching) CooldownChecker() controllerutils.CooldownChecker {
+func (c *cosmosNodePoolMatching) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

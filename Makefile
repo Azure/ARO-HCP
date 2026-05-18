@@ -24,13 +24,42 @@ all: test lint
 
 # There is currently no convenient way to run tests against a whole Go workspace
 # https://github.com/golang/go/issues/50745
-test:
-	go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
+#
+# `export` is needed (rather than the `VAR=value command` form) because the
+# go list | xargs go test pipeline runs go test in a subprocess of xargs;
+# without export the env var only reaches go list.
+test: envtest-setup
+	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
+		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test
 
-test-unit:
-	go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
+test-unit: envtest-setup
+	@export KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR))"; \
+		go list -f '{{.Dir}}/...' -m | xargs go test -timeout 1200s -cover
 .PHONY: test-unit
+
+# envtest-setup downloads the kubebuilder envtest binaries (etcd +
+# kube-apiserver) into $(ENVTEST_BIN_DIR) and prints their path on stdout.
+# The kube-applier integration tests under test-integration/kube-applier/
+# require KUBEBUILDER_ASSETS to point at this directory.
+#
+# Use as:   KUBEBUILDER_ASSETS=$(make -s envtest-setup) go test ./...
+#
+# The first run downloads ~50MB; subsequent runs just print the cached path.
+ENVTEST_K8S_VERSION ?= 1.34.1
+ENVTEST_BIN_DIR ?= $(abspath bin/envtest)
+ENVTEST := $(GOBIN)/setup-envtest
+# setup-envtest's release branches mirror controller-runtime's; pin to the
+# branch matching the controller-runtime version we depend on.
+ENVTEST_VERSION ?= release-0.22
+
+$(ENVTEST):
+	GOBIN=$(GOBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION)
+
+envtest-setup: $(ENVTEST)
+	@mkdir -p $(ENVTEST_BIN_DIR)
+	@$(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(ENVTEST_BIN_DIR)
+.PHONY: envtest-setup
 
 test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
@@ -44,7 +73,7 @@ verify-generate: generate
 
 deepcopy: $(DEEPCOPY_GEN) $(GOIMPORTS)
 	DEEPCOPY_GEN=$(DEEPCOPY_GEN) hack/update-deepcopy.sh
-	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/zz_generated.deepcopy.go internal/api/arm/zz_generated.deepcopy.go
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP internal/api/zz_generated.deepcopy.go internal/api/arm/zz_generated.deepcopy.go internal/api/kubeapplier/zz_generated.deepcopy.go
 	$(MAKE) all-tidy
 .PHONY: deepcopy
 
@@ -294,7 +323,7 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent observability.tracing route-monitor-operator
+services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent observability.tracing route-monitor-operator
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -356,7 +385,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services:
-	$(MAKE) -j4 build-frontend build-backend build-admin build-sessiongate
+	$(MAKE) -j5 build-frontend build-backend build-admin build-sessiongate build-mgmt-agent
 .PHONY: build-services
 
 build-frontend:
@@ -375,16 +404,22 @@ build-sessiongate:
 	$(MAKE) -C sessiongate build-and-push
 .PHONY: build-sessiongate
 
+build-mgmt-agent:
+	$(MAKE) -C mgmt-agent build-and-push
+.PHONY: build-mgmt-agent
+
 record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C frontend record-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
 	$(MAKE) -C backend record-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
 	$(MAKE) -C admin record-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml
 	$(MAKE) -C sessiongate record-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
+	$(MAKE) -C mgmt-agent record-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
 	  /tmp/_admin-override.yaml \
 	  /tmp/_sessiongate-override.yaml \
+	  /tmp/_mgmt-agent-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: record-services-override
 
@@ -392,7 +427,7 @@ record-services-override: $(YQ) $(ORAS)
 # One-Step Personal Dev Environment
 #
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
-personal-dev-env: build-services record-services-override
+personal-dev-env: build-services record-services-override install-tools
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
 else
@@ -405,7 +440,7 @@ endif
 # Opstool topology local run
 #
 opstool-local-run:
-	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra"
+	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra" STEP_CACHE_DIR=""
 .PHONY: opstool-local-run
 
 #
@@ -457,6 +492,7 @@ pipeline/%:
 
 LOG_LEVEL ?= 3
 PERSIST ?= "false"
+STEP_CACHE_DIR ?= .step-cache
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
 CONFIG_OUTPUT ?= _artifacts/config.yaml
@@ -468,6 +504,7 @@ local-run: $(TEMPLATIZE)
 	                                 --dev-settings-file tooling/templatize/settings.yaml \
 	                                 --dev-environment $(DEPLOY_ENV) \
 	                                 $(WHAT) $(EXTRA_ARGS) \
+	                                 --step-cache-dir="$(STEP_CACHE_DIR)" \
 	                                 --persist-tag=$(PERSIST) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT) \

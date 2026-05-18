@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Comprehensive tests for ValidateSubscriptionCreate
@@ -34,12 +35,12 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 	tests := []struct {
 		name         string
 		subscription *arm.Subscription
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "valid subscription - create",
 			subscription: createValidSubscription(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid subscription with all fields - create",
@@ -50,7 +51,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				}
 				return s
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid subscription - all valid states",
@@ -59,7 +60,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionStateRegistered
 				return s
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "missing required resource ID",
@@ -68,8 +69,8 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.ResourceID = nil
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "id"},
 			},
 		},
 		{
@@ -80,10 +81,10 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type \"Microsoft.Resources/subscriptions\"", fieldPath: "id"},
-				{message: "resource group must be empty", fieldPath: "id"}, // Should not have resource group
-				{message: "invalid UUID length", fieldPath: "id"},          // test-sub is not a valid UUID
+			expectErrors: []utils.ExpectedError{
+				{Message: "resource ID must reference an instance of type \"Microsoft.Resources/subscriptions\"", FieldPath: "id"},
+				{Message: "resource group must be empty", FieldPath: "id"}, // Should not have resource group
+				{Message: "invalid UUID length", FieldPath: "id"},          // test-sub is not a valid UUID
 			},
 		},
 		{
@@ -93,10 +94,10 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.ResourceID = &azcorearm.ResourceID{} // Empty ResourceID to test missing fields
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "subscription ID is required", fieldPath: "id"},
-				{message: "resource name is required", fieldPath: "id"},
-				{message: "resource ID must reference an instance of type \"Microsoft.Resources/subscriptions\"", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "subscription ID is required", FieldPath: "id"},
+				{Message: "resource name is required", FieldPath: "id"},
+				{Message: "resource ID must reference an instance of type \"Microsoft.Resources/subscriptions\"", FieldPath: "id"},
 			},
 		},
 		{
@@ -106,8 +107,8 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/invalid-uuid"))
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid UUID length", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid UUID length", FieldPath: "id"},
 			},
 		},
 		{
@@ -117,8 +118,8 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.RegistrationDate = nil
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "registrationDate"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "registrationDate"},
 			},
 		},
 		{
@@ -128,8 +129,8 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.RegistrationDate = ptr.To("  2023-01-01T00:00:00Z  ")
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "registrationDate"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "registrationDate"},
 			},
 		},
 		{
@@ -139,8 +140,8 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionState("InvalidState")
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "supported values:", fieldPath: "required"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "supported values:", FieldPath: "required"},
 			},
 		},
 		{
@@ -150,8 +151,8 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionState("")
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "supported values:", fieldPath: "required"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "supported values:", FieldPath: "required"},
 			},
 		},
 		{
@@ -163,10 +164,10 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionState("InvalidState")
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "supported values:", fieldPath: "required"},
-				{message: "Required value", fieldPath: "id"},
-				{message: "Required value", fieldPath: "registrationDate"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "supported values:", FieldPath: "required"},
+				{Message: "Required value", FieldPath: "id"},
+				{Message: "Required value", FieldPath: "registrationDate"},
 			},
 		},
 		// Test all valid subscription states
@@ -177,7 +178,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionStateRegistered
 				return s
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription state - Unregistered",
@@ -186,7 +187,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionStateUnregistered
 				return s
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription state - Warned",
@@ -195,7 +196,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionStateWarned
 				return s
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription state - Deleted",
@@ -204,7 +205,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionStateDeleted
 				return s
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription state - Suspended",
@@ -213,7 +214,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.State = arm.SubscriptionStateSuspended
 				return s
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		// Resource naming validation tests (covering middleware_validatestatic_test.go patterns)
 		{
@@ -223,7 +224,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012"))
 				return s
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "subscription with invalid UUID - too short",
@@ -232,8 +233,8 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/123"))
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid UUID length", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid UUID length", FieldPath: "id"},
 			},
 		},
 		{
@@ -243,8 +244,8 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/not-a-uuid-at-all"))
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid UUID length", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid UUID length", FieldPath: "id"},
 			},
 		},
 		// Test that resource group validation works properly
@@ -255,9 +256,9 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 				s.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/should-not-exist"))
 				return s
 			}(),
-			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type \"Microsoft.Resources/subscriptions\"", fieldPath: "id"},
-				{message: "resource group must be empty", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "resource ID must reference an instance of type \"Microsoft.Resources/subscriptions\"", FieldPath: "id"},
+				{Message: "resource group must be empty", FieldPath: "id"},
 			},
 		},
 	}
@@ -265,7 +266,7 @@ func TestValidateSubscriptionCreate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := ValidateSubscriptionCreate(ctx, tt.subscription)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -286,51 +287,51 @@ func TestSubscriptionRegistrationDateValidation(t *testing.T) {
 	tests := []struct {
 		name             string
 		registrationDate *string
-		expectErrors     []expectedError
+		expectErrors     []utils.ExpectedError
 	}{
 		{
 			name:             "valid registration date",
 			registrationDate: ptr.To("2023-01-01T00:00:00Z"),
-			expectErrors:     []expectedError{},
+			expectErrors:     []utils.ExpectedError{},
 		},
 		{
 			name:             "registration date with leading whitespace",
 			registrationDate: ptr.To(" 2023-01-01T00:00:00Z"),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "registrationDate"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "registrationDate"},
 			},
 		},
 		{
 			name:             "registration date with trailing whitespace",
 			registrationDate: ptr.To("2023-01-01T00:00:00Z "),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "registrationDate"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "registrationDate"},
 			},
 		},
 		{
 			name:             "registration date with both leading and trailing whitespace",
 			registrationDate: ptr.To("  2023-01-01T00:00:00Z  "),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "registrationDate"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "registrationDate"},
 			},
 		},
 		{
 			name:             "registration date with tabs",
 			registrationDate: ptr.To("\t2023-01-01T00:00:00Z\t"),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "registrationDate"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "registrationDate"},
 			},
 		},
 		{
 			name:             "empty registration date string",
 			registrationDate: ptr.To(""),
-			expectErrors:     []expectedError{},
+			expectErrors:     []utils.ExpectedError{},
 		},
 		{
 			name:             "registration date with only whitespace",
 			registrationDate: ptr.To("   "),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "registrationDate"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "registrationDate"},
 			},
 		},
 	}
@@ -343,9 +344,9 @@ func TestSubscriptionRegistrationDateValidation(t *testing.T) {
 			errs := ValidateSubscriptionCreate(ctx, sub)
 
 			// Filter only registration date errors
-			var registrationDateErrors []expectedError
+			var registrationDateErrors []utils.ExpectedError
 			for _, err := range tt.expectErrors {
-				if strings.Contains(err.fieldPath, "registrationDate") {
+				if strings.Contains(err.FieldPath, "registrationDate") {
 					registrationDateErrors = append(registrationDateErrors, err)
 				}
 			}
@@ -358,7 +359,7 @@ func TestSubscriptionRegistrationDateValidation(t *testing.T) {
 					}
 				}
 			} else {
-				verifyErrorsMatch(t, registrationDateErrors, errs)
+				utils.VerifyErrorsMatch(t, registrationDateErrors, errs)
 			}
 		})
 	}

@@ -19,52 +19,19 @@ import (
 	"time"
 
 	utilsclock "k8s.io/utils/clock"
-	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
-
-type CooldownChecker interface {
-	// returns true if we can synchronize this particular key
-	CanSync(ctx context.Context, key any) bool
-}
-
-type TimeBasedCooldownChecker struct {
-	clock            utilsclock.PassiveClock
-	cooldownDuration time.Duration
-	nextExecTime     *lru.Cache
-}
-
-func NewTimeBasedCooldownChecker(cooldownDuration time.Duration) *TimeBasedCooldownChecker {
-	return &TimeBasedCooldownChecker{
-		clock:            utilsclock.RealClock{},
-		cooldownDuration: cooldownDuration,
-		nextExecTime:     lru.New(1000000), // only holding item keys, so they are small
-
-	}
-}
-
-func (c *TimeBasedCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	now := c.clock.Now()
-
-	nextExecTime, ok := c.nextExecTime.Get(key)
-	if !ok || now.After(nextExecTime.(time.Time)) {
-		nextTime := now.Add(c.cooldownDuration)
-		c.nextExecTime.Add(key, nextTime)
-		return true
-	}
-
-	return false
-}
 
 type ActiveOperationBasedChecker struct {
 	clock                 utilsclock.PassiveClock
 	activeOperationLister listers.ActiveOperationLister
 
-	activeOperationTimer   CooldownChecker
-	inactiveOperationTimer CooldownChecker
+	activeOperationTimer   controllerutil.CooldownChecker
+	inactiveOperationTimer controllerutil.CooldownChecker
 }
 
 func DefaultActiveOperationPrioritizingCooldown(activeOperationLister listers.ActiveOperationLister) *ActiveOperationBasedChecker {
@@ -75,8 +42,8 @@ func NewActiveOperationPrioritizingCooldown(activeOperationLister listers.Active
 	return &ActiveOperationBasedChecker{
 		clock:                  utilsclock.RealClock{},
 		activeOperationLister:  activeOperationLister,
-		activeOperationTimer:   NewTimeBasedCooldownChecker(activeOperationCooldown),
-		inactiveOperationTimer: NewTimeBasedCooldownChecker(inactiveOperationCooldown),
+		activeOperationTimer:   controllerutil.NewTimeBasedCooldownChecker(activeOperationCooldown),
+		inactiveOperationTimer: controllerutil.NewTimeBasedCooldownChecker(inactiveOperationCooldown),
 	}
 }
 

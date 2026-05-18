@@ -108,7 +108,6 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	rid := mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c/managementClusterContents/readonlyHypershiftHostedCluster")
 	desired := &api.ManagementClusterContent{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid},
-		ResourceID:     *rid,
 		Status: api.ManagementClusterContentStatus{
 			Conditions: []metav1.Condition{
 				{

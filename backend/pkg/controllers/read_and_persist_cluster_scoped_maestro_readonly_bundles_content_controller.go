@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -37,7 +38,7 @@ import (
 // to the Cluster.
 // This controller assumes that it has full ownership of the ManagementClusterContent resource.
 type readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer struct {
-	cooldownChecker controllerutils.CooldownChecker
+	cooldownChecker controllerutil.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
 
@@ -137,6 +138,6 @@ func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) SyncOnc
 	return utils.TrackError(errors.Join(syncErrors...))
 }
 
-func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

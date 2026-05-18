@@ -71,6 +71,7 @@ type perItOrDescribeTestContext struct {
 	armNetworkClientFactory       *armnetwork.ClientFactory
 	graphClient                   *graphutil.Client
 
+	LogDirPath       string
 	azureLogFile     *os.File
 	timingMetadata   timing.SpecTimingMetadata
 	knownDeployments []deploymentInfo
@@ -81,22 +82,32 @@ type deploymentInfo struct {
 	deploymentName    string
 }
 
-func setupAzureLogging(artifactDir string) *os.File {
+// Create log directory for the test in ${ARTIFACT_DIR}/<test-name>/
+func setupTestLogDir(artifactDir string) string {
 	if len(artifactDir) == 0 {
-		return nil
+		return ""
 	}
 
-	// Set up Azure SDK logging to a file so it doesn't pollute test output but is
-	// available for debugging. The log file is written to ${ARTIFACT_DIR}/<test-name>/azure.log.
 	report := ginkgo.CurrentSpecReport()
 	testName := sanitizeTestName(append(report.ContainerHierarchyTexts, report.LeafNodeText))
-	logDir := filepath.Join(artifactDir, testName)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	logDirPath := filepath.Join(artifactDir, testName)
+
+	if err := os.MkdirAll(logDirPath, 0755); err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to create azure log file")
+		return ""
+	}
+
+	return logDirPath
+}
+
+// Set up Azure SDK logging to a file so it doesn't pollute test output but is
+// available for debugging. The log file is written to ${ARTIFACT_DIR}/<test-name>/azure.log.
+func setupAzureLogging(logDirPath string) *os.File {
+	if len(logDirPath) == 0 {
 		return nil
 	}
 
-	azureLogFile, err := os.Create(filepath.Join(logDir, "azure.log"))
+	azureLogFile, err := os.Create(filepath.Join(logDirPath, "azure.log"))
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to create azure log file")
 		return nil
@@ -113,10 +124,12 @@ func setupAzureLogging(artifactDir string) *os.File {
 }
 
 func NewTestContext() *perItOrDescribeTestContext {
-	azureLogFile := setupAzureLogging(artifactDir())
+	logDirPath := setupTestLogDir(artifactDir())
+	azureLogFile := setupAzureLogging(logDirPath)
 
 	tc := &perItOrDescribeTestContext{
 		perBinaryInvocationTestContext: invocationContext(),
+		LogDirPath:                     logDirPath,
 		azureLogFile:                   azureLogFile,
 		timingMetadata: timing.SpecTimingMetadata{
 			// Answering the question of "what's the currently-running test name?" in Ginkgo is difficult -
@@ -971,6 +984,10 @@ func (tc *perItOrDescribeTestContext) PullSecretPath() string {
 	return tc.perBinaryInvocationTestContext.pullSecretPath
 }
 
+// FindVirtualMachineSizeMatching queries Azure for available VM sizes in the test location
+// and returns a randomly selected size name that matches the provided regex pattern.
+// This is useful for finding VM sizes that meet specific criteria (e.g., matching a family like "Standard_D.*")
+// while avoiding bias towards any particular size.
 func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context.Context, pattern *regexp.Regexp) (string, error) {
 	if pattern == nil {
 		return "", fmt.Errorf("pattern cannot be nil")

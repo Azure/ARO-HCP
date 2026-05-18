@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -64,7 +65,7 @@ func (a *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
 	return true
 }
 
-var _ controllerutils.CooldownChecker = &alwaysSyncCooldownChecker{}
+var _ controllerutil.CooldownChecker = &alwaysSyncCooldownChecker{}
 
 // createTestSubscription creates a subscription in the mock database.
 func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -121,8 +122,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 		"/resourceGroups/" + testResourceGroupName +
 		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 		"/nodePools/" + testNodePoolName))
-	nodePoolInternalID, err := api.NewInternalID(testCSNodePoolIDStr)
-	require.NoError(t, err)
+	nodePoolInternalID := api.Ptr(api.Must(api.NewInternalID(testCSNodePoolIDStr)))
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
@@ -209,24 +209,6 @@ func newValidHostedClusterContentLister(t *testing.T) listers.ManagementClusterC
 	}
 }
 
-// errorManagementClusterContentLister always returns the configured error for every method.
-type errorManagementClusterContentLister struct {
-	err error
-}
-
-func (l *errorManagementClusterContentLister) List(_ context.Context) ([]*api.ManagementClusterContent, error) {
-	return nil, l.err
-}
-func (l *errorManagementClusterContentLister) GetForCluster(_ context.Context, _, _, _, _ string) (*api.ManagementClusterContent, error) {
-	return nil, l.err
-}
-func (l *errorManagementClusterContentLister) ListForCluster(_ context.Context, _, _, _ string) ([]*api.ManagementClusterContent, error) {
-	return nil, l.err
-}
-func (l *errorManagementClusterContentLister) ListForNodePool(_ context.Context, _, _, _, _ string) ([]*api.ManagementClusterContent, error) {
-	return nil, l.err
-}
-
 func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 	testKey := controllerutils.HCPNodePoolKey{
 		SubscriptionID:    testSubscriptionID,
@@ -272,6 +254,35 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			expectedErrorContains: "cluster service unavailable",
 		},
 		{
+			name: "missing NodePool's ClusterServiceID returns nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				// SyncOnce only runs Cosmos NodePools.Get in this case
+				nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+					"/resourceGroups/" + testResourceGroupName +
+					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+					"/nodePools/" + testNodePoolName))
+				nodePool := &api.HCPOpenShiftClusterNodePool{
+					TrackedResource: arm.TrackedResource{
+						Resource: arm.Resource{
+							ID:   nodePoolResourceID,
+							Name: testNodePoolName,
+							Type: api.NodePoolResourceType.String(),
+						},
+						Location: "eastus",
+					},
+					ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
+				}
+				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).Create(ctx, nodePool, nil)
+				require.NoError(t, err)
+			},
+			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
+				t.Helper()
+			},
+			expectedError: false,
+		},
+		{
 			name: "missing version returns error",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
@@ -287,137 +298,6 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			},
 			expectedError:         true,
 			expectedErrorContains: "node pool version not found in Cluster Service respons",
-		},
-		{
-			name: "management cluster content not found is silently skipped",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-			},
-			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
-				t.Helper()
-				// No CS mock setup - we return before reaching GetNodePool.
-			},
-			contentLister: func(t *testing.T) listers.ManagementClusterContentLister {
-				t.Helper()
-				return &listertesting.SliceManagementClusterContentLister{}
-			},
-			expectedError: false,
-		},
-		{
-			name: "management cluster content lister error is propagated",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-			},
-			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
-				t.Helper()
-			},
-			contentLister: func(t *testing.T) listers.ManagementClusterContentLister {
-				t.Helper()
-				return &errorManagementClusterContentLister{err: errors.New("indexer is on fire")}
-			},
-			expectedError:         true,
-			expectedErrorContains: "failed to get cluster management cluster content",
-		},
-		{
-			name: "management cluster content with nil KubeContent is silently skipped",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-			},
-			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
-				t.Helper()
-			},
-			contentLister: func(t *testing.T) listers.ManagementClusterContentLister {
-				t.Helper()
-				return &listertesting.SliceManagementClusterContentLister{
-					Contents: []*api.ManagementClusterContent{{
-						CosmosMetadata: api.CosmosMetadata{ResourceID: hostedClusterContentResourceID(t)},
-					}},
-				}
-			},
-			expectedError: false,
-		},
-		{
-			name: "management cluster content with multiple kubecontent items is silently skipped",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-			},
-			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
-				t.Helper()
-			},
-			contentLister: func(t *testing.T) listers.ManagementClusterContentLister {
-				t.Helper()
-				content := newHostedClusterContent(t, testClusterExternalID)
-				// Duplicate the single item so the count check (!= 1) fails.
-				content.Status.KubeContent.Items = append(content.Status.KubeContent.Items, content.Status.KubeContent.Items[0])
-				return &listertesting.SliceManagementClusterContentLister{
-					Contents: []*api.ManagementClusterContent{content},
-				}
-			},
-			expectedError: false,
-		},
-		{
-			name: "kubecontent unmarshal failure is returned as error",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-			},
-			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
-				t.Helper()
-			},
-			contentLister: func(t *testing.T) listers.ManagementClusterContentLister {
-				t.Helper()
-				return &listertesting.SliceManagementClusterContentLister{
-					Contents: []*api.ManagementClusterContent{{
-						CosmosMetadata: api.CosmosMetadata{ResourceID: hostedClusterContentResourceID(t)},
-						Status: api.ManagementClusterContentStatus{
-							KubeContent: &metav1.List{
-								Items: []kruntime.RawExtension{{Raw: []byte("not-json")}},
-							},
-						},
-					}},
-				}
-			},
-			expectedError:         true,
-			expectedErrorContains: "failed to unmarshal kubecontent",
-		},
-		{
-			name: "kubecontent without HostedCluster.Spec.ClusterID is silently skipped",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-			},
-			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
-				t.Helper()
-			},
-			contentLister: func(t *testing.T) listers.ManagementClusterContentLister {
-				t.Helper()
-				return &listertesting.SliceManagementClusterContentLister{
-					Contents: []*api.ManagementClusterContent{newHostedClusterContent(t, "")},
-				}
-			},
-			expectedError: false,
-		},
-		{
-			name: "invalid HostedCluster.Spec.ClusterID is returned as error",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
-				t.Helper()
-				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-			},
-			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
-				t.Helper()
-			},
-			contentLister: func(t *testing.T) listers.ManagementClusterContentLister {
-				t.Helper()
-				return &listertesting.SliceManagementClusterContentLister{
-					Contents: []*api.ManagementClusterContent{newHostedClusterContent(t, "not-a-uuid")},
-				}
-			},
-			expectedError:         true,
-			expectedErrorContains: "failed to parse cluster UUID",
 		},
 	}
 
@@ -714,7 +594,6 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
 		},
-		ResourceID: *api.Must(azcorearm.ParseResourceID(clusterResourceID)),
 		Status: api.ServiceProviderClusterStatus{
 			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
 				ActiveVersions: []api.HCPClusterActiveVersion{
@@ -743,7 +622,6 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
 		},
-		ResourceID: *api.Must(azcorearm.ParseResourceID(nodePoolResourceID)),
 		Status: api.ServiceProviderNodePoolStatus{
 			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
 				ActiveVersions: []api.HCPNodePoolActiveVersion{

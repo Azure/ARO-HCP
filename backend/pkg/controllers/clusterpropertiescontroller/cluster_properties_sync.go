@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,7 +39,7 @@ import (
 //   - ServiceProviderProperties.Platform.IssuerURL
 //   - CustomerProperties.DNS.BaseDomainPrefix
 type clusterPropertiesSyncer struct {
-	cooldownChecker      controllerutils.CooldownChecker
+	cooldownChecker      controllerutil.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -72,7 +73,7 @@ func NewClusterPropertiesSyncController(
 	return controller
 }
 
-func (c *clusterPropertiesSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *clusterPropertiesSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

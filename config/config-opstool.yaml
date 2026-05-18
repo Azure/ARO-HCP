@@ -25,6 +25,11 @@ clouds:
           resourceGroup: "global"
       monitoring:
         alertRuleOwningTeamTag: ""
+      global:
+        rg: "global"
+        subscription:
+          key: "ARO Hosted Control Planes (EA Subscription 1)"
+        globalMSIName: "global-rollout-identity"
       dns:
         regionalSubdomain: "{{ .ctx.regionShort }}"
       opstool:
@@ -49,6 +54,24 @@ clouds:
             osDiskSizeGB: 64
             zones: "1"
             zoneRedundantMode: "Disabled"
+          userAgentPool:
+            count: 1
+            minCount: 1
+            maxCount: 3
+            vmSize: "Standard_D4s_v3"
+            osDiskSizeGB: 64
+            zones: "1"
+            zoneRedundantMode: "Disabled"
+          infraAgentPool:
+            count: 1
+            minCount: 1
+            maxCount: 1
+            vmSize: "Standard_D4s_v3"
+            osDiskSizeGB: 64
+            zones: "1"
+            zoneRedundantMode: "Disabled"
+        istio:
+          versions: "asm-1-28"
         monitoring:
           workspaceName: "opstool-monitor-{{ .ctx.regionShort }}"
         prometheus:
@@ -74,6 +97,48 @@ clouds:
               sha: "70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06"
         keyVault:
           name: "opstool-kv-{{ .ctx.regionShort }}"
+        gateway:
+          enabled: true
+          name: "opstool-gateway"
+          namespace: "aks-istio-ingress"
+          sectionName: "tools-https"
+          wildcardHostname: "*.tools.hcpsvc.osadev.cloud"
+          credentialName: "tools-ingress-credential"
+          publicIpName: "opstool-gateway-{{ .ctx.regionShort }}"
+          publicIpResourceGroup: "opstool-{{ .ctx.region }}"
+          dns:
+            parentZoneName: "hcpsvc.osadev.cloud"
+            parentZoneResourceGroup: "global"
+            childZoneSubdomain: "tools"
+            recordName: "*"
+        certManager:
+          namespace: "cert-manager"
+          clusterIssuer:
+            name: "letsencrypt-dns01"
+            email: "aro-hcp-service-lifecycle-team@redhat.com"
+            privateKeySecretName: "letsencrypt-dns01-account-key"
+            server: "https://acme-v02.api.letsencrypt.org/directory"
+            azureDNS:
+              environment: "AzurePublicCloud"
+        cihealth:
+          image:
+            registry: "quay.io"
+            repository: "roivaz/cihealth"
+            tag: "8e6b0cd"
+          disableRuntimeWorkloads: false
+          app:
+            replicas: 2
+          postgres:
+            usernameKeyVaultSecretName: "cihealth-postgres-username"
+            passwordKeyVaultSecretName: "cihealth-postgres-password"
+            databaseKeyVaultSecretName: "cihealth-postgres-database"
+          httpRoute:
+            enabled: true
+            host: "cihealth.tools.hcpsvc.osadev.cloud"
+            gatewayName: "opstool-gateway"
+            gatewayNamespace: "aks-istio-ingress"
+            sectionName: "tools-https"
+            blockReviewPath: true
         alerting:
           email: "aro-hcp-service-lifecycle-team@redhat.com"
           enabled: true
@@ -93,14 +158,20 @@ clouds:
               roleAssignmentLimit: 4000
               regions:
               - westus3
+              - centralus
+              - canadacentral
             - name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
               roleAssignmentLimit: 8000
               regions:
               - westus3
+              - centralus
+              - canadacentral
             - name: "ARO HCP E2E Infrastructure (EA Subscription)"
               roleAssignmentLimit: 4000
               regions:
               - westus3
+              - centralus
+              - canadacentral
             - name: "ARO SRE Team - INT (EA Subscription 3)"
               roleAssignmentLimit: 4000
               regions:

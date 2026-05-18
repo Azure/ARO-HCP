@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -43,7 +44,7 @@ import (
 // from CS and internal and helps selecting a valid desiredVersion within the user's
 // desired
 type nodePoolVersionSyncer struct {
-	cooldownChecker                       controllerutils.CooldownChecker
+	cooldownChecker                       controllerutil.CooldownChecker
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
 	resourcesDBClient                     database.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
@@ -117,6 +118,10 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cosmos: %w", err))
 	}
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		// if we have no clusterservice nodepool, we have nothing to sync.
+		return nil
+	}
 
 	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
@@ -145,17 +150,17 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
+	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
 	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.clusterManagementClusterContentLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return err
+		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}
 	if !found {
-		// will reappear once the informer relists; without the UUID we cannot build the Cincinnati client
-		return nil
+		logger.Info("missing cluster UUID, continuing with empty")
 	}
 
 	// Read node pool from Cluster Service
-	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
+	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool from CS: %w", err))
 	}
@@ -224,7 +229,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	return nil
 }
 
-func (c *nodePoolVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

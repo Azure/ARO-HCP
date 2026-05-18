@@ -1,0 +1,14 @@
+{
+	"cosmosMetadata": {
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/hcp-cluster/readdesires/watched"
+	},
+	"spec": {
+		"managementCluster": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1",
+		"targetItem": {
+			"name": "watched",
+			"namespace": "read-mirrors-configmap",
+			"resource": "configmaps",
+			"version": "v1"
+		}
+	}
+}

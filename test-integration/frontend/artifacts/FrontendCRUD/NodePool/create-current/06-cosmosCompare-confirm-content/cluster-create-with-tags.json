@@ -10,6 +10,60 @@
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
 		},
+		"customerProperties": {
+			"api": {
+				"visibility": "Public"
+			},
+			"autoscaling": {
+				"maxNodeProvisionTimeSeconds": 900,
+				"maxPodGracePeriodSeconds": 600,
+				"podPriorityThreshold": -10
+			},
+			"clusterImageRegistry": {
+				"state": "Disabled"
+			},
+			"dns": {},
+			"etcd": {
+				"dataEncryption": {
+					"customerManaged": {
+						"encryptionType": "KMS",
+						"kms": {
+							"activeKey": {
+								"name": "encryptionKeyName",
+								"vaultName": "keyVaultName",
+								"version": "2024-12-01-preview"
+							},
+							"visibility": "Public"
+						}
+					},
+					"keyManagementMode": "CustomerManaged"
+				}
+			},
+			"network": {
+				"hostPrefix": 23,
+				"machineCidr": "10.0.0.0/16",
+				"networkType": "OVNKubernetes",
+				"podCidr": "10.128.0.0/14",
+				"serviceCidr": "172.30.0.0/16"
+			},
+			"platform": {
+				"managedResourceGroup": "managed-resource-group-name",
+				"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+				"operatorsAuthentication": {
+					"userAssignedIdentities": {}
+				},
+				"outboundType": "LoadBalancer",
+				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			},
+			"version": {
+				"channelGroup": "stable",
+				"id": "4.20"
+			}
+		},
+		"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+		"identity": {
+			"type": "UserAssigned"
+		},
 		"intermediateResourceDoc": {
 			"identity": {
 				"type": "UserAssigned"
@@ -79,17 +133,54 @@
 						"id": "4.20"
 					}
 				},
+				"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
+				"identity": {
+					"type": "UserAssigned"
+				},
 				"location": "fake-location",
+				"name": "create-with-tags",
 				"serviceProviderProperties": {
 					"api": {},
-					"clusterServiceID": "",
+					"clusterServiceID": "/api/clusters_mgmt/v1/clusters/dl7f9px2f2",
 					"console": {},
 					"dns": {},
 					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
-					"platform": {}
-				}
+					"platform": {},
+					"provisioningState": "Succeeded"
+				},
+				"systemData": {
+					"createdBy": "Unknown-ARO-HCP-frontend",
+					"createdByType": "Application",
+					"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+					"lastModifiedByType": "Application"
+				},
+				"tags": {
+					"one": "apple"
+				},
+				"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 			}
-		}
+		},
+		"location": "fake-location",
+		"name": "create-with-tags",
+		"serviceProviderProperties": {
+			"api": {},
+			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/dl7f9px2f2",
+			"console": {},
+			"dns": {},
+			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
+			"platform": {},
+			"provisioningState": "Succeeded"
+		},
+		"systemData": {
+			"createdBy": "Unknown-ARO-HCP-frontend",
+			"createdByType": "Application",
+			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+			"lastModifiedByType": "Application"
+		},
+		"tags": {
+			"one": "apple"
+		},
+		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

@@ -1,0 +1,11 @@
+{
+	"apiVersion": "v1",
+	"data": {
+		"version": "2"
+	},
+	"kind": "ConfigMap",
+	"metadata": {
+		"name": "watched",
+		"namespace": "read-mirrors-configmap"
+	}
+}

@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -39,7 +40,7 @@ import (
 // versions in ServiceProviderCluster status by reading the version from the management cluster
 // content (HostedCluster status persisted from Maestro readonly bundles).
 type controlPlaneActiveVersionSyncer struct {
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 }
 
@@ -67,7 +68,7 @@ func NewControlPlaneActiveVersionController(
 	)
 }
 
-func (c *controlPlaneActiveVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *controlPlaneActiveVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

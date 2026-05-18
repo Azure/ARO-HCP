@@ -1,0 +1,9 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where eventNamespace == 'hypershift'
+    or (eventNamespace == '{{ .HostedControlPlaneNamespace }}'
+        and (objectName contains 'control-plane-pki-operator-'
+            or objectName contains 'control-plane-operator-'
+            or objectName contains 'hosted-cluster-config-operator-'))
+| project timestamp, objectKind, objectName, reason, message
+| order by timestamp asc

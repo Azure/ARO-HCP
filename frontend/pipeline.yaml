@@ -61,6 +61,7 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'aro-hcp-frontend-dev'
     releaseNamespace: '{{ .frontend.k8s.namespace }}'
     chartDir: ./deploy

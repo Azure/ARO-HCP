@@ -4,6 +4,7 @@ import {
 } from '../modules/common.bicep'
 
 import * as mi from '../modules/managed-identities.bicep'
+import * as res from '../modules/resource.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -157,6 +158,36 @@ param maestroConsumerNamespace string
 @description('The service account name of the maestro consumer.')
 param maestroConsumerServiceAccountName string
 
+@description('The resource ID of the Cosmos DB account for the RP')
+param rpCosmosDbAccountId string
+
+@description('If true, make the Cosmos DB instance private')
+param rpCosmosDbPrivate bool
+
+@description('The name of the kube-applier managed identity.')
+param kubeApplierMIName string
+
+@description('The namespace for kube-applier.')
+param kubeApplierNamespace string
+
+@description('The service account name for kube-applier.')
+param kubeApplierServiceAccountName string
+
+@description('The CosmosDB container name for kube-applier.')
+param kubeApplierContainerName string
+
+@description('The autoscale max throughput for the kube-applier CosmosDB container.')
+param kubeApplierContainerMaxScale int
+
+@description('The name of the mgmt-agent managed identity.')
+param mgmtAgentMIName string
+
+@description('The namespace of the mgmt-agent controller.')
+param mgmtAgentNamespace string
+
+@description('The service account name of the mgmt-agent controller.')
+param mgmtAgentServiceAccountName string
+
 @description('The regional SVC DNS zone name.')
 param regionalSvcDNSZoneName string
 
@@ -225,6 +256,11 @@ var workloadIdentities = items({
     namespace: maestroConsumerNamespace
     serviceAccountName: maestroConsumerServiceAccountName
   }
+  mgmt_agent_wi: {
+    uamiName: mgmtAgentMIName
+    namespace: mgmtAgentNamespace
+    serviceAccountName: mgmtAgentServiceAccountName
+  }
   logs_wi: {
     uamiName: logsMSI
     namespace: logsNamespace
@@ -239,6 +275,11 @@ var workloadIdentities = items({
     uamiName: 'velero'
     namespace: 'velero'
     serviceAccountName: 'velero'
+  }
+  kube_applier_wi: {
+    uamiName: kubeApplierMIName
+    namespace: kubeApplierNamespace
+    serviceAccountName: kubeApplierServiceAccountName
   }
 })
 
@@ -522,6 +563,42 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
     vnetId: vnetCreation.outputs.vnetId
     serviceType: 'eventgrid'
     groupId: 'topicspace'
+  }
+}
+
+//
+//   K U B E   A P P L I E R
+//
+
+var rpCosmosDbAccountRef = res.cosmosDBAccountRefFromId(rpCosmosDbAccountId)
+
+module kubeApplierCosmos '../modules/rp-cosmos-kube-applier.bicep' = if (rpCosmosDbAccountId != '') {
+  name: 'kube-applier-cosmos'
+  scope: resourceGroup(rpCosmosDbAccountRef.resourceGroup.subscriptionId, rpCosmosDbAccountRef.resourceGroup.name)
+  params: {
+    cosmosDBAccountName: rpCosmosDbAccountRef.name
+    containerName: kubeApplierContainerName
+    containerMaxScale: kubeApplierContainerMaxScale
+    kubeApplierManagedIdentityPrincipalId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      kubeApplierMIName
+    ).uamiPrincipalID
+  }
+}
+
+//
+//  C O S M O S D B   P R I V A T E   E N D P O I N T   C O N N E C T I O N
+//
+
+module cosmosDbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate && rpCosmosDbAccountId != '') {
+  name: 'cosmosDbPrivateEndpoint'
+  params: {
+    location: location
+    subnetIds: [nodeSubnetCreation.outputs.subnetId]
+    privateLinkServiceId: rpCosmosDbAccountId
+    vnetId: vnetCreation.outputs.vnetId
+    serviceType: 'cosmosdb'
+    groupId: 'Sql'
   }
 }
 

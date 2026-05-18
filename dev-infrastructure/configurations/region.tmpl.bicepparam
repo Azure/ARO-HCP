@@ -11,6 +11,12 @@ param maestroEventGridMaxClientSessionsPerAuthName = {{ .maestro.eventGrid.maxCl
 param maestroEventGridPrivate = {{ .maestro.eventGrid.private }}
 param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
 
+// CosmosDB
+param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
+param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
+param rpCosmosZoneRedundantMode = '{{ .frontend.cosmosDB.zoneRedundantMode }}'
+param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
+
 // MI for resource access during pipeline runs
 param globalMSIId = '__globalMSIId__'
 

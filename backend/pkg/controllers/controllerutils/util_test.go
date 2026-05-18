@@ -98,7 +98,6 @@ func TestDegradedControllerPanicHandler(t *testing.T) {
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			ResourceID: resourceID,
 			ExternalID: clusterResourceID,
 			Status: api.ControllerStatus{
 				Conditions: []metav1.Condition{},

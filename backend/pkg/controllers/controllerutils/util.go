@@ -80,7 +80,7 @@ func (k OperationKey) InitialController(controllerName string) *api.Controller {
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID, ExternalID: k.GetParentResourceID(),
+		ExternalID: k.GetParentResourceID(),
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
@@ -110,7 +110,6 @@ func (k HCPClusterKey) InitialController(controllerName string) *api.Controller 
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 		ExternalID: k.GetResourceID(),
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{},
@@ -141,7 +140,6 @@ func (k HCPNodePoolKey) InitialController(controllerName string) *api.Controller
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 		ExternalID: k.GetResourceID(),
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{},
@@ -185,7 +183,6 @@ func (k *HCPExternalAuthKey) InitialController(controllerName string) *api.Contr
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: resourceID,
 		ExternalID: k.GetResourceID(),
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{},

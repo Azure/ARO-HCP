@@ -136,7 +136,7 @@ func (l *mockSubscriptionGlobalLister) List(ctx context.Context, options *databa
 // mockTypedGlobalLister is a generic mock global lister that lists all resources
 // of a given type across all partitions.
 type mockTypedGlobalLister[InternalAPIType, CosmosAPIType any] struct {
-	client       *MockResourcesDBClient
+	client       mockDocumentStore
 	resourceType azcorearm.ResourceType
 }
 
@@ -188,6 +188,12 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *da
 		}
 
 		if !strings.EqualFold(typedDoc.ResourceType, api.OperationStatusResourceType.String()) {
+			continue
+		}
+
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
 			continue
 		}
 
@@ -243,6 +249,12 @@ func (l *mockControllerGlobalLister) List(ctx context.Context, options *database
 			}
 		}
 		if !resourceTypeMatches {
+			continue
+		}
+
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
 			continue
 		}
 
@@ -309,6 +321,12 @@ func (l *mockManagementClusterContentGlobalLister) List(ctx context.Context, opt
 			}
 		}
 		if !resourceTypeMatches {
+			continue
+		}
+
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
 			continue
 		}
 

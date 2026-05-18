@@ -21,13 +21,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	v20240610preview "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	v20251223preview "github.com/Azure/ARO-HCP/internal/api/v20251223preview"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 // TestEnsureDefaultsConsistencyNodePool verifies that the defaults applied by
@@ -195,96 +192,6 @@ func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 			})
 		}
 	})
-}
-
-// TestCSToRPDefaultsConsistencyNodePool verifies that when Cluster Service
-// returns the default value for DiskStorageAccountType, the CS→RP conversion
-// produces the same value as the canonical default.
-func TestCSToRPDefaultsConsistencyNodePool(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
-	))
-
-	csNodePool, err := arohcpv1alpha1.NewNodePool().
-		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
-			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-				StorageAccountType("Premium_LRS").
-				Persistence("persistent"))).
-		Build()
-	if err != nil {
-		t.Fatalf("failed to build CS nodepool: %v", err)
-	}
-
-	rpNodePool, err := ocm.ConvertCStoNodePool(resourceID, "eastus", csNodePool)
-	if err != nil {
-		t.Fatalf("ConvertCStoNodePool failed: %v", err)
-	}
-
-	ensuredDefault := &api.HCPOpenShiftClusterNodePool{}
-	ensuredDefault.EnsureDefaults()
-
-	if string(rpNodePool.Properties.Platform.OSDisk.DiskStorageAccountType) != string(ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType) {
-		t.Errorf("CS→RP default DiskStorageAccountType = %q, ensured default = %q",
-			rpNodePool.Properties.Platform.OSDisk.DiskStorageAccountType,
-			ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType)
-	}
-	if string(rpNodePool.Properties.Platform.OSDisk.DiskType) != string(ensuredDefault.Properties.Platform.OSDisk.DiskType) {
-		t.Errorf("CS→RP default DiskType = %q, ensured default = %q",
-			rpNodePool.Properties.Platform.OSDisk.DiskType,
-			ensuredDefault.Properties.Platform.OSDisk.DiskType)
-	}
-}
-
-func TestCSToRPDefaultsEmptyDiskStorageAccountType(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
-	))
-
-	// Simulate a pre-existing CS node pool that has no DiskStorageAccountType set.
-	csNodePool, err := arohcpv1alpha1.NewNodePool().
-		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
-			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-				StorageAccountType(""))).
-		Build()
-	if err != nil {
-		t.Fatalf("failed to build CS nodepool: %v", err)
-	}
-
-	rpNodePool, err := ocm.ConvertCStoNodePool(resourceID, "eastus", csNodePool)
-	if err != nil {
-		t.Fatalf("ConvertCStoNodePool failed: %v", err)
-	}
-
-	if rpNodePool.Properties.Platform.OSDisk.DiskStorageAccountType != api.DiskStorageAccountTypePremium_LRS {
-		t.Errorf("CS→RP conversion must default empty StorageAccountType to Premium_LRS, got %q",
-			rpNodePool.Properties.Platform.OSDisk.DiskStorageAccountType)
-	}
-}
-
-func TestCSToRPDefaultsEmptyDiskType(t *testing.T) {
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/nodePools/np",
-	))
-
-	// Simulate a pre-existing CS node pool that has no persistence set.
-	csNodePool, err := arohcpv1alpha1.NewNodePool().
-		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
-			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-				Persistence(""))).
-		Build()
-	if err != nil {
-		t.Fatalf("failed to build CS nodepool: %v", err)
-	}
-
-	rpNodePool, err := ocm.ConvertCStoNodePool(resourceID, "eastus", csNodePool)
-	if err != nil {
-		t.Fatalf("ConvertCStoNodePool failed: %v", err)
-	}
-
-	if rpNodePool.Properties.Platform.OSDisk.DiskType != api.OsDiskTypeManaged {
-		t.Errorf("CS→RP conversion must default empty Persistence to Managed, got %q",
-			rpNodePool.Properties.Platform.OSDisk.DiskType)
-	}
 }
 
 // TestPreExistingDataCluster verifies that CosmosToInternalCluster applies

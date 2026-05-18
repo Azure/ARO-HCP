@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestValidateSystemData(t *testing.T) {
@@ -37,7 +38,7 @@ func TestValidateSystemData(t *testing.T) {
 		op           operation.Operation
 		newObj       *arm.SystemData
 		oldObj       *arm.SystemData
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		// Required field tests
 		{
@@ -49,8 +50,8 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedAt:     &now,
 			},
 			oldObj: nil,
-			expectErrors: []expectedError{
-				{fieldPath: "systemData.createdBy", message: "Required"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "systemData.createdBy", Message: "Required"},
 			},
 		},
 		{
@@ -62,8 +63,8 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedAt:     nil,
 			},
 			oldObj: nil,
-			expectErrors: []expectedError{
-				{fieldPath: "systemData.createdAt", message: "Required"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "systemData.createdAt", Message: "Required"},
 			},
 		},
 		{
@@ -75,8 +76,8 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedAt:     &now,
 			},
 			oldObj: nil,
-			expectErrors: []expectedError{
-				{fieldPath: "systemData.createdByType", message: "Required"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "systemData.createdByType", Message: "Required"},
 			},
 		},
 		{
@@ -88,10 +89,10 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedAt:     nil,
 			},
 			oldObj: nil,
-			expectErrors: []expectedError{
-				{fieldPath: "systemData.createdBy", message: "Required"},
-				{fieldPath: "systemData.createdAt", message: "Required"},
-				{fieldPath: "systemData.createdByType", message: "Required"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "systemData.createdBy", Message: "Required"},
+				{FieldPath: "systemData.createdAt", Message: "Required"},
+				{FieldPath: "systemData.createdByType", Message: "Required"},
 			},
 		},
 		{
@@ -103,7 +104,7 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedAt:     &now,
 			},
 			oldObj:       nil,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		// Backfill tests: old value missing, new value present - should succeed
 		{
@@ -119,7 +120,7 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: arm.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "old missing createdAt, new has createdAt - allowed",
@@ -134,7 +135,7 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: arm.CreatedByTypeUser,
 				CreatedAt:     nil,
 			},
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "old missing createdByType, new has createdByType - allowed",
@@ -149,7 +150,7 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: "",
 				CreatedAt:     &now,
 			},
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "old missing all created fields, new has all - allowed",
@@ -164,7 +165,7 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: "",
 				CreatedAt:     nil,
 			},
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		// Immutability tests: old value present, new value different - should fail
 		{
@@ -180,8 +181,8 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: arm.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "systemData.createdBy", message: "immutable"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "systemData.createdBy", Message: "immutable"},
 			},
 		},
 		{
@@ -197,8 +198,8 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: arm.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "systemData.createdAt", message: "immutable"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "systemData.createdAt", Message: "immutable"},
 			},
 		},
 		{
@@ -214,8 +215,8 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: arm.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "systemData.createdByType", message: "immutable"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "systemData.createdByType", Message: "immutable"},
 			},
 		},
 		{
@@ -231,10 +232,10 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: arm.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "systemData.createdBy", message: "immutable"},
-				{fieldPath: "systemData.createdAt", message: "immutable"},
-				{fieldPath: "systemData.createdByType", message: "immutable"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "systemData.createdBy", Message: "immutable"},
+				{FieldPath: "systemData.createdAt", Message: "immutable"},
+				{FieldPath: "systemData.createdByType", Message: "immutable"},
 			},
 		},
 		// No-change tests: should succeed
@@ -251,7 +252,7 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedByType: arm.CreatedByTypeUser,
 				CreatedAt:     &now,
 			},
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "nil oldObj with valid newObj - allowed",
@@ -262,14 +263,14 @@ func TestValidateSystemData(t *testing.T) {
 				CreatedAt:     &now,
 			},
 			oldObj:       nil,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := validateSystemData(ctx, tt.op, fldPath, tt.newObj, tt.oldObj)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }

@@ -222,7 +222,7 @@ func newTestNodePool(name, clusterServiceIDStr string) *api.HCPOpenShiftClusterN
 	}
 	if clusterServiceIDStr != "" {
 		np.ServiceProviderProperties = api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-			ClusterServiceID: api.Must(api.NewInternalID(clusterServiceIDStr)),
+			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID(clusterServiceIDStr))),
 		}
 	}
 	return np

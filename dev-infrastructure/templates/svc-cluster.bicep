@@ -144,21 +144,14 @@ param opsIngressGatewayIPAddressName string = ''
 @description('IPTags to be set on the Admin API Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
 param opsIngressGatewayIPAddressTags string = ''
 
-// TODO: When the work around workload identity for the RP is finalized, change this to true
-@description('disableLocalAuth for the ARO HCP RP CosmosDB')
-param disableLocalAuth bool
-
-@description('Deploy ARO HCP RP Azure Cosmos DB if true')
-param deployFrontendCosmos bool
-
 @description('The name of the Cosmos DB for the RP')
 param rpCosmosDbName string
 
 @description('If true, make the Cosmos DB instance private')
 param rpCosmosDbPrivate bool
 
-@description('The zone redundant mode of Cosmos DB instance')
-param rpCosmosZoneRedundantMode string
+@description('The resource ID of the Cosmos DB account for the RP')
+param rpCosmosDbAccountId string
 
 @description('The resourcegroup for regional infrastructure')
 param regionalResourceGroup string
@@ -428,6 +421,7 @@ param owningTeamTagValue string
 param resourceContainerMaxScale int
 param billingContainerMaxScale int
 param locksContainerMaxScale int
+param fleetContainerMaxScale int
 
 @description('The name of the Exporter managed identity')
 param exporterMIName string
@@ -587,9 +581,7 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
         name: 'admin-in-geneva'
         properties: {
           access: 'Allow'
-          destinationAddressPrefix: istioIngressGatewayIPAddress.outputs.ipAddress
-          // TODO: ops-ingress phase 3: switch to ops IP
-          // destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
+          destinationAddressPrefix: opsIngressGatewayIPAddress.outputs.ipAddress
           destinationPortRange: '443'
           direction: 'Inbound'
           priority: 130
@@ -607,7 +599,7 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
           direction: 'Inbound'
           priority: 140
           protocol: 'Tcp'
-          sourceAddressPrefix: sreServiceTag != '' ? sreServiceTag : '*'
+          sourceAddressPrefix: sreServiceTag
           sourcePortRange: '*'
         }
       }
@@ -755,35 +747,32 @@ var frontendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedId
 var backendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, backendMIName)
 var adminApiMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, adminApiMIName)
 
-module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
+module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') {
   name: 'rp_cosmos_db'
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    name: rpCosmosDbName
-    location: location
-    zoneRedundant: determineZoneRedundancy(locationAvailabilityZoneList, rpCosmosZoneRedundantMode)
-    disableLocalAuth: disableLocalAuth
+    cosmosDBAccountName: rpCosmosDbName
     userAssignedMIs: [frontendMI, backendMI, adminApiMI]
-    private: rpCosmosDbPrivate
     resourceContainerMaxScale: resourceContainerMaxScale
     billingContainerMaxScale: billingContainerMaxScale
     locksContainerMaxScale: locksContainerMaxScale
+    fleetContainerMaxScale: fleetContainerMaxScale
   }
 }
 
-module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate) {
+module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate && rpCosmosDbAccountId != '') {
   name: 'rp-pe-${uniqueString(deployment().name)}'
   params: {
     location: location
     subnetIds: [nodeSubnetCreation.outputs.subnetId]
     vnetId: vnetCreation.outputs.vnetId
-    privateLinkServiceId: rpCosmosDb.outputs.cosmosDBAccountId
+    privateLinkServiceId: rpCosmosDbAccountId
     serviceType: 'cosmosdb'
     groupId: 'Sql'
   }
 }
 
-output cosmosDBName string = deployFrontendCosmos ? rpCosmosDb.outputs.cosmosDBName : ''
+output cosmosDBName string = rpCosmosDbName
 output frontend_mi_client_id string = frontendMI.uamiClientID
 
 //
@@ -1059,14 +1048,13 @@ module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.
   }
 }
 
-// TODO: ops-ingress phase 3: move DNS to ops ingress when k8s gateway is deployed to prod
 module adminApiDNS '../modules/dns/a-record.bicep' = {
   name: 'admin-api-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
     zoneName: regionalSvcDNSZoneName
     recordName: adminApiDnsName
-    ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
+    ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
 }
@@ -1175,7 +1163,7 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
     location: location
     associatedResources: [
       svcCluster.outputs.etcKeyVaultId
-      rpCosmosDb.outputs.cosmosDBAccountId
+      rpCosmosDbAccountId
     ]
     // TODO Add EV2 access here
     subscriptions: [

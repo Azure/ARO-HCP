@@ -18,9 +18,10 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*NodePool, error) {
@@ -38,15 +39,16 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
+			HCPOpenShiftClusterNodePool: *internalObj,
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: internalObj.ID,
 			},
 			IntermediateResourceDoc: &ResourceDocument{
 				ResourceID:        internalObj.ID,
-				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
+				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
-				Identity:          toCosmosIdentity(internalObj.Identity),
+				Identity:          internalObj.Identity.DeepCopy(),
 				SystemData:        internalObj.SystemData,
 				Tags:              copyTags(internalObj.Tags),
 			},
@@ -55,18 +57,6 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			},
 		},
 	}
-
-	// some pieces of data in the internalNodePool conflict with ResourceDocument fields.  We may evolve over time, but for
-	// now avoid persisting those.
-	cosmosObj.InternalState.InternalAPI.TrackedResource = arm.TrackedResource{
-		Location: internalObj.Location, // this is the only TrackedResource value not present elsewhere in ResourceDcoument
-	}
-	cosmosObj.InternalState.InternalAPI.Identity = nil
-	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
-	cosmosObj.InternalState.InternalAPI.SystemData = nil
-	cosmosObj.InternalState.InternalAPI.Tags = nil
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
 	return cosmosObj, nil
 }
@@ -97,13 +87,19 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	// we carry over the CosmosETag from the cosmos object to the internal object into a
 	// temporary field until we have inlined and serialized CosmosMetadata in
 	// HCPOpenShiftClusterNodePool.
-	internalObj.CosmosETag = cosmosObj.CosmosETag
-	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
+	internalObj.CosmosETag = cosmosObj.BaseDocument.CosmosETag
+	internalObj.Identity = resourceDoc.Identity.DeepCopy()
 	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
 	internalObj.SystemData = resourceDoc.SystemData
 	internalObj.Tags = copyTags(resourceDoc.Tags)
 	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
-	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
+	if len(resourceDoc.InternalID.String()) == 0 {
+		// preserve the nil on read
+		internalObj.ServiceProviderProperties.ClusterServiceID = nil
+	} else {
+		internalObj.ServiceProviderProperties.ClusterServiceID = &resourceDoc.InternalID
+	}
+
 	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
 	internalObj.EnsureDefaults()

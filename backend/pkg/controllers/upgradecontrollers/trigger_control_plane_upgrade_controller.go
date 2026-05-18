@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -34,7 +35,7 @@ import (
 
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
-	cooldownChecker      controllerutils.CooldownChecker
+	cooldownChecker      controllerutil.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -71,7 +72,7 @@ func NewTriggerControlPlaneUpgradeController(
 	return controller
 }
 
-func (c *triggerControlPlaneUpgradeSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *triggerControlPlaneUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
@@ -105,14 +106,16 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil // No desired version set
 	}
 
-	// Get latest actual version from active versions
-	var actualLatestVersion *semver.Version
-	if len(existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) > 0 {
-		actualLatestVersion = existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[0].Version
+	// No active version yet (installation ongoing); skip upgrade trigger.
+	if len(existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) == 0 {
+		return nil
 	}
 
+	// Get latest actual version from active versions
+	actualLatestVersion := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[0].Version
+
 	// If desired version matches latest actual version, nothing to do
-	if actualLatestVersion != nil && desiredVersion.EQ(*actualLatestVersion) {
+	if desiredVersion.EQ(*actualLatestVersion) {
 		return nil
 	}
 

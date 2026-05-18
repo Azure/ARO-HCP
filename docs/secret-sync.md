@@ -175,6 +175,20 @@ The `component-sync-pull-secret` contains credentials for `registry.redhat.io`, 
 
 For the full guide, see [Creating Registry Service Accounts](https://access.redhat.com/articles/RegistryAuthentication#creating-registry-service-accounts-6) in the Red Hat documentation.
 
+## Renewing the Prow Token
+
+The `prow-token` secret authenticates EV2 pipeline requests to the OpenShift CI Gangway API for E2E gating tests. It is registered in all 4 global Key Vaults.
+
+Instead of running `register` manually for each vault, use the dedicated renewal script which automates extraction and registration across all 4 vaults:
+
+```bash
+./dev-infrastructure/openshift-ci/renew-prow-token.sh --extract
+```
+
+You can also follow the [general registration steps above](#4-register-the-secret) to register the token manually one vault at a time.
+
+For the full procedure (prerequisites, steps, what happens after merge), see the [Renew the Prow Token SOP](sops/renew-prow-token.md).
+
 ## Validating Encrypted Secrets
 
 See [`tooling/secret-sync/README.md`](../tooling/secret-sync/README.md#validating-encrypted-secrets) for how to run `make test-decrypt` to validate encrypted secrets.

@@ -7,6 +7,7 @@
 	"id": "9a361107-eb97-5b1b-bc2e-b9cfa961b5bc",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
+		"id": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/externalAuths/default",
 		"intermediateResourceDoc": {
 			"activeOperationId": "ea807c13-7e15-43d4-b760-69ef7e31d273",
 			"internalId": "/api/clusters_mgmt/v1/clusters/swzpxg6nxn/external_auth_config/external_auths/5fghjjqxvd",
@@ -21,6 +22,8 @@
 		},
 		"internalState": {
 			"internalAPI": {
+				"id": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/externalAuths/default",
+				"name": "default",
 				"properties": {
 					"claim": {
 						"mappings": {
@@ -63,13 +66,77 @@
 						"ca": "",
 						"url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
 					},
-					"provisioningState": ""
+					"provisioningState": "Accepted"
 				},
 				"serviceProviderProperties": {
+					"activeOperationId": "ea807c13-7e15-43d4-b760-69ef7e31d273",
 					"clusterServiceID": ""
-				}
+				},
+				"systemData": {
+					"createdBy": "Unknown-ARO-HCP-frontend",
+					"createdByType": "Application",
+					"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+					"lastModifiedByType": "Application"
+				},
+				"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
 			}
-		}
+		},
+		"name": "default",
+		"properties": {
+			"claim": {
+				"mappings": {
+					"groups": {
+						"claim": "groups",
+						"prefix": ""
+					},
+					"username": {
+						"claim": "sub",
+						"prefix": "prefix-",
+						"prefixPolicy": "Prefix"
+					}
+				},
+				"validationRules": []
+			},
+			"clients": [
+				{
+					"clientId": "87654321-4321-4321-4321-abcdefghijkl",
+					"component": {
+						"authClientNamespace": "openshift-console",
+						"name": "console"
+					},
+					"extraScopes": [],
+					"type": "Confidential"
+				},
+				{
+					"clientId": "87654321-4321-4321-4321-abcdefghijkl",
+					"component": {
+						"authClientNamespace": "openshift-console",
+						"name": "cli"
+					},
+					"extraScopes": [],
+					"type": "Public"
+				}
+			],
+			"issuer": {
+				"audiences": [
+					"87654321-4321-4321-4321-abcdefghijkl"
+				],
+				"ca": "",
+				"url": "https://login.microsoftonline.com/12345678-1234-1234-1234-123456789abc/v2.0"
+			},
+			"provisioningState": "Accepted"
+		},
+		"serviceProviderProperties": {
+			"activeOperationId": "ea807c13-7e15-43d4-b760-69ef7e31d273",
+			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/swzpxg6nxn/external_auth_config/external_auths/5fghjjqxvd"
+		},
+		"systemData": {
+			"createdBy": "Unknown-ARO-HCP-frontend",
+			"createdByType": "Application",
+			"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+			"lastModifiedByType": "Application"
+		},
+		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
 	},
 	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/externalAuths/default",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"

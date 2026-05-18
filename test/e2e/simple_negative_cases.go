@@ -136,7 +136,9 @@ var _ = Describe("Customer", func() {
 
 			By("attempting to create a node pool with invalid instance type")
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				clusterParams.ClusterName,
 				nodePoolParamsInvalidInstance,
 				5*time.Minute,
@@ -145,7 +147,9 @@ var _ = Describe("Customer", func() {
 
 			By("attempting to create a node pool with invalid quota")
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				clusterParams.ClusterName,
 				nodePoolParamsInvalidQuota,
 				5*time.Minute,
@@ -154,7 +158,9 @@ var _ = Describe("Customer", func() {
 
 			By("creating a nodepool")
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				clusterParams.ClusterName,
 				nodePoolParams,
 				45*time.Minute,

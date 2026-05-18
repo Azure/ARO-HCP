@@ -6,6 +6,8 @@ Welcome to the ARO HCP project! We appreciate your interest in contributing. Thi
 ## Table of Contents
 - [Getting Started](#getting-started)
 - [Contributing Guidelines](#contributing-guidelines)
+- [Pull Request Standards](#pull-request-standards)
+- [AI Skills](#ai-skills)
 - [PR and Issue Lifecycle](#pr-and-issue-lifecycle)
 - [Code of Conduct](#code-of-conduct)
 - [License](#license)
@@ -15,25 +17,41 @@ Welcome to the ARO HCP project! We appreciate your interest in contributing. Thi
 
 To contribute to ARO HCP, follow these steps:
 
-1. Clone the ARO-HCP repository to your local machine.
-2. Create a new branch for your changes.
-3. Make your changes and commit them.
-4. Push your changes to ARO-HCP repository.
-5. Submit a pull request to the main repository.
+1. Fork the [ARO-HCP repository](https://github.com/Azure/ARO-HCP) using the **Fork** button on GitHub.
+2. Clone your fork to your local machine:
+   ```sh
+   git clone https://github.com/<your-username>/ARO-HCP.git
+   cd ARO-HCP
+   ```
+3. Add the upstream repository as a remote so you can keep your fork up to date:
+   ```sh
+   git remote add upstream https://github.com/Azure/ARO-HCP.git
+   ```
+4. Create a new branch for your changes:
+   ```sh
+   git fetch upstream
+   git checkout -b my-feature upstream/main
+   ```
+5. Make your changes and commit them.
+6. Push your branch to your fork:
+   ```sh
+   git push origin my-feature
+   ```
+7. Open a pull request from your fork's branch against `main` in the upstream ARO-HCP repository.
 
-If you create a pull request for a branch located in your GitHub fork of
-ARO-HCP repository, GitHub `is_running_on_fork` check will raise an error. You
-need to create your pull from ARO-HCP repository directly. See
-[ARO-8846](https://issues.redhat.com/browse/ARO-8846) for details.
+### Keeping your fork up to date
+
+Before starting new work, sync your fork with upstream:
+```sh
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main
+```
 
 ## Contributing Guidelines
 Please follow these guidelines when contributing to ARO HCP:
 
-- Please consider, starting with a draft PR, unless you are ready for review. If you want a early feedback,
-  do not hesitate to ping the code owners.
-- Write meaningful commit messages and PR description. The PR will be squashed before merging, unless
-  the splitting into multiple commits is explicitly needed in order to separate changes and allow
-  later `git bisect`.
 - The repository is structured according to the focus areas, e.g. `api` containing all exposed API specs.
   When you contribute, please follow this structure and add your contribution to the appropriate folder.
   When in doubt, open PR early and ask for feedback.
@@ -49,6 +67,80 @@ Please follow these guidelines when contributing to ARO HCP:
   help others to understand the context and decisions made.
 
 Please note, that you might be asked to comply with these guidelines before your PR is accepted.
+
+## Pull Request Standards
+
+All pull requests must follow these standards. Reviewers will check for compliance before approving.
+
+### 1. Keep PRs Small
+- One PR per task — do not mix features with refactors, style fixes, or unrelated bug fixes.
+- If a task requires multiple concerns, split them into separate PRs.
+
+### 2. Use Informative PR Titles
+- Titles should be clear, concise, and follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format where applicable.
+- Use a type prefix: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, etc.
+- Example: `feat: add MISE v2 header-based routing` — not `update routing`.
+- The title becomes the squash-merge commit message, so make it meaningful for `git log`.
+
+### 3. Write a Clear Summary
+- The PR description must explain the **"Why"** behind the change, not just the "What".
+- Example: _"Increased node pool max count from 5 → 10 to handle Black Friday traffic spikes"_ — not _"Changed max count"_.
+- Lead with motivation and business context, then briefly describe the technical approach.
+
+### 4. Link to Relevant Ticket or Issue
+- Every PR must reference its tracking ticket (Jira, GitHub Issue).
+- Use formats like `Fixes #123`, `Closes PROJ-456`, or a direct URL.
+- If no ticket exists, create one first or explain why in the PR body.
+
+### 5. Include Screenshots for Graph/UI/Metrics/Performance Changes
+- Any change that affects dashboards, graphs, metrics visualizations, UI, or performance/metrics must include before/after screenshots.
+- This includes changes to alerting rules, SLOs, monitoring dashboards, and any observable behavioral change.
+- Annotate screenshots when the change is subtle.
+
+### 6. Self-Review Before Requesting Review
+- Run `git diff` and review every changed line yourself before requesting others.
+- Look for: leftover debug code, TODOs, unintended changes, secrets, formatting issues.
+
+### 7. CI/CD Checks Must Pass
+- All tests, linting, and CI/CD pipeline checks must be green before requesting review, **excluding Tide**.
+- Tide is a merge-automation bot and its status is not a CI/CD check — do not wait on it or treat it as a blocker.
+- If a non-Tide check is flaky or unrelated, note it explicitly in the PR description — do not ignore it silently.
+
+### 8. Use Draft PRs for WIP
+- If requesting early feedback or the work is incomplete, open the PR as a **Draft**.
+- Convert to "Ready for Review" only when all checks pass and self-review is done.
+
+### 9. Keep Commit History Clean
+- Use interactive rebase (`git rebase -i`) to squash or fixup commits into a clean, logical history.
+- Each commit message should be meaningful — no "fix typo" or "wip" commits in the final history.
+- The PR will be squashed before merging, unless splitting into multiple commits is explicitly
+  needed to separate changes and allow later `git bisect`.
+
+### 10. Comment on Tricky Code
+- Add inline comments on any non-obvious logic explaining **why** a particular approach was chosen.
+- Flag performance tradeoffs, workarounds, or temporary solutions.
+
+### 11. Tag Specific Reviewers
+- Tag **specific owners or subject-matter experts** who are most relevant to the changed code.
+- For cross-team changes, tag reviewers from each affected team.
+
+### 12. Resolve All Comment Threads
+- After addressing review feedback, resolve each comment thread.
+- If you disagree with feedback, reply with your reasoning before resolving — do not silently dismiss.
+- A PR should have zero open threads before merging.
+
+
+## AI Skills
+
+This repository includes AI agent skills — structured instructions that coding agents follow for specific workflows like creating or reviewing PRs.
+
+Skills live in `.claude/skills/` as `SKILL.md` files with YAML frontmatter. Claude Code, Crush, and Cursor all auto-load skills from this directory — no configuration needed. For GitHub Copilot, a condensed version lives in `.github/copilot-instructions.md`.
+
+### Adding New Skills
+
+1. Create a directory under `.claude/skills/<skill-name>/`.
+2. Add a `SKILL.md` with YAML frontmatter (`name`, `description`) and the full instruction body.
+3. For Copilot compatibility, add the rules to `.github/copilot-instructions.md` as a new section.
 
 
 ## PR and Issue Lifecycle

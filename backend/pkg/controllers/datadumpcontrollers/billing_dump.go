@@ -21,18 +21,19 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type billingDump struct {
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 	billingDBClient   database.BillingDBClient
 
 	// nextDumpChecker ensures we don't hotloop from any source.
-	nextDumpChecker controllerutils.CooldownChecker
+	nextDumpChecker controllerutil.CooldownChecker
 }
 
 // NewBillingDumpController periodically dumps billing documents for each cluster.
@@ -73,6 +74,6 @@ func (c *billingDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	return nil
 }
 
-func (c *billingDump) CooldownChecker() controllerutils.CooldownChecker {
+func (c *billingDump) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

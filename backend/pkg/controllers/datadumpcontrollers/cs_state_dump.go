@@ -27,18 +27,19 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type csStateDump struct {
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 	csClient          ocm.ClusterServiceClientSpec
 
 	// nextDumpChecker ensures we don't hotloop from any source.
-	nextDumpChecker controllerutils.CooldownChecker
+	nextDumpChecker controllerutil.CooldownChecker
 }
 
 // NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
@@ -86,10 +87,10 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		// No ClusterServiceID yet, cluster hasn't been registered with CS
 		return nil
 	}
-	csID := *cluster.ServiceProviderProperties.ClusterServiceID
+	csID := cluster.ServiceProviderProperties.ClusterServiceID
 
 	// Fetch cluster state from cluster-service
-	csCluster, err := c.csClient.GetCluster(ctx, csID)
+	csCluster, err := c.csClient.GetCluster(ctx, *csID)
 	if err != nil {
 		logger.Error(err, "failed to get cluster from cluster-service for CS state dump")
 		// Continue with what we have
@@ -119,12 +120,12 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 
 	for _, nodePool := range allNodePools.Items(ctx) {
 		npCSID := nodePool.ServiceProviderProperties.ClusterServiceID
-		if len(npCSID.String()) == 0 {
+		if npCSID == nil || len(npCSID.String()) == 0 {
 			// No ClusterServiceID yet, node pool hasn't been registered with CS
 			continue
 		}
 
-		csNodePool, err := c.csClient.GetNodePool(ctx, npCSID)
+		csNodePool, err := c.csClient.GetNodePool(ctx, *npCSID)
 		if err != nil {
 			logger.Error(err, "failed to get node pool from cluster-service for CS state dump",
 				"nodePoolClusterServiceID", npCSID.String(),
@@ -146,6 +147,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		logger.Info("cluster-service node pool state dump",
 			"clusterServiceID", csID.String(),
 			"nodePoolClusterServiceID", npCSID.String(),
+			"hcp_nodepool_name", nodePool.ID,
 			"csNodePool", nodePoolData,
 		)
 	}
@@ -156,7 +158,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	return nil
 }
 
-func (c *csStateDump) CooldownChecker() controllerutils.CooldownChecker {
+func (c *csStateDump) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello
+  namespace: default
+  uid: 11111111-1111-1111-1111-111111111111
+  resourceVersion: "1"
+data:
+  k: v

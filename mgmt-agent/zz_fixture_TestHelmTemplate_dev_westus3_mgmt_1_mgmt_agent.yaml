@@ -1,0 +1,187 @@
+---
+# Source: mgmt-agent/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  annotations:
+    azure.workload.identity/client-id: '__msiClientId__'
+    azure.workload.identity/tenant-id: '__tenantId__'
+  name: mgmt-agent
+  namespace: mgmt-agent
+---
+# Source: mgmt-agent/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: mgmt-agent-controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes/status
+  verbs:
+  - patch
+  - update
+---
+# Source: mgmt-agent/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: mgmt-agent-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mgmt-agent-controller
+subjects:
+- kind: ServiceAccount
+  name: mgmt-agent
+  namespace: mgmt-agent
+---
+# Source: mgmt-agent/templates/leader_election_role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: mgmt-agent-controller-leader-election
+  namespace: mgmt-agent
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+# Source: mgmt-agent/templates/leader_election_role_binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+  name: mgmt-agent-controller-leader-election
+  namespace: mgmt-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mgmt-agent-controller-leader-election
+subjects:
+- kind: ServiceAccount
+  name: mgmt-agent
+  namespace: mgmt-agent
+---
+# Source: mgmt-agent/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mgmt-agent
+  namespace: 'mgmt-agent'
+  labels:
+    app.kubernetes.io/name: "mgmt-agent"
+spec:
+  selector:
+    app.kubernetes.io/name: mgmt-agent
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+---
+# Source: mgmt-agent/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mgmt-agent
+  namespace: mgmt-agent
+  labels:
+    app.kubernetes.io/name: mgmt-agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mgmt-agent
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mgmt-agent
+        azure.workload.identity/use: "true"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - command:
+        - "/mgmt-agent"
+        args:
+        - controller
+        - "--health-address=:8080"
+        - "-v=2"
+        image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
+        name: mgmt-agent-controller
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+          name: health
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+          readOnlyRootFilesystem: true
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        volumeMounts: []
+      volumes: []
+      serviceAccountName: mgmt-agent
+      terminationGracePeriodSeconds: 10
+      nodeSelector:
+

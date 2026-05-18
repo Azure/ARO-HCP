@@ -377,14 +377,25 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
-	resourcesCosmosDBClient, billingDBClient, err := app.NewCosmosDBClients(
-		ctx,
+	azCoreClientOptions := *azureConfig.CloudEnvironment.AZCoreClientOptions()
+
+	cosmosDatabaseClient, err := app.NewCosmosDatabaseClient(
 		f.AzureCosmosDBURL,
 		f.AzureCosmosDBName,
-		*azureConfig.CloudEnvironment.AZCoreClientOptions(),
+		azCoreClientOptions,
 	)
 	if err != nil {
 		return nil, utils.TrackError(err)
+	}
+
+	resourcesCosmosDBClient, billingDBClient, err := app.NewCosmosDBClients(cosmosDatabaseClient)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	fleetDBClient, err := app.NewFleetDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create fleet db client: %w", err))
 	}
 
 	clustersServiceClient, err := app.NewClustersServiceClient(ctx, f.ClustersServiceURL, f.ClustersServiceTLSInsecure)
@@ -401,6 +412,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		LeaderElectionLock:                 leaderElectionLock,
 		ResourcesDBClient:                  resourcesCosmosDBClient,
 		BillingDBClient:                    billingDBClient,
+		FleetDBClient:                      fleetDBClient,
 		ClustersServiceClient:              clustersServiceClient,
 		MetricsServerListenAddress:         f.MetricsServerListenAddress,
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,
@@ -492,9 +504,6 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	// We use slog.Level(flags.LogVerbosity * -1) to convert the verbosity level to a slog.Level.
 	// A value of 0 is equivalent to INFO. Higher values mean more verbose output.
 	handlerOptions := &slog.HandlerOptions{Level: slog.Level(flags.LogVerbosity * -1), AddSource: true}
-	// Temporary hardcode the log level to -4 to see increased klog logging
-	// verbosity.
-	handlerOptions.Level = slog.Level(-4)
 	slogJSONHandler := slog.NewJSONHandler(os.Stdout, handlerOptions)
 	logger := logr.FromSlogHandler(slogJSONHandler)
 	ctx = utils.ContextWithLogger(ctx, logger)

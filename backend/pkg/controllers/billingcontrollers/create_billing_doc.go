@@ -27,13 +27,14 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type createBillingDoc struct {
 	clock             utilsclock.PassiveClock
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	azureLocation     string
 	clusterLister     listers.ClusterLister
 	billingLister     listers.BillingLister
@@ -46,7 +47,7 @@ type createBillingDoc struct {
 func NewCreateBillingDocController(clock utilsclock.PassiveClock, azureLocation string, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister, billingLister listers.BillingLister) controllerutils.ClusterSyncer {
 	return &createBillingDoc{
 		clock:             clock,
-		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(60 * time.Second),
+		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(60 * time.Second),
 		azureLocation:     azureLocation,
 		clusterLister:     clusterLister,
 		billingLister:     billingLister,
@@ -177,6 +178,6 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 	return nil
 }
 
-func (c *createBillingDoc) CooldownChecker() controllerutils.CooldownChecker {
+func (c *createBillingDoc) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

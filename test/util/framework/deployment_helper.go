@@ -405,12 +405,14 @@ func (tc *perItOrDescribeTestContext) CreateHCPCluster20251223FromParam(
 
 func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 	ctx context.Context,
+	logger logr.Logger,
 	resourceGroupName string,
+	managedResourceGroupName string,
 	hcpClusterName string,
 	parameters NodePoolParams,
 	timeout time.Duration,
 ) error {
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
+	nodePoolCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
@@ -427,16 +429,39 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 	nodePool := BuildNodePoolFromParams(parameters, tc.Location())
 
 	if _, err := CreateNodePoolAndWait(
-		ctx,
-		tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+		nodePoolCtx,
+		tc.Get20240610ClientFactoryOrDie(nodePoolCtx).NewNodePoolsClient(),
 		resourceGroupName,
 		hcpClusterName,
 		nodePoolName,
 		nodePool,
 		timeout,
 	); err != nil {
+		// a separate context for console log download with its own timeout,
+		// to make sure logs are fetched even when the node pool deployment
+		// context is cancelled due to timeout
+		downloadTimeout := 5 * time.Minute
+		downloadCtx, downloadCancel := context.WithTimeoutCause(
+			ctx,
+			downloadTimeout,
+			fmt.Errorf("timeout '%f' minutes exceeded during DownloadAllVirtualMachineConsoleLogs for VMs in managed resource group %s", downloadTimeout.Minutes(), managedResourceGroupName))
+		defer downloadCancel()
+		computeFactory, clientErr := tc.GetARMComputeClientFactory(downloadCtx)
+		if clientErr == nil {
+			consoleLogErr := DownloadAllVirtualMachineConsoleLogs(
+				downloadCtx,
+				computeFactory,
+				managedResourceGroupName,
+				tc.LogDirPath)
+			if consoleLogErr != nil {
+				logger.Error(consoleLogErr, "failed to download VM console logs")
+			}
+		} else {
+			logger.Error(clientErr, "failed to get ARM compute client to download VM console logs")
+		}
+
 		if errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(ctx), err)
+			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(nodePoolCtx), err)
 		}
 		return fmt.Errorf("failed to create NodePool %s: %w", nodePoolName, err)
 	}

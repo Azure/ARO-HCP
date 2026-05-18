@@ -16,8 +16,6 @@ package api
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // ManagementClusterContent represents K8s resources in the Management Cluster
@@ -25,10 +23,6 @@ import (
 type ManagementClusterContent struct {
 	// CosmosMetadata is nested under the corresponding resource type so that association and cleanup work as expected
 	CosmosMetadata `json:"cosmosMetadata"`
-
-	// resourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
-	// at which point we will stop using properties.resourceId in our queries. That will be about a month from now.
-	ResourceID azcorearm.ResourceID `json:"resourceId"`
 
 	// Status track the status of the Management Cluster Content.
 	Status ManagementClusterContentStatus `json:"status,omitempty"`

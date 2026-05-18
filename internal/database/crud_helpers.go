@@ -101,7 +101,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 		PageSizeHint: -1,
 	}
 	if prefix == nil {
-		query = "SELECT * FROM c"
+		query = "SELECT * FROM c WHERE LENGTH(c.resourceID) > 0"
 	} else {
 		query = "SELECT * FROM c WHERE STARTSWITH(c.resourceID, @prefix, true)"
 		queryOptions = azcosmos.QueryOptions{
@@ -116,11 +116,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	}
 
 	if resourceType != nil {
-		if prefix == nil {
-			query += " WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
-		} else {
-			query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
-		}
+		query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
 		queryParameter := azcosmos.QueryParameter{
 			Name:  "@resourceType",
 			Value: resourceType.String(),

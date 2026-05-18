@@ -1,0 +1,143 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package snapshot
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+// Manifest describes the complete set of diagnostic data gathered for a test or resource.
+type Manifest struct {
+	// TestName is the name of the test that failed, if this snapshot was gathered
+	// from a test failure. Empty when gathered directly from a resource ID.
+	TestName string `json:"test_name,omitempty"`
+
+	// ProwJobURL is the URL to the Prow job that triggered this snapshot, if applicable.
+	ProwJobURL string `json:"prow_job_url,omitempty"`
+
+	// TimeWindow is the time range over which diagnostic data was gathered.
+	TimeWindow TimeWindow `json:"time_window"`
+
+	// ResourceGroup is the Azure resource group that was queried.
+	ResourceGroup string `json:"resource_group"`
+
+	// KustoCluster is the Kusto cluster endpoint used for queries.
+	KustoCluster string `json:"kusto_cluster"`
+
+	// KustoDatabase is the Kusto database used for queries.
+	KustoDatabase string `json:"kusto_database"`
+
+	// Resources lists each ARM resource for which diagnostic data was gathered.
+	Resources []ResourceEntry `json:"resources"`
+
+	// DirectoryLayout describes the output directory structure.
+	DirectoryLayout map[string]string `json:"directory_layout"`
+}
+
+// TimeWindow represents a bounded time range for diagnostic queries.
+type TimeWindow struct {
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
+}
+
+// ResourceEntry describes diagnostic data gathered for a single ARM resource.
+type ResourceEntry struct {
+	// Type is the ARM resource type (e.g. "Microsoft.RedHatOpenShift/hcpOpenShiftClusters").
+	Type string `json:"type"`
+
+	// Name is the ARM resource name.
+	Name string `json:"name"`
+
+	// Dir is the path to this resource's output directory, relative to the snapshot root.
+	Dir string `json:"dir"`
+
+	// ResourceID is the full ARM resource ID.
+	ResourceID string `json:"resource_id,omitempty"`
+
+	// ClusterResourceID is the full ARM resource ID of the parent HCP cluster.
+	ClusterResourceID string `json:"cluster_resource_id,omitempty"`
+
+	// ClusterResourceName is the HCP cluster name (the parent cluster for child resources).
+	ClusterResourceName string `json:"cluster_resource_name,omitempty"`
+
+	// InternalID is the internal resource identifier discovered from backend logs.
+	InternalID string `json:"internal_id,omitempty"`
+
+	// ClusterID is the Clusters Service identifier for this cluster.
+	ClusterID string `json:"cluster_id,omitempty"`
+
+	// HostedClusterNamespace is the management cluster namespace for the hosted cluster.
+	HostedClusterNamespace string `json:"hosted_cluster_namespace,omitempty"`
+
+	// HostedControlPlaneNamespace is the management cluster namespace for the hosted control plane.
+	HostedControlPlaneNamespace string `json:"hosted_control_plane_namespace,omitempty"`
+
+	// Requests lists the ARM requests traced for this resource.
+	Requests []RequestInfo `json:"requests,omitempty"`
+}
+
+// RequestInfo describes a single ARM request traced during diagnostic gathering.
+type RequestInfo struct {
+	// ClientRequestID is the unique client request identifier.
+	ClientRequestID string `json:"client_request_id"`
+
+	// CorrelationID is the correlation identifier grouping related requests.
+	CorrelationID string `json:"correlation_id"`
+
+	// Method is the HTTP method (GET, PUT, DELETE, etc.).
+	Method string `json:"method"`
+
+	// Path is the ARM resource path.
+	Path string `json:"path"`
+
+	// Status is the HTTP response status code.
+	Status int `json:"status"`
+
+	// Timestamp is when the request was received.
+	Timestamp time.Time `json:"timestamp"`
+
+	// Dir is the path to this request's output directory, relative to the snapshot root.
+	Dir string `json:"dir"`
+}
+
+// directoryLayout returns the static directory layout descriptions.
+func directoryLayout() map[string]string {
+	return map[string]string{
+		"frontendRequests": "frontend/frontendRequests.md — all ARM requests in the resource group during the time window; start your analysis here",
+		"events":           "events/ — Kubernetes events for each component during the time window",
+		"discovery":        "resources/<type>/<name>/discovery/ — intermediate query results used to derive IDs, cluster associations, etc.",
+		"state":            "resources/<type>/<name>/state/ — time-windowed raw resource state dumps (ARM state, CS state, Maestro logs, etc.)",
+		"conditions":       "resources/<type>/<name>/conditions/ — status condition transition summaries (HyperShift conditions, controller conditions)",
+		"logs":             "resources/<type>/<name>/logs/ — filtered or aggregated container and audit logs (operator logs, Maestro server/agent logs)",
+		"requests":         "resources/<type>/<name>/requests/<METHOD>-<client_request_id>/ — per-request trace data with discovery/, state/, and logs/ subdirectories",
+	}
+}
+
+// WriteManifest serializes the manifest to a manifest.json file in the given directory.
+func WriteManifest(dir string, manifest *Manifest) error {
+	data, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+	path := filepath.Join(dir, "manifest.json")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write manifest to %s: %w", path, err)
+	}
+	return nil
+}

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: opstool-cert-manager
+version: 0.1.0
+appVersion: "v1.20.2"
+kubeVersion: ">=1.27.0"
+description: cert-manager installation and Azure DNS DNS-01 issuer for opstool gateway TLS.
+dependencies:
+- name: cert-manager
+  version: v1.20.2
+  repository: https://charts.jetstack.io

@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -51,7 +52,7 @@ const (
 // As of now we support the creation of a Maestro readonly bundle for the Hypershift's NodePool CRs associated to
 // the Cluster.
 type createNodePoolScopedMaestroReadonlyBundlesSyncer struct {
-	cooldownChecker controllerutils.CooldownChecker
+	cooldownChecker controllerutil.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
 
@@ -106,8 +107,7 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
-	if len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		// TODO remove this once we have the information all in cosmos.
+	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return nil
 	}
 
@@ -271,10 +271,21 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 		return lastPersistedSPNP, utils.TrackError(fmt.Errorf("failed to get or create Maestro Bundle: %w", err))
 	}
 
-	// If the Maestro API MaestroBundle ID is not set we store the returned Maestro Bundle ID in the corresponding Maestro Bundle reference of the ServiceProviderNodePool in Cosmos.
+	// Backfill any missing Maestro Bundle reference attributes individually,
+	// then persist at most once if anything changed.
+	needsUpdate := false
+
 	if len(existingMaestroBundleRef.MaestroAPIMaestroBundleID) == 0 {
-		bundleID := string(resultMaestroBundle.UID)
-		existingMaestroBundleRef.MaestroAPIMaestroBundleID = bundleID
+		existingMaestroBundleRef.MaestroAPIMaestroBundleID = string(resultMaestroBundle.UID)
+		needsUpdate = true
+	}
+
+	if len(existingMaestroBundleRef.ResourceIdentifiers) != len(desiredMaestroBundle.Spec.ManifestConfigs) {
+		existingMaestroBundleRef.ResourceIdentifiers = resourceIdentifiersFromManifestWork(desiredMaestroBundle)
+		needsUpdate = true
+	}
+
+	if needsUpdate {
 		err = existingServiceProviderNodePool.Status.MaestroReadonlyBundles.Set(existingMaestroBundleRef)
 		if err != nil {
 			return lastPersistedSPNP, utils.TrackError(fmt.Errorf("failed to set Maestro Bundle reference: %w", err))
@@ -357,6 +368,6 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) getNodePoolName(csClu
 	return fmt.Sprintf("%s-%s", csClusterDomainPrefix, csNodePoolID)
 }
 
-func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

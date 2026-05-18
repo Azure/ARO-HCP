@@ -26,13 +26,14 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type backfillClusterUID struct {
 	clock             utilsclock.PassiveClock
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	clusterLister     listers.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 	billingDBClient   database.BillingDBClient
@@ -43,7 +44,7 @@ type backfillClusterUID struct {
 func NewBackfillClusterUIDController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterLister listers.ClusterLister) controllerutils.ClusterSyncer {
 	c := &backfillClusterUID{
 		clock:             clock,
-		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(60 * time.Minute),
+		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(60 * time.Minute),
 		clusterLister:     clusterLister,
 		resourcesDBClient: resourcesDBClient,
 		billingDBClient:   billingDBClient,
@@ -136,6 +137,6 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 	return nil
 }
 
-func (c *backfillClusterUID) CooldownChecker() controllerutils.CooldownChecker {
+func (c *backfillClusterUID) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

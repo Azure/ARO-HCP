@@ -15,23 +15,28 @@
 package app
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// NewCosmosDBClients opens the shared async Cosmos database and returns data-plane clients for
-// ARM resource documents (Resources container) and billing documents (Billing container).
-func NewCosmosDBClients(ctx context.Context, cosmosDBURL string, cosmosDBName string, azCoreClientOptions azcore.ClientOptions) (database.ResourcesDBClient, database.BillingDBClient, error) {
-	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(cosmosDBURL, cosmosDBName, azCoreClientOptions)
+// NewCosmosDatabaseClient creates the shared Cosmos DatabaseClient that
+// is passed into the per-container wiring functions below.
+func NewCosmosDatabaseClient(cosmosDBURL string, cosmosDBName string, azCoreClientOptions azcore.ClientOptions) (*azcosmos.DatabaseClient, error) {
+	client, err := database.NewCosmosDatabaseClient(cosmosDBURL, cosmosDBName, azCoreClientOptions)
 	if err != nil {
-		return nil, nil, utils.TrackError(fmt.Errorf("failed to create Azure Cosmos database client: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("failed to create Azure Cosmos database client: %w", err))
 	}
+	return client, nil
+}
 
+// NewCosmosDBClients returns data-plane clients for
+// ARM resource documents (Resources container) and billing documents (Billing container).
+func NewCosmosDBClients(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.ResourcesDBClient, database.BillingDBClient, error) {
 	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return nil, nil, utils.TrackError(fmt.Errorf("failed to create resources database client: %w", err))
@@ -43,4 +48,13 @@ func NewCosmosDBClients(ctx context.Context, cosmosDBURL string, cosmosDBName st
 	}
 
 	return resourcesDBClient, billingDBClient, nil
+}
+
+func NewFleetDBClient(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.FleetDBClient, error) {
+	fleetClient, err := database.NewFleetDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create Fleet DBClient: %w", err))
+	}
+
+	return fleetClient, nil
 }

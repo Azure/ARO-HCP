@@ -35,7 +35,6 @@ func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID: *resourceID,
 	}
 }
 

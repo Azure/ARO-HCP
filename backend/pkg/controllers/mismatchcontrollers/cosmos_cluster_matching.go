@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -33,7 +34,7 @@ import (
 
 type cosmosClusterMatching struct {
 	clock                utilsclock.PassiveClock
-	cooldownChecker      controllerutils.CooldownChecker
+	cooldownChecker      controllerutil.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	billingDBClient      database.BillingDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -43,7 +44,7 @@ type cosmosClusterMatching struct {
 func NewCosmosClusterMatchingController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
 	syncer := &cosmosClusterMatching{
 		clock:                clock,
-		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
+		cooldownChecker:      controllerutil.NewTimeBasedCooldownChecker(1 * time.Hour),
 		resourcesDBClient:    resourcesDBClient,
 		billingDBClient:      billingDBClient,
 		clusterServiceClient: clusterServiceClient,
@@ -112,6 +113,6 @@ func (c *cosmosClusterMatching) SyncOnce(ctx context.Context, keyObj controlleru
 	return utils.TrackError(syncErr)
 }
 
-func (c *cosmosClusterMatching) CooldownChecker() controllerutils.CooldownChecker {
+func (c *cosmosClusterMatching) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

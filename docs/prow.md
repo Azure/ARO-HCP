@@ -151,6 +151,9 @@ EV2 gating E2E tests are triggered programmatically by EV2 pipelines via the Gan
 
 These jobs are defined in the `e2e` variant configuration ([Azure-ARO-HCP-main__e2e.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml)) and use `run_if_changed: ^$` to prevent automatic triggering on merge — they are only triggered programmatically via the [prow-job-executor](https://github.com/Azure/ARO-Tools/tree/main/tools/prow-job-executor).
 
+> [!NOTE]
+> These jobs authenticate against Gangway using the `prow-token` stored in Azure Key Vault. If EV2 rollouts fail at the `regionalGating` step with a 403, the token may need renewal — see the [Renew the Prow Token SOP](sops/renew-prow-token.md) or register it manually following [Secret Synchronization](secret-sync.md#renewing-the-prow-token).
+
 #### E2E test container image (`aro-hcp-e2e-tests`)
 
 The **`aro-hcp-e2e-tests`** image is the OpenShift CI image that carries the `aro-hcp-tests` binary. The Dockerfile lives in this repository as [test/Containerfile.e2e](../test/Containerfile.e2e). CI wiring and promotion rules are maintained in [openshift/release](https://github.com/openshift/release).

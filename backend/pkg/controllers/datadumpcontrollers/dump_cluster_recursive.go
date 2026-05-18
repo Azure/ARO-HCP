@@ -21,17 +21,18 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterRecursiveDataDump struct {
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
-	nextDataDumpChecker controllerutils.CooldownChecker
+	nextDataDumpChecker controllerutil.CooldownChecker
 }
 
 // NewClusterRecursiveDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
@@ -72,6 +73,6 @@ func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controlleru
 	return nil
 }
 
-func (c *clusterRecursiveDataDump) CooldownChecker() controllerutils.CooldownChecker {
+func (c *clusterRecursiveDataDump) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

@@ -186,7 +186,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "existing reference but no ID - sets new ID and preserves name",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 						{
@@ -211,6 +210,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: "existing-bundle-name",
 							MaestroAPIMaestroBundleID:   "new-bundle-uid",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -220,13 +228,21 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "complete bundle reference - ID unchanged",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 						{
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: "complete-bundle-name",
 							MaestroAPIMaestroBundleID:   "complete-bundle-id",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -244,6 +260,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: "complete-bundle-name",
 							MaestroAPIMaestroBundleID:   "complete-bundle-id",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -253,7 +278,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "multiple refs - only synced ref is updated, other refs unchanged",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 						{
@@ -288,6 +312,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: "hosted-cluster-bundle-name",
 							MaestroAPIMaestroBundleID:   "hosted-cluster-bundle-uid",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -297,7 +330,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "maestro get or create error - returns last persisted SPC",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 						{
@@ -329,7 +361,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "no bundle reference initially - creates ref with deterministic UUID name and new ID",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{},
 				},
@@ -358,6 +389,15 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 							Name:                        api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster,
 							MaestroAPIMaestroBundleName: syncMaestroBundleTestDeterministicUUID.String(),
 							MaestroAPIMaestroBundleID:   "new-bundle-uid",
+							ResourceIdentifiers: []api.MaestroBundleResourceIdentifier{
+								{
+									APIVersion: "hypershift.openshift.io/v1beta1",
+									Kind:       "HostedCluster",
+									Resource:   "hostedclusters",
+									Name:       "test-domain",
+									Namespace:  "ocm-test-env-11111111111111111111111111111111",
+								},
+							},
 						},
 					},
 				},
@@ -367,7 +407,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 			name: "no bundle ref initially - bundle name persisted then getOrCreate fails - returns SPC with name set, no ID",
 			initialSPC: &api.ServiceProviderCluster{
 				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				ResourceID:     *spcResourceID,
 				Status: api.ServiceProviderClusterStatus{
 					MaestroReadonlyBundles: api.MaestroBundleReferenceList{},
 				},
@@ -442,6 +481,8 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_syncMaestroBundle(t *te
 				require.NotNil(t, gotRef, "result missing bundle ref for name %q", wantRef.Name)
 				assert.Equal(t, wantRef.Name, gotRef.Name)
 				assert.Equal(t, wantRef.MaestroAPIMaestroBundleName, gotRef.MaestroAPIMaestroBundleName)
+				assert.Equal(t, wantRef.MaestroAPIMaestroBundleID, gotRef.MaestroAPIMaestroBundleID)
+				assert.Equal(t, wantRef.ResourceIdentifiers, gotRef.ResourceIdentifiers)
 			}
 		})
 	}
@@ -609,7 +650,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_AllBundlesAlre
 	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/serviceProviderClusters/default"))
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{
@@ -684,7 +724,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_SyncLoopExecut
 		CosmosMetadata: arm.CosmosMetadata{
 			ResourceID: spcResourceID,
 		},
-		ResourceID: *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{},
 		},
@@ -793,7 +832,6 @@ func TestCreateClusterScopedMaestroReadonlyBundlesSyncer_SyncOnce_ProcessesParti
 	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/serviceProviderClusters/default"))
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		ResourceID:     *spcResourceID,
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: api.MaestroBundleReferenceList{
 				{

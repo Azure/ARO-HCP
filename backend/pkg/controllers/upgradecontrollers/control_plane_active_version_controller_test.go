@@ -338,7 +338,6 @@ func createManagementClusterContentWithKubeContentItems(t *testing.T, ctx contex
 
 	managementClusterContent := &api.ManagementClusterContent{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterContentResourceID},
-		ResourceID:     *managementClusterContentResourceID,
 		Status: api.ManagementClusterContentStatus{
 			KubeContent: &metav1.List{
 				Items: items,

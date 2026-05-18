@@ -25,12 +25,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type ClusterSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPClusterKey) error
-	CooldownChecker() CooldownChecker
+	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type clusterWatchingController struct {
@@ -99,7 +100,7 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPCluster
 	return errors.Join(syncErr, controllerWriteErr)
 }
 
-func (c *clusterWatchingController) CooldownChecker() CooldownChecker {
+func (c *clusterWatchingController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.syncer.CooldownChecker()
 }
 

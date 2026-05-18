@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -42,7 +43,7 @@ type OperationSynchronizer interface {
 type genericOperation struct {
 	name string
 
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	synchronizer      OperationSynchronizer
 	resourcesDBClient database.ResourcesDBClient
 
@@ -64,7 +65,7 @@ func NewGenericOperationController(
 ) controllerutils.Controller {
 	c := &genericOperation{
 		name:              name,
-		cooldownChecker:   controllerutils.NewTimeBasedCooldownChecker(10 * time.Second),
+		cooldownChecker:   controllerutil.NewTimeBasedCooldownChecker(10 * time.Second),
 		synchronizer:      synchronizer,
 		resourcesDBClient: resourcesDBClient,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(

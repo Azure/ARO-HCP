@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -35,7 +36,7 @@ import (
 // from Cluster Service to Cosmos DB. It ensures that the Identity.UserAssignedIdentities
 // field is populated for clusters that were created before all identity state was held in Cosmos.
 type identityMigrationSyncer struct {
-	cooldownChecker controllerutils.CooldownChecker
+	cooldownChecker controllerutil.CooldownChecker
 
 	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
@@ -74,7 +75,7 @@ func NewIdentityMigrationController(
 	return controller
 }
 
-func (c *identityMigrationSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *identityMigrationSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

@@ -16,6 +16,7 @@ package database
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,18 @@ func TestRoundTripNodePoolInternalCosmosInternal(t *testing.T) {
 			j.ID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+		},
+		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if j == nil {
+				return
+			}
+			// Match CosmosToInternalNodePool: empty InternalID becomes nil on read. Round-trip
+			// must always carry a non-empty node pool ClusterServiceID (OCM node pool href).
+			clusterID := "r" + strings.ReplaceAll(c.String(10), "/", "-")
+			nodePoolID := strings.ReplaceAll(c.String(10), "/", "-")
+			foo := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterID + "/node_pools/" + nodePoolID))
+			j.ClusterServiceID = &foo
 		},
 		func(j *api.HCPOpenShiftClusterNodePool, c randfill.Continue) {
 			c.FillNoCustom(j)

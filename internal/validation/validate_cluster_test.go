@@ -26,56 +26,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
-
-type expectedError struct {
-	message   string // Expected error message (partial match)
-	fieldPath string // Expected field path for the error
-}
-
-func verifyErrorsMatch(t *testing.T, expectedErrors []expectedError, errs field.ErrorList) {
-	if len(expectedErrors) != len(errs) {
-		t.Errorf("expected %d errors, got %d: %v", len(expectedErrors), len(errs), errs)
-	}
-
-	// Check that each expected error message and field path is found
-	for _, expectedErr := range expectedErrors {
-		if len(strings.TrimSpace(expectedErr.fieldPath)) == 0 {
-			t.Errorf("expected error with path %s to be non-empty", expectedErr.fieldPath)
-		}
-		if len(strings.TrimSpace(expectedErr.message)) == 0 {
-			t.Errorf("expected error with msg %s to be non-empty", expectedErr.message)
-		}
-
-		found := false
-		for _, err := range errs {
-			messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
-			fieldMatch := strings.Contains(err.Field, expectedErr.fieldPath)
-			if messageMatch && fieldMatch {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("expected error containing message '%s' at field '%s' but not found in: %v", expectedErr.message, expectedErr.fieldPath, errs)
-		}
-	}
-
-	for _, err := range errs {
-		found := false
-		for _, expectedErr := range expectedErrors {
-			messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
-			fieldMatch := strings.Contains(err.Field, expectedErr.fieldPath)
-			if messageMatch && fieldMatch {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("actual error '%v' but not found in expected", err)
-		}
-	}
-}
 
 func TestOpenshiftVersion(t *testing.T) {
 	ctx := context.Background()
@@ -85,42 +37,42 @@ func TestOpenshiftVersion(t *testing.T) {
 	tests := []struct {
 		name         string
 		value        *string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "nil value - valid",
 			value:        nil,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "empty string - valid",
 			value:        ptr.To(""),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:  "semver with patch - invalid",
 			value: ptr.To("4.15.1"),
-			expectErrors: []expectedError{
-				{fieldPath: "version", message: "must be specified as MAJOR.MINOR"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "version", Message: "must be specified as MAJOR.MINOR"},
 			},
 		},
 		{
 			name:         "valid major.minor - valid",
 			value:        ptr.To("4.15"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:  "invalid version - invalid",
 			value: ptr.To("not-a-version"),
-			expectErrors: []expectedError{
-				{fieldPath: "version", message: "Short version cannot contain PreRelease/Build meta data"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "version", Message: "Short version cannot contain PreRelease/Build meta data"},
 			},
 		},
 		{
 			name:  "invalid format - invalid",
 			value: ptr.To("invalid.version.format"),
-			expectErrors: []expectedError{
-				{fieldPath: "version", message: "Invalid character(s) found in major number"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "version", Message: "Invalid character(s) found in major number"},
 			},
 		},
 	}
@@ -128,7 +80,7 @@ func TestOpenshiftVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := OpenshiftVersionWithoutMicro(ctx, op, fldPath, tt.value, nil)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -142,38 +94,38 @@ func TestMaxItems(t *testing.T) {
 		name         string
 		value        []string
 		maxLen       int
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "nil slice - valid",
 			value:        nil,
 			maxLen:       5,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "empty slice - valid",
 			value:        []string{},
 			maxLen:       5,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "under limit - valid",
 			value:        []string{"a", "b", "c"},
 			maxLen:       5,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "at limit - valid",
 			value:        []string{"a", "b", "c", "d", "e"},
 			maxLen:       5,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:   "over limit - invalid",
 			value:  []string{"a", "b", "c", "d", "e", "f"},
 			maxLen: 5,
-			expectErrors: []expectedError{
-				{fieldPath: "items", message: "must have at most 5 items"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "items", Message: "must have at most 5 items"},
 			},
 		},
 	}
@@ -181,7 +133,7 @@ func TestMaxItems(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := MaxItems(ctx, op, fldPath, tt.value, nil, tt.maxLen)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -195,38 +147,38 @@ func TestMaxLen(t *testing.T) {
 		name         string
 		value        *string
 		maxLen       int
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "nil value - valid",
 			value:        nil,
 			maxLen:       10,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "empty string - valid",
 			value:        ptr.To(""),
 			maxLen:       10,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "under limit - valid",
 			value:        ptr.To("test"),
 			maxLen:       10,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "at limit - valid",
 			value:        ptr.To("1234567890"),
 			maxLen:       10,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:   "over limit - invalid",
 			value:  ptr.To("12345678901"),
 			maxLen: 10,
-			expectErrors: []expectedError{
-				{fieldPath: "field", message: "may not be more than 10 bytes"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "field", Message: "may not be more than 10 bytes"},
 			},
 		},
 	}
@@ -234,7 +186,7 @@ func TestMaxLen(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := MaxLen(ctx, op, fldPath, tt.value, nil, tt.maxLen)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -248,40 +200,40 @@ func TestMinLen(t *testing.T) {
 		name         string
 		value        *string
 		minLen       int
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "nil value - valid",
 			value:        nil,
 			minLen:       5,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:   "under limit - invalid",
 			value:  ptr.To("test"),
 			minLen: 5,
-			expectErrors: []expectedError{
-				{fieldPath: "field", message: "must be at least 5 characters long"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "field", Message: "must be at least 5 characters long"},
 			},
 		},
 		{
 			name:         "at limit - valid",
 			value:        ptr.To("tests"),
 			minLen:       5,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "over limit - valid",
 			value:        ptr.To("testing"),
 			minLen:       5,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := MinLen(ctx, op, fldPath, tt.value, nil, tt.minLen)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -295,32 +247,32 @@ func TestMaximum(t *testing.T) {
 		name         string
 		value        *int32
 		max          int32
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "nil value - valid",
 			value:        nil,
 			max:          100,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "under limit - valid",
 			value:        ptr.To(int32(50)),
 			max:          100,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "at limit - valid",
 			value:        ptr.To(int32(100)),
 			max:          100,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:  "over limit - invalid",
 			value: ptr.To(int32(101)),
 			max:   100,
-			expectErrors: []expectedError{
-				{fieldPath: "field", message: "must be less than or equal to 100"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "field", Message: "must be less than or equal to 100"},
 			},
 		},
 	}
@@ -328,7 +280,7 @@ func TestMaximum(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := Maximum(ctx, op, fldPath, tt.value, nil, tt.max)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -341,56 +293,56 @@ func TestMatchesRegex(t *testing.T) {
 	tests := []struct {
 		name         string
 		value        *string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "nil value - valid",
 			value:        nil,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid rfc1035 label - valid",
 			value:        ptr.To("test-label"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid single char - valid",
 			value:        ptr.To("a"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:  "starts with number - invalid",
 			value: ptr.To("1test"),
-			expectErrors: []expectedError{
-				{fieldPath: "field", message: "must be a valid DNS RFC 1035 label"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "field", Message: "must be a valid DNS RFC 1035 label"},
 			},
 		},
 		{
 			name:  "contains uppercase - invalid",
 			value: ptr.To("Test"),
-			expectErrors: []expectedError{
-				{fieldPath: "field", message: "must be a valid DNS RFC 1035 label"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "field", Message: "must be a valid DNS RFC 1035 label"},
 			},
 		},
 		{
 			name:  "starts with hyphen - invalid",
 			value: ptr.To("-test"),
-			expectErrors: []expectedError{
-				{fieldPath: "field", message: "must be a valid DNS RFC 1035 label"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "field", Message: "must be a valid DNS RFC 1035 label"},
 			},
 		},
 		{
 			name:  "ends with hyphen - invalid",
 			value: ptr.To("test-"),
-			expectErrors: []expectedError{
-				{fieldPath: "field", message: "must be a valid DNS RFC 1035 label"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "field", Message: "must be a valid DNS RFC 1035 label"},
 			},
 		},
 		{
 			name:  "contains special chars - invalid",
 			value: ptr.To("test_label"),
-			expectErrors: []expectedError{
-				{fieldPath: "field", message: "must be a valid DNS RFC 1035 label"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "field", Message: "must be a valid DNS RFC 1035 label"},
 			},
 		},
 	}
@@ -398,7 +350,7 @@ func TestMatchesRegex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := MatchesRegex(ctx, op, fldPath, tt.value, nil, rfc1035LabelRegex, rfc1035ErrorString)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 
 		})
 	}
@@ -412,66 +364,66 @@ func TestCIDRv4(t *testing.T) {
 	tests := []struct {
 		name         string
 		value        *string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "nil value - valid",
 			value:        nil,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "empty string - valid",
 			value:        ptr.To(""),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid IPv4 CIDR - valid",
 			value:        ptr.To("10.0.0.0/16"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid /24 CIDR - valid",
 			value:        ptr.To("192.168.1.0/24"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid /32 CIDR - valid",
 			value:        ptr.To("172.16.0.1/32"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:  "IPv6 CIDR - invalid",
 			value: ptr.To("2001:db8::/32"),
-			expectErrors: []expectedError{
-				{fieldPath: "cidr", message: "not IPv4"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "cidr", Message: "not IPv4"},
 			},
 		},
 		{
 			name:  "invalid CIDR format - invalid",
 			value: ptr.To("10.0.0.0"),
-			expectErrors: []expectedError{
-				{fieldPath: "cidr", message: "invalid CIDR address"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "cidr", Message: "invalid CIDR address"},
 			},
 		},
 		{
 			name:  "invalid IP - invalid",
 			value: ptr.To("300.0.0.0/16"),
-			expectErrors: []expectedError{
-				{fieldPath: "cidr", message: "invalid CIDR address"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "cidr", Message: "invalid CIDR address"},
 			},
 		},
 		{
 			name:  "host IP instead of network - invalid",
 			value: ptr.To("10.0.0.1/16"),
-			expectErrors: []expectedError{
-				{fieldPath: "cidr", message: "not IPv4 CIDR"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "cidr", Message: "not IPv4 CIDR"},
 			},
 		},
 		{
 			name:  "invalid prefix length - invalid",
 			value: ptr.To("10.0.0.0/33"),
-			expectErrors: []expectedError{
-				{fieldPath: "cidr", message: "invalid CIDR address"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "cidr", Message: "invalid CIDR address"},
 			},
 		},
 	}
@@ -479,7 +431,7 @@ func TestCIDRv4(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := CIDRv4(ctx, op, fldPath, tt.value, nil)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 
 		})
 	}
@@ -869,63 +821,63 @@ func TestURL(t *testing.T) {
 	tests := []struct {
 		name         string
 		value        *string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "nil value - valid",
 			value:        nil,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "empty string - valid (url.Parse accepts empty string)",
 			value:        ptr.To(""),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid HTTP URL - valid",
 			value:        ptr.To("http://example.com"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid HTTPS URL - valid",
 			value:        ptr.To("https://example.com"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid URL with path - valid",
 			value:        ptr.To("https://example.com/path/to/resource"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid URL with query parameters - valid",
 			value:        ptr.To("https://example.com/path?key=value&other=param"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid URL with fragment - valid",
 			value:        ptr.To("https://example.com/path#fragment"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid URL with port - valid",
 			value:        ptr.To("https://example.com:8080/path"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "valid URL with user info - valid",
 			value:        ptr.To("https://user:pass@example.com/path"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:         "invalid URL - missing scheme - valid",
 			value:        ptr.To("example.com/path"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:  "invalid URL - invalid",
 			value: ptr.To("://invalid"),
-			expectErrors: []expectedError{
-				{fieldPath: "url", message: "parse"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "url", Message: "parse"},
 			},
 		},
 	}
@@ -933,7 +885,7 @@ func TestURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := URL(ctx, op, fldPath, tt.value, nil)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }

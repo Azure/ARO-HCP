@@ -1,0 +1,40 @@
+{{ template "bundleMap" . }}
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where namespace_name == 'maestro'
+| where container_name in ('maestro-server', 'maestro-agent')
+| extend logs = tostring(log)
+| extend bundleId = extract('("resourceid":|resourceID=)"([^"]+)"', 2, logs)
+| extend resourceName = extract('resourceName="([^"]+)"', 1, logs)
+| lookup resourceNameToBundleId on resourceName
+| extend bundleId = coalesce(bundleId, bundleId1)
+| where isnotempty(bundleId)
+| where bundleId in (bundleIds)
+| extend msg = extract('] "([^"]+)"', 1, logs)
+| extend layer = case(
+    container_name == 'maestro-server' and msg == 'receive the event from client',        '1_server_spec_from_client',
+    container_name == 'maestro-server' and msg == 'Sending event',                        '2_server_spec_to_broker',
+    container_name == 'maestro-agent'  and msg == 'Received event',                       '3_agent_spec_from_broker',
+    container_name == 'maestro-agent'  and msg == 'Server side applied',                  '4_agent_acted_on_cluster',
+    container_name == 'maestro-agent'  and msg == 'Noop because its read-only',           '4_agent_acted_on_cluster',
+    container_name == 'maestro-agent'  and msg == 'Sending event',                        '5_agent_status_to_broker',
+    container_name == 'maestro-server' and msg == 'Updating resource status',             '6_server_status_from_broker',
+    container_name == 'maestro-server' and msg == 'send the event to status subscribers', '7_server_status_to_subscribers',
+    'other')
+| where layer != 'other'
+| lookup bundleMap on bundleId
+| summarize count = count() by source, label, layer
+| union (
+    datatable(source: string, label: string, layer: string, count: long) [
+        '__placeholder__', '__placeholder__', '1_server_spec_from_client', 0,
+        '__placeholder__', '__placeholder__', '2_server_spec_to_broker', 0,
+        '__placeholder__', '__placeholder__', '3_agent_spec_from_broker', 0,
+        '__placeholder__', '__placeholder__', '4_agent_acted_on_cluster', 0,
+        '__placeholder__', '__placeholder__', '5_agent_status_to_broker', 0,
+        '__placeholder__', '__placeholder__', '6_server_status_from_broker', 0,
+        '__placeholder__', '__placeholder__', '7_server_status_to_subscribers', 0
+    ]
+)
+| evaluate pivot(layer, sum(count))
+| where source != '__placeholder__'
+| order by source asc, label asc

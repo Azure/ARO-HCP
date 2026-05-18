@@ -446,8 +446,7 @@ func nodePoolInformerTestCase() informerTestCase {
 				"/resourceGroups/"+resourceGroupName+
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 				"/nodePools/"+name)
-		internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
-		require.NoError(t, err)
+		internalID := api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
 		return &api.HCPOpenShiftClusterNodePool{
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
@@ -583,7 +582,6 @@ func activeOperationInformerTestCase() informerTestCase {
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: resourceID,
 			},
-			ResourceID:         resourceID,
 			OperationID:        operationID,
 			ExternalID:         externalID,
 			Request:            api.OperationRequestCreate,
@@ -666,7 +664,6 @@ func controllerInformerTestCase() informerTestCase {
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: controllerResourceID,
 			},
-			ResourceID: controllerResourceID,
 		}
 	}
 
@@ -682,7 +679,6 @@ func controllerInformerTestCase() informerTestCase {
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: controllerResourceID,
 			},
-			ResourceID: controllerResourceID,
 		}
 	}
 
@@ -698,7 +694,6 @@ func controllerInformerTestCase() informerTestCase {
 			CosmosMetadata: api.CosmosMetadata{
 				ResourceID: controllerResourceID,
 			},
-			ResourceID: controllerResourceID,
 		}
 	}
 

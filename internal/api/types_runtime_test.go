@@ -71,7 +71,7 @@ func deepCopyFuzzerFor(src rand.Source) *randfill.Filler {
 			if j == nil {
 				return
 			}
-			foo := Must(NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
+			foo := Ptr(Must(NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-"))))
 			j.ClusterServiceID = foo
 		},
 		func(j *Operation, c randfill.Continue) {

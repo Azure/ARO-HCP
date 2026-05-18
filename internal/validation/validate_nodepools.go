@@ -173,15 +173,15 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 
 var (
 	toNodePoolServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) *api.InternalID {
-		return &oldObj.ClusterServiceID
+		return oldObj.ClusterServiceID
 	}
 )
 
 func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toNodePoolServiceProviderClusterServiceID))...)
+	//ClusterServiceID  *InternalID                     `json:"clusterServiceID,omitempty"`
+	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), newObj.ClusterServiceID, safe.Field(oldObj, toNodePoolServiceProviderClusterServiceID))...)
 
 	return errs
 }

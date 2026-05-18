@@ -17,18 +17,6 @@ spec:
           The Arobit forwarder metrics endpoint on cluster {{ $labels.cluster }} has been unreachable for 15 minutes.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         summary: Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.
-    - alert: LowOutputBytesProcessed
-      expr: sum(rate(fluentbit_output_proc_bytes_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) < 50
-      for: 15m
-      labels:
-        severity: warning
-      annotations:
-        runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
-        description: |
-          Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} output is low.
-          The metric fluentbit_output_proc_bytes_total only counts bytes from chunks that were sent successfully, this indicates a problem with the output plugin or low input.
-          Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: No log data delivered to Kusto by {{ $labels.pod }} for 15 minutes.
     - alert: FluentBitIngestionPaused
       expr: sum(fluentbit_input_ingestion_paused) by (cluster, pod) > 0
       for: 5m
@@ -40,9 +28,9 @@ spec:
           Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has paused collecting new log data for at least 5 minutes.
           Ingestion pauses when Fluent Bit's internal memory or storage buffers are full, typically caused by backpressure from a slow or failing output.
           Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: Fluent Bit input ingestion paused on {{ $labels.pod }} due to backpressure.
+        summary: Fluent Bit input ingestion paused due to backpressure.
     - alert: FluentBitHighOutputRetries
-      expr: sum(rate(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 3
+      expr: sum(increase(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 3
       for: 5m
       labels:
         severity: warning
@@ -52,9 +40,9 @@ spec:
           Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is retrying chunk delivery.
           Retries occur when the azure_kusto output encounters a recoverable error (e.g. transient network failure, HTTP 429/5xx from Kusto).
           Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: High Kusto output retry rate on {{ $labels.pod }} (> 3/s for 5 min).
+        summary: High Kusto output retries
     - alert: FluentBitOutputErrors
-      expr: sum(rate(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0
+      expr: sum(increase(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0
       for: 5m
       labels:
         severity: warning
@@ -63,9 +51,9 @@ spec:
         description: |
           Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is encountering errors sending log chunks to Kusto.
           Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: Unrecoverable Kusto output errors on {{ $labels.pod }} - log data is being dropped.
+        summary: Unrecoverable Kusto output errors - log data is being dropped.
     - alert: FluentBitOutputRetriesExhausted
-      expr: sum(rate(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0
+      expr: sum(increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0
       for: 5m
       labels:
         severity: warning
@@ -74,4 +62,4 @@ spec:
         description: |
           Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has chunks that exceeded the configured Retry_Limit for the Kusto output.
           Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
-        summary: Kusto output retries exhausted on {{ $labels.pod }} - chunks discarded after max retries.
+        summary: Kusto output retries exhausted - chunks discarded after max retries.

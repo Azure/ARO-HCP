@@ -66,6 +66,7 @@ spec:
         - "--maestro-source-environment-identifier"
         - "{{ .Values.maestro.sourceEnvironmentIdentifier }}"
         - "--exit-on-panic={{ .Values.exitOnPanic }}"
+        - "--log-verbosity={{ .Values.logVerbosity }}"
        {{- if and .Values.miMock.certName .Values.miMock.clientId .Values.miMock.principalId .Values.miMock.tenantId
                   .Values.armPermissionsManagerIdentity.certName .Values.armPermissionsManagerIdentity.clientId .Values.armPermissionsManagerIdentity.tenantId
         }}
@@ -100,6 +101,11 @@ spec:
             configMapKeyRef:
               name: backend-config
               key: DB_URL
+        - name: DB_KUBE_APPLIER_CONTAINER
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DB_KUBE_APPLIER_CONTAINER
         - name: LOCATION
           valueFrom:
             configMapKeyRef:

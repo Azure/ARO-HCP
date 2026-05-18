@@ -34,9 +34,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// mockDocumentStore is the slice of MockDBClient that mockResourceCRUD actually
+// uses. Extracting this interface lets mockResourceCRUD power both MockDBClient
+// (the existing in-memory store for the regular containers), MockKubeApplierDBClient
+// (the in-memory store for the kube-applier container) and MockFleetClient
+// (the in-memory store for the fleet container) without code duplication.
+type mockDocumentStore interface {
+	GetDocument(cosmosID string) (json.RawMessage, bool)
+	StoreDocument(cosmosID string, data json.RawMessage)
+	DeleteDocument(cosmosID string)
+	ListDocuments(resourceType *azcorearm.ResourceType, prefix string) []json.RawMessage
+	GetAllDocuments() map[string]json.RawMessage
+}
+
 // mockResourceCRUD is a generic mock implementation of database.ResourceCRUD.
 type mockResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
-	client           *MockResourcesDBClient
+	client           mockDocumentStore
 	parentResourceID *azcorearm.ResourceID
 	resourceType     azcorearm.ResourceType
 	// makeResourceIDPath constructs the full resource ID path from a resource name.
@@ -48,7 +61,7 @@ type mockResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 }
 
 func newMockResourceCRUD[InternalAPIType, CosmosAPIType any](
-	client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockResourceCRUD[InternalAPIType, CosmosAPIType] {
+	client mockDocumentStore, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockResourceCRUD[InternalAPIType, CosmosAPIType] {
 
 	m := &mockResourceCRUD[InternalAPIType, CosmosAPIType]{
 		client:           client,
@@ -580,6 +593,12 @@ func (m *mockOperationCRUD) ListActiveOperations(options *database.ResourcesDBCl
 			continue
 		}
 
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
+			continue
+		}
+
 		var cosmosObj database.GenericDocument[api.Operation]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
@@ -692,7 +711,7 @@ type mockManagementClusterContentCRUD struct {
 	*mockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]
 }
 
-func newMockManagementClusterContentCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockManagementClusterContentCRUD {
+func newMockManagementClusterContentCRUD(client mockDocumentStore, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) *mockManagementClusterContentCRUD {
 	return &mockManagementClusterContentCRUD{
 		mockResourceCRUD: newMockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]](
 			client, parentResourceID, resourceType),

@@ -3,7 +3,7 @@
 # Managed Resources:
 # * AKS SVC cluster
 # * SVC Key Vault with OneCert registration
-# * MIs, CosmosDB and RBAC for the RP
+# * MIs, CosmosDB containers and RBAC for the RP
 # * MIs, Postgres DB, OIDC storage and RBAC for Cluster Service
 # * MIs, Postgres DB, certificates and RBAC for the Maestro Server
 # * MIs and RBAC for ACRPull
@@ -174,6 +174,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: azureMonitoringWorkspaceId
+    - name: rpCosmosDbAccountId
+      input:
+        resourceGroup: regional
+        step: output
+        name: rpCosmosDbAccountId
     - name: azureFrontDoorResourceId
       input:
         resourceGroup: global
