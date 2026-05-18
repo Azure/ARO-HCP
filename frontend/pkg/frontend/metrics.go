@@ -29,6 +29,15 @@ import (
 // patternRe is used to strip the METHOD string from the [ServerMux] pattern string.
 var patternRe = regexp.MustCompile(`^[^\s]*\s+`)
 
+// muxPatternRoute returns the route pattern portion of a ServeMux pattern.
+// A ServeMux pattern is a http.Request.Pattern, which consists
+// of the HTTP method and the route pattern.
+// This function removes the method prefix of a ServeMux pattern, leaving
+// only the route pattern.
+func muxPatternRoute(pattern string) string {
+	return patternRe.ReplaceAllString(pattern, "")
+}
+
 type SubscriptionStateGetter interface {
 	GetSubscriptionState(string) string
 }
@@ -100,7 +109,7 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 			route        string
 		)
 		if routePattern != nil {
-			route = patternRe.ReplaceAllString(*routePattern, "")
+			route = muxPatternRoute(*routePattern)
 		}
 		if route == "" {
 			route = noMatchRouteLabel
