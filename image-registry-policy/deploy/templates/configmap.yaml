@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "image-registry-allowlist-config"
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app.kubernetes.io/name: image-registry-policy
+    app.kubernetes.io/managed-by: Helm
+data:
+  allowedRegistries: '{{ .Values.allowedRegistries | join "," }}'

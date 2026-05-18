@@ -1,0 +1,17 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "image-registry-allowlist-policy-binding"
+  labels:
+    app.kubernetes.io/name: image-registry-policy
+    app.kubernetes.io/managed-by: Helm
+spec:
+  policyName: "image-registry-allowlist-policy"
+  validationActions:
+  {{- range .Values.validationActions }}
+  - {{ . }}
+  {{- end }}
+  paramRef:
+    name: "image-registry-allowlist-config"
+    namespace: '{{ .Release.Namespace }}'
+    parameterNotFoundAction: Deny
