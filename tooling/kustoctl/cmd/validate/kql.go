@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -49,6 +50,11 @@ via script.bicep.`,
 				return fmt.Errorf("creating Kusto client: %w", err)
 			}
 			defer client.Close()
+
+			validationRegex := regexp.MustCompile("[a-zA-Z0-9_-]{1,63}")
+			if !validationRegex.MatchString(database) {
+				return fmt.Errorf("database name must be 1-63 characters long and contain only lowercase letters, numbers, and hyphens")
+			}
 
 			return runValidateKQL(cmd, logger, client, database, kqlDir)
 		},

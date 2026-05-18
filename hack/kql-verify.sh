@@ -22,7 +22,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 KQL_DIR="${REPO_ROOT}/dev-infrastructure/modules/logs/kusto/tables"
 CONTAINER_NAME="kusto-emulator-$$"
-EMULATOR_IMAGE="mcr.microsoft.com/azuredataexplorer/kustainer-linux:latest"
+EMULATOR_IMAGE="${KUSTO_EMULATOR_IMAGE:-mcr.microsoft.com/azuredataexplorer/kustainer-linux:latest}"
 ENDPOINT="${KUSTO_ENDPOINT:-}"
 READINESS_TIMEOUT=120
 
@@ -34,7 +34,7 @@ if [ -z "${ENDPOINT}" ]; then
   fi
 
   echo "Starting Kusto emulator via ${RUNTIME}..."
-  ${RUNTIME} run -e ACCEPT_EULA=Y -m 4G -d -p 8080:8080 \
+  ${RUNTIME} run -e ACCEPT_EULA=Y -m 4G -d -p 127.0.0.1:8080:8080 \
     --name "${CONTAINER_NAME}" "${EMULATOR_IMAGE}" > /dev/null
   trap '${RUNTIME} rm -f ${CONTAINER_NAME} > /dev/null 2>&1' EXIT
 
