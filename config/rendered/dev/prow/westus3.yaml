@@ -398,7 +398,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:534a0544a40210a761f0f4c1f31dbcbeb6fc52e02f1e70e35e73d86c3647bc1e
+    digest: sha256:34c53d7341f14cd2944c25ec26faf9a7879e9ed994d70b1647f607cb4edb4f1f
     registry: arohcpsvcdev.azurecr.io
     repository: openshift/hypershift
   limitClusterSizes: true
