@@ -44,6 +44,8 @@ ignore:
 - 'dev-infrastructure/opstool/opstool-gateway/deploy/templates/gateway.yaml'
 - 'tooling/aro-hcp-exporter/deploy/templates/deployment.yaml'
 - 'kube-applier/deploy/templates/deployment.yaml'
+- 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
+- 'image-registry-policy/values.yaml'
 rules:
   brackets: enable
   colons: enable
