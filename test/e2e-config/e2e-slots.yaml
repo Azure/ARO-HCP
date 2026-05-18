@@ -9,7 +9,7 @@ environments:
       - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
         region: westus3
         resource_type: aro-hcp-dev-shard0-westus3-slot
-        slot_count: 1
+        slot_count: 15
         identity_container_prefix: aro-hcp-msi-container-dev
         identity_container_count: 20
 
@@ -28,7 +28,7 @@ environments:
   #   deploy_envs:
   #     - stg
   #   pools:
-  #     - subscription_name: stg
+  #     - subscription_name: "ARO HCP E2E - Staging"
   #       region: uksouth
   #       resource_type: aro-hcp-stg-uksouth-slot
   #       slot_count: 1
@@ -39,9 +39,10 @@ environments:
   #   deploy_envs:
   #     - prod
   #   pools:
-  #     - subscription_name: prod
+  #     - subscription_name: "ARO HCP E2E"
   #       region: uksouth
-  #       resource_type: aro-hcp-prod-uksouth-slot
-  #       slot_count: 10
+  #       region_mode: runtime-selected
+  #       resource_type: aro-hcp-prod-shard0-slot
+  #       slot_count: 1
   #       identity_container_prefix: aro-hcp-msi-container-prod
   #       identity_container_count: 15

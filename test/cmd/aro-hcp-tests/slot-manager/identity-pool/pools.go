@@ -21,11 +21,12 @@ import (
 )
 
 type identityPool struct {
-	Environment      string
-	Region           string
-	SubscriptionName string
-	SubscriptionID   string
-	Slots            []slots.ExpandedSlot
+	Environment        string
+	Region             string
+	ProvisioningRegion string
+	SubscriptionName   string
+	SubscriptionID     string
+	Slots              []slots.ExpandedSlot
 }
 
 func loadIdentityPools(catalogPath, environment string) ([]identityPool, error) {
@@ -42,10 +43,11 @@ func loadIdentityPools(catalogPath, environment string) ([]identityPool, error) 
 	pools := make([]identityPool, 0, len(environmentConfig.Pools))
 	for _, pool := range environmentConfig.Pools {
 		pools = append(pools, identityPool{
-			Environment:      environment,
-			Region:           pool.Region,
-			SubscriptionName: pool.SubscriptionName,
-			Slots:            slots.ExpandSlotsForPool(environment, pool),
+			Environment:        environment,
+			Region:             pool.Region,
+			ProvisioningRegion: pool.EffectiveIdentityProvisioningRegion(),
+			SubscriptionName:   pool.SubscriptionName,
+			Slots:              slots.ExpandSlotsForPool(environment, pool),
 		})
 	}
 

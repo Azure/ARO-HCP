@@ -33,12 +33,15 @@ environments:
     pools:
       - subscription_name: dev-sub-1
         region: westus3
+        region_mode: runtime-selected
+        identity_provisioning_region: centralus
         resource_type: aro-hcp-dev-westus3-slot
         slot_count: 1
         identity_container_prefix: aro-hcp-msi-container-dev-a
         identity_container_count: 2
       - subscription_name: dev-sub-2
         region: eastus2
+        region_mode: runtime-selected
         resource_type: aro-hcp-dev-eastus2-slot
         slot_count: 2
         identity_container_prefix: aro-hcp-msi-container-dev-b
@@ -56,14 +59,14 @@ environments:
 		t.Fatalf("expected 2 pools, got %d", len(pools))
 	}
 
-	if pools[0].SubscriptionName != "dev-sub-1" || pools[0].Region != "westus3" {
+	if pools[0].SubscriptionName != "dev-sub-1" || pools[0].Region != "westus3" || pools[0].ProvisioningRegion != "centralus" {
 		t.Fatalf("unexpected first pool: %+v", pools[0])
 	}
 	if len(pools[0].Slots) != 1 || pools[0].Slots[0].ResourceName != "aro-hcp-dev-westus3-slot-00" {
 		t.Fatalf("unexpected first pool slots: %+v", pools[0].Slots)
 	}
 
-	if pools[1].SubscriptionName != "dev-sub-2" || pools[1].Region != "eastus2" {
+	if pools[1].SubscriptionName != "dev-sub-2" || pools[1].Region != "eastus2" || pools[1].ProvisioningRegion != "eastus2" {
 		t.Fatalf("unexpected second pool: %+v", pools[1])
 	}
 	if len(pools[1].Slots) != 2 || pools[1].Slots[1].ResourceName != "aro-hcp-dev-eastus2-slot-01" {

@@ -147,7 +147,8 @@ func (o *ApplyOptions) Run(ctx context.Context) error {
 			"environment", pool.Environment,
 			"subscriptionName", pool.SubscriptionName,
 			"subscriptionID", pool.SubscriptionID,
-			"location", pool.Region,
+			"defaultRegion", pool.Region,
+			"provisioningRegion", pool.ProvisioningRegion,
 			"slotCount", len(pool.Slots),
 		)
 
@@ -178,7 +179,7 @@ func (o *ApplyOptions) applySlot(ctx context.Context, logger logr.Logger, stackC
 
 	stackName := fmt.Sprintf("%s-%s", deploymentStackNamePrefix, slot.ResourceName)
 	stack := armdeploymentstacks.DeploymentStack{
-		Location: to.Ptr(pool.Region),
+		Location: to.Ptr(pool.ProvisioningRegion),
 		Properties: &armdeploymentstacks.DeploymentStackProperties{
 			Template:   o.Template,
 			Parameters: parameters,
@@ -201,7 +202,7 @@ func (o *ApplyOptions) applySlot(ctx context.Context, logger logr.Logger, stackC
 		"subscriptionID", pool.SubscriptionID,
 		"subscriptionName", pool.SubscriptionName,
 		"stackName", stackName,
-		"location", pool.Region,
+		"provisioningRegion", pool.ProvisioningRegion,
 		"slotName", slot.ResourceName,
 		"identityContainerCount", slot.IdentityContainerCount,
 	)
