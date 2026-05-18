@@ -27,6 +27,7 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	state := &AcquiredSlotState{
 		Version:           acquiredSlotStateVersion,
 		DeployEnvironment: "ci01",
+		RuntimeRegion:     "eastus2",
 		Slot: ExpandedSlot{
 			Environment:             "dev",
 			SubscriptionName:        "dev",
@@ -53,6 +54,9 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	if loadedState.Slot.ResourceName != state.Slot.ResourceName {
 		t.Fatalf("expected resource name %q, got %q", state.Slot.ResourceName, loadedState.Slot.ResourceName)
 	}
+	if loadedState.RuntimeRegion != state.RuntimeRegion {
+		t.Fatalf("expected runtime region %q, got %q", state.RuntimeRegion, loadedState.RuntimeRegion)
+	}
 
 	envFile, err := EnvFile(sharedDir)
 	if err != nil {
@@ -75,7 +79,7 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	if !strings.Contains(content, `export LEASED_MSI_CONTAINERS="aro-hcp-msi-container-dev-00-00 aro-hcp-msi-container-dev-00-01 aro-hcp-msi-container-dev-00-02"`) {
 		t.Fatalf("expected env file to contain LEASED_MSI_CONTAINERS export, got %q", content)
 	}
-	if !strings.Contains(content, `export LOCATION="westus3"`) {
+	if !strings.Contains(content, `export LOCATION="eastus2"`) {
 		t.Fatalf("expected env file to contain LOCATION export, got %q", content)
 	}
 	if strings.Contains(content, "ARO_HCP_E2E_SLOT_REGION") {
@@ -83,5 +87,40 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	}
 	if strings.Contains(content, "ARO_HCP_E2E_SLOT_SUBSCRIPTION") {
 		t.Fatalf("expected env file to omit ARO_HCP_E2E_SLOT_SUBSCRIPTION export, got %q", content)
+	}
+}
+
+func TestLoadAcquiredSlotStateDefaultsRuntimeRegionToSlotRegion(t *testing.T) {
+	t.Parallel()
+
+	sharedDir := t.TempDir()
+	state := `version: 1
+deploy_environment: ci01
+slot:
+  environment: dev
+  subscription_name: dev
+  region: westus3
+  resource_type: aro-hcp-dev-westus3-slot
+  resource_name: aro-hcp-dev-westus3-slot-00
+  slot_index: 0
+  identity_container_prefix: aro-hcp-msi-container-dev-00
+  identity_container_count: 1
+leased_resource_name: aro-hcp-dev-westus3-slot-00
+`
+
+	stateFile, err := SlotStateFile(sharedDir)
+	if err != nil {
+		t.Fatalf("expected state file path to resolve: %v", err)
+	}
+	if err := os.WriteFile(stateFile, []byte(state), 0o644); err != nil {
+		t.Fatalf("expected state file write to succeed: %v", err)
+	}
+
+	loadedState, err := LoadAcquiredSlotState(sharedDir)
+	if err != nil {
+		t.Fatalf("expected state load to succeed: %v", err)
+	}
+	if loadedState.RuntimeRegion != "westus3" {
+		t.Fatalf("expected runtime region to default to slot region, got %q", loadedState.RuntimeRegion)
 	}
 }
