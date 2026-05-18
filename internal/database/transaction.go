@@ -210,7 +210,7 @@ func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {
 	case strings.ToLower(api.NodePoolResourceType.String()):
 		return getCastResult[api.HCPOpenShiftClusterNodePool, NodePool](r, cosmosUID)
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
-		return getCastResult[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](r, cosmosUID)
+		return getCastResult[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]](r, cosmosUID)
 	default:
 		return nil, fmt.Errorf("unknown resource type '%s'", typedDoc.ResourceType)
 	}

@@ -718,6 +718,7 @@ func createMinimalExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 func createValidExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	return &api.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth"))},
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth")),

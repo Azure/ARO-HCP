@@ -210,6 +210,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 
 	// ProxyResource info doesn't to come from the external resource information
 	conversion.CopyReadOnlyProxyResourceValues(&newInternalExternalAuth.ProxyResource, ptr.To(arm.NewProxyResource(resourceID)))
+	newInternalExternalAuth.SetResourceID(resourceID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -689,8 +690,11 @@ func (f *Frontend) getInternalExternalAuthFromStorage(ctx context.Context, resou
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	if !strings.EqualFold(internalExternalAuth.ID.String(), resourceID.String()) {
-		return nil, fmt.Errorf("unexpected resourceID: %s", internalExternalAuth.ID.String())
+	if internalExternalAuth.ResourceID == nil {
+		return nil, fmt.Errorf("stored externalauth document is missing cosmosMetadata.resourceID")
+	}
+	if !strings.EqualFold(internalExternalAuth.ResourceID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalExternalAuth.ResourceID.String())
 	}
 	internalExternalAuth.ID = resourceID
 

@@ -52,7 +52,7 @@ func (g *mockResourcesGlobalListers) NodePools() database.GlobalLister[api.HCPOp
 }
 
 func (g *mockResourcesGlobalListers) ExternalAuths() database.GlobalLister[api.HCPOpenShiftClusterExternalAuth] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth]{
+	return &mockTypedGlobalLister[api.HCPOpenShiftClusterExternalAuth, database.GenericDocument[api.HCPOpenShiftClusterExternalAuth]]{
 		client:       g.client,
 		resourceType: api.ExternalAuthResourceType,
 	}

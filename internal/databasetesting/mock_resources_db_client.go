@@ -377,11 +377,11 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 		}
 		return database.CosmosToInternalNodePool(&cosmosObj)
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
-		var cosmosObj database.ExternalAuth
+		var cosmosObj database.GenericDocument[api.HCPOpenShiftClusterExternalAuth]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
-		return database.CosmosToInternalExternalAuth(&cosmosObj)
+		return database.CosmosGenericToInternal(&cosmosObj)
 	default:
 		return nil, fmt.Errorf("unknown resource type '%s'", typedDoc.ResourceType)
 	}

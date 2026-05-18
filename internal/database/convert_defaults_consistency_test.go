@@ -484,7 +484,7 @@ func TestEnsureDefaultsConsistencyExternalAuth(t *testing.T) {
 	})
 }
 
-// TestPreExistingDataExternalAuth verifies that CosmosToInternalExternalAuth
+// TestPreExistingDataExternalAuth verifies that CosmosGenericToInternal
 // applies canonical defaults when reading a Cosmos document that predates the
 // introduction of the PrefixPolicy field.
 func TestPreExistingDataExternalAuth(t *testing.T) {
@@ -492,29 +492,30 @@ func TestPreExistingDataExternalAuth(t *testing.T) {
 		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster/externalAuths/default",
 	))
 
-	preExistingDoc := &ExternalAuth{
+	internalID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default"))
+	preExistingDoc := &GenericDocument[api.HCPOpenShiftClusterExternalAuth]{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{ID: "test-doc-id"},
 			ResourceID:   resourceID,
 		},
-		ExternalAuthProperties: ExternalAuthProperties{
-			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        resourceID,
-				InternalID:        api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster/external_auth_config/external_auths/default")),
+		Content: api.HCPOpenShiftClusterExternalAuth{
+			// PrefixPolicy is intentionally zero-valued to simulate
+			// a pre-existing document that predates the field.
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: resourceID,
+			},
+			Properties: api.HCPOpenShiftClusterExternalAuthProperties{
 				ProvisioningState: arm.ProvisioningStateSucceeded,
 			},
-			InternalState: ExternalAuthInternalState{
-				InternalAPI: api.HCPOpenShiftClusterExternalAuth{
-					// PrefixPolicy is intentionally zero-valued to simulate
-					// a pre-existing document that predates the field.
-				},
+			ServiceProviderProperties: api.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
+				ClusterServiceID: &internalID,
 			},
 		},
 	}
 
-	internalExternalAuth, err := CosmosToInternalExternalAuth(preExistingDoc)
+	internalExternalAuth, err := CosmosGenericToInternal(preExistingDoc)
 	if err != nil {
-		t.Fatalf("CosmosToInternalExternalAuth failed: %v", err)
+		t.Fatalf("CosmosGenericToInternal failed: %v", err)
 	}
 
 	if internalExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy != api.UsernameClaimPrefixPolicyNone {

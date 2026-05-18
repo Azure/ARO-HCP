@@ -39,6 +39,14 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
+		func(j *api.CosmosMetadata, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// ConvertToInternal lowercases the ID, so use the lowercased canonical form
+			// here so the round-trip comparison succeeds.
+			j.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/myrg"))
+			j.ExistingCosmosUID = ""
+			j.CosmosETag = ""
+		},
 		func(j *api.ImageDigestMirror, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// MirrorSourcePolicy does not roundtrip through the external type because it is purely an internal detail
@@ -78,7 +86,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = nil
-			j.ExistingCosmosUID = ""
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)

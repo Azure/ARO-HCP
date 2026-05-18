@@ -750,7 +750,8 @@ func controllerInformerTestCase() informerTestCase {
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 					"/externalAuths/"+externalAuthName)
 			ea := &api.HCPOpenShiftClusterExternalAuth{
-				ProxyResource: arm.NewProxyResource(eaResourceID),
+				CosmosMetadata: arm.CosmosMetadata{ResourceID: eaResourceID},
+				ProxyResource:  arm.NewProxyResource(eaResourceID),
 			}
 			_, err = mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(clusterName).Create(ctx, ea, nil)
 			require.NoError(t, err)
