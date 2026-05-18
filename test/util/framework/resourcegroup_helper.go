@@ -35,19 +35,37 @@ import (
 )
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
+	ginkgo.GinkgoLogr.Info("Looking up subscription by display name",
+		"subscriptionName", subscriptionName)
+
+	var foundNames []string
 	pager := subscriptionClient.NewListPager(nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return "", err
+			ginkgo.GinkgoLogr.Info("Subscription list API call failed",
+				"error", err)
+			return "", fmt.Errorf("failed listing subscriptions while looking for '%s': %w", subscriptionName, err)
 		}
 		for _, sub := range page.Value {
-			if *sub.DisplayName == subscriptionName {
-				return *sub.SubscriptionID, nil
+			displayName := ""
+			subID := ""
+			if sub.DisplayName != nil {
+				displayName = *sub.DisplayName
+			}
+			if sub.SubscriptionID != nil {
+				subID = *sub.SubscriptionID
+			}
+			ginkgo.GinkgoLogr.Info("Found subscription",
+				"displayName", displayName,
+				"subscriptionID", subID)
+			foundNames = append(foundNames, displayName)
+			if displayName == subscriptionName {
+				return subID, nil
 			}
 		}
 	}
-	return "", fmt.Errorf("subscription with name '%s' not found", subscriptionName)
+	return "", fmt.Errorf("subscription with name '%s' not found; %d subscriptions visible: %v", subscriptionName, len(foundNames), foundNames)
 }
 
 // CreateResourceGroup creates a resource group
