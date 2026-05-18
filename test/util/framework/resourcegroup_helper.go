@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -35,16 +36,14 @@ import (
 )
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
-	ginkgo.GinkgoLogr.Info("Looking up subscription by display name",
-		"subscriptionName", subscriptionName)
+	fmt.Fprintf(os.Stderr, "[subscription-lookup] looking up subscription by display name: %q\n", subscriptionName)
 
 	var foundNames []string
 	pager := subscriptionClient.NewListPager(nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			ginkgo.GinkgoLogr.Info("Subscription list API call failed",
-				"error", err)
+			fmt.Fprintf(os.Stderr, "[subscription-lookup] subscription list API call failed: %v\n", err)
 			return "", fmt.Errorf("failed listing subscriptions while looking for '%s': %w", subscriptionName, err)
 		}
 		for _, sub := range page.Value {
@@ -56,11 +55,12 @@ func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions
 			if sub.SubscriptionID != nil {
 				subID = *sub.SubscriptionID
 			}
-			ginkgo.GinkgoLogr.Info("Found subscription",
-				"displayName", displayName,
-				"subscriptionID", subID)
+			fmt.Fprintf(os.Stderr, "[subscription-lookup] visible subscription: displayName=%q id=%s\n", displayName, subID)
 			foundNames = append(foundNames, displayName)
 			if displayName == subscriptionName {
+				if subID == "" {
+					return "", fmt.Errorf("subscription %q matched but has nil SubscriptionID", subscriptionName)
+				}
 				return subID, nil
 			}
 		}

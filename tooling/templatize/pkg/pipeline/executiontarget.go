@@ -17,6 +17,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
@@ -35,6 +36,7 @@ func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 		}
 
 		// Otherwise, do a lookup against Azure using the display name
+		fmt.Fprintf(os.Stderr, "[subscription-lookup] %q not in explicit registry; querying Azure API\n", subscriptionName)
 		// Create a new Azure identity client
 		cred, err := cmdutils.GetAzureTokenCredentials()
 		if err != nil {
@@ -49,19 +51,30 @@ func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 
 		// List subscriptions and find the one with the matching name
 		pager := client.NewListPager(nil)
+		var foundNames []string
 		for pager.More() {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
 				return "", fmt.Errorf("failed to get next page of subscriptions: %v", err)
 			}
 			for _, sub := range page.Value {
-				if sub.DisplayName != nil && *sub.DisplayName == subscriptionName {
-					return *sub.SubscriptionID, nil
+				displayName := ""
+				subID := ""
+				if sub.DisplayName != nil {
+					displayName = *sub.DisplayName
+				}
+				if sub.SubscriptionID != nil {
+					subID = *sub.SubscriptionID
+				}
+				fmt.Fprintf(os.Stderr, "[subscription-lookup] visible subscription: displayName=%q id=%s\n", displayName, subID)
+				foundNames = append(foundNames, displayName)
+				if displayName == subscriptionName {
+					return subID, nil
 				}
 			}
 		}
 
-		return "", fmt.Errorf("subscription with name %q not found", subscriptionName)
+		return "", fmt.Errorf("subscription with name %q not found; %d subscriptions visible: %v", subscriptionName, len(foundNames), foundNames)
 	}
 }
 
