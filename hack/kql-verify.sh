@@ -63,7 +63,7 @@ if [ "${VERBOSE:-}" = "true" ]; then
   VERBOSE_FLAG="-v 1"
 fi
 
-go run "${REPO_ROOT}/tooling/kustoctl/main.go" \
+go run github.com/Azure/ARO-HCP/tooling/kustoctl \
   ${VERBOSE_FLAG} \
   validate kql \
   --endpoint "${ENDPOINT}" \

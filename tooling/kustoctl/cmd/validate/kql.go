@@ -51,7 +51,7 @@ via script.bicep.`,
 			}
 			defer client.Close()
 
-			validationRegex := regexp.MustCompile("[a-zA-Z0-9_-]{1,63}")
+			validationRegex := regexp.MustCompile("^[a-zA-Z0-9_-]{1,63}$")
 			if !validationRegex.MatchString(database) {
 				return fmt.Errorf("database name must be 1-63 characters long and contain only lowercase letters, numbers, and hyphens")
 			}
