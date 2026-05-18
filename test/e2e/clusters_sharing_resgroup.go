@@ -97,7 +97,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("starting creation of both clusters in parallel")
-			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			clusterClient := tc.GetHCPClustersClientOrDie(ctx)
 
 			// Start first cluster creation
 			poller1, err := framework.BeginCreateHCPCluster(

@@ -94,7 +94,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("ensuring the API TLS certificate is signed by a trusted Azure CA")
-			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			clusterClient := tc.GetHCPClustersClientOrDie(ctx)
 			Eventually(func(ctx context.Context) error {
 				clusterResp, err := clusterClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 				if err != nil {
@@ -137,7 +137,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("ensuring the ingress TLS certificate is signed by a trusted Azure CA")
-			hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpOpenShiftClustersClient := tc.GetHCPClustersClientOrDie(ctx)
 
 			By("waiting for the console URL to become available")
 			var consoleURL string

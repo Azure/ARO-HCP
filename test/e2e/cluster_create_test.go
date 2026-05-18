@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -33,12 +33,12 @@ var _ = Describe("Put HCPOpenShiftCluster", func() {
 		clusterName := "non-existing-cluster"
 		customerRGName := "non-existing-group"
 		var (
-			clusterResource hcpsdk20240610preview.HcpOpenShiftCluster
-			clusterOptions  *hcpsdk20240610preview.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
+			clusterResource armredhatopenshifthcp.HcpOpenShiftCluster
+			clusterOptions  *armredhatopenshifthcp.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
 		)
 
 		By("Sending put request to create HCPOpenshiftCluster")
-		_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(ctx, customerRGName, clusterName, clusterResource, clusterOptions)
+		_, err := tc.GetHCPClustersClientOrDie(ctx).BeginCreateOrUpdate(ctx, customerRGName, clusterName, clusterResource, clusterOptions)
 		Expect(err).ToNot(BeNil())
 		errMessage := "The location property is required"
 		Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))

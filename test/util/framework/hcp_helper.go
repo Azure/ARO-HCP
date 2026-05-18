@@ -80,7 +80,7 @@ func checkOperationResult(expectModel, resultModel any) error {
 	return nil
 }
 
-func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
+func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -129,7 +129,84 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 	}
 }
 
-func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
+func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20251223(
+	ctx context.Context,
+	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) (*rest.Config, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during GetAdminRESTConfigForHCPCluster20251223 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Collect admin credentials for cluster", startTime, finishTime)
+	}()
+
+	adminCredentialRequestPoller, err := hcpClient.BeginRequestAdminCredential(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start credential request: %w", err)
+	}
+
+	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20251223preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
+		return clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+			if m.Kubeconfig == nil {
+				return nil, fmt.Errorf("kubeconfig content is nil")
+			}
+			return clientcmd.Load([]byte(*m.Kubeconfig))
+		})
+	default:
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) (*rest.Config, error) {
+	switch tc.EffectiveHCPAPIVersion() {
+	case HCPAPIVersion20240610:
+		return tc.GetAdminRESTConfigForHCPCluster20240610(
+			ctx,
+			tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+			resourceGroupName,
+			hcpClusterName,
+			timeout,
+		)
+	case HCPAPIVersion20251223:
+		return tc.GetAdminRESTConfigForHCPCluster20251223(
+			ctx,
+			tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+			resourceGroupName,
+			hcpClusterName,
+			timeout,
+		)
+	default:
+		return nil, fmt.Errorf("unsupported HCP API version %q", tc.EffectiveHCPAPIVersion())
+	}
+}
+
+func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -168,10 +245,77 @@ func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
 	}
 }
 
+func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait20251223(
+	ctx context.Context,
+	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during RevokeCredentialsAndWait20251223 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Collect revoke admin credentials for cluster", startTime, finishTime)
+	}()
+
+	poller, err := hcpClient.BeginRevokeCredentials(ctx, resourceGroupName, hcpClusterName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to start credential revocation for hcpCluster=%q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish revoking creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish revoking creds: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20251223preview.HcpOpenShiftClustersClientRevokeCredentialsResponse:
+		return nil
+	default:
+		return fmt.Errorf("unknown type %T", m)
+	}
+}
+
+func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) error {
+	switch tc.EffectiveHCPAPIVersion() {
+	case HCPAPIVersion20240610:
+		return tc.RevokeCredentialsAndWait20240610(
+			ctx,
+			tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+			resourceGroupName,
+			hcpClusterName,
+			timeout,
+		)
+	case HCPAPIVersion20251223:
+		return tc.RevokeCredentialsAndWait20251223(
+			ctx,
+			tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+			resourceGroupName,
+			hcpClusterName,
+			timeout,
+		)
+	default:
+		return fmt.Errorf("unsupported HCP API version %q", tc.EffectiveHCPAPIVersion())
+	}
+}
+
 // DeleteHCPCluster deletes an hcp cluster and waits for the operation to complete
 func DeleteHCPCluster(
 	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	hcpClient HCPClustersClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	timeout time.Duration,
@@ -216,7 +360,7 @@ func DeleteHCPCluster(
 // waitForHCPClusterDeletion polls GET on the cluster until it returns 404 (deleted).
 func waitForHCPClusterDeletion(
 	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	hcpClient HCPClustersClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 ) error {
@@ -247,7 +391,7 @@ func waitForHCPClusterDeletion(
 // Transient 500, 409, and CS state conflict 400 errors are retried automatically with exponential backoff.
 func UpdateHCPCluster(
 	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	hcpClient HCPClustersClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	update hcpsdk20240610preview.HcpOpenShiftClusterUpdate,
@@ -419,17 +563,59 @@ func UpdateHCPCluster20251223(
 // GetHCPCluster fetches an HCP cluster
 func GetHCPCluster(
 	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	hcpClient HCPClustersClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 ) (hcpsdk20240610preview.HcpOpenShiftClustersClientGetResponse, error) {
 	return hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
 }
 
+func (tc *perItOrDescribeTestContext) GetClusterKeyVaultVisibility(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+) (*string, error) {
+	switch tc.EffectiveHCPAPIVersion() {
+	case HCPAPIVersion20240610:
+		_, err := GetHCPCluster(
+			ctx,
+			tc.GetHCPClustersClientOrDie(ctx),
+			resourceGroupName,
+			hcpClusterName,
+		)
+		if err != nil {
+			return nil, err
+		}
+		// Visibility is not modeled in v20240610preview.
+		return nil, nil
+	case HCPAPIVersion20251223:
+		cluster, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(
+			ctx,
+			resourceGroupName,
+			hcpClusterName,
+			nil,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if cluster.Properties == nil ||
+			cluster.Properties.Etcd == nil ||
+			cluster.Properties.Etcd.DataEncryption == nil ||
+			cluster.Properties.Etcd.DataEncryption.CustomerManaged == nil ||
+			cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms == nil ||
+			cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility == nil {
+			return nil, nil
+		}
+		return to.Ptr(string(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility)), nil
+	default:
+		return nil, fmt.Errorf("unsupported HCP API version %q", tc.EffectiveHCPAPIVersion())
+	}
+}
+
 // DeleteAllHCPClusters deletes all Clusters within a resource group and waits
 func DeleteAllHCPClusters(
 	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	hcpClient HCPClustersClientFacade,
 	resourceGroupName string,
 	timeout time.Duration,
 ) error {
@@ -491,7 +677,7 @@ func (e *NonConformingClustersError) Error() string {
 // DeleteNodePool deletes a nodepool and waits for the operation to complete
 func DeleteNodePool(
 	ctx context.Context,
-	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	nodePoolsClient NodePoolsClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
@@ -540,7 +726,7 @@ func DeleteNodePool(
 // waitForNodePoolDeletion polls GET on the nodepool until it returns 404 (deleted).
 func waitForNodePoolDeletion(
 	ctx context.Context,
-	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	nodePoolsClient NodePoolsClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
@@ -571,7 +757,7 @@ func waitForNodePoolDeletion(
 // GetNodePool fetches a nodepool resource
 func GetNodePool(
 	ctx context.Context,
-	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	nodePoolsClient NodePoolsClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
@@ -583,7 +769,7 @@ func GetNodePool(
 // within the provided timeout. It returns the final update response or an error.
 func UpdateNodePoolAndWait(
 	ctx context.Context,
-	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	nodePoolsClient NodePoolsClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
@@ -808,12 +994,12 @@ func CreateTestDockerConfigSecret(host, username, password, email, secretName, n
 func BeginCreateHCPCluster(
 	ctx context.Context,
 	logger logr.Logger,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	hcpClient HCPClustersClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	clusterParams ClusterParams,
 	location string,
-) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+) (HCPClustersCreateOrUpdatePoller, error) {
 	cluster := BuildHCPClusterFromParams(clusterParams, location)
 	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
 	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
@@ -828,7 +1014,7 @@ func BeginCreateHCPCluster(
 func CreateHCPClusterAndWait(
 	ctx context.Context,
 	logger logr.Logger,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	hcpClient HCPClustersClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
@@ -949,7 +1135,7 @@ func BuildHCPClusterFromParams(
 
 func CreateNodePoolAndWait(
 	ctx context.Context,
-	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	nodePoolsClient NodePoolsClientFacade,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
@@ -1028,6 +1214,18 @@ func BuildNodePoolFromParams(
 	}
 
 	return nodePool
+}
+
+func BuildNodePool20251223FromParams(
+	parameters NodePoolParams,
+	location string,
+) (hcpsdk20251223preview.NodePool, error) {
+	oldNodePool := BuildNodePoolFromParams(parameters, location)
+	converted, err := convertViaJSON[hcpsdk20251223preview.NodePool](oldNodePool)
+	if err != nil {
+		return hcpsdk20251223preview.NodePool{}, err
+	}
+	return *converted, nil
 }
 
 // Helper to generate SSH key pair
@@ -1258,7 +1456,7 @@ func ValidateNodePoolDiskStorageAccountType(
 	hcpClusterName string,
 	nodePoolName string,
 ) error {
-	nodePoolResp, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+	nodePoolResp, err := GetNodePool(ctx, newNodePoolsClient20240610Facade(nodePoolsClient), resourceGroupName, hcpClusterName, nodePoolName)
 	if err != nil {
 		return fmt.Errorf("failed to get nodepool %s: %w", nodePoolName, err)
 	}
@@ -1292,6 +1490,58 @@ func ValidateNodePoolDiskStorageAccountType(
 	}
 
 	return nil
+}
+
+func (tc *perItOrDescribeTestContext) ValidateNodePoolDiskStorageAccountType(
+	ctx context.Context,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+) error {
+	switch tc.EffectiveHCPAPIVersion() {
+	case HCPAPIVersion20240610:
+		return ValidateNodePoolDiskStorageAccountType(
+			ctx,
+			tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			resourceGroupName,
+			hcpClusterName,
+			nodePoolName,
+		)
+	case HCPAPIVersion20251223:
+		nodePool, err := GetNodePool20251223(
+			ctx,
+			tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			resourceGroupName,
+			hcpClusterName,
+			nodePoolName,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to get nodepool %s: %w", nodePoolName, err)
+		}
+
+		if nodePool.Properties == nil {
+			return fmt.Errorf("nodepool %s has no properties", nodePoolName)
+		}
+		if nodePool.Properties.Platform == nil {
+			return fmt.Errorf("nodepool %s has no platform configuration", nodePoolName)
+		}
+		if nodePool.Properties.Platform.OSDisk == nil {
+			return fmt.Errorf("nodepool %s has no OS disk configuration", nodePoolName)
+		}
+		if nodePool.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
+			return fmt.Errorf("nodepool %s has no DiskStorageAccountType set", nodePoolName)
+		}
+
+		expectedDiskType := "StandardSSD_LRS"
+		actualDiskType := string(*nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)
+		if actualDiskType != expectedDiskType {
+			return fmt.Errorf("nodepool %s has incorrect DiskStorageAccountType: expected %s (framework default), got %s",
+				nodePoolName, expectedDiskType, actualDiskType)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported HCP API version %q", tc.EffectiveHCPAPIVersion())
+	}
 }
 
 func HasNodeLabel(nodes []corev1.Node, key, value string, expectedCount ...int) bool {

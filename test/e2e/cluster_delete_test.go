@@ -36,7 +36,7 @@ var _ = Describe("ARO-HCP Cluster Deletion", func() {
 
 	It("should confirm the HCP cluster is deleted (not found)", labels.TeardownValidation, labels.Critical, func(ctx context.Context) {
 		tc := framework.NewTestContext()
-		hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+		hcpClient := tc.GetHCPClustersClientOrDie(ctx)
 		By("checking that the HCP cluster is not present")
 		_, err := hcpClient.Get(ctx, resourceGroup, clusterName, nil)
 		Expect(err).ToNot(BeNil())

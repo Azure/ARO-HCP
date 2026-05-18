@@ -22,9 +22,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -49,6 +46,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			const customerClusterName = "private-kv-cluster"
 
 			tc := framework.NewTestContext()
+			tc.SetHCPAPIVersionForTest(framework.HCPAPIVersion20251223)
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -79,24 +77,11 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Set KeyVault visibility
-			if clusterResource.Properties != nil && clusterResource.Properties.Etcd != nil &&
-				clusterResource.Properties.Etcd.DataEncryption != nil &&
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged != nil &&
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
-			}
-
-			_, err = framework.CreateHCPCluster20251223AndWait(
+			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
-				customerClusterName,
-				clusterResource,
+				clusterParams,
 				45*time.Minute,
 			)
 			if isAPINotDeployedError(err) {
@@ -108,33 +93,22 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying cluster was created with private keyvault visibility")
-			clientFactory := tc.Get20251223ClientFactoryOrDie(ctx)
-			cluster, err := clientFactory.NewHcpOpenShiftClustersClient().Get(
-				ctx,
-				*resourceGroup.Name,
-				customerClusterName,
-				nil,
-			)
+			visibility, err := tc.GetClusterKeyVaultVisibility(ctx, *resourceGroup.Name, customerClusterName)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cluster.Properties).ToNot(BeNil())
-			Expect(cluster.Properties.Etcd).ToNot(BeNil())
-			Expect(cluster.Properties.Etcd.DataEncryption).ToNot(BeNil())
-			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged).ToNot(BeNil())
-			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).ToNot(BeNil())
 
-			visibilityNotPresent := cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility == nil
+			visibilityNotPresent := visibility == nil
 			if visibilityNotPresent {
 				if time.Now().Before(timeBombDeadline) {
 					Skip("v20251223preview deployed but Visibility field not present in cluster response; skipping until rollout completes")
 				}
 				Fail(fmt.Sprintf("Visibility field still not present in v20251223preview cluster response as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
-			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPrivate))
+			Expect(*visibility).To(Equal("Private"))
 
 			GinkgoLogr.Info("Cluster created successfully with private keyvault",
 				"clusterName", customerClusterName,
 				"keyVaultName", clusterParams.KeyVaultName,
-				"keyVaultVisibility", *cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility)
+				"keyVaultVisibility", *visibility)
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -159,7 +133,6 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			By("getting admin credentials for the cluster")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,

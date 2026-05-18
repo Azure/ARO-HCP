@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -98,7 +98,6 @@ var _ = Describe("Customer", func() {
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
@@ -111,7 +110,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying the node pool is created and has the correct osDisk size")
 			created, err := framework.GetNodePool(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				tc.GetNodePoolsClientOrDie(ctx),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -119,7 +118,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(created.Properties).ToNot(BeNil(), "nodepool Properties was nil")
 			Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "nodepool Properties.ProvisioningState was nil")
-			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded))
+			Expect(*created.Properties.ProvisioningState).To(Equal(armredhatopenshifthcp.ProvisioningStateSucceeded))
 			Expect(created.Properties.Platform).ToNot(BeNil(), "nodepool Properties.Platform was nil")
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "nodepool Properties.Platform.OSDisk was nil")
 			Expect(*created.Properties.Platform.OSDisk.SizeGiB).To(Equal(customerNodeOsDiskSizeGiB))

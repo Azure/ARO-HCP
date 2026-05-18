@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -83,21 +83,21 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			expectedExternalAuth := hcpsdk.ExternalAuth{
+			expectedExternalAuth := armredhatopenshifthcp.ExternalAuth{
 				Name: to.Ptr(testingPrefix),
-				Properties: &hcpsdk.ExternalAuthProperties{
-					Issuer: &hcpsdk.TokenIssuerProfile{
+				Properties: &armredhatopenshifthcp.ExternalAuthProperties{
+					Issuer: &armredhatopenshifthcp.TokenIssuerProfile{
 						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 						Audiences: []*string{to.Ptr(dummyUID)},
 					},
-					Claim: &hcpsdk.ExternalAuthClaimProfile{
-						Mappings: &hcpsdk.TokenClaimMappingsProfile{
-							Username: &hcpsdk.UsernameClaimProfile{
+					Claim: &armredhatopenshifthcp.ExternalAuthClaimProfile{
+						Mappings: &armredhatopenshifthcp.TokenClaimMappingsProfile{
+							Username: &armredhatopenshifthcp.UsernameClaimProfile{
 								Claim:        to.Ptr("sub"), // objectID of SP
-								PrefixPolicy: to.Ptr(hcpsdk.UsernameClaimPrefixPolicyPrefix),
+								PrefixPolicy: to.Ptr(armredhatopenshifthcp.UsernameClaimPrefixPolicyPrefix),
 								Prefix:       to.Ptr(testingPrefix),
 							},
-							Groups: &hcpsdk.GroupClaimProfile{
+							Groups: &armredhatopenshifthcp.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
@@ -108,7 +108,7 @@ var _ = Describe("Customer", func() {
 			By("create an external auth and confirm it's in a succeeded state")
 			_, err = framework.CreateOrUpdateExternalAuthAndWait(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.GetExternalAuthsClientOrDie(ctx),
 				*resourceGroup.Name,
 				clusterName,
 				*expectedExternalAuth.Name,
@@ -119,20 +119,20 @@ var _ = Describe("Customer", func() {
 
 			result, err := framework.GetExternalAuth(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.GetExternalAuthsClientOrDie(ctx),
 				*resourceGroup.Name,
 				clusterName,
 				*expectedExternalAuth.Name,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(*result.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded))
+			Expect(*result.Properties.ProvisioningState).To(Equal(armredhatopenshifthcp.ExternalAuthProvisioningStateSucceeded))
 
 			By("confirming we're only allowed to create a single external auth")
 			anotherExternalAuth := expectedExternalAuth
 			anotherExternalAuth.Name = to.Ptr(testingPrefix + "2")
 			_, err = framework.CreateOrUpdateExternalAuthAndWait(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.GetExternalAuthsClientOrDie(ctx),
 				*resourceGroup.Name,
 				clusterName,
 				*anotherExternalAuth.Name,
@@ -142,9 +142,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).To(HaveOccurred())
 
 			By("listing all external auth configs to verify a list call works")
-			externalAuthClient := tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient()
+			externalAuthClient := tc.GetExternalAuthsClientOrDie(ctx)
 			pager := externalAuthClient.NewListByParentPager(*resourceGroup.Name, clusterName, nil)
-			var extAuthResult []hcpsdk.ExternalAuth
+			var extAuthResult []armredhatopenshifthcp.ExternalAuth
 			for pager.More() {
 				page, err := pager.NextPage(ctx)
 				Expect(err).NotTo(HaveOccurred())
@@ -180,7 +180,7 @@ var _ = Describe("Customer", func() {
 			expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix = to.Ptr(testingPrefix + "updated")
 			_, err = framework.CreateOrUpdateExternalAuthAndWait(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.GetExternalAuthsClientOrDie(ctx),
 				*resourceGroup.Name,
 				clusterName,
 				*expectedExternalAuth.Name,
@@ -191,13 +191,13 @@ var _ = Describe("Customer", func() {
 
 			updatedResult, err := framework.GetExternalAuth(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
+				tc.GetExternalAuthsClientOrDie(ctx),
 				*resourceGroup.Name,
 				clusterName,
 				*expectedExternalAuth.Name,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(*updatedResult.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded))
+			Expect(*updatedResult.Properties.ProvisioningState).To(Equal(armredhatopenshifthcp.ExternalAuthProvisioningStateSucceeded))
 			Expect(*updatedResult.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix))
 
 		})

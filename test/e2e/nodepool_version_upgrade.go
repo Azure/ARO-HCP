@@ -37,7 +37,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -152,7 +152,6 @@ var _ = Describe("Customer", func() {
 			By("getting admin credentials and lowest control plane version from OpenShift version history")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				10*time.Minute,
@@ -195,11 +194,11 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("triggering nodepool upgrade to version %s and update replicas to 3", nodePoolDesiredVersion))
 			updateReplicas := 3
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			nodePoolsClient := tc.GetNodePoolsClientOrDie(ctx)
+			update := armredhatopenshifthcp.NodePoolUpdate{
+				Properties: &armredhatopenshifthcp.NodePoolPropertiesUpdate{
 					Replicas: ptr.To(int32(updateReplicas)),
-					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+					Version: &armredhatopenshifthcp.NodePoolVersionProfile{
 						ID:           to.Ptr(nodePoolDesiredVersion),
 						ChannelGroup: to.Ptr(channelGroup),
 					},

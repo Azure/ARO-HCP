@@ -143,7 +143,6 @@ var _ = Describe("Service Provider", func() {
 			By("verifying the cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				10*time.Minute,

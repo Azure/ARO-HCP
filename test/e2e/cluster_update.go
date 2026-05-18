@@ -22,18 +22,18 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 // Helper to convert ManagedServiceIdentity to AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
-func toIdentityUpdate(identity *hcpsdk20240610preview.ManagedServiceIdentity) *hcpsdk20240610preview.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate {
+func toIdentityUpdate(identity *armredhatopenshifthcp.ManagedServiceIdentity) *armredhatopenshifthcp.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate {
 	if identity == nil {
 		return nil
 	}
-	return &hcpsdk20240610preview.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate{
+	return &armredhatopenshifthcp.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate{
 		Type:                   identity.Type,
 		UserAssignedIdentities: identity.UserAssignedIdentities,
 	}
@@ -86,7 +86,6 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				By("getting credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					10*time.Minute,
@@ -99,12 +98,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				By("sending a PATCH request attempting to change the resource name")
 				newName := clusterName + "-renamed"
-				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				update := armredhatopenshifthcp.HcpOpenShiftClusterUpdate{
 					Name: &newName,
 				}
 				_, err = framework.UpdateHCPCluster(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.GetHCPClustersClientOrDie(ctx),
 					*resourceGroup.Name,
 					clusterName,
 					update,
@@ -162,7 +161,6 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				By("getting credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					10*time.Minute,
@@ -175,7 +173,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				By("sending a PATCH request to set a tag")
 				val := "should succeed"
-				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
+				update := armredhatopenshifthcp.HcpOpenShiftClusterUpdate{
 					Identity: toIdentityUpdate(clusterParams.Identity),
 					Tags: map[string]*string{
 						"test": &val,
@@ -183,7 +181,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				}
 				resp, err := framework.UpdateHCPCluster(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.GetHCPClustersClientOrDie(ctx),
 					*resourceGroup.Name,
 					clusterName,
 					update,
@@ -199,7 +197,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				By("verifying the tag is present on the cluster")
 				respGet, err := framework.GetHCPCluster(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					tc.GetHCPClustersClientOrDie(ctx),
 					*resourceGroup.Name,
 					clusterName,
 				)

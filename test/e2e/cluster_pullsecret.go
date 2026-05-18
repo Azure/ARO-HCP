@@ -128,7 +128,6 @@ var _ = Describe("Customer", func() {
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,

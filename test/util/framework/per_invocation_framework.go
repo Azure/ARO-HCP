@@ -57,6 +57,7 @@ type perBinaryInvocationTestContext struct {
 	skipCleanup              bool
 	pooledIdentities         bool
 	compressTimingMetadata   bool
+	hcpAPIVersion            HCPAPIVersion
 
 	contextLock       sync.RWMutex
 	subscriptionID    string
@@ -92,6 +93,11 @@ var azureRetryOptions = policy.RetryOptions{
 // AZURE_CLIENT_SECRET
 func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
+		hcpAPIVersion, err := configuredHCPAPIVersion()
+		if err != nil {
+			panic(err)
+		}
+
 		invocationContextInstance = &perBinaryInvocationTestContext{
 			artifactDir:              artifactDir(),
 			sharedDir:                SharedDir(),
@@ -107,6 +113,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			skipCleanup:              skipCleanup(),
 			pooledIdentities:         pooledIdentities(),
 			compressTimingMetadata:   compressTimingMetadata(),
+			hcpAPIVersion:            hcpAPIVersion,
 			defaultTransport:         defaultHTTPTransport(),
 		}
 	})
@@ -277,6 +284,10 @@ func (tc *perBinaryInvocationTestContext) Location() string {
 
 func (tc *perBinaryInvocationTestContext) UsePooledIdentities() bool {
 	return tc.pooledIdentities
+}
+
+func (tc *perBinaryInvocationTestContext) HCPAPIVersion() HCPAPIVersion {
+	return tc.hcpAPIVersion
 }
 
 func (tc *perBinaryInvocationTestContext) getLeasedIdentityPoolState() (*leasedIdentityPoolState, error) {

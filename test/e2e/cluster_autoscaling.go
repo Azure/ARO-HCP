@@ -23,7 +23,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -68,7 +68,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.Autoscaling = &hcpsdk20240610preview.ClusterAutoscalingProfile{
+			clusterParams.Autoscaling = &armredhatopenshifthcp.ClusterAutoscalingProfile{
 				MaxNodeProvisionTimeSeconds: to.Ptr(autoscalingMaxNodeProvisionTimeSeconds),
 				MaxPodGracePeriodSeconds:    to.Ptr(autoscalingMaxPodGracePeriodSeconds),
 				PodPriorityThreshold:        to.Ptr(autoscalingPodPriorityThreshold),
@@ -100,7 +100,7 @@ var _ = Describe("Customer", func() {
 			By("ensuring the custom autoscaling was honored")
 			got, err := framework.GetHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.GetHCPClustersClientOrDie(ctx),
 				*resourceGroup.Name,
 				customerClusterName,
 			)
@@ -129,12 +129,12 @@ var _ = Describe("Customer", func() {
 			By("patching the cluster to set maxNodesTotal")
 			_, err = framework.UpdateHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.GetHCPClustersClientOrDie(ctx),
 				*resourceGroup.Name,
 				customerClusterName,
-				hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-					Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-						Autoscaling: &hcpsdk20240610preview.ClusterAutoscalingProfile{
+				armredhatopenshifthcp.HcpOpenShiftClusterUpdate{
+					Properties: &armredhatopenshifthcp.HcpOpenShiftClusterPropertiesUpdate{
+						Autoscaling: &armredhatopenshifthcp.ClusterAutoscalingProfile{
 							MaxNodesTotal: to.Ptr(autoscalingMaxNodesTotal),
 						},
 					},

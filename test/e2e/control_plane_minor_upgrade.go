@@ -37,7 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -146,10 +146,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting admin credentials")
-			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.GetHCPClustersClientOrDie(ctx)
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				hcpClient,
 				*resourceGroup.Name,
 				clusterName,
 				10*time.Minute,
@@ -168,9 +167,9 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", targetMinor,
 				targetVer.String()))
-			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
-					Version: &hcpsdk20240610preview.VersionProfile{
+			update := armredhatopenshifthcp.HcpOpenShiftClusterUpdate{
+				Properties: &armredhatopenshifthcp.HcpOpenShiftClusterPropertiesUpdate{
+					Version: &armredhatopenshifthcp.VersionProfile{
 						ID:           to.Ptr(targetMinor),
 						ChannelGroup: to.Ptr(channelGroup),
 					},

@@ -216,7 +216,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting the cluster's OIDC issuer URL")
-			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			hcpClient := tc.GetHCPClustersClientOrDie(ctx)
 			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(clusterResp.Properties).NotTo(BeNil())
@@ -231,7 +231,6 @@ var _ = Describe("Customer", func() {
 			By("getting admin credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,

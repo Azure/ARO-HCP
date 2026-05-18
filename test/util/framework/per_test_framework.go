@@ -70,6 +70,7 @@ type perItOrDescribeTestContext struct {
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 	armNetworkClientFactory       *armnetwork.ClientFactory
 	graphClient                   *graphutil.Client
+	hcpAPIVersionOverride         *HCPAPIVersion
 
 	LogDirPath       string
 	azureLogFile     *os.File
@@ -498,7 +499,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 
 	var nonConformantErr error
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
+	if err := DeleteAllHCPClusters(ctx, newHCPClustersClient20240610Facade(hcpClientFactory.NewHcpOpenShiftClustersClient()), resourceGroupName, timeout); err != nil {
 		if errors.Is(err, &NonConformingClustersError{}) {
 			nonConformantErr = err
 		} else if isResourceGroupNotFoundError(err) {
@@ -696,6 +697,40 @@ func (tc *perItOrDescribeTestContext) GetARMComputeClientFactoryOrDie(ctx contex
 
 func (tc *perItOrDescribeTestContext) Get20240610ClientFactoryOrDie(ctx context.Context) *hcpsdk20240610preview.ClientFactory {
 	return Must(tc.Get20240610ClientFactory(ctx))
+}
+
+// GetHCPClustersClientOrDie returns a version-routed facade for HCP cluster operations.
+func (tc *perItOrDescribeTestContext) GetHCPClustersClientOrDie(ctx context.Context) HCPClustersClientFacade {
+	switch tc.EffectiveHCPAPIVersion() {
+	case HCPAPIVersion20240610:
+		return &hcpClustersClient20240610Adapter{client: tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()}
+	case HCPAPIVersion20251223:
+		return &hcpClustersClient20251223Adapter{client: tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()}
+	default:
+		panic(fmt.Errorf("unsupported HCP API version %q", tc.EffectiveHCPAPIVersion()))
+	}
+}
+
+// GetNodePoolsClientOrDie returns a version-routed facade for node pool operations.
+func (tc *perItOrDescribeTestContext) GetNodePoolsClientOrDie(ctx context.Context) NodePoolsClientFacade {
+	switch tc.EffectiveHCPAPIVersion() {
+	case HCPAPIVersion20240610:
+		return &nodePoolsClient20240610Adapter{client: tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()}
+	case HCPAPIVersion20251223:
+		return &nodePoolsClient20251223Adapter{client: tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient()}
+	default:
+		panic(fmt.Errorf("unsupported HCP API version %q", tc.EffectiveHCPAPIVersion()))
+	}
+}
+
+// GetExternalAuthsClientOrDie returns an external auths client for framework helpers.
+func (tc *perItOrDescribeTestContext) GetExternalAuthsClientOrDie(ctx context.Context) *hcpsdk20240610preview.ExternalAuthsClient {
+	return tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient()
+}
+
+// GetHCPVersionsClientOrDie returns an HCP versions client for framework helpers.
+func (tc *perItOrDescribeTestContext) GetHCPVersionsClientOrDie(ctx context.Context) *hcpsdk20240610preview.HcpOpenShiftVersionsClient {
+	return tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftVersionsClient()
 }
 
 func (tc *perItOrDescribeTestContext) GetARMSubscriptionsClientFactory() (*armsubscriptions.ClientFactory, error) {
@@ -1088,6 +1123,27 @@ func (tc *perItOrDescribeTestContext) AzureCredential() (azcore.TokenCredential,
 
 func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
+}
+
+func (tc *perItOrDescribeTestContext) SetHCPAPIVersionForTest(version HCPAPIVersion) {
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	tc.hcpAPIVersionOverride = &version
+}
+
+func (tc *perItOrDescribeTestContext) ResetHCPAPIVersionOverride() {
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	tc.hcpAPIVersionOverride = nil
+}
+
+func (tc *perItOrDescribeTestContext) EffectiveHCPAPIVersion() HCPAPIVersion {
+	tc.contextLock.RLock()
+	defer tc.contextLock.RUnlock()
+	if tc.hcpAPIVersionOverride != nil {
+		return *tc.hcpAPIVersionOverride
+	}
+	return tc.perBinaryInvocationTestContext.HCPAPIVersion()
 }
 
 func (tc *perItOrDescribeTestContext) recordDeploymentOperationsUnlocked(resourceGroup, deployment string, operations []timing.Operation) {

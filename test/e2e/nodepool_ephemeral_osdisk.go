@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -76,6 +76,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			)
 
 			tc := framework.NewTestContext()
+			tc.SetHCPAPIVersionForTest(framework.HCPAPIVersion20251223)
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -116,7 +117,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			nodePool := buildNodePoolWithDiskType(
 				nodePoolParams,
 				tc.Location(),
-				hcpsdk20251223preview.OsDiskTypeEphemeral,
+				armredhatopenshifthcp.OsDiskTypeEphemeral,
 				true,
 			)
 
@@ -150,7 +151,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				}
 				Fail(fmt.Sprintf("DiskType field still not present in v20251223preview nodepool response as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
-			Expect(*created.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral))
+			Expect(*created.Properties.Platform.OSDisk.DiskType).To(Equal(armredhatopenshifthcp.OsDiskTypeEphemeral))
 			Expect(created.Properties.AutoRepair).ToNot(BeNil())
 			Expect(*created.Properties.AutoRepair).To(BeTrue())
 
@@ -166,14 +167,13 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(fetched.Properties.Platform).ToNot(BeNil())
 			Expect(fetched.Properties.Platform.OSDisk).ToNot(BeNil())
 			Expect(fetched.Properties.Platform.OSDisk.DiskType).ToNot(BeNil())
-			Expect(*fetched.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral))
+			Expect(*fetched.Properties.Platform.OSDisk.DiskType).To(Equal(armredhatopenshifthcp.OsDiskTypeEphemeral))
 			Expect(fetched.Properties.AutoRepair).ToNot(BeNil())
 			Expect(*fetched.Properties.AutoRepair).To(BeTrue())
 
 			By("getting credentials to verify cluster health")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
@@ -208,23 +208,23 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 func buildNodePoolWithDiskType(
 	params framework.NodePoolParams,
 	location string,
-	diskType hcpsdk20251223preview.OsDiskType,
+	diskType armredhatopenshifthcp.OsDiskType,
 	autoRepair bool,
-) hcpsdk20251223preview.NodePool {
-	return hcpsdk20251223preview.NodePool{
+) armredhatopenshifthcp.NodePool {
+	return armredhatopenshifthcp.NodePool{
 		Location: to.Ptr(location),
-		Properties: &hcpsdk20251223preview.NodePoolProperties{
-			Version: &hcpsdk20251223preview.NodePoolVersionProfile{
+		Properties: &armredhatopenshifthcp.NodePoolProperties{
+			Version: &armredhatopenshifthcp.NodePoolVersionProfile{
 				ID:           to.Ptr(params.OpenshiftVersionId),
 				ChannelGroup: to.Ptr(params.ChannelGroup),
 			},
 			NodeDrainTimeoutMinutes: params.NodeDrainTimeoutMinutes,
 			Replicas:                to.Ptr(params.Replicas),
-			Platform: &hcpsdk20251223preview.NodePoolPlatformProfile{
+			Platform: &armredhatopenshifthcp.NodePoolPlatformProfile{
 				VMSize: to.Ptr(params.VMSize),
-				OSDisk: &hcpsdk20251223preview.OsDiskProfile{
+				OSDisk: &armredhatopenshifthcp.OsDiskProfile{
 					SizeGiB:                to.Ptr(params.OSDiskSizeGiB),
-					DiskStorageAccountType: to.Ptr(hcpsdk20251223preview.DiskStorageAccountType(params.DiskStorageAccountType)),
+					DiskStorageAccountType: to.Ptr(armredhatopenshifthcp.DiskStorageAccountType(params.DiskStorageAccountType)),
 					DiskType:               to.Ptr(diskType),
 				},
 			},

@@ -30,7 +30,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -58,6 +58,7 @@ var _ = Describe("Customer", func() {
 			)
 
 			tc := framework.NewTestContext()
+			tc.SetHCPAPIVersionForTest(framework.HCPAPIVersion20251223)
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -89,20 +90,23 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster with ImageDigestMirrors via v20251223preview")
-			imageDigestMirrors := []*hcpsdk20251223preview.ImageDigestMirror{
+			imageDigestMirrors := []*armredhatopenshifthcp.ImageDigestMirror{
 				{
 					Source:  to.Ptr(idmsSource),
 					Mirrors: []*string{to.Ptr(idmsMirror)},
 				},
 			}
 
-			createErr := tc.CreateHCPCluster20251223FromParam(
+			createErr := tc.CreateHCPClusterFromParamWithOptions(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				imageDigestMirrors,
 				45*time.Minute,
+				framework.CreateHCPClusterOptions{
+					APIVersion:         tc.EffectiveHCPAPIVersion(),
+					ImageDigestMirrors: imageDigestMirrors,
+				},
 			)
 
 			var respErr *azcore.ResponseError
@@ -124,7 +128,6 @@ var _ = Describe("Customer", func() {
 			By("getting admin credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
@@ -153,9 +156,9 @@ var _ = Describe("Customer", func() {
 			}, 1*time.Minute, 15*time.Second).Should(Succeed(), "ImageDigestMirrorSet CRDs should exist on the hosted cluster")
 
 			By("updating the cluster to add a second ImageDigestMirror set")
-			updateAdd := hcpsdk20251223preview.HcpOpenShiftClusterUpdate{
-				Properties: &hcpsdk20251223preview.HcpOpenShiftClusterPropertiesUpdate{
-					ImageDigestMirrors: []*hcpsdk20251223preview.ImageDigestMirror{
+			updateAdd := armredhatopenshifthcp.HcpOpenShiftClusterUpdate{
+				Properties: &armredhatopenshifthcp.HcpOpenShiftClusterPropertiesUpdate{
+					ImageDigestMirrors: []*armredhatopenshifthcp.ImageDigestMirror{
 						{
 							Source:  to.Ptr(idmsSource),
 							Mirrors: []*string{to.Ptr(idmsMirror)},
@@ -206,9 +209,9 @@ var _ = Describe("Customer", func() {
 			}, 10*time.Minute, 15*time.Second).Should(Succeed(), "both ImageDigestMirrorSet entries should exist on the hosted cluster")
 
 			By("updating the cluster to remove the second ImageDigestMirror set")
-			updateRemove := hcpsdk20251223preview.HcpOpenShiftClusterUpdate{
-				Properties: &hcpsdk20251223preview.HcpOpenShiftClusterPropertiesUpdate{
-					ImageDigestMirrors: []*hcpsdk20251223preview.ImageDigestMirror{
+			updateRemove := armredhatopenshifthcp.HcpOpenShiftClusterUpdate{
+				Properties: &armredhatopenshifthcp.HcpOpenShiftClusterPropertiesUpdate{
+					ImageDigestMirrors: []*armredhatopenshifthcp.ImageDigestMirror{
 						{
 							Source:  to.Ptr(idmsSource),
 							Mirrors: []*string{to.Ptr(idmsMirror)},

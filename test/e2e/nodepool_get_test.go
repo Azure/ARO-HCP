@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -29,7 +29,7 @@ import (
 var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 	var (
 		clusterEnv      *integration.Cluster
-		nodePoolOptions *hcpsdk20240610preview.NodePoolsClientGetOptions
+		nodePoolOptions *armredhatopenshifthcp.NodePoolsClientGetOptions
 		customerEnv     *integration.CustomerEnv
 		nodePools       *[]integration.Nodepool
 	)
@@ -49,7 +49,7 @@ var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 				nps := *nodePools
 				for np := range nps {
 					By("Send get request for nodepool")
-					clusterNodePool, err := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient().Get(ctx, customerEnv.CustomerRGName, clusterEnv.Name, nps[np].Name, nodePoolOptions)
+					clusterNodePool, err := tc.GetNodePoolsClientOrDie(ctx).Get(ctx, customerEnv.CustomerRGName, clusterEnv.Name, nps[np].Name, nodePoolOptions)
 					Expect(err).To(BeNil())
 					Expect(clusterNodePool).ToNot(BeNil(), "nodepool GET response was nil for nodepool %s", nps[np].Name)
 					By("Check to see nodepool exists and is successfully provisioned")

@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -95,7 +95,6 @@ var _ = Describe("Customer", func() {
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
@@ -132,51 +131,51 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating an external auth config with a prefix")
-			extAuth := hcpsdk20240610preview.ExternalAuth{
-				Properties: &hcpsdk20240610preview.ExternalAuthProperties{
-					Issuer: &hcpsdk20240610preview.TokenIssuerProfile{
+			extAuth := armredhatopenshifthcp.ExternalAuth{
+				Properties: &armredhatopenshifthcp.ExternalAuthProperties{
+					Issuer: &armredhatopenshifthcp.TokenIssuerProfile{
 						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 						Audiences: []*string{to.Ptr(app.AppID)},
 					},
-					Claim: &hcpsdk20240610preview.ExternalAuthClaimProfile{
-						Mappings: &hcpsdk20240610preview.TokenClaimMappingsProfile{
-							Username: &hcpsdk20240610preview.UsernameClaimProfile{
+					Claim: &armredhatopenshifthcp.ExternalAuthClaimProfile{
+						Mappings: &armredhatopenshifthcp.TokenClaimMappingsProfile{
+							Username: &armredhatopenshifthcp.UsernameClaimProfile{
 								Claim:        to.Ptr("sub"),                                                 // objectID of SP
-								PrefixPolicy: to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
+								PrefixPolicy: to.Ptr(armredhatopenshifthcp.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
 								Prefix:       to.Ptr(externalAuthSubjectPrefix),
 							},
-							Groups: &hcpsdk20240610preview.GroupClaimProfile{
+							Groups: &armredhatopenshifthcp.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
 					},
-					Clients: []*hcpsdk20240610preview.ExternalAuthClientProfile{
+					Clients: []*armredhatopenshifthcp.ExternalAuthClientProfile{
 						{
 							ClientID: to.Ptr(app.AppID),
-							Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+							Component: &armredhatopenshifthcp.ExternalAuthClientComponentProfile{
 								Name:                to.Ptr("console"),
 								AuthClientNamespace: to.Ptr("openshift-console"),
 							},
-							Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypeConfidential),
+							Type: to.Ptr(armredhatopenshifthcp.ExternalAuthClientTypeConfidential),
 						},
 						{
 							ClientID: to.Ptr(app.AppID),
-							Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+							Component: &armredhatopenshifthcp.ExternalAuthClientComponentProfile{
 								Name:                to.Ptr("cli"),
 								AuthClientNamespace: to.Ptr("openshift-console"),
 							},
-							Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypePublic),
+							Type: to.Ptr(armredhatopenshifthcp.ExternalAuthClientTypePublic),
 						},
 					},
 				},
 			}
-			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
+			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.GetExternalAuthsClientOrDie(ctx), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying ExternalAuth is in a Succeeded state")
-			eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName)
+			eaResult, err := framework.GetExternalAuth(ctx, tc.GetExternalAuthsClientOrDie(ctx), *resourceGroup.Name, customerClusterName, customerExternalAuthName)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
+			Expect(*eaResult.Properties.ProvisioningState).To(Equal(armredhatopenshifthcp.ExternalAuthProvisioningStateSucceeded))
 
 			By("creating a cluster role binding for the entra application")
 			err = framework.CreateClusterRoleBinding(ctx, externalAuthSubjectPrefix+sp.ID, adminRESTConfig)

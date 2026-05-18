@@ -26,7 +26,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -96,7 +96,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying the cluster has default autoscaling parameters")
 			clusterResp, err := framework.GetHCPCluster(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				tc.GetHCPClustersClientOrDie(ctx),
 				*resourceGroup.Name,
 				customerClusterName)
 			Expect(err).NotTo(HaveOccurred())
@@ -111,14 +111,13 @@ var _ = Describe("Customer", func() {
 			By("getting admin credentials for the cluster")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			nodePoolsClient := tc.GetNodePoolsClientOrDie(ctx)
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -168,9 +167,9 @@ var _ = Describe("Customer", func() {
 					*resourceGroup.Name,
 					customerClusterName,
 					azNodePoolName,
-					hcpsdk20240610preview.NodePoolUpdate{
-						Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
-							AutoScaling: &hcpsdk20240610preview.NodePoolAutoScaling{
+					armredhatopenshifthcp.NodePoolUpdate{
+						Properties: &armredhatopenshifthcp.NodePoolPropertiesUpdate{
+							AutoScaling: &armredhatopenshifthcp.NodePoolAutoScaling{
 								Min: to.Ptr(azAutoscalingMin),
 								Max: to.Ptr(int32(4)),
 							},
@@ -260,7 +259,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.Autoscaling = &hcpsdk20240610preview.ClusterAutoscalingProfile{
+			clusterParams.Autoscaling = &armredhatopenshifthcp.ClusterAutoscalingProfile{
 				MaxNodesTotal: to.Ptr(int32(3)), // Set low limit
 			}
 

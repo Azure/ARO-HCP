@@ -111,7 +111,6 @@ var _ = Describe("ARO-HCP", func() {
 			By("verifying the cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				10*time.Minute,
@@ -162,8 +161,8 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying nodepool DiskStorageAccountType matches framework default")
-			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			err = tc.ValidateNodePoolDiskStorageAccountType(
+				ctx,
 				*resourceGroup.Name,
 				clusterName,
 				nodePoolName,

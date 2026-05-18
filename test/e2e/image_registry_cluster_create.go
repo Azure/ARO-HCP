@@ -23,7 +23,7 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -62,7 +62,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.ImageRegistryState = string(hcpsdk20240610preview.ClusterImageRegistryStateDisabled)
+			clusterParams.ImageRegistryState = string(armredhatopenshifthcp.ClusterImageRegistryStateDisabled)
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
@@ -88,16 +88,15 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			actualHCPCluster, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			actualHCPCluster, err := tc.GetHCPClustersClientOrDie(ctx).Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(actualHCPCluster.Properties.ClusterImageRegistry).NotTo(BeNil(), "cluster Properties.ClusterImageRegistry was nil")
 			Expect(actualHCPCluster.Properties.ClusterImageRegistry.State).NotTo(BeNil(), "cluster Properties.ClusterImageRegistry.State was nil")
-			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpsdk20240610preview.ClusterImageRegistryStateDisabled))
+			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(armredhatopenshifthcp.ClusterImageRegistryStateDisabled))
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,

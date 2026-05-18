@@ -28,7 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -93,7 +93,6 @@ var _ = Describe("Customer", func() {
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
@@ -112,23 +111,23 @@ var _ = Describe("Customer", func() {
 
 			nodePool := framework.BuildNodePoolFromParams(nodePoolParams, tc.Location())
 
-			nodePool.Properties.Labels = []*hcpsdk20240610preview.Label{
+			nodePool.Properties.Labels = []*armredhatopenshifthcp.Label{
 				{
 					Key:   to.Ptr("key1"),
 					Value: to.Ptr("value1"),
 				},
 			}
-			nodePool.Properties.Taints = []*hcpsdk20240610preview.Taint{
+			nodePool.Properties.Taints = []*armredhatopenshifthcp.Taint{
 				{
 					Key:    to.Ptr("key1"),
 					Value:  to.Ptr("value1"),
-					Effect: to.Ptr(hcpsdk20240610preview.EffectNoSchedule),
+					Effect: to.Ptr(armredhatopenshifthcp.EffectNoSchedule),
 				},
 			}
 
 			_, err = framework.CreateNodePoolAndWait(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				tc.GetNodePoolsClientOrDie(ctx),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -159,21 +158,21 @@ var _ = Describe("Customer", func() {
 
 			By("updating nodepool with new taints and scaling up")
 			taintReplicas := int32(3)
-			updateTaints := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			updateTaints := armredhatopenshifthcp.NodePoolUpdate{
+				Properties: &armredhatopenshifthcp.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(taintReplicas),
-					Taints: []*hcpsdk20240610preview.Taint{
+					Taints: []*armredhatopenshifthcp.Taint{
 						{
 							Key:    to.Ptr("key2"),
 							Value:  to.Ptr("value2"),
-							Effect: to.Ptr(hcpsdk20240610preview.EffectPreferNoSchedule),
+							Effect: to.Ptr(armredhatopenshifthcp.EffectPreferNoSchedule),
 						},
 					},
 				},
 			}
 
 			_, err = framework.UpdateNodePoolAndWait(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				tc.GetNodePoolsClientOrDie(ctx),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -202,10 +201,10 @@ var _ = Describe("Customer", func() {
 
 			By("updating nodepool with a new label and scaling up")
 			finalReplicas := int32(4)
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			update := armredhatopenshifthcp.NodePoolUpdate{
+				Properties: &armredhatopenshifthcp.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(finalReplicas),
-					Labels: []*hcpsdk20240610preview.Label{
+					Labels: []*armredhatopenshifthcp.Label{
 						{
 							Key:   to.Ptr("key2"),
 							Value: to.Ptr("value2"),
@@ -215,7 +214,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			_, err = framework.UpdateNodePoolAndWait(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				tc.GetNodePoolsClientOrDie(ctx),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,

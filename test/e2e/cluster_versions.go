@@ -35,7 +35,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			By("listing HCP OpenShift versions")
-			versionsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftVersionsClient()
+			versionsClient := tc.GetHCPVersionsClientOrDie(ctx)
 			versionsPager := versionsClient.NewListPager(tc.Location(), nil)
 
 			versions, err := versionsPager.NextPage(ctx)

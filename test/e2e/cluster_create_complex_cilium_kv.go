@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -25,12 +24,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
-
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
-	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -50,6 +45,7 @@ var _ = Describe("Customer", func() {
 			)
 
 			tc := framework.NewTestContext()
+			tc.SetHCPAPIVersionForTest(framework.HCPAPIVersion20251223)
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
@@ -81,25 +77,12 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the HCP cluster with no CNI and private etcd via v20251223preview")
-			clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Set KeyVault visibility to Private
-			if clusterResource.Properties != nil && clusterResource.Properties.Etcd != nil &&
-				clusterResource.Properties.Etcd.DataEncryption != nil &&
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged != nil &&
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
-				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
-			}
-
-			_, err = framework.CreateHCPCluster20251223AndWait(
+			By("creating the HCP cluster with no CNI and private etcd")
+			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
-				customerClusterName,
-				clusterResource,
+				clusterParams,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -107,7 +90,6 @@ var _ = Describe("Customer", func() {
 			By("getting admin credentials for the cluster")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
@@ -156,55 +138,24 @@ var _ = Describe("Customer", func() {
 			err = framework.InstallCiliumChart(ctx, "1.19.2", ciliumValues, kubeconfigContent, "kube-system")
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the node pool via v20251223preview")
+			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePool := hcpsdk20251223preview.NodePool{
-				Location: to.Ptr(tc.Location()),
-				Properties: &hcpsdk20251223preview.NodePoolProperties{
-					Version: &hcpsdk20251223preview.NodePoolVersionProfile{
-						ID:           to.Ptr(nodePoolParams.OpenshiftVersionId),
-						ChannelGroup: to.Ptr(nodePoolParams.ChannelGroup),
-					},
-					Replicas: to.Ptr(int32(2)),
-					Platform: &hcpsdk20251223preview.NodePoolPlatformProfile{
-						VMSize: to.Ptr(nodePoolParams.VMSize),
-						OSDisk: &hcpsdk20251223preview.OsDiskProfile{
-							SizeGiB:                to.Ptr(nodePoolParams.OSDiskSizeGiB),
-							DiskStorageAccountType: to.Ptr(hcpsdk20251223preview.DiskStorageAccountType(nodePoolParams.DiskStorageAccountType)),
-						},
-					},
-					AutoRepair: to.Ptr(true),
-				},
-			}
-
-			_, nodePoolErr := framework.CreateNodePoolAndWait20251223(
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolErr := tc.CreateNodePoolFromParam(
 				ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				GinkgoLogr,
 				*resourceGroup.Name,
+				clusterParams.ManagedResourceGroupName,
 				customerClusterName,
-				customerNodePoolName,
-				nodePool,
+				nodePoolParams,
 				45*time.Minute,
 			)
-			// We delay checking the error on purpose to get more details
-			// about the issue by running the verifiers.
-
-			var consoleLogErr error = nil
-			if nodePoolErr != nil {
-				var computeFactory *armcompute.ClientFactory
-				computeFactory, consoleLogErr = tc.GetARMComputeClientFactory(ctx)
-				if consoleLogErr == nil {
-					consoleLogErr = framework.DownloadAllVirtualMachineConsoleLogs(
-						ctx,
-						computeFactory,
-						clusterParams.ManagedResourceGroupName,
-						tc.LogDirPath)
-				}
-			}
+			Expect(nodePoolErr).NotTo(HaveOccurred())
 
 			By("verifying nodes become Ready with Cilium CNI")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))
-			Expect(errors.Join(err, nodePoolErr, consoleLogErr)).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying a simple web app can run with cilium")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)

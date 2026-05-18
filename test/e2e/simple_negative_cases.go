@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -82,12 +82,12 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			nodePoolClient := tc.GetNodePoolsClientOrDie(ctx)
 			var errs []error
 
 			// TEST CASE: ARO-22570
 			By("attempting to list clusters in a non-existent resource group")
-			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			clusterClient := tc.GetHCPClustersClientOrDie(ctx)
 			nonExistentRgName := "non-existent-rg"
 			clusterPager := clusterClient.NewListByResourceGroupPager(nonExistentRgName, nil)
 			_, err = clusterPager.NextPage(ctx)
@@ -112,7 +112,6 @@ var _ = Describe("Customer", func() {
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
@@ -193,7 +192,7 @@ var _ = Describe("Customer", func() {
 				nodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
 				if nodePool.Properties.Platform.OSDisk != nil {
 					nodePool.Properties.Platform.OSDisk.SizeGiB = to.Ptr[int32](256)
-					nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(hcpsdk20240610preview.DiskStorageAccountTypePremiumLRS)
+					nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = to.Ptr(armredhatopenshifthcp.DiskStorageAccountTypePremiumLRS)
 				}
 
 				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nodePool.NodePool, nil)
@@ -220,7 +219,7 @@ var _ = Describe("Customer", func() {
 								errs = append(errs, fmt.Errorf("osDisk.sizeGiB was modified despite immutable error"))
 							}
 
-							if platform.OSDisk.DiskStorageAccountType != nil && *platform.OSDisk.DiskStorageAccountType != hcpsdk20240610preview.DiskStorageAccountTypeStandardSSDLRS {
+							if platform.OSDisk.DiskStorageAccountType != nil && *platform.OSDisk.DiskStorageAccountType != armredhatopenshifthcp.DiskStorageAccountTypeStandardSSDLRS {
 								errs = append(errs, fmt.Errorf("osDisk.diskStorageAccountType was modified despite immutable error"))
 							}
 						}

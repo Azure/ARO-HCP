@@ -25,7 +25,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -84,7 +84,6 @@ var _ = Describe("Customer", func() {
 			By("getting admin credentials for the cluster")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
@@ -137,13 +136,13 @@ var _ = Describe("Customer", func() {
 
 			By("scaling up the nodepool replicas from 2 to 3 replicas")
 			mainNodeCount = 3
-			update := hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			update := armredhatopenshifthcp.NodePoolUpdate{
+				Properties: &armredhatopenshifthcp.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(int32(mainNodeCount)),
 				},
 			}
 			scaleUpResp, err := framework.UpdateNodePoolAndWait(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				tc.GetNodePoolsClientOrDie(ctx),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
@@ -160,12 +159,12 @@ var _ = Describe("Customer", func() {
 			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed())
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
 
-			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			nodePoolsClient := tc.GetNodePoolsClientOrDie(ctx)
 
 			By("scaling down the nodepool replicas from 3 to 2 replicas")
 			mainNodeCount = 2
-			update = hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			update = armredhatopenshifthcp.NodePoolUpdate{
+				Properties: &armredhatopenshifthcp.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(int32(mainNodeCount)),
 				},
 			}
@@ -188,10 +187,10 @@ var _ = Describe("Customer", func() {
 			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
 
 			By("updating the one-replica nodepool replicas to 0 and enabling autoscaling with a PATCH")
-			update = hcpsdk20240610preview.NodePoolUpdate{
-				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+			update = armredhatopenshifthcp.NodePoolUpdate{
+				Properties: &armredhatopenshifthcp.NodePoolPropertiesUpdate{
 					Replicas: to.Ptr(int32(0)),
-					AutoScaling: &hcpsdk20240610preview.NodePoolAutoScaling{
+					AutoScaling: &armredhatopenshifthcp.NodePoolAutoScaling{
 						Min: to.Ptr(int32(2)),
 						Max: to.Ptr(int32(3)),
 					},

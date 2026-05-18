@@ -33,6 +33,27 @@ import (
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
+type CreateHCPClusterOptions struct {
+	APIVersion         HCPAPIVersion
+	ImageDigestMirrors []*hcpsdk20251223preview.ImageDigestMirror
+}
+
+func defaultCreateHCPClusterOptions(tc *perItOrDescribeTestContext) CreateHCPClusterOptions {
+	return CreateHCPClusterOptions{
+		APIVersion: tc.EffectiveHCPAPIVersion(),
+	}
+}
+
+type CreateNodePoolOptions struct {
+	APIVersion HCPAPIVersion
+}
+
+func defaultCreateNodePoolOptions(tc *perItOrDescribeTestContext) CreateNodePoolOptions {
+	return CreateNodePoolOptions{
+		APIVersion: tc.EffectiveHCPAPIVersion(),
+	}
+}
+
 func GetOutputValueString(deploymentInfo *armresources.DeploymentExtended, outputName string) (string, error) {
 	outputMap, ok := deploymentInfo.Properties.Outputs.(map[string]interface{})
 	if !ok {
@@ -328,9 +349,27 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 	parameters ClusterParams,
 	timeout time.Duration,
 ) error {
+	return tc.CreateHCPClusterFromParamWithOptions(
+		ctx,
+		logger,
+		resourceGroupName,
+		parameters,
+		timeout,
+		defaultCreateHCPClusterOptions(tc),
+	)
+}
+
+func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParamWithOptions(
+	ctx context.Context,
+	logger logr.Logger,
+	resourceGroupName string,
+	parameters ClusterParams,
+	timeout time.Duration,
+	options CreateHCPClusterOptions,
+) error {
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterFromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterFromParamWithOptions for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
 		defer cancel()
 	}
 	clusterName := parameters.ClusterName
@@ -341,23 +380,58 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
-	cluster := BuildHCPClusterFromParams(parameters, tc.Location())
-
-	if _, err := CreateHCPClusterAndWait(
-		ctx,
-		logger,
-		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-		resourceGroupName,
-		clusterName,
-		cluster,
-		timeout,
-	); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
-		}
-		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+	selectedVersion := options.APIVersion
+	if selectedVersion == "" {
+		selectedVersion = tc.EffectiveHCPAPIVersion()
 	}
-	return nil
+
+	switch selectedVersion {
+	case HCPAPIVersion20240610:
+		if len(options.ImageDigestMirrors) > 0 {
+			return fmt.Errorf("imageDigestMirrors is only supported with API version %s", HCPAPIVersion20251223)
+		}
+
+		cluster := BuildHCPClusterFromParams(parameters, tc.Location())
+		if _, err := CreateHCPClusterAndWait(
+			ctx,
+			logger,
+			newHCPClustersClient20240610Facade(tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()),
+			resourceGroupName,
+			clusterName,
+			cluster,
+			timeout,
+		); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
+			}
+			return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+		}
+		return nil
+
+	case HCPAPIVersion20251223:
+		cluster, err := BuildHCPCluster20251223FromParams(parameters, tc.Location(), options.ImageDigestMirrors)
+		if err != nil {
+			return fmt.Errorf("failed to build HCP cluster %s: %w", clusterName, err)
+		}
+
+		if _, err := CreateHCPCluster20251223AndWait(
+			ctx,
+			logger,
+			tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+			resourceGroupName,
+			clusterName,
+			cluster,
+			timeout,
+		); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
+			}
+			return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported HCP API version %q", selectedVersion)
+	}
 }
 
 func (tc *perItOrDescribeTestContext) CreateHCPCluster20251223FromParam(
@@ -368,39 +442,17 @@ func (tc *perItOrDescribeTestContext) CreateHCPCluster20251223FromParam(
 	imageDigestMirrors []*hcpsdk20251223preview.ImageDigestMirror,
 	timeout time.Duration,
 ) error {
-	if timeout > 0*time.Second {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20251223FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
-		defer cancel()
-	}
-	clusterName := parameters.ClusterName
-
-	startTime := time.Now()
-	defer func() {
-		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20251223preview)", resourceGroupName, clusterName), startTime, finishTime)
-	}()
-
-	cluster, err := BuildHCPCluster20251223FromParams(parameters, tc.Location(), imageDigestMirrors)
-	if err != nil {
-		return fmt.Errorf("failed to build HCP cluster %s: %w", clusterName, err)
-	}
-
-	if _, err := CreateHCPCluster20251223AndWait(
+	return tc.CreateHCPClusterFromParamWithOptions(
 		ctx,
 		logger,
-		tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 		resourceGroupName,
-		clusterName,
-		cluster,
+		parameters,
 		timeout,
-	); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
-		}
-		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
-	}
-	return nil
+		CreateHCPClusterOptions{
+			APIVersion:         HCPAPIVersion20251223,
+			ImageDigestMirrors: imageDigestMirrors,
+		},
+	)
 }
 
 func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
@@ -411,6 +463,28 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 	hcpClusterName string,
 	parameters NodePoolParams,
 	timeout time.Duration,
+) error {
+	return tc.CreateNodePoolFromParamWithOptions(
+		ctx,
+		logger,
+		resourceGroupName,
+		managedResourceGroupName,
+		hcpClusterName,
+		parameters,
+		timeout,
+		defaultCreateNodePoolOptions(tc),
+	)
+}
+
+func (tc *perItOrDescribeTestContext) CreateNodePoolFromParamWithOptions(
+	ctx context.Context,
+	logger logr.Logger,
+	resourceGroupName string,
+	managedResourceGroupName string,
+	hcpClusterName string,
+	parameters NodePoolParams,
+	timeout time.Duration,
+	options CreateNodePoolOptions,
 ) error {
 	nodePoolCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
 	defer cancel()
@@ -426,17 +500,43 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 		return fmt.Errorf("nodePoolName parameter not found or empty")
 	}
 
-	nodePool := BuildNodePoolFromParams(parameters, tc.Location())
+	selectedVersion := options.APIVersion
+	if selectedVersion == "" {
+		selectedVersion = tc.EffectiveHCPAPIVersion()
+	}
 
-	if _, err := CreateNodePoolAndWait(
-		nodePoolCtx,
-		tc.Get20240610ClientFactoryOrDie(nodePoolCtx).NewNodePoolsClient(),
-		resourceGroupName,
-		hcpClusterName,
-		nodePoolName,
-		nodePool,
-		timeout,
-	); err != nil {
+	var err error
+	switch selectedVersion {
+	case HCPAPIVersion20240610:
+		nodePool := BuildNodePoolFromParams(parameters, tc.Location())
+		_, err = CreateNodePoolAndWait(
+			nodePoolCtx,
+			newNodePoolsClient20240610Facade(tc.Get20240610ClientFactoryOrDie(nodePoolCtx).NewNodePoolsClient()),
+			resourceGroupName,
+			hcpClusterName,
+			nodePoolName,
+			nodePool,
+			timeout,
+		)
+	case HCPAPIVersion20251223:
+		nodePool, buildErr := BuildNodePool20251223FromParams(parameters, tc.Location())
+		if buildErr != nil {
+			return fmt.Errorf("failed to build NodePool %s: %w", nodePoolName, buildErr)
+		}
+		_, err = CreateNodePoolAndWait20251223(
+			nodePoolCtx,
+			tc.Get20251223ClientFactoryOrDie(nodePoolCtx).NewNodePoolsClient(),
+			resourceGroupName,
+			hcpClusterName,
+			nodePoolName,
+			nodePool,
+			timeout,
+		)
+	default:
+		return fmt.Errorf("unsupported HCP API version %q", selectedVersion)
+	}
+
+	if err != nil {
 		// a separate context for console log download with its own timeout,
 		// to make sure logs are fetched even when the node pool deployment
 		// context is cancelled due to timeout

@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -135,7 +135,7 @@ var _ = Describe("Customer", func() {
 					identityProfile,
 				)
 				Expect(err).NotTo(HaveOccurred())
-				hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+				hcpClient := tc.GetHCPClustersClientOrDie(ctx)
 				_, err = framework.CreateHCPClusterAndWait(
 					ctx,
 					GinkgoLogr,
@@ -149,7 +149,6 @@ var _ = Describe("Customer", func() {
 
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					10*time.Minute,
@@ -179,7 +178,7 @@ var _ = Describe("Customer", func() {
 						defaultNodePoolDefaults,
 					)
 					Expect(err).NotTo(HaveOccurred())
-					nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+					nodePoolClient := tc.GetNodePoolsClientOrDie(ctx)
 					_, err = framework.CreateNodePoolAndWait(ctx,
 						nodePoolClient,
 						*resourceGroup.Name,
@@ -239,15 +238,15 @@ func buildHCPClusterRequest(
 	controlPlaneVersion string,
 	channelGroup string,
 	customerInfra customerInfraOutputs,
-	userAssignedIdentitiesProfile *hcpsdk20240610preview.UserAssignedIdentitiesProfile,
-	identityProfile *hcpsdk20240610preview.ManagedServiceIdentity,
-) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	userAssignedIdentitiesProfile *armredhatopenshifthcp.UserAssignedIdentitiesProfile,
+	identityProfile *armredhatopenshifthcp.ManagedServiceIdentity,
+) (armredhatopenshifthcp.HcpOpenShiftCluster, error) {
 
 	switch controlPlaneVersion {
 	case "4.19":
 		return buildHCPClusterRequest_4_19(location, managedResourceGroupName, controlPlaneVersion, channelGroup, customerInfra, userAssignedIdentitiesProfile, identityProfile), nil
 	default:
-		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("unsupported control plane version: %s", controlPlaneVersion)
+		return armredhatopenshifthcp.HcpOpenShiftCluster{}, fmt.Errorf("unsupported control plane version: %s", controlPlaneVersion)
 	}
 }
 
@@ -257,48 +256,48 @@ func buildHCPClusterRequest_4_19(
 	controlPlaneVersion string,
 	channelGroup string,
 	customerInfra customerInfraOutputs,
-	userAssignedIdentitiesProfile *hcpsdk20240610preview.UserAssignedIdentitiesProfile,
-	identityProfile *hcpsdk20240610preview.ManagedServiceIdentity,
-) hcpsdk20240610preview.HcpOpenShiftCluster {
-	return hcpsdk20240610preview.HcpOpenShiftCluster{
+	userAssignedIdentitiesProfile *armredhatopenshifthcp.UserAssignedIdentitiesProfile,
+	identityProfile *armredhatopenshifthcp.ManagedServiceIdentity,
+) armredhatopenshifthcp.HcpOpenShiftCluster {
+	return armredhatopenshifthcp.HcpOpenShiftCluster{
 		Location: to.Ptr(location),
 		Identity: identityProfile,
 		Tags: map[string]*string{
 			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
 		},
-		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
-			Version: &hcpsdk20240610preview.VersionProfile{
+		Properties: &armredhatopenshifthcp.HcpOpenShiftClusterProperties{
+			Version: &armredhatopenshifthcp.VersionProfile{
 				ID:           to.Ptr(controlPlaneVersion),
 				ChannelGroup: to.Ptr(channelGroup),
 			},
-			Platform: &hcpsdk20240610preview.PlatformProfile{
+			Platform: &armredhatopenshifthcp.PlatformProfile{
 				ManagedResourceGroup:   to.Ptr(managedResourceGroupName),
 				NetworkSecurityGroupID: to.Ptr(customerInfra.nsgID),
 				SubnetID:               to.Ptr(customerInfra.subnetID),
-				OperatorsAuthentication: &hcpsdk20240610preview.OperatorsAuthenticationProfile{
+				OperatorsAuthentication: &armredhatopenshifthcp.OperatorsAuthenticationProfile{
 					UserAssignedIdentities: userAssignedIdentitiesProfile,
 				},
 			},
-			Network: &hcpsdk20240610preview.NetworkProfile{
-				NetworkType: to.Ptr(hcpsdk20240610preview.NetworkType("OVNKubernetes")),
+			Network: &armredhatopenshifthcp.NetworkProfile{
+				NetworkType: to.Ptr(armredhatopenshifthcp.NetworkType("OVNKubernetes")),
 				PodCIDR:     to.Ptr("10.128.0.0/14"),
 				ServiceCIDR: to.Ptr("172.30.0.0/16"),
 				MachineCIDR: to.Ptr("10.0.0.0/16"),
 				HostPrefix:  to.Ptr(int32(23)),
 			},
-			API: &hcpsdk20240610preview.APIProfile{
-				Visibility: to.Ptr(hcpsdk20240610preview.Visibility("Public")),
+			API: &armredhatopenshifthcp.APIProfile{
+				Visibility: to.Ptr(armredhatopenshifthcp.Visibility("Public")),
 			},
-			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
-				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryState("Enabled")),
+			ClusterImageRegistry: &armredhatopenshifthcp.ClusterImageRegistryProfile{
+				State: to.Ptr(armredhatopenshifthcp.ClusterImageRegistryState("Enabled")),
 			},
-			Etcd: &hcpsdk20240610preview.EtcdProfile{
-				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
-					KeyManagementMode: to.Ptr(hcpsdk20240610preview.EtcdDataEncryptionKeyManagementModeType("CustomerManaged")),
-					CustomerManaged: &hcpsdk20240610preview.CustomerManagedEncryptionProfile{
-						EncryptionType: to.Ptr(hcpsdk20240610preview.CustomerManagedEncryptionType("KMS")),
-						Kms: &hcpsdk20240610preview.KmsEncryptionProfile{
-							ActiveKey: &hcpsdk20240610preview.KmsKey{
+			Etcd: &armredhatopenshifthcp.EtcdProfile{
+				DataEncryption: &armredhatopenshifthcp.EtcdDataEncryptionProfile{
+					KeyManagementMode: to.Ptr(armredhatopenshifthcp.EtcdDataEncryptionKeyManagementModeType("CustomerManaged")),
+					CustomerManaged: &armredhatopenshifthcp.CustomerManagedEncryptionProfile{
+						EncryptionType: to.Ptr(armredhatopenshifthcp.CustomerManagedEncryptionType("KMS")),
+						Kms: &armredhatopenshifthcp.KmsEncryptionProfile{
+							ActiveKey: &armredhatopenshifthcp.KmsKey{
 								VaultName: to.Ptr(customerInfra.keyVaultName),
 								Name:      to.Ptr(customerInfra.etcdEncryptionKeyName),
 								Version:   to.Ptr(customerInfra.etcdEncryptionKeyVersion),
@@ -315,12 +314,12 @@ func buildNodePoolRequest(
 	location string,
 	nodePoolVersion string,
 	defaults nodePoolDefaults,
-) (hcpsdk20240610preview.NodePool, error) {
+) (armredhatopenshifthcp.NodePool, error) {
 	switch nodePoolVersion {
 	case "4.19.7":
 		return buildNodePoolRequest_4_19(location, nodePoolVersion, defaults), nil
 	default:
-		return hcpsdk20240610preview.NodePool{}, fmt.Errorf("unsupported node pool version: %s", nodePoolVersion)
+		return armredhatopenshifthcp.NodePool{}, fmt.Errorf("unsupported node pool version: %s", nodePoolVersion)
 	}
 }
 
@@ -328,20 +327,20 @@ func buildNodePoolRequest_4_19(
 	location string,
 	nodePoolVersion string,
 	defaults nodePoolDefaults,
-) hcpsdk20240610preview.NodePool {
-	return hcpsdk20240610preview.NodePool{
+) armredhatopenshifthcp.NodePool {
+	return armredhatopenshifthcp.NodePool{
 		Location: to.Ptr(location),
-		Properties: &hcpsdk20240610preview.NodePoolProperties{
-			Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+		Properties: &armredhatopenshifthcp.NodePoolProperties{
+			Version: &armredhatopenshifthcp.NodePoolVersionProfile{
 				ID:           to.Ptr(nodePoolVersion),
 				ChannelGroup: to.Ptr(defaults.channelGroup),
 			},
 			Replicas: to.Ptr(defaults.replicas),
-			Platform: &hcpsdk20240610preview.NodePoolPlatformProfile{
+			Platform: &armredhatopenshifthcp.NodePoolPlatformProfile{
 				VMSize: to.Ptr(defaults.vmSize),
-				OSDisk: &hcpsdk20240610preview.OsDiskProfile{
+				OSDisk: &armredhatopenshifthcp.OsDiskProfile{
 					SizeGiB:                to.Ptr(defaults.osDiskSizeGiB),
-					DiskStorageAccountType: to.Ptr(hcpsdk20240610preview.DiskStorageAccountType(defaults.diskStorageAccountType)),
+					DiskStorageAccountType: to.Ptr(armredhatopenshifthcp.DiskStorageAccountType(defaults.diskStorageAccountType)),
 				},
 			},
 		},
