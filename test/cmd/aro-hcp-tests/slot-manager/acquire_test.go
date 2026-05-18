@@ -16,11 +16,16 @@ package slotmanager
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
@@ -31,18 +36,18 @@ func TestResolveLeasedSlot(t *testing.T) {
 	opts := &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
 			PoolEnvironment: "dev",
-			Pool: slots.Pool{
-				SubscriptionName:        "dev-subscription",
-				Region:                  "westus3",
-				ResourceType:            "aro-hcp-dev-westus3-slot",
-				SlotCount:               2,
-				IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-				IdentityContainerCount:  1,
-			},
 		},
 	}
+	pool := slots.Pool{
+		SubscriptionName:        "dev-subscription",
+		Region:                  "westus3",
+		ResourceType:            "aro-hcp-dev-westus3-slot",
+		SlotCount:               2,
+		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
+		IdentityContainerCount:  1,
+	}
 
-	slot, err := opts.ResolveLeasedSlot("aro-hcp-dev-westus3-slot-01")
+	slot, err := opts.ResolveLeasedSlot(pool, "aro-hcp-dev-westus3-slot-01")
 	if err != nil {
 		t.Fatalf("expected leased slot resolution to succeed: %v", err)
 	}
@@ -57,18 +62,18 @@ func TestResolveLeasedSlotRejectsResourceOutsideSelectedPool(t *testing.T) {
 	opts := &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
 			PoolEnvironment: "dev",
-			Pool: slots.Pool{
-				SubscriptionName:        "dev-subscription",
-				Region:                  "westus3",
-				ResourceType:            "aro-hcp-dev-westus3-slot",
-				SlotCount:               2,
-				IdentityContainerPrefix: "aro-hcp-msi-container-dev",
-				IdentityContainerCount:  1,
-			},
 		},
 	}
+	pool := slots.Pool{
+		SubscriptionName:        "dev-subscription",
+		Region:                  "westus3",
+		ResourceType:            "aro-hcp-dev-westus3-slot",
+		SlotCount:               2,
+		IdentityContainerPrefix: "aro-hcp-msi-container-dev",
+		IdentityContainerCount:  1,
+	}
 
-	_, err := opts.ResolveLeasedSlot("aro-hcp-prod-uksouth-slot-00")
+	_, err := opts.ResolveLeasedSlot(pool, "aro-hcp-prod-uksouth-slot-00")
 	if err == nil {
 		t.Fatal("expected leased slot resolution to fail for a resource outside the selected pool")
 	}
@@ -164,22 +169,234 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 				t.Fatalf("expected completion to succeed: %v", err)
 			}
 
-			if completed.RuntimeRegion != tc.wantRuntimeRegion {
-				t.Fatalf("expected runtime region %q, got %q", tc.wantRuntimeRegion, completed.RuntimeRegion)
+			if got := len(completed.CandidatePools); got != 1 {
+				t.Fatalf("expected exactly one candidate pool, got %d", got)
 			}
-			if completed.Pool.Region != fixedRegion {
-				t.Fatalf("expected selected pool region %q, got %q", fixedRegion, completed.Pool.Region)
+			if got := completed.runtimeRegionForPool(completed.CandidatePools[0]); got != tc.wantRuntimeRegion {
+				t.Fatalf("expected runtime region %q, got %q", tc.wantRuntimeRegion, got)
+			}
+			if completed.CandidatePools[0].Region != fixedRegion {
+				t.Fatalf("expected selected pool region %q, got %q", fixedRegion, completed.CandidatePools[0].Region)
 			}
 		})
+	}
+}
+
+func TestAcquireRunFixedModeFallsBackWithinRequestedRegion(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [prow, ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+      - subscription_name: dev-sub-b
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-b-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 2
+      - subscription_name: dev-sub-c
+        region: canadacentral
+        region_mode: fixed
+        resource_type: aro-hcp-dev-canadacentral-c-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-c
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": {
+			{statusCode: http.StatusInternalServerError, body: "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource not found\n"},
+		},
+		"aro-hcp-dev-centralus-b-slot": {
+			successAcquireReply("aro-hcp-dev-centralus-b-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	sharedDir := t.TempDir()
+	err := Acquire(context.Background(), &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           sharedDir,
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("expected acquire to succeed: %v", err)
+	}
+
+	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot", "aro-hcp-dev-centralus-b-slot"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+	if got := *releaseCalls; len(got) != 0 {
+		t.Fatalf("expected no release calls, got %v", got)
+	}
+
+	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	if err != nil {
+		t.Fatalf("expected acquired slot state to load: %v", err)
+	}
+	if state.Slot.ResourceType != "aro-hcp-dev-centralus-b-slot" {
+		t.Fatalf("expected fallback pool resource type, got %q", state.Slot.ResourceType)
+	}
+	if state.RuntimeRegion != "centralus" {
+		t.Fatalf("expected runtime region %q, got %q", "centralus", state.RuntimeRegion)
+	}
+
+	envFile, err := slots.EnvFile(sharedDir)
+	if err != nil {
+		t.Fatalf("expected env file path: %v", err)
+	}
+	envContents, err := os.ReadFile(envFile)
+	if err != nil {
+		t.Fatalf("expected env file read to succeed: %v", err)
+	}
+	if !strings.Contains(string(envContents), `export CUSTOMER_SUBSCRIPTION="dev-sub-b"`) {
+		t.Fatalf("expected winning subscription in env file, got:\n%s", string(envContents))
+	}
+}
+
+func TestAcquireRunRuntimeSelectedFallsBackAcrossSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "prod-sub-b")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  prod:
+    deploy_envs: [prod]
+    pools:
+      - subscription_name: prod-sub-a
+        region: uksouth
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard0-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-a
+        identity_container_count: 2
+      - subscription_name: prod-sub-b
+        region: uksouth
+        region_mode: runtime-selected
+        resource_type: aro-hcp-prod-shard1-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-prod-b
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-prod-shard0-slot": {
+			{statusCode: http.StatusInternalServerError, body: "Failed to acquire lease \"aro-hcp-prod-shard0-slot\": resource not found\n"},
+		},
+		"aro-hcp-prod-shard1-slot": {
+			successAcquireReply("aro-hcp-prod-shard1-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	sharedDir := t.TempDir()
+	err := Acquire(context.Background(), &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "prod",
+		Region:              "eastus2",
+		SharedDir:           sharedDir,
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("expected acquire to succeed: %v", err)
+	}
+
+	if got, want := *acquireCalls, []string{"aro-hcp-prod-shard0-slot", "aro-hcp-prod-shard1-slot"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+
+	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	if err != nil {
+		t.Fatalf("expected acquired slot state to load: %v", err)
+	}
+	if state.Slot.ResourceType != "aro-hcp-prod-shard1-slot" {
+		t.Fatalf("expected fallback pool resource type, got %q", state.Slot.ResourceType)
+	}
+	if state.RuntimeRegion != "eastus2" {
+		t.Fatalf("expected runtime region %q, got %q", "eastus2", state.RuntimeRegion)
+	}
+	if state.Slot.Region != "uksouth" {
+		t.Fatalf("expected slot catalog region %q, got %q", "uksouth", state.Slot.Region)
+	}
+}
+
+func TestAcquireRunStopsOnHardFailure(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+      - subscription_name: dev-sub-b
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-b-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": {
+			{statusCode: http.StatusNotFound, body: "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource type not found\n"},
+		},
+		"aro-hcp-dev-centralus-b-slot": {
+			successAcquireReply("aro-hcp-dev-centralus-b-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	sharedDir := t.TempDir()
+	err := Acquire(context.Background(), &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           sharedDir,
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+	})
+	if err == nil {
+		t.Fatal("expected acquire to fail on hard lease-proxy error")
+	}
+	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+	if _, err := slots.LoadAcquiredSlotState(sharedDir); err == nil {
+		t.Fatal("expected no acquired slot state to be written on hard failure")
 	}
 }
 
 func writeAcquireTestCatalog(t *testing.T, regionMode, region string) string {
 	t.Helper()
 
-	catalogDir := t.TempDir()
-	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
-	catalog := fmt.Sprintf(`version: 1
+	return writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 1
 environments:
   dev:
     deploy_envs: [prow, ci01]
@@ -191,7 +408,14 @@ environments:
         slot_count: 2
         identity_container_prefix: aro-hcp-msi-container-dev
         identity_container_count: 2
-`, region, regionMode)
+`, region, regionMode))
+}
+
+func writeAcquireTestCatalogFromYAML(t *testing.T, catalog string) string {
+	t.Helper()
+
+	catalogDir := t.TempDir()
+	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
 	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
@@ -200,10 +424,94 @@ environments:
 
 func writeAcquireTestClusterProfile(t *testing.T, subscriptionName string) string {
 	t.Helper()
+	return writeAcquireTestClusterProfiles(t, subscriptionName)
+}
+
+func writeAcquireTestClusterProfiles(t *testing.T, subscriptionNames ...string) string {
+	t.Helper()
 
 	clusterProfileDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(clusterProfileDir, "customer-shard0-subscription-name"), []byte(subscriptionName), 0o644); err != nil {
-		t.Fatalf("expected cluster profile write to succeed: %v", err)
+	for i, subscriptionName := range subscriptionNames {
+		fileName := fmt.Sprintf("customer-shard%d-subscription-name", i)
+		if err := os.WriteFile(filepath.Join(clusterProfileDir, fileName), []byte(subscriptionName), 0o644); err != nil {
+			t.Fatalf("expected cluster profile write to succeed: %v", err)
+		}
 	}
 	return clusterProfileDir
+}
+
+type leaseProxyReply struct {
+	statusCode int
+	body       string
+}
+
+func successAcquireReply(resourceName string) leaseProxyReply {
+	body, err := json.Marshal(map[string]any{"names": []string{resourceName}})
+	if err != nil {
+		panic(err)
+	}
+	return leaseProxyReply{
+		statusCode: http.StatusOK,
+		body:       string(body),
+	}
+}
+
+func newTestLeaseProxyServer(t *testing.T, acquireReplies map[string][]leaseProxyReply) (*httptest.Server, *[]string, *[]string) {
+	t.Helper()
+
+	var mu sync.Mutex
+	acquireCalls := []string{}
+	releaseCalls := []string{}
+	acquireIndexes := map[string]int{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/lease/acquire":
+			resourceType := r.URL.Query().Get("type")
+
+			mu.Lock()
+			acquireCalls = append(acquireCalls, resourceType)
+			replyIndex := acquireIndexes[resourceType]
+			acquireIndexes[resourceType] = replyIndex + 1
+			replies := acquireReplies[resourceType]
+			mu.Unlock()
+
+			if replyIndex >= len(replies) {
+				t.Fatalf("unexpected acquire request %d for resource type %q", replyIndex+1, resourceType)
+			}
+
+			reply := replies[replyIndex]
+			w.WriteHeader(reply.statusCode)
+			_, _ = w.Write([]byte(reply.body))
+		case "/lease/release":
+			var requestBody struct {
+				Names []string `json:"names"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+				t.Fatalf("expected release request body to decode: %v", err)
+			}
+
+			mu.Lock()
+			releaseCalls = append(releaseCalls, requestBody.Names...)
+			mu.Unlock()
+
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+
+	return server, &acquireCalls, &releaseCalls
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }

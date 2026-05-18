@@ -16,6 +16,7 @@ package slotmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -83,14 +84,14 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	DeployEnvironment    string
-	SharedDir            string
-	LeaseProxyURL        string
-	LeaseProxyTimeout    time.Duration
-	RuntimeRegion        string
-	CustomerSubscription string
-	Pool                 slots.Pool
-	PoolEnvironment      string
+	ClusterProfileDir string
+	DeployEnvironment string
+	SharedDir         string
+	LeaseProxyURL     string
+	LeaseProxyTimeout time.Duration
+	RequestedRegion   string
+	CandidatePools    []slots.Pool
+	PoolEnvironment   string
 }
 
 type AcquireOptions struct {
@@ -156,37 +157,27 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 		return nil, err
 	}
 
-	pool, err := catalog.ResolvePool(environment, o.SubscriptionName, o.Region)
-	if err != nil {
-		return nil, err
-	}
-
-	runtimeRegion := strings.TrimSpace(o.Region)
-	if runtimeRegion == "" {
-		runtimeRegion = pool.Region
-	}
-
-	customerSubscription, err := slots.ResolveCustomerSubscriptionName(o.ClusterProfileDir, pool.SubscriptionName)
+	candidatePools, err := catalog.CandidatePools(environment, o.SubscriptionName, o.Region)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			DeployEnvironment:    o.DeployEnv,
-			SharedDir:            o.SharedDir,
-			LeaseProxyURL:        o.LeaseProxyServerURL,
-			LeaseProxyTimeout:    o.LeaseProxyTimeout,
-			RuntimeRegion:        runtimeRegion,
-			CustomerSubscription: customerSubscription,
-			Pool:                 pool,
-			PoolEnvironment:      environment,
+			ClusterProfileDir: o.ClusterProfileDir,
+			DeployEnvironment: o.DeployEnv,
+			SharedDir:         o.SharedDir,
+			LeaseProxyURL:     o.LeaseProxyServerURL,
+			LeaseProxyTimeout: o.LeaseProxyTimeout,
+			RequestedRegion:   strings.TrimSpace(o.Region),
+			CandidatePools:    candidatePools,
+			PoolEnvironment:   environment,
 		},
 	}, nil
 }
 
-func (o *AcquireOptions) ResolveLeasedSlot(resourceName string) (*slots.ExpandedSlot, error) {
-	for _, slot := range slots.ExpandSlotsForPool(o.PoolEnvironment, o.Pool) {
+func (o *AcquireOptions) ResolveLeasedSlot(pool slots.Pool, resourceName string) (*slots.ExpandedSlot, error) {
+	for _, slot := range slots.ExpandSlotsForPool(o.PoolEnvironment, pool) {
 		if slot.ResourceName == resourceName {
 			resolvedSlot := slot
 			return &resolvedSlot, nil
@@ -194,21 +185,60 @@ func (o *AcquireOptions) ResolveLeasedSlot(resourceName string) (*slots.Expanded
 	}
 
 	return nil, fmt.Errorf(
-		"leased resource %q is not part of selected pool (subscription_name=%q, region=%q) in environment %q",
+		"leased resource %q is not part of selected pool %s in environment %q",
 		resourceName,
-		o.Pool.SubscriptionName,
-		o.Pool.Region,
+		describePool(pool),
 		o.PoolEnvironment,
 	)
 }
 
 func (o *AcquireOptions) Run(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	leasedName, err := slots.AcquireLease(ctx, o.LeaseProxyURL, o.Pool.ResourceType, o.LeaseProxyTimeout)
-	if err != nil {
-		return err
+	exhaustedPools := make([]string, 0, len(o.CandidatePools))
+
+	for _, pool := range o.CandidatePools {
+		leasedName, err := slots.AcquireLease(ctx, o.LeaseProxyURL, pool.ResourceType, o.LeaseProxyTimeout)
+		if err != nil {
+			if errors.Is(err, slots.ErrLeasePoolExhausted) {
+				exhaustedPools = append(exhaustedPools, describePool(pool))
+				logger.Info(
+					"Candidate pool exhausted, trying next pool",
+					"environment", o.PoolEnvironment,
+					"pool", describePool(pool),
+					"resourceType", pool.ResourceType,
+					"error", err.Error(),
+				)
+				continue
+			}
+
+			logger.Error(
+				err,
+				"Failed to acquire lease from candidate pool",
+				"environment", o.PoolEnvironment,
+				"pool", describePool(pool),
+				"resourceType", pool.ResourceType,
+			)
+			return err
+		}
+
+		return o.finalizeAcquiredLease(ctx, logger, pool, leasedName)
 	}
 
+	return fmt.Errorf(
+		"all candidate pools for environment %q are exhausted: %s",
+		o.PoolEnvironment,
+		strings.Join(exhaustedPools, ", "),
+	)
+}
+
+func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
+	if requestedRegion := strings.TrimSpace(o.RequestedRegion); requestedRegion != "" {
+		return requestedRegion
+	}
+	return pool.Region
+}
+
+func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.Logger, pool slots.Pool, leasedName string) error {
 	releaseOnError := true
 	defer func() {
 		if releaseOnError {
@@ -218,7 +248,12 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 		}
 	}()
 
-	slot, err := o.ResolveLeasedSlot(leasedName)
+	slot, err := o.ResolveLeasedSlot(pool, leasedName)
+	if err != nil {
+		return err
+	}
+
+	customerSubscription, err := slots.ResolveCustomerSubscriptionName(o.ClusterProfileDir, pool.SubscriptionName)
 	if err != nil {
 		return err
 	}
@@ -226,18 +261,32 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 	state := &slots.AcquiredSlotState{
 		Version:            1,
 		DeployEnvironment:  o.DeployEnvironment,
-		RuntimeRegion:      o.RuntimeRegion,
+		RuntimeRegion:      o.runtimeRegionForPool(pool),
 		Slot:               *slot,
 		LeasedResourceName: leasedName,
 	}
 	if err := slots.WriteAcquiredSlotState(o.SharedDir, state); err != nil {
 		return err
 	}
-	if err := slots.WriteEnvFile(o.SharedDir, state, o.CustomerSubscription); err != nil {
+	if err := slots.WriteEnvFile(o.SharedDir, state, customerSubscription); err != nil {
 		return err
 	}
 
 	releaseOnError = false
-	logger.Info("Acquired slot and wrote shared artifacts", "slotName", slot.ResourceName, "environment", o.PoolEnvironment, "sharedDir", o.SharedDir)
+	logger.Info(
+		"Acquired slot and wrote shared artifacts",
+		"slotName", slot.ResourceName,
+		"environment", o.PoolEnvironment,
+		"pool", describePool(pool),
+		"runtimeRegion", state.RuntimeRegion,
+		"sharedDir", o.SharedDir,
+	)
 	return nil
+}
+
+func describePool(pool slots.Pool) string {
+	if pool.EffectiveRegionMode() == slots.RegionModeRuntimeSelected {
+		return fmt.Sprintf("subscription_name=%q, region_mode=%q, default_region=%q", pool.SubscriptionName, pool.EffectiveRegionMode(), pool.Region)
+	}
+	return fmt.Sprintf("subscription_name=%q, region=%q", pool.SubscriptionName, pool.Region)
 }
