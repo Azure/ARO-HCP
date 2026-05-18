@@ -49,6 +49,14 @@ var _ = Describe("ARO-HCP", func() {
 
 	DescribeTable("should be able to perform a control plane and node pool install with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
 		func(ctx context.Context, version string) {
+			parsedVersion, _ := semver.ParseTolerant(version)
+			if parsedVersion.GTE(semver.MustParse("4.21.0")) {
+				timeBombDeadline := mustParseDate("2026-05-25")
+				if time.Now().Before(timeBombDeadline) {
+					Skip(fmt.Sprintf("Skipping OCP %s: community-operators-catalog v4.21 image has broken permissions in ACR cache (AROSLSRE-835)", version))
+				}
+				Fail(fmt.Sprintf("AROSLSRE-835 deadline %s passed: community-operators-catalog v4.21 image still broken, needs upstream fix", timeBombDeadline.Format("2006-01-02")))
+			}
 
 			customerNetworkSecurityGroupName := "customer-nsg-" + channelGroup + "-"
 			customerVnetName := "customer-vnet-" + channelGroup + "-"

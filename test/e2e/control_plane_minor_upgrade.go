@@ -60,6 +60,14 @@ var _ = Describe("Customer", func() {
 				previousMinor = semver.Version{Major: targetVer.Major, Minor: targetVer.Minor - 1}
 			}
 
+			if previousMinor.GTE(semver.MustParse("4.21.0")) {
+				timeBombDeadline := mustParseDate("2026-05-25")
+				if time.Now().Before(timeBombDeadline) {
+					Skip(fmt.Sprintf("Skipping upgrade to %s: cluster install at %s uses community-operators-catalog v4.21 which has broken permissions in ACR cache (AROSLSRE-835)", targetMinor, previousMinor))
+				}
+				Fail(fmt.Sprintf("AROSLSRE-835 deadline %s passed: community-operators-catalog v4.21 image still broken, needs upstream fix", timeBombDeadline.Format("2006-01-02")))
+			}
+
 			var installVersion *semver.Version
 			cincinnatiClient := cvocincinnati.NewClient(uuid.NameSpaceDNS, &http.Transport{}, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
 

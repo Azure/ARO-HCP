@@ -50,6 +50,14 @@ var _ = Describe("Customer", func() {
 			targetMinorVersion := api.Must(semver.ParseTolerant(targetMinor))
 			nodePoolMinorVersion := api.Must(semver.ParseTolerant(nodePoolMinor))
 
+			if targetMinorVersion.GTE(semver.MustParse("4.21.0")) {
+				timeBombDeadline := mustParseDate("2026-05-25")
+				if time.Now().Before(timeBombDeadline) {
+					Skip(fmt.Sprintf("Skipping nodepool upgrade to %s: cluster created at %s uses community-operators-catalog v4.21 which has broken permissions in ACR cache (AROSLSRE-835)", targetMinor, targetMinor))
+				}
+				Fail(fmt.Sprintf("AROSLSRE-835 deadline %s passed: community-operators-catalog v4.21 image still broken, needs upstream fix", timeBombDeadline.Format("2006-01-02")))
+			}
+
 			var (
 				nodePoolInitialVersion string
 				hasUpgradePath         bool
