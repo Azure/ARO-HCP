@@ -51,6 +51,8 @@ Management Cluster (MGMT)
 │   ├── HostedCluster (Primary HCP resource)
 │   │   └── Finalizer: hypershift.openshift.io/finalizer
 │   ├── HostedControlPlane (Control plane configuration)
+│   ├── NodePool(s) (one per worker pool)
+│   │   └── Finalizer: hypershift.openshift.io/finalizer
 │   ├── Secrets (credentials, certificates, pull secrets)
 │   ├── ConfigMaps (configuration data)
 │   └── Other Hypershift-managed resources
@@ -62,6 +64,12 @@ Management Cluster (MGMT)
     │   └── Finalizer: cluster.cluster.x-k8s.io
     ├── HostedControlPlane
     │   └── Finalizer: hypershift.openshift.io/finalizer
+    ├── MachineDeployment / MachineSet / Machine (cluster.x-k8s.io)
+    │   └── Finalizers: cluster.x-k8s.io/machinedeployment,
+    │                   cluster.x-k8s.io/machineset,
+    │                   machine.cluster.x-k8s.io
+    ├── AzureMachine (infrastructure.cluster.x-k8s.io)
+    │   └── Finalizer: azuremachine.infrastructure.cluster.x-k8s.io
     ├── StatefulSets (etcd, control plane components)
     ├── Services, Pods, Secrets, ConfigMaps
     └── PersistentVolumeClaims (etcd storage)
@@ -77,10 +85,13 @@ Clusters Service (sets state to "uninstalling")
     → Maestro Agent (deletes ManifestWork on MGMT)
       → ManifestWork cleanup (deletes HostedCluster, ManagedCluster, etc.)
         → HostedCluster deletion (finalizer: hypershift.openshift.io/finalizer)
+          → NodePool deletion (finalizer: hypershift.openshift.io/finalizer)
           → Control Plane namespace cleanup
             → Deployments (finalizer: hypershift.openshift.io/component-finalizer)
             → Cluster CRD (finalizer: cluster.cluster.x-k8s.io)
             → HostedControlPlane (finalizer: hypershift.openshift.io/finalizer)
+            → MachineDeployment / MachineSet / Machine (CAPI finalizers)
+            → AzureMachine (finalizer: azuremachine.infrastructure.cluster.x-k8s.io)
 ```
 
 **Key insight**: Deleting resources on the management cluster without first removing the source (ResourceBundle in Maestro / cluster record in CS) will result in the resources being **recreated** by the Maestro Agent.
@@ -248,6 +259,12 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 # Expected: {"code":"maestro-7","reason":"Resource with id='...' not found"}
 ```
 
+> **Note**: Maestro bundles behave differently on `DELETE`:
+> - **Readonly bundles** (the `*-readonly` HostedCluster / NodePool reflections) are hard-deleted immediately.
+> - **Bundles backing a `ManifestWork`** are only soft-deleted — the `DELETE` returns `204`, but the bundle remains listed with `metadata.deleted_at` set. The record is only removed from the Maestro store after the corresponding `ManifestWork` on the management cluster is also removed.
+>
+> If you see bundles still listed with a non-null `deleted_at` after `DELETE`, that is expected — proceed to Strategy 3 to clear the `ManifestWork` finalizers so Maestro can finish its own cleanup.
+
 #### Strategy 3: Manual Finalizer Removal on Management Cluster (Last Resort)
 
 Only after ensuring the source (CS/Maestro) won't recreate resources, remove finalizers **bottom-up** on the management cluster:
@@ -261,6 +278,20 @@ kubectl get namespace <cp-namespace> -o json | jq '.status.conditions[] | select
 kubectl patch deployment <name> -n <cp-namespace> \
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
 
+# AzureMachines (infrastructure.cluster.x-k8s.io)
+for name in $(kubectl get azuremachines.infrastructure.cluster.x-k8s.io -n <cp-namespace> -o jsonpath='{.items[*].metadata.name}'); do
+  kubectl patch azuremachines.infrastructure.cluster.x-k8s.io $name -n <cp-namespace> \
+    --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+done
+
+# Machines / MachineSets / MachineDeployments (cluster.x-k8s.io)
+for kind in machines.cluster.x-k8s.io machinesets.cluster.x-k8s.io machinedeployments.cluster.x-k8s.io; do
+  for name in $(kubectl get $kind -n <cp-namespace> -o jsonpath='{.items[*].metadata.name}'); do
+    kubectl patch $kind $name -n <cp-namespace> \
+      --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+  done
+done
+
 # Cluster CRD with cluster.cluster.x-k8s.io finalizer
 kubectl patch clusters.cluster.x-k8s.io <name> -n <cp-namespace> \
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
@@ -269,15 +300,21 @@ kubectl patch clusters.cluster.x-k8s.io <name> -n <cp-namespace> \
 kubectl patch hostedcontrolplanes.hypershift.openshift.io <name> -n <cp-namespace> \
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
 
-# 3. Remove HostedCluster finalizer (only after CP namespace resources are cleared)
+# 3. Remove NodePool finalizers in the HostedCluster namespace
+for name in $(kubectl get nodepool -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} -o jsonpath='{.items[*].metadata.name}'); do
+  kubectl patch nodepool $name -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
+    --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+done
+
+# 4. Remove HostedCluster finalizer (only after CP namespace resources and NodePools are cleared)
 kubectl patch hostedcluster <name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
 
-# 4. Remove ManifestWork finalizers
+# 5. Remove ManifestWork finalizers
 kubectl patch manifestwork <name> -n local-cluster \
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
 
-# 5. Delete orphaned namespaces (only after all resources are cleared)
+# 6. Delete orphaned namespaces (only after all resources are cleared)
 kubectl delete namespace <namespace>
 ```
 
@@ -301,6 +338,8 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
   "curl -s 'http://localhost:8000/api/maestro/v1/resource-bundles?size=2900'" | \
   jq --arg cid "${CLUSTER_ID}" '[.items[] | select(.manifests | tostring | test($cid)) | {id, name}]'
 ```
+
+> **Note**: If CS still has the cluster record in `uninstalling` state after management cluster cleanup, re-issue the ARO-HCP `DELETE` (Strategy 1). With Maestro and the management cluster cleared, the CS controller can now complete the deletion and subsequent `GET`s will return `404`.
 
 ## Common Stuck Scenarios
 
@@ -339,6 +378,19 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 
 **Fix**: Check `kubectl get namespace <ns> -o json | jq '.status.conditions'` to identify blocking resources, then remove their finalizers (Strategy 3).
 
+### Scenario 5: CP Namespace Stuck After Cluster and HostedControlPlane Are Cleared
+
+**Symptoms**: After force-removing finalizers on the CAPI `Cluster`, the `HostedControlPlane`, and the Hypershift Deployments, the CP namespace is still `Terminating`. `kubectl get namespace <cp-ns> -o json | jq '.status.conditions'` references infrastructure or machine kinds.
+
+**Cause**: CAPI machine resources hold their own finalizers and are not removed when the parent `Cluster` is force-deleted (finalizer cleared). Common blockers in the CP namespace:
+
+- `azuremachines.infrastructure.cluster.x-k8s.io` (`azuremachine.infrastructure.cluster.x-k8s.io`)
+- `machines.cluster.x-k8s.io` (`machine.cluster.x-k8s.io`)
+- `machinesets.cluster.x-k8s.io` (`cluster.x-k8s.io/machineset`)
+- `machinedeployments.cluster.x-k8s.io` (`cluster.x-k8s.io/machinedeployment`)
+
+**Fix**: Patch the finalizers on all four kinds in the CP namespace (see Strategy 3, step 2).
+
 ## Quick Reference: Key API Endpoints
 
 | Component | Endpoint | Notes |
@@ -355,6 +407,10 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 | `hypershift.openshift.io/finalizer` | HostedCluster, HostedControlPlane | Hypershift Operator |
 | `hypershift.openshift.io/component-finalizer` | Deployments in CP namespace | Hypershift Operator |
 | `cluster.cluster.x-k8s.io` | Cluster (CAPI) | Cluster API |
+| `machine.cluster.x-k8s.io` | Machine (CAPI) | Cluster API |
+| `cluster.x-k8s.io/machineset` | MachineSet (CAPI) | Cluster API |
+| `cluster.x-k8s.io/machinedeployment` | MachineDeployment (CAPI) | Cluster API |
+| `azuremachine.infrastructure.cluster.x-k8s.io` | AzureMachine | CAPZ (Cluster API Provider Azure) |
 | `cluster.open-cluster-management.io/manifest-work-cleanup` | ManifestWork | ACM Work Agent |
 | `cluster.open-cluster-management.io/api-resource-cleanup` | ManagedCluster | ACM |
 
