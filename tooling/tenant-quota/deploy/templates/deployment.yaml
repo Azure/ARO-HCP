@@ -20,20 +20,6 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: tenant-quota-collector
-      tolerations:
-      - key: "infra"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: "aro-hcp.azure.com/role"
-                operator: "In"
-                values:
-                - "infra"
       containers:
       - name: tenant-quota-collector
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}{{ if .Values.imageDigest }}@{{ .Values.imageDigest }}{{ else if .Values.imageTag }}:{{ .Values.imageTag }}{{ end }}'

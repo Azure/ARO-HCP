@@ -92,6 +92,25 @@
             }
           }
         },
+        "global": {
+          "type": "object",
+          "properties": {
+            "rg": {
+              "type": "string",
+              "description": "Resource group hosting the shared rollout identity"
+            },
+            "subscription": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" }
+              }
+            },
+            "globalMSIName": {
+              "type": "string",
+              "description": "Name of the rollout managed identity used for shell-based cleanup operations"
+            }
+          }
+        },
         "opstool": {
           "type": "object",
           "description": "Opstool AKS cluster configuration",
@@ -116,17 +135,15 @@
                     "softDelete": { "type": "boolean" }
                   }
                 },
-                "systemAgentPool": {
-                  "type": "object",
-                  "properties": {
-                    "minCount": { "type": "integer" },
-                    "maxCount": { "type": "integer" },
-                    "vmSize": { "type": "string" },
-                    "osDiskSizeGB": { "type": "integer" },
-                    "zones": { "type": "string" },
-                    "zoneRedundantMode": { "type": "string" }
-                  }
-                }
+                "systemAgentPool": { "$ref": "#/$defs/AgentPoolConfig" },
+                "userAgentPool": { "$ref": "#/$defs/AgentPoolConfig" },
+                "infraAgentPool": { "$ref": "#/$defs/AgentPoolConfig" }
+              }
+            },
+            "istio": {
+              "type": "object",
+              "properties": {
+                "versions": { "type": "string" }
               }
             },
             "monitoring": {
@@ -171,6 +188,73 @@
                 "name": { "type": "string" }
               }
             },
+            "gateway": {
+              "type": "object",
+              "description": "Shared cluster Istio Gateway for *.tools.hcpsvc.osadev.cloud; workloads attach HTTPRoutes with their own hostnames",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "name": { "type": "string" },
+                "namespace": { "type": "string" },
+                "sectionName": { "type": "string" },
+                "wildcardHostname": {
+                  "type": "string",
+                  "description": "Listener hostname (RFC 1123 wildcard), e.g. *.tools.hcpsvc.osadev.cloud"
+                },
+                "credentialName": {
+                  "type": "string",
+                  "description": "Kubernetes TLS Secret name presented by the Gateway listener; cert-manager keeps this Secret up to date"
+                },
+                "publicIpName": { "type": "string" },
+                "publicIpResourceGroup": { "type": "string" },
+                "dns": {
+                  "type": "object",
+                  "description": "Delegated zone tools.parentZone; wildcard A record at apex routes to the gateway",
+                  "properties": {
+                    "parentZoneName": { "type": "string" },
+                    "parentZoneResourceGroup": { "type": "string" },
+                    "childZoneSubdomain": {
+                      "type": "string",
+                      "description": "First labels of the delegated zone before parentZoneName, e.g. tools for zone tools.hcpsvc.osadev.cloud"
+                    },
+                    "recordName": {
+                      "type": "string",
+                      "description": "A record name in the child zone; use * for a wildcard covering all hostnames in that zone"
+                    }
+                  }
+                }
+              }
+            },
+            "certManager": {
+              "type": "object",
+              "description": "cert-manager installation and ACME DNS-01 issuer configuration for the shared gateway wildcard certificate",
+              "properties": {
+                "namespace": { "type": "string" },
+                "clusterIssuer": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "description": "ClusterIssuer name referenced by the shared Gateway annotation" },
+                    "email": { "type": "string", "description": "ACME contact email used for renewal notices" },
+                    "privateKeySecretName": {
+                      "type": "string",
+                      "description": "Secret name for the ACME account key stored in the cert-manager namespace"
+                    },
+                    "server": {
+                      "type": "string",
+                      "description": "ACME directory URL, e.g. https://acme-v02.api.letsencrypt.org/directory"
+                    },
+                    "azureDNS": {
+                      "type": "object",
+                      "properties": {
+                        "environment": {
+                          "type": "string",
+                          "description": "Azure cloud environment for the DNS-01 solver, e.g. AzurePublicCloud"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
             "alerting": {
               "type": "object",
               "description": "Alerting configuration",
@@ -190,6 +274,66 @@
                   "items": { "$ref": "#/$defs/TenantQuotaConfig" }
                 }
               }
+            },
+            "cihealth": {
+              "type": "object",
+              "description": "CIHealth deployment configuration",
+              "properties": {
+                "image": { "$ref": "#/$defs/Image" },
+                "disableRuntimeWorkloads": {
+                  "type": "boolean",
+                  "description": "Disable the CIHealth runtime workloads by scaling Deployments to zero replicas during bootstrap/import workflows"
+                },
+                "app": {
+                  "type": "object",
+                  "properties": {
+                    "replicas": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "description": "Number of CIHealth app replicas to run in the cihealth deployment"
+                    }
+                  }
+                },
+                "postgres": {
+                  "type": "object",
+                  "properties": {
+                    "usernameKeyVaultSecretName": {
+                      "type": "string",
+                      "description": "Key Vault secret name containing the PostgreSQL username for the cihealth deployment"
+                    },
+                    "passwordKeyVaultSecretName": {
+                      "type": "string",
+                      "description": "Key Vault secret name containing the PostgreSQL password for the cihealth deployment"
+                    },
+                    "databaseKeyVaultSecretName": {
+                      "type": "string",
+                      "description": "Key Vault secret name containing the PostgreSQL database name for the cihealth deployment"
+                    }
+                  },
+                  "required": [
+                    "usernameKeyVaultSecretName",
+                    "passwordKeyVaultSecretName",
+                    "databaseKeyVaultSecretName"
+                  ]
+                },
+                "httpRoute": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "host": {
+                      "type": "string",
+                      "description": "Public hostname for the CIHealth deployment (e.g. cihealth.tools.hcpsvc.osadev.cloud); must match a name covered by the shared gateway wildcard"
+                    },
+                    "gatewayName": { "type": "string" },
+                    "gatewayNamespace": { "type": "string" },
+                    "sectionName": { "type": "string" },
+                    "blockReviewPath": {
+                      "type": "boolean",
+                      "description": "When true, HTTPRoute redirects /review and /api/review to / so the old review page and the dev-only review API are not reachable from the ingress hostname"
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -204,6 +348,18 @@
         "sha": { "type": "string" },
         "digest": { "type": "string" },
         "tag": { "type": "string" }
+      }
+    },
+    "AgentPoolConfig": {
+      "type": "object",
+      "properties": {
+        "count": { "type": "integer", "description": "Number of nodepools to create for this role" },
+        "minCount": { "type": "integer" },
+        "maxCount": { "type": "integer" },
+        "vmSize": { "type": "string" },
+        "osDiskSizeGB": { "type": "integer" },
+        "zones": { "type": "string" },
+        "zoneRedundantMode": { "type": "string" }
       }
     },
     "TenantQuotaConfig": {

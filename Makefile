@@ -440,7 +440,7 @@ endif
 # Opstool topology local run
 #
 opstool-local-run:
-	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra"
+	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra" STEP_CACHE_DIR=""
 .PHONY: opstool-local-run
 
 #
@@ -492,6 +492,7 @@ pipeline/%:
 
 LOG_LEVEL ?= 3
 PERSIST ?= "false"
+STEP_CACHE_DIR ?= .step-cache
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
 CONFIG_OUTPUT ?= _artifacts/config.yaml
@@ -503,6 +504,7 @@ local-run: $(TEMPLATIZE)
 	                                 --dev-settings-file tooling/templatize/settings.yaml \
 	                                 --dev-environment $(DEPLOY_ENV) \
 	                                 $(WHAT) $(EXTRA_ARGS) \
+	                                 --step-cache-dir="$(STEP_CACHE_DIR)" \
 	                                 --persist-tag=$(PERSIST) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT) \
