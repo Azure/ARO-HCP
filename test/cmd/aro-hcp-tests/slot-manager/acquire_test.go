@@ -17,6 +17,7 @@ package slotmanager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -182,6 +183,18 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 	}
 }
 
+func TestDefaultAcquireOptionsLeaseWaitDefaults(t *testing.T) {
+	t.Parallel()
+
+	opts := DefaultAcquireOptions()
+	if opts.LeaseWaitInterval != DefaultLeaseWaitInterval {
+		t.Fatalf("expected default lease wait interval %s, got %s", DefaultLeaseWaitInterval, opts.LeaseWaitInterval)
+	}
+	if opts.MaxWaitForLease != DefaultMaxWaitForLease {
+		t.Fatalf("expected default max wait for lease %s, got %s", DefaultMaxWaitForLease, opts.MaxWaitForLease)
+	}
+}
+
 func TestAcquireRunFixedModeFallsBackWithinRequestedRegion(t *testing.T) {
 	t.Parallel()
 
@@ -233,6 +246,8 @@ environments:
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
 		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
 	})
 	if err != nil {
 		t.Fatalf("expected acquire to succeed: %v", err)
@@ -313,6 +328,8 @@ environments:
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
 		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
 	})
 	if err != nil {
 		t.Fatalf("expected acquire to succeed: %v", err)
@@ -381,6 +398,8 @@ environments:
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
 		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
 	})
 	if err == nil {
 		t.Fatal("expected acquire to fail on hard lease-proxy error")
@@ -390,6 +409,193 @@ environments:
 	}
 	if _, err := slots.LoadAcquiredSlotState(sharedDir); err == nil {
 		t.Fatal("expected no acquired slot state to be written on hard failure")
+	}
+}
+
+func TestAcquireRunRetriesAfterFullExhaustedPass(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+      - subscription_name: dev-sub-b
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-b-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(leaseProxyReply{
+			statusCode: http.StatusInternalServerError,
+			body:       "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource not found\n",
+		}, 2),
+		"aro-hcp-dev-centralus-b-slot": {
+			{statusCode: http.StatusInternalServerError, body: "Failed to acquire lease \"aro-hcp-dev-centralus-b-slot\": resource not found\n"},
+			successAcquireReply("aro-hcp-dev-centralus-b-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	completed := completeAcquireForTest(t, &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           t.TempDir(),
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     2 * time.Minute,
+		LeaseWaitInterval:   1 * time.Minute,
+	})
+	clock := newFakeClock(time.Unix(0, 0))
+	completed.Now = clock.Now
+	completed.Sleep = clock.Sleep
+
+	if err := completed.Run(context.Background()); err != nil {
+		t.Fatalf("expected acquire run to succeed after a retry pass: %v", err)
+	}
+	if got, want := *acquireCalls, []string{
+		"aro-hcp-dev-centralus-a-slot",
+		"aro-hcp-dev-centralus-b-slot",
+		"aro-hcp-dev-centralus-a-slot",
+		"aro-hcp-dev-centralus-b-slot",
+	}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+	if got, want := clock.slept, []time.Duration{1 * time.Minute}; !equalDurations(got, want) {
+		t.Fatalf("unexpected sleep durations: got %v want %v", got, want)
+	}
+}
+
+func TestAcquireRunStopsAfterMaxWaitForLease(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(leaseProxyReply{
+			statusCode: http.StatusInternalServerError,
+			body:       "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource not found\n",
+		}, 4),
+	})
+	defer server.Close()
+
+	completed := completeAcquireForTest(t, &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           t.TempDir(),
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     3 * time.Minute,
+		LeaseWaitInterval:   1 * time.Minute,
+	})
+	clock := newFakeClock(time.Unix(0, 0))
+	completed.Now = clock.Now
+	completed.Sleep = clock.Sleep
+
+	err := completed.Run(context.Background())
+	if err == nil {
+		t.Fatal("expected acquire run to fail after max wait budget is exhausted")
+	}
+	if !strings.Contains(err.Error(), `were exhausted for 3m0s across 4 full pass(es)`) {
+		t.Fatalf("expected bounded exhaustion error, got %v", err)
+	}
+	if got, want := *acquireCalls, []string{
+		"aro-hcp-dev-centralus-a-slot",
+		"aro-hcp-dev-centralus-a-slot",
+		"aro-hcp-dev-centralus-a-slot",
+		"aro-hcp-dev-centralus-a-slot",
+	}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+	if got, want := clock.slept, []time.Duration{1 * time.Minute, 1 * time.Minute, 1 * time.Minute}; !equalDurations(got, want) {
+		t.Fatalf("unexpected sleep durations: got %v want %v", got, want)
+	}
+}
+
+func TestAcquireRunInfiniteWaitRespectsContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": {
+			{
+				statusCode: http.StatusInternalServerError,
+				body:       "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource not found\n",
+			},
+		},
+	})
+	defer server.Close()
+
+	completed := completeAcquireForTest(t, &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           t.TempDir(),
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     0,
+		LeaseWaitInterval:   1 * time.Minute,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	completed.Sleep = func(ctx context.Context, _ time.Duration) error {
+		cancel()
+		return ctx.Err()
+	}
+
+	err := completed.Run(ctx)
+	if err == nil {
+		t.Fatal("expected acquire run to stop when the parent context is cancelled")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context cancellation, got %v", err)
+	}
+	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
 }
 
@@ -440,6 +646,20 @@ func writeAcquireTestClusterProfiles(t *testing.T, subscriptionNames ...string) 
 	return clusterProfileDir
 }
 
+func completeAcquireForTest(t *testing.T, raw *RawAcquireOptions) *AcquireOptions {
+	t.Helper()
+
+	validated, err := raw.Validate()
+	if err != nil {
+		t.Fatalf("expected acquire options validation to succeed: %v", err)
+	}
+	completed, err := validated.Complete(context.Background())
+	if err != nil {
+		t.Fatalf("expected acquire options completion to succeed: %v", err)
+	}
+	return completed
+}
+
 type leaseProxyReply struct {
 	statusCode int
 	body       string
@@ -454,6 +674,14 @@ func successAcquireReply(resourceName string) leaseProxyReply {
 		statusCode: http.StatusOK,
 		body:       string(body),
 	}
+}
+
+func repeatLeaseProxyReply(reply leaseProxyReply, count int) []leaseProxyReply {
+	replies := make([]leaseProxyReply, 0, count)
+	for i := 0; i < count; i++ {
+		replies = append(replies, reply)
+	}
+	return replies
 }
 
 func newTestLeaseProxyServer(t *testing.T, acquireReplies map[string][]leaseProxyReply) (*httptest.Server, *[]string, *[]string) {
@@ -514,4 +742,38 @@ func equalStrings(got, want []string) bool {
 		}
 	}
 	return true
+}
+
+func equalDurations(got, want []time.Duration) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+type fakeClock struct {
+	current time.Time
+	slept   []time.Duration
+}
+
+func newFakeClock(start time.Time) *fakeClock {
+	return &fakeClock{current: start}
+}
+
+func (c *fakeClock) Now() time.Time {
+	return c.current
+}
+
+func (c *fakeClock) Sleep(ctx context.Context, duration time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	c.slept = append(c.slept, duration)
+	c.current = c.current.Add(duration)
+	return nil
 }
