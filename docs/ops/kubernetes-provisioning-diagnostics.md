@@ -22,7 +22,7 @@ During burst cluster creation (15+ clusters), provisioning times can breach the 
 ### 1. Pod Health by Namespace
 
 **Panels:**
-- **Ready Pods per Namespace** - Running pods over time
+- **Running Pods per Namespace** - Running pods over time
 - **Failed Pods per Namespace** - Failed pods indicating crashes or errors
 - **Pending Pods per Namespace** - Pods waiting to be scheduled
 - **Pod Phase Distribution** - Stacked view of all pod states

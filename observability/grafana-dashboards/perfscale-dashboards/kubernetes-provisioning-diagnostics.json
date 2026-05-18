@@ -1313,7 +1313,11 @@
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
         "hide": 0,
         "includeAll": false,
         "label": "Datasource",
@@ -1328,14 +1332,14 @@
       },
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "cspr-westus3-mgmt-1",
           "value": "cspr-westus3-mgmt-1"
         },
         "datasource": {
           "uid": "$datasource"
         },
-        "definition": "label_values(kube_pod_info, cluster)",
+        "definition": "label_values(up{job=\"kube-state-metrics\"}, cluster)",
         "hide": 0,
         "includeAll": false,
         "label": "Cluster",
@@ -1353,7 +1357,11 @@
         "type": "query"
       },
       {
-        "current": {},
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "uid": "$datasource"
         },
@@ -1380,7 +1388,31 @@
     "from": "now-6h",
     "to": "now"
   },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ],
+    "time_options": [
+      "5m",
+      "15m",
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ]
+  },
   "timezone": "utc",
   "title": "HCP Kubernetes Provisioning Diagnostics",
   "uid": "hcp-k8s-provisioning-diagnostics",
