@@ -224,10 +224,10 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties).NotTo(BeNil(), "node pool GET response Properties was nil")
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "node pool GET response Properties.Version was nil")
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "node pool GET response Properties.Version.ID was nil")
-			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion))
+			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion), "expected node pool version to equal %s after upgrade", nodePoolDesiredVersion)
 
 			By("verifying number of nodes ready and not draining meet the expected replicas")
-			Expect(verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(customerNodePoolName, updateReplicas).Verify(ctx, adminRESTConfig)).To(Succeed())
+			Expect(verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(customerNodePoolName, updateReplicas).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify %d ready and schedulable nodes for nodepool %s after upgrade", updateReplicas, customerNodePoolName)
 
 		},
 		Entry("from 4.20.z to 4.21.zLatest",

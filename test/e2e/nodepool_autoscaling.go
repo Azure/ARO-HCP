@@ -154,13 +154,13 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to get AZ nodepool %s", azNodePoolName)
 				Expect(azNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
 				Expect(azNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
-				Expect(azNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(azAutoscalingMin)))
-				Expect(azNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(azAutoscalingMax)))
+				Expect(azNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(azAutoscalingMin)), "expected AZ nodepool autoscaling min to equal %d", azAutoscalingMin)
+				Expect(azNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(azAutoscalingMax)), "expected AZ nodepool autoscaling max to equal %d", azAutoscalingMax)
 
 				By("verifying node count after AZ nodepool creation")
 				nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 				Expect(err).NotTo(HaveOccurred(), "failed to list nodes after AZ nodepool creation")
-				Expect(len(nodes.Items)).To(BeNumerically(">=", int(azAutoscalingMin)))
+				Expect(len(nodes.Items)).To(BeNumerically(">=", int(azAutoscalingMin)), "expected at least %d nodes after AZ nodepool creation", azAutoscalingMin)
 
 				By("updating the AZ nodepool max replicas from 500 to 4 before creating the next nodepool")
 				_, err = framework.UpdateNodePoolAndWait(ctx,
@@ -220,8 +220,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get no-AZ nodepool %s", noAZNodePoolName)
 			Expect(noAZNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
 			Expect(noAZNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
-			Expect(noAZNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(noAZAutoscalingMin)))
-			Expect(noAZNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(noAZAutoscalingMax)))
+			Expect(noAZNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(noAZAutoscalingMin)), "expected no-AZ nodepool autoscaling min to equal %d", noAZAutoscalingMin)
+			Expect(noAZNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(noAZAutoscalingMax)), "expected no-AZ nodepool autoscaling max to equal %d", noAZAutoscalingMax)
 
 			By("verifying node count after no-AZ nodepool creation")
 			nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
@@ -230,7 +230,7 @@ var _ = Describe("Customer", func() {
 			if hasAZ {
 				minExpected += int(azAutoscalingMin)
 			}
-			Expect(len(nodes.Items)).To(BeNumerically(">=", minExpected))
+			Expect(len(nodes.Items)).To(BeNumerically(">=", minExpected), "expected at least %d nodes after no-AZ nodepool creation", minExpected)
 
 		})
 

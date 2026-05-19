@@ -189,7 +189,7 @@ var _ = Describe("Customer", func() {
 					Frequency: framework.StandardPollInterval,
 				})
 				Expect(err).NotTo(HaveOccurred(), "failed to poll admin credential %d to completion", i+1)
-				Expect(credResp.Kubeconfig).NotTo(BeNil())
+				Expect(credResp.Kubeconfig).NotTo(BeNil(), "admin credential response Kubeconfig was nil for credential %d", i+1)
 
 				By("validating kubeconfig returned by the API is valid")
 				kubeconfigData := []byte(*credResp.Kubeconfig)
@@ -198,7 +198,7 @@ var _ = Describe("Customer", func() {
 
 				By("validating exactly one cluster in kubeconfig")
 				Expect(config.Clusters).To(HaveLen(1), "kubeconfig must contain exactly one cluster")
-				Expect(config.Clusters["cluster"]).NotTo(BeNil())
+				Expect(config.Clusters["cluster"]).NotTo(BeNil(), "kubeconfig should contain a cluster entry named \"cluster\"")
 				cluster := config.Clusters["cluster"]
 
 				By("validating cluster has CertificateAuthorityData")

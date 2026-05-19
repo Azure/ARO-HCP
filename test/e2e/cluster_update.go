@@ -111,7 +111,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					10*time.Minute,
 				)
 				Expect(err).To(HaveOccurred(), "expected error when attempting to rename cluster via PATCH")
-				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"))
+				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"), "error should indicate mismatching resource name")
 			},
 		)
 	})
@@ -194,7 +194,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				By("verifying the tag is present in the update response body")
 				Expect(resp.Tags).ToNot(BeNil(), "update response Tags was nil")
 				Expect(resp.Tags["test"]).ToNot(BeNil(), "update response Tags[\"test\"] was nil")
-				Expect(*resp.Tags["test"]).To(Equal(val))
+				Expect(*resp.Tags["test"]).To(Equal(val), "update response Tags[\"test\"] should equal %q", val)
 
 				By("verifying the tag is present on the cluster")
 				respGet, err := framework.GetHCPCluster(
@@ -206,7 +206,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to GET HCP cluster after tag update")
 				Expect(respGet.Tags).ToNot(BeNil(), "GET response Tags was nil")
 				Expect(respGet.Tags["test"]).ToNot(BeNil(), "GET response Tags[\"test\"] was nil")
-				Expect(*respGet.Tags["test"]).To(Equal(val))
+				Expect(*respGet.Tags["test"]).To(Equal(val), "GET response Tags[\"test\"] should equal %q after update", val)
 			},
 		)
 	})

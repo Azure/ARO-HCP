@@ -129,7 +129,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				}
 				Fail(fmt.Sprintf("Visibility field still not present in v20251223preview cluster response as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
-			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPrivate))
+			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPrivate), "cluster etcd encryption key vault visibility should be Private")
 
 			GinkgoLogr.Info("Cluster created successfully with private keyvault",
 				"clusterName", customerClusterName,

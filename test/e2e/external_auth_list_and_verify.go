@@ -125,7 +125,7 @@ var _ = Describe("Customer", func() {
 				*expectedExternalAuth.Name,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config from cluster %s", clusterName)
-			Expect(*result.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded))
+			Expect(*result.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded), "external auth provisioning state should be Succeeded")
 
 			By("confirming we're only allowed to create a single external auth")
 			anotherExternalAuth := expectedExternalAuth
@@ -154,25 +154,25 @@ var _ = Describe("Customer", func() {
 					}
 				}
 			}
-			Expect(len(extAuthResult)).To(Equal(1))
+			Expect(len(extAuthResult)).To(Equal(1), "expected exactly one external auth config on cluster %s", clusterName)
 
 			By("comparing ARM results with expected external auth config")
 			// Compare core properties
 			actual := extAuthResult[0]
-			Expect(*actual.Properties.Issuer.URL).To(Equal(*expectedExternalAuth.Properties.Issuer.URL))
-			Expect(actual.Properties.Issuer.Audiences).To(Equal(expectedExternalAuth.Properties.Issuer.Audiences))
-			Expect(*actual.Properties.Claim.Mappings.Username.Claim).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Claim))
-			Expect(*actual.Properties.Claim.Mappings.Username.PrefixPolicy).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy))
-			Expect(*actual.Properties.Claim.Mappings.Groups.Claim).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Groups.Claim))
+			Expect(*actual.Properties.Issuer.URL).To(Equal(*expectedExternalAuth.Properties.Issuer.URL), "external auth Issuer.URL should match expected value")
+			Expect(actual.Properties.Issuer.Audiences).To(Equal(expectedExternalAuth.Properties.Issuer.Audiences), "external auth Issuer.Audiences should match expected value")
+			Expect(*actual.Properties.Claim.Mappings.Username.Claim).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Claim), "external auth Username.Claim should match expected value")
+			Expect(*actual.Properties.Claim.Mappings.Username.PrefixPolicy).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy), "external auth Username.PrefixPolicy should match expected value")
+			Expect(*actual.Properties.Claim.Mappings.Groups.Claim).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Groups.Claim), "external auth Groups.Claim should match expected value")
 
 			// Compare prefix (handle nil case for NoPrefix policy)
 			if expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix != nil {
 				Expect(actual.Properties.Claim.Mappings.Username.Prefix).NotTo(BeNil(), "external auth Properties.Claim.Mappings.Username.Prefix was nil")
-				Expect(*actual.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix))
+				Expect(*actual.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix), "external auth Username.Prefix should match expected value")
 			} else {
 				// Accept either nil or empty string for NoPrefix policy
 				Expect(actual.Properties.Claim.Mappings.Username.Prefix).To(
-					Or(BeNil(), BeEmpty()),
+					Or(BeNil(), BeEmpty()), "external auth Username.Prefix should be nil or empty for NoPrefix policy",
 				)
 			}
 
@@ -197,8 +197,8 @@ var _ = Describe("Customer", func() {
 				*expectedExternalAuth.Name,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get updated external auth config from cluster %s", clusterName)
-			Expect(*updatedResult.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded))
-			Expect(*updatedResult.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix))
+			Expect(*updatedResult.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded), "updated external auth provisioning state should be Succeeded")
+			Expect(*updatedResult.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix), "updated external auth Username.Prefix should match expected value")
 
 		})
 })

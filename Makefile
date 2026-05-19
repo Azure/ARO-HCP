@@ -92,8 +92,12 @@ verify-json-format: $(JQ)
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions
 .PHONY: verify
+
+verify-gomega-assertions:
+	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/
+.PHONY: verify-gomega-assertions
 
 verify-yamlfmt: yamlfmt
 	./hack/verify.sh yamlfmt

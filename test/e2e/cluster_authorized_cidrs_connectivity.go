@@ -148,8 +148,8 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("verifying authorized CIDRs contains VM IP")
 				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).ToNot(BeNil(), "cluster Properties.API.AuthorizedCIDRs was nil")
-				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).To(HaveLen(1))
-				Expect(*clusterResponse.Properties.API.AuthorizedCIDRs[0]).To(Equal(fmt.Sprintf("%s/32", vmPublicIP)))
+				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).To(HaveLen(1), "authorized CIDRs should contain exactly one entry")
+				Expect(*clusterResponse.Properties.API.AuthorizedCIDRs[0]).To(Equal(fmt.Sprintf("%s/32", vmPublicIP)), "authorized CIDR should match VM public IP %s/32", vmPublicIP)
 
 				By("testing connectivity from authorized VM")
 
@@ -298,7 +298,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				By("verifying ExternalAuth is in a Succeeded state")
 				eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName)
 				Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %q", customerExternalAuthName)
-				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
+				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded), "external auth %q provisioning state should be Succeeded", customerExternalAuthName)
 
 				By("creating a cluster role binding for the entra application via VM")
 				clusterRoleBindingName := "external-auth-cluster-admin"
@@ -313,7 +313,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create cluster role binding for external auth via VM")
 
 				By("creating a rest config using OIDC authentication")
-				Expect(tc.TenantID()).NotTo(BeEmpty())
+				Expect(tc.TenantID()).NotTo(BeEmpty(), "tenant ID should not be empty for OIDC authentication")
 				cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to create client secret credential for OIDC authentication")
 

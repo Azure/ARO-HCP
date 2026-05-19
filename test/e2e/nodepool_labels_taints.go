@@ -149,7 +149,7 @@ var _ = Describe("Customer", func() {
 			nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to list nodes in the cluster")
 			nodeList := nodes.Items
-			Expect(nodeList).NotTo(BeEmpty())
+			Expect(nodeList).NotTo(BeEmpty(), "expected cluster to have at least one node")
 			Expect(len(nodeList)).To(Equal(int(initialReplicas)), "expected exactly %d initial nodes but found %d", int(initialReplicas), len(nodeList))
 
 			Expect(framework.HasNodeLabel(nodeList, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected all nodes to have label 'key1=value1'")

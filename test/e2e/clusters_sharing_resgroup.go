@@ -157,7 +157,7 @@ var _ = Describe("Customer", func() {
 			By("attempting to create a third cluster using the same managed resource group as the second cluster")
 			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, 45*time.Minute)
 			Expect(err).To(HaveOccurred(), "expected error when creating third cluster %q with duplicate managed resource group", customerClusterName3)
-			Expect(err).To(MatchError(MatchRegexp("please provide a unique managed resource group name")))
+			Expect(err).To(MatchError(MatchRegexp("please provide a unique managed resource group name")), "error should indicate duplicate managed resource group name")
 
 			By("verifying that the managed resource group still exists")
 			_, err = tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient().Get(ctx, clusterParams2.ManagedResourceGroupName, nil)
@@ -174,6 +174,6 @@ var _ = Describe("Customer", func() {
 				}
 			}
 			Expect(foundClusters).To(HaveLen(2), "Expected exactly two clusters listed in resource group %s", *customerResourceGroup.Name)
-			Expect(foundClusters).To(ContainElements(customerClusterName, customerClusterName2))
+			Expect(foundClusters).To(ContainElements(customerClusterName, customerClusterName2), "listed clusters should contain both %s and %s", customerClusterName, customerClusterName2)
 		})
 })

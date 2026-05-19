@@ -122,7 +122,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).To(HaveOccurred(), "expected error when creating cluster with already-used subnet")
 			GinkgoLogr.Error(err, "cluster deployment error")
-			Expect(err.Error()).To(MatchRegexp("Subnet .* is already in use by another cluster"))
+			Expect(err.Error()).To(MatchRegexp("Subnet .* is already in use by another cluster"), "error should indicate subnet is already in use")
 			clusterParams2.SubnetResourceID = originalSubnetResourceID
 
 			By("attempting to create HCP cluster with already used NSG resource")
@@ -138,6 +138,6 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).To(HaveOccurred(), "expected error when creating cluster with already-used NSG")
 			GinkgoLogr.Error(err, "cluster deployment error")
-			Expect(err.Error()).To(MatchRegexp("Network Security Group .* is already in use by another cluster"))
+			Expect(err.Error()).To(MatchRegexp("Network Security Group .* is already in use by another cluster"), "error should indicate NSG is already in use")
 		})
 })
