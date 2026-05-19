@@ -34,10 +34,10 @@ const DefaultLeaseProxyTimeout = 2 * time.Minute
 var ErrLeasePoolExhausted = errors.New("lease pool exhausted")
 
 var leaseProxyRequestBackoff = wait.Backoff{
-	Duration: 1 * time.Second,
+	Duration: 2 * time.Second,
 	Factor:   2,
 	Jitter:   0.1,
-	Steps:    5,
+	Steps:    6,
 	Cap:      15 * time.Second,
 }
 
@@ -215,13 +215,40 @@ func doLeaseProxyRequestWithRetry(
 	return response, nil
 }
 
+// isLeasePoolExhaustedResponse determines whether a proxy response indicates
+// that all resources of the requested type are currently leased (pool
+// exhaustion) as opposed to the resource type not existing at all, or some
+// unrelated server error.
+//
+// The ci-tools lease proxy (pkg/lease/proxy) already encodes the distinction
+// via HTTP status codes:
+//   - 404 → lease.ErrTypeNotFound ("resource type not found")
+//   - 500 → lease.ErrNotFound     ("resources not found") or other errors
+//
+// For 500 responses, we additionally check the body against the known error
+// strings produced by the Boskos ecosystem to avoid false positives from
+// unrelated 500 errors (e.g. "Failed to get lease client"). The strings
+// originate from:
+//   - Boskos client sentinel: "resources not found"          (sigs.k8s.io/boskos/client.ErrNotFound)
+//   - Boskos server ranch:    "no available resource <name>" (sigs.k8s.io/boskos/ranch.ResourceNotFound)
 func isLeasePoolExhaustedResponse(statusCode int, responseBody []byte) bool {
+	if statusCode == http.StatusNotFound {
+		return false
+	}
 	if statusCode < http.StatusInternalServerError {
 		return false
 	}
 
 	message := strings.ToLower(strings.TrimSpace(string(responseBody)))
-	return strings.Contains(message, "resource not found") && !strings.Contains(message, "resource type not found")
+
+	if strings.Contains(message, "resources not found") {
+		return true
+	}
+	if strings.Contains(message, "no available resource") {
+		return true
+	}
+
+	return false
 }
 
 func leaseProxyResponseMessage(status string, responseBody []byte) string {

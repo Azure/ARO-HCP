@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-func TestResolveCustomerSubscriptionName(t *testing.T) {
+func TestVerifyCustomerSubscriptionName(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := t.TempDir()
@@ -32,16 +32,16 @@ func TestResolveCustomerSubscriptionName(t *testing.T) {
 		t.Fatalf("expected write to succeed: %v", err)
 	}
 
-	resolved, err := ResolveCustomerSubscriptionName(clusterProfileDir, "customer-dev")
+	resolved, err := VerifyCustomerSubscriptionName(clusterProfileDir, "customer-dev")
 	if err != nil {
-		t.Fatalf("expected subscription resolution to succeed: %v", err)
+		t.Fatalf("expected subscription verification to succeed: %v", err)
 	}
 	if resolved != "customer-dev" {
-		t.Fatalf("expected resolved subscription %q, got %q", "customer-dev", resolved)
+		t.Fatalf("expected verified subscription %q, got %q", "customer-dev", resolved)
 	}
 }
 
-func TestResolveCustomerSubscriptionNameRejectsDuplicateMatches(t *testing.T) {
+func TestVerifyCustomerSubscriptionNameRejectsDuplicateMatches(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := t.TempDir()
@@ -54,9 +54,9 @@ func TestResolveCustomerSubscriptionNameRejectsDuplicateMatches(t *testing.T) {
 		}
 	}
 
-	_, err := ResolveCustomerSubscriptionName(clusterProfileDir, "customer-dev")
+	_, err := VerifyCustomerSubscriptionName(clusterProfileDir, "customer-dev")
 	if err == nil {
-		t.Fatal("expected duplicate match resolution to fail")
+		t.Fatal("expected duplicate match verification to fail")
 	}
 	if !strings.Contains(err.Error(), "multiple customer subscription name files matched") {
 		t.Fatalf("expected duplicate match error, got %v", err)

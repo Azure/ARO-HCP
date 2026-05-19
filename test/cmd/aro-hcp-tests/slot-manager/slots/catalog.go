@@ -95,18 +95,25 @@ func LoadCatalog(path string) (*Catalog, error) {
 }
 
 func ResolveCatalogPath() (string, error) {
-	return resolveRepoFile(DefaultCatalogRelPath)
+	return ResolveCatalogPathFrom("")
 }
 
-func resolveRepoFile(relPath string) (string, error) {
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("failed to get current working directory: %w", err)
+// ResolveCatalogPathFrom walks upward from startDir looking for the catalog
+// file. When startDir is empty it defaults to the current working directory.
+func ResolveCatalogPathFrom(startDir string) (string, error) {
+	return resolveRepoFile(DefaultCatalogRelPath, startDir)
+}
+
+func resolveRepoFile(relPath, startDir string) (string, error) {
+	if strings.TrimSpace(startDir) == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current working directory: %w", err)
+		}
+		startDir = wd
 	}
 
-	// Commands can run from nested directories within the repo, so walk upward
-	// until we find the requested path or hit the filesystem root.
-	dir := workingDir
+	dir := startDir
 	for {
 		candidate := filepath.Join(dir, relPath)
 		if _, err := os.Stat(candidate); err == nil {
@@ -120,7 +127,7 @@ func resolveRepoFile(relPath string) (string, error) {
 		dir = parent
 	}
 
-	return "", fmt.Errorf("failed to find %q from %q", relPath, workingDir)
+	return "", fmt.Errorf("failed to find %q from %q", relPath, startDir)
 }
 
 func (c *Catalog) Validate() error {

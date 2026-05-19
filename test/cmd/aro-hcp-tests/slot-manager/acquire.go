@@ -335,7 +335,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 		return err
 	}
 
-	customerSubscription, err := slots.ResolveCustomerSubscriptionName(o.ClusterProfileDir, pool.SubscriptionName)
+	customerSubscription, err := slots.VerifyCustomerSubscriptionName(o.ClusterProfileDir, pool.SubscriptionName)
 	if err != nil {
 		return err
 	}
@@ -347,6 +347,11 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 		Slot:               *slot,
 		LeasedResourceName: leasedName,
 	}
+	// State file must be written before the env file: the release step only
+	// needs the state file to return the lease, so if we're killed between
+	// the two writes the lease can still be cleaned up. Downstream test
+	// steps depend on the env file, but those won't run if acquire didn't
+	// complete.
 	if err := slots.WriteAcquiredSlotState(o.SharedDir, state); err != nil {
 		return err
 	}
