@@ -85,6 +85,19 @@ func MutateCluster(cluster *api.HCPOpenShiftCluster, subscription *arm.Subscript
 		))
 	}
 
+	fipsEnabled := lookupTag(tags, api.TagClusterFipsEnabled)
+	switch fipsEnabled {
+	case api.FipsModeEnabled:
+		experimentalFeatures.FipsEnabled = true
+	case api.FipsModeDisabled:
+		experimentalFeatures.FipsEnabled = false
+	default:
+		errs = append(errs, field.Invalid(
+			fldPath.Key(api.TagClusterFipsEnabled), fipsEnabled,
+			fmt.Sprintf("must be %s or %s", api.FipsModeEnabled, api.FipsModeDisabled),
+		))
+	}
+
 	if len(errs) > 0 {
 		return errs
 	}

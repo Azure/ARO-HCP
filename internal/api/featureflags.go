@@ -49,4 +49,9 @@ const (
 	// ClusterSizeOverride annotation for reduced resource requests when the
 	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
 	TagClusterSizeOverride = ExperimentalClusterTagPrefix + "size-override"
+
+	// TagClusterFipsEnabled is the ARM resource tag that enables FIPS mode
+	// for the ARO-HCP cluster during installation when the ExperimentalReleaseFeatures
+	// AFEC is registered on the subscription.
+	TagClusterFipsEnabled = "fips-enabled"
 )
