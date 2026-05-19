@@ -604,6 +604,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+	nodePoolChildResourceCleanupController := nodepooldeletion.NewNodePoolChildResourceCleanupController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
 	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
@@ -673,6 +678,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleterController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
+				go nodePoolChildResourceCleanupController.Run(ctx, 20)
 				go nodePoolDeletionController.Run(ctx, 20)
 				go nodePoolDeletionOperationStatusController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
