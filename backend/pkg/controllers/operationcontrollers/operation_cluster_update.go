@@ -133,7 +133,7 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	logger.Info("updating status")
-	if err := UpdateOperationStatus(ctx, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
+	if err := UpdateOperationStatus(ctx, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, PostAsyncNotificationFn(c.notificationClient)); err != nil {
 		return utils.TrackError(err)
 	}
 	return nil

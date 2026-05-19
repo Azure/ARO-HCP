@@ -440,7 +440,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	operationNodePoolDeleteController := operationcontrollers.NewOperationNodePoolDeleteController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
@@ -605,6 +604,18 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+	nodePoolDeletionOperationStatusController := nodepooldeletion.NewNodePoolDeletionOperationStatusController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		http.DefaultClient,
+		activeOperationLister,
+		backendInformers,
+	)
 
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
@@ -662,6 +673,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleterController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
+				go nodePoolDeletionController.Run(ctx, 20)
+				go nodePoolDeletionOperationStatusController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)

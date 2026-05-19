@@ -739,16 +739,10 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the node pool
-	// has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
-	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete a node pool"))
-	}
-
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		nodePool.ID,
-		*nodePool.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		"",
 		"",

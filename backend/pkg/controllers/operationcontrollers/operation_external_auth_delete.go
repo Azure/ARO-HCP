@@ -109,7 +109,7 @@ func (c *operationExternalAuthDelete) SynchronizeOperation(ctx context.Context, 
 	if err != nil && errors.As(err, &ocmGetExternalAuthError) && ocmGetExternalAuthError.Status() == http.StatusNotFound {
 		logger.Info("external auth was deleted")
 
-		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
