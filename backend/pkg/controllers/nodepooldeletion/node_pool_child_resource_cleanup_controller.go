@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -34,7 +35,7 @@ import (
 // status documents (NodePoolControllerResourceType) are left alone -- the orphan
 // scraper handles those after the NodePool document itself is removed.
 type nodePoolChildResourceCleanupController struct {
-	cooldownChecker   controllerutils.CooldownChecker
+	cooldownChecker   controllerutil.CooldownChecker
 	nodePoolLister    listers.NodePoolLister
 	resourcesDBClient database.ResourcesDBClient
 }
@@ -62,7 +63,7 @@ func NewNodePoolChildResourceCleanupController(
 	)
 }
 
-func (c *nodePoolChildResourceCleanupController) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolChildResourceCleanupController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

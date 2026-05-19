@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -51,7 +52,7 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // the delete on subsequent syncs.
 type nodePoolDeletionClusterServiceDeleter struct {
 	clock                utilsclock.PassiveClock
-	cooldownChecker      controllerutils.CooldownChecker
+	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -84,7 +85,7 @@ func NewNodePoolDeletionClusterServiceDeleterController(
 	)
 }
 
-func (c *nodePoolDeletionClusterServiceDeleter) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolDeletionClusterServiceDeleter) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

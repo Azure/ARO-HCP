@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -33,7 +34,7 @@ import (
 // their ClusterServiceID has been cleared, and all nodepool-scoped Maestro readonly bundles
 // have been deleted from the ServiceProviderNodePool.
 type nodePoolDeletionController struct {
-	cooldownChecker               controllerutils.CooldownChecker
+	cooldownChecker               controllerutil.CooldownChecker
 	nodePoolLister                listers.NodePoolLister
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
@@ -64,7 +65,7 @@ func NewNodePoolDeletionController(
 	)
 }
 
-func (c *nodePoolDeletionController) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolDeletionController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

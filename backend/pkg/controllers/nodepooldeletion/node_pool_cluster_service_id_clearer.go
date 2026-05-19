@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,7 +39,7 @@ import (
 // is set); we poll cluster-service for the NodePool and, on 404, zero out the
 // stored ClusterServiceID so downstream code knows the CS resource is fully gone.
 type nodePoolClusterServiceIDClearer struct {
-	cooldownChecker      controllerutils.CooldownChecker
+	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -69,7 +70,7 @@ func NewNodePoolClusterServiceIDClearerController(
 	)
 }
 
-func (c *nodePoolClusterServiceIDClearer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolClusterServiceIDClearer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
