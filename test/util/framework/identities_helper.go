@@ -206,11 +206,16 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		cfg.deploymentName = fmt.Sprintf("mi-%s", cfg.resourceGroup)
 	}
 
-	usePooled := tc.UsePooledIdentities()
 	msiRGName := cfg.resourceGroup
 	var identities Identities
+	usePooled := false
 
-	if usePooled {
+	if cfg.identityPool != nil {
+		usePooled = true
+		msiRGName = cfg.identityPool.ResourceGroupName
+		identities = cfg.identityPool.Identities
+	} else if tc.UsePooledIdentities() {
+		usePooled = true
 		msiPool, err := tc.getLeasedIdentities()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get leased MSIs: %w", err)
@@ -316,6 +321,13 @@ func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool,
 		ResourceGroupName: leasedRG,
 		Identities:        NewDefaultIdentities(),
 	}, nil
+}
+
+// NextLeasedIdentityPool leases the next assigned identity container for the
+// calling test spec. Each call consumes a new container — callers should
+// store the result and reuse it rather than calling this multiple times.
+func (tc *perItOrDescribeTestContext) NextLeasedIdentityPool() (LeasedIdentityPool, error) {
+	return tc.getLeasedIdentities()
 }
 
 // leasedIdentityContainers returns the list of resource groups that are currently leased
