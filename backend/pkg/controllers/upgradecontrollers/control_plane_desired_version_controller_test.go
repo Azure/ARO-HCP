@@ -593,6 +593,9 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 	return []any{
 		cluster,
 		&api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: nodePoolResourceId,
+			},
 			TrackedResource: arm.NewTrackedResource(nodePoolResourceId, "eastus"),
 			Properties: api.HCPOpenShiftClusterNodePoolProperties{
 				Version: api.NodePoolVersionProfile{ID: nodePoolVersionId},

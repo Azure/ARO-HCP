@@ -448,6 +448,7 @@ func nodePoolInformerTestCase() informerTestCase {
 				"/nodePools/"+name)
 		internalID := api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
 		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{ResourceID: npResourceID},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
 					ID:   npResourceID,
@@ -732,6 +733,7 @@ func controllerInformerTestCase() informerTestCase {
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
 					"/nodePools/"+nodePoolName)
 			np := &api.HCPOpenShiftClusterNodePool{
+				CosmosMetadata: arm.CosmosMetadata{ResourceID: npResourceID},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID:   npResourceID,
