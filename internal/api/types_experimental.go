@@ -27,6 +27,9 @@ type ExperimentalFeatures struct {
 	// control plane components. When set to Minimal, CS sets the
 	// ClusterSizeOverride annotation for reduced resource requests.
 	ControlPlanePodSizing ControlPlanePodSizing `json:"sizeOverride,omitempty"`
+
+	// FipsEnabled controls the fips mode for a new ARO-HCP cluster installation.
+	FipsEnabled bool `json:"fipsEnabled,omitempty"`
 }
 
 // ControlPlaneAvailability controls the AvailabilityPolicy for control plane components.
@@ -43,4 +46,9 @@ type ControlPlanePodSizing string
 const (
 	DefaultControlPlanePodSizing ControlPlanePodSizing = ""
 	MinimalControlPlanePodSizing ControlPlanePodSizing = "Minimal"
+)
+
+const (
+	FipsModeEnabled string = "true"
+	FipsModeDisabled string = "false"
 )
