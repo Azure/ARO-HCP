@@ -322,7 +322,7 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 		go func(ctx context.Context) {
 			defer wg.Done()
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			utilruntime.HandleCrashWithContext(ctx)
+			defer utilruntime.HandleCrashWithContext(ctx)
 
 			switch opts.CleanupWorkflow {
 			case CleanupWorkflowStandard:
@@ -369,7 +369,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			utilruntime.HandleCrashWithContext(ctx)
+			defer utilruntime.HandleCrashWithContext(ctx)
 
 			return tc.collectDebugInfoForResourceGroup(ctx, currResourceGroupName)
 		})

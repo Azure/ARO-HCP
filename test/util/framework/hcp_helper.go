@@ -460,7 +460,7 @@ func DeleteAllHCPClusters(
 	for _, hcpClusterName := range hcpClusterNames {
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			utilruntime.HandleCrashWithContext(ctx)
+			defer utilruntime.HandleCrashWithContext(ctx)
 
 			return DeleteHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName, timeout)
 		})
