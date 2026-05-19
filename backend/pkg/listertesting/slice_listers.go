@@ -253,6 +253,50 @@ func (l *SliceServiceProviderClusterLister) ListForCluster(ctx context.Context, 
 	return result, nil
 }
 
+// SliceServiceProviderNodePoolLister implements listers.ServiceProviderNodePoolLister backed by a slice.
+type SliceServiceProviderNodePoolLister struct {
+	ServiceProviderNodePools []*api.ServiceProviderNodePool
+}
+
+var _ listers.ServiceProviderNodePoolLister = &SliceServiceProviderNodePoolLister{}
+
+func (l *SliceServiceProviderNodePoolLister) List(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
+	return l.ServiceProviderNodePools, nil
+}
+
+func (l *SliceServiceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.ServiceProviderNodePool, error) {
+	for _, spnp := range l.ServiceProviderNodePools {
+		resourceID := spnp.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			serviceProviderNodePoolMatchesCluster(resourceID, clusterName) &&
+			serviceProviderNodePoolMatchesNodePool(resourceID, nodePoolName) {
+			return spnp, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+func (l *SliceServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ServiceProviderNodePool, error) {
+	var result []*api.ServiceProviderNodePool
+	for _, spnp := range l.ServiceProviderNodePools {
+		resourceID := spnp.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionName) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			serviceProviderNodePoolMatchesCluster(resourceID, clusterName) &&
+			serviceProviderNodePoolMatchesNodePool(resourceID, nodePoolName) {
+			result = append(result, spnp)
+		}
+	}
+	return result, nil
+}
+
 // SliceManagementClusterContentLister implements listers.ManagementClusterContentLister backed by a slice.
 type SliceManagementClusterContentLister struct {
 	Contents []*api.ManagementClusterContent

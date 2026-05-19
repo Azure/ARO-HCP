@@ -46,7 +46,9 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 		name             string
 		existingNodePool *api.HCPOpenShiftClusterNodePool
 		childResources   []any
+		existingSPNP     *api.ServiceProviderNodePool
 		wantDeleted      bool
+		wantErr          bool
 	}{
 		{
 			name:             "no DeletionTimestamp -- no-op",
@@ -69,6 +71,20 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			name:             "all conditions met, no children -- deletes nodepool from Cosmos",
 			existingNodePool: newTestNodePool(t, readyToDelete),
 			wantDeleted:      true,
+		},
+		{
+			name:             "all conditions met, SPNP has remaining bundles -- backs off",
+			existingNodePool: newTestNodePool(t, readyToDelete),
+			existingSPNP: newTestSPNP(t, api.MaestroBundleReferenceList{
+				{Name: "readonly-bundle-1"},
+			}),
+			wantDeleted: false,
+		},
+		{
+			name:             "all conditions met, SPNP with empty bundles -- backs off until SPNP removed",
+			existingNodePool: newTestNodePool(t, readyToDelete),
+			existingSPNP:     newTestSPNP(t, nil),
+			wantDeleted:      false,
 		},
 		{
 			name:             "all conditions met, MCC child exists -- backs off",
@@ -95,6 +111,9 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			if tc.existingNodePool != nil {
 				resources = append(resources, tc.existingNodePool)
 			}
+			if tc.existingSPNP != nil {
+				resources = append(resources, tc.existingSPNP)
+			}
 			resources = append(resources, tc.childResources...)
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
@@ -103,11 +122,16 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			if tc.existingNodePool != nil {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}
+			spnpForLister := []*api.ServiceProviderNodePool{}
+			if tc.existingSPNP != nil {
+				spnpForLister = append(spnpForLister, tc.existingSPNP)
+			}
 
 			syncer := &nodePoolDeletionController{
-				cooldownChecker:   &alwaysSyncCooldownChecker{},
-				nodePoolLister:    &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				resourcesDBClient: mockResourcesDBClient,
+				cooldownChecker:               &alwaysSyncCooldownChecker{},
+				nodePoolLister:                &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				serviceProviderNodePoolLister: &listertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: spnpForLister},
+				resourcesDBClient:             mockResourcesDBClient,
 			}
 
 			key := controllerutils.HCPNodePoolKey{
@@ -118,7 +142,11 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			}
 
 			err = syncer.SyncOnce(ctx, key)
-			require.NoError(t, err)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 
 			if tc.existingNodePool == nil {
 				return
