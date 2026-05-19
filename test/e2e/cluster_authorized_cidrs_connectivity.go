@@ -62,12 +62,12 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				if tc.UsePooledIdentities() {
 					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-cidr-connectivity", tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for authorized CIDRs connectivity test")
 
 				By("creating cluster parameters")
 				clusterParams := framework.NewDefaultClusterParams()
@@ -87,11 +87,11 @@ var _ = Describe("Authorized CIDRs", func() {
 					TestArtifactsFS,
 					framework.RBACScopeResourceGroup,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for authorized CIDRs cluster")
 
 				By("generating SSH key pair for VM")
 				sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
 
 				By("deploying test VM")
 				vmName := fmt.Sprintf("%s-test-vm", clusterName)
@@ -116,7 +116,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("extracting VM public IP from deployment outputs")
 				vmPublicIP, err := framework.GetOutputValueString(vmDeployment, "publicIP")
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to extract VM public IP from deployment outputs")
 				Expect(vmPublicIP).NotTo(BeEmpty(), "VM public IP should be in deployment outputs")
 
 				By("Creating a cluster with authorized CIDR containing VM IP")
@@ -131,7 +131,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					clusterParams,
 					45*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with authorized CIDRs", clusterName)
 
 				By("getting cluster details")
 				clusterResponse, err := framework.GetHCPCluster(
@@ -140,7 +140,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					*resourceGroup.Name,
 					clusterName,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get cluster details for %q", clusterName)
 				Expect(clusterResponse.Properties).ToNot(BeNil(), "cluster response Properties was nil")
 				Expect(clusterResponse.Properties.API).ToNot(BeNil(), "cluster Properties.API was nil")
 				Expect(clusterResponse.Properties.API.URL).ToNot(BeNil(), "cluster Properties.API.URL was nil")
@@ -182,11 +182,11 @@ var _ = Describe("Authorized CIDRs", func() {
 					clusterName,
 					10*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 
 				// Create kubeconfig and copy to VM
 				kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
 
 				// Test kubectl command from VM
 				kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
@@ -241,17 +241,17 @@ var _ = Describe("Authorized CIDRs", func() {
 					nodePoolParams,
 					45*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %q for authorized CIDRs cluster", nodePoolParams.NodePoolName)
 
 				By("creating an app registration with a client secret")
 				app, sp, err := tc.NewAppRegistrationWithServicePrincipal(ctx)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create app registration with service principal")
 
 				graphClient, err := tc.GetGraphClient(ctx)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get graph client")
 
 				pass, err := graphClient.AddPassword(ctx, app.ID, "cidr-external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
 
 				By("creating an external auth config with a prefix")
 				extAuth := hcpsdk20240610preview.ExternalAuth{
@@ -293,11 +293,11 @@ var _ = Describe("Authorized CIDRs", func() {
 					},
 				}
 				_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, 15*time.Minute)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create external auth config %q", customerExternalAuthName)
 
 				By("verifying ExternalAuth is in a Succeeded state")
 				eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %q", customerExternalAuthName)
 				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
 
 				By("creating a cluster role binding for the entra application via VM")
@@ -310,12 +310,12 @@ var _ = Describe("Authorized CIDRs", func() {
 					clusterRoleBindingSubject,
 				)
 				_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, createClusterRoleBindingCmd, 2*time.Minute)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create cluster role binding for external auth via VM")
 
 				By("creating a rest config using OIDC authentication")
 				Expect(tc.TenantID()).NotTo(BeEmpty())
 				cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create client secret credential for OIDC authentication")
 
 				// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
 				var accessToken azcore.AccessToken
@@ -339,7 +339,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					},
 				}
 				kubeconfigExternalAuth, err := framework.GenerateKubeconfig(config)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for external auth OIDC config")
 
 				kubeconfigB64ExternalAuth := base64.StdEncoding.EncodeToString([]byte(kubeconfigExternalAuth))
 				// Use -o name to keep output minimal and avoid 4KB VM output limit
@@ -374,7 +374,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					clientSecretB64,
 				)
 				_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, createSecretCmd, 2*time.Minute)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create console OAuth client secret for external auth via VM")
 
 				By("verifying all cluster operators are healthy from authorized VM")
 				// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
@@ -399,7 +399,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					*resourceGroup.Name,
 					clusterName,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get current cluster state before updating authorized CIDRs")
 
 				// Update the cluster's authorized CIDRs
 				currentCluster.Properties.API.AuthorizedCIDRs = []*string{
@@ -414,14 +414,14 @@ var _ = Describe("Authorized CIDRs", func() {
 					currentCluster.HcpOpenShiftCluster,
 					nil,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to begin updating cluster %q authorized CIDRs", clusterName)
 
 				pollCtx, pollCancel := context.WithTimeout(ctx, 10*time.Minute)
 				defer pollCancel()
 				_, err = poller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 					Frequency: framework.StandardPollInterval,
 				})
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to poll cluster %q authorized CIDRs update to completion", clusterName)
 
 				By("verifying VM is now blocked from API access")
 				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest, 2*time.Minute)

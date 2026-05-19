@@ -49,12 +49,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "nodepool-update-nodes", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group nodepool-update-nodes")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -70,7 +70,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(ctx,
@@ -79,7 +79,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("getting admin credentials for the cluster")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -89,7 +89,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("creating the node pools in parallel")
 			mainNodeCount := 2
@@ -150,7 +150,7 @@ var _ = Describe("Customer", func() {
 				update,
 				20*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to scale up node pool %s from 2 to 3 replicas", customerNodePoolName)
 			Expect(scaleUpResp.Properties).NotTo(BeNil(), "scale up response Properties was nil")
 			Expect(scaleUpResp.Properties.Replicas).NotTo(BeNil(), "scale up response Properties.Replicas was nil")
 			Expect(*scaleUpResp.Properties.Replicas).To(Equal(int32(mainNodeCount)))
@@ -177,7 +177,7 @@ var _ = Describe("Customer", func() {
 				update,
 				20*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to scale down node pool %s from 3 to 2 replicas", customerNodePoolName)
 			Expect(scaleDownResp.Properties).NotTo(BeNil(), "scale down response Properties was nil")
 			Expect(scaleDownResp.Properties.Replicas).NotTo(BeNil(), "scale down response Properties.Replicas was nil")
 			Expect(*scaleDownResp.Properties.Replicas).To(Equal(int32(mainNodeCount)))
@@ -205,7 +205,7 @@ var _ = Describe("Customer", func() {
 				update,
 				20*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to enable autoscaling on node pool %s", oneNodePoolName)
 			Expect(autoscaleResp.Properties).NotTo(BeNil(), "autoscale response Properties was nil")
 			Expect(autoscaleResp.Properties.AutoScaling).NotTo(BeNil(), "autoscale response Properties.AutoScaling was nil")
 			Expect(autoscaleResp.Properties.AutoScaling.Min).NotTo(BeNil(), "autoscale response Properties.AutoScaling.Min was nil")

@@ -39,7 +39,7 @@ var _ = Describe("Customer", func() {
 			versionsPager := versionsClient.NewListPager(tc.Location(), nil)
 
 			versions, err := versionsPager.NextPage(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to list HCP OpenShift versions")
 			Expect(versions.Value).NotTo(BeEmpty(), "Should return at least one OpenShift version")
 
 			By("validating version response structure and content")

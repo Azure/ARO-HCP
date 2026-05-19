@@ -51,12 +51,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating the customer resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "cx-rg-cluster", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resource group")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -76,7 +76,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResource,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", customerClusterName)
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
@@ -86,7 +86,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", customerClusterName)
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -96,11 +96,11 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
 
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", customerClusterName)
 
 			By("creating both nodepools in parallel")
 			nodePoolParams1 := framework.NewDefaultNodePoolParams()
@@ -135,18 +135,18 @@ var _ = Describe("Customer", func() {
 			for createErr := range errCh {
 				GinkgoLogr.Error(createErr, "nodepool creation failed")
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pools in parallel for cluster %q", customerClusterName)
 
 			By("deleting customer resource group to trigger cluster deletion")
 			rgClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
 			networkClient, err := tc.GetARMNetworkClientFactory(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create ARM network client factory")
 			err = framework.DeleteResourceGroup(ctx, rgClient, networkClient, *resourceGroup.Name, false, 60*time.Minute)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to delete customer resource group %q", *resourceGroup.Name)
 
 			By("verifying customer resource group is deleted (404)")
 			_, err = rgClient.Get(ctx, *resourceGroup.Name, nil)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected customer resource group %q to be deleted (404)", *resourceGroup.Name)
 			Expect(err.Error()).To(ContainSubstring("ResourceGroupNotFound"))
 
 			By("verifying managed resource group is deleted (404)")

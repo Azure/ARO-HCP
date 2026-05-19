@@ -53,12 +53,12 @@ var _ = Describe("SRE", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-breakglass", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for admin-api-breakglass")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -78,7 +78,7 @@ var _ = Describe("SRE", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for breakglass cluster")
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
@@ -88,7 +88,7 @@ var _ = Describe("SRE", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", engineeringClusterName)
 
 			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
@@ -174,13 +174,13 @@ var _ = Describe("SRE", func() {
 
 			By("resolving current Azure identity")
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve current Azure identity")
 
 			// aro-sre-pso access — bound to system:aro-sre ClusterRole (read-only)
 
 			By("creating SRE breakglass credentials with aro-sre-pso permissions")
 			aroSrePsoRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-pso", currentIdentity)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create SRE breakglass credentials with aro-sre-pso permissions")
 			err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:cluster-readers", aroSrePsoRestConfig, append(commonVerifiers,
 				// Negative: secrets read is forbidden (actual access test)
 				verifiers.ExpectForbidden(verifiers.VerifyListNamespaced("kube-system", "secrets")),
@@ -200,7 +200,7 @@ var _ = Describe("SRE", func() {
 					verifiers.CanGet("", "secrets"),
 				),
 			))
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify aro-sre-pso breakglass session permissions")
 			By("waiting for the session to expire")
 			waitForSessionExpiration(expiresAt)
 			By("verifying the session is expired")
@@ -212,7 +212,7 @@ var _ = Describe("SRE", func() {
 
 			By("creating SRE breakglass credentials with aro-sre-csa permissions")
 			aroSreCsaRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-csa", currentIdentity)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create SRE breakglass credentials with aro-sre-csa permissions")
 			err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:masters", aroSreCsaRestConfig, append(commonVerifiers,
 				// Positive: can read secrets (cluster-admin)
 				verifiers.VerifyListNamespaced("kube-system", "secrets"),
@@ -230,7 +230,7 @@ var _ = Describe("SRE", func() {
 					verifiers.CanList("operator.openshift.io", "ingresscontrollers"),
 				),
 			))
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify aro-sre-csa breakglass session permissions")
 			By("waiting for the session to expire")
 			waitForSessionExpiration(expiresAt)
 			By("verifying the session is expired")
@@ -245,9 +245,9 @@ var _ = Describe("SRE", func() {
 				PrincipalName: "other-app-oid",
 				PrincipalType: framework.PrincipalTypeAADServicePrincipal,
 			})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create breakglass credentials for another user")
 			By("and expecting cluster access to be denied")
-			Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred())
+			Expect(verifiers.VerifyWhoAmI("aro-sre").Verify(ctx, otherUserRestConfig)).To(HaveOccurred(), "expected cluster access to be denied for a different user's breakglass session")
 		})
 
 	It("should be able to retrieve serial console logs for a VM",
@@ -268,12 +268,12 @@ var _ = Describe("SRE", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-serialconsole", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for serial console test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -293,7 +293,7 @@ var _ = Describe("SRE", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for serial console cluster")
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
@@ -303,7 +303,7 @@ var _ = Describe("SRE", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q for serial console test", engineeringClusterName)
 
 			By("creating a nodepool to provision worker VMs")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -319,22 +319,22 @@ var _ = Describe("SRE", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create worker nodepool for serial console test")
 
 			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
 			By("resolving current Azure identity")
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve current Azure identity for serial console test")
 
 			By("getting VM name from managed resource group")
 			vmName, err := tc.GetFirstVMFromManagedResourceGroup(ctx, managedResourceGroupName)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(vmName).NotTo(BeEmpty())
+			Expect(err).NotTo(HaveOccurred(), "failed to get VM name from managed resource group %q", managedResourceGroupName)
+			Expect(vmName).NotTo(BeEmpty(), "VM name from managed resource group %q should not be empty", managedResourceGroupName)
 
 			By(fmt.Sprintf("retrieving serial console logs for VM %s", vmName))
 			logs, err := tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to retrieve serial console logs for VM %q", vmName)
 			Expect(logs).NotTo(BeEmpty())
 
 			By("verifying serial console logs contain boot information")
@@ -344,17 +344,17 @@ var _ = Describe("SRE", func() {
 
 			By("testing error case: non-existent VM name")
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "non-existent-vm-12345", currentIdentity)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs for non-existent VM")
 			Expect(err.Error()).To(ContainSubstring("404"))
 
 			By("testing error case: invalid VM name format")
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "-invalid-vm-name", currentIdentity)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with invalid VM name format")
 			Expect(err.Error()).To(ContainSubstring("400"))
 
 			By("testing error case: empty VM name")
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "", currentIdentity)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with empty VM name")
 			Expect(err.Error()).To(ContainSubstring("400"))
 		})
 
@@ -377,12 +377,12 @@ var _ = Describe("SRE", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-api-serialconsole-bootdiag", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for boot diagnostics test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -402,7 +402,7 @@ var _ = Describe("SRE", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for boot diagnostics cluster")
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
@@ -412,7 +412,7 @@ var _ = Describe("SRE", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q for boot diagnostics test", engineeringClusterName)
 
 			By("creating a nodepool to provision worker VMs")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -428,25 +428,25 @@ var _ = Describe("SRE", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create worker nodepool for boot diagnostics test")
 
 			hcpResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/%s", api.Must(tc.SubscriptionID(ctx)), *resourceGroup.Name, engineeringClusterName)
 
 			By("resolving current Azure identity")
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve current Azure identity for boot diagnostics test")
 
 			By("getting VM name from managed resource group")
 			vmName, err := tc.GetFirstVMFromManagedResourceGroup(ctx, managedResourceGroupName)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(vmName).NotTo(BeEmpty())
+			Expect(err).NotTo(HaveOccurred(), "failed to get VM name from managed resource group %q", managedResourceGroupName)
+			Expect(vmName).NotTo(BeEmpty(), "VM name from managed resource group %q should not be empty", managedResourceGroupName)
 
 			By("testing error case: boot diagnostics disabled")
 			err = tc.DisableVMBootDiagnostics(ctx, managedResourceGroupName, vmName)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to disable boot diagnostics on VM %q", vmName)
 
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with boot diagnostics disabled on VM %q", vmName)
 			Expect(err.Error()).To(ContainSubstring("409"))
 			Expect(err.Error()).To(ContainSubstring("Conflict"))
 			Expect(err.Error()).To(ContainSubstring("Boot diagnostics are unexpectedly not enabled"))

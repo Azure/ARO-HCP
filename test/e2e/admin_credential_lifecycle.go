@@ -63,12 +63,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
 			By("creating resource group for admin credential lifecycle testing")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-credential-lifecycle-test", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for admin credential lifecycle test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -84,7 +84,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for admin credential lifecycle cluster")
 
 			By("starting HCP cluster creation asynchronously")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
@@ -101,7 +101,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				tc.Location(),
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to begin creating HCP cluster %q", clusterName)
 
 			By("waiting for cluster to appear and testing admin credentials while in deploying state")
 			// Poll the cluster state and test admin credentials when we find it deploying
@@ -183,12 +183,12 @@ var _ = Describe("Customer", func() {
 					clusterName,
 					nil,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to request admin credential %d", i+1)
 
 				credResp, err := adminCredentialRequestPoller.PollUntilDone(validationCtx, &runtime.PollUntilDoneOptions{
 					Frequency: framework.StandardPollInterval,
 				})
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to poll admin credential %d to completion", i+1)
 				Expect(credResp.Kubeconfig).NotTo(BeNil())
 
 				By("validating kubeconfig returned by the API is valid")
@@ -223,7 +223,7 @@ var _ = Describe("Customer", func() {
 
 				By("converting validated kubeconfig to rest.Config")
 				adminRESTConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfigData)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to convert kubeconfig to rest.Config for credential %d", i+1)
 				Expect(adminRESTConfig).NotTo(BeNil(), "adminRESTConfig was nil for credential %d", i+1)
 
 				credentials = append(credentials, adminRESTConfig)
@@ -249,7 +249,7 @@ var _ = Describe("Customer", func() {
 			if err != nil && skipSuite {
 				Skip("skipping revocation and remaining steps in integration/parallel suite")
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to revoke admin credentials for cluster %q", clusterName)
 
 			By("validating all admin credentials now fail after revocation")
 			for i, cred := range credentials {
@@ -294,7 +294,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to request new admin credentials after revocation for cluster %q", clusterName)
 			Expect(newAdminRESTConfig).NotTo(BeNil(), "newAdminRESTConfig was nil after revocation")
 
 			By("verifying new admin credentials work after revocation")
