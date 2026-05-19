@@ -29,7 +29,7 @@ import (
 // account/database. It uses the Azure default credential chain, which in
 // production resolves to the pod's workload-identity federated token.
 func NewKubeApplierDBClient(
-	ctx context.Context, cosmosDBURL, cosmosDBName string,
+	ctx context.Context, cosmosDBURL, cosmosDBName, cosmosContainerName string,
 ) (database.KubeApplierDBClient, error) {
 	clientOptions := azcore.ClientOptions{Cloud: cloud.AzurePublic}
 
@@ -37,7 +37,7 @@ func NewKubeApplierDBClient(
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create Azure Cosmos database client: %w", err))
 	}
-	client, err := database.NewKubeApplierDBClient(cosmosDatabaseClient)
+	client, err := database.NewKubeApplierDBClient(cosmosDatabaseClient, cosmosContainerName)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create KubeApplierDBClient: %w", err))
 	}

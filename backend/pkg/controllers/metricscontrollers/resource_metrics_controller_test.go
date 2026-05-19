@@ -133,6 +133,7 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 	handler := NewNodePoolMetricsHandler(reg)
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1"))},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),

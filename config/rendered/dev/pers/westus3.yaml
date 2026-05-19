@@ -440,8 +440,16 @@ kubeApplier:
     repository: kube-applier
   k8s:
     namespace: kube-applier
+    replicas: 1
+    resources:
+      limits:
+        memory: unlimited
+      requests:
+        cpu: 100m
+        memory: 128Mi
     serviceAccountName: kube-applier
   managedIdentityName: kube-applier
+  partitionKey: /providers/microsoft.redhatopenshift/stamps/1/managementclusters/default
 kubeEvents:
   enabled: true
   image:
@@ -761,6 +769,7 @@ monitoring:
       routingId: ""
   maxActiveTimeSeries: 2000000
   maxEventsPerMinute: 2000000
+  skipDatasourceSync: false
   svcWorkspaceName: services-usw3test
 msiCredentialsRefresher:
   certificate:
