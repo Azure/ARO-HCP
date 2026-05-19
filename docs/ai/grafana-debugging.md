@@ -12,6 +12,7 @@
 ### Data Sources Hints
 - `hcps-*` data sources contain metrics from hosted control planes
 - `services-*` data sources contain metrics from service and management clusters (underlay)
+- the prod `*-eastus2euap` data sources are for the US canary region and match the `hcp-prod-usc` kusto cluster
 
 ## Alerts
 
