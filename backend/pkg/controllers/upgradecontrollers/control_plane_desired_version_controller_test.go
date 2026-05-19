@@ -117,7 +117,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 					nil,
 				)
 			},
-			expectedVersion: ptr.To(semver.MustParse("4.19.20")), // Select latest for security even without gateway
+			expectedVersion: nil, // Z-stream: preserve upgradeability, don't select version without gateway
 			expectedError:   false,
 		},
 		{
