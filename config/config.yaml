@@ -275,7 +275,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: openshift/hypershift
-      digest: sha256:34c53d7341f14cd2944c25ec26faf9a7879e9ed994d70b1647f607cb4edb4f1f # 4eb7a6ba0 cherry-pick-7721-and-7722-to-release-4.20 + 211a497a3 (2026-05-18)
+      digest: sha256:2347029c23c9b6ca03198bb4480c6f2454ffd2811599e80f056f890991664f7b # 9e283aee4 main + CPO override for 4.20 PDB fix (2026-05-19)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
