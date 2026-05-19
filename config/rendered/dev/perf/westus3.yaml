@@ -425,7 +425,7 @@ imageSync:
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
-    operatorVersionsToMirror: 4.18,4.19,4.20,4.21
+    operatorVersionsToMirror: 4.18,4.19,4.20,4.21,4.22
     pullSecretName: ocmirror-pull-secret
   ondemandSync:
     pullSecretName: component-sync-pull-secret
