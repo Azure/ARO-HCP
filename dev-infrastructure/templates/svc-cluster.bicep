@@ -752,6 +752,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') 
   scope: resourceGroup(regionalResourceGroup)
   params: {
     cosmosDBAccountName: rpCosmosDbName
+    location: location
     userAssignedMIs: [frontendMI, backendMI, adminApiMI]
     resourceContainerMaxScale: resourceContainerMaxScale
     billingContainerMaxScale: billingContainerMaxScale
