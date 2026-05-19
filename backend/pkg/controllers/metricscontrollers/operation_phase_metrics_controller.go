@@ -89,8 +89,8 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 		// which is bounded by the op count and gives count-based
 		// alerting a hook.
 		logger := utils.LoggerFromContext(ctx)
-		logger.Info("operation has no ExternalID; skipping metric emission",
-			"cosmos_doc_id", resourceIDMetricLabel(op.GetResourceID()))
+		logger.Info("WARNING: operation has no ExternalID; skipping metric emission",
+			"cosmos_resource_id", resourceIDMetricLabel(op.GetResourceID()))
 		return
 	}
 	subscriptionID := subscriptionIDMetricLabel(op.MetricResourceID())

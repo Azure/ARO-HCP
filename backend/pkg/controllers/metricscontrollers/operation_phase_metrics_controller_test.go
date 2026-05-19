@@ -453,7 +453,6 @@ func TestOperationPhaseMetricsHandler_SkipsWhenExternalIDNil(t *testing.T) {
 	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-no-ext-id"))
 	op := &api.Operation{
 		CosmosMetadata:     api.CosmosMetadata{ResourceID: resourceID},
-		ResourceID:         resourceID,
 		OperationID:        api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/op-no-ext-id")),
 		Request:            api.OperationRequestCreate,
 		Status:             arm.ProvisioningStateAccepted,

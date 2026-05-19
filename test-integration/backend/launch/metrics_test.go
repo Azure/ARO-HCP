@@ -131,11 +131,13 @@ func TestBackendExposesMetrics(t *testing.T) {
 			strings.ToLower(clusterResourceID.String()),
 			strings.ToLower(clusterResourceID.SubscriptionID),
 		)
+		metricResourceID := operation.MetricResourceID()
+		require.NotNil(t, metricResourceID, "operation.MetricResourceID() must not be nil")
 		operationMetricLine := fmt.Sprintf(
 			`backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="%s",resource_type="%s",subscription_id="%s"} 1`,
-			strings.ToLower(operation.MetricResourceID().String()),
+			strings.ToLower(metricResourceID.String()),
 			strings.ToLower(clusterResourceID.ResourceType.String()),
-			strings.ToLower(operation.MetricResourceID().SubscriptionID),
+			strings.ToLower(metricResourceID.SubscriptionID),
 		)
 
 		require.Eventually(t, func() bool {
