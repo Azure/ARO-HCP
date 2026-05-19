@@ -1,0 +1,251 @@
+---
+# Source: kube-applier/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    azure.workload.identity/client-id: '__kubeApplierMsiClientId__'
+    azure.workload.identity/tenant-id: '__kubeApplierMsiTenantId__'
+  name: 'kube-applier'
+  namespace: 'kube-applier'
+---
+# Source: kube-applier/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-applier
+rules:
+- apiGroups:
+  - hypershift.openshift.io
+  resources:
+  - '*'
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - certificates.hypershift.openshift.io
+  resources:
+  - '*'
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ''
+  resources:
+  - namespaces
+  - secrets
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - secrets-store.csi.x-k8s.io
+  resources:
+  - secretproviderclasses
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - secret-sync.x-k8s.io
+  resources:
+  - secretsyncs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - cluster.open-cluster-management.io
+  resources:
+  - managedclusters
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+---
+# Source: kube-applier/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-applier
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-applier
+subjects:
+- kind: ServiceAccount
+  name: 'kube-applier'
+  namespace: 'kube-applier'
+---
+# Source: kube-applier/templates/leader-election.role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-election
+  namespace: 'kube-applier'
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+---
+# Source: kube-applier/templates/leader-election.rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kube-applier-leader-election
+  namespace: 'kube-applier'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: leader-election
+subjects:
+- kind: ServiceAccount
+  name: 'kube-applier'
+  namespace: 'kube-applier'
+---
+# Source: kube-applier/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kube-applier
+  name: kube-applier
+  namespace: 'kube-applier'
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: kube-applier
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: kube-applier
+        azure.workload.identity/use: "true"
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: kube-applier
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: kube-applier
+      serviceAccountName: 'kube-applier'
+      containers:
+      - name: kube-applier
+        image: 'arohcpsvcdev.azurecr.io/kube-applier@sha256:1234567890'
+        args:
+        - --management-cluster=/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default
+        - --cosmos-name=arohcpdev-rp-usw3
+        - --cosmos-url=__cosmosDBDocumentEndpoint__
+        - --cosmos-container=Manifests-MC-1
+        - --namespace=kube-applier
+        imagePullPolicy: Always
+        env:
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
+        ports:
+        - name: healthz
+          containerPort: 8083
+          protocol: TCP
+        - name: metrics
+          containerPort: 8081
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+# Source: kube-applier/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: kube-applier-pull-binding
+  namespace: 'kube-applier'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:kube-applier:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'kube-applier'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__imagePullerMsiTenantId__'
+  serviceAccountName: 'kube-applier'
+

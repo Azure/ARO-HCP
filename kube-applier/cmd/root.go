@@ -42,6 +42,7 @@ type KubeApplierRootCmdFlags struct {
 	ManagementCluster          string
 	AzureCosmosDBName          string
 	AzureCosmosDBURL           string
+	AzureCosmosContainerName   string
 	MetricsServerListenAddress string
 	HealthzServerListenAddress string
 	LeaderElectionID           string
@@ -58,6 +59,7 @@ func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"Name of the management cluster this pod runs in. This is the Cosmos partition key.")
 	cmd.Flags().StringVar(&f.AzureCosmosDBName, "cosmos-name", f.AzureCosmosDBName, "Cosmos database name.")
 	cmd.Flags().StringVar(&f.AzureCosmosDBURL, "cosmos-url", f.AzureCosmosDBURL, "Cosmos database URL.")
+	cmd.Flags().StringVar(&f.AzureCosmosContainerName, "cosmos-container", f.AzureCosmosContainerName, "Cosmos container name.")
 	cmd.Flags().StringVar(&f.MetricsServerListenAddress, "metrics-listen-address", f.MetricsServerListenAddress,
 		"Address on which to expose Prometheus metrics.")
 	cmd.Flags().StringVar(&f.HealthzServerListenAddress, "healthz-listen-address", f.HealthzServerListenAddress,
@@ -69,7 +71,7 @@ func (f *KubeApplierRootCmdFlags) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.ExitOnPanic, "exit-on-panic", f.ExitOnPanic,
 		"If set, the process exits on any goroutine panic via apimachinery's HandleCrash.")
 
-	for _, name := range []string{"namespace", "management-cluster", "cosmos-name", "cosmos-url"} {
+	for _, name := range []string{"namespace", "management-cluster", "cosmos-name", "cosmos-url", "cosmos-container"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
 			// MarkFlagRequired only fails if the flag does not exist on the command,
 			// which is a programming error in this very function.
@@ -89,6 +91,9 @@ func (f *KubeApplierRootCmdFlags) validate() error {
 	}
 	if len(f.AzureCosmosDBURL) == 0 {
 		return utils.TrackError(fmt.Errorf("--cosmos-url must not be empty"))
+	}
+	if len(f.AzureCosmosContainerName) == 0 {
+		return utils.TrackError(fmt.Errorf("--cosmos-container must not be empty"))
 	}
 	if len(f.KubeNamespace) == 0 {
 		return utils.TrackError(fmt.Errorf("--namespace must not be empty"))
@@ -119,7 +124,7 @@ func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions(ctx context.Context, cmd 
 		return nil, utils.TrackError(fmt.Errorf("failed to create leader election lock: %w", err))
 	}
 
-	kubeApplierDBClient, err := app.NewKubeApplierDBClient(ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName)
+	kubeApplierDBClient, err := app.NewKubeApplierDBClient(ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName, f.AzureCosmosContainerName)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create kube-applier Cosmos client: %w", err))
 	}

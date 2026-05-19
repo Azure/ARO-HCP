@@ -1397,6 +1397,9 @@
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
+        },
+        "partitionKey": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1405,7 +1408,8 @@
         "cosmosContainerName",
         "cosmosContainerMaxScale",
         "managedIdentityName",
-        "k8s"
+        "k8s",
+        "partitionKey"
       ]
     },
     "adminApi": {

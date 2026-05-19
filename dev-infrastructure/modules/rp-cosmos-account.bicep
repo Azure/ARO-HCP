@@ -75,6 +75,7 @@ resource kubeApplierSqlRoleDefinition 'Microsoft.DocumentDB/databaseAccounts/sql
     permissions: [
       {
         dataActions: [
+          'Microsoft.DocumentDB/databaseAccounts/readMetadata'
           'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/read'
           'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/replace'
           'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/executeQuery'
