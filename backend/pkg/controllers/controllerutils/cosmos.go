@@ -55,7 +55,22 @@ func DeleteRecursively(ctx context.Context, resourcesDBClient database.Resources
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	logger := utils.LoggerFromContext(ctx)
 	for _, nestedContent := range nestedContentIterator.Items(ctx) {
+		if nestedContent.ResourceID == nil {
+			// Malformed row with no addressable resourceID — we can't go through Delete (it would
+			// .String() a nil pointer). Fall back to DeleteByCosmosID so we still clean up the row
+			// rather than orphaning it under the tree we just deleted.
+			logger.Error(nil, "descendent has no resourceID; deleting by cosmosID",
+				"cosmosID", nestedContent.ID,
+				"partitionKey", nestedContent.PartitionKey,
+				"resourceType", nestedContent.ResourceType,
+			)
+			if err := untypedClient.DeleteByCosmosID(ctx, nestedContent.PartitionKey, nestedContent.ID); err != nil {
+				return utils.TrackError(fmt.Errorf("failed to delete cosmosID %q in partition %q: %w", nestedContent.ID, nestedContent.PartitionKey, err))
+			}
+			continue
+		}
 		if err := untypedClient.Delete(ctx, nestedContent.ResourceID); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to delete resourceID %q: %w", nestedContent.ResourceID, err))
 		}

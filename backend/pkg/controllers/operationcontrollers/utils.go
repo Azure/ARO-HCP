@@ -679,6 +679,7 @@ func SetDeleteOperationAsCompleted(ctx context.Context, resourcesDBClient databa
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	logger := utils.LoggerFromContext(ctx)
 	for _, childResource := range childIterator.Items(ctx) {
 		// clusters, nodepools, and externalauths have special deletion handling, so don't delete them from here.
 		switch strings.ToLower(childResource.ResourceType) {
@@ -694,7 +695,17 @@ func SetDeleteOperationAsCompleted(ctx context.Context, resourcesDBClient databa
 		// CosmosMetadata). The TypedDocument-level ResourceID is preserved across that
 		// migration and is the authoritative ARM ID for the document.
 		if childResource.ResourceID == nil {
-			return utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
+			// Malformed row with no addressable resourceID — fall back to DeleteByCosmosID so the
+			// row is still cleaned up alongside its (now-deleted) parent rather than orphaned.
+			logger.Error(nil, "child resource has no resourceID; deleting by cosmosID",
+				"cosmosID", childResource.ID,
+				"partitionKey", childResource.PartitionKey,
+				"resourceType", childResource.ResourceType,
+			)
+			if err := untypedCRUD.DeleteByCosmosID(ctx, childResource.PartitionKey, childResource.ID); err != nil {
+				return utils.TrackError(fmt.Errorf("failed to delete child cosmosID %q in partition %q: %w", childResource.ID, childResource.PartitionKey, err))
+			}
+			continue
 		}
 		if err := untypedCRUD.Delete(ctx, childResource.ResourceID); err != nil {
 			return utils.TrackError(err)
