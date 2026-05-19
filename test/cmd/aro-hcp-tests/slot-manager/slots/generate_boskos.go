@@ -96,6 +96,12 @@ func RenderBoskosResourcesBlock(catalog *Catalog) string {
 	return strings.Join(lines, "\n")
 }
 
+// ValidateBoskosConfig checks that the generated Boskos YAML in releaseRepo
+// contains the resource types and names expected by the slot catalog. This
+// check is intentionally informational: when growing a pool you must update
+// the catalog first, then sync the Boskos config; when shrinking a pool the
+// order is reversed. A strict presubmit gate would reject the first half of
+// either change.
 func ValidateBoskosConfig(releaseRepo string, catalog *Catalog) error {
 	expected, err := ExpectedBoskosResources(catalog)
 	if err != nil {

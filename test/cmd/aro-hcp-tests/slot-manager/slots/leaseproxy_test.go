@@ -116,7 +116,7 @@ func TestAcquireLeaseClassifiesPoolExhaustionWithoutRetry(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`Failed to acquire lease "aro-hcp-dev-westus3-slot": resource not found`))
+		_, _ = w.Write([]byte(`Failed to acquire lease "aro-hcp-dev-westus3-slot": resources not found`))
 	}))
 	defer server.Close()
 
@@ -129,6 +129,62 @@ func TestAcquireLeaseClassifiesPoolExhaustionWithoutRetry(t *testing.T) {
 	}
 	if attempts != 1 {
 		t.Fatalf("expected exactly 1 attempt for exhausted pool, got %d", attempts)
+	}
+}
+
+func TestIsLeasePoolExhaustedResponse(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		statusCode int
+		body       string
+		want       bool
+	}{
+		{
+			name:       "ci-tools proxy: ErrNotFound wraps client sentinel",
+			statusCode: http.StatusInternalServerError,
+			body:       `Failed to acquire lease "aro-hcp-dev-westus3-slot": resources not found`,
+			want:       true,
+		},
+		{
+			name:       "Boskos server ranch.ResourceNotFound relayed as-is",
+			statusCode: http.StatusInternalServerError,
+			body:       `Acquire failed: no available resource aro-hcp-dev-westus3-slot, try again later.`,
+			want:       true,
+		},
+		{
+			name:       "ci-tools proxy: ErrTypeNotFound returns 404",
+			statusCode: http.StatusNotFound,
+			body:       `Failed to acquire lease "missing-type": resource type not found`,
+			want:       false,
+		},
+		{
+			name:       "unrelated 500 from proxy startup failure",
+			statusCode: http.StatusInternalServerError,
+			body:       `Failed to get lease client`,
+			want:       false,
+		},
+		{
+			name:       "4xx errors are never pool exhaustion",
+			statusCode: http.StatusBadRequest,
+			body:       `type is required`,
+			want:       false,
+		},
+		{
+			name:       "503 with no body is retryable, not pool exhaustion",
+			statusCode: http.StatusServiceUnavailable,
+			body:       ``,
+			want:       false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := isLeasePoolExhaustedResponse(tc.statusCode, []byte(tc.body))
+			if got != tc.want {
+				t.Errorf("isLeasePoolExhaustedResponse(%d, %q) = %v, want %v", tc.statusCode, tc.body, got, tc.want)
+			}
+		})
 	}
 }
 
