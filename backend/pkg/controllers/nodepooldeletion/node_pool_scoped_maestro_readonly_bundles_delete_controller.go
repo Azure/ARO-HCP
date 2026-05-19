@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,7 +41,7 @@ import (
 // removes each bundle from the Maestro API, then clears the
 // corresponding reference from the ServiceProviderNodePool in Cosmos.
 type nodePoolScopedMaestroReadonlyBundlesDeleteController struct {
-	cooldownChecker                    controllerutils.CooldownChecker
+	cooldownChecker                    controllerutil.CooldownChecker
 	nodePoolLister                     listers.NodePoolLister
 	serviceProviderNodePoolLister      listers.ServiceProviderNodePoolLister
 	resourcesDBClient                  database.ResourcesDBClient
@@ -83,7 +84,7 @@ func NewNodePoolScopedMaestroReadonlyBundlesDeleteController(
 	)
 }
 
-func (c *nodePoolScopedMaestroReadonlyBundlesDeleteController) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolScopedMaestroReadonlyBundlesDeleteController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,7 +41,7 @@ import (
 // issued (ClusterServiceDeletionTimestamp set) and stops once the
 // ClusterServiceID is cleared (404 handled by nodePoolClusterServiceIDClearer).
 type nodePoolDeletionOperationStatusController struct {
-	cooldownChecker      controllerutils.CooldownChecker
+	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -74,7 +75,7 @@ func NewNodePoolDeletionOperationStatusController(
 	)
 }
 
-func (c *nodePoolDeletionOperationStatusController) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolDeletionOperationStatusController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

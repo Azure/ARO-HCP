@@ -24,8 +24,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
