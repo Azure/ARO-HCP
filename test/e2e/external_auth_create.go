@@ -176,14 +176,14 @@ var _ = Describe("Customer", func() {
 			By("verifying ExternalAuth is in a Succeeded state")
 			eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %s", customerExternalAuthName)
-			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
+			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded), "external auth %s provisioning state should be Succeeded", customerExternalAuthName)
 
 			By("creating a cluster role binding for the entra application")
 			err = framework.CreateClusterRoleBinding(ctx, externalAuthSubjectPrefix+sp.ID, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster role binding for entra application")
 
 			By("creating a rest config using OIDC authentication")
-			Expect(tc.TenantID()).NotTo(BeEmpty())
+			Expect(tc.TenantID()).NotTo(BeEmpty(), "tenant ID must not be empty for OIDC authentication")
 			cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create client secret credential for OIDC authentication")
 

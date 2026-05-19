@@ -92,7 +92,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %s", customerClusterName)
 			Expect(actualHCPCluster.Properties.ClusterImageRegistry).NotTo(BeNil(), "cluster Properties.ClusterImageRegistry was nil")
 			Expect(actualHCPCluster.Properties.ClusterImageRegistry.State).NotTo(BeNil(), "cluster Properties.ClusterImageRegistry.State was nil")
-			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpsdk20240610preview.ClusterImageRegistryStateDisabled))
+			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpsdk20240610preview.ClusterImageRegistryStateDisabled), "cluster image registry state should be Disabled")
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(

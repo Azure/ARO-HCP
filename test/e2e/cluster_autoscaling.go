@@ -106,9 +106,9 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q to verify autoscaling settings", customerClusterName)
 			Expect(got.Properties.Autoscaling).ToNot(BeNil(), "cluster Properties.Autoscaling was nil")
-			Expect(got.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(autoscalingMaxNodeProvisionTimeSeconds)))
-			Expect(got.Properties.Autoscaling.MaxPodGracePeriodSeconds).To(Equal(to.Ptr(autoscalingMaxPodGracePeriodSeconds)))
-			Expect(got.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(autoscalingPodPriorityThreshold)))
+			Expect(got.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(autoscalingMaxNodeProvisionTimeSeconds)), "cluster autoscaling MaxNodeProvisionTimeSeconds should be %d", autoscalingMaxNodeProvisionTimeSeconds)
+			Expect(got.Properties.Autoscaling.MaxPodGracePeriodSeconds).To(Equal(to.Ptr(autoscalingMaxPodGracePeriodSeconds)), "cluster autoscaling MaxPodGracePeriodSeconds should be %d", autoscalingMaxPodGracePeriodSeconds)
+			Expect(got.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(autoscalingPodPriorityThreshold)), "cluster autoscaling PodPriorityThreshold should be %d", autoscalingPodPriorityThreshold)
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()

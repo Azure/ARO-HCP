@@ -335,27 +335,27 @@ var _ = Describe("SRE", func() {
 			By(fmt.Sprintf("retrieving serial console logs for VM %s", vmName))
 			logs, err := tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
 			Expect(err).NotTo(HaveOccurred(), "failed to retrieve serial console logs for VM %q", vmName)
-			Expect(logs).NotTo(BeEmpty())
+			Expect(logs).NotTo(BeEmpty(), "serial console logs for VM %q should not be empty", vmName)
 
 			By("verifying serial console logs contain boot information")
 			// Serial console logs typically contain boot messages, kernel output, or systemd logs
 			// We just verify that we got some content back
-			Expect(len(logs)).To(BeNumerically(">", 0))
+			Expect(len(logs)).To(BeNumerically(">", 0), "serial console logs length should be greater than 0")
 
 			By("testing error case: non-existent VM name")
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "non-existent-vm-12345", currentIdentity)
 			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs for non-existent VM")
-			Expect(err.Error()).To(ContainSubstring("404"))
+			Expect(err.Error()).To(ContainSubstring("404"), "error for non-existent VM should contain 404 status code")
 
 			By("testing error case: invalid VM name format")
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "-invalid-vm-name", currentIdentity)
 			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with invalid VM name format")
-			Expect(err.Error()).To(ContainSubstring("400"))
+			Expect(err.Error()).To(ContainSubstring("400"), "error for invalid VM name format should contain 400 status code")
 
 			By("testing error case: empty VM name")
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "", currentIdentity)
 			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with empty VM name")
-			Expect(err.Error()).To(ContainSubstring("400"))
+			Expect(err.Error()).To(ContainSubstring("400"), "error for empty VM name should contain 400 status code")
 		})
 
 	It("should return 409 when boot diagnostics is disabled on a VM",
@@ -447,10 +447,10 @@ var _ = Describe("SRE", func() {
 
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
 			Expect(err).To(HaveOccurred(), "expected error when retrieving serial console logs with boot diagnostics disabled on VM %q", vmName)
-			Expect(err.Error()).To(ContainSubstring("409"))
-			Expect(err.Error()).To(ContainSubstring("Conflict"))
-			Expect(err.Error()).To(ContainSubstring("Boot diagnostics are unexpectedly not enabled"))
-			Expect(err.Error()).To(ContainSubstring(vmName))
+			Expect(err.Error()).To(ContainSubstring("409"), "error for disabled boot diagnostics should contain 409 status code")
+			Expect(err.Error()).To(ContainSubstring("Conflict"), "error for disabled boot diagnostics should contain Conflict")
+			Expect(err.Error()).To(ContainSubstring("Boot diagnostics are unexpectedly not enabled"), "error should mention boot diagnostics not enabled")
+			Expect(err.Error()).To(ContainSubstring(vmName), "error should reference VM name %q", vmName)
 		})
 })
 

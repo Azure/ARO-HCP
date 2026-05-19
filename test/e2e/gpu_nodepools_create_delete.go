@@ -107,7 +107,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					10*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
-				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
+				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "failed to verify basic cluster health for %s", customerClusterName)
 
 				// this test deletes gpu node pool later. if we only create gpu node pool and then delete it,
 				// we will get an error: "The last node pool can not be deleted from a cluster."
@@ -158,10 +158,10 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to get GPU nodepool %s", gpuNodePoolName)
 				Expect(created.Properties).ToNot(BeNil(), "GPU nodepool Properties was nil")
 				Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "GPU nodepool Properties.ProvisioningState was nil")
-				Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded))
+				Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded), "GPU nodepool %s provisioning state should be Succeeded", gpuNodePoolName)
 				Expect(created.Properties.Platform).ToNot(BeNil(), "GPU nodepool Properties.Platform was nil")
 				Expect(created.Properties.Platform.VMSize).ToNot(BeNil(), "GPU nodepool Properties.Platform.VMSize was nil")
-				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize))
+				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize), "GPU nodepool %s VM size should be %s", gpuNodePoolName, sku.vmSize)
 
 				By("deleting GPU nodepool")
 				Expect(framework.DeleteNodePool(
@@ -171,7 +171,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					customerClusterName,
 					gpuNodePoolName,
 					25*time.Minute,
-				)).To(Succeed())
+				)).To(Succeed(), "failed to delete GPU nodepool %s", gpuNodePoolName)
 
 				By("confirming GPU nodepool has been deleted")
 				_, getErr := framework.GetNodePool(ctx,

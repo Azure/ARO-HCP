@@ -147,13 +147,13 @@ var _ = Describe("Customer", func() {
 			By("verifying customer resource group is deleted (404)")
 			_, err = rgClient.Get(ctx, *resourceGroup.Name, nil)
 			Expect(err).To(HaveOccurred(), "expected customer resource group %q to be deleted (404)", *resourceGroup.Name)
-			Expect(err.Error()).To(ContainSubstring("ResourceGroupNotFound"))
+			Expect(err.Error()).To(ContainSubstring("ResourceGroupNotFound"), "customer resource group %q should return ResourceGroupNotFound after deletion", *resourceGroup.Name)
 
 			By("verifying managed resource group is deleted (404)")
 			Eventually(func() error {
 				_, err = rgClient.Get(ctx, managedResourceGroupName, nil)
 				return err
 			}, 10*time.Minute, 30*time.Second).ShouldNot(Succeed())
-			Expect(err.Error()).To(ContainSubstring("ResourceGroupNotFound"))
+			Expect(err.Error()).To(ContainSubstring("ResourceGroupNotFound"), "managed resource group %q should return ResourceGroupNotFound after deletion", managedResourceGroupName)
 		})
 })

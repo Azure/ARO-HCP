@@ -98,7 +98,7 @@ var _ = Describe("MISE Routing", func() {
 			_, err = pager.NextPage(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to list clusters by resource group")
 
-			Expect(capture.version).To(Equal(expectedVersion))
+			Expect(capture.version).To(Equal(expectedVersion), "captured MISE version header should be %q", expectedVersion)
 		},
 		Entry("MISE v2 when x-ms-mise-version header is set", "mise-v2-smoke", "v2", "v2"),
 		Entry("default route returns no version header", "mise-default-smoke", "", ""),

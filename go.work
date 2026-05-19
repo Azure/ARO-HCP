@@ -6,6 +6,7 @@ use (
 	./backend
 	./dev-infrastructure/scripts/cleanup-pko-resources
 	./frontend
+	./hack/verify-gomega-assertions
 	./internal
 	./kube-applier
 	./mgmt-agent
