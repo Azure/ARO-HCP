@@ -1,0 +1,46 @@
+# This policy enforces FSI image sourcing requirements by restricting all pod
+# container images to a set of allowed registries. Images not matching any
+# allowed registry prefix are denied at admission time.
+#
+# The allowed registry list is provided via a ConfigMap parameter so it can be
+# managed independently of the policy definition.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "image-registry-allowlist-policy"
+  labels:
+    app.kubernetes.io/name: image-registry-policy
+    app.kubernetes.io/managed-by: Helm
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConditions:
+  - name: 'excludeSystemNamespaces'
+    expression: "!(['kube-system', 'kube-node-lease', 'kube-public', 'gatekeeper-system'].exists(ns, request.namespace == ns))"
+  matchConstraints:
+    matchPolicy: Equivalent
+    namespaceSelector: {}
+    objectSelector: {}
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["pods"]
+      scope: Namespaced
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["UPDATE"]
+      resources: ["pods/ephemeralcontainers"]
+      scope: Namespaced
+  variables:
+  - name: allImages
+    expression: >-
+      object.spec.containers.map(c, c.image) + object.spec.?initContainers.orValue([]).map(c, c.image) + object.spec.?ephemeralContainers.orValue([]).map(c, c.image)
+  - name: allowedPrefixes
+    expression: "params.data.allowedRegistries.split(',')"
+  validations:
+  - expression: "variables.allImages.all(img, variables.allowedPrefixes.exists(prefix, img.startsWith(prefix + '/') || img.startsWith(prefix + '@') || img.startsWith(prefix + ':')))"
+    messageExpression: "'One or more container images are not from an allowed registry. Allowed registries: ' + params.data.allowedRegistries + '. Images: ' + variables.allImages.filter(img, !variables.allowedPrefixes.exists(prefix, img.startsWith(prefix + '/') || img.startsWith(prefix + '@') || img.startsWith(prefix + ':'))).join(', ')"
+    reason: Forbidden
