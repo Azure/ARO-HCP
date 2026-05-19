@@ -133,7 +133,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 			return utils.TrackError(err)
 		}
 
-		err = SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -149,7 +149,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, PostAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

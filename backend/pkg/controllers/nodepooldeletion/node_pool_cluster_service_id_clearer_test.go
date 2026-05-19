@@ -161,12 +161,17 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 				NodePools(testClusterName).Get(ctx, testNodePoolName)
 			require.NoError(t, err)
 			if tc.wantCSIDCleared {
-				assert.Empty(t, stored.ServiceProviderProperties.ClusterServiceID.String(), "expected ClusterServiceID to be cleared")
+				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "expected ClusterServiceID to be cleared")
 			} else {
-				assert.Equal(t,
-					tc.existingNodePool.ServiceProviderProperties.ClusterServiceID.String(),
-					stored.ServiceProviderProperties.ClusterServiceID.String(),
-					"ClusterServiceID should be unchanged")
+				if tc.existingNodePool.ServiceProviderProperties.ClusterServiceID == nil {
+					assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should remain nil")
+				} else {
+					require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should not be nil")
+					assert.Equal(t,
+						tc.existingNodePool.ServiceProviderProperties.ClusterServiceID.String(),
+						stored.ServiceProviderProperties.ClusterServiceID.String(),
+						"ClusterServiceID should be unchanged")
+				}
 			}
 		})
 	}

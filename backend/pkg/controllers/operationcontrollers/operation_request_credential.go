@@ -137,7 +137,7 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 		return nil
 	}
 
-	err = patchOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
+	err = patchOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, PostAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
