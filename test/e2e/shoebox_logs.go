@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
@@ -123,7 +124,11 @@ func createStorageAccount(ctx context.Context, subscriptionID string, creds azco
 		return nil, fmt.Errorf("failed to begin storage account creation: %w", err)
 	}
 
-	storageAccount, err := storagePoller.PollUntilDone(ctx, nil)
+	pollCtx, pollCancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer pollCancel()
+	storageAccount, err := storagePoller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+		Frequency: 10 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage account: %w", err)
 	}
@@ -163,7 +168,11 @@ func createEventHub(ctx context.Context, subscriptionID string, creds azcore.Tok
 		return nil, fmt.Errorf("failed to begin Event Hub namespace creation: %w", err)
 	}
 
-	_, err = nsPoller.PollUntilDone(ctx, nil)
+	pollCtx, pollCancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer pollCancel()
+	_, err = nsPoller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+		Frequency: 10 * time.Second,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Event Hub namespace: %w", err)
 	}
