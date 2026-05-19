@@ -2816,6 +2816,39 @@
         "alertRuleOwningTeamTag"
       ]
     },
+    "quotaizer": {
+      "type": "object",
+      "properties": {
+        "quotaGroup": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "displayName"
+          ]
+        },
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "quotaGroup",
+        "managedIdentityName",
+        "image"
+      ]
+    },
     "routeMonitorOperator": {
       "type": "object",
       "properties": {
