@@ -47,7 +47,7 @@ import (
 // which are expected to be quick.
 type UnionDesireInformer struct {
 	mu       sync.RWMutex
-	subs     map[string]*subInformer  // key = lowercased(rid.String())
+	subs     map[string]*subInformer // key = lowercased(rid.String())
 	handlers map[*handlerEntry]struct{}
 }
 
