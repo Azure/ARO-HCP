@@ -229,7 +229,7 @@ environments:
 
 	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
 		"aro-hcp-dev-centralus-a-slot": {
-			{statusCode: http.StatusInternalServerError, body: "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource not found\n"},
+			exhaustedAcquireReply("aro-hcp-dev-centralus-a-slot"),
 		},
 		"aro-hcp-dev-centralus-b-slot": {
 			successAcquireReply("aro-hcp-dev-centralus-b-slot-00"),
@@ -311,7 +311,7 @@ environments:
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
 		"aro-hcp-prod-shard0-slot": {
-			{statusCode: http.StatusInternalServerError, body: "Failed to acquire lease \"aro-hcp-prod-shard0-slot\": resource not found\n"},
+			exhaustedAcquireReply("aro-hcp-prod-shard0-slot"),
 		},
 		"aro-hcp-prod-shard1-slot": {
 			successAcquireReply("aro-hcp-prod-shard1-slot-00"),
@@ -438,12 +438,9 @@ environments:
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
-		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(leaseProxyReply{
-			statusCode: http.StatusInternalServerError,
-			body:       "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource not found\n",
-		}, 2),
+		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(exhaustedAcquireReply("aro-hcp-dev-centralus-a-slot"), 2),
 		"aro-hcp-dev-centralus-b-slot": {
-			{statusCode: http.StatusInternalServerError, body: "Failed to acquire lease \"aro-hcp-dev-centralus-b-slot\": resource not found\n"},
+			exhaustedAcquireReply("aro-hcp-dev-centralus-b-slot"),
 			successAcquireReply("aro-hcp-dev-centralus-b-slot-00"),
 		},
 	})
@@ -499,10 +496,7 @@ environments:
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
-		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(leaseProxyReply{
-			statusCode: http.StatusInternalServerError,
-			body:       "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource not found\n",
-		}, 4),
+		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(exhaustedAcquireReply("aro-hcp-dev-centralus-a-slot"), 4),
 	})
 	defer server.Close()
 
@@ -561,10 +555,7 @@ environments:
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
 		"aro-hcp-dev-centralus-a-slot": {
-			{
-				statusCode: http.StatusInternalServerError,
-				body:       "Failed to acquire lease \"aro-hcp-dev-centralus-a-slot\": resource not found\n",
-			},
+			exhaustedAcquireReply("aro-hcp-dev-centralus-a-slot"),
 		},
 	})
 	defer server.Close()
@@ -596,6 +587,133 @@ environments:
 	}
 	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot"}; !equalStrings(got, want) {
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+}
+
+func TestAcquireRunReleasesLeaseOnSubscriptionResolutionFailure(t *testing.T) {
+	t.Parallel()
+
+	// Cluster profile deliberately does NOT contain the subscription name
+	// used by the pool. This makes VerifyCustomerSubscriptionName fail
+	// after the lease proxy has already granted a lease.
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "some-other-subscription")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": {
+			successAcquireReply("aro-hcp-dev-centralus-a-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	sharedDir := t.TempDir()
+	err := Acquire(context.Background(), &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           sharedDir,
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+	})
+	if err == nil {
+		t.Fatal("expected acquire to fail when customer subscription cannot be resolved")
+	}
+	if !strings.Contains(err.Error(), "no customer subscription name file matched") {
+		t.Fatalf("expected subscription resolution error, got %v", err)
+	}
+
+	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+	if got, want := *releaseCalls, []string{"aro-hcp-dev-centralus-a-slot-00"}; !equalStrings(got, want) {
+		t.Fatalf("expected lease to be released after post-acquire failure: got %v want %v", got, want)
+	}
+
+	if _, err := slots.LoadAcquiredSlotState(sharedDir); err == nil {
+		t.Fatal("expected no acquired slot state to be written on post-acquire failure")
+	}
+}
+
+func TestAcquireRunKeepsLeaseWhenEnvFileWriteFailsAfterStateWrite(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": {
+			successAcquireReply("aro-hcp-dev-centralus-a-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	sharedDir := t.TempDir()
+	envFile, err := slots.EnvFile(sharedDir)
+	if err != nil {
+		t.Fatalf("expected env file path resolution to succeed: %v", err)
+	}
+	if err := os.Mkdir(envFile, 0o755); err != nil {
+		t.Fatalf("expected env file path directory creation to succeed: %v", err)
+	}
+
+	err = Acquire(context.Background(), &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           sharedDir,
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   5 * time.Second,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+	})
+	if err == nil {
+		t.Fatal("expected acquire to fail when the env file cannot be written")
+	}
+	if !strings.Contains(err.Error(), "failed to write env file") {
+		t.Fatalf("expected env file write error, got %v", err)
+	}
+
+	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+	if got := *releaseCalls; len(got) != 0 {
+		t.Fatalf("expected lease cleanup to be left to the release step once state exists, got %v", got)
+	}
+
+	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	if err != nil {
+		t.Fatalf("expected acquired slot state to remain on disk: %v", err)
+	}
+	if state.LeasedResourceName != "aro-hcp-dev-centralus-a-slot-00" {
+		t.Fatalf("unexpected leased resource name %q", state.LeasedResourceName)
 	}
 }
 
@@ -663,6 +781,13 @@ func completeAcquireForTest(t *testing.T, raw *RawAcquireOptions) *AcquireOption
 type leaseProxyReply struct {
 	statusCode int
 	body       string
+}
+
+func exhaustedAcquireReply(resourceType string) leaseProxyReply {
+	return leaseProxyReply{
+		statusCode: http.StatusInternalServerError,
+		body:       fmt.Sprintf("Failed to acquire lease %q: resources not found\n", resourceType),
+	}
 }
 
 func successAcquireReply(resourceName string) leaseProxyReply {

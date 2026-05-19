@@ -34,10 +34,10 @@ const DefaultLeaseProxyTimeout = 2 * time.Minute
 var ErrLeasePoolExhausted = errors.New("lease pool exhausted")
 
 var leaseProxyRequestBackoff = wait.Backoff{
-	Duration: 1 * time.Second,
+	Duration: 2 * time.Second,
 	Factor:   2,
 	Jitter:   0.1,
-	Steps:    5,
+	Steps:    6,
 	Cap:      15 * time.Second,
 }
 
@@ -67,16 +67,6 @@ func (e *LeasePoolExhaustedError) Is(target error) bool {
 }
 
 func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string, timeout time.Duration) (string, error) {
-	if strings.TrimSpace(leaseProxyServerURL) == "" {
-		return "", fmt.Errorf("LEASE_PROXY_SERVER_URL must be set")
-	}
-	if strings.TrimSpace(resourceType) == "" {
-		return "", fmt.Errorf("resource type must not be empty")
-	}
-	if timeout <= 0 {
-		return "", fmt.Errorf("timeout must be greater than zero")
-	}
-
 	query := url.Values{}
 	query.Set("type", resourceType)
 	query.Set("count", "1")
@@ -91,7 +81,7 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 			}
 			return client.Do(request)
 		},
-		func(response *http.Response, responseBody []byte) (bool, error) {
+		func(response *http.Response, responseBody []byte) (success bool, fatal error) {
 			if response.StatusCode >= 200 && response.StatusCode < 300 {
 				return true, nil
 			}
@@ -102,7 +92,7 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 				}
 			}
 			if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500 {
-				return false, nil
+				return false, nil // retryable
 			}
 			return false, fmt.Errorf("failed to acquire lease type %q: %s", resourceType, leaseProxyResponseMessage(response.Status, responseBody))
 		},
@@ -123,16 +113,6 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 }
 
 func ReleaseLease(ctx context.Context, leaseProxyServerURL, name string, timeout time.Duration) error {
-	if strings.TrimSpace(leaseProxyServerURL) == "" {
-		return fmt.Errorf("LEASE_PROXY_SERVER_URL must be set")
-	}
-	if strings.TrimSpace(name) == "" {
-		return fmt.Errorf("lease name must not be empty")
-	}
-	if timeout <= 0 {
-		return fmt.Errorf("timeout must be greater than zero")
-	}
-
 	requestBody, err := json.Marshal(releaseLeaseRequest{Names: []string{name}})
 	if err != nil {
 		return fmt.Errorf("failed to marshal lease release request: %w", err)
@@ -149,12 +129,12 @@ func ReleaseLease(ctx context.Context, leaseProxyServerURL, name string, timeout
 			request.Header.Set("Content-Type", "application/json")
 			return client.Do(request)
 		},
-		func(response *http.Response, responseBody []byte) (bool, error) {
+		func(response *http.Response, responseBody []byte) (success bool, fatal error) {
 			if response.StatusCode >= 200 && response.StatusCode < 300 {
 				return true, nil
 			}
 			if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500 {
-				return false, nil
+				return false, nil // retryable
 			}
 			return false, fmt.Errorf("failed to release lease %q: %s", name, leaseProxyResponseMessage(response.Status, responseBody))
 		},
@@ -167,11 +147,22 @@ func ReleaseLease(ctx context.Context, leaseProxyServerURL, name string, timeout
 	return nil
 }
 
+// doLeaseProxyRequestWithRetry executes an HTTP request with exponential
+// backoff. The classifyResponse callback inspects each response and signals
+// one of three outcomes:
+//
+//   - success  (success=true,  fatal=nil)  → stop retrying, return the response
+//   - retry    (success=false, fatal=nil)  → wait and try again (transient: 429, 5xx, network errors)
+//   - fatal    (success=false, fatal=err)  → stop retrying, propagate the error immediately
+//
+// Network-level errors from requestFunc (connection refused, DNS failure, etc.)
+// are always treated as retryable. If all retry attempts are exhausted, the
+// last observed error is returned.
 func doLeaseProxyRequestWithRetry(
 	ctx context.Context,
 	timeout time.Duration,
 	requestFunc func(context.Context, *http.Client) (*http.Response, error),
-	responseHandler func(*http.Response, []byte) (bool, error),
+	classifyResponse func(*http.Response, []byte) (success bool, fatal error),
 ) (*http.Response, error) {
 	client := &http.Client{Timeout: timeout}
 
@@ -181,29 +172,29 @@ func doLeaseProxyRequestWithRetry(
 		currentResponse, err := requestFunc(ctx, client)
 		if err != nil {
 			lastErr = err
-			return false, nil
+			return false, nil // retry
 		}
 		responseBody, err := io.ReadAll(currentResponse.Body)
 		currentResponse.Body.Close()
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read lease proxy response body: %w", err)
-			return false, nil
+			return false, nil // retry
 		}
 		currentResponse.Body = io.NopCloser(bytes.NewReader(responseBody))
 
-		stop, err := responseHandler(currentResponse, responseBody)
-		if err != nil {
-			lastErr = err
-			return false, err
+		success, fatal := classifyResponse(currentResponse, responseBody)
+		if fatal != nil {
+			lastErr = fatal
+			return false, fatal // stop immediately
 		}
-		if !stop {
-			lastErr = fmt.Errorf("unexpected retryable status %s", currentResponse.Status)
-			return false, nil
+		if !success {
+			lastErr = fmt.Errorf("retryable status %s", currentResponse.Status)
+			return false, nil // retry
 		}
 
 		response = currentResponse
 		lastErr = nil
-		return true, nil
+		return true, nil // done
 	})
 	if err != nil {
 		if lastErr != nil {
@@ -215,13 +206,40 @@ func doLeaseProxyRequestWithRetry(
 	return response, nil
 }
 
+// isLeasePoolExhaustedResponse determines whether a proxy response indicates
+// that all resources of the requested type are currently leased (pool
+// exhaustion) as opposed to the resource type not existing at all, or some
+// unrelated server error.
+//
+// The ci-tools lease proxy (pkg/lease/proxy) already encodes the distinction
+// via HTTP status codes:
+//   - 404 → lease.ErrTypeNotFound ("resource type not found")
+//   - 500 → lease.ErrNotFound     ("resources not found") or other errors
+//
+// For 500 responses, we additionally check the body against the known error
+// strings produced by the Boskos ecosystem to avoid false positives from
+// unrelated 500 errors (e.g. "Failed to get lease client"). The strings
+// originate from:
+//   - Boskos client sentinel: "resources not found"          (sigs.k8s.io/boskos/client.ErrNotFound)
+//   - Boskos server ranch:    "no available resource <name>" (sigs.k8s.io/boskos/ranch.ResourceNotFound)
 func isLeasePoolExhaustedResponse(statusCode int, responseBody []byte) bool {
+	if statusCode == http.StatusNotFound {
+		return false
+	}
 	if statusCode < http.StatusInternalServerError {
 		return false
 	}
 
 	message := strings.ToLower(strings.TrimSpace(string(responseBody)))
-	return strings.Contains(message, "resource not found") && !strings.Contains(message, "resource type not found")
+
+	if strings.Contains(message, "resources not found") {
+		return true
+	}
+	if strings.Contains(message, "no available resource") {
+		return true
+	}
+
+	return false
 }
 
 func leaseProxyResponseMessage(status string, responseBody []byte) string {
