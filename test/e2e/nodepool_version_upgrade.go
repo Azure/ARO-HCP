@@ -322,7 +322,9 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
 			err = tc.CreateNodePoolFromParam(
 				ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				clusterParams.ManagedResourceGroupName,
 				clusterName,
 				nodePoolParams,
 				45*time.Minute,
