@@ -116,6 +116,23 @@ func (c *nodePoolChildResourceCleanupController) SyncOnce(ctx context.Context, k
 		if childResource.ResourceID == nil {
 			return utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
 		}
+
+		// We only delete the ServiceProviderNodePool if all the Maestro readonly bundles have been unset
+		if childResource.ResourceType == api.ServiceProviderNodePoolResourceType.String() {
+			spnp, err := c.resourcesDBClient.ServiceProviderNodePools(nodePoolResourceID.SubscriptionID, nodePoolResourceID.ResourceGroupName, nodePoolResourceID.Parent.Name, nodePoolResourceID.Name).Get(ctx, api.ServiceProviderNodePoolResourceName)
+			if database.IsNotFoundError(err) {
+				continue
+			}
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
+			}
+			if len(spnp.Status.MaestroReadonlyBundles) > 0 {
+				logger.Info("waiting for nodepool-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
+					"serviceProviderNodePoolResourceID", spnp.ResourceID.String(), "remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
+				continue
+			}
+		}
+
 		logger.Info("deleting child resource", "childResourceID", childResource.ResourceID)
 		if err := untypedCRUD.Delete(ctx, childResource.ResourceID); err != nil {
 			return utils.TrackError(err)

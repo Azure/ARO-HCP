@@ -30,11 +30,13 @@ import (
 
 // nodePoolDeletionController issues a Cosmos nodepool delete
 // for the Node Pools that have their DeletionTimestamp and ClusteServiceDeletionTimestamp set,
-// and their ClusterServiceID has been cleared.
+// their ClusterServiceID has been cleared, and all nodepool-scoped Maestro readonly bundles
+// have been deleted from the ServiceProviderNodePool.
 type nodePoolDeletionController struct {
-	cooldownChecker   controllerutils.CooldownChecker
-	nodePoolLister    listers.NodePoolLister
-	resourcesDBClient database.ResourcesDBClient
+	cooldownChecker               controllerutils.CooldownChecker
+	nodePoolLister                listers.NodePoolLister
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	resourcesDBClient             database.ResourcesDBClient
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
@@ -45,10 +47,12 @@ func NewNodePoolDeletionController(
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
+	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
 	syncer := &nodePoolDeletionController{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		nodePoolLister:    nodePoolLister,
-		resourcesDBClient: resourcesDBClient,
+		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		nodePoolLister:                nodePoolLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		resourcesDBClient:             resourcesDBClient,
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
@@ -95,6 +99,11 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
+	cachedSPNP, spnpCacheErr := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if spnpCacheErr == nil && len(cachedSPNP.Status.MaestroReadonlyBundles) > 0 {
+		return nil
+	}
+
 	// Confirm against the live document. The cache can lag behind a write that
 	// that modified one of the NeedsWork conditions.
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
@@ -109,6 +118,19 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
+	// We do not proceed until we know that all the maestro readonly bundles have been eliminated
+	spnpCRUD := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	spnp, spnpErr := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	if spnpErr != nil && !database.IsNotFoundError(spnpErr) {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", spnpErr))
+	}
+	if spnp != nil && len(spnp.Status.MaestroReadonlyBundles) > 0 {
+		logger.Info("waiting for nodepool-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
+			"remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
+		return nil
+	}
+
+	// We do not proceed until we know that all the cosmos direct child resources have been eliminated
 	nodePoolResourceID := key.GetResourceID()
 	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*nodePoolResourceID)
 	if err != nil {
