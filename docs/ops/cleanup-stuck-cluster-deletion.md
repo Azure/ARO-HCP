@@ -85,6 +85,9 @@ Clusters Service (sets state to "uninstalling")
   → Maestro Server (deletes ResourceBundle)
     → Maestro Agent (deletes ManifestWork on MGMT)
       → ManifestWork cleanup (deletes HostedCluster, ManagedCluster, etc.)
+        → ManagedCluster destructor (hypershift-managed-cluster-destructor)
+          → ManagedClusterAddon pre-delete hooks (finalizer: hosting-addon-pre-delete)
+          → ManagedClusterAddon manifests cleanup (finalizer: hosting-manifests-cleanup)
         → HostedCluster deletion (finalizer: hypershift.openshift.io/finalizer)
           → NodePool deletion (finalizer: hypershift.openshift.io/finalizer)
           → Control Plane namespace cleanup
@@ -138,8 +141,12 @@ kubectl get namespaces -o json | \
   jq -r '.items[] | select(.status.phase == "Terminating") |
   "\(.metadata.name)\t\(.metadata.deletionTimestamp)"'
 
-# Check ManagedClusters
+# Check ManagedClusters (look for status JOINED vs Detaching)
 kubectl get managedcluster
+
+# Check ManagedClusterAddons in the cluster namespace
+# (klusterlet auth loss during Detaching can leave addons with held finalizers)
+kubectl get managedclusteraddon -n ${CLUSTER_ID}
 
 # Check all HostedClusters and their status
 kubectl get hostedcluster -A
@@ -183,6 +190,16 @@ kubectl get hostedclusters.hypershift.openshift.io,hostedcontrolplanes.hypershif
   -n <namespace> -o json | \
   jq '[.items[] | select(.metadata.finalizers != null) |
   {kind, name: .metadata.name, finalizers: .metadata.finalizers}]'
+
+# Check ManagedCluster conditions (look for Detaching state, klusterlet auth errors)
+kubectl get managedcluster ${CLUSTER_ID} \
+  -o jsonpath='{.status.conditions}' | jq .
+
+# Check ManagedClusterAddon finalizers (hosting-manifests-cleanup, hosting-addon-pre-delete
+# can be held when klusterlet user lost Azure AD authorization during Detaching)
+kubectl get managedclusteraddon -n ${CLUSTER_ID} -o json | \
+  jq '[.items[] | select(.metadata.finalizers != null) |
+  {name: .metadata.name, finalizers: .metadata.finalizers}]'
 ```
 
 ### Phase 2: Check the Service Cluster
@@ -268,9 +285,19 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 
 #### Strategy 3: Manual Finalizer Removal on Management Cluster (Last Resort)
 
-Only after ensuring the source (CS/Maestro) won't recreate resources, remove finalizers **bottom-up** on the management cluster:
+Only after ensuring the source (CS/Maestro) won't recreate resources, remove finalizers **bottom-up** on the management cluster.
+
+> **Note**: If Phase 1 Step 4 shows the `ManagedCluster` in `Detaching` state or `ManagedClusterAddon` resources with held finalizers, clear those **first** (step 0 below). The destruct chain stops at the `hypershift-managed-cluster-destructor` step when addon pre-delete hooks fail (commonly due to klusterlet auth loss during Detaching), and the CP namespace teardown is never even attempted.
 
 ```bash
+# 0. (Conditional) Clear ManagedClusterAddon finalizers when the destruct chain is stuck
+#    at the ManagedCluster layer (Detaching + addon pre-delete hooks failing).
+#    Uses a merge patch (idempotent when .metadata.finalizers is absent).
+for name in $(kubectl get managedclusteraddon -n ${CLUSTER_ID} -o jsonpath='{.items[*].metadata.name}'); do
+  kubectl patch managedclusteraddon $name -n ${CLUSTER_ID} \
+    --type=merge -p='{"metadata":{"finalizers":null}}'
+done
+
 # 1. Check what's blocking the CP namespace (if Terminating):
 kubectl get namespace <cp-namespace> -o json | jq '.status.conditions[] | select(.type == "NamespaceContentRemaining")'
 
@@ -395,6 +422,14 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 
 **Fix**: Patch the finalizers on all four kinds in the CP namespace (see Strategy 3, step 2).
 
+### Scenario 6: ManagedCluster Stuck Detaching - Addon Finalizers Held
+
+**Symptoms**: HCP deletion never advances past the ACM layer. `kubectl get managedcluster ${CLUSTER_ID}` shows the cluster in `Detaching` state for an extended period. `kubectl get managedclusteraddon -n ${CLUSTER_ID}` lists addons (typically `config-policy-controller`, `governance-policy-framework`) with `hosting-manifests-cleanup` and/or `hosting-addon-pre-delete` finalizers held. The CP namespace cleanup is never attempted because the destruct chain is blocked upstream at `hypershift-managed-cluster-destructor`.
+
+**Cause**: The hosting addon pre-delete hook executes against the hosted cluster using the klusterlet user, but that identity has already lost its Azure AD authorization as part of the Detaching flow. The pre-delete hook fails, the addon's finalizers are never removed, and the ManagedCluster destructor cannot complete.
+
+**Fix**: Clear the held `ManagedClusterAddon` finalizers manually (see Strategy 3, step 0). After this, the `ManagedCluster` destructor completes, the `ManifestWork` cleanup proceeds, and the rest of the deletion chain advances normally.
+
 ## Quick Reference: Key API Endpoints
 
 | Component | Endpoint | Notes |
@@ -417,6 +452,8 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 | `azuremachine.infrastructure.cluster.x-k8s.io` | AzureMachine | CAPZ (Cluster API Provider Azure) |
 | `cluster.open-cluster-management.io/manifest-work-cleanup` | ManifestWork | ACM Work Agent |
 | `cluster.open-cluster-management.io/api-resource-cleanup` | ManagedCluster | ACM |
+| `hosting-manifests-cleanup` | ManagedClusterAddon | Hosting Addon Controller |
+| `hosting-addon-pre-delete` | ManagedClusterAddon | Hosting Addon Controller |
 
 ## Quick Reference: Key Controller Logs
 
