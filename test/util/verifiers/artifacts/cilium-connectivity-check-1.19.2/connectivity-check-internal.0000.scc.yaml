@@ -6,7 +6,7 @@ metadata:
 allowHostPorts: true
 allowHostNetwork: true
 users:
-  - system:serviceaccount:cilium-connectivity-check:default
+- system:serviceaccount:cilium-connectivity-check:default
 priority: null
 readOnlyRootFilesystem: false
 runAsUser:
