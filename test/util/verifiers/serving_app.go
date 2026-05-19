@@ -17,6 +17,7 @@ package verifiers
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"fmt"
 	"net/http"
@@ -36,8 +37,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
-
-	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 //go:embed artifacts
@@ -164,15 +163,18 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	lastErr = nil
 	url := "https://" + host
 
-	// Create HTTP client with TLS skip for development environments
 	client := &http.Client{}
-	if framework.IsDevelopmentEnvironment() {
+	CAData := adminRESTConfig.CAData
+	if len(CAData) > 0 {
+		tlsConfig := &tls.Config{
+			RootCAs: x509.NewCertPool(),
+		}
+		tlsConfig.RootCAs.AppendCertsFromPEM(CAData)
 		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+			TLSClientConfig: tlsConfig,
 		}
 	}
+
 	startTime := time.Now()
 	logged5Min := false
 	logged10Min := false
