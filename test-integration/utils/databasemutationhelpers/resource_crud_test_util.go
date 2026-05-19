@@ -208,6 +208,9 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "untypedGet":
 		return newUntypedGetStep(stepID, stepDir)
 
+	case "count":
+		return newCountStep[InternalAPIType](stepID, stepDir)
+
 	case "list":
 		return newListStep[InternalAPIType](stepID, stepDir)
 
@@ -216,6 +219,12 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 
 	case "untypedListRecursive":
 		return newUntypedListRecursiveStep(stepID, stepDir)
+
+	case "untypedCount":
+		return newUntypedCountStep(stepID, stepDir)
+
+	case "untypedCountRecursive":
+		return newUntypedCountRecursiveStep(stepID, stepDir)
 
 	case "untypedList":
 		return newUntypedListStep(stepID, stepDir)
