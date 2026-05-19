@@ -343,6 +343,7 @@ defaults:
     maxActiveTimeSeries: 2000000
     maxEventsPerMinute: 2000000
     alertRuleOwningTeamTag: ""
+    skipDatasourceSync: false
     alertsEnabled: false
     icm:
       manageConnection: true
@@ -1502,6 +1503,8 @@ clouds:
               alertsEnabled: true
       prow:
         defaults:
+          monitoring:
+            skipDatasourceSync: true
           kusto:
             manageInstance: false
           auditLogsEventHub:
@@ -1597,6 +1600,8 @@ clouds:
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
+          monitoring:
+            skipDatasourceSync: true
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
