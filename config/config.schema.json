@@ -3,6 +3,11 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
+    "csvPrincipalList": {
+      "type": "string",
+      "description": "CSV separated list of principals, each in the format '(tenantId/)principalId' where tenantId is optional. Both tenantId and principalId must be UUIDs.",
+      "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(,([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})*$"
+    },
     "namespaceName": {
       "type": "string",
       "minLength": 1,
@@ -1922,10 +1927,16 @@
           "type": "string"
         },
         "adminGroups": {
-          "type": "string"
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of AAD groups to grant AllDatabasesAdmin on the Kusto cluster."
         },
         "viewerGroups": {
-          "type": "string"
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of AAD groups to grant AllDatabasesViewer on the Kusto cluster."
+        },
+        "viewerIdentities": {
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of app/managed identity principals to grant AllDatabasesViewer on the Kusto cluster."
         },
         "crossClusterServiceLogsScript": {
           "type": "string"
