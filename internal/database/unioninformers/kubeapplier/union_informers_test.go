@@ -589,4 +589,3 @@ func (f *fakeSharedIndexInformer) setRegSync(synced bool) {
 		r.synced = synced
 	}
 }
-
