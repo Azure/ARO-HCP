@@ -391,7 +391,13 @@ param location string = resourceGroup().location
 					annotations["title"] = ptr.To(rule.Alert)
 				}
 
-				annotations["correlationId"] = ptr.To(rule.Alert + "/{{ $labels.cluster }}")
+				// Default correlationId groups all firings of an alert on the same cluster into one
+				// IcM incident. Individual alerts can override this by setting a `correlationId`
+				// annotation in their source rule — useful when finer-grained grouping is wanted
+				// (e.g. one incident per hosted cluster, not per management cluster).
+				if _, hasOverride := annotations["correlationId"]; !hasOverride {
+					annotations["correlationId"] = ptr.To(rule.Alert + "/{{ $labels.cluster }}")
+				}
 
 				// Filter rules based on the output file type
 				if rule.Alert != "" && isAlertingRulesFile {
