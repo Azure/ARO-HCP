@@ -30,9 +30,9 @@ environments:
     regionShortSuffix: "${USER:0:4}"
 - name: prow
   description: |
-    CI infra shard0 - PR end-to-end tests.
+    CI infra shard0 - PR end-to-end tests (fallback).
   defaults:
-    region: westus3
+    region: centralus
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
@@ -41,7 +41,7 @@ environments:
   description: |
     CI infra shard1 - PR end-to-end tests.
   defaults:
-    region: westus3
+    region: centralus
     cloud: dev
     ev2Cloud: public
     cxStamp: 1

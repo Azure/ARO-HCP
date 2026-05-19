@@ -54,7 +54,7 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 | image-updater-images | Yes | Yes | - |
 | periodic-images | Yes | Yes | - |
 | frontend-simulation | Yes | Yes | - |
-| e2e-parallel | Yes | No | Dev (westus3) |
+| e2e-parallel | Yes | No | Dev (centralus) |
 | integration-e2e-parallel | No | No | Int (uksouth) |
 | stage-e2e-parallel | No | No | Stage (uksouth) |
 | prod-e2e-parallel | No | No | Prod (uksouth) |
@@ -87,7 +87,8 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 |----------|-------|
 | **Job Name** | [pull-ci-Azure-ARO-HCP-main-e2e-parallel](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-e2e-parallel) |
 | **Status** | Always runs, but optional (does not block merge) |
-| **Environment** | Dev (westus3) |
+| **Environment** | Dev (centralus) |
+| **Subscription** | ARO HCP E2E Infrastructure (EA Subscription) |
 | **Cluster** | build07 |
 | **Step Registry** | [e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=e2e-parallel) |
 | **Purpose** | Runs end-to-end tests in parallel mode against the dev environment. This job always runs on PRs but is marked optional, meaning failures won't block the PR from merging. |
