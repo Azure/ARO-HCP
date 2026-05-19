@@ -22,7 +22,11 @@ import (
 	"strings"
 )
 
-func ResolveCustomerSubscriptionName(clusterProfileDir, slotSubscriptionName string) (string, error) {
+// VerifyCustomerSubscriptionName checks that slotSubscriptionName matches
+// exactly one customer-*-subscription-name file inside clusterProfileDir.
+// It returns the validated name (not a subscription ID) because downstream
+// E2E steps expect the human-readable subscription name.
+func VerifyCustomerSubscriptionName(clusterProfileDir, slotSubscriptionName string) (string, error) {
 	clusterProfileDir = strings.TrimSpace(clusterProfileDir)
 	if clusterProfileDir == "" {
 		return "", errors.New("cluster profile dir is empty")

@@ -163,7 +163,7 @@ func WriteEnvFile(sharedDir string, state *AcquiredSlotState, customerSubscripti
 
 	var builder strings.Builder
 	for _, key := range sortedKeys(exports) {
-		_, _ = fmt.Fprintf(&builder, "export %s=%q\n", key, exports[key])
+		_, _ = fmt.Fprintf(&builder, "export %s='%s'\n", key, exports[key])
 	}
 
 	if err := os.WriteFile(envFile, []byte(builder.String()), 0o644); err != nil {

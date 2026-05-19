@@ -67,19 +67,19 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 		t.Fatalf("expected env file read to succeed: %v", err)
 	}
 	content := string(data)
-	if !strings.Contains(content, `export ARO_HCP_E2E_SLOT_NAME="aro-hcp-dev-westus3-slot-00"`) {
+	if !strings.Contains(content, `export ARO_HCP_E2E_SLOT_NAME='aro-hcp-dev-westus3-slot-00'`) {
 		t.Fatalf("expected env file to contain ARO_HCP_E2E_SLOT_NAME export, got %q", content)
 	}
-	if !strings.Contains(content, `export ARO_HCP_E2E_SLOT_RESOURCE_TYPE="aro-hcp-dev-westus3-slot"`) {
+	if !strings.Contains(content, `export ARO_HCP_E2E_SLOT_RESOURCE_TYPE='aro-hcp-dev-westus3-slot'`) {
 		t.Fatalf("expected env file to contain ARO_HCP_E2E_SLOT_RESOURCE_TYPE export, got %q", content)
 	}
-	if !strings.Contains(content, `export CUSTOMER_SUBSCRIPTION="ARO HCP E2E Hosted Clusters (EA Subscription)"`) {
+	if !strings.Contains(content, `export CUSTOMER_SUBSCRIPTION='ARO HCP E2E Hosted Clusters (EA Subscription)'`) {
 		t.Fatalf("expected env file to contain CUSTOMER_SUBSCRIPTION export, got %q", content)
 	}
-	if !strings.Contains(content, `export LEASED_MSI_CONTAINERS="aro-hcp-msi-container-dev-00-00 aro-hcp-msi-container-dev-00-01 aro-hcp-msi-container-dev-00-02"`) {
+	if !strings.Contains(content, `export LEASED_MSI_CONTAINERS='aro-hcp-msi-container-dev-00-00 aro-hcp-msi-container-dev-00-01 aro-hcp-msi-container-dev-00-02'`) {
 		t.Fatalf("expected env file to contain LEASED_MSI_CONTAINERS export, got %q", content)
 	}
-	if !strings.Contains(content, `export LOCATION="eastus2"`) {
+	if !strings.Contains(content, `export LOCATION='eastus2'`) {
 		t.Fatalf("expected env file to contain LOCATION export, got %q", content)
 	}
 	if strings.Contains(content, "ARO_HCP_E2E_SLOT_REGION") {

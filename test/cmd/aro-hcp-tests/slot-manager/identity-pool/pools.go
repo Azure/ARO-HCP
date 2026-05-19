@@ -15,10 +15,16 @@
 package identitypool
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
+
+// subscriptionIDResolverFunc resolves a human-readable Azure subscription name
+// to its subscription ID. The production implementation wraps
+// framework.GetSubscriptionID; tests inject a stub.
+type subscriptionIDResolverFunc func(ctx context.Context, name string) (string, error)
 
 type identityPool struct {
 	Environment        string
@@ -29,7 +35,7 @@ type identityPool struct {
 	Slots              []slots.ExpandedSlot
 }
 
-func loadIdentityPools(catalogPath, environment string) ([]identityPool, error) {
+func loadIdentityPools(ctx context.Context, catalogPath, environment string, resolveSubscriptionID subscriptionIDResolverFunc) ([]identityPool, error) {
 	catalog, err := slots.LoadCatalog(catalogPath)
 	if err != nil {
 		return nil, err
@@ -40,13 +46,24 @@ func loadIdentityPools(catalogPath, environment string) ([]identityPool, error) 
 		return nil, fmt.Errorf("unknown environment %q", environment)
 	}
 
+	resolvedIDs := map[string]string{}
 	pools := make([]identityPool, 0, len(environmentConfig.Pools))
 	for _, pool := range environmentConfig.Pools {
+		subscriptionID, found := resolvedIDs[pool.SubscriptionName]
+		if !found {
+			subscriptionID, err = resolveSubscriptionID(ctx, pool.SubscriptionName)
+			if err != nil {
+				return nil, fmt.Errorf("failed getting subscription ID for %q: %w", pool.SubscriptionName, err)
+			}
+			resolvedIDs[pool.SubscriptionName] = subscriptionID
+		}
+
 		pools = append(pools, identityPool{
 			Environment:        environment,
 			Region:             pool.Region,
 			ProvisioningRegion: pool.EffectiveIdentityProvisioningRegion(),
 			SubscriptionName:   pool.SubscriptionName,
+			SubscriptionID:     subscriptionID,
 			Slots:              slots.ExpandSlotsForPool(environment, pool),
 		})
 	}

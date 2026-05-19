@@ -362,10 +362,7 @@ func TestResolveEnvironmentForDeployEnv(t *testing.T) {
 }
 
 func TestResolveCatalogPath(t *testing.T) {
-	workingDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("expected working directory: %v", err)
-	}
+	t.Parallel()
 
 	tempDir := t.TempDir()
 	repoRoot := filepath.Join(tempDir, "repo")
@@ -382,14 +379,7 @@ func TestResolveCatalogPath(t *testing.T) {
 		t.Fatalf("expected catalog write to succeed: %v", err)
 	}
 
-	if err := os.Chdir(nestedDir); err != nil {
-		t.Fatalf("expected chdir to nested directory: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(workingDir)
-	})
-
-	resolvedPath, err := ResolveCatalogPath()
+	resolvedPath, err := ResolveCatalogPathFrom(nestedDir)
 	if err != nil {
 		t.Fatalf("expected catalog resolution to succeed: %v", err)
 	}
@@ -414,7 +404,7 @@ func TestSharedStatePaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected env file to resolve: %v", err)
 	}
-	if envFile != "/tmp/shared/aro-hcp-slot-env.sh" {
+	if envFile != "/tmp/shared/aro-hcp-slot.env" {
 		t.Fatalf("unexpected env file %q", envFile)
 	}
 }

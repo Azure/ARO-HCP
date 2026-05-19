@@ -87,11 +87,6 @@ func (o *RawApplyOptions) Validate() (*ValidatedApplyOptions, error) {
 }
 
 func (o *ValidatedApplyOptions) Complete(ctx context.Context) (*ApplyOptions, error) {
-	pools, err := loadIdentityPools(o.SlotCatalog, o.Environment)
-	if err != nil {
-		return nil, fmt.Errorf("failed loading identity pools from slot catalog: %w", err)
-	}
-
 	tc := framework.NewTestContext()
 	cred, err := tc.AzureCredential()
 	if err != nil {
@@ -104,18 +99,11 @@ func (o *ValidatedApplyOptions) Complete(ctx context.Context) (*ApplyOptions, er
 	}
 	subscriptionClient := subscriptionClientFactory.NewClient()
 
-	resolvedSubscriptionIDs := map[string]string{}
-	for i := range pools {
-		subscriptionName := pools[i].SubscriptionName
-		subscriptionID, found := resolvedSubscriptionIDs[subscriptionName]
-		if !found {
-			subscriptionID, err = framework.GetSubscriptionID(ctx, subscriptionClient, subscriptionName)
-			if err != nil {
-				return nil, fmt.Errorf("failed getting subscription ID for %q: %w", subscriptionName, err)
-			}
-			resolvedSubscriptionIDs[subscriptionName] = subscriptionID
-		}
-		pools[i].SubscriptionID = subscriptionID
+	pools, err := loadIdentityPools(ctx, o.SlotCatalog, o.Environment, func(ctx context.Context, name string) (string, error) {
+		return framework.GetSubscriptionID(ctx, subscriptionClient, name)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed loading identity pools from slot catalog: %w", err)
 	}
 
 	// Deployment Stacks require an ARM JSON template. The test suite embeds pre-generated
