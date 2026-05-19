@@ -24,17 +24,51 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
+func newTestManagementClusterContent(t *testing.T, name string) *api.ManagementClusterContent {
+	t.Helper()
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/nodePools/" + testNodePoolName +
+			"/managementClusterContents/" + name))
+	return &api.ManagementClusterContent{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+	}
+}
+
+func newTestNodePoolController(t *testing.T, name string) *api.Controller {
+	t.Helper()
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/nodePools/" + testNodePoolName +
+			"/hcpOpenShiftControllers/" + name))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		ExternalID: api.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + testSubscriptionID +
+				"/resourceGroups/" + testResourceGroupName +
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+				"/nodePools/" + testNodePoolName)),
+		Status: api.ControllerStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+}
+
+func TestNodePoolChildResourceCleanupController_SyncOnce(t *testing.T) {
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 	readyToDelete := func(np *api.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
@@ -43,10 +77,11 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name             string
-		existingNodePool *api.HCPOpenShiftClusterNodePool
-		childResources   []any
-		wantDeleted      bool
+		name               string
+		existingNodePool   *api.HCPOpenShiftClusterNodePool
+		childResources     []any
+		wantChildrenGone   bool
+		wantControllerKept bool
 	}{
 		{
 			name:             "no DeletionTimestamp -- no-op",
@@ -66,21 +101,27 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			}),
 		},
 		{
-			name:             "all conditions met, no children -- deletes nodepool from Cosmos",
+			name:             "all conditions met, no children -- no-op",
 			existingNodePool: newTestNodePool(t, readyToDelete),
-			wantDeleted:      true,
 		},
 		{
-			name:             "all conditions met, MCC child exists -- backs off",
+			name:             "all conditions met, MCC child exists -- deletes it",
 			existingNodePool: newTestNodePool(t, readyToDelete),
 			childResources:   []any{newTestManagementClusterContent(t, "test-mcc")},
-			wantDeleted:      false,
+			wantChildrenGone: true,
 		},
 		{
-			name:             "all conditions met, only controller children -- deletes nodepool",
-			existingNodePool: newTestNodePool(t, readyToDelete),
-			childResources:   []any{newTestNodePoolController(t, "test-controller")},
-			wantDeleted:      true,
+			name:               "all conditions met, controller child exists -- skipped",
+			existingNodePool:   newTestNodePool(t, readyToDelete),
+			childResources:     []any{newTestNodePoolController(t, "test-controller")},
+			wantControllerKept: true,
+		},
+		{
+			name:               "all conditions met, mixed children -- deletes only non-controller",
+			existingNodePool:   newTestNodePool(t, readyToDelete),
+			childResources:     []any{newTestManagementClusterContent(t, "test-mcc"), newTestNodePoolController(t, "test-controller")},
+			wantChildrenGone:   true,
+			wantControllerKept: true,
 		},
 		{
 			name: "node pool not found -- no-op",
@@ -96,6 +137,7 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 				resources = append(resources, tc.existingNodePool)
 			}
 			resources = append(resources, tc.childResources...)
+
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
@@ -104,7 +146,7 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}
 
-			syncer := &nodePoolDeletionController{
+			syncer := &nodePoolChildResourceCleanupController{
 				cooldownChecker:   &alwaysSyncCooldownChecker{},
 				nodePoolLister:    &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				resourcesDBClient: mockResourcesDBClient,
@@ -120,32 +162,31 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			err = syncer.SyncOnce(ctx, key)
 			require.NoError(t, err)
 
-			if tc.existingNodePool == nil {
-				return
-			}
-
-			_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
-				NodePools(testClusterName).Get(ctx, testNodePoolName)
-			if tc.wantDeleted {
-				assert.True(t, database.IsNotFoundError(err), "expected nodepool to be deleted from Cosmos")
-			} else {
-				require.NoError(t, err, "expected nodepool to still exist in Cosmos")
-			}
-
-			if len(tc.childResources) > 0 && !tc.wantDeleted {
+			if tc.wantChildrenGone || tc.wantControllerKept {
 				nodePoolResourceID := key.GetResourceID()
-				untypedCRUD, childErr := mockResourcesDBClient.UntypedCRUD(*nodePoolResourceID)
-				require.NoError(t, childErr)
-				childIterator, childErr := untypedCRUD.List(ctx, nil)
-				require.NoError(t, childErr)
-				var nonControllerCount int
+				untypedCRUD, err := mockResourcesDBClient.UntypedCRUD(*nodePoolResourceID)
+				require.NoError(t, err)
+				childIterator, err := untypedCRUD.List(ctx, nil)
+				require.NoError(t, err)
+
+				var remainingCount int
+				var controllerCount int
 				for _, child := range childIterator.Items(ctx) {
-					if !strings.EqualFold(child.ResourceType, api.NodePoolControllerResourceType.String()) {
-						nonControllerCount++
+					remainingCount++
+					if strings.EqualFold(child.ResourceType, api.NodePoolControllerResourceType.String()) {
+						controllerCount++
 					}
 				}
 				require.NoError(t, childIterator.GetError())
-				assert.Greater(t, nonControllerCount, 0, "expected non-controller children to still exist")
+
+				if tc.wantChildrenGone && tc.wantControllerKept {
+					assert.Equal(t, 1, remainingCount, "expected only controller child to remain")
+					assert.Equal(t, 1, controllerCount, "expected the remaining child to be a controller")
+				} else if tc.wantChildrenGone {
+					assert.Equal(t, 0, remainingCount, "expected no children to remain")
+				} else if tc.wantControllerKept {
+					assert.Equal(t, 1, controllerCount, "expected controller child to remain")
+				}
 			}
 		})
 	}

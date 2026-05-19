@@ -28,31 +28,33 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// nodePoolDeletionController issues a Cosmos nodepool delete
-// for the Node Pools that have their DeletionTimestamp and ClusteServiceDeletionTimestamp set,
-// and their ClusterServiceID has been cleared.
-type nodePoolDeletionController struct {
+// nodePoolChildResourceCleanupController deletes direct child resources scoped
+// under a NodePool (e.g. ManagementClusterContent documents) once the NodePool
+// is marked for deletion and Cluster Service has confirmed the delete. Controller
+// status documents (NodePoolControllerResourceType) are left alone -- the orphan
+// scraper handles those after the NodePool document itself is removed.
+type nodePoolChildResourceCleanupController struct {
 	cooldownChecker   controllerutils.CooldownChecker
 	nodePoolLister    listers.NodePoolLister
 	resourcesDBClient database.ResourcesDBClient
 }
 
-var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
+var _ controllerutils.NodePoolSyncer = (*nodePoolChildResourceCleanupController)(nil)
 
-func NewNodePoolDeletionController(
+func NewNodePoolChildResourceCleanupController(
 	resourcesDBClient database.ResourcesDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
-	syncer := &nodePoolDeletionController{
+	syncer := &nodePoolChildResourceCleanupController{
 		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:    nodePoolLister,
 		resourcesDBClient: resourcesDBClient,
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDeletionController",
+		"NodePoolChildResourceCleanupController",
 		resourcesDBClient,
 		informers,
 		time.Minute,
@@ -60,28 +62,17 @@ func NewNodePoolDeletionController(
 	)
 }
 
-func (c *nodePoolDeletionController) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolChildResourceCleanupController) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
-// NeedsWork reports whether the deleter has unfinished business for the given
-// NodePool. All the following conditions must be met:
-// - DeletionTimestamp must be set
-// - ClusterServiceDeletionTimestamp must be set
-// - ClusterServiceID must be nil
-func (c *nodePoolDeletionController) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolChildResourceCleanupController) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID == nil
 }
 
-// SyncOnce calls Cosmos to delete the NodePool when the NeedsWork condition is met.
-// Note: for now this controller only deletes the NodePool from Cosmos but we might end up placing
-// the logic that deletes ManagementClusterContents scoped at the NodePool level as well as Maestro Bundles
-// scoped at the NodePool level as well, and maybe even other conditions. Maybe we even decide it's just a coordinator
-// waiting for the N conditions and other controllers handling the individual conditions with this one being reserved
-// just for the coordination and the final Cosmos entry deletion.
-func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolChildResourceCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
@@ -95,8 +86,6 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
-	// Confirm against the live document. The cache can lag behind a write that
-	// that modified one of the NeedsWork conditions.
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
@@ -112,29 +101,29 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 	nodePoolResourceID := key.GetResourceID()
 	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*nodePoolResourceID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for child check: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for node pool children: %w", err))
 	}
+
 	childIterator, err := untypedCRUD.List(ctx, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list child resources: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to list node pool child resources: %w", err))
 	}
 	for _, childResource := range childIterator.Items(ctx) {
 		if strings.EqualFold(childResource.ResourceType, api.NodePoolControllerResourceType.String()) {
 			continue
 		}
-		logger.Info("child resource still exists, waiting for cleanup", "childResourceID", childResource.ResourceID)
-		return nil
+
+		if childResource.ResourceID == nil {
+			return utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
+		}
+		logger.Info("deleting child resource", "childResourceID", childResource.ResourceID)
+		if err := untypedCRUD.Delete(ctx, childResource.ResourceID); err != nil {
+			return utils.TrackError(err)
+		}
 	}
 	if err := childIterator.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("error iterating child resources: %w", err))
+		return utils.TrackError(err)
 	}
-
-	logger.Info("deleting node pool from Cosmos")
-	err = nodePoolCRUD.Delete(ctx, key.HCPNodePoolName)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to delete node pool from Cosmos: %w", err))
-	}
-	logger.Info("node pool deleted from Cosmos")
 
 	return nil
 }
