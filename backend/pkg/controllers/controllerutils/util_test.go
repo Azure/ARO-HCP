@@ -57,6 +57,10 @@ func (f *fakeControllerCRUD) List(ctx context.Context, opts *database.DBClientLi
 	return nil, nil
 }
 
+func (f *fakeControllerCRUD) Count(ctx context.Context) (int, error) {
+	return len(f.controllers), nil
+}
+
 func (f *fakeControllerCRUD) Create(ctx context.Context, newObj *api.Controller, options *azcosmos.ItemOptions) (*api.Controller, error) {
 	f.controllers[newObj.ResourceID.Name] = newObj
 	return newObj, nil

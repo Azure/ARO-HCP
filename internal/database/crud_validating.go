@@ -56,6 +56,11 @@ func (v *validatingCRUD[InternalAPIType]) List(ctx context.Context, opts *DBClie
 	return v.inner.List(ctx, opts)
 }
 
+// Count delegates to the inner CRUD's Count.
+func (v *validatingCRUD[InternalAPIType]) Count(ctx context.Context) (int, error) {
+	return v.inner.Count(ctx)
+}
+
 func (v *validatingCRUD[InternalAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	if errs := v.validateCreate(ctx, newObj); errs.ToAggregate() != nil {
 		return nil, fmt.Errorf("create validation failed: %w", errs.ToAggregate())

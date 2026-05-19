@@ -230,6 +230,22 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Cont
 	return newMockIterator(ids, items), nil
 }
 
+// Count returns the number of resources by listing and counting items in memory.
+func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Count(ctx context.Context) (int, error) {
+	iter, err := m.List(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for range iter.Items(ctx) {
+		n++
+	}
+	if err := iter.GetError(); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
@@ -803,6 +819,31 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBCli
 	}
 
 	return newMockIterator(ids, items), nil
+}
+
+func (m *mockUntypedCRUD) countInternal(ctx context.Context, nonRecursive bool) (int, error) {
+	iter, err := m.listInternal(ctx, nil, nonRecursive)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for range iter.Items(ctx) {
+		n++
+	}
+	if err := iter.GetError(); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// Count returns the number of direct descendant documents in memory.
+func (m *mockUntypedCRUD) Count(ctx context.Context) (int, error) {
+	return m.countInternal(ctx, true)
+}
+
+// CountRecursive returns the total number of all descendant documents in memory.
+func (m *mockUntypedCRUD) CountRecursive(ctx context.Context) (int, error) {
+	return m.countInternal(ctx, false)
 }
 
 func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {

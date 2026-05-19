@@ -35,6 +35,10 @@ type UntypedResourceCRUD interface {
 	// you will get the controllers for the cluster, the nodepools, the controllers for each nodepool, the external auths,
 	// the controllers for the external auths, etc.
 	ListRecursive(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error)
+	// Count returns the number of direct descendents from the parent. It does not include the parent's own document.
+	Count(ctx context.Context) (int, error)
+	// CountRecursive returns the number of all descendents from the parent. It does not include the parent's own document.
+	CountRecursive(ctx context.Context) (int, error)
 	Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error
 	DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error
 
@@ -81,6 +85,22 @@ func (d *untypedCRUD) List(ctx context.Context, options *DBClientListResourceDoc
 func (d *untypedCRUD) ListRecursive(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, false)
+}
+
+// Count returns the number of direct descendant documents under the parent
+// using a server-side COUNT query, without transferring document bodies.
+// The document for parentResourceID itself is never included (same rule as List).
+func (d *untypedCRUD) Count(ctx context.Context) (int, error) {
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	return count(ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, true)
+}
+
+// CountRecursive returns the total number of all descendant documents under
+// the parent using a server-side COUNT query, without transferring document
+// bodies. The document for parentResourceID itself is never included (same rule as ListRecursive).
+func (d *untypedCRUD) CountRecursive(ctx context.Context) (int, error) {
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	return count(ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, false)
 }
 
 func (d *untypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.ResourceID) error {
