@@ -2808,22 +2808,6 @@
         "alertRuleOwningTeamTag"
       ]
     },
-    "routeMonitorOperator": {
-      "type": "object",
-      "properties": {
-        "operatorImage": {
-          "$ref": "#/definitions/containerImage"
-        },
-        "blackboxExporterImage": {
-          "$ref": "#/definitions/containerImage"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operatorImage",
-        "blackboxExporterImage"
-      ]
-    },
     "velero": {
       "type": "object",
       "description": "Velero configuration",

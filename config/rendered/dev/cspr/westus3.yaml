@@ -810,15 +810,6 @@ oidc:
     zoneRedundantMode: Auto
 region: westus3
 regionRG: hcp-underlay-cspr-westus3
-routeMonitorOperator:
-  blackboxExporterImage:
-    digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
-    registry: quay.io
-    repository: prometheus/blackbox-exporter
-  operatorImage:
-    digest: sha256:5e94ff37bcb8c1ebebce0c7c1f33cef8e7cf163f1b0baf5b50c9b771ca112846
-    registry: quay.io
-    repository: app-sre/route-monitor-operator
 secretSyncController:
   image:
     digest: sha256:0b4799815b77c2c5c8e6375b86072e514cdc447ef1c59a5754939c32ba4147a9
