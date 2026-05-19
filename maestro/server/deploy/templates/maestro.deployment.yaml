@@ -53,6 +53,33 @@ spec:
           volumeAttributes:
             secretProviderClass: "maestro"
       initContainers:
+      {{- if not .Values.database.azureDb }}
+      - name: wait-for-db
+        image: '{{ .Values.database.containerizedDbImage }}'
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -euo pipefail
+          DB_HOST=$(cat /secrets/db/db.host)
+          DB_PORT=$(cat /secrets/db/db.port)
+          DB_USER=$(cat /secrets/db/db.user)
+          TIMEOUT=300
+          ELAPSED=0
+          until /usr/bin/pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q; do
+            if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+              echo "PostgreSQL not ready after ${TIMEOUT}s, giving up"
+              exit 1
+            fi
+            echo "Waiting for postgres at $DB_HOST:$DB_PORT (${ELAPSED}s/${TIMEOUT}s)..."
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+        volumeMounts:
+        - name: db
+          mountPath: /secrets/db
+      {{- end }}
       - name: maestro-server-migration
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         imagePullPolicy: IfNotPresent
