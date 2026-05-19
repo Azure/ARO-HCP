@@ -65,6 +65,14 @@ test-compile:
 	go list -f '{{.Dir}}/...' -m |xargs go test -c -o /dev/null
 .PHONY: test-compile
 
+generate-prom-rules: $(PROMTOOL)
+	$(MAKE) -C observability recording-rules alerts PROMTOOL=$(PROMTOOL)
+.PHONY: generate-prom-rules
+
+verify-prom-rules: generate-prom-rules
+	./hack/verify.sh prom-rules
+.PHONY: verify-prom-rules
+
 generate: deepcopy mocks fmt record-nonlocal-e2e all-tidy
 
 verify-generate: generate
@@ -258,6 +266,14 @@ infra.kusto:
 infra.monitoring:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make monitoring
 .PHONY: infra.monitoring
+
+infra.grafana.sync.dev:
+	AZURE_TOKEN_CREDENTIALS=dev go run ./tooling/grafanactl/main.go sync dashboards \
+		--config-file observability/observability.yaml \
+		--grafana-name arohcp-dev \
+		--resource-group global \
+		--subscription "$$(az account show --query id -o tsv)"
+.PHONY: infra.grafana.sync.dev
 
 infra.all:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make infra

@@ -1,5 +1,7 @@
+include ../.bingo/Variables.mk
+
 deploy:
-	make -C ./tracing deploy
+	$(MAKE) -C ./tracing deploy
 .PHONY: deploy
 
 kubernetesControlPlane-prometheusRule:
@@ -9,20 +11,20 @@ kubernetesControlPlane-prometheusRule:
 .PHONY: kubernetesControlPlane-prometheusRule
 
 alerts: kubernetesControlPlane-prometheusRule
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run
+	EXTRA_FLAGS=$(GENERATOR_FLAGS) $(MAKE) -C ../tooling/prometheus-rules run PROMTOOL=$(PROMTOOL)
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability.yaml)
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run-hcp
+	EXTRA_FLAGS=$(GENERATOR_FLAGS) $(MAKE) -C ../tooling/prometheus-rules run-hcp PROMTOOL=$(PROMTOOL)
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-hcp.yaml)
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run-rp
+	EXTRA_FLAGS=$(GENERATOR_FLAGS) $(MAKE) -C ../tooling/prometheus-rules run-rp PROMTOOL=$(PROMTOOL)
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-rp.yaml)
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run-msft
+	EXTRA_FLAGS=$(GENERATOR_FLAGS) $(MAKE) -C ../tooling/prometheus-rules run-msft PROMTOOL=$(PROMTOOL)
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-msft.yaml)
 .PHONY: alerts
 
 recording-rules:
-	make -C ../tooling/prometheus-rules run-recording-rules
+	$(MAKE) -C ../tooling/prometheus-rules run-recording-rules PROMTOOL=$(PROMTOOL)
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-recording-rules.yaml)
-	make -C ../tooling/prometheus-rules run-hcp-recording-rules
+	$(MAKE) -C ../tooling/prometheus-rules run-hcp-recording-rules PROMTOOL=$(PROMTOOL)
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-hcp-recording-rules.yaml)
 .PHONY: recording-rules
 
