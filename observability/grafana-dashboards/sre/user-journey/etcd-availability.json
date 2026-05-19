@@ -316,7 +316,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Highest regional p99 WAL fsync duration across the fleet (max of per-region p99s). NOTE: this is NOT a true cross-region p99; PromQL cannot aggregate histograms across independent Prometheus workspaces. Use this as a \"any region degraded?\" signal. SLO target per region: < 10ms.",
+      "description": "Worst per-cluster p99 WAL fsync duration across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. Use this as a \"any cluster degraded?\" signal. SLO target: < 10ms.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -383,7 +383,7 @@
           "refId": "A"
         }
       ],
-      "title": "Worst Regional P99 WAL Fsync (5m)",
+      "title": "Worst Cluster P99 WAL Fsync (5m)",
       "transformations": [
         {
           "id": "merge",
@@ -406,7 +406,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Highest regional p99 backend commit duration across the fleet. NOT a true cross-region p99 (see WAL Fsync panel description). SLO target per region: < 25ms.",
+      "description": "Worst per-cluster p99 backend commit duration across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. SLO target: < 25ms.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -473,7 +473,7 @@
           "refId": "A"
         }
       ],
-      "title": "Worst Regional P99 Backend Commit (5m)",
+      "title": "Worst Cluster P99 Backend Commit (5m)",
       "transformations": [
         {
           "id": "merge",
@@ -496,7 +496,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Highest regional p99 etcd peer network RTT across the fleet. NOT a true cross-region p99 (see WAL Fsync panel description). SLO target per region: < 50ms.",
+      "description": "Worst per-cluster p99 etcd peer network RTT across the fleet. Computes p99 per cluster, then takes the max across all clusters and regions. SLO target: < 50ms.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -563,7 +563,7 @@
           "refId": "A"
         }
       ],
-      "title": "Worst Regional P99 Peer RTT (5m)",
+      "title": "Worst Cluster P99 Peer RTT (5m)",
       "transformations": [
         {
           "id": "merge",
