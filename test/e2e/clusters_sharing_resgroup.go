@@ -59,12 +59,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 3, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a shared customer resource group")
 			customerResourceGroup, err := tc.NewResourceGroup(ctx, "customer-rg", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create shared customer resource group")
 
 			By("creating customer infrastructure and managed identities for first cluster")
 			clusterParams1 := framework.NewDefaultClusterParams()
@@ -79,7 +79,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for first cluster %q", customerClusterName)
 
 			By("creating customer infrastructure and managed identities for second cluster")
 			clusterParams2 := framework.NewDefaultClusterParams()
@@ -94,7 +94,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for second cluster %q", customerClusterName2)
 
 			By("starting creation of both clusters in parallel")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
@@ -109,7 +109,7 @@ var _ = Describe("Customer", func() {
 				clusterParams1,
 				tc.Location(),
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to begin creation of first cluster %q", customerClusterName)
 
 			// Start second cluster creation
 			poller2, err := framework.BeginCreateHCPCluster(
@@ -121,7 +121,7 @@ var _ = Describe("Customer", func() {
 				clusterParams2,
 				tc.Location(),
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to begin creation of second cluster %q", customerClusterName2)
 
 			By("waiting for first cluster to complete creation")
 			pollCtx, pollCancel := context.WithTimeout(ctx, 45*time.Minute)
@@ -129,14 +129,14 @@ var _ = Describe("Customer", func() {
 			_, err = poller1.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 				Frequency: framework.StandardPollInterval,
 			})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for first cluster %q to complete creation", customerClusterName)
 
 			By("waiting for second cluster to complete creation")
 
 			_, err = poller2.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 				Frequency: framework.StandardPollInterval,
 			})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for second cluster %q to complete creation", customerClusterName2)
 
 			// Third cluster (should fail)
 			By("creating customer infrastructure and managed identities for third cluster")
@@ -152,23 +152,23 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for third cluster %q", customerClusterName3)
 
 			By("attempting to create a third cluster using the same managed resource group as the second cluster")
 			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, 45*time.Minute)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when creating third cluster %q with duplicate managed resource group", customerClusterName3)
 			Expect(err).To(MatchError(MatchRegexp("please provide a unique managed resource group name")))
 
 			By("verifying that the managed resource group still exists")
 			_, err = tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient().Get(ctx, clusterParams2.ManagedResourceGroupName, nil)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify managed resource group %q still exists", clusterParams2.ManagedResourceGroupName)
 
 			By("testing resource group-level cluster listing")
 			pager := clusterClient.NewListByResourceGroupPager(*customerResourceGroup.Name, nil)
 			var foundClusters []string
 			for pager.More() {
 				clusterList, err := pager.NextPage(ctx)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to list clusters in resource group %q", *customerResourceGroup.Name)
 				for _, cluster := range clusterList.Value {
 					foundClusters = append(foundClusters, *cluster.Name)
 				}

@@ -43,12 +43,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "cni-cilium", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for cilium CNI test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -71,7 +71,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cilium CNI cluster")
 
 			By("creating HCP cluster without CNI")
 			err = tc.CreateHCPClusterFromParam(
@@ -81,7 +81,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q without CNI", customerClusterName)
 
 			By("getting credentials and verifying cluster is available")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -91,12 +91,12 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
+			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "failed to verify HCP cluster %q is available", customerClusterName)
 
 			By("getting kubeconfig content for Helm")
 			kubeconfigContent, err := framework.GenerateKubeconfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for cluster %q", customerClusterName)
 
 			By("installing Cilium via Helm")
 			ciliumValues := map[string]any{
@@ -145,7 +145,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			err = framework.InstallCiliumChart(ctx, "1.19.2", ciliumValues, kubeconfigContent, ciliumNamespace)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to install Cilium chart via Helm")
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -164,11 +164,11 @@ var _ = Describe("Customer", func() {
 
 			By("checking that cilium is running and nodes are in Ready state")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational(ciliumNamespace, "k8s-app=cilium"))
-			Expect(errors.Join(err, nodePoolErr)).NotTo(HaveOccurred())
+			Expect(errors.Join(err, nodePoolErr)).NotTo(HaveOccurred(), "failed to verify cilium is running and nodes are Ready for cluster %q", customerClusterName)
 
 			By("verifying a simple web app can run with cilium")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs with cilium CNI")
 		},
 	)
 })

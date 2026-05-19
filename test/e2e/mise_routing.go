@@ -82,7 +82,7 @@ var _ = Describe("MISE Routing", func() {
 
 			By("Creating resource group")
 			rg, err := tc.NewResourceGroup(ctx, rgPrefix, tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for MISE routing test")
 
 			By("Building client factory")
 			capture := &miseVersionCapture{}
@@ -91,12 +91,12 @@ var _ = Describe("MISE Routing", func() {
 				policies = append([]policy.Policy{&miseV2HeaderPolicy{version: miseVersionHeader}}, policies...)
 			}
 			clientFactory, err := tc.Get20251223ClientFactoryWithPolicies(ctx, policies...)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to build client factory with MISE policies")
 
 			By("Listing clusters")
 			pager := clientFactory.NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(*rg.Name, nil)
 			_, err = pager.NextPage(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to list clusters by resource group")
 
 			Expect(capture.version).To(Equal(expectedVersion))
 		},

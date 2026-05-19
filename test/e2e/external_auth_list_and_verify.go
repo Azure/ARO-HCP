@@ -51,12 +51,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating resource group for the HCP cluster")
 			resourceGroup, err := tc.NewResourceGroup(ctx, testingPrefix, tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for external auth list test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -72,7 +72,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for external auth list test")
 
 			By("creating HCP cluster")
 			err = tc.CreateHCPClusterFromParam(ctx,
@@ -81,7 +81,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for external auth list test")
 
 			expectedExternalAuth := hcpsdk.ExternalAuth{
 				Name: to.Ptr(testingPrefix),
@@ -115,7 +115,7 @@ var _ = Describe("Customer", func() {
 				expectedExternalAuth,
 				15*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create external auth config on cluster %s", clusterName)
 
 			result, err := framework.GetExternalAuth(
 				ctx,
@@ -124,7 +124,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				*expectedExternalAuth.Name,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config from cluster %s", clusterName)
 			Expect(*result.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded))
 
 			By("confirming we're only allowed to create a single external auth")
@@ -139,7 +139,7 @@ var _ = Describe("Customer", func() {
 				anotherExternalAuth,
 				15*time.Minute,
 			)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when creating a second external auth config on cluster %s", clusterName)
 
 			By("listing all external auth configs to verify a list call works")
 			externalAuthClient := tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient()
@@ -147,7 +147,7 @@ var _ = Describe("Customer", func() {
 			var extAuthResult []hcpsdk.ExternalAuth
 			for pager.More() {
 				page, err := pager.NextPage(ctx)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to list external auth configs on cluster %s", clusterName)
 				for _, eaPtr := range page.Value {
 					if eaPtr != nil {
 						extAuthResult = append(extAuthResult, *eaPtr)
@@ -187,7 +187,7 @@ var _ = Describe("Customer", func() {
 				expectedExternalAuth,
 				15*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to update external auth config prefix on cluster %s", clusterName)
 
 			updatedResult, err := framework.GetExternalAuth(
 				ctx,
@@ -196,7 +196,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				*expectedExternalAuth.Name,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get updated external auth config from cluster %s", clusterName)
 			Expect(*updatedResult.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded))
 			Expect(*updatedResult.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix))
 

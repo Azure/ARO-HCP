@@ -57,7 +57,7 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			// Load CAs early to fail fast if there's an issue with the test setup, rather than waiting until after cluster creation
@@ -66,7 +66,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "tls-endpoint-cluster", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for TLS endpoint test")
 
 			// creating cluster parameters
 			clusterParams := framework.NewDefaultClusterParams()
@@ -82,7 +82,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for TLS endpoint cluster")
 
 			By("creating a standard hcp cluster")
 			err = tc.CreateHCPClusterFromParam(ctx,
@@ -91,7 +91,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for TLS endpoint test")
 
 			By("ensuring the API TLS certificate is signed by a trusted Azure CA")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
@@ -134,7 +134,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s for TLS endpoint cluster", customerNodePoolName)
 
 			By("ensuring the ingress TLS certificate is signed by a trusted Azure CA")
 			hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()

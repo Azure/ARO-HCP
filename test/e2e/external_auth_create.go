@@ -60,12 +60,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "external-auth-cluster", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for external auth cluster")
 
 			// creating cluster parameters
 			clusterParams := framework.NewDefaultClusterParams()
@@ -81,7 +81,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for external auth cluster")
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(ctx,
@@ -90,7 +90,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for external auth test")
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -100,11 +100,11 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability")
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -119,17 +119,17 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", customerNodePoolName)
 
 			By("creating an app registration with a client secret")
 			app, sp, err := tc.NewAppRegistrationWithServicePrincipal(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create app registration with service principal")
 
 			graphClient, err := tc.GetGraphClient(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get Microsoft Graph client")
 
 			pass, err := graphClient.AddPassword(ctx, app.ID, "external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
 
 			By("creating an external auth config with a prefix")
 			extAuth := hcpsdk20240610preview.ExternalAuth{
@@ -171,21 +171,21 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create external auth config %s", customerExternalAuthName)
 
 			By("verifying ExternalAuth is in a Succeeded state")
 			eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %s", customerExternalAuthName)
 			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
 
 			By("creating a cluster role binding for the entra application")
 			err = framework.CreateClusterRoleBinding(ctx, externalAuthSubjectPrefix+sp.ID, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster role binding for entra application")
 
 			By("creating a rest config using OIDC authentication")
 			Expect(tc.TenantID()).NotTo(BeEmpty())
 			cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create client secret credential for OIDC authentication")
 
 			// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
 			var accessToken azcore.AccessToken
@@ -212,7 +212,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			client, err := kubernetes.NewForConfig(config)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client with OIDC token")
 
 			// TODO (bvesel): ARO-21634
 			// The kube-apiserver restarts on external auth config creation, so we need to wait
@@ -225,7 +225,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating the console OAuth client secret for external auth")
 			adminClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create admin Kubernetes client")
 			consoleOAuthSecretName := fmt.Sprintf("%s-console-openshift-console", customerExternalAuthName)
 			consoleOAuthSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -237,10 +237,10 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = adminClient.CoreV1().Secrets("openshift-config").Create(ctx, consoleOAuthSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create console OAuth client secret %s", consoleOAuthSecretName)
 
 			By("verifying cluster operators are available after external auth config creation")
 			err = verifiers.VerifyAllClusterOperatorsAvailable().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster operators are available after external auth config creation")
 		})
 })
