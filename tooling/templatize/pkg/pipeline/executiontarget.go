@@ -20,9 +20,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/Azure/ARO-Tools/tools/cmdutils"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
@@ -31,7 +32,7 @@ type SubscriptionLookup func(ctx context.Context, subscriptionName string) (stri
 type TopoDirLookup func(serviceGroup string) (string, error)
 
 var subscriptionLookupBackoff = wait.Backoff{
-	Steps:    4,
+	Steps:    5,
 	Duration: 15 * time.Second,
 	Factor:   2.0,
 	Jitter:   0.1,
@@ -58,6 +59,7 @@ func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 
 		var result string
 		var lastFoundNames []string
+		var lastErr error
 		var attempt int
 
 		err = wait.ExponentialBackoffWithContext(ctx, subscriptionLookupBackoff, func(ctx context.Context) (bool, error) {
@@ -67,6 +69,7 @@ func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 			for pager.More() {
 				page, err := pager.NextPage(ctx)
 				if err != nil {
+					lastErr = err
 					fmt.Fprintf(os.Stderr, "[subscription-lookup] attempt %d: error listing subscriptions: %v\n", attempt, err)
 					return false, nil
 				}
@@ -82,6 +85,11 @@ func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 					fmt.Fprintf(os.Stderr, "[subscription-lookup] attempt %d: visible subscription: displayName=%q id=%s\n", attempt, displayName, subID)
 					foundNames = append(foundNames, displayName)
 					if displayName == subscriptionName {
+						if subID == "" {
+							lastErr = fmt.Errorf("subscription %q matched but has nil SubscriptionID", subscriptionName)
+							fmt.Fprintf(os.Stderr, "[subscription-lookup] attempt %d: %v\n", attempt, lastErr)
+							return false, nil
+						}
 						result = subID
 						return true, nil
 					}
@@ -93,6 +101,9 @@ func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 		})
 
 		if err != nil {
+			if lastErr != nil {
+				return "", fmt.Errorf("subscription lookup for %q failed after %d attempts (last error: %v): %w", subscriptionName, attempt, lastErr, err)
+			}
 			return "", fmt.Errorf("subscription lookup for %q timed out after %d attempts; last visible: %v", subscriptionName, attempt, lastFoundNames)
 		}
 		if result == "" {
