@@ -24,5 +24,6 @@ param globalMSIId = '__globalMSIId__'
 param svcMonitorName = '{{ .monitoring.svcWorkspaceName }}'
 param hcpMonitorName = '{{ .monitoring.hcpWorkspaceName }}'
 param grafanaResourceId = '__grafanaResourceId__'
+param grafanaPrincipalId = '__grafanaPrincipalId__'
 param amwMaxActiveTimeSeries = {{ if eq (printf "%T" .monitoring.maxActiveTimeSeries) "float64" }}{{ printf "%.0f" .monitoring.maxActiveTimeSeries }}{{ else }}{{ .monitoring.maxActiveTimeSeries }}{{ end }}
 param amwMaxEventsPerMinute = {{ if eq (printf "%T" .monitoring.maxEventsPerMinute) "float64" }}{{ printf "%.0f" .monitoring.maxEventsPerMinute }}{{ else }}{{ .monitoring.maxEventsPerMinute }}{{ end }}

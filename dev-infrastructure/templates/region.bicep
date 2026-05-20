@@ -45,6 +45,9 @@ param globalMSIId string
 @description('Grafana resource ID')
 param grafanaResourceId string
 
+@description('Grafana managed identity principal ID')
+param grafanaPrincipalId string
+
 @description('Name of the Azure Monitor Workspace for services')
 param svcMonitorName string
 
@@ -89,9 +92,9 @@ var monitoringReaderRoleId = subscriptionResourceId(
 // This allows Grafana to query Azure Monitor Platform metrics from PostgreSQL servers
 // (both Maestro and Cluster Service) deployed in this resource group.
 resource grafanaPostgresMonitoringAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, grafanaResourceId, monitoringReaderRoleId)
+  name: guid(resourceGroup().id, grafanaPrincipalId, monitoringReaderRoleId)
   properties: {
-    principalId: reference(grafanaResourceId, '2023-09-01').identity.principalId
+    principalId: grafanaPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: monitoringReaderRoleId
   }
