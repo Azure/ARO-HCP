@@ -67,12 +67,12 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 
 				if tc.UsePooledIdentities() {
 					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "rg-gpu-nodepool-"+sku.display, tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for GPU nodepool test")
 
 				clusterParams := framework.NewDefaultClusterParams()
 				clusterParams.ClusterName = customerClusterName
@@ -87,7 +87,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					TestArtifactsFS,
 					framework.RBACScopeResourceGroup,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for GPU nodepool cluster")
 
 				By("creating the HCP cluster")
 				err = tc.CreateHCPClusterFromParam(ctx,
@@ -96,7 +96,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					clusterParams,
 					45*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for GPU nodepool test")
 
 				By("getting credentials and verifying cluster is viable")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -106,8 +106,8 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					customerClusterName,
 					10*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
+				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
+				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "failed to verify basic cluster health for %s", customerClusterName)
 
 				// this test deletes gpu node pool later. if we only create gpu node pool and then delete it,
 				// we will get an error: "The last node pool can not be deleted from a cluster."
@@ -129,7 +129,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					defaultNodePoolParams,
 					45*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create default nodepool %s", defaultNodePoolName)
 
 				By(fmt.Sprintf("creating GPU nodepool with VM size %q", sku.vmSize))
 				gpuNodePoolParams := framework.NewDefaultNodePoolParams()
@@ -146,7 +146,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					gpuNodePoolParams,
 					45*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create GPU nodepool %s with VM size %s", gpuNodePoolName, sku.vmSize)
 
 				By("verifying GPU nodepool provisioning succeeded with correct VM size")
 				created, err := framework.GetNodePool(ctx,
@@ -155,13 +155,13 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					customerClusterName,
 					gpuNodePoolName,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get GPU nodepool %s", gpuNodePoolName)
 				Expect(created.Properties).ToNot(BeNil(), "GPU nodepool Properties was nil")
 				Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "GPU nodepool Properties.ProvisioningState was nil")
-				Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded))
+				Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded), "GPU nodepool %s provisioning state should be Succeeded", gpuNodePoolName)
 				Expect(created.Properties.Platform).ToNot(BeNil(), "GPU nodepool Properties.Platform was nil")
 				Expect(created.Properties.Platform.VMSize).ToNot(BeNil(), "GPU nodepool Properties.Platform.VMSize was nil")
-				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize))
+				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize), "GPU nodepool %s VM size should be %s", gpuNodePoolName, sku.vmSize)
 
 				By("deleting GPU nodepool")
 				Expect(framework.DeleteNodePool(
@@ -171,7 +171,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					customerClusterName,
 					gpuNodePoolName,
 					25*time.Minute,
-				)).To(Succeed())
+				)).To(Succeed(), "failed to delete GPU nodepool %s", gpuNodePoolName)
 
 				By("confirming GPU nodepool has been deleted")
 				_, getErr := framework.GetNodePool(ctx,
@@ -180,7 +180,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					customerClusterName,
 					gpuNodePoolName,
 				)
-				Expect(getErr).To(HaveOccurred())
+				Expect(getErr).To(HaveOccurred(), "expected GPU nodepool %s to be deleted but it still exists", gpuNodePoolName)
 			},
 		)
 	}

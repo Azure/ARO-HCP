@@ -50,12 +50,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				if tc.UsePooledIdentities() {
 					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-name", tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for patch-name test")
 
 				By("creating cluster parameters")
 				clusterParams := framework.NewDefaultClusterParams()
@@ -71,7 +71,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					TestArtifactsFS,
 					framework.RBACScopeResourceGroup,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for patch-name cluster")
 
 				By("creating the HCP cluster")
 				err = tc.CreateHCPClusterFromParam(
@@ -81,7 +81,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					clusterParams,
 					45*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-name test")
 
 				By("getting credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -91,11 +91,11 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					clusterName,
 					10*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for patch-name cluster")
 
 				By("ensuring the cluster is viable")
 				err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability for patch-name test")
 
 				By("sending a PATCH request attempting to change the resource name")
 				newName := clusterName + "-renamed"
@@ -110,8 +110,8 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					update,
 					10*time.Minute,
 				)
-				Expect(err).To(HaveOccurred())
-				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"))
+				Expect(err).To(HaveOccurred(), "expected error when attempting to rename cluster via PATCH")
+				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"), "error should indicate mismatching resource name")
 			},
 		)
 	})
@@ -126,12 +126,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				if tc.UsePooledIdentities() {
 					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-tags", tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for patch-tags test")
 
 				By("creating cluster parameters")
 				clusterParams := framework.NewDefaultClusterParams()
@@ -147,7 +147,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					TestArtifactsFS,
 					framework.RBACScopeResourceGroup,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for patch-tags cluster")
 
 				By("creating the HCP cluster")
 				err = tc.CreateHCPClusterFromParam(
@@ -157,7 +157,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					clusterParams,
 					45*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-tags test")
 
 				By("getting credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -167,11 +167,11 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					clusterName,
 					10*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for patch-tags cluster")
 
 				By("ensuring the cluster is viable")
 				err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability for patch-tags test")
 
 				By("sending a PATCH request to set a tag")
 				val := "should succeed"
@@ -189,12 +189,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					update,
 					10*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to update HCP cluster tags via PATCH")
 
 				By("verifying the tag is present in the update response body")
 				Expect(resp.Tags).ToNot(BeNil(), "update response Tags was nil")
 				Expect(resp.Tags["test"]).ToNot(BeNil(), "update response Tags[\"test\"] was nil")
-				Expect(*resp.Tags["test"]).To(Equal(val))
+				Expect(*resp.Tags["test"]).To(Equal(val), "update response Tags[\"test\"] should equal %q", val)
 
 				By("verifying the tag is present on the cluster")
 				respGet, err := framework.GetHCPCluster(
@@ -203,10 +203,10 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					*resourceGroup.Name,
 					clusterName,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to GET HCP cluster after tag update")
 				Expect(respGet.Tags).ToNot(BeNil(), "GET response Tags was nil")
 				Expect(respGet.Tags["test"]).ToNot(BeNil(), "GET response Tags[\"test\"] was nil")
-				Expect(*respGet.Tags["test"]).To(Equal(val))
+				Expect(*respGet.Tags["test"]).To(Equal(val), "GET response Tags[\"test\"] should equal %q after update", val)
 			},
 		)
 	})
