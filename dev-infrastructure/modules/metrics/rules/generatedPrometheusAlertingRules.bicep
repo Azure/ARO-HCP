@@ -1532,6 +1532,73 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
   }
 }
 
+resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'image-registry-policy'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ImageRegistryPolicyDenied'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'ImageRegistryPolicyDenied/{{ $labels.cluster }}'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
+          runbook_url: 'TBD'
+          summary: 'Image registry policy denied pod admission'
+          title: 'Image registry policy denied pod admission'
+        }
+        expression: 'sum by (cluster, policy, policy_binding) ( increase(apiserver_validating_admission_policy_check_total{ policy="image-registry-allowlist-policy", enforcement_action="deny", validation_result="denied" }[15m]) ) > 0'
+        for: 'PT1M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ImageRegistryPolicyAuditViolation'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
+          runbook_url: 'TBD'
+          summary: 'Image registry policy audit violation detected'
+          title: 'Image registry policy audit violation detected'
+        }
+        expression: 'sum by (cluster, policy, policy_binding) ( increase(apiserver_validating_admission_policy_check_total{ policy="image-registry-allowlist-policy", enforcement_action="audit", validation_result="denied" }[15m]) ) > 0'
+        for: 'PT5M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kusto-logs-age-rules'
   location: location
