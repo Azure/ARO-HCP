@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -35,19 +36,36 @@ import (
 )
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
+	fmt.Fprintf(os.Stderr, "[subscription-lookup] looking up subscription by display name: %q\n", subscriptionName)
+
+	var foundNames []string
 	pager := subscriptionClient.NewListPager(nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return "", err
+			fmt.Fprintf(os.Stderr, "[subscription-lookup] subscription list API call failed: %v\n", err)
+			return "", fmt.Errorf("failed listing subscriptions while looking for '%s': %w", subscriptionName, err)
 		}
 		for _, sub := range page.Value {
-			if *sub.DisplayName == subscriptionName {
-				return *sub.SubscriptionID, nil
+			displayName := ""
+			subID := ""
+			if sub.DisplayName != nil {
+				displayName = *sub.DisplayName
+			}
+			if sub.SubscriptionID != nil {
+				subID = *sub.SubscriptionID
+			}
+			fmt.Fprintf(os.Stderr, "[subscription-lookup] visible subscription: displayName=%q id=%s\n", displayName, subID)
+			foundNames = append(foundNames, displayName)
+			if displayName == subscriptionName {
+				if subID == "" {
+					return "", fmt.Errorf("subscription %q matched but has nil SubscriptionID", subscriptionName)
+				}
+				return subID, nil
 			}
 		}
 	}
-	return "", fmt.Errorf("subscription with name '%s' not found", subscriptionName)
+	return "", fmt.Errorf("subscription with name '%s' not found; %d subscriptions visible: %v", subscriptionName, len(foundNames), foundNames)
 }
 
 // CreateResourceGroup creates a resource group

@@ -17,15 +17,25 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
 
 type SubscriptionLookup func(ctx context.Context, subscriptionName string) (string, error)
 type TopoDirLookup func(serviceGroup string) (string, error)
+
+var subscriptionLookupBackoff = wait.Backoff{
+	Steps:    4,
+	Duration: 15 * time.Second,
+	Factor:   2.0,
+	Jitter:   0.1,
+}
 
 func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 	return func(ctx context.Context, subscriptionName string) (string, error) {
@@ -35,33 +45,60 @@ func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 		}
 
 		// Otherwise, do a lookup against Azure using the display name
-		// Create a new Azure identity client
+		fmt.Fprintf(os.Stderr, "[subscription-lookup] %q not in explicit registry; querying Azure API\n", subscriptionName)
 		cred, err := cmdutils.GetAzureTokenCredentials()
 		if err != nil {
 			return "", fmt.Errorf("failed to obtain a credential: %v", err)
 		}
 
-		// Create a new subscriptions client
 		client, err := armsubscriptions.NewClient(cred, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to create subscriptions client: %v", err)
 		}
 
-		// List subscriptions and find the one with the matching name
-		pager := client.NewListPager(nil)
-		for pager.More() {
-			page, err := pager.NextPage(ctx)
-			if err != nil {
-				return "", fmt.Errorf("failed to get next page of subscriptions: %v", err)
-			}
-			for _, sub := range page.Value {
-				if sub.DisplayName != nil && *sub.DisplayName == subscriptionName {
-					return *sub.SubscriptionID, nil
+		var result string
+		var lastFoundNames []string
+		var attempt int
+
+		err = wait.ExponentialBackoffWithContext(ctx, subscriptionLookupBackoff, func(ctx context.Context) (bool, error) {
+			attempt++
+			pager := client.NewListPager(nil)
+			var foundNames []string
+			for pager.More() {
+				page, err := pager.NextPage(ctx)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[subscription-lookup] attempt %d: error listing subscriptions: %v\n", attempt, err)
+					return false, nil
+				}
+				for _, sub := range page.Value {
+					displayName := ""
+					subID := ""
+					if sub.DisplayName != nil {
+						displayName = *sub.DisplayName
+					}
+					if sub.SubscriptionID != nil {
+						subID = *sub.SubscriptionID
+					}
+					fmt.Fprintf(os.Stderr, "[subscription-lookup] attempt %d: visible subscription: displayName=%q id=%s\n", attempt, displayName, subID)
+					foundNames = append(foundNames, displayName)
+					if displayName == subscriptionName {
+						result = subID
+						return true, nil
+					}
 				}
 			}
-		}
+			lastFoundNames = foundNames
+			fmt.Fprintf(os.Stderr, "[subscription-lookup] attempt %d: %q not found; %d subscriptions visible: %v\n", attempt, subscriptionName, len(foundNames), foundNames)
+			return false, nil
+		})
 
-		return "", fmt.Errorf("subscription with name %q not found", subscriptionName)
+		if err != nil {
+			return "", fmt.Errorf("subscription lookup for %q timed out after %d attempts; last visible: %v", subscriptionName, attempt, lastFoundNames)
+		}
+		if result == "" {
+			return "", fmt.Errorf("subscription with name %q not found after %d attempts; %d subscriptions visible: %v", subscriptionName, attempt, len(lastFoundNames), lastFoundNames)
+		}
+		return result, nil
 	}
 }
 
