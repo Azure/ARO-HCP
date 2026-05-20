@@ -1,0 +1,19 @@
+cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where namespace_name == '{{ .HostedControlPlaneNamespace }}'
+| where pod_name has 'capi-provider-'
+| extend msg = extract(@']\s+"([^"]+)"', 1, tostring(log))
+| extend err = extract(@'err="((?:[^"\\]|\\.)*)"', 1, tostring(log))
+| extend controller = extract(@'controller="([^"]*)"', 1, tostring(log))
+| extend controllerGroup = extract(@'controllerGroup="([^"]*)"', 1, tostring(log))
+| extend controllerKind = extract(@'controllerKind="([^"]*)"', 1, tostring(log))
+| extend name = extract(@'\sname="([^"]*)"', 1, tostring(log))
+| extend namespace = extract(@'namespace="([^"]*)"', 1, tostring(log))
+| where controller contains 'azure'
+| project timestamp, msg, err, controller, controllerGroup, controllerKind, name, namespace
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by msg, err, controller, controllerGroup, controllerKind, name, namespace
+| order by first_occurrence asc
