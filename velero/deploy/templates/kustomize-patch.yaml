@@ -36,6 +36,10 @@ data:
       name: node-agent
       namespace: {{ .Release.Namespace }}
     spec:
+      updateStrategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 100%
       template:
         spec:
           priorityClassName: service-lifecycle-critical
