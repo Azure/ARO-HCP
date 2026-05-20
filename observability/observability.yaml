@@ -55,4 +55,4 @@ grafana-dashboards:
   - name: HCP Kube API Server KSM
     path: ./grafana-dashboards/kas-ksm-monitor
   - name: User Journey
-    path: ./grafana-dashboards/user-journey
+    path: ./grafana-dashboards/sre/user-journey
