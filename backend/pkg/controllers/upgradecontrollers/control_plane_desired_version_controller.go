@@ -242,7 +242,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		// ParseTolerant handles both "4.19" and "4.19.0" formats
 		customerDotZeroRelease := api.Must(semver.ParseTolerant(customerDesiredMinor))
 
-		initialDesiredVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease})
+		initialDesiredVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, customerDotZeroRelease, []semver.Version{customerDotZeroRelease}, false)
 		if err != nil {
 			return nil, utils.TrackError(err)
 		}
@@ -297,13 +297,13 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 	}
 
 	if desiredMinorVersion.EQ(actualLatestMinorVersion) {
-		return FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList)
+		return FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList, false)
 	}
 
 	logger.Info("Resolving user-initiated upgrade desired version", "actualMinor", actualLatestMinorVersion.String(), "activeVersions", activeVersions,
 		"channelGroup", channelGroup, "targetMinor", desiredMinorVersion.String())
 
-	latestVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList)
+	latestVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, desiredMinorVersion, activeVersionList, true)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -312,7 +312,7 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 	}
 
 	// User-requested control plane minor has no path yet; advance to latest patch on the current minor toward a gateway for a later user-initiated upgrade.
-	fallbackVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, actualLatestMinorVersion, activeVersionList)
+	fallbackVersion, err := FindBestVersionInMinor(ctx, cincinnatiClient, channelGroup, actualLatestMinorVersion, activeVersionList, false)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -414,10 +414,11 @@ func FindAllUpgradeTargetVersionsInMinor(
 //     - For each candidate, check if it has an upgrade path to the next minor
 //     - If yes: return this version (latest gateway found)
 //     - If no: continue checking older versions
-//  8. If no gateway found: return nil
+//  8. If no gateway found and preferLatestOverGateway (y-stream): return the latest candidate
+//  9. If no gateway found and !preferLatestOverGateway (z-stream): return nil
 //
 // Examples:
-//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or latest 4.19.z
+//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or nil if none
 //   - Y-stream (4.19.x → 4.20.z): Find latest 4.20.z with path to 4.21, or latest 4.20.z
 //
 // When multiple active versions are provided, this method ensures that the selected version
@@ -430,34 +431,38 @@ func FindBestVersionInMinor(
 	channelGroup string,
 	targetMinorVersion semver.Version,
 	activeVersions []semver.Version,
+	preferLatestOverGateway bool,
 ) (*semver.Version, error) {
 	commonCandidates, err := FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetMinorVersion, activeVersions)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
-	// Use the most recent active version for additional validation logic
-	return selectBestVersionFromCandidates(ctx, cincinnatiClient, channelGroup, targetMinorVersion, commonCandidates)
+	return selectBestVersionFromCandidates(ctx, cincinnatiClient, channelGroup, targetMinorVersion, commonCandidates, preferLatestOverGateway)
 }
 
 // selectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate versions.
 // It accepts a list of candidates (already filtered within the target minor) and prioritizes versions
 // that are gateways to the next minor version.
 //
+// When preferLatestOverGateway is true (y-stream upgrades), the latest candidate is returned even if
+// no gateway to the next minor exists. When false (z-stream upgrades), nil is returned if no gateway
+// exists, preserving upgradeability to the next minor.
+//
 // Algorithm:
 //  1. Sort candidates by version (descending - latest first)
 //  2. Check if the next minor channel exists in Cincinnati
 //  3. If next minor doesn't exist: return the latest candidate
 //  4. If next minor exists: iterate through candidates to find a gateway version to the next minor
-//  5. If no gateway found: return nil
-//
-// Returns nil if no suitable version is found.
+//  5. If no gateway found and preferLatestOverGateway: return the latest candidate
+//  6. If no gateway found and !preferLatestOverGateway: return nil
 func selectBestVersionFromCandidates(
 	ctx context.Context,
 	cincinnatiClient cincinnati.Client,
 	channelGroup string,
 	targetMinorVersion semver.Version,
 	candidates []semver.Version,
+	preferLatestOverGateway bool,
 ) (*semver.Version, error) {
 	if len(candidates) == 0 {
 		return nil, nil
@@ -491,7 +496,7 @@ func selectBestVersionFromCandidates(
 		return &candidates[0], nil
 	}
 
-	// otherwise return the candidate that is a gateway to next minor
+	// Prefer a candidate that is a gateway to the next minor
 	for _, candidate := range candidates {
 		isGateway, err := isGatewayToNextMinor(ctx, candidate, cincinnatiClient, channelGroup, nextMinor)
 		if err != nil {
@@ -503,5 +508,8 @@ func selectBestVersionFromCandidates(
 		}
 	}
 
+	if preferLatestOverGateway {
+		return &candidates[0], nil
+	}
 	return nil, nil
 }
