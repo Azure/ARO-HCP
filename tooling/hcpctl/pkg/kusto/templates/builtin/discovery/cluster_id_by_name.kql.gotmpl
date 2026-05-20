@@ -1,0 +1,5 @@
+clustersServiceLogs
+| where resource_id has '{{.SubResourceGroupId}}'
+| extend _cluster_name = extract(@"hcpOpenShiftClusters/([^/""]+)", 1, tostring(resource_id))
+| where _cluster_name =~ '{{.FilterClusterName}}'
+| distinct cid
