@@ -83,9 +83,7 @@ func (c *operationNodePoolCreate) ShouldProcess(ctx context.Context, operation *
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
 		return false
 	}
-	if len(operation.InternalID.String()) == 0 {
-		return false
-	}
+
 	return true
 }
 
@@ -103,6 +101,19 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
+
+	cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).NodePools(operation.ExternalID.Parent.Name).Get(ctx, operation.ExternalID.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster: %w", err)
+	}
+	nodePoolCSInternalID := cluster.ServiceProviderProperties.ClusterServiceID
+	if nodePoolCSInternalID == nil || len(nodePoolCSInternalID.String()) == 0 {
+		return fmt.Errorf("cluster %s has no ClusterServiceID", operation.ExternalID.Parent.Name)
+	}
+	// TODO for now we set the operation internal ID to the cluster service ID, which the pollNodePoolStatus requires.
+	// that function will also update it in Cosmos DB. Do we want that or do we want to permanently leave the operation
+	// internal ID as nil (stop using it like we do in nodepool operation delete)
+	operation.InternalID = *nodePoolCSInternalID.DeepCopy()
 
 	return pollNodePoolStatus(ctx, c.resourcesDBClient, c.clusterServiceClient, operation, c.notificationClient)
 }
