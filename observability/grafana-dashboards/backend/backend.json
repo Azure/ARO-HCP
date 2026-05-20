@@ -100,7 +100,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_operations_total{cluster=\"$cluster\"}[5m])\n  )\n)",
+          "expr": "sum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_operations_total{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n  )\n)",
           "instant": false,
           "legendFormat": "{{operation}}",
           "range": true,
@@ -153,7 +153,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_errors_total{cluster=\"$cluster\"}[5m])\n  )\n)\n/\nsum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_operations_total{cluster=\"$cluster\"}[5m])\n  )\n)",
+          "expr": "sum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_errors_total{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n  )\n)\n/\nsum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_operations_total{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n  )\n)",
           "instant": false,
           "legendFormat": "{{operation}}",
           "range": true,
@@ -206,7 +206,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95,\n  sum by (operation, le) (\n    max without(prometheus_replica) (\n      rate(maestro_grpc_operation_duration_seconds_bucket{cluster=\"$cluster\"}[5m])\n    )\n  )\n)",
+          "expr": "histogram_quantile(0.95,\n  sum by (operation, le) (\n    max without(prometheus_replica) (\n      rate(maestro_grpc_operation_duration_seconds_bucket{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n    )\n  )\n)",
           "instant": false,
           "legendFormat": "{{operation}} p95",
           "range": true,

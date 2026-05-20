@@ -105,6 +105,14 @@ func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndp
 	return client, nil
 }
 
+// NewMaestroClientBuilder creates a new MaestroClientBuilder.
+//
+// The metrics parameter is optional and can be nil. If provided, all clients
+// created by this builder will be instrumented with Prometheus metrics.
+// If nil, clients will not be instrumented.
+//
+// Breaking change note: This constructor previously took no arguments.
+// The signature change is intentional to enable optional metrics instrumentation.
 func NewMaestroClientBuilder(metrics *MaestroMetrics) MaestroClientBuilder {
 	return &maestroClientBuilder{
 		metrics: metrics,
