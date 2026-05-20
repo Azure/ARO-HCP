@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 // mockDocumentStore is the slice of MockDBClient that mockResourceCRUD actually
@@ -231,6 +232,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Cont
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	if conditionsHolder, ok := any(newObj).(api.ConditionsHolder); ok {
+		if errs := validation.ValidateConditionsForPersist(conditionsHolder); len(errs) > 0 {
+			return nil, fmt.Errorf("conditions validation failed: %s", errs.ToAggregate().Error())
+		}
+	}
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
@@ -267,6 +274,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Co
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	if conditionsHolder, ok := any(newObj).(api.ConditionsHolder); ok {
+		if errs := validation.ValidateConditionsForPersist(conditionsHolder); len(errs) > 0 {
+			return nil, fmt.Errorf("conditions validation failed: %s", errs.ToAggregate().Error())
+		}
+	}
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
@@ -339,6 +352,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Co
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	if conditionsHolder, ok := any(newObj).(api.ConditionsHolder); ok {
+		if errs := validation.ValidateConditionsForPersist(conditionsHolder); len(errs) > 0 {
+			return "", fmt.Errorf("conditions validation failed: %s", errs.ToAggregate().Error())
+		}
+	}
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
@@ -385,6 +404,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 }
 
 func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(ctx context.Context, transaction database.DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	if conditionsHolder, ok := any(newObj).(api.ConditionsHolder); ok {
+		if errs := validation.ValidateConditionsForPersist(conditionsHolder); len(errs) > 0 {
+			return "", fmt.Errorf("conditions validation failed: %s", errs.ToAggregate().Error())
+		}
+	}
+
 	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)

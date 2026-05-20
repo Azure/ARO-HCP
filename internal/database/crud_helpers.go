@@ -26,8 +26,10 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 func OldResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {
@@ -180,6 +182,12 @@ func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) 
 	}
 	if !strings.EqualFold(cosmosData.GetPartitionKey(), strings.ToLower(cosmosData.GetPartitionKey())) {
 		return nil, nil, fmt.Errorf("invalid partitionKey found in object")
+	}
+
+	if conditionsHolder, ok := any(newObj).(api.ConditionsHolder); ok {
+		if errs := validation.ValidateConditionsForPersist(conditionsHolder); len(errs) > 0 {
+			return nil, nil, fmt.Errorf("conditions validation failed: %s", errs.ToAggregate().Error())
+		}
 	}
 
 	cosmosObj, err := InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)

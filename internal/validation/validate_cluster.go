@@ -320,6 +320,11 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	}
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, toServiceProviderClusterUID))...)
 
+	// Conditions are read-only (server-managed) and are not round-tripped from
+	// client input. We keep the validation here in a single spot so that the
+	// constraints are enforced consistently regardless of who sets conditions.
+	errs = append(errs, validateConditions(ctx, op, fldPath.Child("conditions"), newObj.Conditions)...)
+
 	return errs
 }
 

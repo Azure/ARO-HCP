@@ -39,6 +39,11 @@ type HCPOpenShiftCluster struct {
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
+var _ ConditionsHolder = &HCPOpenShiftCluster{}
+
+func (o *HCPOpenShiftCluster) GetConditions() []Condition {
+	return o.ServiceProviderProperties.Conditions
+}
 
 func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
 	return &arm.CosmosMetadata{
@@ -90,7 +95,8 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// BillingDocumentCosmosID is the Cosmos DB document ID of the billing document
 	// associated with this cluster. It is set when the billing document is created
 	// and used to avoid redundant creation attempts.
-	BillingDocumentCosmosID string `json:"billingDocumentCosmosID,omitempty"`
+	BillingDocumentCosmosID string      `json:"billingDocumentCosmosID,omitempty"`
+	Conditions              []Condition `json:"conditions,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

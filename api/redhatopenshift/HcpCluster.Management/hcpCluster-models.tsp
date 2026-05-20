@@ -123,6 +123,13 @@ model HcpOpenShiftClusterProperties {
   /** OpenShift internal image registry */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   clusterImageRegistry?: ClusterImageRegistryProfile;
+
+  /** The observed conditions of the resource. */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_05_31_preview)
+  @maxItems(10)
+  @identifiers(#["type"])
+  conditions?: Condition[];
 }
 
 /** The resource provisioning state. */
@@ -686,6 +693,13 @@ model NodePoolProperties {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   nodeDrainTimeoutMinutes?: int32;
+
+  /** The observed conditions of the resource. */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_05_31_preview)
+  @maxItems(10)
+  @identifiers(#["type"])
+  conditions?: Condition[];
 }
 
 /** The taint effect the same as in Kubernetes */
@@ -930,7 +944,15 @@ model ExternalAuthProperties {
 
   /** An observation of the current state with additional information. */
   @visibility(Lifecycle.Read)
+  @removed(Versions.v2026_05_31_preview)
   condition?: ExternalAuthCondition;
+
+  /** The observed conditions of the resource. */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_05_31_preview)
+  @maxItems(10)
+  @identifiers(#["type"])
+  conditions?: Condition[];
 
   /** Token Issuer profile */
   issuer: TokenIssuerProfile;
@@ -973,7 +995,7 @@ model ExternalAuthCondition {
   message: string;
 }
 
-/** Representation of the possible values of a external auths condition status. */
+/** Representation of the possible values of a condition status. */
 union StatusType {
   string,
 
@@ -985,6 +1007,57 @@ union StatusType {
 
   /** Indicates that the condition status is unknown. */
   Unknown: "Unknown",
+}
+
+/** Condition represents an observation of the resource's current state. */
+@added(Versions.v2026_05_31_preview)
+model Condition {
+  /** Type of the condition in CamelCase or in foo.example.com/CamelCase.
+   * The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt).
+   */
+  @visibility(Lifecycle.Read)
+  @maxLength(316)
+  @pattern("^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)$")
+  type: ConditionType;
+
+  /** Status of the condition. */
+  @visibility(Lifecycle.Read)
+  status: StatusType;
+
+  /** The last time the condition transitioned from one status to another. */
+  @visibility(Lifecycle.Read)
+  lastTransitionTime: utcDateTime;
+
+  /** A programmatic identifier indicating the reason for the condition's last transition.
+   * The value should be a CamelCase string. This field may not be empty.
+   */
+  @visibility(Lifecycle.Read)
+  @maxLength(1024)
+  @minLength(1)
+  @pattern("^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$")
+  reason: string;
+
+  /** A human-readable message indicating details about the transition.
+   * This may be an empty string.
+   */
+  @visibility(Lifecycle.Read)
+  @maxLength(32768)
+  message: string;
+}
+
+/** Representation of the possible types of a resource condition. */
+@added(Versions.v2026_05_31_preview)
+union ConditionType {
+  string,
+
+  /** Indicates that the resource is available. */
+  Available: "Available",
+
+  /** Indicates that the resource is in a degraded state. */
+  Degraded: "Degraded",
+
+  /** Indicates that the resource is in a progressing state. */
+  Progressing: "Progressing",
 }
 
 /** Representation of the possible types of a external auths condition. */

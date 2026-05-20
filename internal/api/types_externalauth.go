@@ -54,6 +54,11 @@ func (ea *HCPOpenShiftClusterExternalAuth) EnsureDefaults() {
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+var _ ConditionsHolder = &HCPOpenShiftClusterExternalAuth{}
+
+func (o *HCPOpenShiftClusterExternalAuth) GetConditions() []Condition {
+	return o.Properties.Conditions
+}
 
 func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
 	return &arm.CosmosMetadata{
@@ -68,6 +73,7 @@ func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
 type HCPOpenShiftClusterExternalAuthProperties struct {
 	ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
 	Condition         ExternalAuthCondition       `json:"condition,omitzero"`
+	Conditions        []Condition                 `json:"conditions,omitempty"`
 	Issuer            TokenIssuerProfile          `json:"issuer"`
 	Clients           []ExternalAuthClientProfile `json:"clients"`
 	Claim             ExternalAuthClaimProfile    `json:"claim"`

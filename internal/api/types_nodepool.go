@@ -38,6 +38,11 @@ type HCPOpenShiftClusterNodePool struct {
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
+var _ ConditionsHolder = &HCPOpenShiftClusterNodePool{}
+
+func (o *HCPOpenShiftClusterNodePool) GetConditions() []Condition {
+	return o.Properties.Conditions
+}
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
@@ -51,6 +56,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	Labels                  map[string]string       `json:"labels,omitempty"`
 	Taints                  []Taint                 `json:"taints,omitempty"`
 	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
+	Conditions              []Condition             `json:"conditions,omitempty"`
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
