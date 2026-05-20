@@ -378,6 +378,15 @@ defaults:
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
+  quotaizer:
+    quotaGroup:
+      id: "aro-{{ .ctx.environment }}-{{ .ctx.region }}"
+      displayName: "HCP - {{ .ctx.environment }} {{ .ctx.region }}"
+    managedIdentityName: aro-quotaizer
+    image:
+      registry: "empty-sentinel"
+      repository: "empty-sentinel"
+      digest: ""
   # Route Monitor Operator
   routeMonitorOperator:
     operatorImage:

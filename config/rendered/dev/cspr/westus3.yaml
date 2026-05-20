@@ -822,6 +822,15 @@ oidc:
     privateLinkLocation: westus3
     public: true
     zoneRedundantMode: Auto
+quotaizer:
+  image:
+    digest: ""
+    registry: empty-sentinel
+    repository: empty-sentinel
+  managedIdentityName: aro-quotaizer
+  quotaGroup:
+    displayName: HCP - cspr westus3
+    id: aro-cspr-westus3
 region: westus3
 regionRG: hcp-underlay-cspr-westus3
 routeMonitorOperator:

@@ -822,6 +822,15 @@ oidc:
     privateLinkLocation: westus3
     public: true
     zoneRedundantMode: Auto
+quotaizer:
+  image:
+    digest: ""
+    registry: empty-sentinel
+    repository: empty-sentinel
+  managedIdentityName: aro-quotaizer
+  quotaGroup:
+    displayName: HCP - dev westus3
+    id: aro-dev-westus3
 region: westus3
 regionRG: hcp-underlay-dev-westus3
 routeMonitorOperator:
