@@ -108,7 +108,7 @@ var _ = Describe("Service Provider", func() {
 				Steps:    25,
 				Cap:      45 * time.Second,
 			}, func(_ context.Context) (done bool, err error) {
-				createErr := tc.CreateHCPClusterFromParam(
+				createErr := tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
@@ -137,7 +137,7 @@ var _ = Describe("Service Provider", func() {
 			Expect(backoffErr).NotTo(HaveOccurred())
 
 			By("verifying the cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,

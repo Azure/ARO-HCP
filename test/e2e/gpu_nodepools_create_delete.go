@@ -90,7 +90,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(ctx,
+				err = tc.CreateHCPClusterFromParam20240610(ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
@@ -99,7 +99,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("getting credentials and verifying cluster is viable")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -121,7 +121,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				defaultNodePoolParams.NodePoolName = defaultNodePoolName
 				defaultNodePoolParams.Replicas = int32(2)
 
-				err = tc.CreateNodePoolFromParam(ctx,
+				err = tc.CreateNodePoolFromParam20240610(ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					managedResourceGroupName,
@@ -138,7 +138,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				gpuNodePoolParams.Replicas = int32(1)
 				gpuNodePoolParams.VMSize = sku.vmSize
 
-				err = tc.CreateNodePoolFromParam(ctx,
+				err = tc.CreateNodePoolFromParam20240610(ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					managedResourceGroupName,
@@ -149,7 +149,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("verifying GPU nodepool provisioning succeeded with correct VM size")
-				created, err := framework.GetNodePool(ctx,
+				created, err := framework.GetNodePool20240610(ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 					*resourceGroup.Name,
 					customerClusterName,
@@ -164,7 +164,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize))
 
 				By("deleting GPU nodepool")
-				Expect(framework.DeleteNodePool(
+				Expect(framework.DeleteNodePool20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 					*resourceGroup.Name,
@@ -174,7 +174,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				)).To(Succeed())
 
 				By("confirming GPU nodepool has been deleted")
-				_, getErr := framework.GetNodePool(ctx,
+				_, getErr := framework.GetNodePool20240610(ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 					*resourceGroup.Name,
 					customerClusterName,

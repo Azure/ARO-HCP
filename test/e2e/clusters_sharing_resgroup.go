@@ -100,7 +100,7 @@ var _ = Describe("Customer", func() {
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 			// Start first cluster creation
-			poller1, err := framework.BeginCreateHCPCluster(
+			poller1, err := framework.BeginCreateHCPCluster20240610(
 				ctx,
 				GinkgoLogr,
 				clusterClient,
@@ -112,7 +112,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Start second cluster creation
-			poller2, err := framework.BeginCreateHCPCluster(
+			poller2, err := framework.BeginCreateHCPCluster20240610(
 				ctx,
 				GinkgoLogr,
 				clusterClient,
@@ -155,7 +155,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("attempting to create a third cluster using the same managed resource group as the second cluster")
-			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, 45*time.Minute)
+			err = tc.CreateHCPClusterFromParam20240610(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, 45*time.Minute)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError(MatchRegexp("please provide a unique managed resource group name")))
 

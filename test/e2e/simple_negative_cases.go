@@ -100,7 +100,7 @@ var _ = Describe("Customer", func() {
 			checkExpectedError(&errs, "node pool listing in non-existent resource group", err, "resource group not found")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -110,7 +110,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -135,7 +135,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParamsInvalidQuota.Replicas = int32(201)
 
 			By("attempting to create a node pool with invalid instance type")
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -146,7 +146,7 @@ var _ = Describe("Customer", func() {
 			checkExpectedError(&errs, "node pool creation with invalid instance type", err, "machine type not supported")
 
 			By("attempting to create a node pool with invalid quota")
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -157,7 +157,7 @@ var _ = Describe("Customer", func() {
 			checkExpectedError(&errs, "node pool creation with invalid quota", err, "invalid value must be less than or equal to")
 
 			By("creating a nodepool")
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,

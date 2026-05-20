@@ -143,7 +143,7 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("creating the HCP cluster with install version %s (previous minor %s)", installVersion,
 				previousMinorLine))
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -154,7 +154,7 @@ var _ = Describe("Customer", func() {
 
 			By("getting admin credentials")
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
@@ -183,7 +183,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateHCPCluster(ctx, hcpClient, *resourceGroup.Name, clusterName, update, 45*time.Minute)
+			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, 45*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying control plane reached desired version and cluster remains viable")

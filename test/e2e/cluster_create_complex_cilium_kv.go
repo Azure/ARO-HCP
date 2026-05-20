@@ -82,7 +82,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster with no CNI and private etcd via v20251223preview")
-			clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
+			clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Set KeyVault visibility to Private
@@ -93,7 +93,7 @@ var _ = Describe("Customer", func() {
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
 			}
 
-			_, err = framework.CreateHCPCluster20251223AndWait(
+			_, err = framework.CreateHCPClusterAndWait20251223(
 				ctx,
 				GinkgoLogr,
 				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -105,7 +105,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,

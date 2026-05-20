@@ -321,7 +321,7 @@ func ListAllOperations(
 	return allOperations, nil
 }
 
-func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
+func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	ctx context.Context,
 	logger logr.Logger,
 	resourceGroupName string,
@@ -341,9 +341,9 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
-	cluster := BuildHCPClusterFromParams(parameters, tc.Location())
+	cluster := BuildHCPClusterFromParams20240610(parameters, tc.Location())
 
-	if _, err := CreateHCPClusterAndWait(
+	if _, err := CreateHCPClusterAndWait20240610(
 		ctx,
 		logger,
 		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -360,7 +360,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 	return nil
 }
 
-func (tc *perItOrDescribeTestContext) CreateHCPCluster20251223FromParam(
+func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20251223(
 	ctx context.Context,
 	logger logr.Logger,
 	resourceGroupName string,
@@ -381,12 +381,12 @@ func (tc *perItOrDescribeTestContext) CreateHCPCluster20251223FromParam(
 		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20251223preview)", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
-	cluster, err := BuildHCPCluster20251223FromParams(parameters, tc.Location(), imageDigestMirrors)
+	cluster, err := BuildHCPClusterFromParams20251223(parameters, tc.Location(), imageDigestMirrors)
 	if err != nil {
 		return fmt.Errorf("failed to build HCP cluster %s: %w", clusterName, err)
 	}
 
-	if _, err := CreateHCPCluster20251223AndWait(
+	if _, err := CreateHCPClusterAndWait20251223(
 		ctx,
 		logger,
 		tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -403,7 +403,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPCluster20251223FromParam(
 	return nil
 }
 
-func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
+func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 	ctx context.Context,
 	logger logr.Logger,
 	resourceGroupName string,
@@ -426,9 +426,9 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 		return fmt.Errorf("nodePoolName parameter not found or empty")
 	}
 
-	nodePool := BuildNodePoolFromParams(parameters, tc.Location())
+	nodePool := BuildNodePoolFromParams20240610(parameters, tc.Location())
 
-	if _, err := CreateNodePoolAndWait(
+	if _, err := CreateNodePoolAndWait20240610(
 		nodePoolCtx,
 		tc.Get20240610ClientFactoryOrDie(nodePoolCtx).NewNodePoolsClient(),
 		resourceGroupName,

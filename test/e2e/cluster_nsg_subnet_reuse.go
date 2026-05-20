@@ -97,7 +97,7 @@ var _ = Describe("Customer", func() {
 			Expect(err1).NotTo(HaveOccurred())
 
 			By("seeding HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -113,7 +113,7 @@ var _ = Describe("Customer", func() {
 			originalSubnetResourceID := clusterParams2.SubnetResourceID
 			clusterParams2.SubnetResourceID = clusterParams1.SubnetResourceID
 
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -129,7 +129,7 @@ var _ = Describe("Customer", func() {
 
 			clusterParams2.NsgResourceID = clusterParams1.NsgResourceID
 			clusterParams2.ClusterName = "cluster-nsg-reuse"
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
