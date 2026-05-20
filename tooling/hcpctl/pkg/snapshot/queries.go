@@ -647,6 +647,28 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
 	},
+	{
+		component:    "hypershift",
+		queryName:    "clusterAPILogs",
+		templatePath: "queries/hypershift/clusterAPILogs/query.kql",
+		database:     "hcp",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
+	},
+	{
+		component:    "hypershift",
+		queryName:    "clusterAPIProviderLogs",
+		templatePath: "queries/hypershift/clusterAPIProviderLogs/query.kql",
+		database:     "hcp",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
+	},
 }
 
 // contextQueries are broader queries not tied to a specific correlation ID.
