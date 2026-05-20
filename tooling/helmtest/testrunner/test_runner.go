@@ -31,6 +31,7 @@ import (
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/config"
@@ -151,6 +152,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 	assert.NoError(t, err)
 	assert.NotNil(t, helmSteps)
 
+	resourceLimitsAllowlist := sets.New[string](settings.ResourceLimitsAllowlist...)
 	chartDirsVisited := make(map[string]bool)
 
 	for _, helmStep := range helmSteps {
@@ -175,6 +177,11 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 			t.Run(testCase.Name, func(t *testing.T) {
 				manifest, err := runTest(t.Context(), settings, testCase)
 				assert.NoError(t, err)
+
+				for _, v := range checkPolicyViolations(manifest, resourceLimitsAllowlist) {
+					t.Error(v)
+				}
+
 				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
 				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
 				// exactly as the output directory - an exercise left for the future
