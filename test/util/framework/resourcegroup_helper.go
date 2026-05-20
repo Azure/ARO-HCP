@@ -44,6 +44,7 @@ var subscriptionLookupBackoff = wait.Backoff{
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
 	var subscriptionID string
+	var lastErr error
 	attempt := 0
 
 	err := wait.ExponentialBackoffWithContext(ctx, subscriptionLookupBackoff, func(ctx context.Context) (bool, error) {
@@ -58,6 +59,7 @@ func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions
 		for pager.More() {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
+				lastErr = err
 				ginkgo.GinkgoLogr.Info("Subscription list API error, will retry",
 					"error", err,
 					"attempt", attempt)
@@ -78,6 +80,9 @@ func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions
 	})
 
 	if err != nil {
+		if lastErr != nil {
+			return "", fmt.Errorf("subscription lookup for '%s' failed after %d attempts (last API error: %v): %w", subscriptionName, attempt, lastErr, err)
+		}
 		return "", fmt.Errorf("subscription with name '%s' not found after %d attempts: %w", subscriptionName, attempt, err)
 	}
 	return subscriptionID, nil
