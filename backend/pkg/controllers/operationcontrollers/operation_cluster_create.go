@@ -120,13 +120,20 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		return nil // no work to do
 	}
 
-	if len(operation.InternalID.String()) == 0 {
-		// we cannot proceed: yet.
-		// TODO when we update to make clusterserice creation async, we need https://github.com/Azure/ARO-HCP/pull/4695 or similar
-		// and we need to wire up a fail-safe where if we have no ID and we time out, we report the best failure we can.
-		return nil
+	clusterServiceID := operation.InternalID
+	if len(clusterServiceID.String()) == 0 {
+		cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to get cluster to resolve ClusterServiceID: %w", err))
+		}
+		if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+			logger.Info("ClusterServiceID not yet set, waiting for CS create controller")
+			return nil
+		}
+		clusterServiceID = *cluster.ServiceProviderProperties.ClusterServiceID
 	}
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, operation.InternalID)
+
+	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}

@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/google/uuid"
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
@@ -58,6 +59,11 @@ type controlPlaneDesiredVersionSyncer struct {
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	subscriptionLister                    listers.SubscriptionLister
 
+	// defaultClusterUUID is used for Cincinnati queries when a cluster does not
+	// yet have a ClusterServiceID (CS creation is still pending). Cincinnati's
+	// upgrade graph is deterministic regardless of UUID, so a shared default is safe.
+	defaultClusterUUID uuid.UUID
+
 	cincinnatiClientCache cincinnati.ClientCache
 }
 
@@ -81,6 +87,7 @@ func NewControlPlaneDesiredVersionController(
 		resourcesDBClient:                     resourcesDBClient,
 		clusterServiceClient:                  clusterServiceClient,
 		subscriptionLister:                    subscriptionLister,
+		defaultClusterUUID:                    uuid.New(),
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -117,11 +124,6 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
-		// Currently, this is correct.  We will likely refactor and change this to separate the read of active versions from the determination
-		// of the next desired version: we'll need to choose a desired version even if there are no active versions.
-		return nil
-	}
 
 	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
@@ -129,13 +131,15 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
-	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
+	// For new clusters where the HostedCluster doesn't exist yet (CS cluster creation is deferred
+	// to the backend), we generate a UUID. The specific UUID only affects Cincinnati telemetry,
+	// not version graph resolution.
 	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.clusterManagementClusterContentLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}
 	if !found {
-		logger.Info("missing cluster UUID, continuing with empty")
+		clusterUUID = c.defaultClusterUUID
 	}
 	cincinnatiClient := c.cincinnatiClientCache.GetOrCreateClient(clusterUUID)
 
