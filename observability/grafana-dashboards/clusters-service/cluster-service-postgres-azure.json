@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Azure PostgreSQL metrics for Cluster Service database (CSPR/PERF managed instances). Helps diagnose provisioning latency by showing connection, CPU, memory, query, and lock/wait metrics.",
+  "description": "Azure PostgreSQL metrics for Cluster Service database. NOTE: This dashboard is hard-coded to CSPR/PERF managed PostgreSQL instances. Personal dev environments use containerized PostgreSQL with prometheus metrics (separate dashboard needed).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
