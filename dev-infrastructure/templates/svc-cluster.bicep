@@ -747,6 +747,31 @@ var frontendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedId
 var backendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, backendMIName)
 var adminApiMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, adminApiMIName)
 
+// Validate that managed identity principals are available in AAD before attempting Cosmos DB role assignments
+// This prevents race conditions where principals haven't replicated to all AAD endpoints yet
+resource validateMIPropagation 'Microsoft.Resources/deploymentScripts@2023-08-01' = if (rpCosmosDbAccountId != '') {
+  name: 'validate-mi-aad-propagation-script'
+  location: location
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${globalMSIId}': {}
+    }
+  }
+  properties: {
+    azCliVersion: '2.53.1'
+    timeout: 'PT10M'
+    retentionInterval: 'PT1H'
+    arguments: '${frontendMI.uamiPrincipalID} ${backendMI.uamiPrincipalID} ${adminApiMI.uamiPrincipalID}'
+    scriptContent: loadTextContent('../scripts/validate-mi-aad-propagation.sh')
+    cleanupPreference: 'OnSuccess'
+  }
+  dependsOn: [
+    managedIdentities
+  ]
+}
+
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') {
   name: 'rp_cosmos_db'
   scope: resourceGroup(regionalResourceGroup)
@@ -758,6 +783,9 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') 
     locksContainerMaxScale: locksContainerMaxScale
     fleetContainerMaxScale: fleetContainerMaxScale
   }
+  dependsOn: [
+    validateMIPropagation
+  ]
 }
 
 module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate && rpCosmosDbAccountId != '') {
