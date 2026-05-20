@@ -81,7 +81,7 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -296,7 +296,7 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -311,7 +311,7 @@ var _ = Describe("SRE", func() {
 			nodePoolParams.NodePoolName = "worker"
 			nodePoolParams.Replicas = int32(1)
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -405,7 +405,7 @@ var _ = Describe("SRE", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -420,7 +420,7 @@ var _ = Describe("SRE", func() {
 			nodePoolParams.NodePoolName = "worker"
 			nodePoolParams.Replicas = int32(1)
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,

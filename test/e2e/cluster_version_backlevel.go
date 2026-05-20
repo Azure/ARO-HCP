@@ -136,7 +136,7 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 				hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-				_, err = framework.CreateHCPClusterAndWait(
+				_, err = framework.CreateHCPClusterAndWait20240610(
 					ctx,
 					GinkgoLogr,
 					hcpClient,
@@ -147,7 +147,7 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -180,7 +180,7 @@ var _ = Describe("Customer", func() {
 					)
 					Expect(err).NotTo(HaveOccurred())
 					nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-					_, err = framework.CreateNodePoolAndWait(ctx,
+					_, err = framework.CreateNodePoolAndWait20240610(ctx,
 						nodePoolClient,
 						*resourceGroup.Name,
 						clusterName,

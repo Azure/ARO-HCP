@@ -84,7 +84,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -93,7 +93,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -111,7 +111,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -170,11 +170,11 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying ExternalAuth is in a Succeeded state")
-			eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName)
+			eaResult, err := framework.GetExternalAuth20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
 

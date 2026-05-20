@@ -79,7 +79,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -89,7 +89,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -115,7 +115,7 @@ var _ = Describe("Customer", func() {
 			group, groupCtx := errgroup.WithContext(ctx)
 			for _, nodePoolParams := range []framework.NodePoolParams{nodePoolParams1, nodePoolParams2} {
 				group.Go(func() error {
-					createErr := tc.CreateNodePoolFromParam(
+					createErr := tc.CreateNodePoolFromParam20240610(
 						groupCtx,
 						GinkgoLogr,
 						*resourceGroup.Name,

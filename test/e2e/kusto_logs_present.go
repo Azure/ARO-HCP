@@ -77,7 +77,7 @@ var _ = Describe("Engineering", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,

@@ -262,7 +262,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, 45*time.Minute)
+			err = tc.CreateHCPClusterFromParam20240610(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, 45*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			subscriptionID, err := tc.SubscriptionID(ctx)

@@ -103,7 +103,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -171,7 +171,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(*fetched.Properties.AutoRepair).To(BeTrue())
 
 			By("getting credentials to verify cluster health")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,

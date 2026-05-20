@@ -85,7 +85,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a standard hcp cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -126,7 +126,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,

@@ -124,7 +124,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					to.Ptr(fmt.Sprintf("%s/32", vmPublicIP)),
 				}
 
-				err = tc.CreateHCPClusterFromParam(
+				err = tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
@@ -134,7 +134,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("getting cluster details")
-				clusterResponse, err := framework.GetHCPCluster(
+				clusterResponse, err := framework.GetHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -175,7 +175,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Get \"%s/healthz\": EOF", apiURL)), "Should fail with EOF error indicating blocked connection")
 
 				By("verifying VM can access cluster API with credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -233,7 +233,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				nodePoolParams.NodePoolName = "np-1"
 				nodePoolParams.Replicas = int32(2)
 
-				err = tc.CreateNodePoolFromParam(ctx,
+				err = tc.CreateNodePoolFromParam20240610(ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					managedResourceGroupName,
@@ -292,11 +292,11 @@ var _ = Describe("Authorized CIDRs", func() {
 						},
 					},
 				}
-				_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, 15*time.Minute)
+				_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, 15*time.Minute)
 				Expect(err).NotTo(HaveOccurred())
 
 				By("verifying ExternalAuth is in a Succeeded state")
-				eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName)
+				eaResult, err := framework.GetExternalAuth20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
 
@@ -393,7 +393,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("updating cluster to remove VM from authorized CIDRs")
 				// Get the current cluster state
-				currentCluster, err := framework.GetHCPCluster(
+				currentCluster, err := framework.GetHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,

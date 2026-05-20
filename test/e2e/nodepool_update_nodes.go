@@ -73,7 +73,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -82,7 +82,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -107,7 +107,7 @@ var _ = Describe("Customer", func() {
 			group, groupCtx := errgroup.WithContext(ctx)
 			for _, nodePoolParams := range []framework.NodePoolParams{mainNodePoolParams, oneNodePoolParams} {
 				group.Go(func() error {
-					createErr := tc.CreateNodePoolFromParam(
+					createErr := tc.CreateNodePoolFromParam20240610(
 						groupCtx,
 						GinkgoLogr,
 						*resourceGroup.Name,
@@ -142,7 +142,7 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(int32(mainNodeCount)),
 				},
 			}
-			scaleUpResp, err := framework.UpdateNodePoolAndWait(ctx,
+			scaleUpResp, err := framework.UpdateNodePoolAndWait20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(int32(mainNodeCount)),
 				},
 			}
-			scaleDownResp, err := framework.UpdateNodePoolAndWait(ctx,
+			scaleDownResp, err := framework.UpdateNodePoolAndWait20240610(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,
@@ -197,7 +197,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			autoscaleResp, err := framework.UpdateNodePoolAndWait(ctx,
+			autoscaleResp, err := framework.UpdateNodePoolAndWait20240610(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,
