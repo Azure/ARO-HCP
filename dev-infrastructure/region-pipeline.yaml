@@ -60,7 +60,6 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
     grafanaName: "{{ .monitoring.grafanaName }}"
-    skipSync: {{ .monitoring.skipDatasourceSync }}
     identityFrom:
       resourceGroup: global
       step: output
