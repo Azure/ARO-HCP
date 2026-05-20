@@ -60,6 +60,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
 	ImageDigestMirrors      []ImageDigestMirror         `json:"imageDigestMirrors,omitempty"`
+	FipsEnabled             bool                        `json:"fipsEnabled,omitempty"`
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -270,6 +271,7 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 			ClusterImageRegistry: ClusterImageRegistryProfile{
 				State: ClusterImageRegistryStateEnabled,
 			},
+			FipsEnabled: false,
 		},
 	}
 }

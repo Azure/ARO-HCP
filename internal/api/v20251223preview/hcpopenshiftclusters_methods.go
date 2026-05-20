@@ -115,6 +115,9 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties.ClusterImageRegistry.State == nil {
 		obj.Properties.ClusterImageRegistry.State = ptr.To(generated.ClusterImageRegistryStateEnabled)
 	}
+	if obj.Properties.FipsEnabled == nil {
+		obj.Properties.FipsEnabled = ptr.To(false)
+	}
 }
 
 func newVersionProfile(from *api.VersionProfile) generated.VersionProfile {
@@ -352,6 +355,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
+				FipsEnabled:             api.PtrOrNil(from.CustomerProperties.FipsEnabled),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -476,6 +480,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		}
 		if c.Properties.ImageDigestMirrors != nil {
 			normalizeImageDigestMirrors(c.Properties.ImageDigestMirrors, &out.CustomerProperties.ImageDigestMirrors)
+		}
+		if c.Properties.FipsEnabled != nil {
+			out.CustomerProperties.FipsEnabled = *c.Properties.FipsEnabled
 		}
 	}
 

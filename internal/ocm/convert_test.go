@@ -241,7 +241,8 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled)).
 		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
-			ImageDigestMirrors())
+			ImageDigestMirrors()).
+		FIPS(false)
 }
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
