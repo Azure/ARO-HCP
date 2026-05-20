@@ -90,6 +90,47 @@ A single **Azure Managed Grafana** instance is deployed globally and configured 
 - Region-agnostic dashboard experience
 - Consolidated alerting and monitoring workflows
 
+### ADX / Kusto datasources
+
+Managed Grafana can also expose Azure Data Explorer datasources for ARO-HCP Kusto clusters. These datasources follow the same single-workspace-per-environment model as the Azure Monitor datasources above.
+
+- **Provisioning scope**: Region pipeline, gated per-region by `kusto.manageInstance` (one region per `geoShortId` owns the cluster)
+- **Datasource name**: `kusto-<env>-<geoShortId>` (for example `kusto-int-uk`)
+- **Target database**: `ServiceLogs`
+- **Authentication**: Grafana workspace system-assigned managed identity
+- **RBAC**: Database-level `Viewer` on `ServiceLogs` only
+
+Provisioning is controlled by:
+
+- `monitoring.adxDatasourceEnabled`
+- `monitoring.adxDatasourceGeographies`
+
+When `adxDatasourceEnabled` is `true`, the region pipeline's existing `add-grafana-datasource` step uses the typed `GrafanaDatasources` action to create or update the datasource. The step runs in every region the regional pipeline touches, but the runtime gate `adxDatasourceEnabled && kusto.manageInstance && arobit.kusto.enabled` limits actual reconciliation to the region that owns the geography's managed Kusto cluster. `clusterUrl` is sourced from the regional `kusto-lookup.bicep` output, which `existing`s the cluster the geography pipeline already created. When `adxDatasourceGeographies` is empty, all managed Kusto geographies in the environment are included. When it is set, only the listed geography short IDs are allowed. Matching is case-insensitive and ignores surrounding whitespace around comma-separated entries. The same `grafanactl` reconcile path evaluates the allowlist during EV2 rollout and local templatize runs.
+
+After rollout, validate at least one datasource during the environment bake window with:
+
+1. Grafana UI
+2. Data sources
+3. `kusto-<env>-<geoShortId>`
+4. **Save & Test**
+
+### Kusto datasource lifecycle and teardown
+
+`adxDatasourceEnabled: false` disables the ADX desired state. The typed datasource reconcile step still runs and deletes the named datasource when deletion-on-disable is enabled, so disabling ADX or removing a geography from `adxDatasourceGeographies` cleans up stale Grafana datasource configuration.
+
+The regular geography pipeline still fails closed when ADX is desired but no `kustoUri` is available. That prevents accidental deletion caused by transient deployment or output issues during normal rollout or provisioning retries.
+
+If a datasource needs to be removed outside the desired-state rollout path, delete it explicitly:
+
+```bash
+az grafana data-source delete \
+  --name "${GRAFANA_NAME}" \
+  --resource-group "${GRAFANA_RG}" \
+  --data-source "kusto-<env>-<geoShortId>"
+```
+
+Datasource deletion is intentionally separate from normal Kusto cleanup so decommissioning Kusto infrastructure cannot remove shared Grafana configuration by accident.
+
 ### Regional Azure Monitor Workspace
 
 Each region contains **two Azure Monitor Workspaces (AMW)**:

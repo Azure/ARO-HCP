@@ -41,6 +41,7 @@ param crossClusterServiceLogsScript string = ''
 @description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
 @secure()
 param crossClusterHostedControlPlaneLogsScript string = ''
+
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -60,3 +61,5 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     crossClusterHostedControlPlaneLogsScript: crossClusterHostedControlPlaneLogsScript
   }
 }
+
+output kustoUri string = manageInstance ? kusto!.outputs.kustoUri : ''

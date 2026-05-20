@@ -60,12 +60,63 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
     grafanaName: "{{ .monitoring.grafanaName }}"
+    grafanaResourceId:
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaResourceId
+    # ADX datasource reconciliation. The triple-AND gate is intentional:
+    # adxDatasourceEnabled is the feature flag, kusto.manageInstance is
+    # the per-region "this region owns the geo's Kusto cluster" marker
+    # (mirrors the per-region allowlist that the deleted geography-level
+    # step encoded as executionConstraints), and arobit.kusto.enabled is
+    # what kusto-lookup.bicep gates on for the kustoUri output. Today
+    # exactly one region per geoShortId has manageInstance=true; if that
+    # invariant ever changes, the geographies allowlist below would
+    # need to be region-aware to avoid two regions racing to reconcile
+    # the same global Grafana datasource.
+    adx:
+      enabled:
+        value: "{{ and .monitoring.adxDatasourceEnabled .kusto.manageInstance .arobit.kusto.enabled }}"
+      deleteWhenDisabled: true
+      clusterUrl:
+        input:
+          resourceGroup: kusto
+          step: output
+          name: kustoUri
+      defaultDatabase:
+        configRef: kusto.serviceLogsDatabase
+      datasourceName:
+        value: "kusto-{{ .environmentName }}-{{ .azureGeoShortId }}"
+      geographies:
+        configRef: monitoring.adxDatasourceGeographies
+      dataConsistency: strongconsistency
+    # Retry signature matches any Grafana datasource API mutation in this
+    # step (POST/PUT/DELETE on /api/datasources*), not only ADX. If
+    # AzureMonitor reconcile is ever explicitly toggled here, the same
+    # retry policy applies to those calls too.
+    automatedRetry:
+      errorContainsAny:
+      - "grafana API POST /api/datasources"
+      - "grafana API PUT /api/datasources/"
+      - "grafana API DELETE /api/datasources/name/"
+      - "failed with status 429"
+      - "failed with status 500"
+      - "failed with status 502"
+      - "failed with status 503"
+      - "failed with status 504"
+      maximumRetryCount: 5
+      durationBetweenRetries: 2m
     identityFrom:
       resourceGroup: global
       step: output
       name: globalMSIId
     dependsOn:
     - resourceGroup: regional
+      step: output
+    - resourceGroup: global
+      step: output
+    - resourceGroup: kusto
       step: output
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'

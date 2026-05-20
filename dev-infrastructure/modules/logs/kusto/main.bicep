@@ -41,6 +41,7 @@ param crossClusterServiceLogsScript string = ''
 @description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
 @secure()
 param crossClusterHostedControlPlaneLogsScript string = ''
+
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
@@ -212,5 +213,5 @@ module removePermission 'script.bicep' = [
   }
 ]
 
-// Outputs mirror original contract
 output id string = cluster.outputs.id
+output kustoUri string = cluster.outputs.uri

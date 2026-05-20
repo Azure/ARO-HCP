@@ -2,6 +2,16 @@ $schema: pipeline.schema.v1
 rolloutName: Geography Rollout
 serviceGroup: Microsoft.Azure.ARO.HCP.Geography
 resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto-infra
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -38,3 +48,27 @@ resourceGroups:
     template: templates/kusto.bicep
     parameters: configurations/kusto.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: global
+      step: output
+  - name: grafana-kusto-grant
+    action: ARM
+    template: templates/kusto-grafana-viewer.bicep
+    parameters: configurations/kusto-grafana-viewer.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: grafanaResourceId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaResourceId
+    automatedRetry:
+      errorContainsAny:
+      - "AAD principal was not found"
+      maximumRetryCount: 7
+      durationBetweenRetries: 1m
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
+    - resourceGroup: global
+      step: output
