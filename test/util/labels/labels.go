@@ -54,8 +54,10 @@ var (
 	AroRpApiCompatible = ginkgo.Label("ARO-HCP-RP-API-Compatible")
 )
 
-// Managed identity container demand for resource-aware scheduling.
-// Tests without these labels default to needing 1 container.
+// Scheduling priority based on managed identity demand or expected duration.
+// Higher priority tests run earlier to avoid tail latency from slow tests
+// waiting for containers. Also use for long-running tests (e.g. upgrades)
+// that should start early to finish within the suite timeout.
 var (
 	MIDemandHigh   = ginkgo.Label("MIDemand:High")
 	MIDemandMedium = ginkgo.Label("MIDemand:Medium")
