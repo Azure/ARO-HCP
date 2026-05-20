@@ -105,7 +105,7 @@ This default is intentional: fine-grained correlation IDs (per-pod, per-queue, e
 
 #### Overriding the correlationId
 
-If the default per-management-cluster grouping is too coarse, you can set a custom `correlationId` annotation directly in the source `PrometheusRule` YAML. The generator will preserve it instead of applying the default.
+If the default per-infra-cluster grouping is too coarse, you can set a custom `correlationId` annotation directly in the source `PrometheusRule` YAML. The generator will preserve it instead of applying the default.
 
 For example, to create a separate IcM incident per hosted cluster:
 
