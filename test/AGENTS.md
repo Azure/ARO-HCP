@@ -2,17 +2,18 @@
 
 ## Provision HCP cluster
 
-* **Cluster creation:** Cluster creation, which leverages methods from the framework module, offers three main approaches for creating and deploying an HCP cluster: `CreateHCPClusterFromParam`, which handles creation and automatically waits for successful deployment; `BeginCreateHCPCluster`, which initiates the process but requires explicit test logic to wait for provisioning completion; and an alternative using `CreateHCPClusterFromParam` with a 0-second timeout, which executes the creation but immediately bypasses the waiting phase for provisioning to finish.
-* **Cluster Params:** The `NewDefaultClusterParams` method from the framework module should be used to configure the default cluster parameters. Before creating cluster customer resources, the `ClusterName` parameter must be set. Different cluster configurations can be achieved by assigning custom values to the parameters.
+* **Cluster creation:** Cluster creation, which leverages methods from the framework module, offers three main approaches for creating and deploying an HCP cluster: `CreateHCPClusterFromParam20240610`, which handles creation and automatically waits for successful deployment; `BeginCreateHCPCluster20240610`, which initiates the process but requires explicit test logic to wait for provisioning completion; and an alternative using `CreateHCPClusterFromParam20240610` with a 0-second timeout, which executes the creation but immediately bypasses the waiting phase for provisioning to finish.
+* **Cluster Params:** The `NewDefaultClusterParams20240610` method from the framework module should be used to configure the default cluster parameters. Before creating cluster customer resources, the `ClusterName` parameter must be set. Different cluster configurations can be achieved by assigning custom values to the parameters.
 * **Prepare cluster customer resources:** Creating a cluster requires several
   resources (like an NSG, VNet, subnet, and managed identities). To create
   these resources and set the cluster's parameters, use the
-  `CreateClusterCustomerResources` method from the framework module.
+  `CreateClusterCustomerResources20240610` method from the framework module.
   Use `RBACScopeResourceGroup` as RBACScope argument of
-  `CreateClusterCustomerResources` function, but make sure that
+  `CreateClusterCustomerResources20240610` function, but make sure that
   `framework.RBACScopeResource` is used in at least one test case in E2E
   test suite.
-* **Nodepool creation:** To create a nodepool, utilize the `CreateNodePoolFromParam` method. Beforehand, the default nodepool parameters should be prepared using the `NewDefaultNodePoolParams` method. Both of these methods are located within the `framework` module. Like cluster parameters, custom configurations can be assigned to the nodepool parameter values.
+* **Nodepool creation:** To create a nodepool, utilize the `CreateNodePoolFromParam20240610` method. Beforehand, the default nodepool parameters should be prepared using the `NewDefaultNodePoolParams20240610` method. Both of these methods are located within the `framework` module. Like cluster parameters, custom configurations can be assigned to the nodepool parameter values.
+* **API version suffix convention:** Framework helpers that call the ARM SDK must use explicit API version suffixes in their names. Prefer `...20240610` helpers for the stable test path (for example `GetHCPCluster20240610`, `UpdateHCPCluster20240610`, `CreateNodePoolAndWait20240610`) and `...20251223` or any future versions helpers only when testing preview-specific behavior (for example `BuildHCPClusterFromParams20251223`, `CreateHCPClusterAndWait20251223`).
 * **Timeout of deployment:** Timeouts should be defined as named constants in `test/util/framework/constants.go` to ensure reusability and consistency across the test suite. Use the appropriate constant (e.g. `framework.ClusterCreationTimeout`, `framework.NodePoolCreationTimeout`, `framework.ExternalAuthCreationTimeout`) rather than hardcoding duration values. When a new timeout category is needed, add a constant to that file first.
 
 ## Resource naming \- Independence and Isolation
@@ -28,13 +29,13 @@
 
 ## Kubernetes verifiers
 
-* **K8S client-go:** Use this client to communicate with created HCP clusters. Client requires rest Config which is provided by method `GetAdminRESTConfigForHCPCluster` with 10 minutes timeout.
+* **K8S client-go:** Use this client to communicate with created HCP clusters. Client requires rest Config which is provided by method `GetAdminRESTConfigForHCPCluster20240610` with 10 minutes timeout.
 * **HostedClusterVerifier:** This interface is designed for all verifiers and provides the essential `Name` and `Verify` methods for extension.
 * **Code location:** Verifiers are located in the util module `verifiers`. ([https://github.com/Azure/ARO-HCP/tree/main/test/util/verifiers](https://github.com/Azure/ARO-HCP/tree/main/test/util/verifiers))
 
 ## Cleanup of Resources
 
-* **TestContext:** Using [TestContext](https://github.com/Azure/ARO-HCP/blob/main/test/util/framework/per_test_framework.go#L51), to create a resource group, will automatically register it for a cleanup after the test. The cleanup process involves deleting all HCP clusters within the designated resource groups. The resource groups themselves are removed, along with any remaining Azure resources.
+* **TestContext:** Using [TestContext](https://github.com/Azure/ARO-HCP/blob/main/test/util/framework/per_test_framework.go#L51), to create a resource group, will automatically register it for a cleanup after the test. The cleanup process involves deleting all HCP clusters within the designated resource groups (via `DeleteAllHCPClusters20240610`). The resource groups themselves are removed, along with any remaining Azure resources.
 * **Test resources:** Within the test, remove any created resources that are not part of the TestContext resource group or its associated HCP clusters. Ensure all tests start from a known, clean state to avoid flakiness and false positives.
 
 # Best Practices for Writing E2E Test Cases

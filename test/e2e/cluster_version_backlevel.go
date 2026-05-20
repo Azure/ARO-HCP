@@ -119,9 +119,9 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to get userAssignedIdentitiesValue output from managed identities deployment")
 				identityValue, err := framework.GetOutputValue(managedIdentitiesDeployment, "identityValue")
 				Expect(err).NotTo(HaveOccurred(), "failed to get identityValue output from managed identities deployment")
-				userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentitiesValue)
+				userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile20240610(userAssignedIdentitiesValue)
 				Expect(err).NotTo(HaveOccurred(), "failed to convert userAssignedIdentitiesValue to profile")
-				identityProfile, err := framework.ConvertToManagedServiceIdentity(identityValue)
+				identityProfile, err := framework.ConvertToManagedServiceIdentity20240610(identityValue)
 				Expect(err).NotTo(HaveOccurred(), "failed to convert identityValue to ManagedServiceIdentity")
 
 				By("creating HCP cluster version " + version.controlPlaneVersion)
@@ -136,7 +136,7 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster request for version %s", version.controlPlaneVersion)
 				hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-				_, err = framework.CreateHCPClusterAndWait(
+				_, err = framework.CreateHCPClusterAndWait20240610(
 					ctx,
 					GinkgoLogr,
 					hcpClient,
@@ -147,7 +147,7 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster version %s", version.controlPlaneVersion)
 
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -180,7 +180,7 @@ var _ = Describe("Customer", func() {
 					)
 					Expect(err).NotTo(HaveOccurred(), "failed to build node pool request for version %s", matchingNodePoolVersion)
 					nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-					_, err = framework.CreateNodePoolAndWait(ctx,
+					_, err = framework.CreateNodePoolAndWait20240610(ctx,
 						nodePoolClient,
 						*resourceGroup.Name,
 						clusterName,

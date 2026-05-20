@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type RBACScope string
@@ -51,7 +52,7 @@ const (
 	DefaultK8sServiceIP = "172.30.0.1"
 )
 
-type ClusterParams struct {
+type ClusterParams20240610 struct {
 	OpenshiftVersionId            string
 	ClusterName                   string
 	ManagedResourceGroupName      string
@@ -75,6 +76,33 @@ type ClusterParams struct {
 	ChannelGroup                  string
 	AuthorizedCIDRs               []*string
 	Autoscaling                   *hcpsdk20240610preview.ClusterAutoscalingProfile
+	Tags                          map[string]*string
+}
+
+type ClusterParams20251223 struct {
+	OpenshiftVersionId            string
+	ClusterName                   string
+	ManagedResourceGroupName      string
+	NsgResourceID                 string
+	NsgName                       string
+	SubnetResourceID              string
+	SubnetName                    string
+	VnetName                      string
+	UserAssignedIdentitiesProfile *hcpsdk20251223preview.UserAssignedIdentitiesProfile
+	Identity                      *hcpsdk20251223preview.ManagedServiceIdentity
+	KeyVaultName                  string
+	EtcdEncryptionKeyName         string
+	EtcdEncryptionKeyVersion      string
+	EncryptionKeyManagementMode   string
+	EncryptionType                string
+	VnetIntegrationSubnetID       string
+	KeyVaultVisibility            string
+	Network                       NetworkConfig
+	APIVisibility                 string
+	ImageRegistryState            string
+	ChannelGroup                  string
+	AuthorizedCIDRs               []*string
+	Autoscaling                   *hcpsdk20251223preview.ClusterAutoscalingProfile
 	Tags                          map[string]*string
 }
 
@@ -162,8 +190,8 @@ func DefaultOpenshiftNodePoolChannelGroup() string {
 	return channelGroup
 }
 
-func NewDefaultClusterParams() ClusterParams {
-	return ClusterParams{
+func NewDefaultClusterParams20240610() ClusterParams20240610 {
+	return ClusterParams20240610{
 		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
@@ -186,7 +214,31 @@ func NewDefaultClusterParams() ClusterParams {
 	}
 }
 
-type NodePoolParams struct {
+func NewDefaultClusterParams20251223() ClusterParams20251223 {
+	return ClusterParams20251223{
+		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
+		Network: NetworkConfig{
+			NetworkType: "OVNKubernetes",
+			PodCIDR:     DefaultPodCIDR,
+			ServiceCIDR: DefaultServiceCIDR,
+			MachineCIDR: "10.0.0.0/16",
+			HostPrefix:  23,
+		},
+		EncryptionKeyManagementMode: "CustomerManaged",
+		EncryptionType:              "KMS",
+		KeyVaultVisibility:          "Public",
+		APIVisibility:               "Public",
+		ImageRegistryState:          "Enabled",
+		ChannelGroup:                DefaultOpenshiftChannelGroup(),
+		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
+		// registered for this tag to be honored.
+		Tags: map[string]*string{
+			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+		},
+	}
+}
+
+type NodePoolParams20240610 struct {
 	OpenshiftVersionId     string
 	ClusterName            string
 	NodePoolName           string
@@ -204,14 +256,34 @@ type NodePoolParams struct {
 	AvailabilityZone string
 }
 
+type NodePoolParams20251223 struct {
+	OpenshiftVersionId     string
+	ClusterName            string
+	NodePoolName           string
+	Replicas               int32
+	VMSize                 string
+	OSDiskSizeGiB          int32
+	DiskType               hcpsdk20251223preview.OsDiskType
+	DiskStorageAccountType string
+	ChannelGroup           string
+	// NodeDrainTimeoutMinutes: how long (in minutes) to respect Pod Disruption Budgets when draining
+	// nodes in this pool (e.g. upgrades, scale-in). Valid: 0 to 10080. 0 = no time limit for that phase.
+	// When omitted from the create payload or nil here, the cluster-configured global nodeDrainTimeoutMinutes kicks in.
+	NodeDrainTimeoutMinutes *int32
+	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
+	AutoScaling      *NodePoolAutoScalingParams
+	AvailabilityZone string
+	AutoRepair       bool
+}
+
 // NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling
 type NodePoolAutoScalingParams struct {
 	Min int32
 	Max int32
 }
 
-func NewDefaultNodePoolParams() NodePoolParams {
-	return NodePoolParams{
+func NewDefaultNodePoolParams20240610() NodePoolParams20240610 {
+	return NodePoolParams20240610{
 		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
 		Replicas:               int32(2),
 		VMSize:                 "Standard_D8s_v3",
@@ -221,7 +293,18 @@ func NewDefaultNodePoolParams() NodePoolParams {
 	}
 }
 
-func ConvertToUserAssignedIdentitiesProfile(value interface{}) (*hcpsdk20240610preview.UserAssignedIdentitiesProfile, error) {
+func NewDefaultNodePoolParams20251223() NodePoolParams20251223 {
+	return NodePoolParams20251223{
+		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
+		Replicas:               int32(2),
+		VMSize:                 "Standard_D8s_v3",
+		OSDiskSizeGiB:          int32(64),
+		DiskStorageAccountType: "StandardSSD_LRS",
+		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
+	}
+}
+
+func ConvertToUserAssignedIdentitiesProfile20240610(value interface{}) (*hcpsdk20240610preview.UserAssignedIdentitiesProfile, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -236,7 +319,22 @@ func ConvertToUserAssignedIdentitiesProfile(value interface{}) (*hcpsdk20240610p
 	return &uamis, nil
 }
 
-func ConvertToManagedServiceIdentity(value interface{}) (*hcpsdk20240610preview.ManagedServiceIdentity, error) {
+func ConvertToUserAssignedIdentitiesProfile20251223(value interface{}) (*hcpsdk20251223preview.UserAssignedIdentitiesProfile, error) {
+	if value == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal UserAssignedIdentitiesValue: %w", err)
+	}
+	var uamis hcpsdk20251223preview.UserAssignedIdentitiesProfile
+	if err := json.Unmarshal(b, &uamis); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal UserAssignedIdentitiesValue: %w", err)
+	}
+	return &uamis, nil
+}
+
+func ConvertToManagedServiceIdentity20240610(value interface{}) (*hcpsdk20240610preview.ManagedServiceIdentity, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -251,10 +349,25 @@ func ConvertToManagedServiceIdentity(value interface{}) (*hcpsdk20240610preview.
 	return &msi, nil
 }
 
-func PopulateClusterParamsFromCustomerInfraDeployment(
-	params ClusterParams,
+func ConvertToManagedServiceIdentity20251223(value interface{}) (*hcpsdk20251223preview.ManagedServiceIdentity, error) {
+	if value == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal IdentityValue: %w", err)
+	}
+	var msi hcpsdk20251223preview.ManagedServiceIdentity
+	if err := json.Unmarshal(b, &msi); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal IdentityValue: %w", err)
+	}
+	return &msi, nil
+}
+
+func PopulateClusterParamsFromCustomerInfraDeployment20240610(
+	params ClusterParams20240610,
 	customerInfraDeploymentResult *armresources.DeploymentExtended,
-) (ClusterParams, error) {
+) (ClusterParams20240610, error) {
 	if customerInfraDeploymentResult == nil {
 		return params, fmt.Errorf("customerInfraDeploymentResult cannot be nil")
 	}
@@ -307,10 +420,66 @@ func PopulateClusterParamsFromCustomerInfraDeployment(
 	return params, nil
 }
 
-func PopulateClusterParamsFromManagedIdentitiesDeployment(
-	params ClusterParams,
+func PopulateClusterParamsFromCustomerInfraDeployment20251223(
+	params ClusterParams20251223,
+	customerInfraDeploymentResult *armresources.DeploymentExtended,
+) (ClusterParams20251223, error) {
+	if customerInfraDeploymentResult == nil {
+		return params, fmt.Errorf("customerInfraDeploymentResult cannot be nil")
+	}
+
+	keyVaultName, err := GetOutputValueString(customerInfraDeploymentResult, "keyVaultName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get keyVaultName from customer infra deployment: %w", err)
+	}
+	etcdEncryptionKeyVersion, err := GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
+	if err != nil {
+		return params, fmt.Errorf("failed to get etcdEncryptionKeyVersion from customer infra deployment: %w", err)
+	}
+	etcdEncryptionKeyName, err := GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get etcdEncryptionKeyName from customer infra deployment: %w", err)
+	}
+	nsgResourceID, err := GetOutputValueString(customerInfraDeploymentResult, "nsgID")
+	if err != nil {
+		return params, fmt.Errorf("failed to get nsgID from customer infra deployment: %w", err)
+	}
+	subnetResourceID, err := GetOutputValueString(customerInfraDeploymentResult, "vnetSubnetID")
+	if err != nil {
+		return params, fmt.Errorf("failed to get vnetSubnetID from customer infra deployment: %w", err)
+	}
+	vnetIntegrationSubnetID, err := GetOutputValueString(customerInfraDeploymentResult, "vnetIntegrationSubnetID")
+	if err != nil {
+		return params, fmt.Errorf("failed to get vnetIntegrationSubnetID from customer infra deployment: %w", err)
+	}
+	vnetName, err := GetOutputValueString(customerInfraDeploymentResult, "vnetName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get vnetName from customer infra deployment: %w", err)
+	}
+	nsgName, err := GetOutputValueString(customerInfraDeploymentResult, "nsgName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get nsgName from customer infra deployment: %w", err)
+	}
+	subnetName, err := GetOutputValueString(customerInfraDeploymentResult, "vnetSubnetName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get vnetSubnetName from customer infra deployment: %w", err)
+	}
+	params.KeyVaultName = keyVaultName
+	params.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
+	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
+	params.NsgResourceID = nsgResourceID
+	params.SubnetResourceID = subnetResourceID
+	params.VnetIntegrationSubnetID = vnetIntegrationSubnetID
+	params.VnetName = vnetName
+	params.NsgName = nsgName
+	params.SubnetName = subnetName
+	return params, nil
+}
+
+func PopulateClusterParamsFromManagedIdentitiesDeployment20240610(
+	params ClusterParams20240610,
 	managedIdentitiesDeploymentResult *armresources.DeploymentExtended,
-) (ClusterParams, error) {
+) (ClusterParams20240610, error) {
 	if managedIdentitiesDeploymentResult == nil {
 		return params, fmt.Errorf("managedIdentitiesDeploymentResult cannot be nil")
 	}
@@ -319,7 +488,7 @@ func PopulateClusterParamsFromManagedIdentitiesDeployment(
 	if err != nil {
 		return params, fmt.Errorf("failed to get userAssignedIdentitiesValue from managed identity deployment: %w", err)
 	}
-	userAssignedIdentitiesProfile, err := ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
+	userAssignedIdentitiesProfile, err := ConvertToUserAssignedIdentitiesProfile20240610(userAssignedIdentities)
 	if err != nil {
 		return params, fmt.Errorf("failed to convert userAssignedIdentitiesValue: %w", err)
 	}
@@ -328,7 +497,7 @@ func PopulateClusterParamsFromManagedIdentitiesDeployment(
 	if err != nil {
 		return params, fmt.Errorf("failed to get identityValue from managed identity deployment: %w", err)
 	}
-	identityProfile, err := ConvertToManagedServiceIdentity(identityValue)
+	identityProfile, err := ConvertToManagedServiceIdentity20240610(identityValue)
 	if err != nil {
 		return params, fmt.Errorf("failed to convert identityValue: %w", err)
 	}
@@ -339,13 +508,45 @@ func PopulateClusterParamsFromManagedIdentitiesDeployment(
 	return params, nil
 }
 
-func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context.Context,
+func PopulateClusterParamsFromManagedIdentitiesDeployment20251223(
+	params ClusterParams20251223,
+	managedIdentitiesDeploymentResult *armresources.DeploymentExtended,
+) (ClusterParams20251223, error) {
+	if managedIdentitiesDeploymentResult == nil {
+		return params, fmt.Errorf("managedIdentitiesDeploymentResult cannot be nil")
+	}
+
+	userAssignedIdentities, err := GetOutputValue(managedIdentitiesDeploymentResult, "userAssignedIdentitiesValue")
+	if err != nil {
+		return params, fmt.Errorf("failed to get userAssignedIdentitiesValue from managed identity deployment: %w", err)
+	}
+	userAssignedIdentitiesProfile, err := ConvertToUserAssignedIdentitiesProfile20251223(userAssignedIdentities)
+	if err != nil {
+		return params, fmt.Errorf("failed to convert userAssignedIdentitiesValue: %w", err)
+	}
+
+	identityValue, err := GetOutputValue(managedIdentitiesDeploymentResult, "identityValue")
+	if err != nil {
+		return params, fmt.Errorf("failed to get identityValue from managed identity deployment: %w", err)
+	}
+	identityProfile, err := ConvertToManagedServiceIdentity20251223(identityValue)
+	if err != nil {
+		return params, fmt.Errorf("failed to convert identityValue: %w", err)
+	}
+
+	params.UserAssignedIdentitiesProfile = userAssignedIdentitiesProfile
+	params.Identity = identityProfile
+
+	return params, nil
+}
+
+func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20240610(ctx context.Context,
 	resourceGroup *armresources.ResourceGroup,
-	clusterParams ClusterParams,
+	clusterParams ClusterParams20240610,
 	infraParameters map[string]interface{},
 	artifactsFS embed.FS,
 	rbacScope RBACScope,
-) (ClusterParams, error) {
+) (ClusterParams20240610, error) {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
@@ -371,7 +572,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to create customer-infra: %w", err)
 	}
-	clusterParams, err = PopulateClusterParamsFromCustomerInfraDeployment(clusterParams, customerInfraDeploymentResult)
+	clusterParams, err = PopulateClusterParamsFromCustomerInfraDeployment20240610(clusterParams, customerInfraDeploymentResult)
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to populate cluster params from customer-infra: %w", err)
 	}
@@ -393,7 +594,68 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to create managed identities: %w", err)
 	}
-	clusterParams, err = PopulateClusterParamsFromManagedIdentitiesDeployment(clusterParams, managedIdentityDeploymentResult)
+	clusterParams, err = PopulateClusterParamsFromManagedIdentitiesDeployment20240610(clusterParams, managedIdentityDeploymentResult)
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to populate cluster params from managed identities: %w", err)
+	}
+	return clusterParams, nil
+}
+
+func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20251223(ctx context.Context,
+	resourceGroup *armresources.ResourceGroup,
+	clusterParams ClusterParams20251223,
+	infraParameters map[string]interface{},
+	artifactsFS embed.FS,
+	rbacScope RBACScope,
+) (ClusterParams20251223, error) {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
+	}()
+
+	// Generate unique deployment names by combining cluster name with random suffix
+	randomSuffix := rand.String(6)
+	customerInfraDeploymentName := fmt.Sprintf("customer-infra-%s-%s", clusterParams.ClusterName, randomSuffix)
+	managedIdentitiesDeploymentName := fmt.Sprintf("mi-%s-%s", clusterParams.ClusterName, randomSuffix)
+
+	// ensure customer-infra resource names are unique per cluster
+	infraParameters["clusterName"] = clusterParams.ClusterName
+
+	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
+		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
+		WithDeploymentName(customerInfraDeploymentName),
+		WithScope(BicepDeploymentScopeResourceGroup),
+		WithClusterResourceGroup(*resourceGroup.Name),
+		WithParameters(infraParameters),
+		WithTimeout(45*time.Minute),
+	)
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to create customer-infra: %w", err)
+	}
+	clusterParams, err = PopulateClusterParamsFromCustomerInfraDeployment20251223(clusterParams, customerInfraDeploymentResult)
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to populate cluster params from customer-infra: %w", err)
+	}
+
+	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+		clusterParams.ClusterName,
+		rbacScope,
+		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
+		WithDeploymentName(managedIdentitiesDeploymentName),
+		WithClusterResourceGroup(*resourceGroup.Name),
+		WithParameters(map[string]interface{}{
+			"nsgName":      clusterParams.NsgName,
+			"vnetName":     clusterParams.VnetName,
+			"subnetName":   clusterParams.SubnetName,
+			"keyVaultName": clusterParams.KeyVaultName,
+		}),
+	)
+
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to create managed identities: %w", err)
+	}
+	clusterParams, err = PopulateClusterParamsFromManagedIdentitiesDeployment20251223(clusterParams, managedIdentityDeploymentResult)
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to populate cluster params from managed identities: %w", err)
 	}

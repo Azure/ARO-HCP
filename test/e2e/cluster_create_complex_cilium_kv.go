@@ -61,7 +61,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for complex cilium keyvault test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -70,7 +70,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.Network.NetworkType = "Other"
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -82,7 +82,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources with private key vault")
 
 			By("creating the HCP cluster with no CNI and private etcd via v20251223preview")
-			clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
+			clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster resource from params")
 
 			// Set KeyVault visibility to Private
@@ -93,7 +93,7 @@ var _ = Describe("Customer", func() {
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
 			}
 
-			_, err = framework.CreateHCPCluster20251223AndWait(
+			_, err = framework.CreateHCPClusterAndWait20251223(
 				ctx,
 				GinkgoLogr,
 				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -105,7 +105,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with no CNI and private etcd", customerClusterName)
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -157,33 +157,17 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to install Cilium chart via Helm")
 
 			By("creating the node pool via v20251223preview")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePool := hcpsdk20251223preview.NodePool{
-				Location: to.Ptr(tc.Location()),
-				Properties: &hcpsdk20251223preview.NodePoolProperties{
-					Version: &hcpsdk20251223preview.NodePoolVersionProfile{
-						ID:           to.Ptr(nodePoolParams.OpenshiftVersionId),
-						ChannelGroup: to.Ptr(nodePoolParams.ChannelGroup),
-					},
-					Replicas: to.Ptr(int32(2)),
-					Platform: &hcpsdk20251223preview.NodePoolPlatformProfile{
-						VMSize: to.Ptr(nodePoolParams.VMSize),
-						OSDisk: &hcpsdk20251223preview.OsDiskProfile{
-							SizeGiB:                to.Ptr(nodePoolParams.OSDiskSizeGiB),
-							DiskStorageAccountType: to.Ptr(hcpsdk20251223preview.DiskStorageAccountType(nodePoolParams.DiskStorageAccountType)),
-						},
-					},
-					AutoRepair: to.Ptr(true),
-				},
-			}
-
-			_, nodePoolErr := framework.CreateNodePoolAndWait20251223(
+			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.AutoRepair = true
+			nodePoolErr := tc.CreateNodePoolFromParam20251223(
 				ctx,
-				tc.Get20251223ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				GinkgoLogr,
 				*resourceGroup.Name,
+				clusterParams.ManagedResourceGroupName,
 				customerClusterName,
-				customerNodePoolName,
-				nodePool,
+				nodePoolParams,
 				framework.NodePoolCreationTimeout,
 			)
 			// We delay checking the error on purpose to get more details

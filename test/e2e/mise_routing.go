@@ -92,12 +92,12 @@ var _ = Describe("MISE Routing", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for MISE routing test")
 
 			By("Creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = "mise-routing"
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*rg.Name, "-managed", 64)
 
 			By("Creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				rg,
 				clusterParams,
 				map[string]any{
@@ -120,12 +120,12 @@ var _ = Describe("MISE Routing", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to build client factory with MISE policies")
 
 			By("Building HCP cluster from parameters")
-			cluster, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
+			cluster, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster from params")
 
 			By("Creating HCP cluster")
 			hcpClient := clientFactory.NewHcpOpenShiftClustersClient()
-			_, err = framework.CreateHCPCluster20251223AndWait(
+			_, err = framework.CreateHCPClusterAndWait20251223(
 				ctx, GinkgoLogr, hcpClient,
 				*rg.Name, clusterParams.ClusterName, cluster,
 				45*time.Minute,

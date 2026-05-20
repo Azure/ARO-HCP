@@ -59,13 +59,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resource group")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -79,7 +79,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", customerClusterName)
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -89,7 +89,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", customerClusterName)
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -103,19 +103,19 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", customerClusterName)
 
 			By("creating both nodepools in parallel")
-			nodePoolParams1 := framework.NewDefaultNodePoolParams()
+			nodePoolParams1 := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams1.NodePoolName = customerNodePool1Name
 			nodePoolParams1.Replicas = int32(2)
 
-			nodePoolParams2 := framework.NewDefaultNodePoolParams()
+			nodePoolParams2 := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams2.NodePoolName = customerNodePool2Name
 			nodePoolParams2.Replicas = int32(1)
 
 			errCh := make(chan error, 2)
 			group, groupCtx := errgroup.WithContext(ctx)
-			for _, nodePoolParams := range []framework.NodePoolParams{nodePoolParams1, nodePoolParams2} {
+			for _, nodePoolParams := range []framework.NodePoolParams20240610{nodePoolParams1, nodePoolParams2} {
 				group.Go(func() error {
-					createErr := tc.CreateNodePoolFromParam(
+					createErr := tc.CreateNodePoolFromParam20240610(
 						groupCtx,
 						GinkgoLogr,
 						*resourceGroup.Name,
