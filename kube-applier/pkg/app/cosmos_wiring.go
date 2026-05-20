@@ -19,17 +19,20 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// NewKubeApplierDBClient builds a KubeApplierDBClient bound to the named Cosmos
-// account/database. It uses the Azure default credential chain, which in
-// production resolves to the pod's workload-identity federated token.
+// NewKubeApplierDBClient builds a KubeApplierDBClient bound to a single
+// management cluster's Cosmos container. Each kube-applier pod opens its own
+// MC's container; the backend opens all of them via KubeApplierDBClients.
+// Credentials resolve via the Azure default credential chain (workload identity
+// in production).
 func NewKubeApplierDBClient(
-	ctx context.Context, cosmosDBURL, cosmosDBName, cosmosContainerName string,
+	ctx context.Context, cosmosDBURL, cosmosDBName, cosmosContainerName string, managementClusterPartitionKey *azcorearm.ResourceID,
 ) (database.KubeApplierDBClient, error) {
 	clientOptions := azcore.ClientOptions{Cloud: cloud.AzurePublic}
 
@@ -37,7 +40,7 @@ func NewKubeApplierDBClient(
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create Azure Cosmos database client: %w", err))
 	}
-	client, err := database.NewKubeApplierDBClient(cosmosDatabaseClient, cosmosContainerName)
+	client, err := database.NewKubeApplierDBClientFromDatabase(cosmosDatabaseClient, cosmosContainerName, managementClusterPartitionKey)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create KubeApplierDBClient: %w", err))
 	}

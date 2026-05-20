@@ -95,7 +95,7 @@ func TestMockKubeApplierCreateAndGet_ClusterScoped(t *testing.T) {
 	parent := database.ResourceParent{
 		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster,
 	}
-	crud, err := mock.KubeApplier(testMgmt).ApplyDesires(parent)
+	crud, err := mock.ApplyDesires(parent)
 	if err != nil {
 		t.Fatalf("ApplyDesires(parent): %v", err)
 	}
@@ -122,7 +122,7 @@ func TestMockKubeApplierCreateAndGet_NodePoolScoped(t *testing.T) {
 	parent := database.ResourceParent{
 		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster, NodePoolName: testNodePool,
 	}
-	crud, err := mock.KubeApplier(testMgmt).ReadDesires(parent)
+	crud, err := mock.ReadDesires(parent)
 	if err != nil {
 		t.Fatalf("ReadDesires(parent): %v", err)
 	}
@@ -148,7 +148,7 @@ func TestMockKubeApplier_PartitionKeyEnvelope(t *testing.T) {
 	parent := database.ResourceParent{
 		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster,
 	}
-	crud, err := mock.KubeApplier(testMgmt).ApplyDesires(parent)
+	crud, err := mock.ApplyDesires(parent)
 	if err != nil {
 		t.Fatalf("ApplyDesires(parent): %v", err)
 	}
@@ -195,7 +195,7 @@ func TestMockKubeApplierGlobalLister_UnionsClusterAndNodePoolScopes(t *testing.T
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 
-	iter, err := mock.GlobalListers().ApplyDesires().List(ctx, nil)
+	iter, err := mock.Listers().ApplyDesires().List(ctx, nil)
 	if err != nil {
 		t.Fatalf("global ApplyDesires().List: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestMockKubeApplier_IsolatedFromMockResourcesDBClient(t *testing.T) {
 	parent := database.ResourceParent{
 		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster,
 	}
-	crud, err := kubeMock.KubeApplier(testMgmt).ApplyDesires(parent)
+	crud, err := kubeMock.ApplyDesires(parent)
 	if err != nil {
 		t.Fatalf("ApplyDesires(parent): %v", err)
 	}

@@ -52,7 +52,6 @@ const (
 var (
 	testMgmtID = api.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
-	testMgmt = strings.ToLower(testMgmtID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -139,7 +138,7 @@ func startSyncedController(
 	parent := database.ResourceParent{
 		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster,
 	}
-	crud, err := mock.KubeApplier(testMgmt).ReadDesires(parent)
+	crud, err := mock.ReadDesires(parent)
 	if err != nil {
 		t.Fatalf("ReadDesires(parent): %v", err)
 	}
@@ -147,7 +146,7 @@ func startSyncedController(
 		t.Fatalf("seed Create: %v", err)
 	}
 
-	c, err := NewReadDesireKubernetesController(key, target, dyn, mock.KubeApplier(testMgmt))
+	c, err := NewReadDesireKubernetesController(key, target, dyn, mock)
 	if err != nil {
 		t.Fatalf("NewReadDesireKubernetesController: %v", err)
 	}

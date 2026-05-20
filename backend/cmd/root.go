@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -398,6 +399,17 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create fleet db client: %w", err))
 	}
 
+	// In the per-management-cluster container model the backend resolves each MC's
+	// kube-applier container by walking the fleet's ManagementCluster lister. We
+	// back the lister with the FleetDBClient directly so the registry is usable
+	// before informers start; the per-MC azcosmos client construction is cached
+	// inside the registry, but the MC list itself is re-read each call so fleet
+	// additions/removals become visible without restarting the backend.
+	kubeApplierDBClients := app.NewKubeApplierDBClients(
+		cosmosDatabaseClient,
+		database.NewDBBackedManagementClusterLister(fleetDBClient),
+	)
+
 	clustersServiceClient, err := app.NewClustersServiceClient(ctx, f.ClustersServiceURL, f.ClustersServiceTLSInsecure)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create clusters service client: %w", err))
@@ -413,6 +425,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ResourcesDBClient:                  resourcesCosmosDBClient,
 		BillingDBClient:                    billingDBClient,
 		FleetDBClient:                      fleetDBClient,
+		KubeApplierDBClients:               kubeApplierDBClients,
 		ClustersServiceClient:              clustersServiceClient,
 		MetricsServerListenAddress:         f.MetricsServerListenAddress,
 		HealthzServerListenAddress:         f.HealthzServerListenAddress,
