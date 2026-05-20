@@ -107,7 +107,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 			By("Creating the node pool")
@@ -121,7 +121,7 @@ var _ = Describe("Customer", func() {
 				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 

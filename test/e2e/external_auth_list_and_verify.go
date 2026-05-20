@@ -79,7 +79,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -113,7 +113,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				*expectedExternalAuth.Name,
 				expectedExternalAuth,
-				15*time.Minute,
+				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -137,7 +137,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				*anotherExternalAuth.Name,
 				anotherExternalAuth,
-				15*time.Minute,
+				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).To(HaveOccurred())
 
@@ -185,7 +185,7 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				*expectedExternalAuth.Name,
 				expectedExternalAuth,
-				15*time.Minute,
+				framework.ExternalAuthCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
