@@ -690,6 +690,12 @@ defaults:
     logVerbosity: 4
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
+  # Fleet
+  fleet:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: fleet
+      digest: ""
   # Admin API
   adminApi:
     audit:

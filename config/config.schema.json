@@ -1412,6 +1412,18 @@
         "partitionKey"
       ]
     },
+    "fleet": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ]
+    },
     "adminApi": {
       "type": "object",
       "properties": {
@@ -3273,6 +3285,7 @@
     "maestro",
     "mgmt",
     "mgmtAgent",
+    "fleet",
     "kubeApplier",
     "mgmtKeyVault",
     "monitoring",
