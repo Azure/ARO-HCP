@@ -36,7 +36,7 @@ import (
 )
 
 var subscriptionLookupBackoff = wait.Backoff{
-	Steps:    4,
+	Steps:    5,
 	Duration: 15 * time.Second,
 	Factor:   2.0,
 	Jitter:   0.1,
@@ -81,7 +81,7 @@ func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions
 
 	if err != nil {
 		if lastErr != nil {
-			return "", fmt.Errorf("subscription lookup for '%s' failed after %d attempts (last API error: %v): %w", subscriptionName, attempt, lastErr, err)
+			return "", fmt.Errorf("subscription lookup for '%s' failed after %d attempts (last API error: %w): %w", subscriptionName, attempt, lastErr, err)
 		}
 		return "", fmt.Errorf("subscription with name '%s' not found after %d attempts: %w", subscriptionName, attempt, err)
 	}
