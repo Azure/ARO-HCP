@@ -419,6 +419,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	} else {
 		delete(properties, CSPropertySizeOverride)
 	}
+	if experimentalFeatures.FipsEnabled {
+		clusterBuilder.FIPS(true)
+	} else {
+		clusterBuilder.FIPS(false)
+	}
 	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
