@@ -1887,7 +1887,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'
           description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
@@ -1915,7 +1915,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           short_window: '30m'
         }
         annotations: {
-          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'
           description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
@@ -1943,7 +1943,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           short_window: '2h'
         }
         annotations: {
-          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'
           description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
@@ -1971,7 +1971,7 @@ resource hcpHostedclusterMonitorRules 'Microsoft.AlertsManagement/prometheusRule
           short_window: '6h'
         }
         annotations: {
-          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'
           description: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           info: 'HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})'
           summary: 'High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}'
