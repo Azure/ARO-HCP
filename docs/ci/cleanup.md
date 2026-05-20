@@ -1,12 +1,14 @@
-# Cleanup
+# CI Cleanup
 
 ARO HCP has three cleanup modes, and they are intentionally different:
 
-1. strict per-test cleanup in the e2e framework
-2. targeted environment teardown for personal dev and dev CI
+1. strict per-test cleanup in the E2E framework
+2. targeted environment teardown for personal dev and DEV CI
 3. background hygiene from periodic cleanup jobs
 
-The differences are deliberate. A cleanup path that is correct for a test is not always the right one for a background janitor job, and a path that is good for dev teardown is not always the one we want in public cloud.
+The differences are deliberate. A cleanup path that is correct for a test is not always the right one for a background janitor job, and a path that is good for DEV teardown is not always the one we want in public cloud.
+
+For the surrounding execution model, see [CI Execution](execution.md). For the operator view of the jobs that run these paths, see [CI Operations](operations.md).
 
 ## The Three Cleanup Modes
 
@@ -14,16 +16,16 @@ The differences are deliberate. A cleanup path that is correct for a test is not
 
 ```mermaid
 ---
-title: "STRICT — failure is signal"
+title: "STRICT - failure is signal"
 ---
 flowchart LR
-    TEST(("e2e test<br/>finishes")) --> E2E["Per-test cleanup<br/><i>e2e framework</i>"]
-    E2E --> RP["Delete cluster via RP"]
-    RP --> WAIT["Wait for managed RGs<br/>to disappear"]
-    WAIT --> LEFTOVER["Clean test-owned leftovers<br/>(customer RG, app regs,<br/>leased identities)"]
+    testEnd(("e2e test<br/>finishes")) --> e2eCleanup["Per-test cleanup<br/><i>e2e framework</i>"]
+    e2eCleanup --> rpDelete["Delete cluster via RP"]
+    rpDelete --> waitRg["Wait for managed RGs<br/>to disappear"]
+    waitRg --> leftovers["Clean test-owned leftovers<br/>(customer RG, app regs,<br/>leased identities)"]
 ```
 
-This runs after each e2e test.
+This runs after each E2E test.
 
 Its job is to clean up what the test created and to fail loudly if cleanup is broken. That is why this path is strict: leaking resources after a test usually means either the product did not delete something correctly or the test created something it did not own properly.
 
@@ -39,18 +41,18 @@ This path is not just background hygiene. Cleanup failures are treated as test s
 
 ```mermaid
 ---
-title: "TOLERANT — topology-driven"
+title: "TOLERANT - topology-driven"
 ---
 flowchart LR
-    DEV(("make clean /<br/>CI deprovision")) --> TEARDOWN["Environment teardown<br/><i>templatize cleanup</i>"]
-    TEARDOWN --> TOPO["Derive target RGs<br/>from topology"]
-    TOPO --> ASYNC["Delete RGs<br/>(async, best-effort)"]
+    devDelete(("make clean /<br/>CI deprovision")) --> topoCleanup["Environment teardown<br/><i>templatize cleanup</i>"]
+    topoCleanup --> deriveTargets["Derive target RGs<br/>from topology"]
+    deriveTargets --> asyncDelete["Delete RGs<br/>(async, best-effort)"]
 ```
 
 This is the cleanup path used when we explicitly tear down a known environment, most commonly:
 
 - personal-dev cleanup
-- dev e2e CI deprovision
+- DEV E2E CI deprovision
 
 Its job is not to validate cluster deletion correctness. Its job is to remove a known set of environment resource groups derived from topology.
 
@@ -64,15 +66,15 @@ Because of that, it is more tolerant than per-test cleanup:
 
 ```mermaid
 ---
-title: "BEST-EFFORT — background hygiene"
+title: "BEST-EFFORT - background hygiene"
 ---
 flowchart LR
-    CRON(("Prow cron<br/>schedule")) --> PERIODIC["Periodic cleanup jobs<br/><i>Prow periodics</i>"]
-    PERIODIC --> EXPIRED_RG["Expired test RGs"]
-    PERIODIC --> EXPIRED_APP["Expired app registrations"]
-    PERIODIC --> KUSTO["Kusto role assignments"]
-    PERIODIC --> SWEEPER_RG["cleanup-sweeper<br/>rg-ordered"]
-    PERIODIC --> SWEEPER_SL["cleanup-sweeper<br/>shared-leftovers"]
+    cronSchedule(("Prow cron<br/>schedule")) --> periodicCleanup["Periodic cleanup jobs<br/><i>Prow periodics</i>"]
+    periodicCleanup --> expiredRg["Expired test RGs"]
+    periodicCleanup --> expiredApp["Expired app registrations"]
+    periodicCleanup --> kustoCleanup["Kusto role assignments"]
+    periodicCleanup --> sweeperRg["cleanup-sweeper<br/>rg-ordered"]
+    periodicCleanup --> sweeperShared["cleanup-sweeper<br/>shared-leftovers"]
 ```
 
 This is the periodic cleanup layer defined in:
@@ -88,13 +90,7 @@ Today that periodic layer includes:
 - Kusto role-assignment cleanup
 - `cleanup-sweeper` jobs for policy-driven resource-group cleanup and shared leftovers
 
-For `cleanup-sweeper` `rg-ordered` workflow, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
-
-Azure does not set that tag by default. Subscriptions where `rg-ordered` should run must apply an Azure Policy (or equivalent) that stamps `tags['createdAt']` when a resource group is created, using `[utcNow()]` in the policy rule.
-
-Use `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh` to create or update the subscription-scoped definition and assignment. The rule body lives in `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json` next to that script.
-
-Background hygiene of this kind is intentionally best-effort. If one run leaves something behind, the next run can pick it up.
+This path is intentionally best-effort. If one run leaves something behind, the next run can pick it up.
 
 ## Why They Behave Differently
 
@@ -106,7 +102,7 @@ That is why the background cleanup jobs are deliberately conservative. In partic
 
 The goal is steady pressure in the right direction, not maximum deletion throughput in one run.
 
-### Why e2e cleanup is strict
+### Why E2E cleanup is strict
 
 Per-test cleanup is part of test correctness.
 
@@ -118,7 +114,7 @@ If a test cannot clean up what it created, that usually means:
 
 That is why the framework treats cleanup failure as meaningful signal instead of just logging and moving on.
 
-### Why dev cleanup actively deletes managed resource groups but public-cloud cleanup does not
+### Why DEV cleanup actively deletes managed resource groups but public-cloud cleanup does not
 
 This is one of the most common sources of confusion.
 
@@ -126,9 +122,9 @@ In public cloud, managed resource groups are part of the cluster lifecycle owned
 
 Additionally, in public cloud the managed resource groups carry deny assignments that prevent customer principals from modifying them. Any attempt by cleanup jobs to directly delete those resource groups would simply fail with a permission error.
 
-In dev and other `no-rp` situations, that owner may already be gone or unavailable. If cleanup waits for someone else to delete managed resource groups, they can remain forever. In those cases cleanup has to be more direct: find the managed resource groups itself, clean them up, and then clean the parent resource group.
+In DEV and other `no-rp` situations, that owner may already be gone or unavailable. If cleanup waits for someone else to delete managed resource groups, they can remain forever. In those cases cleanup has to be more direct: find the managed resource groups itself, clean them up, and then clean the parent resource group.
 
-So the difference is not "dev is special" for its own sake. The difference is whether there is still a live owner for managed resource-group deletion.
+So the difference is not "DEV is special" for its own sake. The difference is whether there is still a live owner for managed resource-group deletion.
 
 ## How Each Path Works
 
@@ -162,7 +158,7 @@ This path starts from topology, selects the resource groups that belong to the c
 That makes it a good fit for:
 
 - personal-dev cleanup
-- dev e2e CI deprovision
+- DEV E2E CI deprovision
 
 It is targeted cleanup of known resources, not subscription-wide hygiene.
 
@@ -185,9 +181,8 @@ If you need to change behavior, start here:
 
 - consolidated periodic jobs: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`
 - `cleanup-sweeper` CLI: `tooling/cleanup-sweeper/cmd/root/options.go`
-- `rg-ordered` resource group `createdAt` tag policy (Azure): `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh`
 - ordered cleanup engine: `tooling/cleanup-sweeper/pkg/engine/resourcegroup_ordered_cleanup.go`
 - templatize cleanup: `tooling/templatize/cmd/entrypoint/cleanup/`
-- e2e teardown: `test/util/framework/per_test_framework.go`
+- E2E teardown: `test/util/framework/per_test_framework.go`
 
-For the Prow-job view, also see `docs/prow.md`.
+For the CI execution view, also see [CI Execution](execution.md). For job-level operations, see [CI Operations](operations.md).

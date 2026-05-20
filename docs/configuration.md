@@ -208,7 +208,7 @@ Check [Propagate Configuration Changes](#propagate-configuration-changes) for mo
 Propagation of configuration changes varies depending on the environment:
 
 - **[config.yaml](../config/config.yaml)**:
-  - Only the **cspr** environment is automatically reconciled with new changes for configuration, infrastructure, and service deployments via [Prow](prow.md).
+  - Only the **cspr** environment is automatically reconciled with new changes for configuration, infrastructure, and service deployments via [CI execution](ci/execution.md).
   - personal development environments (**pers**) are fully controlled by developers. If there are relevant changes, notify developers so they can apply updates manually.
 
 - **[ADO sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.sensitive.clouds-overlay.yaml)**:
