@@ -2799,10 +2799,6 @@
         "maxEventsPerMinute": {
           "type": "integer",
           "description": "Maximum events per minute limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
-        },
-        "skipDatasourceSync": {
-          "type": "boolean",
-          "description": "Whether to skip syncing Grafana datasources. Intended for prow jobs."
         }
       },
       "additionalProperties": false,
