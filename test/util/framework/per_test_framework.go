@@ -300,6 +300,15 @@ func isIgnorableResourceGroupCleanupError(err error) bool {
 	return isResourceGroupNotFoundError(err)
 }
 
+type FPACredentials struct {
+	ClientID string
+	CertPath string
+}
+
+func (c FPACredentials) IsConfigured() bool {
+	return c.ClientID != "" && c.CertPath != ""
+}
+
 type CleanupWorkflow string
 
 const (
@@ -311,6 +320,7 @@ type CleanupResourceGroupsOptions struct {
 	ResourceGroupNames []string
 	Timeout            time.Duration
 	CleanupWorkflow    CleanupWorkflow
+	FPACredentials     FPACredentials
 }
 
 func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context, opts CleanupResourceGroupsOptions) error {
@@ -326,11 +336,11 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 
 			switch opts.CleanupWorkflow {
 			case CleanupWorkflowStandard:
-				if err := tc.cleanupResourceGroup(ctx, currResourceGroupName, opts.Timeout); err != nil {
+				if err := tc.cleanupResourceGroup(ctx, currResourceGroupName, opts.Timeout, opts.FPACredentials); err != nil {
 					errCh <- err
 				}
 			case CleanupWorkflowNoRP:
-				if err := tc.cleanupResourceGroupNoRP(ctx, currResourceGroupName, opts.Timeout); err != nil {
+				if err := tc.cleanupResourceGroupNoRP(ctx, currResourceGroupName, opts.Timeout, opts.FPACredentials); err != nil {
 					errCh <- err
 				}
 			}
@@ -474,7 +484,7 @@ func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx c
 // 1. delete all HCP clusters via the RP and wait for success
 // 2. wait for any managed resource groups to be deleted
 // 3. delete the resource group
-func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration, fpaCredentials FPACredentials) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
@@ -528,6 +538,13 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
 	}
 
+	if fpaCredentials.IsConfigured() {
+		ginkgo.GinkgoLogr.Info("deleting any remaining RedHatOpenShift service association links in resource group", "resourceGroup", resourceGroupName)
+		if err := tc.deleteRedHatOpenShiftServiceAssociationLinks(ctx, resourceGroupName, fpaCredentials); err != nil {
+			return fmt.Errorf("failed to delete RedHatOpenShift service association links in %q: %w", resourceGroupName, err)
+		}
+	}
+
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
 	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
@@ -543,7 +560,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 //  1. discovers any "managed" resource groups whose ManagedBy references a resource in the parent
 //     resource group and deletes them (using 'force' to speed up VM/VMSS deletion).
 //  2. deletes the parent resource group itself.
-func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupName string, timeout time.Duration, fpaCredentials FPACredentials) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
@@ -573,6 +590,13 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 			} else {
 				return fmt.Errorf("failed to cleanup managed resource group %q: %w", managedRG, err)
 			}
+		}
+	}
+
+	if fpaCredentials.IsConfigured() {
+		ginkgo.GinkgoLogr.Info("deleting any remaining RedHatOpenShift service association links in resource group", "resourceGroup", resourceGroupName)
+		if err := tc.deleteRedHatOpenShiftServiceAssociationLinks(ctx, resourceGroupName, fpaCredentials); err != nil {
+			return fmt.Errorf("failed to delete RedHatOpenShift service association links in %q: %w", resourceGroupName, err)
 		}
 	}
 
