@@ -12,6 +12,7 @@ Create HCPOpenShiftCluster with Private KeyVault should create a cluster with pr
 Customer should create a cluster using the 2026-06-30-preview API version
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
 Customer should be able to create an HCP cluster then delete it by deleting the customer resource group
+Customer should be able to source the default ingress serving certificate from an Azure Key Vault and have rotations propagate automatically
 Customer should be able to create an HCP cluster and manage pull secrets
 Customer should create an HCP cluster and validate TLS certificates
 Update HCPOpenShiftCluster Negative creates a cluster and fails to update its name with a PATCH request
