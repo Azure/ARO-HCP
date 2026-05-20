@@ -144,19 +144,39 @@ func (c *controlPlaneActiveVersionSyncer) getControlPlaneActiveVersionsFromManag
 	return versions, nil
 }
 
-// getHostedClusterActiveVersions derives active versions from HostedCluster status.version.history (newest first).
+// getHostedClusterActiveVersions derives active versions from HostedCluster version history (newest first).
 // Entries with empty or unparseable Version are skipped; State is taken from history (configv1.UpdateState).
 // If the latest entry is Completed, return a single version (steady state); otherwise return all versions
 // until the last successfully completed one. Each returned entry includes Version and State.
 //
-// TODO: Once Hypershift exposes HostedCluster.Status.controlPlaneVersion (ControlPlaneVersionStatus) from
-// https://github.com/openshift/enhancements/pull/1950, derive active versions from that instead of status.version.history.
+// History source: prefer status.controlPlaneVersion.history when non-empty; otherwise fall back to
+// status.version.history. ControlPlaneVersionStatus is populated on 4.22+ clusters
+// (https://github.com/openshift/enhancements/pull/1950), so we use it where available. Clusters below 4.22
+// still rely on status.version.history until Hypershift backports controlPlaneVersion; once that lands,
+// the same field will be used automatically when history is present.
 func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx context.Context, hostedCluster *hsv1beta1.HostedCluster) ([]api.HCPClusterActiveVersion, error) {
-	if hostedCluster == nil || hostedCluster.Status.Version == nil {
-		return nil, nil
-	}
 	logger := utils.LoggerFromContext(ctx)
 	var activeVersions []api.HCPClusterActiveVersion
+	// Prefer controlPlaneVersion.history when set.
+	// This is available on 4.22+ clusters,  older clusters once Hypershift backports it.
+	if len(hostedCluster.Status.ControlPlaneVersion.History) > 0 {
+		for _, historyEntry := range hostedCluster.Status.ControlPlaneVersion.History {
+			parsedVersion, err := semver.Parse(historyEntry.Version)
+			if err != nil {
+				logger.Error(err, "Skipping HostedCluster controlPlaneVersion history entry with unparseable version", "history", historyEntry)
+				continue
+			}
+			activeVersions = append(activeVersions, api.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
+			if historyEntry.State == configv1.CompletedUpdate {
+				return activeVersions, nil
+			}
+		}
+		return activeVersions, nil
+	}
+	if hostedCluster.Status.Version == nil {
+		return activeVersions, nil
+	}
+	// Pre-4.22 clusters: fall back to status.version.history.
 	for _, historyEntry := range hostedCluster.Status.Version.History {
 		parsedVersion, err := semver.Parse(historyEntry.Version)
 		if err != nil {
