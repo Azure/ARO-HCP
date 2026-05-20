@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -738,16 +739,10 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the node pool
-	// has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
-	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete a node pool"))
-	}
-
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		nodePool.ID,
-		*nodePool.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		"",
 		"",
@@ -768,6 +763,9 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 
 	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
+	if nodePool.ServiceProviderProperties.DeletionTimestamp == nil {
+		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+	}
 	_, err = f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
 	if err != nil {

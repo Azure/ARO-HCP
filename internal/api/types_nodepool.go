@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -54,8 +55,25 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
+	// ClusterServiceID is the InternalID of the cluster-service NodePool. In
+	// cluster-service terminology, this is the CS NodePool HREF
 	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string      `json:"activeOperationId,omitempty"`
+	// DeletionTimestamp is the timestamp at which the NodePool deletion was requested
+	// The timestamp is in UTC.
+	// A nil value indicates that the NodePool deletion has not been requested.
+	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
+	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
+	// Service Delete NodePool request against Cluster Service for this node
+	// pool has been handled. It is set after a successful DeleteNodePool call
+	// to Cluster Service, but also when the it's determined no delete call is
+	// needed but we consider we should behave as if the delete call was successfully
+	// issued (for example, if the parent cluster of the nodepool is already being
+	// uninstalled, because cluster-service will already take care of deleting the
+	// nodepool as part of the cluster teardown).
+	// A nil value indicates that the Cluster Service Deletion has not been requested.
+	// The timestamp is in UTC.
+	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

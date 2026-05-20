@@ -115,10 +115,31 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		// TODO when we update to make clusterserice creation async, we need to handle this correctly.
 		return nil
 	}
+
 	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, operation.InternalID)
 	var ocmGetClusterError *ocmerrors.Error
 	if err != nil && errors.As(err, &ocmGetClusterError) && ocmGetClusterError.Status() == http.StatusNotFound {
 		logger.Info("cluster was deleted")
+
+		// Some nodepool controllers require of the Cosmos document to do their cleanup work so we block
+		// the cluster cosmos deletion until the nodepools are gone.
+		// TODO this could be improved by doing a count instead of a list. We would need to add support for count
+		nodePoolIterator, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).NodePools(operation.ExternalID.Name).List(ctx, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		foundAtLeastOneNodePool := false
+		for range nodePoolIterator.Items(ctx) {
+			foundAtLeastOneNodePool = true
+		}
+		err = nodePoolIterator.GetError()
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		if foundAtLeastOneNodePool {
+			logger.Info("cluster still has cosmos nodepools")
+			return nil
+		}
 
 		// Update the Cosmos DB billing document with a deletion timestamp.
 		// Do this before calling setDeleteOperationAsCompleted so that in
@@ -132,7 +153,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 			return utils.TrackError(err)
 		}
 
-		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -148,7 +169,7 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 		return utils.TrackError(err)
 	}
 
-	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, newOperationError, PostAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

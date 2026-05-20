@@ -16,7 +16,6 @@ package operationcontrollers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -24,45 +23,44 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationNodePoolDelete struct {
-	resourcesDBClient    database.ResourcesDBClient
-	clusterServiceClient ocm.ClusterServiceClientSpec
-	notificationClient   *http.Client
+	resourcesDBClient  database.ResourcesDBClient
+	notificationClient *http.Client
 }
 
 // NewOperationNodePoolDeleteController returns a new Controller instance that
 // follows an asynchronous node pool deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
 //
-// Operation documents relevant to this controller will have the following values:
-//
-//	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools
-//	     Request: Delete
-//	      Status: any non-terminal value
+// This controller waits for the NodePool Cosmos document to be deleted by the
+// nodePoolDeletionController. Once the document is gone, it cleans up child
+// resources and marks the operation as succeeded. Intermediate status updates
+// (e.g. Deleting) are handled separately by nodePoolDeletionOperationStatusController.
 //
 // Note that "to completion" does not imply success. An operation is considered
 // complete when its status field reaches what Azure defines as a terminal value;
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
+//
+// Operation documents relevant to this controller will have the following values:
+//
+//	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools
+//	     Request: Delete
+//	      Status: any non-terminal value
 func NewOperationNodePoolDeleteController(
 	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationNodePoolDelete{
-		resourcesDBClient:    resourcesDBClient,
-		clusterServiceClient: clusterServiceClient,
-		notificationClient:   notificationClient,
+		resourcesDBClient:  resourcesDBClient,
+		notificationClient: notificationClient,
 	}
 
 	controller := NewGenericOperationController(
@@ -104,29 +102,18 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
-	var ocmGetNodePoolError *ocmerrors.Error
-	if err != nil && errors.As(err, &ocmGetNodePoolError) && ocmGetNodePoolError.Status() == http.StatusNotFound {
-		logger.Info("node pool was deleted")
-
-		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
+	nodePoolCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).NodePools(operation.ExternalID.Parent.Name)
+	_, err = nodePoolCRUD.Get(ctx, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		logger.Info("node pool document deleted - completing operation")
+		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, PostAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
+		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
 	}
 
 	return nil

@@ -151,7 +151,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, opError, PostAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

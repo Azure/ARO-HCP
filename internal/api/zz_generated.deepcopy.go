@@ -757,6 +757,14 @@ func (in *HCPOpenShiftClusterNodePoolServiceProviderProperties) DeepCopyInto(out
 		*out = new(InternalID)
 		**out = **in
 	}
+	if in.DeletionTimestamp != nil {
+		in, out := &in.DeletionTimestamp, &out.DeletionTimestamp
+		*out = (*in).DeepCopy()
+	}
+	if in.ClusterServiceDeletionTimestamp != nil {
+		in, out := &in.ClusterServiceDeletionTimestamp, &out.ClusterServiceDeletionTimestamp
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 

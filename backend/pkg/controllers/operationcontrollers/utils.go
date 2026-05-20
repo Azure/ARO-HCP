@@ -387,8 +387,7 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 	}
 }
 
-// PostAsyncNotification submits an POST request with status payload to the given URL.
-func postAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificationFunc {
+func PostAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificationFunc {
 	return func(ctx context.Context, operation *api.Operation) error {
 		return PostAsyncNotification(ctx, notificationClient, operation)
 	}
@@ -500,14 +499,14 @@ func pollNodePoolStatus(
 		return utils.TrackError(err)
 	}
 
-	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
+	newOperationStatus, newOperationError, err := ConvertNodePoolStatus(operation, nodePoolStatus)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 	logger.Info("new status", "newStatus", newOperationStatus)
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
+	err = UpdateOperationStatus(ctx, resourcesDBClient, operation, newOperationStatus, newOperationError, PostAsyncNotificationFn(notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -518,7 +517,7 @@ func pollNodePoolStatus(
 // convertNodePoolStatus attempts to translate a NodePoolStatus object
 // from Cluster Service into an ARM provisioning state and, if necessary,
 // a structured OData error.
-func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func ConvertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
 	var opError *arm.CloudErrorBody
 	var err error
@@ -586,7 +585,7 @@ func pollExternalAuthStatus(
 	logger.Info("new status", "newStatus", newOperationStatus)
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, resourcesDBClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
+	err = UpdateOperationStatus(ctx, resourcesDBClient, operation, newOperationStatus, nil, PostAsyncNotificationFn(notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
