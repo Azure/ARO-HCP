@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"embed"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"time"
@@ -47,6 +48,7 @@ type webAppConfig struct {
 	nodeSelector map[string]string
 	routeLabels  map[string]string
 	routeHost    string
+	targetIP     string
 }
 
 type WebAppOption func(*webAppConfig)
@@ -66,6 +68,12 @@ func WithRouteLabels(labels map[string]string) WebAppOption {
 func WithRouteHost(host string) WebAppOption {
 	return func(c *webAppConfig) {
 		c.routeHost = host
+	}
+}
+
+func WithTargetIP(ip string) WebAppOption {
+	return func(c *webAppConfig) {
+		c.targetIP = ip
 	}
 }
 
@@ -194,14 +202,23 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	lastErr = nil
 	url := "https://" + host
 
-	// Create HTTP client with TLS skip for development environments
 	client := &http.Client{}
-	if framework.IsDevelopmentEnvironment() {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+	if framework.IsDevelopmentEnvironment() || len(v.config.targetIP) > 0 {
+		transport := &http.Transport{}
+		if framework.IsDevelopmentEnvironment() {
+			transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		}
+		if len(v.config.targetIP) > 0 {
+			targetIP := v.config.targetIP
+			transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+				_, port, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, fmt.Errorf("failed to split host:port from %q: %w", addr, err)
+				}
+				return (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(targetIP, port))
+			}
+		}
+		client.Transport = transport
 	}
 	startTime := time.Now()
 	logged5Min := false

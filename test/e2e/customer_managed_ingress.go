@@ -55,6 +55,7 @@ var _ = Describe("Customer", func() {
 				ingressName          = "custom"
 				ingressNamespace     = "openshift-ingress"
 				ingressOperatorNS    = "openshift-ingress-operator"
+				ingressDomain        = "custom-ingress.test"
 			)
 
 			tc := framework.NewTestContext()
@@ -75,20 +76,15 @@ var _ = Describe("Customer", func() {
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
-			By("creating customer resources with static public IP")
+			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]any{
-					"createIngressPublicIP": true,
-				},
+				nil,
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(clusterParams.IngressPublicIPAddress).NotTo(BeEmpty(), "static public IP should be allocated")
-			staticIP := clusterParams.IngressPublicIPAddress
-			GinkgoWriter.Printf("Static public IP for custom ingress: %s\n", staticIP)
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, 45*time.Minute)
@@ -165,7 +161,7 @@ var _ = Describe("Customer", func() {
 			certClient, err := azcertificates.NewClient(kvURL, cred, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			san := fmt.Sprintf("*.%s.nip.io", staticIP)
+			san := fmt.Sprintf("*.%s", ingressDomain)
 			createResp, err := certClient.CreateCertificate(ctx, kvCertName, azcertificates.CreateCertificateParameters{
 				CertificatePolicy: &azcertificates.CertificatePolicy{
 					IssuerParameters: &azcertificates.IssuerParameters{
@@ -313,7 +309,6 @@ var _ = Describe("Customer", func() {
 
 			By("creating a custom IngressController")
 			ingressControllerGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
-			ingressDomain := fmt.Sprintf("apps.%s.nip.io", staticIP)
 			ic := &unstructured.Unstructured{Object: map[string]any{
 				"apiVersion": "operator.openshift.io/v1",
 				"kind":       "IngressController",
@@ -329,7 +324,8 @@ var _ = Describe("Customer", func() {
 					"endpointPublishingStrategy": map[string]any{
 						"type": "LoadBalancerService",
 						"loadBalancer": map[string]any{
-							"scope": "External",
+							"scope":               "External",
+							"dnsManagementPolicy": "Unmanaged",
 						},
 					},
 					"routeSelector": map[string]any{
@@ -342,24 +338,9 @@ var _ = Describe("Customer", func() {
 			_, err = dynamicClient.Resource(ingressControllerGVR).Namespace(ingressOperatorNS).Create(ctx, ic, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("patching the router Service with the static IP")
+			By("waiting for the IngressController to become available and receive a load balancer IP")
 			routerServiceName := fmt.Sprintf("router-%s", ingressName)
-			err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
-				_, err := adminClient.CoreV1().Services(ingressNamespace).Get(ctx, routerServiceName, metav1.GetOptions{})
-				if err != nil {
-					return false, nil
-				}
-				return true, nil
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			svcGVR := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}
-			patch := fmt.Sprintf(`{"metadata":{"annotations":{"service.beta.kubernetes.io/azure-load-balancer-resource-group":"%s"}},"spec":{"loadBalancerIP":"%s"}}`,
-				*resourceGroup.Name, staticIP)
-			_, err = dynamicClient.Resource(svcGVR).Namespace(ingressNamespace).Patch(ctx, routerServiceName, "application/merge-patch+json", []byte(patch), metav1.PatchOptions{})
-			Expect(err).NotTo(HaveOccurred())
-
-			By("waiting for the IngressController to become available with the correct IP")
+			var lbIP string
 			var lastStatus string
 			err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 15*time.Minute, true, func(ctx context.Context) (bool, error) {
 				icObj, err := dynamicClient.Resource(ingressControllerGVR).Namespace(ingressOperatorNS).Get(ctx, ingressName, metav1.GetOptions{})
@@ -371,7 +352,7 @@ var _ = Describe("Customer", func() {
 				if !found {
 					return false, nil
 				}
-				available := false
+				icAvailable := false
 				for _, c := range conditions {
 					cond, ok := c.(map[string]any)
 					if !ok {
@@ -380,31 +361,32 @@ var _ = Describe("Customer", func() {
 					condType, _, _ := unstructured.NestedString(cond, "type")
 					condStatus, _, _ := unstructured.NestedString(cond, "status")
 					if condType == "Available" && condStatus == "True" {
-						available = true
+						icAvailable = true
 						break
 					}
 				}
-				if !available {
-					status := fmt.Sprintf("IngressController %s not yet Available", ingressName)
-					if status != lastStatus {
-						GinkgoWriter.Println(status)
-						lastStatus = status
-					}
-					return false, nil
-				}
 
-				svc, err := adminClient.CoreV1().Services(ingressNamespace).Get(ctx, routerServiceName, metav1.GetOptions{})
-				if err != nil {
-					return false, nil
+				svc, svcErr := adminClient.CoreV1().Services(ingressNamespace).Get(ctx, routerServiceName, metav1.GetOptions{})
+				if svcErr != nil {
+					svc = nil
 				}
-				for _, ingress := range svc.Status.LoadBalancer.Ingress {
-					if ingress.IP == staticIP {
-						GinkgoWriter.Printf("IngressController %s is Available with IP %s\n", ingressName, staticIP)
-						return true, nil
+				var ip string
+				if svc != nil {
+					for _, ingress := range svc.Status.LoadBalancer.Ingress {
+						if len(ingress.IP) > 0 {
+							ip = ingress.IP
+							break
+						}
 					}
 				}
 
-				status := fmt.Sprintf("IngressController %s Available but waiting for IP %s", ingressName, staticIP)
+				if icAvailable && len(ip) > 0 {
+					lbIP = ip
+					GinkgoWriter.Printf("IngressController %s is Available with LB IP %s\n", ingressName, lbIP)
+					return true, nil
+				}
+
+				status := fmt.Sprintf("IngressController %s: available=%t, lbIP=%q", ingressName, icAvailable, ip)
 				if status != lastStatus {
 					GinkgoWriter.Println(status)
 					lastStatus = status
@@ -416,10 +398,11 @@ var _ = Describe("Customer", func() {
 			// ── 6. Verification ──
 
 			By("verifying a simple web app is reachable through the custom ingress")
-			appHost := fmt.Sprintf("app.%s.nip.io", staticIP)
+			appHost := fmt.Sprintf("app.%s", ingressDomain)
 			err = verifiers.VerifySimpleWebApp(
 				verifiers.WithRouteLabels(map[string]string{"ingress": "custom"}),
 				verifiers.WithRouteHost(appHost),
+				verifiers.WithTargetIP(lbIP),
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 		},

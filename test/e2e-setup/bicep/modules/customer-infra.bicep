@@ -19,9 +19,6 @@ param clusterName string = ''
 @description('If set to true, creates a private KeyVault with publicNetworkAccess disabled')
 param privateKeyVault bool = false
 
-@description('If set to true, creates a static Public IP for custom ingress scenarios')
-param createIngressPublicIP bool = false
-
 //
 // Variables
 //
@@ -87,24 +84,6 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
         }
       }
     ]
-  }
-}
-
-//
-// Public IP
-//
-
-resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2023-05-01' = if (createIngressPublicIP) {
-  name: 'ingress-pip-${randomSuffix}'
-  location: resourceGroup().location
-  tags: {
-    persist: string(persistTagValue)
-  }
-  sku: {
-    name: 'Standard'
-  }
-  properties: {
-    publicIPAllocationMethod: 'Static'
   }
 }
 
@@ -224,6 +203,3 @@ output vnetIntegrationSubnetID string = '${customerVnet.id}/subnets/customer-vne
 
 @description('The version of the etcd encryption key')
 output etcdEncryptionKeyVersion string = last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
-
-@description('The allocated static IP address for custom ingress')
-output ingressPublicIPAddress string = createIngressPublicIP ? ingressPublicIP.properties.ipAddress : ''
