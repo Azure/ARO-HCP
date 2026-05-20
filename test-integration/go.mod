@@ -29,6 +29,7 @@ require (
 require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Azure/azure-kusto-go v0.16.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2 v2.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6 v6.2.0 // indirect
@@ -113,6 +114,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
