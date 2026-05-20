@@ -1,0 +1,5 @@
+{
+  "code": "InvalidRequestContent",
+  "message": "Invalid value: \"not-an-arm-resource-id\": invalid resource ID: resource id 'not-an-arm-resource-id' must start with '/'",
+  "target": "properties.platform.vnetIntegrationSubnetId"
+}

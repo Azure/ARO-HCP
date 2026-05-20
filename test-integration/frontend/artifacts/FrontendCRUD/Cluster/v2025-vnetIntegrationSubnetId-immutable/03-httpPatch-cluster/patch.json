@@ -1,0 +1,7 @@
+{
+	"properties": {
+		"platform": {
+			"vnetIntegrationSubnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/different-tunnel-subnet"
+		}
+	}
+}
