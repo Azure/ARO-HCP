@@ -32,8 +32,8 @@ var operationMetricLabelNames = []string{"resource_id", "subscription_id", "reso
 // resource_id derivation:
 //
 // resource_id is the lowercased ARM resource id of the cluster /
-// nodepool / external auth this operation targets (op.ExternalID, via
-// op.MetricResourceID()). It is NOT the cosmos doc id stored in
+// nodepool / external auth this operation targets (op.ExternalID).
+// It is NOT the cosmos doc id stored in
 // op.ResourceID, which exists only for unique cosmos addressing and
 // has no meaning to operators correlating metrics with customer ARM
 // resources. This matches the format already used by the sibling
@@ -77,7 +77,7 @@ func NewOperationPhaseMetricsHandler(r prometheus.Registerer) Handler[*api.Opera
 }
 
 func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operation) {
-	resourceID := resourceIDMetricLabel(op.MetricResourceID())
+	resourceID := resourceIDMetricLabel(op.ExternalID)
 	if len(resourceID) == 0 {
 		// op.ExternalID is expected to always be populated for production
 		// operations (every frontend construction site passes the target
@@ -93,7 +93,7 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 			"cosmos_resource_id", resourceIDMetricLabel(op.GetResourceID()))
 		return
 	}
-	subscriptionID := subscriptionIDMetricLabel(op.MetricResourceID())
+	subscriptionID := subscriptionIDMetricLabel(op.ExternalID)
 	if op.OperationID == nil {
 		// Implicit operation (e.g. child-resource cleanup along with
 		// parent). Don't emit a metric series for it, and don't
@@ -113,7 +113,7 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 	labels := prometheus.Labels{
 		"resource_id":     resourceID,
 		"subscription_id": subscriptionID,
-		"resource_type":   resourceIDToTypeMetricLabel(op.MetricResourceID()),
+		"resource_type":   resourceIDToTypeMetricLabel(op.ExternalID),
 		"operation_type":  operationTypeMetricLabel(op.Request),
 		"phase":           phaseMetricLabel(op.Status),
 	}

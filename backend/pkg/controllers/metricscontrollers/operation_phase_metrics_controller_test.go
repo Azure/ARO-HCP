@@ -203,8 +203,8 @@ func TestOperationPhaseMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing
 	op.LastTransitionTime = now.Add(5 * time.Minute)
 	handler.Sync(context.Background(), op)
 
-	resourceID := resourceIDMetricLabel(op.MetricResourceID())
-	subscriptionID := subscriptionIDMetricLabel(op.MetricResourceID())
+	resourceID := resourceIDMetricLabel(op.ExternalID)
+	subscriptionID := subscriptionIDMetricLabel(op.ExternalID)
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
 backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
@@ -240,8 +240,8 @@ func TestOperationControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, controller.syncResource(context.Background(), key))
 
-	resourceID := resourceIDMetricLabel(op.MetricResourceID())
-	subscriptionID := subscriptionIDMetricLabel(op.MetricResourceID())
+	resourceID := resourceIDMetricLabel(op.ExternalID)
+	subscriptionID := subscriptionIDMetricLabel(op.ExternalID)
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
 backend_resource_operation_phase_info{operation_type="create",phase="accepted",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
@@ -395,8 +395,8 @@ func TestOperationPhaseMetricsHandler_VerifiesLabelValues(t *testing.T) {
 	handler, reg := newTestOperationHandler(t)
 	handler.Sync(context.Background(), op)
 
-	resourceID := resourceIDMetricLabel(op.MetricResourceID())
-	subscriptionID := subscriptionIDMetricLabel(op.MetricResourceID())
+	resourceID := resourceIDMetricLabel(op.ExternalID)
+	subscriptionID := subscriptionIDMetricLabel(op.ExternalID)
 	expected := fmt.Sprintf(`# HELP backend_resource_operation_phase_info Current phase of each operation (value is always 1).
 # TYPE backend_resource_operation_phase_info gauge
 backend_resource_operation_phase_info{operation_type="create",phase="provisioning",resource_id="%s",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",subscription_id="%s"} 1
@@ -430,9 +430,9 @@ func TestOperationPhaseMetricsHandler_ResourceIDIsExternalIDNotCosmosID(t *testi
 	require.Contains(t, cosmosID, "hcpoperationstatuses",
 		"sanity: cosmos id should be the operationstatuses-prefixed string")
 
-	armID := resourceIDMetricLabel(op.MetricResourceID())
+	armID := resourceIDMetricLabel(op.ExternalID)
 	require.Equal(t, strings.ToLower(armResourceID), armID,
-		"MetricResourceID should be the lowercased ARM id of op.ExternalID")
+		"ExternalID should be the lowercased ARM id")
 	require.NotEqual(t, cosmosID, armID,
 		"sanity: cosmos id and ARM id must differ for this test to be meaningful")
 
