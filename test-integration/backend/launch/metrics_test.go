@@ -151,6 +151,9 @@ func TestBackendExposesMetrics(t *testing.T) {
 
 func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: resourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:         resourceID,
