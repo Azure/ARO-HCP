@@ -17,18 +17,18 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime/debug"
 
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/admin/server/cmd/server"
 	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
+	"github.com/Azure/ARO-HCP/internal/version"
 )
 
 func main() {
 	// Create the application logger
 	logger := logging.New(0)
-	logger.Info(fmt.Sprintf("aro-hcp-admin (%s) starting...", version()))
+	logger.Info(fmt.Sprintf("aro-hcp-admin (%s) starting...", version.CommitSHA))
 
 	cmd := &cobra.Command{
 		Use:           "aro-hcp-admin",
@@ -36,6 +36,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	cmd.Version = version.CommitSHA
 
 	commands := []func() (*cobra.Command, error){
 		server.NewCommand,
@@ -53,18 +54,4 @@ func main() {
 		logger.Error("Command failed.", "error", err)
 		os.Exit(1)
 	}
-}
-
-func version() string {
-	version := "unknown"
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				version = setting.Value
-				break
-			}
-		}
-	}
-
-	return version
 }
