@@ -5,10 +5,10 @@ go 1.25.7
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
 	github.com/Azure/ARO-Tools/config v0.0.0-20260515164928-09422e2febea
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260520073823-1548c2f7b34b
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260515164928-09422e2febea
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260515164928-09422e2febea
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260520073823-1548c2f7b34b
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260515164928-09422e2febea
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260515164928-09422e2febea
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260515164928-09422e2febea

@@ -17,6 +17,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 
@@ -26,7 +27,7 @@ import (
 )
 
 func runGrafanaDatasourcesStep(_ graph.Identifier, step *types.GrafanaDatasourcesStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, _ *ExecutionState) error {
-	if step.SkipSync {
+	if strings.EqualFold(step.SkipSync, "true") {
 		logger := logr.FromContextOrDiscard(ctx)
 		logger.Info("Skipping grafana datasource sync")
 		return nil

@@ -65,9 +65,9 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260515164928-09422e2febea // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260520073823-1548c2f7b34b // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260515164928-09422e2febea // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260515164928-09422e2febea // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260520073823-1548c2f7b34b // indirect
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260515164928-09422e2febea // indirect
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260515164928-09422e2febea // indirect
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260515164928-09422e2febea // indirect
