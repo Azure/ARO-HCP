@@ -761,7 +761,7 @@ resource validateMIPropagation 'Microsoft.Resources/deploymentScripts@2023-08-01
   }
   properties: {
     azCliVersion: '2.53.1'
-    timeout: 'PT5M'
+    timeout: 'PT10M'
     retentionInterval: 'PT1H'
     arguments: '${frontendMI.uamiPrincipalID} ${backendMI.uamiPrincipalID} ${adminApiMI.uamiPrincipalID}'
     scriptContent: loadTextContent('../scripts/validate-mi-aad-propagation.sh')
