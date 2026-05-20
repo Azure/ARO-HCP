@@ -19,8 +19,21 @@
 # - Azure CLI logged into the TARGET tenant where the SP should be created
 # - Access to the opstool Key Vault (in the dev tenant) for storing secrets
 #
+# Multiple Azure identities (different users for target tenant vs Key Vault):
+# - Log in both accounts (run az login twice, or use separate device codes).
+# - Use "az account list -o table" and "az account set --subscription <id>" to pick
+#   which login is active before each phase.
+# - Or run the target-tenant phase with --skip-keyvault (creates client secret locally),
+#   switch to an identity that can write to Key Vault, then upload with --keyvault-only.
+#
 # Usage:
 #   ./scripts/manage-service-principals.sh --tenant redhat
+#   ./scripts/manage-service-principals.sh --tenant test-tenant
+#   ./scripts/manage-service-principals.sh --tenant test-tenant --skip-keyvault
+#   ./scripts/manage-service-principals.sh --tenant test-tenant --skip-keyvault --defer-secret-out /safe/path/file
+#   ./scripts/manage-service-principals.sh --keyvault-only --secret-name <name> --secret-file <path>
+#   ./scripts/manage-service-principals.sh --keyvault-only --app-id <uuid> --secret-name <name>
+#     (same-login only: resets credential in Entra then writes Key Vault)
 #   ./scripts/manage-service-principals.sh --list
 #
 # After running, redeploy the collector to pick up any new secrets.
@@ -29,6 +42,18 @@
 set -euo pipefail
 
 KEYVAULT_NAME="${OPSTOOL_KEYVAULT_NAME:-opstool-kv-usw3}"
+
+# When true, setup_* stops after Reader/Graph; use --keyvault-only after switching identity.
+SKIP_KEYVAULT=false
+# Upload from file (@--secret-file), or legacy reset+KV when --app-id is provided.
+KEYVAULT_ONLY=false
+KV_ONLY_APP_ID=""
+KV_ONLY_SECRET_NAME=""
+KV_ONLY_SECRET_FILE=""
+# Optional path used with --skip-keyvault (--defer-secret-out PATH); omit for a secure mktemp file.
+DEFER_SECRET_OUT=""
+# One-time password from az ad sp create-for-rbac (avoid an extra credential reset on first deploy).
+SP_BOOTSTRAP_PASSWORD=""
 
 GRAPH_APP_ID="00000003-0000-0000-c000-000000000000"
 # Organization.Read.All application permission (for /v1.0/organization directory quota)
@@ -94,17 +119,84 @@ setup_redhat() {
     create_or_get_sp "${APPLICATION_NAME}"
     grant_graph_permissions "${APP_ID}" "${DIRECTORY_QUOTA}"
     grant_subscription_reader "${APP_ID}" "${SUBSCRIPTIONS[@]}"
-    store_secret "${APP_ID}" "${KEYVAULT_SECRET_NAME}"
+    maybe_store_secret "${APP_ID}" "${KEYVAULT_SECRET_NAME}"
+}
+
+# Test Test Azure Red Hat OpenShift (Microsoft test tenant).
+# Subscription quota only — no Graph / Organization.Read.All (directory quota not used).
+setup_test_tenant() {
+    local APPLICATION_NAME="custom-metrics-collector-test-test-azure-arohcp-ms-graph-ro"
+    local KEYVAULT_SECRET_NAME="custom-metrics-collector-test-test-azure-arohcp-client-secret"
+    local DIRECTORY_QUOTA=false
+    local SUBSCRIPTIONS=(
+        "ARO HCP E2E"
+        "ARO HCP E2E - Staging"
+    )
+
+    create_or_get_sp "${APPLICATION_NAME}"
+    grant_graph_permissions "${APP_ID}" "${DIRECTORY_QUOTA}"
+    grant_subscription_reader "${APP_ID}" "${SUBSCRIPTIONS[@]}"
+    maybe_store_secret "${APP_ID}" "${KEYVAULT_SECRET_NAME}"
 }
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
+maybe_store_secret() {
+    local app_id="$1"
+    local secret_name="$2"
+
+    if [[ "${SKIP_KEYVAULT}" != "true" ]]; then
+        store_secret "${app_id}" "${secret_name}"
+        return 0
+    fi
+
+    header "Deferring Key Vault; preparing client secret in target tenant"
+    local new_secret=""
+
+    if [[ -n "${SP_BOOTSTRAP_PASSWORD}" ]]; then
+        new_secret="${SP_BOOTSTRAP_PASSWORD}"
+        SP_BOOTSTRAP_PASSWORD=""
+        print_info "Using the initial password from az ad sp create-for-rbac (no extra credential reset)."
+    else
+        print_info "Creating a client secret with az ad sp credential reset (requires app admin in this tenant)..."
+        if ! new_secret=$(create_sp_client_password "${app_id}"); then
+            print_error "Failed to create client secret"
+            exit 1
+        fi
+    fi
+
+    if [[ -z "${new_secret}" ]]; then
+        print_error "Client secret value is empty"
+        exit 1
+    fi
+
+    local outpath="${DEFER_SECRET_OUT}"
+    if [[ -z "${outpath}" ]]; then
+        outpath=$(mktemp -t tenant-quota-kv-defer.XXXXXX)
+    fi
+
+    printf '%s\n' "${new_secret}" > "${outpath}"
+    chmod 600 "${outpath}"
+
+    print_success "Wrote client secret (one line) to: ${outpath}"
+    print_warning "Protect this file; delete it after Key Vault upload (e.g. shred -u or rm)."
+    print_info "Application (client) ID: ${app_id}"
+    print_info "Key Vault secret name: ${secret_name}"
+    echo ""
+    print_info "Switch to the identity that can write to Key Vault '${KEYVAULT_NAME}', then run:"
+    echo "  az account set --subscription \"<subscription-with-keyvault-access>\""
+    echo "  $0 --keyvault-only --secret-name ${secret_name} --secret-file ${outpath}"
+    echo ""
+}
+
 create_or_get_sp() {
     local app_name="$1"
     local error_file
     local lookup_error
+
+    SP_BOOTSTRAP_PASSWORD=""
 
     error_file=$(mktemp)
     if APP_ID=$(az ad app list --display-name "${app_name}" --query '[0].appId' -o tsv 2>"${error_file}"); then
@@ -129,6 +221,10 @@ create_or_get_sp() {
             -o json)
 
         APP_ID=$(echo "${sp_output}" | jq -r '.appId')
+        SP_BOOTSTRAP_PASSWORD=$(echo "${sp_output}" | jq -r '.password // empty')
+        if [[ "${SP_BOOTSTRAP_PASSWORD}" == "null" ]]; then
+            SP_BOOTSTRAP_PASSWORD=""
+        fi
         print_success "Created service principal: ${APP_ID}"
     fi
 }
@@ -225,6 +321,17 @@ grant_subscription_reader() {
     done
 }
 
+create_sp_client_password() {
+    local app_id="$1"
+
+    az ad sp credential reset \
+        --id "${app_id}" \
+        --display-name "tenant-quota-collector-initial" \
+        --years 1 \
+        --query password \
+        -o tsv
+}
+
 store_secret() {
     local app_id="$1"
     local secret_name="$2"
@@ -264,12 +371,14 @@ store_secret() {
     print_info "Key Vault secret '${secret_name}' was not found"
     print_info "Creating new client secret and storing in Key Vault..."
     local new_secret
-    new_secret=$(az ad sp credential reset \
-        --id "${app_id}" \
-        --display-name "tenant-quota-collector-initial" \
-        --years 1 \
-        --query password \
-        -o tsv)
+    if [[ -n "${SP_BOOTSTRAP_PASSWORD}" ]]; then
+        new_secret="${SP_BOOTSTRAP_PASSWORD}"
+        SP_BOOTSTRAP_PASSWORD=""
+        print_info "Using the initial password from az ad sp create-for-rbac (no credential reset)."
+    elif ! new_secret=$(create_sp_client_password "${app_id}"); then
+        print_error "Failed to create client secret"
+        exit 1
+    fi
 
     if [[ -z "${new_secret}" ]]; then
         print_error "Failed to create client secret"
@@ -286,31 +395,81 @@ store_secret() {
     print_success "Secret stored in Key Vault as '${secret_name}'"
 }
 
+keyvault_upload_secret_from_file() {
+    local secret_name="$1"
+    local file_path="$2"
+    local new_secret
+
+    header "Uploading secret to Key Vault (no Entra credential reset)"
+
+    if [[ ! -f "${file_path}" || ! -r "${file_path}" ]]; then
+        print_error "Secret file not found or not readable: ${file_path}"
+        exit 1
+    fi
+    IFS= read -r new_secret < "${file_path}" || true
+    new_secret="${new_secret//$'\r'/}"
+    if [[ -z "${new_secret}" ]]; then
+        print_error "Secret file is empty (first line): ${file_path}"
+        exit 1
+    fi
+
+    print_info "Key Vault: ${KEYVAULT_NAME}"
+    az keyvault secret set \
+        --vault-name "${KEYVAULT_NAME}" \
+        --name "${secret_name}" \
+        --value "${new_secret}" \
+        --description "Uploaded $(date +%Y-%m-%d) by manage-service-principals.sh (--secret-file)" \
+        > /dev/null
+
+    print_success "Secret stored in Key Vault as '${secret_name}'"
+    print_warning "Remove the local secret file when finished (e.g. shred -u or rm -f)."
+}
+
 list_tenants() {
     header "Available tenant configurations"
-    echo "  redhat       - RedHat0 tenant (dev/int/e2e subscriptions)"
+    echo "  redhat          - RedHat0 tenant (dev/int/e2e subscriptions)"
+    echo "  test-tenant     - Test Test Azure Red Hat OpenShift (subscriptions only; no Graph directory quota)"
     echo ""
     echo "Usage:"
     echo "  $0 --tenant redhat"
+    echo "  $0 --tenant test-tenant"
     echo ""
     echo "Prerequisites:"
     echo "  Login to the TARGET tenant before running:"
     echo "    RedHat0:      az login --tenant 64dc69e4-d083-49fc-9569-ebece1dd1408"
+    echo "    test-tenant:  az login --tenant <tenant-id>"
     echo ""
-    echo "  Then login to dev tenant to access Key Vault for storing secrets:"
-    echo "    az login"
+    echo "  Different users for target tenant vs Key Vault (common for test tenants):"
+    echo "    1) az login → identity that owns the SERVICE PRINCIPAL TIER (Azure AD / subscriptions)"
+    echo "    2) $0 --tenant <name> --skip-keyvault [--defer-secret-out PATH]"
+    echo "       (writes a chmod 600 one-line secret file unless you pick PATH)"
+    echo "    3) az login → identity that can WRITE to '${KEYVAULT_NAME}'"
+    echo "       az account set --subscription \"<subscription-with-keyvault-access>\""
+    echo "    4) $0 --keyvault-only --secret-name '<name>' --secret-file '<printed-path>'"
+    echo ""
+    echo "  Same user for Entra app + Key Vault (no defer file):"
+    echo "    $0 --keyvault-only --app-id '<uuid>' --secret-name '<name>'"
+    echo ""
+    echo "  Or keep both logins cached and swap only:"
+    echo "    az account set --subscription '<sub-in-chosen-tenant>'"
 }
 
 usage() {
-    echo "Usage: $0 [--tenant NAME | --list | --help]"
+    echo "Usage: $0 [--tenant NAME] [--skip-keyvault] [--keyvault-only ...] [--list | --help]"
     echo ""
     echo "Creates and configures service principals for the tenant-quota collector."
     echo ""
     echo "Options:"
-    echo "  --tenant NAME    Setup SP for the named tenant (redhat)"
-    echo "  --list           List available tenant configurations"
-    echo "  --keyvault NAME  Override Key Vault name (default: ${KEYVAULT_NAME})"
-    echo "  --help           Show this help message"
+    echo "  --tenant NAME       Setup SP for the named tenant (redhat, test-tenant)"
+    echo "  --skip-keyvault     Stop after subscriptions/permissions; write client secret to a local file"
+    echo "  --defer-secret-out  With --skip-keyvault: path for the one-line secret file (default: mktemp)"
+    echo "  --keyvault-only     Only Key Vault: upload --secret-file, or reset+KV with --app-id"
+    echo "  --app-id ID         Application (client) id for --keyvault-only (same-tenant reset path)"
+    echo "  --secret-name NAME  Key Vault secret name"
+    echo "  --secret-file PATH  With --keyvault-only: upload first line (no az ad sp credential reset)"
+    echo "  --list              List available tenant configurations"
+    echo "  --keyvault NAME     Override Key Vault name (default: ${KEYVAULT_NAME})"
+    echo "  --help              Show this help message"
 }
 
 # =============================================================================
@@ -333,6 +492,30 @@ while [[ $# -gt 0 ]]; do
             list_tenants
             exit 0
             ;;
+        --skip-keyvault)
+            SKIP_KEYVAULT=true
+            shift
+            ;;
+        --keyvault-only)
+            KEYVAULT_ONLY=true
+            shift
+            ;;
+        --app-id)
+            KV_ONLY_APP_ID="$2"
+            shift 2
+            ;;
+        --secret-name)
+            KV_ONLY_SECRET_NAME="$2"
+            shift 2
+            ;;
+        --secret-file)
+            KV_ONLY_SECRET_FILE="$2"
+            shift 2
+            ;;
+        --defer-secret-out)
+            DEFER_SECRET_OUT="$2"
+            shift 2
+            ;;
         --help)
             usage
             exit 0
@@ -345,7 +528,61 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ -n "${DEFER_SECRET_OUT}" && "${SKIP_KEYVAULT}" != "true" ]]; then
+    print_error "--defer-secret-out requires --skip-keyvault"
+    usage
+    exit 1
+fi
+
+if [[ -n "${KV_ONLY_SECRET_FILE}" && "${KEYVAULT_ONLY}" != "true" ]]; then
+    print_error "--secret-file requires --keyvault-only"
+    usage
+    exit 1
+fi
+
+if [[ "${SKIP_KEYVAULT}" == "true" && "${KEYVAULT_ONLY}" == "true" ]]; then
+    print_error "Cannot combine --skip-keyvault and --keyvault-only"
+    usage
+    exit 1
+fi
+
+if [[ "${KEYVAULT_ONLY}" == "true" ]]; then
+    if [[ -n "${KV_ONLY_SECRET_FILE}" ]]; then
+        if [[ -z "${KV_ONLY_SECRET_NAME}" ]]; then
+            print_error "--keyvault-only with --secret-file requires --secret-name"
+            usage
+            exit 1
+        fi
+        if [[ -n "${KV_ONLY_APP_ID}" ]]; then
+            print_warning "--app-id is ignored when --secret-file is set"
+        fi
+
+        keyvault_upload_secret_from_file "${KV_ONLY_SECRET_NAME}" "${KV_ONLY_SECRET_FILE}"
+    else
+        if [[ -z "${KV_ONLY_APP_ID}" || -z "${KV_ONLY_SECRET_NAME}" ]]; then
+            print_error "--keyvault-only requires (--secret-file and --secret-name) or (--app-id and --secret-name)"
+            usage
+            exit 1
+        fi
+
+        header "Key Vault phase only (Entra reset + upload)"
+        print_info "Key Vault: ${KEYVAULT_NAME}"
+        store_secret "${KV_ONLY_APP_ID}" "${KV_ONLY_SECRET_NAME}"
+    fi
+
+    header "Done"
+    echo "Next steps:"
+    echo "  1. If this is a new tenant, add it to config/config-opstool.yaml"
+    echo "  2. Redeploy the collector (see templatize pipeline in README / script footer)."
+    exit 0
+fi
+
 if [[ -z "${TENANT}" ]]; then
+    if [[ "${SKIP_KEYVAULT}" == "true" ]]; then
+        print_error "--skip-keyvault requires --tenant <name>"
+        usage
+        exit 1
+    fi
     list_tenants
     exit 0
 fi
@@ -353,6 +590,9 @@ fi
 case "${TENANT}" in
     redhat|RedHat0|redhat0)
         setup_redhat
+        ;;
+    test-tenant|test_tenant|TestTenant)
+        setup_test_tenant
         ;;
     *)
         print_error "Unknown tenant: ${TENANT}"

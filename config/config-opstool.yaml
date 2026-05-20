@@ -176,6 +176,29 @@ clouds:
               roleAssignmentLimit: 4000
               regions:
               - uksouth
+          # Test Test Azure Red Hat OpenShift (Microsoft E2E tenant); directory quota off — subscription ARM only.
+          - tenantId: "93b21e64-4824-439a-b893-46c9b2a51082"
+            tenantName: "TestTestARO"
+            servicePrincipalClientId: "e46ecbd4-9ef3-439e-a28a-74a4d8270349"
+            keyVaultSecretName: "custom-metrics-collector-test-test-azure-arohcp-client-secret"
+            directoryQuota: false
+            subscriptions:
+            - name: "ARO HCP E2E - Staging"
+              roleAssignmentLimit: 4000
+              regions:
+              - uksouth
+            - name: "ARO HCP E2E"
+              roleAssignmentLimit: 4000
+              regions:
+              - eastus2euap
+              - uksouth
+              - switzerlandnorth
+              - canadacentral
+              - australiaeast
+              - westeurope
+              - centralindia
+              - brazilsouth
+              - eastus2
     environments:
       opstool:
         regions:

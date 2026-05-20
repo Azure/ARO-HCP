@@ -10,6 +10,9 @@ param sharedActionGroupId string
 @description('Enable or disable alerting')
 param alertingEnabled bool = true
 
+// Usage/limit ratio excluding Network Watchers
+var azureQuotaUsageRatioFiltered = 'azure_quota_usage{localized_name!~"(?i)^network watchers$"} / azure_quota_limit{localized_name!~"(?i)^network watchers$"}'
+
 // Prometheus Rule Group for tenant-quota alerts
 resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'tenant-quota-alerts'
@@ -153,7 +156,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
       {
         alert: 'AzureQuotaCritical'
         enabled: true
-        expression: 'azure_quota_usage / azure_quota_limit > 0.95'
+        expression: '${azureQuotaUsageRatioFiltered} > 0.95'
         for: 'PT5M'
         severity: 2
         labels: {
@@ -176,7 +179,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
       {
         alert: 'AzureQuotaWarning'
         enabled: true
-        expression: 'azure_quota_usage / azure_quota_limit > 0.80 and azure_quota_usage / azure_quota_limit <= 0.95'
+        expression: '${azureQuotaUsageRatioFiltered} > 0.80 and ${azureQuotaUsageRatioFiltered} <= 0.95'
         for: 'PT10M'
         severity: 3
         labels: {
