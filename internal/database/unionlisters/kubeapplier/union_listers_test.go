@@ -160,7 +160,7 @@ func readSublisters(t *testing.T) (a, b *listertesting.SliceReadDesireLister) {
 
 func TestUnionApplyDesireLister_EmptyUnion(t *testing.T) {
 	ctx := context.Background()
-	u := unionkubeapplier.NewUnionApplyDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
 
 	if got, err := u.List(ctx); err != nil || len(got) != 0 {
 		t.Errorf("empty List: got (%v, %v), want (empty, nil)", got, err)
@@ -185,7 +185,7 @@ func TestUnionApplyDesireLister_EmptyUnion(t *testing.T) {
 func TestUnionApplyDesireLister_AggregatesAcrossSublisters(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionApplyDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -201,7 +201,7 @@ func TestUnionApplyDesireLister_AggregatesAcrossSublisters(t *testing.T) {
 func TestUnionApplyDesireLister_ListForManagementCluster_DelegatesToSingleSublister(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionApplyDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -244,7 +244,7 @@ func TestUnionApplyDesireLister_ListForManagementCluster_DelegatesToSingleSublis
 func TestUnionApplyDesireLister_GetForCluster_FirstHitWins(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionApplyDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -275,7 +275,7 @@ func TestUnionApplyDesireLister_GetForCluster_FirstHitWins(t *testing.T) {
 func TestUnionApplyDesireLister_GetForCluster_NonNotFoundShortCircuits(t *testing.T) {
 	ctx := context.Background()
 	sentinel := errors.New("boom")
-	u := unionkubeapplier.NewUnionApplyDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
 	u.Add(mgmtAID, &erroringApplyLister{err: sentinel})
 
 	_, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "a1")
@@ -287,7 +287,7 @@ func TestUnionApplyDesireLister_GetForCluster_NonNotFoundShortCircuits(t *testin
 func TestUnionApplyDesireLister_RemoveDropsSublister(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionApplyDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -328,7 +328,7 @@ func TestUnionApplyDesireLister_AddReplaces(t *testing.T) {
 				mgmtAID),
 		},
 	}
-	u := unionkubeapplier.NewUnionApplyDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
 	u.Add(mgmtAID, a1)
 	u.Add(mgmtAID, a2) // second Add under the same MC replaces the first
 
@@ -344,7 +344,7 @@ func TestUnionApplyDesireLister_AddReplaces(t *testing.T) {
 func TestUnionApplyDesireLister_ConcurrentAddRemoveVsRead(t *testing.T) {
 	ctx := context.Background()
 	a, b := applySublisters(t)
-	u := unionkubeapplier.NewUnionApplyDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire]()
 
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
@@ -393,7 +393,7 @@ func TestUnionApplyDesireLister_ConcurrentAddRemoveVsRead(t *testing.T) {
 func TestUnionDeleteDesireLister(t *testing.T) {
 	ctx := context.Background()
 	a, b := deleteSublisters(t)
-	u := unionkubeapplier.NewUnionDeleteDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.DeleteDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -446,7 +446,7 @@ func TestUnionDeleteDesireLister(t *testing.T) {
 	})
 
 	t.Run("Remove", func(t *testing.T) {
-		u2 := unionkubeapplier.NewUnionDeleteDesireLister()
+		u2 := unionkubeapplier.NewUnionDesireLister[kubeapplier.DeleteDesire]()
 		u2.Add(mgmtAID, a)
 		u2.Add(mgmtBID, b)
 		u2.Remove(mgmtAID)
@@ -467,7 +467,7 @@ func TestUnionDeleteDesireLister(t *testing.T) {
 func TestUnionReadDesireLister(t *testing.T) {
 	ctx := context.Background()
 	a, b := readSublisters(t)
-	u := unionkubeapplier.NewUnionReadDesireLister()
+	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire]()
 	u.Add(mgmtAID, a)
 	u.Add(mgmtBID, b)
 
@@ -513,7 +513,7 @@ func TestUnionReadDesireLister(t *testing.T) {
 	})
 
 	t.Run("Remove", func(t *testing.T) {
-		u2 := unionkubeapplier.NewUnionReadDesireLister()
+		u2 := unionkubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire]()
 		u2.Add(mgmtAID, a)
 		u2.Add(mgmtBID, b)
 		u2.Remove(mgmtAID)

@@ -15,8 +15,11 @@
 package kubeapplier
 
 import (
+	"sync"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database/informers"
 	"github.com/Azure/ARO-HCP/internal/database/listers"
 	unionlisterskubeapplier "github.com/Azure/ARO-HCP/internal/database/unionlisters/kubeapplier"
@@ -33,14 +36,20 @@ import (
 // That layering keeps this type a pure registry — perfect substrate for a
 // higher-level reactor that drives Add/Remove from a ManagementCluster
 // informer.
+//
+// Add and Remove are serialized by mu so the six underlying sub-registrations
+// (three informers, three listers) move together — concurrent callers can
+// never observe a partially-Added or partially-Removed state.
 type UnionKubeApplierInformers struct {
+	mu sync.Mutex
+
 	applyInformer  *UnionDesireInformer
 	deleteInformer *UnionDesireInformer
 	readInformer   *UnionDesireInformer
 
-	applyLister  *unionlisterskubeapplier.UnionApplyDesireLister
-	deleteLister *unionlisterskubeapplier.UnionDeleteDesireLister
-	readLister   *unionlisterskubeapplier.UnionReadDesireLister
+	applyLister  *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ApplyDesire]
+	deleteLister *unionlisterskubeapplier.UnionDesireLister[kubeapplier.DeleteDesire]
+	readLister   *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ReadDesire]
 }
 
 // NewUnionKubeApplierInformers returns an empty aggregator. Call Add to
@@ -51,9 +60,9 @@ func NewUnionKubeApplierInformers() *UnionKubeApplierInformers {
 		deleteInformer: NewUnionDesireInformer(),
 		readInformer:   NewUnionDesireInformer(),
 
-		applyLister:  unionlisterskubeapplier.NewUnionApplyDesireLister(),
-		deleteLister: unionlisterskubeapplier.NewUnionDeleteDesireLister(),
-		readLister:   unionlisterskubeapplier.NewUnionReadDesireLister(),
+		applyLister:  unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire](),
+		deleteLister: unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.DeleteDesire](),
+		readLister:   unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire](),
 	}
 }
 
@@ -76,8 +85,8 @@ func (u *UnionKubeApplierInformers) ReadDesires() (*UnionDesireInformer, listers
 
 // Add registers a per-management-cluster KubeApplierInformers under the
 // given resourceID. The sub's three informers and three listers are wired
-// into the matching union informers and listers atomically from the
-// caller's POV, though under the hood each pair has its own lock.
+// into the matching union informers and listers under u.mu, so concurrent
+// callers see the registration atomically.
 //
 // Add does not start the sub-informer; the caller is responsible for that
 // (typically by calling sub.RunWithContext on a per-MC ctx). Re-Add under
@@ -94,6 +103,9 @@ func (u *UnionKubeApplierInformers) Add(managementClusterResourceID *azcorearm.R
 	applyInf, applyLister := sub.ApplyDesires()
 	deleteInf, deleteLister := sub.DeleteDesires()
 	readInf, readLister := sub.ReadDesires()
+
+	u.mu.Lock()
+	defer u.mu.Unlock()
 
 	if err := u.applyInformer.Add(managementClusterResourceID, applyInf); err != nil {
 		return err
@@ -122,6 +134,9 @@ func (u *UnionKubeApplierInformers) Remove(managementClusterResourceID *azcorear
 	if managementClusterResourceID == nil {
 		return
 	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
 	u.applyInformer.Remove(managementClusterResourceID)
 	u.deleteInformer.Remove(managementClusterResourceID)
 	u.readInformer.Remove(managementClusterResourceID)
