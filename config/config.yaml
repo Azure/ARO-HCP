@@ -295,6 +295,7 @@ defaults:
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     adminGroups: ""
     viewerGroups: ""
+    viewerIdentities: ""
     crossClusterServiceLogsScript: ""
     crossClusterHostedControlPlaneLogsScript: ""
     sku: ""
