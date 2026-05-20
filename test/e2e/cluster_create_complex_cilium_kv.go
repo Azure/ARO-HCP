@@ -206,8 +206,8 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))
 			Expect(errors.Join(err, nodePoolErr, consoleLogErr)).NotTo(HaveOccurred())
 
-			By("verifying a simple web app can run with cilium")
-			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
+			By("checking that network works via a simple web app and connectivity checks")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifySimpleWebApp(), verifiers.VerifyCiliumConnectivityChecks("1.19.2"))
 			Expect(err).NotTo(HaveOccurred())
 		},
 	)
