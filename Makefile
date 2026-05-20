@@ -201,7 +201,7 @@ CONTAINER_RUNTIME ?= docker
 
 mega-lint:
 	$(CONTAINER_RUNTIME) run --rm \
-		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
+		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|dev-infrastructure/region-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
 		docker.io/oxsecurity/megalinter-ci_light:v9
