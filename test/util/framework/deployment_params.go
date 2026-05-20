@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type RBACScope string
@@ -398,6 +399,67 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		return clusterParams, fmt.Errorf("failed to populate cluster params from managed identities: %w", err)
 	}
 	return clusterParams, nil
+}
+
+// BuildIdentityParamsFromNames constructs the UserAssignedIdentitiesProfile and
+// ManagedServiceIdentity from identity names and resource group, without
+// requiring a Bicep deployment. This produces the same structure as the outputs
+// of non-msi-scoped-assignments.bicep.
+func BuildIdentityParamsFromNames(
+	subscriptionID string,
+	msiResourceGroupName string,
+	identities Identities,
+) (*hcpsdk20251223preview.UserAssignedIdentitiesProfile, *hcpsdk20251223preview.ManagedServiceIdentity) {
+	idFmt := "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s"
+	id := func(name string) *string {
+		return to.Ptr(fmt.Sprintf(idFmt, subscriptionID, msiResourceGroupName, name))
+	}
+
+	uamis := &hcpsdk20251223preview.UserAssignedIdentitiesProfile{
+		ControlPlaneOperators: map[string]*string{
+			"cluster-api-azure":        id(identities.ClusterApiAzureMiName),
+			"control-plane":            id(identities.ControlPlaneMiName),
+			"cloud-controller-manager": id(identities.CloudControllerManagerMiName),
+			"ingress":                  id(identities.IngressMiName),
+			"disk-csi-driver":          id(identities.DiskCsiDriverMiName),
+			"file-csi-driver":          id(identities.FileCsiDriverMiName),
+			"image-registry":           id(identities.ImageRegistryMiName),
+			"cloud-network-config":     id(identities.CloudNetworkConfigMiName),
+			"kms":                      id(identities.KmsMiName),
+		},
+		DataPlaneOperators: map[string]*string{
+			"disk-csi-driver": id(identities.DpDiskCsiDriverMiName),
+			"file-csi-driver": id(identities.DpFileCsiDriverMiName),
+			"image-registry":  id(identities.DpImageRegistryMiName),
+		},
+		ServiceManagedIdentity: id(identities.ServiceManagedIdentityName),
+	}
+
+	allIDs := []*string{
+		id(identities.ServiceManagedIdentityName),
+		id(identities.ClusterApiAzureMiName),
+		id(identities.ControlPlaneMiName),
+		id(identities.CloudControllerManagerMiName),
+		id(identities.IngressMiName),
+		id(identities.DiskCsiDriverMiName),
+		id(identities.FileCsiDriverMiName),
+		id(identities.ImageRegistryMiName),
+		id(identities.CloudNetworkConfigMiName),
+		id(identities.KmsMiName),
+		id(identities.DpDiskCsiDriverMiName),
+		id(identities.DpFileCsiDriverMiName),
+		id(identities.DpImageRegistryMiName),
+	}
+	userAssigned := make(map[string]*hcpsdk20251223preview.UserAssignedIdentity, len(allIDs))
+	for _, armID := range allIDs {
+		userAssigned[*armID] = &hcpsdk20251223preview.UserAssignedIdentity{}
+	}
+	msi := &hcpsdk20251223preview.ManagedServiceIdentity{
+		Type:                   to.Ptr(hcpsdk20251223preview.ManagedServiceIdentityTypeUserAssigned),
+		UserAssignedIdentities: userAssigned,
+	}
+
+	return uamis, msi
 }
 
 // ClusterParamsV20251223 contains parameters for v20251223preview cluster creation

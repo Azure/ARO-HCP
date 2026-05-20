@@ -105,6 +105,7 @@ type bicepDeploymentConfig struct {
 	debugDetailLevel string
 	location         string
 	template         []byte
+	identityPool     *LeasedIdentityPool
 }
 
 type BicepDeploymentOption func(*bicepDeploymentConfig)
@@ -160,6 +161,12 @@ func WithTemplateFromFS(fs embed.FS, path string) BicepDeploymentOption {
 func WithTemplateFromBytes(template []byte) BicepDeploymentOption {
 	return func(cfg *bicepDeploymentConfig) {
 		cfg.template = template
+	}
+}
+
+func WithIdentityPool(pool *LeasedIdentityPool) BicepDeploymentOption {
+	return func(cfg *bicepDeploymentConfig) {
+		cfg.identityPool = pool
 	}
 }
 
