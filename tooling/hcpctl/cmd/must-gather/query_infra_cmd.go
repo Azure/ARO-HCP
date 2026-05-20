@@ -75,6 +75,7 @@ func (opts *CompletedInfraQueryOptions) RunInfra(ctx context.Context) error {
 				TimestampMin:     opts.TimestampMin,
 				TimestampMax:     opts.TimestampMax,
 				Limit:            opts.Limit,
+				SplitByPod:       opts.SplitByPod,
 			},
 		}, true)
 

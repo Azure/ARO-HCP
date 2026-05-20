@@ -1,7 +1,12 @@
 {{- if .NoTruncation}}set notruncation;
 {{end -}}
 {{.Table}}
+{{- if .SplitByPod}}
+| extend pod_name = column_ifexists("pod_name", "")
+| project timestamp, log, cluster, namespace_name, container_name, pod_name
+{{- else}}
 | project timestamp, log, cluster, namespace_name, container_name
+{{- end}}
 | where timestamp between({{ .TimestampMin }} .. {{ .TimestampMax }})
 | where cluster == '{{.ClusterName}}'
 {{- if gt .Limit 0}}
