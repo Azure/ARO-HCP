@@ -1228,7 +1228,8 @@ func (tc *perItOrDescribeTestContext) EnsureIdentityRoleAssignments(
 	}
 
 	// Assign the custom role to the identity at subscription scope
-	err = tc.assignRoleToIdentity(ctx, subscriptionID, *identity.Properties.PrincipalID, customRoleID)
+	subscriptionScope := fmt.Sprintf("/subscriptions/%s", subscriptionID)
+	err = tc.AssignRoleAtScope(ctx, subscriptionID, subscriptionScope, *identity.Properties.PrincipalID, customRoleID)
 	if err != nil {
 		return fmt.Errorf("failed to assign custom role to identity %s: %w", identityName, err)
 	}
@@ -1338,10 +1339,12 @@ func (tc *perItOrDescribeTestContext) ensureCustomRole(
 	return *result.ID, *result.Properties.RoleName, nil
 }
 
-// assignRoleToIdentity assigns a role to a managed identity at the subscription scope.
-func (tc *perItOrDescribeTestContext) assignRoleToIdentity(
+// AssignRoleAtScope assigns a role to a managed identity at the given scope
+// and tracks the assignment for cleanup.
+func (tc *perItOrDescribeTestContext) AssignRoleAtScope(
 	ctx context.Context,
 	subscriptionID string,
+	scope string,
 	principalID string,
 	roleDefinitionID string,
 ) error {
@@ -1355,9 +1358,6 @@ func (tc *perItOrDescribeTestContext) assignRoleToIdentity(
 		return fmt.Errorf("failed to create role assignments client: %w", err)
 	}
 
-	// Generate a unique assignment name using GUID
-	// Assign at subscription scope to match where the built-in role is assigned
-	scope := fmt.Sprintf("/subscriptions/%s", subscriptionID)
 	assignmentName := guid(scope, principalID, roleDefinitionID)
 
 	roleAssignmentProperties := &armauthorization.RoleAssignmentProperties{

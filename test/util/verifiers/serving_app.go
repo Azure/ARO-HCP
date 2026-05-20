@@ -44,9 +44,35 @@ import (
 //go:embed artifacts
 var staticFiles embed.FS
 
+type webAppConfig struct {
+	nodeSelector map[string]string
+	routeLabels  map[string]string
+	routeHost    string
+}
+
+type WebAppOption func(*webAppConfig)
+
+func WithNodeSelector(nodeSelector map[string]string) WebAppOption {
+	return func(c *webAppConfig) {
+		c.nodeSelector = nodeSelector
+	}
+}
+
+func WithRouteLabels(labels map[string]string) WebAppOption {
+	return func(c *webAppConfig) {
+		c.routeLabels = labels
+	}
+}
+
+func WithRouteHost(host string) WebAppOption {
+	return func(c *webAppConfig) {
+		c.routeHost = host
+	}
+}
+
 type verifySimpleWebApp struct {
 	namespaceName string
-	nodeSelector  map[string]string
+	config        webAppConfig
 }
 
 func (v verifySimpleWebApp) Name() string {
@@ -85,7 +111,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 
 	deploymentYAML := must(staticFiles.ReadFile("artifacts/serving_app/deployment.yaml"))
 
-	if v.nodeSelector != nil {
+	if v.config.nodeSelector != nil {
 
 		var deploymentMap map[string]any
 		if err := yaml.Unmarshal(deploymentYAML, &deploymentMap); err != nil {
@@ -95,7 +121,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		if spec, ok := deploymentMap["spec"].(map[string]any); ok {
 			if template, ok := spec["template"].(map[string]any); ok {
 				if templateSpec, ok := template["spec"].(map[string]any); ok {
-					templateSpec["nodeSelector"] = v.nodeSelector
+					templateSpec["nodeSelector"] = v.config.nodeSelector
 				}
 			}
 		}
@@ -114,7 +140,11 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	if err != nil {
 		return fmt.Errorf("failed to create service: %w", err)
 	}
-	route, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, must(staticFiles.ReadFile("artifacts/serving_app/route.yaml")))
+	routeYAML, err := buildRouteYAML(v.config.routeLabels, v.config.routeHost)
+	if err != nil {
+		return fmt.Errorf("failed to build route YAML: %w", err)
+	}
+	route, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, routeYAML)
 	if err != nil {
 		return fmt.Errorf("failed to create route: %w", err)
 	}
@@ -338,12 +368,45 @@ func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.C
 	return nil
 }
 
-func VerifySimpleWebApp(nodeSelector ...map[string]string) HostedClusterVerifier {
-	var ns map[string]string
-	if len(nodeSelector) > 0 {
-		ns = nodeSelector[0]
+func VerifySimpleWebApp(opts ...WebAppOption) HostedClusterVerifier {
+	var cfg webAppConfig
+	for _, opt := range opts {
+		opt(&cfg)
 	}
-	return verifySimpleWebApp{nodeSelector: ns}
+	return verifySimpleWebApp{config: cfg}
+}
+
+func buildRouteYAML(routeLabels map[string]string, routeHost string) ([]byte, error) {
+	routeYAML := must(staticFiles.ReadFile("artifacts/serving_app/route.yaml"))
+	if routeLabels == nil && len(routeHost) == 0 {
+		return routeYAML, nil
+	}
+
+	var routeMap map[string]any
+	if err := yaml.Unmarshal(routeYAML, &routeMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal route YAML: %w", err)
+	}
+
+	if routeLabels != nil {
+		if metadata, ok := routeMap["metadata"].(map[string]any); ok {
+			existing, _ := metadata["labels"].(map[string]any)
+			if existing == nil {
+				existing = make(map[string]any)
+			}
+			for k, val := range routeLabels {
+				existing[k] = val
+			}
+			metadata["labels"] = existing
+		}
+	}
+
+	if len(routeHost) > 0 {
+		if spec, ok := routeMap["spec"].(map[string]any); ok {
+			spec["host"] = routeHost
+		}
+	}
+
+	return yaml.Marshal(routeMap)
 }
 
 func must[T any](v T, err error) T {

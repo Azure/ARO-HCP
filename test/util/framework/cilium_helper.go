@@ -28,17 +28,19 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-// Install Cilium helm chart using the helm Go SDK. Cilium configuration is
-// passed via values argument.
-func InstallCiliumChart(ctx context.Context, chartVersion string, values map[string]any, kubeconfigContent, ciliumNamespace string) error {
-	const (
-		releaseName   = "cilium"
-		ciliumRepoURL = "https://helm.cilium.io/"
-		chartName     = "cilium"
-	)
+// HelmChartConfig configures a Helm chart installation.
+type HelmChartConfig struct {
+	ReleaseName string
+	RepoURL     string
+	ChartName   string
+	Version     string
+	Namespace   string
+	Values      map[string]any
+}
 
-	// generating kubeconfig file for helm client
-	kubeconfigFile, err := os.CreateTemp("", "kubeconfig-cilium-*.yaml")
+// InstallHelmChart installs a Helm chart using the Helm Go SDK.
+func InstallHelmChart(ctx context.Context, cfg HelmChartConfig, kubeconfigContent string) error {
+	kubeconfigFile, err := os.CreateTemp("", "kubeconfig-helm-*.yaml")
 	if err != nil {
 		return fmt.Errorf("failed to create temp kubeconfig file: %w", err)
 	}
@@ -53,39 +55,49 @@ func InstallCiliumChart(ctx context.Context, chartVersion string, values map[str
 		return fmt.Errorf("failed to close kubeconfig file: %w", err)
 	}
 
-	// Initialize helm action configuration with the kubeconfig
 	actionCfg := &action.Configuration{}
 	cliOpts := &genericclioptions.ConfigFlags{
 		KubeConfig: ptr.To(kubeconfigFile.Name()),
-		Namespace:  ptr.To(ciliumNamespace),
+		Namespace:  ptr.To(cfg.Namespace),
 	}
-	if err := actionCfg.Init(cliOpts, ciliumNamespace, ""); err != nil {
+	if err := actionCfg.Init(cliOpts, cfg.Namespace, ""); err != nil {
 		return fmt.Errorf("failed to init helm action config: %w", err)
 	}
 
-	// Locate and download the chart from the Cilium repo
 	installClient := action.NewInstall(actionCfg)
-	installClient.ReleaseName = releaseName
-	installClient.Namespace = ciliumNamespace
-	installClient.RepoURL = ciliumRepoURL
+	installClient.ReleaseName = cfg.ReleaseName
+	installClient.Namespace = cfg.Namespace
+	installClient.RepoURL = cfg.RepoURL
 	installClient.WaitStrategy = kube.HookOnlyStrategy
-	installClient.Version = chartVersion
+	installClient.Version = cfg.Version
 
 	settings := cli.New()
-	chartPath, err := installClient.LocateChart(chartName, settings)
+	chartPath, err := installClient.LocateChart(cfg.ChartName, settings)
 	if err != nil {
-		return fmt.Errorf("failed to locate cilium chart: %w", err)
+		return fmt.Errorf("failed to locate chart %s: %w", cfg.ChartName, err)
 	}
 
 	chart, err := loader.Load(chartPath)
 	if err != nil {
-		return fmt.Errorf("failed to load cilium chart: %w", err)
+		return fmt.Errorf("failed to load chart %s: %w", cfg.ChartName, err)
 	}
 
-	_, err = installClient.RunWithContext(ctx, chart, values)
+	_, err = installClient.RunWithContext(ctx, chart, cfg.Values)
 	if err != nil {
-		return fmt.Errorf("failed to install cilium chart: %w", err)
+		return fmt.Errorf("failed to install chart %s: %w", cfg.ChartName, err)
 	}
 
 	return nil
+}
+
+// InstallCiliumChart installs the Cilium Helm chart.
+func InstallCiliumChart(ctx context.Context, chartVersion string, values map[string]any, kubeconfigContent, ciliumNamespace string) error {
+	return InstallHelmChart(ctx, HelmChartConfig{
+		ReleaseName: "cilium",
+		RepoURL:     "https://helm.cilium.io/",
+		ChartName:   "cilium",
+		Version:     chartVersion,
+		Namespace:   ciliumNamespace,
+		Values:      values,
+	}, kubeconfigContent)
 }

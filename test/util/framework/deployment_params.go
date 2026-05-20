@@ -68,6 +68,7 @@ type ClusterParams struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	IngressPublicIPAddress        string
 	KeyVaultVisibility            string
 	Network                       NetworkConfig
 	APIVisibility                 string
@@ -295,6 +296,8 @@ func PopulateClusterParamsFromCustomerInfraDeployment(
 	if err != nil {
 		return params, fmt.Errorf("failed to get vnetSubnetName from customer infra deployment: %w", err)
 	}
+	ingressPublicIPAddress, _ := GetOutputValueString(customerInfraDeploymentResult, "ingressPublicIPAddress")
+
 	params.KeyVaultName = keyVaultName
 	params.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
 	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
@@ -304,6 +307,7 @@ func PopulateClusterParamsFromCustomerInfraDeployment(
 	params.VnetName = vnetName
 	params.NsgName = nsgName
 	params.SubnetName = subnetName
+	params.IngressPublicIPAddress = ingressPublicIPAddress
 	return params, nil
 }
 
