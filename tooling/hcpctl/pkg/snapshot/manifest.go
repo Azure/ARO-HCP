@@ -54,6 +54,11 @@ type Manifest struct {
 type TimeWindow struct {
 	Start time.Time `json:"start"`
 	End   time.Time `json:"end"`
+
+	// CleanupStartTime is when test cleanup began. Point-in-time condition
+	// snapshots use this (when non-zero) instead of End to capture state
+	// before teardown.
+	CleanupStartTime time.Time `json:"cleanup_start_time,omitempty"`
 }
 
 // ResourceEntry describes diagnostic data gathered for a single ARM resource.

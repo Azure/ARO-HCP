@@ -7,6 +7,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendL
     client_request_id = tostring(log.client_request_id),
     method = tostring(log.method),
     path = tostring(log.resource_id),
+    cluster_resource_id = tostring(log.hcp_cluster_name),
     status = toint(log.response_status_code),
     timestamp = bin(timestamp, 1s)
 | order by timestamp asc

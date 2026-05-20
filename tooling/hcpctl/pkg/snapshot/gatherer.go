@@ -28,11 +28,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
-
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/go-logr/logr"
 )
 
 // GatherInput provides the parameters needed to gather a diagnostic snapshot.
@@ -52,6 +52,12 @@ type GatherInput struct {
 	// Concurrency is the maximum number of concurrent Kusto queries.
 	// A value of 0 defaults to 4 * runtime.NumCPU().
 	Concurrency int
+	// CleanupStartTime is the time at which test cleanup (resource deletion)
+	// began. When set, queries that want a "point-in-time" snapshot of resource
+	// state will use this as the upper bound instead of EndTime, so that the
+	// snapshot reflects the resource as it existed before deletion.
+	// A zero value means no cleanup time is available and EndTime is used.
+	CleanupStartTime time.Time
 }
 
 // concurrency returns the effective concurrency limit.
@@ -164,12 +170,14 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	}
 
 	seedData := queryData{
-		ClusterURI:      input.ClusterURI,
-		ServiceDatabase: input.ServiceDatabase,
-		HCPDatabase:     input.HCPDatabase,
-		StartTime:       input.TimeWindow.Start,
-		EndTime:         input.TimeWindow.End,
-		ResourceGroup:   input.ResourceGroup,
+		ClusterURI:       input.ClusterURI,
+		ServiceDatabase:  input.ServiceDatabase,
+		HCPDatabase:      input.HCPDatabase,
+		StartTime:        input.TimeWindow.Start,
+		EndTime:          input.TimeWindow.End,
+		ResourceGroup:    input.ResourceGroup,
+		CleanupStartTime: input.CleanupStartTime,
+		EffectiveEndTime: effectiveEndTime(input),
 	}
 
 	pool := &queryPool{gatherer: g, input: input}
@@ -189,7 +197,11 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	}
 
 	manifest := &Manifest{
-		TimeWindow:      input.TimeWindow,
+		TimeWindow: TimeWindow{
+			Start:            input.TimeWindow.Start,
+			End:              input.TimeWindow.End,
+			CleanupStartTime: input.CleanupStartTime,
+		},
 		ResourceGroup:   input.ResourceGroup,
 		KustoCluster:    input.ClusterURI,
 		KustoDatabase:   input.ServiceDatabase,
@@ -203,7 +215,6 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		mu *sync.Mutex
 	}
 	var trackedReqs []trackedRequestWithMu
-	var pool1Items []workItem
 	discoveryQueries := queriesByCategory(categoryRequestDiscovery)
 
 	for _, req := range requests {
@@ -216,18 +227,27 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		reqData.CorrelationID = req.CorrelationID
 		reqData.ClientRequestID = req.ClientRequestID
 		reqData.ResponseStatusCode = req.Status
+		reqData.ResourceID = req.ResourceID
+		reqData.ResourceType = req.ResourceType
+		reqData.ResourceName = req.ResourceName
+		reqData.ClusterResourceID = req.ClusterResourceID
+		reqData.ClusterResourceName = req.ClusterResourceName
+		reqData.ServiceProviderResourceType = req.ServiceProviderResourceType
 
-		tr := trackedRequestWithMu{
+		trackedReqs = append(trackedReqs, trackedRequestWithMu{
 			trackedRequest: trackedRequest{
 				req:           req,
 				data:          reqData,
 				cachedResults: make(map[string][]resultRow),
 			},
 			mu: &sync.Mutex{},
-		}
-		trackedReqs = append(trackedReqs, tr)
-		idx := len(trackedReqs) - 1
+		})
+	}
 
+	// Build pool1 work items after the trackedReqs slice is finalized, so
+	// that pointers into the slice are stable (append may reallocate).
+	var pool1Items []workItem
+	for idx := range trackedReqs {
 		for _, q := range discoveryQueries {
 			pool1Items = append(pool1Items, workItem{
 				query: q,
@@ -498,19 +518,24 @@ func mergeResourceData(dst *queryData, src queryData) {
 
 // frontendRequest represents a single ARM request discovered in frontend logs.
 type frontendRequest struct {
-	CorrelationID   string
-	ClientRequestID string
-	Method          string
-	Path            string
-	ResourceType    string
-	ResourceName    string
-	Status          int
-	Timestamp       time.Time
+	CorrelationID               string
+	ClientRequestID             string
+	Method                      string
+	Path                        string
+	ResourceID                  string
+	ResourceType                string
+	ResourceName                string
+	ClusterResourceID           string
+	ClusterResourceName         string
+	ServiceProviderResourceType string
+	Status                      int
+	Timestamp                   time.Time
 }
 
 // discoverRequests queries frontend logs to find all ARM requests in the resource group
 // during the time window.
 func (g *Gatherer) discoverRequests(ctx context.Context, input GatherInput, data queryData) ([]frontendRequest, error) {
+	logger := logr.FromContextOrDiscard(ctx)
 	rendered, err := renderQuery("queries/frontend/frontendRequests/query.kql", data)
 	if err != nil {
 		return nil, err
@@ -535,67 +560,57 @@ func (g *Gatherer) discoverRequests(ctx context.Context, input GatherInput, data
 				req.Method = strings.ToUpper(val)
 			case "path":
 				req.Path = val
+			case "cluster_resource_id":
+				if val != "" {
+					req.ClusterResourceID = val
+					if clusterParsed, err := azcorearm.ParseResourceID(val); err == nil {
+						req.ClusterResourceName = clusterParsed.Name
+					}
+				}
 			case "status":
 				_, _ = fmt.Sscanf(val, "%d", &req.Status)
 			case "timestamp":
 				req.Timestamp, _ = time.Parse(time.RFC3339, val)
 			}
 		}
-		// Parse resource type and name from the path.
+		// Parse resource type and name from the path. The path column from
+		// frontendRequests is the full ARM resource ID.
 		if req.Path != "" {
-			if parsed, err := parseResourceFromPath(req.Path); err == nil {
-				req.ResourceType = parsed.resourceType
-				req.ResourceName = parsed.resourceName
+			if res, err := azcorearm.ParseResourceID(req.Path); err == nil {
+				req.ResourceID = req.Path
+				req.ResourceType = res.ResourceType.String()
+				req.ResourceName = res.Name
+				req.ServiceProviderResourceType = serviceProviderResourceType(req.ResourceType)
+				// If cluster_resource_id wasn't returned by the query, fall
+				// back to deriving it from the path.
+				if req.ClusterResourceName == "" {
+					if res.Parent != nil && res.Parent.ResourceType.Type != "" {
+						req.ClusterResourceID = res.Parent.String()
+						req.ClusterResourceName = res.Parent.Name
+					} else {
+						req.ClusterResourceID = req.Path
+						req.ClusterResourceName = res.Name
+					}
+				}
+				logger.V(2).Info("Parsed resource from request path",
+					"clientRequestID", req.ClientRequestID,
+					"resourceType", req.ResourceType,
+					"resourceName", req.ResourceName,
+					"clusterResourceName", req.ClusterResourceName,
+					"path", req.Path,
+				)
+			} else {
+				logger.V(2).Info("Failed to parse resource from request path",
+					"clientRequestID", req.ClientRequestID,
+					"path", req.Path,
+					"err", err,
+				)
 			}
 		}
 		requests = append(requests, req)
 	}
 
 	return requests, nil
-}
-
-type parsedResource struct {
-	resourceType string
-	resourceName string
-}
-
-func parseResourceFromPath(path string) (parsedResource, error) {
-	// ARM resource IDs look like:
-	// /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{name}
-	// /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{name}/nodePools/{npName}
-	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	providerIdx := -1
-	for i, p := range parts {
-		if strings.EqualFold(p, "providers") {
-			providerIdx = i
-			break
-		}
-	}
-	if providerIdx < 0 || providerIdx+2 >= len(parts) {
-		return parsedResource{}, fmt.Errorf("cannot parse resource from path: %s", path)
-	}
-	// Build resource type and find the last name segment.
-	remaining := parts[providerIdx+1:] // e.g. ["Microsoft.RedHatOpenShift", "hcpOpenShiftClusters", "name", "nodePools", "npName"]
-	if len(remaining) < 2 {
-		return parsedResource{}, fmt.Errorf("cannot parse resource from path: %s", path)
-	}
-
-	// Resource type segments: provider/type[/subType]*
-	// Resource name is the last segment.
-	var typeParts []string
-	var name string
-	typeParts = append(typeParts, remaining[0]) // provider namespace
-	for i := 1; i < len(remaining); i += 2 {
-		typeParts = append(typeParts, remaining[i])
-		if i+1 < len(remaining) {
-			name = remaining[i+1]
-		}
-	}
-
-	return parsedResource{
-		resourceType: strings.Join(typeParts, "/"),
-		resourceName: name,
-	}, nil
 }
 
 // resultRow is a simple container for a row of query results.
