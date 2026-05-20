@@ -59,3 +59,15 @@ spec:
         summary: "Frontend audit log connection is degraded."
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
         description: "The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent."
+    - alert: FrontendHttpRequestPanics
+      expr: |
+        sum by (cluster) (
+          increase(frontend_http_request_panics_total[5m])
+        ) > 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Frontend HTTP request handler has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend is panicking during HTTP request handling'
