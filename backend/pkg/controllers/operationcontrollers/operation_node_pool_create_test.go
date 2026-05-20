@@ -25,12 +25,22 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestOperationNodePoolCreate_ShouldProcess_requiresInternalID(t *testing.T) {
+	ctx := context.Background()
+	controller := &operationNodePoolCreate{}
+	fixture := newNodePoolTestFixture()
+	op := fixture.newOperation(database.OperationRequestCreate)
+	op.InternalID = api.InternalID{}
+	require.False(t, controller.ShouldProcess(ctx, op))
+}
 
 func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
