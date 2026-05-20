@@ -69,5 +69,9 @@ Customer should be able to update nodepool replicas and autoscaling
 Customer should upgrade and update a nodepool from 4.20.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.21.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.20.z to 4.20.zLatest
+Customer should upgrade a nodepool to a version without Cincinnati upgrade edge z-stream upgrade without Cincinnati edge in 4.20
+Customer should upgrade a nodepool skipping one minor version (+2) from 4.20.z to 4.22.zLatest
+Customer should downgrade a nodepool version z-stream downgrade from 4.21.zLatest to 4.21.zPrevious
+Customer should downgrade a nodepool to a lower minor version from 4.21.zLatest to 4.19.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should not be able to perform various invalid operations on cluster resources

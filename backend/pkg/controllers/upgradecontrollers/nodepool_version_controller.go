@@ -91,16 +91,12 @@ func NewNodePoolVersionController(
 // 1. Active Version Tracking:
 //   - Reads the current running version from Cluster Service (csNodePool.Version)
 //   - Stores it in ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-//   - Maintains up to 2 versions during upgrades (newest first, then previous)
+//   - Maintains up to 2 versions during version changes (newest first, then previous)
 //
 // 2. Desired Version Validation and Storage:
 //   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID
-//   - Validates it against upgrade constraints (see below)
-//   - The desired version must satisfy:
-//   - Not less than the highest active version (no downgrades)
-//   - Not greater than the lowest control plane version (node pools cannot exceed CP)
-//   - Not skip minor versions (only z-stream or +1 minor allowed)
-//   - Have a valid upgrade path in Cincinnati from the current version
+//   - Validates it against version change constraints
+//   - Both upgrades and downgrades are supported — HCP nodepools use Replace strategy
 //   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
 //
 // If the desired version is already among the active versions, validation is skipped
@@ -251,13 +247,17 @@ func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersio
 	return newVersions
 }
 
-// validateDesiredNodePoolVersion checks that the desired node pool version is a valid upgrade path.
+// validateDesiredNodePoolVersion checks that the desired node pool version is a valid change.
 // It validates:
-//   - The desired version is not less than the highest active node pool version (no downgrades)
-//   - The desired version is not greater than the lowest control plane version
-//   - No major version changes (unless FeatureExperimentalReleaseFeatures is registered)
-//   - No minor versions are skipped
-//   - An upgrade path exists from the current version (all the activeVersions) to the desired version (via Cincinnati)
+//   - Cannot exceed lowest control plane version (upper bound)
+//   - Must be within 2 minor versions of control plane (N-2 skew lower bound, same major)
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - Upgrade minor skip limited to +2 from current nodepool version (downgrades bounded by N-2 skew)
+//   - The desired version exists in Cincinnati
+//
+// Cincinnati upgrade-edge validation is intentionally skipped — HCP nodepools use the Replace
+// strategy (destroy + recreate), so only version existence matters.
+// See https://hypershift.pages.dev/reference/nodepool-rollouts/#upgrade-types
 //
 // Returns nil if the desired version is valid, or an error describing why it's invalid.
 func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
@@ -290,22 +290,19 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 		return err
 	}
 
-	// Validate upgrade path exists in Cincinnati for ALL active node pool versions
-	for _, activeVersion := range nodePoolActiveVersions {
-		if activeVersion.Version != nil && !desiredVersion.EQ(*activeVersion.Version) {
-			if err := c.validateUpgradePathAvailable(ctx, activeVersion.Version, desiredVersion, channelGroup, clusterUUID); err != nil {
-				return fmt.Errorf("no valid upgrade path from active version %s: %w", activeVersion.Version.String(), err)
-			}
-		}
+	// Validate the desired version exists in Cincinnati (not that an edge exists from the current version).
+	if err := c.validateVersionExistsInCincinnati(ctx, desiredVersion, channelGroup, clusterUUID); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// validateUpgradePathAvailable checks that an upgrade path exists from current to desired version.
-func (c *nodePoolVersionSyncer) validateUpgradePathAvailable(
+// validateVersionExistsInCincinnati checks that the desired version exists as a node in the
+// Cincinnati update graph.
+func (c *nodePoolVersionSyncer) validateVersionExistsInCincinnati(
 	ctx context.Context,
-	currentVersion, desiredVersion *semver.Version,
+	version *semver.Version,
 	channelGroup string,
 	clusterUUID uuid.UUID,
 ) error {
@@ -314,23 +311,17 @@ func (c *nodePoolVersionSyncer) validateUpgradePathAvailable(
 		return fmt.Errorf("failed to get Cincinnati URI: %w", err)
 	}
 
-	targetMinorString := fmt.Sprintf("%d.%d", desiredVersion.Major, desiredVersion.Minor)
-	cincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, targetMinorString)
-
+	cincinnatiChannel := fmt.Sprintf("%s-%d.%d", channelGroup, version.Major, version.Minor)
 	cincinnatiClient := c.cincinnatiClientCache.GetOrCreateClient(clusterUUID)
-	// Get updates for the current version
-	// TODO: for nodePools we should use the arch of that nodePool
-	_, candidates, _, err := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, *currentVersion)
+
+	// GetUpdates returns VersionNotFound if the version doesn't exist in the channel.
+	_, _, _, err = cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, *version)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to query Cincinnati for upgrade path: %w", err))
-	}
-
-	for _, candidate := range candidates {
-		candidateVersion := semver.MustParse(candidate.Version)
-		if candidateVersion.EQ(*desiredVersion) {
-			return nil
+		if cincinnati.IsCincinnatiVersionNotFoundError(err) {
+			return utils.TrackError(fmt.Errorf("version %s not found in Cincinnati channel %s", version, cincinnatiChannel))
 		}
+		return utils.TrackError(fmt.Errorf("failed to query Cincinnati for version existence: %w", err))
 	}
 
-	return utils.TrackError(fmt.Errorf("no upgrade path available from %s to %s in channel %s", currentVersion, desiredVersion, cincinnatiChannel))
+	return nil
 }
