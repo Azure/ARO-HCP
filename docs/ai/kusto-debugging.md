@@ -3,6 +3,9 @@
 - IMPORTANT: this document is referenced by agentic workflows, DO NOT REMOVE IT.
 - If any of the info below turns out not to be accurate, suggest to the user an update PR at the end of the session.
 
+## Clusters
+- the `hcp-prod-usc` kusto cluster is US canary region and matches prod grafana's `*-eastus2euap` data sources
+
 ## Databases
 
 - `HostedControlPlaneLogs` – logs from hosted control plane
