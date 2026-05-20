@@ -31,6 +31,7 @@ type ResourceCRUD[InternalAPIType any] interface {
 	GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error)
 	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
+	Count(ctx context.Context) (int, error)
 	Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Delete(ctx context.Context, resourceID string) error
@@ -43,6 +44,7 @@ type ValidatingResourceCRUD[InternalAPIType any] interface {
 	GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error)
 	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
+	Count(ctx context.Context) (int, error)
 	Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Replace(ctx context.Context, newObj *InternalAPIType, oldObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error)
 	Delete(ctx context.Context, resourceID string) error
@@ -144,6 +146,22 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx cont
 	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
 
 	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, &d.resourceType, prefix, options, false)
+}
+
+// Count returns the number of resources of this type under the parent using a
+// server-side COUNT query, without transferring document bodies.
+func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Count(ctx context.Context) (int, error) {
+	if d.parentResourceID == nil {
+		return count(ctx, d.containerClient, "", &azcorearm.SubscriptionResourceType, nil, false)
+	}
+
+	prefix, err := d.makeResourceIDPath("")
+	if err != nil {
+		return 0, fmt.Errorf("failed to make ResourceID path for '%s': %w", d.parentResourceID.ResourceGroupName, err)
+	}
+	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+
+	return count(ctx, d.containerClient, partitionKey, &d.resourceType, prefix, false)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {

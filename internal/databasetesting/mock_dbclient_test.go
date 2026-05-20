@@ -958,6 +958,216 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 	}
 }
 
+func TestMockResourcesDBClient_Count(t *testing.T) {
+	mock := NewMockResourcesDBClient()
+	ctx := context.Background()
+
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	resourceGroupName := "test-rg"
+	clusterName := "test-cluster"
+
+	clusterCRUD := mock.HCPClusters(subscriptionID, resourceGroupName)
+	nodePoolCRUD := clusterCRUD.NodePools(clusterName)
+
+	// Count on empty store should return 0
+	n, err := clusterCRUD.Count(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count clusters: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("Expected 0 clusters, got %d", n)
+	}
+
+	// Create a cluster
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
+
+	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	if err != nil {
+		t.Fatalf("Failed to create internal ID: %v", err)
+	}
+
+	cluster := &api.HCPOpenShiftCluster{
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   clusterResourceID,
+				Name: clusterName,
+				Type: api.ClusterResourceType.String(),
+			},
+			Location: "eastus",
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: arm.ProvisioningStateSucceeded,
+			ClusterServiceID:  &internalID,
+		},
+	}
+
+	_, err = clusterCRUD.Create(ctx, cluster, nil)
+	if err != nil {
+		t.Fatalf("Failed to create cluster: %v", err)
+	}
+
+	// Count should now return 1
+	n, err = clusterCRUD.Count(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count clusters: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("Expected 1 cluster, got %d", n)
+	}
+
+	// Create two node pools
+	for _, npName := range []string{"np-1", "np-2"} {
+		npResourceID := api.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + subscriptionID +
+				"/resourceGroups/" + resourceGroupName +
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+				"/nodePools/" + npName))
+
+		np := &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: api.CosmosMetadata{ResourceID: npResourceID},
+			TrackedResource: arm.TrackedResource{
+				Resource: arm.Resource{
+					ID:   npResourceID,
+					Name: npName,
+					Type: api.NodePoolResourceType.String(),
+				},
+				Location: "eastus",
+			},
+		}
+
+		_, err = nodePoolCRUD.Create(ctx, np, nil)
+		if err != nil {
+			t.Fatalf("Failed to create node pool %s: %v", npName, err)
+		}
+	}
+
+	// Node pool count should be 2
+	n, err = nodePoolCRUD.Count(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count node pools: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("Expected 2 node pools, got %d", n)
+	}
+
+	// Cluster count should still be 1
+	n, err = clusterCRUD.Count(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count clusters: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("Expected 1 cluster, got %d", n)
+	}
+
+	// Delete one node pool and verify count decreases
+	err = nodePoolCRUD.Delete(ctx, "np-1")
+	if err != nil {
+		t.Fatalf("Failed to delete node pool: %v", err)
+	}
+
+	n, err = nodePoolCRUD.Count(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count node pools: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("Expected 1 node pool after deletion, got %d", n)
+	}
+}
+
+func TestMockResourcesDBClient_UntypedCRUD_Count(t *testing.T) {
+	mock := NewMockResourcesDBClient()
+	ctx := context.Background()
+
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+	resourceGroupName := "test-rg"
+	clusterName := "test-cluster"
+
+	// Create a cluster with a node pool
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
+
+	internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123")
+	if err != nil {
+		t.Fatalf("Failed to create internal ID: %v", err)
+	}
+
+	cluster := &api.HCPOpenShiftCluster{
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   clusterResourceID,
+				Name: clusterName,
+				Type: api.ClusterResourceType.String(),
+			},
+			Location: "eastus",
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: arm.ProvisioningStateSucceeded,
+			ClusterServiceID:  &internalID,
+		},
+	}
+
+	clusterCRUD := mock.HCPClusters(subscriptionID, resourceGroupName)
+	_, err = clusterCRUD.Create(ctx, cluster, nil)
+	if err != nil {
+		t.Fatalf("Failed to create cluster: %v", err)
+	}
+
+	npResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName +
+			"/nodePools/np-1"))
+
+	np := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: npResourceID},
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   npResourceID,
+				Name: "np-1",
+				Type: api.NodePoolResourceType.String(),
+			},
+			Location: "eastus",
+		},
+	}
+
+	_, err = clusterCRUD.NodePools(clusterName).Create(ctx, np, nil)
+	if err != nil {
+		t.Fatalf("Failed to create node pool: %v", err)
+	}
+
+	// Get untyped CRUD scoped to the cluster
+	untypedCRUD, err := mock.UntypedCRUD(*clusterResourceID)
+	if err != nil {
+		t.Fatalf("Failed to get untyped CRUD: %v", err)
+	}
+
+	// Count (non-recursive) should return only direct children
+	n, err := untypedCRUD.Count(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("Expected 1 direct child (node pool), got %d", n)
+	}
+
+	// CountRecursive should return all descendants
+	nRecursive, err := untypedCRUD.CountRecursive(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count recursive: %v", err)
+	}
+	if nRecursive < 1 {
+		t.Errorf("Expected at least 1 descendant, got %d", nRecursive)
+	}
+	if nRecursive < n {
+		t.Errorf("CountRecursive (%d) should be >= Count (%d)", nRecursive, n)
+	}
+}
+
 func TestNewMockResourcesDBClientWithResources_Error(t *testing.T) {
 	ctx := context.Background()
 

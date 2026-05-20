@@ -316,6 +316,98 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 	return responseItemToInternalObj[InternalAPIType, CosmosAPIType](ctx, cosmosMetadata.GetCosmosUID(), responseItem)
 }
 
+// count returns the number of documents matching the given filters using a
+// server-side COUNT query (SELECT VALUE COUNT(1)). It applies the same
+// filtering logic as list (resource ID prefix, resource type, and
+// non-recursive slash counting) but avoids transferring document bodies.
+//
+// Parameters:
+//   - partitionKeyString: the Cosmos DB partition key (must be lowercase). An
+//     empty string performs a cross-partition query.
+//   - resourceType: when non-nil, only documents whose resourceType field
+//     matches (case-insensitive) are counted. At least one of resourceType
+//     or prefix must be provided.
+//   - prefix: when non-nil, only documents whose resourceID starts with
+//     prefix are counted. At least one of resourceType or prefix must be
+//     provided.
+//   - untypedNonRecursive: when true, an additional slash-count filter is
+//     applied so that only direct children of prefix are counted (matching
+//     the non-recursive behaviour of list).
+func count(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceType *azcorearm.ResourceType, prefix *azcorearm.ResourceID, untypedNonRecursive bool) (int, error) {
+	if strings.ToLower(partitionKeyString) != partitionKeyString {
+		return 0, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	if prefix == nil && resourceType == nil {
+		return 0, fmt.Errorf("prefix or resource type is required")
+	}
+
+	query := ""
+	queryOptions := azcosmos.QueryOptions{
+		PageSizeHint: -1,
+	}
+	if prefix == nil {
+		query = "SELECT VALUE COUNT(1) FROM c"
+	} else {
+		query = "SELECT VALUE COUNT(1) FROM c WHERE STARTSWITH(c.resourceID, @prefix, true)"
+		queryOptions = azcosmos.QueryOptions{
+			PageSizeHint: -1,
+			QueryParameters: []azcosmos.QueryParameter{
+				{
+					Name:  "@prefix",
+					Value: prefix.String() + "/",
+				},
+			},
+		}
+	}
+
+	if resourceType != nil {
+		if prefix == nil {
+			query += " WHERE STRINGEQUALS(c.resourceType, @resourceType, true)"
+		} else {
+			query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
+		}
+		queryParameter := azcosmos.QueryParameter{
+			Name:  "@resourceType",
+			Value: resourceType.String(),
+		}
+		queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
+	}
+
+	if untypedNonRecursive {
+		requiredNumSlashes := strings.Count(prefix.String(), "/") + 2
+		if strings.EqualFold(prefix.ResourceType.Type, "resourceGroups") {
+			requiredNumSlashes = strings.Count(prefix.String(), "/") + 4
+		}
+		query += fmt.Sprintf(" AND (LENGTH(c.resourceID) - LENGTH(REPLACE(c.resourceID, '/', ''))) = %d", requiredNumSlashes)
+	}
+
+	var partitionKey azcosmos.PartitionKey
+	if len(partitionKeyString) > 0 {
+		partitionKey = azcosmos.NewPartitionKeyString(partitionKeyString)
+	} else {
+		partitionKey = azcosmos.NewPartitionKey()
+	}
+
+	pager := containerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
+
+	total := 0
+	for pager.More() {
+		response, err := pager.NextPage(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("failed to execute count query: %w", err)
+		}
+		for _, item := range response.Items {
+			var n int
+			if err := json.Unmarshal(item, &n); err != nil {
+				return 0, fmt.Errorf("failed to unmarshal count result: %w", err)
+			}
+			total += n
+		}
+	}
+
+	return total, nil
+}
+
 func deleteResource(ctx context.Context, containerClient *azcosmos.ContainerClient, partitionKeyString string, resourceID *azcorearm.ResourceID) error {
 	cosmosID, err := arm.ResourceIDToCosmosID(resourceID)
 	if err != nil {
