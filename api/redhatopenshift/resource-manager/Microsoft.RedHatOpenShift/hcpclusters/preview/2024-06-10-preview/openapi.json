@@ -692,7 +692,7 @@
             "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
@@ -745,7 +745,7 @@
             "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           },
           {
             "name": "resource",
@@ -828,7 +828,7 @@
             "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           },
           {
             "name": "properties",
@@ -908,7 +908,7 @@
             "description": "The name of the ExternalAuth",
             "required": true,
             "type": "string",
-            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+            "pattern": "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
           }
         ],
         "responses": {
