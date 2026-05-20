@@ -220,7 +220,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				update,
-				framework.NodePoolCreationTimeout,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update node pool %s with new label and scale up", customerNodePoolName)
 
