@@ -29,3 +29,29 @@ Contrast that with an approach where the discriminator exists, but only has one 
 1. v2 client creates an instance with newValue for discriminator and other values set
 2. v1 client reads the instance and reads the discriminator and realizes it doesn't know what the "other values" mean.
 3. At this point the v1 can fail safely.
+
+# API version testing
+
+Our E2E API version testing strategy is intentionally conservative to preserve stability while still validating new API surface as it is introduced.
+
+The core principles are:
+
+1. Existing E2E tests are not retrofitted to new API versions.
+2. New API versions are validated through new E2E tests created for new features and behavior.
+
+## Existing E2E tests remain on their current API version
+
+When an E2E test already validates an existing scenario, we do not update it just to call a newer API version. Those tests represent stable customer workflows, and keeping them on their original API version provides ongoing regression coverage for compatibility.
+
+This approach avoids churn in mature test cases and helps us detect accidental behavior drift in older supported API versions. It also keeps historical signal intact, because test failures can be interpreted as product regressions rather than test migration side effects.
+
+## New API versions are covered by new feature tests
+
+When we add a new API version, we add or extend E2E coverage through test cases that validate the new features or behavior introduced in that version. In practice, this means new version-specific functionality should arrive together with new E2E scenarios that exercise it end-to-end.
+
+This gives us confidence that:
+
+- previously supported behavior remains validated by existing tests
+- newly introduced behavior is validated by targeted tests using the new API version
+
+Together, these two layers provide compatibility coverage for older clients and correctness coverage for new capabilities without requiring broad rewrites of the existing E2E suite.
