@@ -280,13 +280,16 @@ func (o Options) Run(ctx context.Context) error {
 		logger.Error(err, "Failed to write snapshot data")
 	}
 
-	// Check for failures.
-	var totalFailures int
-	for _, r := range allReports {
-		totalFailures += r.Failures()
+	// Exit non-zero only when the jUnit we just wrote contains at least one
+	// failing test case. This keeps the exit code aligned with what CI
+	// consumers actually see in the jUnit XML rather than the raw per-resource
+	// verification case count (which may be higher due to aggregation).
+	var junitFailures uint
+	for _, s := range suites.Suites {
+		junitFailures += s.NumFailed
 	}
-	if totalFailures > 0 {
-		return fmt.Errorf("%d verification failures detected across all tests", totalFailures)
+	if junitFailures > 0 {
+		return fmt.Errorf("%d jUnit test failure(s) detected across all tests", junitFailures)
 	}
 
 	return nil
