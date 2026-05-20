@@ -17,6 +17,8 @@ are expected directly after creation, but the steady state should look like:
 
 Try filtering for `type` matching `*ClusterVersion*` when investigating upgrades.
 
+**Pay specific attention to the `Available` condition, as it gives the best summary of top-level status.**
+
 ## Where to Go Next
 
 Check the control plane operator's pod events to see if the operator was healthy during the reconciliation.

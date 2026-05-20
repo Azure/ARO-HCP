@@ -26,4 +26,4 @@ are expected directly after creation, but the steady state should look like:
 
 If ignition is failing, check the ignition server logs in the hosted control plane's namespace.
 If nodes are failing to ignite, check their boot logs.
-If machines are failing to be created, check the CAPZ controller logs in the hosted control plane's namespace.
+If machines are failing to be created, check the `hypershift/clusterAPI*Logs` controller logs.
