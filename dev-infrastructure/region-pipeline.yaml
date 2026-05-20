@@ -129,6 +129,11 @@ resourceGroups:
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "Internal error"
+      maximumRetryCount: 4
+      durationBetweenRetries: 2m
     variables:
     - name: globalMSIId
       input:
