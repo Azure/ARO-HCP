@@ -48,8 +48,9 @@ func AddLoggerValues(logger logr.Logger, key any) logr.Logger {
 	case LoggableKey:
 		return castKey.AddLoggerValues(logger)
 	default:
-		logger = logger.WithValues("controllerKey", key)
-		return logger
+		// we want to never lose logging again. This will prevent new controllers from running their sync methods, which should show up as failures in metrics
+		// which will eventually fail our pre-merge e2e.
+		panic(fmt.Sprintf("unknown key type %T", key))
 	}
 }
 
