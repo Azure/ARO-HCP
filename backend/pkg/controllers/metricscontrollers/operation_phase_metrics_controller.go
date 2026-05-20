@@ -81,16 +81,16 @@ func (h *operationPhaseMetricsHandler) Sync(ctx context.Context, op *api.Operati
 	if len(resourceID) == 0 {
 		// op.ExternalID is expected to always be populated for production
 		// operations (every frontend construction site passes the target
-		// resource ID into database.NewOperation). Surface a warning when
-		// the invariant breaks so an operator notices instead of staring
-		// at a silently missing metric. This logs once per Sync event
-		// for the offending op; if an operation persists with nil
-		// ExternalID across resyncs the log will repeat per reconcile,
-		// which is bounded by the op count and gives count-based
-		// alerting a hook.
+		// resource ID into database.NewOperation). Log when the invariant
+		// breaks so an operator notices instead of staring at a silently
+		// missing metric. This logs once per Sync event for the offending
+		// op; if an operation persists with nil ExternalID across resyncs
+		// the log will repeat per reconcile, which is bounded by the op
+		// count and gives count-based alerting a hook.
 		logger := utils.LoggerFromContext(ctx)
-		logger.Info("WARNING: operation has no ExternalID; skipping metric emission",
-			"cosmos_resource_id", resourceIDMetricLabel(op.GetResourceID()))
+		logger.Info("operation has no ExternalID; skipping metric emission",
+			"missing_external_id", true,
+			"cosmos_doc_id", resourceIDMetricLabel(op.GetResourceID()))
 		return
 	}
 	subscriptionID := subscriptionIDMetricLabel(op.ExternalID)

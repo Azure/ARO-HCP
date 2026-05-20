@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
@@ -280,12 +281,16 @@ func TestOperationControllerSyncResource_DeleteIsNoOp(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, controller.syncResource(context.Background(), key))
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
+	require.Equal(t, 1, testutil.CollectAndCount(handler.startTime))
+	require.Equal(t, 1, testutil.CollectAndCount(handler.lastTransitionTime))
 
 	require.NoError(t, indexer.Delete(op))
 	require.NoError(t, controller.syncResource(context.Background(), key))
 
-	// Series persists after Delete (no-op behavior).
+	// All three metric vectors persist after Delete (no-op behavior).
 	require.Equal(t, 1, testutil.CollectAndCount(handler.phaseInfo))
+	require.Equal(t, 1, testutil.CollectAndCount(handler.startTime))
+	require.Equal(t, 1, testutil.CollectAndCount(handler.lastTransitionTime))
 }
 
 func TestResourceIDStoreKeyForObject_MatchesMetaNamespaceKeyFuncForOperation(t *testing.T) {
@@ -446,7 +451,7 @@ backend_resource_operation_phase_info{operation_type="create",phase="provisionin
 // TestOperationPhaseMetricsHandler_SkipsWhenExternalIDNil verifies that an
 // operation with no ExternalID (which would happen if the always-set
 // invariant ever broke) does not emit a metric series. The skip is
-// silent at the metric layer; the controller logs a warning to surface
+// silent at the metric layer; the controller logs an info entry to surface
 // the unexpected state to operators.
 func TestOperationPhaseMetricsHandler_SkipsWhenExternalIDNil(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -462,7 +467,8 @@ func TestOperationPhaseMetricsHandler_SkipsWhenExternalIDNil(t *testing.T) {
 	}
 
 	handler, _ := newTestOperationHandler(t)
-	handler.Sync(context.Background(), op)
+	ctx := logr.NewContext(context.Background(), logr.Discard())
+	handler.Sync(ctx, op)
 
 	require.Equal(t, 0, testutil.CollectAndCount(handler.phaseInfo))
 	require.Equal(t, 0, testutil.CollectAndCount(handler.startTime))
