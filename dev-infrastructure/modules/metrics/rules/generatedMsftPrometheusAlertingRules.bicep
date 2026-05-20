@@ -1409,13 +1409,40 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
         }
         annotations: {
           correlationId: 'ClusterCredentialExpired/{{ $labels.cluster }}'
-          description: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} have expired.'
-          info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} have expired.'
+          description: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} expired.'
+          info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} expired.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
-          summary: 'Customer cluster credential has expired'
-          title: 'Customer cluster credential has expired'
+          summary: 'Customer cluster credential expired'
+          title: 'Customer cluster credential expired'
         }
-        expression: 'increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="0"}[30m]) > 0'
+        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="0"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="-90"}[30m])) > 0'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClusterCredentialNotRenewable'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'ClusterCredentialNotRenewable/{{ $labels.cluster }}'
+          description: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} are no longer renewable.'
+          info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} are no longer renewable.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          summary: 'Customer cluster credential is no longer renewable'
+          title: 'Customer cluster credential is no longer renewable'
+        }
+        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="-90"}[30m])) > 0'
         for: 'PT5M'
         severity: 3
       }
