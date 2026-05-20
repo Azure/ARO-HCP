@@ -40,6 +40,7 @@ type RawFromResourceOptions struct {
 	EndTime         string
 	OutputDir       string
 	QueryTimeout    time.Duration
+	Concurrency     int
 }
 
 func defaultFromResourceOptions() *RawFromResourceOptions {
@@ -61,6 +62,7 @@ func bindFromResourceOptions(opts *RawFromResourceOptions, cmd *cobra.Command) e
 	cmd.Flags().StringVar(&opts.EndTime, "end-time", opts.EndTime, "Query end time in RFC3339 format (required)")
 	cmd.Flags().StringVar(&opts.OutputDir, "output-dir", opts.OutputDir, "Directory to write snapshot output")
 	cmd.Flags().DurationVar(&opts.QueryTimeout, "query-timeout", opts.QueryTimeout, "Timeout for individual Kusto queries")
+	cmd.Flags().IntVar(&opts.Concurrency, "concurrency", opts.Concurrency, "Maximum number of concurrent Kusto queries (0 = 4*NumCPU)")
 
 	for _, flag := range []string{"kusto", "region", "resource-group", "start-time", "end-time"} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
@@ -79,6 +81,7 @@ type validatedFromResourceOptions struct {
 	endTime         time.Time
 	outputDir       string
 	queryTimeout    time.Duration
+	concurrency     int
 }
 
 func (o *RawFromResourceOptions) validate() (*validatedFromResourceOptions, error) {
@@ -108,6 +111,7 @@ func (o *RawFromResourceOptions) validate() (*validatedFromResourceOptions, erro
 		endTime:         endTime,
 		outputDir:       o.OutputDir,
 		queryTimeout:    o.QueryTimeout,
+		concurrency:     o.Concurrency,
 	}, nil
 }
 
@@ -148,6 +152,7 @@ func (o *completedFromResourceOptions) run(ctx context.Context) error {
 			End:   o.endTime,
 		},
 		QueryTimeout: o.queryTimeout,
+		Concurrency:  o.concurrency,
 	}
 
 	manifest, _, err := gatherer.Gather(ctx, input, o.outputDir)
