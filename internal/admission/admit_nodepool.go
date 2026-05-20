@@ -148,7 +148,7 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 // It checks:
 //   - No downgrade: new version >= old version
 //   - No major version change: new major == old major (unless FeatureExperimentalReleaseFeatures is registered)
-//   - Minor version upgrades limited to +2: new minor <= old minor + 2
+//   - Minor version upgrades limited to +2 (implicitly: CP-NP skew caps CP at NP+2, and NP cannot exceed CP)
 //   - Cannot exceed cluster version: new version <= cluster version
 func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolVersionProfile) field.ErrorList {
 	spNodePool, spCluster := admissionContext.ServiceProviderNodePool, admissionContext.ServiceProviderCluster
