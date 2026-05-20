@@ -1,0 +1,18 @@
+# WARNING: Changes to this file indicate HyperShift operator install flag
+# changes that WILL trigger customer worker node replacements across all
+# hosted clusters in affected regions.
+#
+# Before updating:
+# 1. Document impact analysis in your PR description
+# 2. Coordinate rollout scheduling with SRE
+# 3. Run: UPDATE_NODE_ROLLOUT_FIXTURE=true go test -run TestNodeRolloutConfig -count=1 ./...
+additionalInstallArgs:
+- --enable-cpo-overrides
+- --metrics-set=SRE
+registryOverrides:
+- quay.io/openshift-release-dev/ocp-release-nightly=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release-nightly
+- quay.io/openshift-release-dev/ocp-release=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release
+- quay.io/openshift-release-dev/ocp-v4.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev
+- quay.io/openshift-release-dev/ocp-v5.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v5.0-art-dev
+- registry.redhat.io/redhat=arohcpocpdev.azurecr.io/redhat
+sharedIngressHAProxyImage: arohcpocpdev.azurecr.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main@sha256:1234567890

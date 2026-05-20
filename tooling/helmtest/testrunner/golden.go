@@ -15,7 +15,6 @@
 package testrunner
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,20 +23,67 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-Tools/testutil"
 )
 
-// CompareWithFixture will compare output with a test fixture and allows to automatically update them
-// by setting the UPDATE env var.
-// If output is not a []byte or string, it will get serialized as yaml prior to the comparison.
-// The fixtures are stored in testdata/prefix${testName}${suffix}${extension}
-func CompareWithFixture(t *testing.T, output interface{}, opts ...option) {
+type option func(*options)
+
+type options struct {
+	goldenDir string
+	updateEnv string
+	extension string
+	suffix    string
+}
+
+func WithExtension(extension string) option {
+	return func(opts *options) {
+		opts.extension = extension
+	}
+}
+
+func WithSuffix(suffix string) option {
+	return func(opts *options) {
+		opts.suffix = suffix
+	}
+}
+
+func WithGoldenDir(goldenDir string) option {
+	return func(opts *options) {
+		opts.goldenDir = goldenDir
+	}
+}
+
+func WithUpdateEnv(env string) option {
+	return func(opts *options) {
+		opts.updateEnv = env
+	}
+}
+
+// CompareWithFixture compares output with a golden fixture. When WithGoldenDir
+// is used, fixtures are stored in that directory. Otherwise delegates to
+// testutil.CompareWithFixture which uses testdata/.
+func CompareWithFixture(t *testing.T, output any, opts ...option) {
 	t.Helper()
-	options := &options{
-		Extension: ".yaml",
-	}
+	o := &options{updateEnv: "UPDATE", extension: ".yaml"}
 	for _, opt := range opts {
-		opt(options)
+		opt(o)
 	}
+
+	if o.goldenDir == "" {
+		testutil.CompareWithFixture(t, output,
+			testutil.WithUpdateEnv(o.updateEnv),
+			testutil.WithExtension(o.extension),
+			testutil.WithSuffix(o.suffix),
+		)
+		return
+	}
+
+	compareWithFixtureInDir(t, output, o)
+}
+
+func compareWithFixtureInDir(t *testing.T, output any, o *options) {
+	t.Helper()
 
 	var serializedOutput []byte
 	switch v := output.(type) {
@@ -46,24 +92,15 @@ func CompareWithFixture(t *testing.T, output interface{}, opts ...option) {
 	case string:
 		serializedOutput = []byte(v)
 	default:
-		// Determine serialization format based on extension
-		if options.Extension == ".json" {
-			serialized, err := json.MarshalIndent(v, "", "  ")
-			if err != nil {
-				t.Fatalf("failed to json marshal output of type %T: %v", output, err)
-			}
-			serializedOutput = serialized
-		} else {
-			serialized, err := yaml.Marshal(v)
-			if err != nil {
-				t.Fatalf("failed to yaml marshal output of type %T: %v", output, err)
-			}
-			serializedOutput = serialized
+		serialized, err := yaml.Marshal(v)
+		if err != nil {
+			t.Fatalf("failed to yaml marshal output of type %T: %v", output, err)
 		}
+		serializedOutput = serialized
 	}
 
-	golden := filepath.Join(options.GoldenDir, sanitizeFilename(options.Prefix+t.Name()+options.Suffix)) + options.Extension
-	if os.Getenv("UPDATE") != "" {
+	golden := filepath.Join(o.goldenDir, sanitizeFilename(t.Name()+o.suffix)) + o.extension
+	if os.Getenv(o.updateEnv) != "" {
 		if err := os.MkdirAll(filepath.Dir(golden), 0755); err != nil {
 			t.Fatalf("failed to create fixture directory: %v", err)
 		}
@@ -76,55 +113,17 @@ func CompareWithFixture(t *testing.T, output interface{}, opts ...option) {
 		t.Fatalf("failed to read testdata file: %v", err)
 	}
 	if diff := cmp.Diff(string(expected), string(serializedOutput)); diff != "" {
-		t.Errorf("got diff between expected and actual result:\nfile: %s\ndiff:\n%s\n\nIf this is expected, re-run the test with `UPDATE=true go test ./...` to update the fixtures.", golden, diff)
+		t.Errorf("got diff between expected and actual result:\nfile: %s\ndiff:\n%s\n\nIf this is expected, re-run the test with `%s=true go test ./...` to update the fixtures.", golden, diff, o.updateEnv)
 	}
 }
 
-type options struct {
-	Prefix    string
-	Suffix    string
-	Extension string
-	SubDir    string
-	GoldenDir string
-}
-
-type option func(*options)
-
-func WithExtension(extension string) option {
-	return func(opts *options) {
-		opts.Extension = extension
-	}
-}
-
-func WithSuffix(suffix string) option {
-	return func(opts *options) {
-		opts.Suffix = suffix
-	}
-}
-
-func WithPrefix(prefix string) option {
-	return func(opts *options) {
-		opts.Prefix = prefix
-	}
-}
-
-func WithSubDir(subDir string) option {
-	return func(opts *options) {
-		opts.SubDir = subDir
-	}
-}
-
-func WithGoldenDir(goldenDir string) option {
-	return func(opts *options) {
-		opts.GoldenDir = goldenDir
-	}
-}
-
+// sanitizeFilename is based on the unexported function in github.com/Azure/ARO-Tools/testutil
+// but uses inclusive upper bounds (<= 'z', <= 'Z') to correctly include all letters.
+// Upstream uses exclusive bounds (< 'z', < 'Z') which excludes 'z' and 'Z'.
 func sanitizeFilename(s string) string {
 	result := strings.Builder{}
 	for _, r := range s {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || r == '.' || (r >= '0' && r <= '9') {
-			// The thing is documented as returning a nil error so lets just drop it
 			_, _ = result.WriteRune(r)
 			continue
 		}
