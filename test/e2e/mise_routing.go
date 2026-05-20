@@ -24,12 +24,13 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-// miseV2HeaderPolicy injects the x-ms-mise-version: v2 request header
+// miseV2HeaderPolicy injects the x-ms-mise-version request header
 // so that the Istio VirtualService routes to the MISE v2 frontend.
 type miseV2HeaderPolicy struct {
 	version string
@@ -40,37 +41,38 @@ func (p *miseV2HeaderPolicy) Do(req *policy.Request) (*http.Response, error) {
 	return req.Next()
 }
 
-// miseVersionCapture captures the x-ms-served-by response header set by the
-// VirtualService to verify which MISE version handled the request.
-type miseVersionCapture struct {
-	version string
+// miseVersionValidator checks the x-ms-served-by response header on every
+// response and records mismatches so the full cluster lifecycle completes
+// before assertions run.
+type miseVersionValidator struct {
+	expectedVersion string
+	mismatches      []string
+	requestCount    int
 }
 
-func (p *miseVersionCapture) Do(req *policy.Request) (*http.Response, error) {
+func (p *miseVersionValidator) Do(req *policy.Request) (*http.Response, error) {
 	resp, err := req.Next()
 	if resp != nil {
-		p.version = resp.Header.Get("x-ms-served-by")
+		p.requestCount++
+		actual := resp.Header.Get("x-ms-served-by")
+		if actual != p.expectedVersion {
+			p.mismatches = append(p.mismatches,
+				fmt.Sprintf("request #%d %s %s: got %q, want %q",
+					p.requestCount, req.Raw().Method, req.Raw().URL.Path,
+					actual, p.expectedVersion))
+		}
 	}
 	return resp, err
 }
 
-// Tests the VirtualService routes to the correct frontend instance based on request headers.
+// Tests the VirtualService routes to the correct frontend instance based on request headers
+// by creating and deleting a full HCP cluster, validating every response header.
 // In INT and above, this exercises MISE-backed routing. In dev/prow environments, the same
 // VirtualService is deployed but fronts non-MISE frontend instances. PR checks connect
 // through the Istio ingress gateway (not port-forwarded), so the VirtualService routing
 // rules are always evaluated.
 var _ = Describe("MISE Routing", func() {
 	defer GinkgoRecover()
-
-	// AROSLSRE-718: Temporarily skip this MISE routing E2E test due to an ARM regression
-	// rejecting Microsoft.Graph/applications@beta with the internal extension.
-	// After the deadline, this test will run again to ensure re-enablement.
-	timeBombDeadline := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
-	BeforeEach(func() {
-		if time.Now().Before(timeBombDeadline) {
-			Skip(fmt.Sprintf("MISE routing E2E test temporarily skipped due to ARM regression (AROSLSRE-718); skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-		}
-	})
 
 	DescribeTable("routes to the correct frontend based on version header",
 		labels.RequireNothing,
@@ -80,25 +82,68 @@ var _ = Describe("MISE Routing", func() {
 		func(ctx context.Context, rgPrefix string, miseVersionHeader string, expectedVersion string) {
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("Creating resource group")
 			rg, err := tc.NewResourceGroup(ctx, rgPrefix, tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Building client factory")
-			capture := &miseVersionCapture{}
-			policies := []policy.Policy{capture}
+			By("Creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = "mise-routing"
+			clusterParams.ManagedResourceGroupName = framework.SuffixName(*rg.Name, "-managed", 64)
+
+			By("Creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				rg,
+				clusterParams,
+				map[string]any{
+					"customerNsgName":        "customer-nsg-name",
+					"customerVnetName":       "customer-vnet-name",
+					"customerVnetSubnetName": "customer-vnet-subnet1",
+				},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Building client factory with MISE policies")
+			validator := &miseVersionValidator{expectedVersion: expectedVersion}
+			policies := []policy.Policy{validator}
 			if miseVersionHeader != "" {
 				policies = append([]policy.Policy{&miseV2HeaderPolicy{version: miseVersionHeader}}, policies...)
 			}
 			clientFactory, err := tc.Get20251223ClientFactoryWithPolicies(ctx, policies...)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Listing clusters")
-			pager := clientFactory.NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(*rg.Name, nil)
-			_, err = pager.NextPage(ctx)
+			By("Building HCP cluster from parameters")
+			cluster, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(capture.version).To(Equal(expectedVersion))
+			By("Creating HCP cluster")
+			hcpClient := clientFactory.NewHcpOpenShiftClustersClient()
+			_, err = framework.CreateHCPCluster20251223AndWait(
+				ctx, GinkgoLogr, hcpClient,
+				*rg.Name, clusterParams.ClusterName, cluster,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Deleting HCP cluster")
+			delCtx, delCancel := context.WithTimeout(ctx, 45*time.Minute)
+			defer delCancel()
+			delPoller, err := hcpClient.BeginDelete(delCtx, *rg.Name, clusterParams.ClusterName, nil)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = delPoller.PollUntilDone(delCtx, &runtime.PollUntilDoneOptions{
+				Frequency: framework.StandardPollInterval,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(validator.mismatches).To(BeEmpty(), "x-ms-served-by header mismatches detected")
+			Expect(validator.requestCount).To(BeNumerically(">", 0), "expected at least one HCP API request")
 		},
 		Entry("MISE v2 when x-ms-mise-version header is set", "mise-v2-smoke", "v2", "v2"),
 		Entry("default route returns no version header", "mise-default-smoke", "", ""),
