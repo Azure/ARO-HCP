@@ -171,6 +171,7 @@ func setupCli() *cobra.Command {
 		rpApiCompatBaseQualifier = fmt.Sprintf(`%s && !labels.exists(l, l=="%s")`, rpApiCompatBaseQualifier, labels.DevelopmentOnly[0])
 	}
 
+	rpApiCompatTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name:       "rp-api-compat-all/parallel",
 		Qualifiers: []string{fastTestsOnly(rpApiCompatBaseQualifier)},
@@ -178,6 +179,7 @@ func setupCli() *cobra.Command {
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
 		// LEASED_MSI_CONTAINERS=20
 		Parallelism: 24,
+		TestTimeout: &rpApiCompatTestTimeout,
 	})
 	ext.AddSuite(e.Suite{
 		Name:       "rp-api-compat-all/parallel/slow",
@@ -186,6 +188,7 @@ func setupCli() *cobra.Command {
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
 		// LEASED_MSI_CONTAINERS=20
 		Parallelism: 24,
+		TestTimeout: &rpApiCompatTestTimeout,
 	})
 
 	// If using Ginkgo, build test specs automatically
