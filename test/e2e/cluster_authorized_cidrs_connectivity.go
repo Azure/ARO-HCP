@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -415,7 +416,11 @@ var _ = Describe("Authorized CIDRs", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				_, err = poller.PollUntilDone(ctx, nil)
+				pollCtx, pollCancel := context.WithTimeout(ctx, 10*time.Minute)
+				defer pollCancel()
+				_, err = poller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+					Frequency: framework.StandardPollInterval,
+				})
 				Expect(err).NotTo(HaveOccurred())
 
 				By("verifying VM is now blocked from API access")
