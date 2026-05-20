@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/templatize
 
-go 1.25.7
+go 1.26.0
 
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
@@ -33,7 +33,7 @@ require (
 	go.lsp.dev/jsonrpc2 v0.10.0
 	go.lsp.dev/protocol v0.12.0
 	golang.org/x/sync v0.20.0
-	k8s.io/apimachinery v0.35.3
+	k8s.io/apimachinery v0.36.1
 	k8s.io/client-go v0.35.3
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5
 	sigs.k8s.io/yaml v1.6.0
