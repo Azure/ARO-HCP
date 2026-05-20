@@ -31,6 +31,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/google/uuid"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -49,8 +51,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
-
-	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
