@@ -36,7 +36,7 @@ import (
 )
 
 var subscriptionLookupBackoff = wait.Backoff{
-	Steps:    4,
+	Steps:    5,
 	Duration: 15 * time.Second,
 	Factor:   2.0,
 	Jitter:   0.1,
