@@ -78,6 +78,25 @@ resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01'
   }
 }
 
+// Monitoring Reader role
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#monitoring-reader
+var monitoringReaderRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '43d0d8ad-25c7-4714-9337-8ba259a9fe05'
+)
+
+// Grant Grafana Managed Identity "Monitoring Reader" access to this regional resource group.
+// This allows Grafana to query Azure Monitor Platform metrics from PostgreSQL servers
+// (both Maestro and Cluster Service) deployed in this resource group.
+resource grafanaPostgresMonitoringAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, grafanaResourceId, monitoringReaderRoleId)
+  properties: {
+    principalId: reference(grafanaResourceId, '2023-09-01').identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: monitoringReaderRoleId
+  }
+}
+
 //
 // R E G I O N A L   C X   D N S   Z O N E
 //
