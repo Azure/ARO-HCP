@@ -190,6 +190,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 			},
 			QueryTimeout: o.queryTimeout,
 			Concurrency:  o.concurrency,
+			CleanupStartTime: test.CleanupStartTime,
 		}
 
 		manifest, _, err := gatherer.Gather(ctx, input, testOutputDir)

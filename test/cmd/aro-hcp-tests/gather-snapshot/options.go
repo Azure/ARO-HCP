@@ -227,15 +227,16 @@ func (o Options) Run(ctx context.Context) error {
 			)
 
 			input := snapshot.GatherInput{
-				ClusterURI:      o.KustoEndpoint,
-				ServiceDatabase: o.ServiceDB,
-				HCPDatabase:     o.HCPDB,
-				ResourceGroup:   rg,
+				ClusterURI:       o.KustoEndpoint,
+				ServiceDatabase:  o.ServiceDB,
+				HCPDatabase:      o.HCPDB,
+				ResourceGroup:    rg,
 				TimeWindow: snapshot.TimeWindow{
 					Start: ti.StartTime,
 					End:   ti.EndTime,
 				},
-				QueryTimeout: 5 * time.Minute,
+				QueryTimeout:     5 * time.Minute,
+				CleanupStartTime: ti.CleanupStartTime,
 			}
 
 			manifest, report, err := gatherer.Gather(ctx, input, testOutputDir)
