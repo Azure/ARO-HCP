@@ -43,10 +43,6 @@ type ServiceProviderCluster struct {
 	// it will be the ServiceProviderCluster type and the name default
 	CosmosMetadata `json:"cosmosMetadata"`
 
-	// resourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,
-	// at which point we will stop using properties.resourceId in our queries. That will be about a month from now.
-	ResourceID azcorearm.ResourceID `json:"resourceId"`
-
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
 
 	Spec ServiceProviderClusterSpec `json:"spec"`
@@ -129,6 +125,10 @@ type ServiceProviderClusterStatus struct {
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
 	// and the Maestro Bundle Name and ID at the Maestro API level.
 	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
+	// ManagementClusterResourceID is the resource ID of the management cluster
+	// this HCP is placed on. Nil means placement has not been resolved yet.
+	// Once set, this field is immutable.
+	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
@@ -160,6 +160,27 @@ type MaestroBundleReference struct {
 	// but the Maestro Bundle has not been created yet.
 	// Maestro's REST API Go client abstraction uses Maestro Bundle IDs to identify the Maestro Bundle.
 	MaestroAPIMaestroBundleID string `json:"maestroAPIMaestroBundleID"`
+	// ResourceIdentifiers contains the identifiers for all resources within the Maestro Bundle.
+	// Each entry corresponds to a ResourceIdentifier in the ManifestWork's ManifestConfigs.
+	ResourceIdentifiers []MaestroBundleResourceIdentifier `json:"resourceIdentifiers,omitempty"`
+}
+
+// MaestroBundleResourceIdentifier identifies a single resource within a Maestro Bundle.
+// This corresponds to a ResourceIdentifier in the ManifestWork's ManifestConfigs.
+type MaestroBundleResourceIdentifier struct {
+	// APIVersion is the API version of the resource (e.g. "hypershift.openshift.io/v1beta1").
+	APIVersion string `json:"apiVersion"`
+	// Kind is the kind of the resource (e.g. "HostedCluster").
+	Kind string `json:"kind"`
+	// Resource is the resource type (e.g. "hostedclusters").
+	// This corresponds to the ResourceIdentifier.Resource in the ManifestWork's ManifestConfigs.
+	Resource string `json:"resource"`
+	// Name is the name of the resource.
+	// For example, for a HostedCluster bundle this is the HostedCluster name on the management cluster.
+	Name string `json:"name"`
+	// Namespace is the namespace of the resource.
+	// For example, for a HostedCluster bundle this is the HostedCluster namespace on the management cluster.
+	Namespace string `json:"namespace"`
 }
 
 // MaestroBundleReferenceList is a list of Maestro Bundle references.

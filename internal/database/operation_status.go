@@ -30,18 +30,18 @@ var localClock clock.Clock = clock.RealClock{}
 // status using the filters specified in opts. For every document returned in
 // the query result, CancelActiveOperations adds patch operations to the given
 // DBTransaction to mark the document as canceled.
-func CancelActiveOperations(ctx context.Context, dbClient DBClient, transaction DBTransaction, opts *DBClientListActiveOperationDocsOptions) ([]string, error) {
+func CancelActiveOperations(ctx context.Context, resourcesDBClient ResourcesDBClient, transaction DBTransaction, opts *ResourcesDBClientListActiveOperationDocsOptions) ([]string, error) {
 	var now = localClock.Now()
 	var operationsToCancel []string
 
 	errs := []error{}
 	subscriptionID := transaction.GetPartitionKey()
-	iterator := dbClient.Operations(subscriptionID).ListActiveOperations(opts)
+	iterator := resourcesDBClient.Operations(subscriptionID).ListActiveOperations(opts)
 	for _, operation := range iterator.Items(ctx) {
 		operationToWrite := operation.DeepCopy()
 		apihelpers.CancelOperation(operationToWrite, now)
 
-		_, err := dbClient.Operations(subscriptionID).AddReplaceToTransaction(ctx, transaction, operationToWrite, nil)
+		_, err := resourcesDBClient.Operations(subscriptionID).AddReplaceToTransaction(ctx, transaction, operationToWrite, nil)
 		if err != nil {
 			errs = append(errs, utils.TrackError(err))
 		}

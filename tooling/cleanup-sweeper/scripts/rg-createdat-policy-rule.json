@@ -1,0 +1,23 @@
+{
+  "if": {
+    "allOf": [
+      {
+        "equals": "Microsoft.Resources/subscriptions/resourceGroups",
+        "field": "type"
+      },
+      {
+        "exists": "false",
+        "field": "tags['createdAt']"
+      }
+    ]
+  },
+  "then": {
+    "details": [
+      {
+        "field": "tags['createdAt']",
+        "value": "[utcNow()]"
+      }
+    ],
+    "effect": "append"
+  }
+}

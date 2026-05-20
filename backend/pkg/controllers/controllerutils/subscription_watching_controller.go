@@ -21,11 +21,12 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 )
 
 type SubscriptionSyncer interface {
 	SyncOnce(ctx context.Context, keyObj SubscriptionKey) error
-	CooldownChecker() CooldownChecker
+	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type subscriptionWatchingController struct {
@@ -66,7 +67,7 @@ func (c *subscriptionWatchingController) SyncOnce(ctx context.Context, key Subsc
 	return c.syncer.SyncOnce(ctx, key)
 }
 
-func (c *subscriptionWatchingController) CooldownChecker() CooldownChecker {
+func (c *subscriptionWatchingController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.syncer.CooldownChecker()
 }
 

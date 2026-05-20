@@ -67,7 +67,7 @@ func (l *replaceWithETagStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *replaceWithETagStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 
 	// First, read the current resource to get its etag
 	currentResource, err := resourceCRUDClient.Get(ctx, l.key.ResourceID.Name)

@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestValidateExternalAuth(t *testing.T) {
@@ -36,7 +37,7 @@ func TestValidateExternalAuth(t *testing.T) {
 		newObj       *api.HCPOpenShiftClusterExternalAuth
 		oldObj       *api.HCPOpenShiftClusterExternalAuth
 		op           operation.Operation
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "valid external auth create",
@@ -94,9 +95,9 @@ func TestValidateExternalAuth(t *testing.T) {
 			name:   "missing required issuer URL",
 			newObj: createMinimalExternalAuth(),
 			op:     operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.issuer.url", message: "Required value"},
-				{fieldPath: "properties.issuer.audiences", message: "Required value"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.url", Message: "Required value"},
+				{FieldPath: "properties.issuer.audiences", Message: "Required value"},
 			},
 		},
 		{
@@ -107,9 +108,9 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.issuer.url", message: "must be https URL"},
-				{fieldPath: "properties.issuer.audiences", message: "Required value"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.url", Message: "must be https URL"},
+				{FieldPath: "properties.issuer.audiences", Message: "Required value"},
 			},
 		},
 		{
@@ -121,9 +122,9 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.issuer.audiences", message: "Required value"},
-				{fieldPath: "properties.issuer.audiences", message: "must have at least 1 items"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.audiences", Message: "Required value"},
+				{FieldPath: "properties.issuer.audiences", Message: "must have at least 1 items"},
 			},
 		},
 		{
@@ -138,8 +139,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.issuer.audiences", message: "must have at most 10 items"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.audiences", Message: "must have at most 10 items"},
 			},
 		},
 		{
@@ -152,8 +153,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.issuer.ca", message: "not a valid PEM"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.ca", Message: "not a valid PEM"},
 			},
 		},
 		{
@@ -176,8 +177,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients", message: "must have at most 20 items"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients", Message: "must have at most 20 items"},
 			},
 		},
 		{
@@ -199,8 +200,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[0].component.name", message: "Required value"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].component.name", Message: "Required value"},
 			},
 		},
 		{
@@ -215,8 +216,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[0].component.name", message: "may not be more than 256 bytes"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].component.name", Message: "may not be more than 256 bytes"},
 			},
 		},
 		{
@@ -231,8 +232,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.mappings.groups.claim", message: "may not be more than 256 bytes"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.mappings.groups.claim", Message: "may not be more than 256 bytes"},
 			},
 		},
 		{
@@ -243,8 +244,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.mappings.username.claim", message: "Required value"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.mappings.username.claim", Message: "Required value"},
 			},
 		},
 		{
@@ -273,8 +274,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[1]", message: "Duplicate value"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[1]", Message: "Duplicate value"},
 			},
 		},
 		{
@@ -295,8 +296,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[0].clientId", message: "must match an audience in issuer audiences"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].clientId", Message: "must match an audience in issuer audiences"},
 			},
 		},
 		{
@@ -325,8 +326,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[1].clientId", message: "must match an audience in issuer audiences"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[1].clientId", Message: "must match an audience in issuer audiences"},
 			},
 		},
 		{
@@ -337,8 +338,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Create},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[0].type", message: "supported values"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].type", Message: "supported values"},
 			},
 		},
 		{
@@ -358,8 +359,8 @@ func TestValidateExternalAuth(t *testing.T) {
 				return obj
 			}(),
 			op: operation.Operation{Type: operation.Update},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.provisioningState", message: "field is immutable"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.provisioningState", Message: "field is immutable"},
 			},
 		},
 	}
@@ -373,7 +374,7 @@ func TestValidateExternalAuth(t *testing.T) {
 				errs = ValidateExternalAuthUpdate(ctx, tt.newObj, tt.oldObj)
 			}
 
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -384,7 +385,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 	tests := []struct {
 		name         string
 		setupObject  func() *api.HCPOpenShiftClusterExternalAuth
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name: "username prefix policy - valid None with no prefix",
@@ -434,8 +435,8 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				}
 				return obj
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.mappings.username.prefix", message: "may only be specified when `prefixPolicy` is \"Prefix\""},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.mappings.username.prefix", Message: "may only be specified when `prefixPolicy` is \"Prefix\""},
 			},
 		},
 		{
@@ -448,8 +449,8 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				}
 				return obj
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.mappings.username.prefix", message: "must be specified when `prefixPolicy` is \"Prefix\""},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.mappings.username.prefix", Message: "must be specified when `prefixPolicy` is \"Prefix\""},
 			},
 		},
 		{
@@ -480,10 +481,10 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				}
 				return obj
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.validationRules[0].requiredClaim", message: "must be specified when `type` is \"RequiredClaim\""},
-				{fieldPath: "properties.claim.validationRules[0].requiredClaim.claim", message: "Required value"},
-				{fieldPath: "properties.claim.validationRules[0].requiredClaim.requiredValue", message: "Required value"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.validationRules[0].requiredClaim", Message: "must be specified when `type` is \"RequiredClaim\""},
+				{FieldPath: "properties.claim.validationRules[0].requiredClaim.claim", Message: "Required value"},
+				{FieldPath: "properties.claim.validationRules[0].requiredClaim.requiredValue", Message: "Required value"},
 			},
 		},
 		{
@@ -501,8 +502,8 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				}
 				return obj
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.validationRules[0].requiredClaim.claim", message: "Required value"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.validationRules[0].requiredClaim.claim", Message: "Required value"},
 			},
 		},
 		{
@@ -520,8 +521,8 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				}
 				return obj
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.validationRules[0].requiredClaim.requiredValue", message: "Required value"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.validationRules[0].requiredClaim.requiredValue", Message: "Required value"},
 			},
 		},
 		{
@@ -535,8 +536,8 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				}
 				return obj
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.mappings.username.prefix", message: "may only be specified when `prefixPolicy` is \"Prefix\""},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.mappings.username.prefix", Message: "may only be specified when `prefixPolicy` is \"Prefix\""},
 			},
 		},
 		{
@@ -549,8 +550,8 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				}
 				return obj
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.mappings.username.prefixPolicy", message: "supported values"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.mappings.username.prefixPolicy", Message: "supported values"},
 			},
 		},
 		{
@@ -568,9 +569,9 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				}
 				return obj
 			},
-			expectErrors: []expectedError{
-				{fieldPath: "properties.claim.validationRules[0].type", message: "supported values"},
-				{fieldPath: "properties.claim.validationRules[0].requiredClaim", message: "may only be specified when `type` is \"RequiredClaim\""},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.validationRules[0].type", Message: "supported values"},
+				{FieldPath: "properties.claim.validationRules[0].requiredClaim", Message: "may only be specified when `type` is \"RequiredClaim\""},
 			},
 		},
 	}
@@ -579,7 +580,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			obj := tt.setupObject()
 			errs := ValidateExternalAuthCreate(ctx, obj)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -590,7 +591,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 	tests := []struct {
 		name         string
 		newObj       *api.HCPOpenShiftClusterExternalAuth
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name: "client ID matches audience",
@@ -628,8 +629,8 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				}
 				return obj
 			}(),
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[0]", message: "must match an audience in issuer audiences"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0]", Message: "must match an audience in issuer audiences"},
 			},
 		},
 		{
@@ -684,10 +685,10 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				}
 				return obj
 			}(),
-			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[1]", message: "Duplicate value"},
-				{fieldPath: "properties.clients[0].clientId", message: "must match an audience in issuer audiences"},
-				{fieldPath: "properties.clients[1].clientId", message: `Invalid value: "client1-b": must match an audience in issuer audiences`},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[1]", Message: "Duplicate value"},
+				{FieldPath: "properties.clients[0].clientId", Message: "must match an audience in issuer audiences"},
+				{FieldPath: "properties.clients[1].clientId", Message: `Invalid value: "client1-b": must match an audience in issuer audiences`},
 			},
 		},
 	}
@@ -695,7 +696,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := ValidateExternalAuthCreate(ctx, tt.newObj)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }

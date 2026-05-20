@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/test-integration/utils/databasemutationhelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -77,13 +78,13 @@ func TestControllerNotifications(t *testing.T) {
 			frontendErrCh <- testInfo.Frontend.Run(ctx)
 		}()
 
-		cosmosClient := testInfo.CosmosClient()
-		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, cosmosClient.GlobalListers(), ptr.To(100*time.Millisecond))
+		resourcesDBClient := testInfo.ResourcesDBClient()
+		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
 
 		_, activeOperationLister := backendInformers.ActiveOperations()
 		testSyncer := newTestController(activeOperationLister)
 		testingController := controllerutils.NewClusterWatchingController(
-			"TestingController", cosmosClient, backendInformers, 1*time.Minute, testSyncer)
+			"TestingController", resourcesDBClient, backendInformers, 1*time.Minute, testSyncer)
 
 		go func() {
 			backendStarted.Store(true)
@@ -122,7 +123,7 @@ func TestControllerNotifications(t *testing.T) {
 }
 
 type testController struct {
-	cooldownChecker controllerutils.CooldownChecker
+	cooldownChecker controllerutil.CooldownChecker
 
 	count        atomic.Int32
 	observedKeys sync.Map
@@ -153,6 +154,6 @@ func (c *testController) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 	return nil
 }
 
-func (c *testController) CooldownChecker() controllerutils.CooldownChecker {
+func (c *testController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

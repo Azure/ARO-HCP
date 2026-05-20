@@ -42,7 +42,7 @@ type OperationCRUD interface {
 	// Note that ListActiveOperations does not perform the search, but merely prepares an iterator
 	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
-	ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation]
+	ListActiveOperations(options *ResourcesDBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation]
 }
 
 type operationCRUD struct {
@@ -63,11 +63,12 @@ func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID 
 
 var _ OperationCRUD = &operationCRUD{}
 
-func (d *operationCRUD) ListActiveOperations(options *DBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation] {
+func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation] {
 	var queryOptions azcosmos.QueryOptions
 
 	query := fmt.Sprintf(
 		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
+			"AND LENGTH(c.resourceID) > 0 "+
 			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
 		api.OperationStatusResourceType.String(),
 		arm.ProvisioningStateSucceeded,

@@ -1,8 +1,5 @@
 using '../templates/svc-mgmt-permissions.bicep'
 
-// AKS cluster name
-param aksClusterName = '{{ .mgmt.aks.name }}'
-
 // CX KV
 param cxKeyVaultName = '{{ .cxKeyVault.name }}'
 
@@ -25,6 +22,3 @@ param adminApiMIResourceId = '__adminApiMIResourceId__'
 // used for Key Vault access
 param rpBackendMIResourceId = '__rpBackendMIResourceId__'
 
-// Session Gate identity
-// used for AKS access
-param sessiongateMIResourceId = '__sessiongateMIResourceId__'

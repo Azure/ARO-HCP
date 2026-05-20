@@ -25,9 +25,11 @@ type NodePool struct {
 }
 
 type NodePoolProperties struct {
-	// when we switch to inlining the internalObj, this will be in the right spot.  We add it now so that we can switch our
-	// queries to select on cosmosMetata.ResourceID instead of resourceId
-	CosmosMetadata api.CosmosMetadata `json:"cosmosMetadata"`
+	// HCPOpenShiftClusterNodePool is the inline serialization that mirrors GenericDocument[api.HCPOpenShiftClusterNodePool]
+	// (the destination shape for nodepool documents). The reading path now uses these inline fields as the
+	// source of truth; the IntermediateResourceDoc/InternalState siblings are still written for compatibility
+	// with old readers, but will be removed once all readers have migrated.
+	api.HCPOpenShiftClusterNodePool `json:",inline"`
 
 	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
 	// embed the InternalAPIType which has colliding serialization fields.

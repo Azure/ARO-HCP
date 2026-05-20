@@ -34,6 +34,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 )
@@ -383,7 +384,11 @@ func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Conte
 		return fmt.Errorf("failed to begin VM update: %w", err)
 	}
 
-	_, err = poller.PollUntilDone(ctx, nil)
+	pollCtx, pollCancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer pollCancel()
+	_, err = poller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to disable boot diagnostics: %w", err)
 	}

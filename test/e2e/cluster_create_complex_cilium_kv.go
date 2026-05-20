@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	operatorclient "github.com/openshift/client-go/operator/clientset/versioned"
 
@@ -188,9 +189,22 @@ var _ = Describe("Customer", func() {
 			// We delay checking the error on purpose to get more details
 			// about the issue by running the verifiers.
 
+			var consoleLogErr error = nil
+			if nodePoolErr != nil {
+				var computeFactory *armcompute.ClientFactory
+				computeFactory, consoleLogErr = tc.GetARMComputeClientFactory(ctx)
+				if consoleLogErr == nil {
+					consoleLogErr = framework.DownloadAllVirtualMachineConsoleLogs(
+						ctx,
+						computeFactory,
+						clusterParams.ManagedResourceGroupName,
+						tc.LogDirPath)
+				}
+			}
+
 			By("verifying nodes become Ready with Cilium CNI")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))
-			Expect(errors.Join(err, nodePoolErr)).NotTo(HaveOccurred())
+			Expect(errors.Join(err, nodePoolErr, consoleLogErr)).NotTo(HaveOccurred())
 
 			By("verifying a simple web app can run with cilium")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)

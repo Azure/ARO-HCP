@@ -74,8 +74,8 @@ func TestMiddlewareLockSubscription(t *testing.T) {
 
 	stopWasCalled := false
 	ctx := context.Background()
-	mockDBClient := databasetesting.NewMockDBClient()
-	mockDBClient.SetLockClient(&trackingLockClient{
+	mockLocksDBClient := databasetesting.NewMockLocksDBClient()
+	mockLocksDBClient.SetLockClient(&trackingLockClient{
 		stopWasCalled: &stopWasCalled,
 		defaultTTL:    10 * time.Second,
 	})
@@ -91,7 +91,7 @@ func TestMiddlewareLockSubscription(t *testing.T) {
 			}
 		}()
 
-		newMiddlewareLockSubscription(mockDBClient).handleRequest(response, request, panicingHandler)
+		newMiddlewareLockSubscription(mockLocksDBClient).handleRequest(response, request, panicingHandler)
 	}()
 
 	if !stopWasCalled {

@@ -1,0 +1,3 @@
+{{ template "bundleMapCS" . }}
+bundleMapCS
+| distinct bundleId, bundleName, resource, groupVersion, resourceKind

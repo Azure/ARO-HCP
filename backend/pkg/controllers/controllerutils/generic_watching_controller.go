@@ -31,13 +31,14 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 )
 
 type GenericSyncer[T comparable] interface {
 	SyncOnce(ctx context.Context, keyObj T) error
-	CooldownChecker() CooldownChecker
+	CooldownChecker() controllerutil.CooldownChecker
 	MakeKey(resourceID *azcorearm.ResourceID) T
 }
 

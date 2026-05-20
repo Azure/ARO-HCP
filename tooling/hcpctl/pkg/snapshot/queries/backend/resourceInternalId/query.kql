@@ -1,0 +1,10 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where container_name == 'aro-hcp-backend'
+| where log.controller_name == 'datadump'
+| where log.resource_group == '{{ .ResourceGroup }}'
+| where log.resource_name == '{{ .ClusterResourceName }}'
+| where log.content.resourceType =~ '{{ .ResourceType }}'
+| where log.content.resourceID =~ '{{ .ResourceID }}'
+| extend internalId=tostring(log.content.properties.serviceProviderProperties.clusterServiceID)
+| distinct internalId

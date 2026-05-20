@@ -88,7 +88,13 @@ Today that periodic layer includes:
 - Kusto role-assignment cleanup
 - `cleanup-sweeper` jobs for policy-driven resource-group cleanup and shared leftovers
 
-This path is intentionally best-effort. If one run leaves something behind, the next run can pick it up.
+For `cleanup-sweeper` `rg-ordered` workflow, candidate resource groups are chosen using `tooling/cleanup-sweeper/resourcegroups.policy.yaml`. Discovery treats the `createdAt` tag (RFC3339 timestamp on the resource group) as required for any `action: delete` rule: groups without a parseable tag are not candidates.
+
+Azure does not set that tag by default. Subscriptions where `rg-ordered` should run must apply an Azure Policy (or equivalent) that stamps `tags['createdAt']` when a resource group is created, using `[utcNow()]` in the policy rule.
+
+Use `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh` to create or update the subscription-scoped definition and assignment. The rule body lives in `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json` next to that script.
+
+Background hygiene of this kind is intentionally best-effort. If one run leaves something behind, the next run can pick it up.
 
 ## Why They Behave Differently
 
@@ -179,6 +185,7 @@ If you need to change behavior, start here:
 
 - consolidated periodic jobs: `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`
 - `cleanup-sweeper` CLI: `tooling/cleanup-sweeper/cmd/root/options.go`
+- `rg-ordered` resource group `createdAt` tag policy (Azure): `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh`
 - ordered cleanup engine: `tooling/cleanup-sweeper/pkg/engine/resourcegroup_ordered_cleanup.go`
 - templatize cleanup: `tooling/templatize/cmd/entrypoint/cleanup/`
 - e2e teardown: `test/util/framework/per_test_framework.go`

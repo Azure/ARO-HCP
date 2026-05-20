@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -38,11 +39,11 @@ import (
 // to the Cluster.
 // This controller assumes that it has full ownership of the ManagementClusterContent resource.
 type readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer struct {
-	cooldownChecker controllerutils.CooldownChecker
+	cooldownChecker controllerutil.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
 
-	cosmosClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -54,7 +55,7 @@ var _ controllerutils.NodePoolSyncer = (*readAndPersistNodePoolScopedMaestroRead
 
 func NewReadAndPersistNodePoolScopedMaestroReadonlyBundlesContentController(
 	activeOperationLister listers.ActiveOperationLister,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers informers.BackendInformers,
 	maestroSourceEnvironmentIdentifier string,
@@ -63,7 +64,7 @@ func NewReadAndPersistNodePoolScopedMaestroReadonlyBundlesContentController(
 
 	syncer := &readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer{
 		cooldownChecker:                    controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:                       cosmosClient,
+		resourcesDBClient:                  resourcesDBClient,
 		clusterServiceClient:               clusterServiceClient,
 		activeOperationLister:              activeOperationLister,
 		maestroSourceEnvironmentIdentifier: maestroSourceEnvironmentIdentifier,
@@ -72,7 +73,7 @@ func NewReadAndPersistNodePoolScopedMaestroReadonlyBundlesContentController(
 
 	controller := controllerutils.NewNodePoolWatchingController(
 		"ReadAndPersistNodePoolScopedMaestroReadonlyBundlesContent",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		1*time.Minute,
 		syncer,
@@ -82,19 +83,19 @@ func NewReadAndPersistNodePoolScopedMaestroReadonlyBundlesContentController(
 }
 
 func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
-	existingNodePool, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
+	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
 		return nil // nodepool doesn't exist, no work to do
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
-	if len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		// TODO remove this once we have the information all in cosmos.
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}
@@ -125,7 +126,7 @@ func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) SyncOn
 		return utils.TrackError(fmt.Errorf("failed to create Maestro client: %w", err))
 	}
 
-	managementClusterContentsDBClient := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).ManagementClusterContents(key.HCPNodePoolName)
+	managementClusterContentsDBClient := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).ManagementClusterContents(key.HCPNodePoolName)
 
 	var syncErrors []error
 	for _, maestroBundleReference := range existingServiceProviderNodePool.Status.MaestroReadonlyBundles {
@@ -139,6 +140,6 @@ func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) SyncOn
 	return utils.TrackError(errors.Join(syncErrors...))
 }
 
-func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *readAndPersistNodePoolScopedMaestroReadonlyBundlesContentSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

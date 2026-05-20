@@ -16,7 +16,7 @@ LDFLAGS = -ldflags "\
 	-X github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/version.buildDate=${BUILD_DATE}"
 
 # Source files
-SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
+SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum' -o -name '*.kql' )
 
 # Default target
 .DEFAULT_GOAL := build

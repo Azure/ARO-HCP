@@ -16,6 +16,8 @@ package mustgather
 
 import (
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/must-gather/snapshot"
 )
 
 var ServicesLogDirectory = "service"
@@ -60,6 +62,12 @@ and collecting diagnostic data for troubleshooting and analysis.`,
 		return nil, err
 	}
 	cmd.AddCommand(cleanCommand)
+
+	snapshotCommand, err := snapshot.NewCommand()
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(snapshotCommand)
 
 	return cmd, nil
 }

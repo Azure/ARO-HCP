@@ -49,10 +49,6 @@
 		"id": "azure",
 		"kind": "CloudProvider"
 	},
-	"flavour": {
-		"id": "osd-4",
-		"kind": "Flavour"
-	},
 	"href": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0",
 	"hypershift": {
 		"enabled": true

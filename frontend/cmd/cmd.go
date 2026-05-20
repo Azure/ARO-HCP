@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -67,7 +66,8 @@ type FrontendOpts struct {
 	cosmosName string
 	cosmosURL  string
 
-	exitOnPanic bool
+	exitOnPanic  bool
+	logVerbosity int
 }
 
 func NewRootCmd() *cobra.Command {
@@ -108,6 +108,9 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.exitOnPanic, "exit-on-panic", opts.exitOnPanic,
 		"If set, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
 	)
+	rootCmd.Flags().IntVar(&opts.logVerbosity, "log-verbosity", opts.logVerbosity,
+		"Log verbosity, as a go-logr/logr log level. 0 is the default verbosity level (INFO). It must be a value >= 0, where a higher value means more verbose output.",
+	)
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
 	return rootCmd
@@ -141,17 +144,35 @@ func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
 	return req.Next()
 }
 
+func (opts *FrontendOpts) Validate() error {
+	if len(opts.location) == 0 {
+		return utils.TrackError(fmt.Errorf("--location is required"))
+	}
+
+	if opts.logVerbosity < 0 {
+		return utils.TrackError(fmt.Errorf("--log-verbosity must be a value >= 0"))
+	}
+
+	return nil
+}
+
 func (opts *FrontendOpts) Run() error {
+	err := opts.Validate()
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
+	}
+
 	ctx := signal.SetupSignalContext()
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("function returned"))
 
-	logger := utils.DefaultLogger()
+	// Create a logr.Logger and add it to context for use throughout the application.
+	// We use slog.Level(opts.LogVerbosity * -1) to convert the verbosity level to a slog.Level.
+	// A value of 0 is equivalent to INFO. Higher values mean more verbose output.
+	handlerOptions := &slog.HandlerOptions{Level: slog.Level(opts.logVerbosity * -1), AddSource: true}
+	slogJSONHandler := slog.NewJSONHandler(os.Stderr, handlerOptions)
+	logger := logr.FromSlogHandler(slogJSONHandler)
 	ctx = utils.ContextWithLogger(ctx, logger)
-
-	if len(opts.location) == 0 {
-		return errors.New("location is required")
-	}
 
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
@@ -203,9 +224,14 @@ func (opts *FrontendOpts) Run() error {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
 
-	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
+	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
 	if err != nil {
-		return fmt.Errorf("failed to create the database client: %w", err)
+		return fmt.Errorf("failed to create the resources database client: %w", err)
+	}
+
+	locksDBClient, err := database.NewLocksDBClient(ctx, cosmosDatabaseClient)
+	if err != nil {
+		return fmt.Errorf("failed to create the locks database client: %w", err)
 	}
 
 	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", opts.port))
@@ -242,7 +268,7 @@ func (opts *FrontendOpts) Run() error {
 	f := frontend.NewFrontend(
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
-		dbClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
+		resourcesDBClient, locksDBClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
 		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
 	)
 

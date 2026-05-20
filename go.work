@@ -4,8 +4,11 @@ use (
 	./admin/client
 	./admin/server
 	./backend
+	./dev-infrastructure/scripts/cleanup-pko-resources
 	./frontend
 	./internal
+	./kube-applier
+	./mgmt-agent
 	./sessiongate
 	./test
 	./test-integration

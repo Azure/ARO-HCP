@@ -161,7 +161,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 		clientOpts.Transport = &proxiedConnectionTransporter{
 			delegate: tc.defaultTransport,
 		}
-		clientOpts.PerCallPolicies = append([]policy.Policy{&correlationRequestIDPolicy{}}, clientOpts.PerCallPolicies...)
+		clientOpts.PerCallPolicies = append([]policy.Policy{&requestIDPolicy{}}, clientOpts.PerCallPolicies...)
 	}
 	return &azcorearm.ClientOptions{
 		ClientOptions: clientOpts,
@@ -190,7 +190,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 		}
 		clientOpts.InsecureAllowCredentialWithHTTP = true
 		clientOpts.PerCallPolicies = []policy.Policy{
-			&correlationRequestIDPolicy{},
+			&requestIDPolicy{},
 			&armSystemDataPolicy{},
 			&armResourceGroupValidationPolicy{cred: tc.azureCredentials},
 			&sanitizeAuthHeaderPolicy{},

@@ -14,6 +14,10 @@ ARO_HCP_CLOUD ?= dev
 LOCAL_PORT ?= 8443
 AROHCP_ENV ?= development
 CUSTOMER_SUBSCRIPTION ?= $$(az account show --output tsv --query 'name')
+ifndef E2E_ARTIFACT_DIR
+  E2E_ARTIFACT_DIR := $(shell mktemp -d)
+endif
+SNAPSHOT_RENDERED_CONFIG := $(shell mktemp)
 
 e2e-local/run-test: $(ARO_HCP_TESTS)
 	$(MAKE) -C $(DIR) -f $(THIS) .e2e-local/setup
@@ -22,6 +26,7 @@ e2e-local/run-test: $(ARO_HCP_TESTS)
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
+	export ARTIFACT_DIR="$(E2E_ARTIFACT_DIR)"; \
 	$(ARO_HCP_TESTS) run-test "$$TEST_NAME"
 .PHONY: e2e-local/run-test
 
@@ -29,6 +34,21 @@ e2e-local/pf/run-test: $(HCPCTL)
 	HCPCTL=$(HCPCTL) ../hack/run-with-port-forward.sh "${SVC_CLUSTER}" "aro-hcp/aro-hcp-frontend/$(LOCAL_PORT)/8443" \
 		$(MAKE) -C $(DIR) -f $(THIS) e2e-local/run-test SKIP_CERT_VERIFICATION=true FRONTEND_ADDRESS=http://localhost:$(LOCAL_PORT)
 .PHONY: e2e-local/pf/run-test
+
+e2e-local/gather-snapshot: $(ARO_HCP_TESTS) $(TEMPLATIZE)
+	$(TEMPLATIZE) configuration render \
+	  --service-config-file $(CONFIG_FILE) \
+	  --skip-schema-validation \
+	  --cloud $(ARO_HCP_CLOUD) \
+	  --environment $(DEPLOY_ENV) \
+	  --dev-settings-file $(DEV_SETTINGS_FILE) \
+	  --output "$(SNAPSHOT_RENDERED_CONFIG)"
+	AZURE_TOKEN_CREDENTIALS=dev $(ARO_HCP_TESTS) gather-snapshot \
+		--rendered-config $(SNAPSHOT_RENDERED_CONFIG) \
+        --timing-input $(E2E_ARTIFACT_DIR)/test-timing \
+        --output $(E2E_ARTIFACT_DIR)/snapshot
+	@echo "Kusto snapshot artifacts written to $(E2E_ARTIFACT_DIR)/snapshot"
+.PHONY: e2e-local/gather-snapshot
 
 OBSERVABILITY_OUTPUT ?= $(shell mktemp -d)
 OBSERVABILITY_RENDERED_CONFIG := $(shell mktemp)

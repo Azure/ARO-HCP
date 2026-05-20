@@ -24,7 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-func NewCosmosCRUD[InternalAPIType any](t *testing.T, cosmosClient database.DBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) database.ResourceCRUD[InternalAPIType] {
+func NewCosmosCRUD[InternalAPIType any](t *testing.T, cosmosClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) database.ResourceCRUD[InternalAPIType] {
 	switch {
 	case strings.EqualFold(resourceType.String(), api.ClusterControllerResourceType.String()):
 		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])

@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/utils/ptr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -32,6 +32,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -58,7 +59,6 @@ import (
 // See docs/api-version-defaults-and-storage.md for the full design rationale.
 
 const (
-	csFlavourId        string = "osd-4" // managed cluster
 	csCloudProvider    string = "azure"
 	csProductId        string = "aro"
 	csHypershifEnabled bool   = true
@@ -66,21 +66,24 @@ const (
 
 	// The OCM SDK does not provide these constants.
 
-	csCustomerManagedEncryptionTypeKms  string = "kms"
-	csEncryptionAtHostStateDisabled     string = "disabled"
-	csEncryptionAtHostStateEnabled      string = "enabled"
-	csImageRegistryStateDisabled        string = "disabled"
-	csImageRegistryStateEnabled         string = "enabled"
-	csKeyManagementModeCustomerManaged  string = "customer_managed"
-	csKeyManagementModePlatformManaged  string = "platform_managed"
-	csNodeDrainGracePeriodUnit          string = "minutes"
-	csOutboundType                      string = "load_balancer"
-	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
-	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
-	csOsDiskPersistencePersistent       string = "persistent"
-	csOsDiskPersistenceEphemeral        string = "ephemeral"
+	csCustomerManagedEncryptionTypeKms   string = "kms"
+	csEncryptionAtHostStateDisabled      string = "disabled"
+	csEncryptionAtHostStateEnabled       string = "enabled"
+	csImageRegistryStateDisabled         string = "disabled"
+	csImageRegistryStateEnabled          string = "enabled"
+	csKeyManagementModeCustomerManaged   string = "customer_managed"
+	csKeyManagementModePlatformManaged   string = "platform_managed"
+	csNodeDrainGracePeriodUnit           string = "minutes"
+	csOutboundType                       string = "load_balancer"
+	csUsernameClaimPrefixPolicyNoPrefix  string = "NoPrefix"
+	csUsernameClaimPrefixPolicyPrefix    string = "Prefix"
+	csCIDRBlockAllowAccessModeAllowAll   string = "allow_all"
+	csCIDRBlockAllowAccessModeAllowList  string = "allow_list"
+	csOsDiskPersistencePersistent        string = "persistent"
+	csOsDiskPersistenceEphemeral         string = "ephemeral"
+	csProvisioningShardStatusActive      string = "active"
+	csProvisioningShardStatusMaintenance string = "maintenance"
+	csProvisioningShardStatusOffline     string = "offline"
 )
 
 // Sentinel error for use with errors.Is
@@ -121,25 +124,6 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) 
 	}
 }
 
-// convertDiskStorageAccountTypeCSToRP maps Cluster Service DiskStorageAccountType
-// strings to RP enum values. An empty string from CS (pre-existing resources that
-// predate the field) is mapped to the default. Must match the canonical default in
-// HCPOpenShiftClusterNodePool.EnsureDefaults(). See docs/api-version-defaults-and-storage.md.
-func convertDiskStorageAccountTypeCSToRP(storageAccountTypeCS string) (api.DiskStorageAccountType, error) {
-	switch storageAccountTypeCS {
-	case string(api.DiskStorageAccountTypePremium_LRS):
-		return api.DiskStorageAccountTypePremium_LRS, nil
-	case string(api.DiskStorageAccountTypeStandardSSD_LRS):
-		return api.DiskStorageAccountTypeStandardSSD_LRS, nil
-	case string(api.DiskStorageAccountTypeStandard_LRS):
-		return api.DiskStorageAccountTypeStandard_LRS, nil
-	case "":
-		return api.DiskStorageAccountTypePremium_LRS, nil
-	default:
-		return "", conversionError[api.DiskStorageAccountType](storageAccountTypeCS)
-	}
-}
-
 func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAccountType) (string, error) {
 	switch storageAccountTypeRP {
 	case api.DiskStorageAccountTypePremium_LRS:
@@ -154,21 +138,6 @@ func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAcc
 		// values before this function is called on the write path.
 		// An empty value here indicates a bug in the defaults pipeline.
 		return "", conversionError[string](storageAccountTypeRP)
-	}
-}
-
-// convertDiskTypeCSToRP maps Cluster Service persistence strings to RP
-// OsDiskType enum values. An empty string from CS (pre-existing resources that
-// predate the field) is mapped to the default. Must match the storage default in
-// applyNodePoolStorageDefaults. See docs/api-version-defaults-and-storage.md.
-func convertDiskTypeCSToRP(persistence string) (api.OsDiskType, error) {
-	switch persistence {
-	case csOsDiskPersistencePersistent, "":
-		return api.OsDiskTypeManaged, nil
-	case csOsDiskPersistenceEphemeral:
-		return api.OsDiskTypeEphemeral, nil
-	default:
-		return "", conversionError[api.OsDiskType](persistence)
 	}
 }
 
@@ -467,8 +436,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 
 	clusterBuilder.
 		Name(strings.ToLower(hcpCluster.Name)).
-		Flavour(arohcpv1alpha1.NewFlavour().
-			ID(csFlavourId)).
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(hcpCluster.Location)).
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
@@ -548,89 +515,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	return clusterBuilder, nil
-}
-
-// ConvertCStoNodePool converts a CS NodePool object into an HCPOpenShiftClusterNodePool object.
-func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string, np *arohcpv1alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	var subnetID *azcorearm.ResourceID
-	if len(np.Subnet()) > 0 {
-		var err error
-		subnetID, err = azcorearm.ParseResourceID(np.Subnet())
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-	}
-
-	diskStorageAccountType, err := convertDiskStorageAccountTypeCSToRP(np.AzureNodePool().OsDisk().StorageAccountType())
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	diskType, err := convertDiskTypeCSToRP(np.AzureNodePool().OsDisk().Persistence())
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:   resourceID,
-				Name: resourceID.Name,
-				Type: resourceID.ResourceType.String(),
-			},
-			Location: azureLocation,
-		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
-				ID:           ConvertOpenShiftVersionNoPrefix(np.Version().ID()),
-				ChannelGroup: np.Version().ChannelGroup(),
-			},
-			Platform: api.NodePoolPlatformProfile{
-				SubnetID:               subnetID,
-				VMSize:                 np.AzureNodePool().VMSize(),
-				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == csEncryptionAtHostStateEnabled,
-				OSDisk: api.OSDiskProfile{
-					SizeGiB:                ptr.To(int32(np.AzureNodePool().OsDisk().SizeGibibytes())),
-					DiskStorageAccountType: diskStorageAccountType,
-					DiskType:               diskType,
-				},
-				AvailabilityZone: np.AvailabilityZone(),
-			},
-			AutoRepair: np.AutoRepair(),
-			Labels:     np.Labels(),
-		},
-	}
-
-	if replicas, ok := np.GetReplicas(); ok {
-		nodePool.Properties.Replicas = int32(replicas)
-	}
-
-	if autoscaling, ok := np.GetAutoscaling(); ok {
-		nodePool.Properties.AutoScaling = &api.NodePoolAutoScaling{
-			Min: int32(autoscaling.MinReplica()),
-			Max: int32(autoscaling.MaxReplica()),
-		}
-	}
-
-	if np.Taints() != nil {
-		taints := make([]api.Taint, 0, len(np.Taints()))
-		for _, t := range np.Taints() {
-			taints = append(taints, api.Taint{
-				Effect: api.Effect(t.Effect()),
-				Key:    t.Key(),
-				Value:  t.Value(),
-			})
-		}
-		nodePool.Properties.Taints = taints
-	}
-
-	if nodeDrainGracePeriod, ok := np.GetNodeDrainGracePeriod(); ok {
-		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == csNodeDrainGracePeriodUnit {
-			nodePool.Properties.NodeDrainTimeoutMinutes = api.Ptr(int32(nodeDrainGracePeriod.Value()))
-		}
-	}
-
-	return nodePool, nil
 }
 
 // BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
@@ -867,4 +751,131 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 	}
 
 	return arm.NewInternalServerError()
+}
+
+// ConvertCSManagementClusterToInternal converts a Cluster Service ProvisionShard
+// to the internal ManagementCluster representation.
+func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard) (*fleet.ManagementCluster, error) {
+	if csShard == nil {
+		return nil, fmt.Errorf("provision shard is nil")
+	}
+
+	shardHREF := csShard.HREF()
+	if len(shardHREF) == 0 {
+		return nil, fmt.Errorf("provision shard has empty HREF")
+	}
+	shardID, err := api.NewInternalID(shardHREF)
+	if err != nil {
+		return nil, fmt.Errorf("provision shard has invalid HREF %q: %w", shardHREF, err)
+	}
+
+	azureShard := csShard.AzureShard()
+	if azureShard == nil {
+		return nil, fmt.Errorf("provision shard %q has no azure shard", shardID)
+	}
+
+	managementClusterAKSResourceID, err := azcorearm.ParseResourceID(azureShard.AksManagementClusterResourceId())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse management cluster AKS resource ID %q: %w", azureShard.AksManagementClusterResourceId(), err)
+	}
+
+	publicDNSZoneResourceID, err := azcorearm.ParseResourceID(azureShard.PublicDnsZoneResourceId())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public DNS zone resource ID %q: %w", azureShard.PublicDnsZoneResourceId(), err)
+	}
+
+	maestroConfig := csShard.MaestroConfig()
+	if maestroConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro config", shardID)
+	}
+	restConfig := maestroConfig.RestApiConfig()
+	if restConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro REST API config", shardID)
+	}
+	grpcConfig := maestroConfig.GrpcApiConfig()
+	if grpcConfig == nil {
+		return nil, fmt.Errorf("management cluster %q has no maestro GRPC API config", shardID)
+	}
+
+	hostedClustersSecretsKeyVaultURL := azureShard.CxSecretsKeyVaultUrl()
+	hostedClustersManagedIdentitiesKeyVaultURL := azureShard.CxManagedIdentitiesKeyVaultUrl()
+	hostedClustersSecretsKeyVaultManagedIdentityClientID := azureShard.CxSecretsKeyVaultManagedIdentityClientId()
+
+	readyCondition := metav1.Condition{
+		Type:               string(fleet.ManagementClusterConditionReady),
+		LastTransitionTime: metav1.Now(),
+	}
+	switch csShard.Status() {
+	case csProvisioningShardStatusActive:
+		readyCondition.Status = metav1.ConditionTrue
+		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardActive)
+	case csProvisioningShardStatusMaintenance:
+		readyCondition.Status = metav1.ConditionFalse
+		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardMaintenance)
+		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
+	case csProvisioningShardStatusOffline:
+		readyCondition.Status = metav1.ConditionFalse
+		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardOffline)
+		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
+	default:
+		readyCondition.Status = metav1.ConditionUnknown
+		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardStatusUnknown)
+		readyCondition.Message = fmt.Sprintf("provision shard has unrecognized status %q", csShard.Status())
+	}
+
+	// The stamp identifier is derived from the AKS cluster name, which must
+	// follow the {env}-{region}-mgmt-{stamp} convention (e.g. "prod-westus3-mgmt-1"
+	// yields stamp identifier "1"). This pattern is enforced by our rollout pipelines.
+	// Once the mgmt cluster enhancement enters phase 2, we can remove this logic
+	// and use the original stamp identifier to fill mgmt clusters instead of deriving
+	// it from the AKS cluster name.
+	aksName := managementClusterAKSResourceID.Name
+	lastDash := strings.LastIndex(aksName, "-")
+	if lastDash < 0 || lastDash == len(aksName)-1 {
+		return nil, fmt.Errorf("AKS cluster name %q does not contain a stamp suffix after the last '-'", aksName)
+	}
+	stampIdentifier := aksName[lastDash+1:]
+
+	resourceID, err := fleet.ToManagementClusterResourceID(stampIdentifier)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct management cluster resource ID from stamp identifier %q: %w", stampIdentifier, err)
+	}
+
+	mc := &fleet.ManagementCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
+		ResourceID: resourceID,
+		Spec: fleet.ManagementClusterSpec{
+			SchedulingPolicy: convertShardStatusToSchedulingPolicy(csShard.Status()),
+		},
+		Status: fleet.ManagementClusterStatus{
+			AKSResourceID:                                        managementClusterAKSResourceID,
+			PublicDNSZoneResourceID:                              publicDNSZoneResourceID,
+			HostedClustersSecretsKeyVaultURL:                     hostedClustersSecretsKeyVaultURL,
+			HostedClustersManagedIdentitiesKeyVaultURL:           hostedClustersManagedIdentitiesKeyVaultURL,
+			HostedClustersSecretsKeyVaultManagedIdentityClientID: hostedClustersSecretsKeyVaultManagedIdentityClientID,
+			MaestroConsumerName:                                  maestroConfig.ConsumerName(),
+			MaestroRESTAPIURL:                                    restConfig.Url(),
+			MaestroGRPCTarget:                                    grpcConfig.Url(),
+			ClusterServiceProvisionShardID:                       &shardID,
+			// i hate this a lot but there is no representation of the cosmosdb container as of now
+			// in CS or the RP so we replicate the naming convention here.
+			// This will resolve once we don't migrate mgmt clusters from CS anymore but ingest them
+			// from the pipeline, where this information is available (a.k.a. phase 2)
+			KubeApplierCosmosContainerName: fmt.Sprintf("Manifests-MC-%s", stampIdentifier),
+			Conditions:                     []metav1.Condition{readyCondition},
+		},
+	}
+
+	return mc, nil
+}
+
+// convertShardStatusToSchedulingPolicy maps a Cluster Service provision shard
+// status to a ManagementClusterSchedulingPolicy.
+func convertShardStatusToSchedulingPolicy(status string) fleet.ManagementClusterSchedulingPolicy {
+	if status == csProvisioningShardStatusActive {
+		return fleet.ManagementClusterSchedulingPolicySchedulable
+	}
+	return fleet.ManagementClusterSchedulingPolicyUnschedulable
 }

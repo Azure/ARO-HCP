@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 )
 
 const (
@@ -38,7 +39,7 @@ const (
 )
 
 type stringSyncer struct {
-	cooldown CooldownChecker
+	cooldown controllerutil.CooldownChecker
 }
 
 func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) string {
@@ -50,7 +51,7 @@ func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) string {
 
 func (s *stringSyncer) SyncOnce(context.Context, string) error { return nil }
 
-func (s *stringSyncer) CooldownChecker() CooldownChecker {
+func (s *stringSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	if s.cooldown == nil {
 		return alwaysAllowCooldown{}
 	}

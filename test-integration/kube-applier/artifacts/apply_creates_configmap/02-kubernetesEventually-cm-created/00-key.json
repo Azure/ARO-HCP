@@ -1,0 +1,6 @@
+{
+	"apiVersion": "v1",
+	"kind": "ConfigMap",
+	"name": "hello",
+	"namespace": "apply-creates-configmap"
+}

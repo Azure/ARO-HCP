@@ -38,7 +38,7 @@ import (
 type deleteOrphanedMaestroReadonlyBundles struct {
 	name string
 
-	cosmosClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -53,10 +53,10 @@ type deleteOrphanedMaestroReadonlyBundles struct {
 
 // NewDeleteOrphanedMaestroReadonlyBundlesController periodically looks for Maestro readonly bundles in the Maestro API that are not referenced
 // by any of the supported cosmos resources by this controller and deletes them.
-func NewDeleteOrphanedMaestroReadonlyBundlesController(cosmosClient database.DBClient, csClient ocm.ClusterServiceClientSpec, maestroClientBuilder maestro.MaestroClientBuilder, maestroSourceEnvironmentIdentifier string) controllerutils.Controller {
+func NewDeleteOrphanedMaestroReadonlyBundlesController(resourcesDBClient database.ResourcesDBClient, csClient ocm.ClusterServiceClientSpec, maestroClientBuilder maestro.MaestroClientBuilder, maestroSourceEnvironmentIdentifier string) controllerutils.Controller {
 	c := &deleteOrphanedMaestroReadonlyBundles{
 		name:                               "DeleteOrphanedMaestroReadonlyBundles",
-		cosmosClient:                       cosmosClient,
+		resourcesDBClient:                  resourcesDBClient,
 		clusterServiceClient:               csClient,
 		maestroClientBuilder:               maestroClientBuilder,
 		maestroSourceEnvironmentIdentifier: maestroSourceEnvironmentIdentifier,
@@ -157,7 +157,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) getAllServiceProviderClusters(ctx
 	// Any failure to iterate over the ServiceProviderclusters ends the sync process because otherwise
 	// we would not have the complete information to evaluate the deletion and we could
 	// accidentally delete Maestro Bundles that are still in use.
-	return database.ListAll(ctx, 500, c.cosmosClient.GlobalListers().ServiceProviderClusters().List)
+	return database.ListAll(ctx, 500, c.resourcesDBClient.ResourcesGlobalListers().ServiceProviderClusters().List)
 }
 
 // getAllServiceProviderNodePools returns all ServiceProviderNodePools via database.ListAll.
@@ -167,7 +167,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) getAllServiceProviderNodePools(ct
 	// Any failure to iterate over the ServiceProviderNodePools ends the sync process because otherwise
 	// we would not have the complete information to evaluate the deletion and we could
 	// accidentally delete Maestro Bundles that are still in use.
-	return database.ListAll(ctx, 500, c.cosmosClient.GlobalListers().ServiceProviderNodePools().List)
+	return database.ListAll(ctx, 500, c.resourcesDBClient.ResourcesGlobalListers().ServiceProviderNodePools().List)
 }
 
 // shardMaestroClient holds a Maestro API client for one Cluster Service provision shard and its teardown cancel func.
@@ -456,7 +456,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) clusterProvisionShardIDForService
 	if clusterResourceID == nil {
 		return "", false, utils.TrackError(fmt.Errorf("ServiceProviderCluster %s has no parent resource ID", spc.ResourceID.String()))
 	}
-	cluster, err := c.cosmosClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+	cluster, err := c.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 	if database.IsNotFoundError(err) {
 		// if the cluster does not exist, then any maestro resources associated with it are orphans.
 		return "", true, nil
@@ -478,7 +478,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) clusterProvisionShardIDForService
 	if clusterResourceID == nil {
 		return "", false, utils.TrackError(fmt.Errorf("ServiceProviderNodePool %s has no grandparent cluster resource ID", spnp.ResourceID.String()))
 	}
-	cluster, err := c.cosmosClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
+	cluster, err := c.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Get(ctx, clusterResourceID.Name)
 	if database.IsNotFoundError(err) {
 		// if the cluster does not exist, then any maestro resources associated with it are orphans.
 		return "", true, nil

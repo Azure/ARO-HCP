@@ -38,13 +38,13 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 		nodePoolState string
 		nodePoolMsg   string
 		expectError   bool
-		verify        func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture)
+		verify        func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture)
 	}{
 		{
 			name:          "node pool ready transitions to succeeded",
 			nodePoolState: string(NodePoolStateReady),
 			expectError:   false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -60,7 +60,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			name:          "node pool installing transitions to provisioning",
 			nodePoolState: string(NodePoolStateInstalling),
 			expectError:   false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
@@ -77,7 +77,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			nodePoolState: string(NodePoolStateError),
 			nodePoolMsg:   "node pool creation failed",
 			expectError:   false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -95,7 +95,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			name:          "node pool pending stays accepted",
 			nodePoolState: string(NodePoolStatePending),
 			expectError:   false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -105,7 +105,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			name:          "node pool validating stays accepted",
 			nodePoolState: string(NodePoolStateValidating),
 			expectError:   false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *nodePoolTestFixture) {
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -125,7 +125,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			nodePool := fixture.newNodePool()
 			operation := fixture.newOperation(database.OperationRequestCreate)
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, nodePool, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, nodePool, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -142,7 +142,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				Return(nodePoolStatus, nil)
 
 			controller := &operationNodePoolCreate{
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
 			}
@@ -156,7 +156,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

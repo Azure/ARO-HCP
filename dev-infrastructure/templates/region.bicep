@@ -27,6 +27,18 @@ param svcParentZoneResourceId string
 
 param regionalDNSSubdomain string
 
+@description('The name of the Cosmos DB for the RP')
+param rpCosmosDbName string
+
+@description('If true, make the Cosmos DB instance private')
+param rpCosmosDbPrivate bool
+
+@description('The zone redundant mode of the Cosmos DB instance')
+param rpCosmosZoneRedundantMode string
+
+@description('disableLocalAuth for the ARO HCP RP CosmosDB')
+param disableLocalAuth bool
+
 @description('MSI that will be used during pipeline runs')
 param globalMSIId string
 
@@ -45,6 +57,7 @@ param amwMaxActiveTimeSeries int = 2000000
 @description('Maximum events per minute limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
 param amwMaxEventsPerMinute int = 2000000
 
+import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
 // Reader role
@@ -119,6 +132,21 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
     maxClientSessionsPerAuthName: maestroEventGridMaxClientSessionsPerAuthName
     publicNetworkAccess: maestroEventGridPrivate ? 'Disabled' : 'Enabled'
     certificateIssuer: maestroCertificateIssuer
+  }
+}
+
+//
+//   C O S M O S D B
+//
+
+module rpCosmosAccount '../modules/rp-cosmos-account.bicep' = {
+  name: 'rp-cosmos-account'
+  params: {
+    name: rpCosmosDbName
+    location: location
+    zoneRedundant: determineZoneRedundancyForRegion(location, rpCosmosZoneRedundantMode)
+    disableLocalAuth: disableLocalAuth
+    private: rpCosmosDbPrivate
   }
 }
 

@@ -52,7 +52,7 @@ func (l *completeOperationStep) StepID() StepID {
 }
 
 func (l *completeOperationStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	accessor := newOperationAccessor(stepInput.DBClient)
+	accessor := newOperationAccessor(stepInput.ResourcesDBClient)
 	err := accessor.CompleteOperation(ctx, l.key.ResourceID)
 	require.NoError(t, err)
 }

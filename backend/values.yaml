@@ -8,6 +8,7 @@ configMap:
   backendMiClientId: "__backendMsiClientId__"
   databaseUrl: "__cosmosDBDocumentEndpoint__"
   databaseName: "{{ .frontend.cosmosDB.name }}"
+  kubeApplierCosmosContainerName: "{{ .kubeApplier.cosmosContainerName }}"
 deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
@@ -83,5 +84,6 @@ exitOnPanic: {{ .backend.exitOnPanic }}
 # This value is used to select the appropriate set of role definitions to be used by the cluster scoped
 # identities. What role definitions are used by each cluster scoped identity for each role set and the role set names
 # themselves are defined as part of application code.
+logVerbosity: {{ .backend.logVerbosity }}
 clusterScopedIdentitiesConfig:
   roleSetName: "{{ .backend.clusterScopedIdentitiesConfig.roleSetName }}"

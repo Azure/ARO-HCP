@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -51,11 +52,11 @@ const (
 // As of now we support the creation of a Maestro readonly bundle for the Hypershift's HostedCluster CR associated to
 // the Cluster.
 type createClusterScopedMaestroReadonlyBundlesSyncer struct {
-	cooldownChecker controllerutils.CooldownChecker
+	cooldownChecker controllerutil.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
 
-	cosmosClient database.DBClient
+	resourcesDBClient database.ResourcesDBClient
 
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -70,7 +71,7 @@ var _ controllerutils.ClusterSyncer = (*createClusterScopedMaestroReadonlyBundle
 
 func NewCreateClusterScopedMaestroReadonlyBundlesController(
 	activeOperationLister listers.ActiveOperationLister,
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers informers.BackendInformers,
 	maestroSourceEnvironmentIdentifier string,
@@ -79,7 +80,7 @@ func NewCreateClusterScopedMaestroReadonlyBundlesController(
 
 	syncer := &createClusterScopedMaestroReadonlyBundlesSyncer{
 		cooldownChecker:                      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:                         cosmosClient,
+		resourcesDBClient:                    resourcesDBClient,
 		clusterServiceClient:                 clusterServiceClient,
 		activeOperationLister:                activeOperationLister,
 		maestroSourceEnvironmentIdentifier:   maestroSourceEnvironmentIdentifier,
@@ -89,7 +90,7 @@ func NewCreateClusterScopedMaestroReadonlyBundlesController(
 
 	controller := controllerutils.NewClusterWatchingController(
 		"CreateClusterScopedMaestroReadonlyBundles",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		1*time.Minute,
 		syncer,
@@ -99,7 +100,7 @@ func NewCreateClusterScopedMaestroReadonlyBundlesController(
 }
 
 func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	existingCluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -112,7 +113,7 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.C
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
@@ -149,7 +150,7 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.C
 		return nil
 	}
 
-	serviceProviderClustersDBClient := c.cosmosClient.ServiceProviderClusters(
+	serviceProviderClustersDBClient := c.resourcesDBClient.ServiceProviderClusters(
 		key.SubscriptionID,
 		key.ResourceGroupName,
 		key.HCPClusterName,
@@ -267,10 +268,21 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 		return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to get or create Maestro Bundle: %w", err))
 	}
 
-	// If the Maestro API MaestroBundle ID is not set we store the returned Maestro Bundle ID in the corresponding Maestro Bundle reference of the ServiceProviderCluster in Cosmos.
+	// Backfill any missing Maestro Bundle reference attributes individually,
+	// then persist at most once if anything changed.
+	needsUpdate := false
+
 	if len(existingMaestroBundleRef.MaestroAPIMaestroBundleID) == 0 {
-		bundleID := string(resultMaestroBundle.UID)
-		existingMaestroBundleRef.MaestroAPIMaestroBundleID = bundleID
+		existingMaestroBundleRef.MaestroAPIMaestroBundleID = string(resultMaestroBundle.UID)
+		needsUpdate = true
+	}
+
+	if len(existingMaestroBundleRef.ResourceIdentifiers) != len(desiredMaestroBundle.Spec.ManifestConfigs) {
+		existingMaestroBundleRef.ResourceIdentifiers = resourceIdentifiersFromManifestWork(desiredMaestroBundle)
+		needsUpdate = true
+	}
+
+	if needsUpdate {
 		err = existingServiceProviderCluster.Status.MaestroReadonlyBundles.Set(existingMaestroBundleRef)
 		if err != nil {
 			return lastPersistedSPC, utils.TrackError(fmt.Errorf("failed to set Maestro Bundle reference: %w", err))
@@ -344,6 +356,6 @@ func (c *createClusterScopedMaestroReadonlyBundlesSyncer) getHostedClusterNamesp
 	return fmt.Sprintf("ocm-%s-%s", envName, csClusterID)
 }
 
-func (c *createClusterScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *createClusterScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

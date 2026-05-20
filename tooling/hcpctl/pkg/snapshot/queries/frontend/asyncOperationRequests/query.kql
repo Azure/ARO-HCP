@@ -1,0 +1,10 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where log.path =~ '{{ .AsyncOperationPath }}'
+| where log.msg == 'response complete'
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by method=tostring(log.method), response_status_code=tostring(log.response_status_code), error=tostring(log.error)
+| order by first_occurrence asc

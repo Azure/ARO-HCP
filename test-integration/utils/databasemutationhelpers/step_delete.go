@@ -62,7 +62,7 @@ func (l *deleteStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *deleteStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 	err := resourceCRUDClient.Delete(ctx, l.key.ResourceID.Name)
 	switch {
 	case len(l.expectedError) > 0:

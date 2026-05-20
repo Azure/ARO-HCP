@@ -22,6 +22,9 @@ param adminGroups string
 @description('CSV separated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
 
+@description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
+param viewerIdentities string = ''
+
 @description('Name of the Kusto cluster to create')
 param kustoName string
 
@@ -53,6 +56,7 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups
+    viewerIdentities: viewerIdentities
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale

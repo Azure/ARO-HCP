@@ -29,6 +29,7 @@ ignore:
 - 'observability/arobit/deploy/templates/serviceaccount.yaml'
 - 'observability/arobit/deploy/templates/forwarder-secretprovider.yaml'
 - 'observability/kube-events/deploy/templates/deployment.yaml'
+- 'mgmt-agent/deploy/templates/deployment.yaml'
 - 'mgmt-fixes/deploy/kubelet-ds/templates/ds-kubelet-parameters.yaml'
 - 'sessiongate/deploy/templates/deployment.yaml'
 - 'sessiongate/deploy/templates/ext-authz.authorizationpolicy.yaml'
@@ -39,7 +40,10 @@ ignore:
 - 'maestro/server/deploy/templates/allow-backend.authorizationpolicy.yaml'
 - 'backend/deploy/templates/backend.service-key-vault.secretproviderclass.yaml'
 - 'backend/deploy/templates/backend.deployment.yaml'
+- 'dev-infrastructure/opstool/cihealth/deploy/templates/*.yaml'
+- 'dev-infrastructure/opstool/opstool-gateway/deploy/templates/gateway.yaml'
 - 'tooling/aro-hcp-exporter/deploy/templates/deployment.yaml'
+- 'kube-applier/deploy/templates/deployment.yaml'
 rules:
   brackets: enable
   colons: enable

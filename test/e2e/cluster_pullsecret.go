@@ -33,33 +33,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
-
-// eventuallyVerify is a helper to reduce boilerplate when waiting for verifiers.
-// It tracks the previous error string and only logs when the error changes
-// between poll iterations. Based on the HyperShift EventuallyObject pattern
-// of delta-only logging.  Returns deterministic error strings so that identical
-// state across polls produces identical strings.
-func eventuallyVerify(ctx context.Context, verifier verifiers.HostedClusterVerifier,
-	adminRESTConfig *rest.Config, timeout, interval time.Duration, message string) {
-	var previousError string
-	Eventually(func() error {
-		err := verifier.Verify(ctx, adminRESTConfig)
-		if err != nil {
-			currentError := err.Error()
-			if currentError != previousError {
-				GinkgoLogr.Info("Verifier check", "name", verifier.Name(), "status", "failed", "error", currentError)
-				previousError = currentError
-			}
-		}
-		return err
-	}, timeout, interval).Should(Succeed(), message)
-}
 
 var _ = Describe("Customer", func() {
 	BeforeEach(func() {
@@ -138,7 +116,9 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.Replicas = int32(2)
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,
@@ -183,12 +163,12 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
 			verifier := verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost)
-			eventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
+			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
 				"additional pull secret should be merged into global-pull-secret by HCCO")
 
 			By("verifying the DaemonSet for global pull secret synchronization is created")
 			verifier = verifiers.VerifyGlobalPullSecretSyncer()
-			eventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
+			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
 				"global-pull-secret-syncer DaemonSet should be created")
 
 			By("verifying the pull secret was merged into the global pull secret")
@@ -244,12 +224,12 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")
 			verifier = verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost)
-			eventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
+			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
 				"registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
 
 			By("waiting for global-pull-secret-syncer DaemonSet to sync updated secret to all nodes")
 			verifier = verifiers.VerifyGlobalPullSecretSyncer()
-			eventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
+			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
 				"global-pull-secret-syncer should have synced pull secret to all nodes")
 
 			By("verifying both test registries are now in the global pull secret")
@@ -267,7 +247,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying redhat-operators catalog source is ready")
 			verifier = verifiers.VerifyCatalogSourceReady(catalogSourceNamespace, catalogSourceName)
-			eventuallyVerify(ctx, verifier, adminRESTConfig, catalogSourceTimeout, verifierPollInterval,
+			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, catalogSourceTimeout, verifierPollInterval,
 				"redhat-operators catalog source should be ready before creating subscription")
 
 			By("creating dynamic client for operator installation")
@@ -332,7 +312,7 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for NFD operator to be installed")
 			verifier = verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd")
-			eventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
+			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
 				"NFD operator should be installed successfully")
 
 			By("creating NodeFeatureDiscovery CR to deploy NFD worker")
@@ -379,7 +359,7 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for NFD worker pods to be created and verify images from registry.redhat.io can be pulled")
 			verifier = verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "ose-node-feature-discovery")
-			eventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
+			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
 				"NFD worker images from registry.redhat.io should be pulled successfully with the added pull secret")
 		})
 })

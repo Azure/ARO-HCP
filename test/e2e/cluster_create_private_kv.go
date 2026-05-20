@@ -143,7 +143,9 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			nodePoolParams.Replicas = int32(2)
 
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,

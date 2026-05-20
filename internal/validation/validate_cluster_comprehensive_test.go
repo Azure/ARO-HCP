@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // testFeatureOptions creates validation options from feature names,
@@ -51,12 +52,12 @@ func TestValidateClusterCreate(t *testing.T) {
 		name         string
 		cluster      *api.HCPOpenShiftCluster
 		opOptions    []string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "valid cluster - create",
 			cluster:      createValidCluster(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid cluster with identity - create",
@@ -65,7 +66,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				// The helper already sets up a valid identity, so just return it
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "OpenShift 5 rejected on create without experimental release features (no prior version id)",
@@ -74,8 +75,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "5.0"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "OpenShift v5 and above is not supported", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -86,7 +87,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid DNS prefix - create",
@@ -95,8 +96,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = "Invalid-Name"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "customerProperties.dns.baseDomainPrefix"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "customerProperties.dns.baseDomainPrefix"},
 			},
 		},
 		{
@@ -106,8 +107,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.NetworkType = "InvalidType"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "customerProperties.network.networkType"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.network.networkType"},
 			},
 		},
 		{
@@ -117,8 +118,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.PodCIDR = "invalid-cidr"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "customerProperties.network.podCidr"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.network.podCidr"},
 			},
 		},
 		{
@@ -128,8 +129,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.ServiceCIDR = "300.0.0.0/16"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "customerProperties.network.serviceCidr"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.network.serviceCidr"},
 			},
 		},
 		{
@@ -139,8 +140,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.MachineCIDR = "2001:db8::/32"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "not IPv4", fieldPath: "customerProperties.network.machineCidr"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "not IPv4", FieldPath: "customerProperties.network.machineCidr"},
 			},
 		},
 		{
@@ -150,8 +151,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.HostPrefix = 22
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 23", fieldPath: "customerProperties.network.hostPrefix"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 23", FieldPath: "customerProperties.network.hostPrefix"},
 			},
 		},
 		{
@@ -161,8 +162,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.HostPrefix = 27
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 26", fieldPath: "customerProperties.network.hostPrefix"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 26", FieldPath: "customerProperties.network.hostPrefix"},
 			},
 		},
 		{
@@ -172,8 +173,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.Visibility = "InvalidVisibility"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "customerProperties.api.visibility"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.api.visibility"},
 			},
 		},
 		{
@@ -183,9 +184,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -195,8 +196,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{""}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -206,8 +207,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must have at least 1 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must have at least 1 items", FieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -217,10 +218,10 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{" 10.0.0.0/16"}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -230,10 +231,10 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16 "}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -243,9 +244,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0. 0.0/16"}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -255,7 +256,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"192.168.1.1"}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid CIDR ranges in authorized CIDRs - create",
@@ -264,7 +265,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "IPv6 address in authorized CIDRs - create",
@@ -273,9 +274,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"2001:db8::1"}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not IPv4", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -285,9 +286,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"2001:db8::/32"}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not IPv4", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -297,9 +298,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/33"}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -309,15 +310,15 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"", "invalid-cidr", " 10.0.0.0/16", "2001:db8::1"}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[1]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[1]"},
-				{message: "must not contain extra whitespace", fieldPath: "customerProperties.api.authorizedCidrs[2]"},
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[2]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[2]"},
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[3]"},
-				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[3]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[1]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[1]"},
+				{Message: "must not contain extra whitespace", FieldPath: "customerProperties.api.authorizedCidrs[2]"},
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[2]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[2]"},
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[3]"},
+				{Message: "not IPv4", FieldPath: "customerProperties.api.authorizedCidrs[3]"},
 			},
 		},
 		{
@@ -327,8 +328,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = makeUniqueCIDRs(501)
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must have at most 500 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must have at most 500 items", FieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -338,8 +339,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.SubnetID = nil
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.platform.subnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.platform.subnetId"},
 			},
 		},
 		{
@@ -349,8 +350,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.OutboundType = "InvalidType"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "customerProperties.platform.outboundType"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.platform.outboundType"},
 			},
 		},
 		{
@@ -360,8 +361,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.NetworkSecurityGroupID = nil
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.platform.networkSecurityGroupId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.platform.networkSecurityGroupId"},
 			},
 		},
 		{
@@ -371,8 +372,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type", fieldPath: "customerProperties.platform.networkSecurityGroupId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "resource ID must reference an instance of type", FieldPath: "customerProperties.platform.networkSecurityGroupId"},
 			},
 		},
 		{
@@ -382,8 +383,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 10081
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 10080", fieldPath: "customerProperties.nodeDrainTimeoutMinutes"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 10080", FieldPath: "customerProperties.nodeDrainTimeoutMinutes"},
 			},
 		},
 		{
@@ -393,8 +394,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = "InvalidMode"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
 			},
 		},
 		{
@@ -405,8 +406,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be specified when", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be specified when", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
 		{
@@ -427,14 +428,14 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
 				},
 				{
-					message:   "supported values: \"Private\", \"Public\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+					Message:   "supported values: \"Private\", \"Public\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
 				},
 			},
 		},
@@ -456,8 +457,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
 			},
 		},
 		{
@@ -505,8 +506,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.ClusterImageRegistry.State = "InvalidState"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "customerProperties.clusterImageRegistry.state"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.clusterImageRegistry.state"},
 			},
 		},
 		{
@@ -518,11 +519,11 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
 			},
 		},
 		{
@@ -534,11 +535,11 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "resource ID must reference an instance of type", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
 			},
 		},
 		{
@@ -552,11 +553,11 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "identity.type"},
-				{message: "Unsupported value", fieldPath: "identity.state"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "identity.type"},
+				{Message: "Unsupported value", FieldPath: "identity.state"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
 			},
 		},
 		{
@@ -571,10 +572,10 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "identity.state"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "identity.state"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
 			},
 		},
 		{
@@ -589,10 +590,10 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type", fieldPath: "identity.userAssignedIdentities"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "resource ID must reference an instance of type", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 			},
 		},
 		{
@@ -604,10 +605,10 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.API.Visibility = "InvalidVisibility"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "customerProperties.dns.baseDomainPrefix"},
-				{message: "Unsupported value", fieldPath: "customerProperties.network.networkType"},
-				{message: "Unsupported value", fieldPath: "customerProperties.api.visibility"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "customerProperties.dns.baseDomainPrefix"},
+				{Message: "Unsupported value", FieldPath: "customerProperties.network.networkType"},
+				{Message: "Unsupported value", FieldPath: "customerProperties.api.visibility"},
 			},
 		},
 		// Tests for validateOperatorAuthenticationAgainstIdentities
@@ -627,8 +628,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = nil
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity]"},
 			},
 		},
 		{
@@ -645,8 +646,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 			},
 		},
 		{
@@ -668,8 +669,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "identity is used multiple times", fieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
 			},
 		},
 		{
@@ -690,9 +691,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "cannot use identity assigned to this resource by .identities.userAssignedIdentities", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "cannot use identity assigned to this resource by .identities.userAssignedIdentities", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity]"},
 			},
 		},
 		{
@@ -710,7 +711,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = api.Must(azcorearm.ParseResourceID(identityID))
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "case insensitive identity matching - create",
@@ -730,7 +731,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		// Tests for validateResourceIDsAgainstClusterID
 		{
@@ -741,11 +742,11 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "some-resource-group"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.subnetId"},
-				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
-				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.managedResourceGroup"},
-				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.subnetId"},
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.managedResourceGroup"},
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 			},
 		},
 		{
@@ -756,8 +757,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.subnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.subnetId"},
 			},
 		},
 		{
@@ -786,8 +787,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-vnet-integration-subnet"))
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
@@ -798,8 +799,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/managed-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-vnet-integration-subnet"))
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
@@ -812,10 +813,10 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities"},
 			},
 		},
 		{
@@ -828,8 +829,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
 			},
 		},
 		{
@@ -840,9 +841,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"))
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
 			},
 		},
 		// Tests for network CIDR overlap validation
@@ -855,8 +856,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"   // No overlap
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "machine CIDR '10.0.0.0/16' and service CIDR '10.0.1.0/24' overlap", fieldPath: "customerProperties.network"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "machine CIDR '10.0.0.0/16' and service CIDR '10.0.1.0/24' overlap", FieldPath: "customerProperties.network"},
 			},
 		},
 		{
@@ -868,8 +869,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.ServiceCIDR = "172.30.0.0/16" // No overlap
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "machine CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", fieldPath: "customerProperties.network"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "machine CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", FieldPath: "customerProperties.network"},
 			},
 		},
 		{
@@ -881,8 +882,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.PodCIDR = "10.0.1.0/24" // Overlaps with service CIDR
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "service CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", fieldPath: "customerProperties.network"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "service CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", FieldPath: "customerProperties.network"},
 			},
 		},
 		{
@@ -895,9 +896,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.PodCIDR = "10.1.0.0/16"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "machine CIDR '10.0.0.0/14' and service CIDR '10.0.0.0/16' overlap", fieldPath: "customerProperties.network"},
-				{message: "machine CIDR '10.0.0.0/14' and pod CIDR '10.1.0.0/16' overlap", fieldPath: "customerProperties.network"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "machine CIDR '10.0.0.0/14' and service CIDR '10.0.0.0/16' overlap", FieldPath: "customerProperties.network"},
+				{Message: "machine CIDR '10.0.0.0/14' and pod CIDR '10.1.0.0/16' overlap", FieldPath: "customerProperties.network"},
 			},
 		},
 		{
@@ -910,7 +911,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid machine CIDR format - no overlap check - create",
@@ -922,8 +923,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "customerProperties.network.machineCidr"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.network.machineCidr"},
 			},
 		},
 		// Resource naming validation tests (covering middleware_validatestatic_test.go patterns)
@@ -935,8 +936,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = "$"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -947,8 +948,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = "-garbage"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -959,8 +960,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = "1cluster"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -971,8 +972,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = "my-cluster-"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -984,9 +985,9 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = longName
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Too long", fieldPath: "id"},
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Too long", FieldPath: "id"},
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -997,8 +998,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = "a"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -1009,7 +1010,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = "abc"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid cluster resource name - with hyphens",
@@ -1019,7 +1020,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = "my-cluster-1"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid cluster resource name - mixed case",
@@ -1029,7 +1030,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.Name = "MyCluster"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid cluster create - MaxNodesTotal exceeds maximum",
@@ -1038,8 +1039,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 501 // exceeds limit of 500
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 500", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 500", FieldPath: "customerProperties.autoscaling.maxNodesTotal"},
 			},
 		},
 		{
@@ -1049,7 +1050,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 0 // cluster limit of 500 still enforced at nodepool level
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid cluster create - MaxNodesTotal is negative",
@@ -1058,8 +1059,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = -1
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 0", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "customerProperties.autoscaling.maxNodesTotal"},
 			},
 		},
 		{
@@ -1069,7 +1070,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 500 // at the limit
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		// Managed resource group name validation tests
 		{
@@ -1079,8 +1080,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = ""
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.platform.managedResourceGroup"},
 			},
 		},
 		{
@@ -1090,7 +1091,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "myResourceGroup123"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid managed resource group name - with hyphens and underscores",
@@ -1099,7 +1100,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource_group"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid managed resource group name - with parentheses",
@@ -1108,7 +1109,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group(test)"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid managed resource group name - with periods in middle",
@@ -1117,7 +1118,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "my.resource.group"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid managed resource group name - ends with period",
@@ -1126,8 +1127,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group."
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "max 90 characters", FieldPath: "customerProperties.platform.managedResourceGroup"},
 			},
 		},
 		{
@@ -1137,8 +1138,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "a123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "max 90 characters", FieldPath: "customerProperties.platform.managedResourceGroup"},
 			},
 		},
 		{
@@ -1148,8 +1149,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "my-resource-group$invalid"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "max 90 characters", fieldPath: "customerProperties.platform.managedResourceGroup"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "max 90 characters", FieldPath: "customerProperties.platform.managedResourceGroup"},
 			},
 		},
 		{
@@ -1159,7 +1160,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "a12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid managed resource group name - unicode letters",
@@ -1168,7 +1169,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.ManagedResourceGroup = "myRésourceGröup"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid 4.19 version with experimental flag - create",
@@ -1178,7 +1179,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid 4.19 version without experimental flag - create",
@@ -1187,8 +1188,8 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be at least 4.20", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
 			},
 		},
 	}
@@ -1197,7 +1198,7 @@ func TestValidateClusterCreate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
 			errs := ValidateCluster(ctx, op, tt.cluster, nil, nil)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -1210,7 +1211,7 @@ func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOper
 	tests := []struct {
 		name         string
 		cluster      *api.HCPOpenShiftCluster
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name: "empty ManagedIdentitiesDataPlaneIdentityURL with option set - valid",
@@ -1219,7 +1220,7 @@ func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOper
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -1230,7 +1231,7 @@ func TestValidateClusterCreate_ManagedIdentitiesDataPlaneIdentityURLOptionalOper
 				Options: []string{ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
 			}
 			errs := ValidateCluster(ctx, op, tt.cluster, nil, nil)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -1244,13 +1245,13 @@ func TestValidateClusterUpdate(t *testing.T) {
 		newCluster   *api.HCPOpenShiftCluster
 		oldCluster   *api.HCPOpenShiftCluster
 		opOptions    []string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "valid cluster update - no changes",
 			newCluster:   createValidCluster(),
 			oldCluster:   createValidCluster(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid cluster update - systemData",
@@ -1278,7 +1279,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid cluster update - allow channel group change",
@@ -1292,7 +1293,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid cluster update - allow authorized CIDRs change",
@@ -1306,7 +1307,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid cluster update - allow autoscaling changes",
@@ -1320,7 +1321,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Autoscaling.MaxNodesTotal = 100
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid cluster update - MaxNodesTotal exceeds maximum",
@@ -1333,8 +1334,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c := createValidCluster()
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 500", fieldPath: "customerProperties.autoscaling.maxNodesTotal"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 500", FieldPath: "customerProperties.autoscaling.maxNodesTotal"},
 			},
 		},
 		{
@@ -1349,7 +1350,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "identity cannot change",
@@ -1378,13 +1379,13 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.platform"},
-				{message: "field is immutable", fieldPath: "customerProperties.platform.operatorsAuthentication"},
-				{message: "field is immutable", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities"},
-				{message: "field is immutable", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
+				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication"},
+				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities"},
+				{Message: "field is immutable", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
 			},
 		},
 		{
@@ -1399,8 +1400,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateSucceeded
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "serviceProviderProperties.provisioningState"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "serviceProviderProperties.provisioningState"},
 			},
 		},
 		{
@@ -1416,7 +1417,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "version ChannelGroup can be changed - update",
@@ -1430,7 +1431,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "immutable base domain - update",
@@ -1444,8 +1445,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.ServiceProviderProperties.DNS.BaseDomain = "example.com"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "serviceProviderProperties.dns.baseDomain"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "serviceProviderProperties.dns.baseDomain"},
 			},
 		},
 		{
@@ -1460,8 +1461,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = "oldprefix"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.dns.baseDomainPrefix"},
 			},
 		},
 		{
@@ -1476,9 +1477,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.network"},
-				{message: "field is immutable", fieldPath: "customerProperties.network.podCidr"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.network"},
+				{Message: "field is immutable", FieldPath: "customerProperties.network.podCidr"},
 			},
 		},
 		{
@@ -1493,9 +1494,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.ServiceProviderProperties.Console.URL = "https://console.example.com"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "serviceProviderProperties.console"},
-				{message: "field is immutable", fieldPath: "serviceProviderProperties.console.url"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "serviceProviderProperties.console"},
+				{Message: "field is immutable", FieldPath: "serviceProviderProperties.console.url"},
 			},
 		},
 		{
@@ -1510,8 +1511,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.ServiceProviderProperties.API.URL = "https://api.example.com"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "serviceProviderProperties.api.url"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "serviceProviderProperties.api.url"},
 			},
 		},
 		{
@@ -1526,8 +1527,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.api.visibility"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.api.visibility"},
 			},
 		},
 		{
@@ -1544,11 +1545,11 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-vnet-integration-subnet"))
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.platform"},
-				{message: "field is immutable", fieldPath: "customerProperties.platform.subnetId"},
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.subnetId"},
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
+				{Message: "field is immutable", FieldPath: "customerProperties.platform.subnetId"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.subnetId"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
@@ -1563,10 +1564,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/old-vnet-integration-subnet"))
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.platform"},
-				{message: "field is immutable", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
-				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
+				{Message: "field is immutable", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
@@ -1581,9 +1582,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/old-vnet-integration-subnet"))
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.platform"},
-				{message: "field is immutable", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
+				{Message: "field is immutable", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
@@ -1624,9 +1625,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Platform.VnetIntegrationSubnetID = nil
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.platform"},
-				{message: "field is immutable", fieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
+				{Message: "field is immutable", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
@@ -1641,11 +1642,11 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.etcd"},
-				{message: "field is immutable", fieldPath: "customerProperties.etcd.dataEncryption"},
-				{message: "field is immutable", fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
-				{message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+				{Message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
 		{
@@ -1682,12 +1683,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.etcd"},
-				{message: "field is immutable", fieldPath: "customerProperties.etcd.dataEncryption"},
-				{message: "field is immutable", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
-				{message: "field is immutable", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms"},
-				{message: "field is immutable", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
 			},
 		},
 		{
@@ -1702,9 +1703,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryStateEnabled
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.clusterImageRegistry"},
-				{message: "field is immutable", fieldPath: "customerProperties.clusterImageRegistry.state"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.clusterImageRegistry"},
+				{Message: "field is immutable", FieldPath: "customerProperties.clusterImageRegistry.state"},
 			},
 		},
 		{
@@ -1715,9 +1716,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			oldCluster: createValidCluster(),
-			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -1728,8 +1729,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			oldCluster: createValidCluster(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -1740,10 +1741,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			oldCluster: createValidCluster(),
-			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not contain extra whitespace", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "not an IP", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -1754,9 +1755,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			oldCluster: createValidCluster(),
-			expectErrors: []expectedError{
-				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "not IPv4", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{Message: "invalid CIDR address", FieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
@@ -1767,8 +1768,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			oldCluster: createValidCluster(),
-			expectErrors: []expectedError{
-				{message: "must have at least 1 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must have at least 1 items", FieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -1782,8 +1783,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			oldCluster: createValidCluster(),
-			expectErrors: []expectedError{
-				{message: "Too many", fieldPath: "customerProperties.api.authorizedCidrs"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Too many", FieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -1794,8 +1795,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			oldCluster: createValidCluster(),
-			expectErrors: []expectedError{
-				{message: "must have at most 500 items", fieldPath: "customerProperties.api.authorizedCidrs"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must have at most 500 items", FieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -1810,7 +1811,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "remove authorized CIDR on update - update",
@@ -1824,7 +1825,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "clear all authorized CIDRs on update - update",
@@ -1838,7 +1839,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "immutable location - update",
@@ -1852,8 +1853,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.Location = "eastus"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "trackedResource.location"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "trackedResource.location"},
 			},
 		},
 		{
@@ -1880,10 +1881,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "identity.principalId"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "identity.principalId"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -1910,10 +1911,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "identity.tenantId"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "identity.tenantId"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -1942,10 +1943,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].clientId"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].clientId"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -1974,10 +1975,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].principalId"},
-				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].principalId"},
+				{Message: "identity is not assigned to this resource", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{Message: "identity is assigned to this resource but not used", FieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -2001,10 +2002,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			// channelGroup and version.id are mutable; dns.baseDomainPrefix, api.visibility and managedIdentitiesDataPlaneIdentityURL are immutable without experimental flag
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
-				{message: "field is immutable", fieldPath: "customerProperties.api.visibility"},
-				{message: "field is immutable", fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.dns.baseDomainPrefix"},
+				{Message: "field is immutable", FieldPath: "customerProperties.api.visibility"},
+				{Message: "field is immutable", FieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL"},
 			},
 		},
 		// Test cases for version.id requirement validation on update
@@ -2024,7 +2025,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = ""
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: version.id cannot be cleared when old cluster had version.id",
@@ -2039,8 +2040,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2056,7 +2057,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: version may not decrease from 4.21 to 4.20",
@@ -2071,8 +2072,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "may not decrease", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "may not decrease", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2088,7 +2089,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions:    testFeatureOptions("Microsoft.Redhatopenshift/ExperimentalReleaseFeatures"),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: version can stay the same",
@@ -2102,7 +2103,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.20"
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: version can stay the same 4.19 version with experimental flag",
@@ -2117,7 +2118,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: version may not skip minor within same major (4.20 to 4.22)",
@@ -2132,8 +2133,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "only upgrade to the next minor is allowed", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "only upgrade to the next minor is allowed", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2148,8 +2149,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.22"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "OpenShift v5 and above is not supported", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "OpenShift v5 and above is not supported", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2165,8 +2166,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "cross-major upgrade from 4.20 is only allowed to", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "cross-major upgrade from 4.20 is only allowed to", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2182,7 +2183,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: cross-major 4.23 to 5.1 allowed",
@@ -2197,7 +2198,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: cross-major 4.22 to 5.1 rejected (wrong paired minor)",
@@ -2212,8 +2213,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "cross-major upgrade from 4.22 is only allowed to 5.0", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "cross-major upgrade from 4.22 is only allowed to 5.0", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2229,8 +2230,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "cross-major upgrade from 4.23 is only allowed to 5.1", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "cross-major upgrade from 4.23 is only allowed to 5.1", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2246,8 +2247,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "skipping major versions is not allowed", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "skipping major versions is not allowed", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2262,8 +2263,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.CustomerProperties.Version.ID = "4.19"
 				return c
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be at least 4.20", fieldPath: "customerProperties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
@@ -2281,7 +2282,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 				c.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = ""
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -2289,7 +2290,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			op := operation.Operation{Type: operation.Update, Options: tt.opOptions}
 			errs := ValidateCluster(ctx, op, tt.newCluster, tt.oldCluster, nil)
-			verifyErrorsMatch(t, tt.expectErrors, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }

@@ -29,7 +29,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestRoundTripInternalExternalInternal(t *testing.T) {
@@ -39,6 +38,14 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
+		},
+		func(j *api.CosmosMetadata, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// ConvertToInternal lowercases the ID, so use the lowercased canonical form
+			// here so the round-trip comparison succeeds.
+			j.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/myrg"))
+			j.ExistingCosmosUID = ""
+			j.CosmosETag = ""
 		},
 		func(j *api.ImageDigestMirror, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -70,15 +77,14 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = ocm.InternalID{}
-			j.ExistingCosmosUID = ""
+			j.ClusterServiceID = nil
 		},
 		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = ocm.InternalID{}
+			j.ClusterServiceID = nil
 			j.ExistingCosmosUID = ""
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {

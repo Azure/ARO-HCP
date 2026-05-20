@@ -85,13 +85,13 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 
 	// Verify the parent cluster exists so we return 404 instead of an empty
 	// list for a non-existent cluster (Cosmos List is prefix-based).
-	if _, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, clusterName); err != nil {
+	if _, err := f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, clusterName); err != nil {
 		return utils.TrackError(err)
 	}
 
 	pagedResponse := arm.NewPagedResponse()
 
-	internalNodePoolIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).List(ctx, dbListOptionsFromRequest(request))
+	internalNodePoolIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -143,7 +143,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return utils.TrackError(err)
 	}
 
-	nodePoolCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
+	nodePoolCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
 	oldInternalNodePool, err := nodePoolCosmosClient.Get(ctx, resourceID.Name)
 	if err != nil && !database.IsNotFoundError(err) {
 		return utils.TrackError(err)
@@ -151,7 +151,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	updating := oldInternalNodePool != nil
 	if updating {
-		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalNodePool.ID, oldInternalNodePool.Properties.ProvisioningState); err != nil {
+		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestUpdate, oldInternalNodePool.ID, oldInternalNodePool.Properties.ProvisioningState); err != nil {
 			return utils.TrackError(err)
 		}
 		switch request.Method {
@@ -212,6 +212,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 		return nil, nameResourceIDMismatch(resourceID, newInternalNodePool.Name)
 	}
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
+	newInternalNodePool.SetResourceID(resourceID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -248,7 +249,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	subscription, err := f.dbClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
+	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, resourceID.SubscriptionID)
 	if err != nil {
 		return err
 	}
@@ -283,7 +284,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, false)
@@ -294,24 +295,25 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	newInternalNodePool.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(csNodePool.HREF())
+	csNodePoolID, err := api.NewInternalID(csNodePool.HREF())
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	newInternalNodePool.ServiceProviderProperties.ClusterServiceID = &csNodePoolID
 
-	transaction := f.dbClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
 
 	createNodePoolOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalNodePool.ID,
-		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		*newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createNodePoolOperation.NotificationURI, createNodePoolOperation.OperationID))
-	_, err = f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
+	_, err = f.resourcesDBClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, createNodePoolOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -321,7 +323,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = createNodePoolOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = createNodePoolOperation.Status
 
-	nodePoolCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
+	nodePoolCosmosClient := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
 	cosmosUID, err := nodePoolCosmosClient.AddCreateToTransaction(ctx, transaction, newInternalNodePool, nil)
 	if err != nil {
 		return utils.TrackError(err)
@@ -519,7 +521,7 @@ func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Reque
 func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalNodePool, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	subscription, err := f.dbClient.Subscriptions().Get(ctx, oldInternalNodePool.ID.SubscriptionID)
+	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, oldInternalNodePool.ID.SubscriptionID)
 	if err != nil {
 		return err
 	}
@@ -541,12 +543,12 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 
 	// Get ServiceProviderCluster and ServiceProviderNodePool for version validation
 	clusterID := oldInternalNodePool.ID.Parent
-	spCluster, err := database.GetOrCreateServiceProviderCluster(ctx, f.dbClient, clusterID)
+	spCluster, err := database.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, clusterID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, f.dbClient, oldInternalNodePool.ID)
+	spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, oldInternalNodePool.ID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -571,13 +573,18 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
+	// Temporary check until creation and update interaction with CS is moved to the backend: If an update arrives after the node pool
+	// has been created in Cosmos but before it exists in CS, or before its ClusterServiceID has been persisted in Cosmos, return an error.
+	if oldInternalNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(oldInternalNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to update a node pool"))
+	}
+
 	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalNodePool.ID))
-	_, err = f.clusterServiceClient.UpdateNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
+	_, err = f.clusterServiceClient.UpdateNodePool(ctx, *oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -585,7 +592,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	// The cosmos representation the new desired version
 	// The controllers will take care of handle the upgrade
 
-	transaction := f.dbClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
 	// Always create an operation, even for version-only changes. This provides consistent
 	// ARM API behavior and avoids the complexity of detecting what changed.
@@ -596,14 +603,14 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	nodePoolUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,
-		newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		ptr.Deref(newInternalNodePool.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, nodePoolUpdateOperation.NotificationURI, nodePoolUpdateOperation.OperationID))
-	_, err = f.dbClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
+	_, err = f.resourcesDBClient.Operations(newInternalNodePool.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, nodePoolUpdateOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -613,7 +620,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = nodePoolUpdateOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = nodePoolUpdateOperation.Status
 
-	_, err = f.dbClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
+	_, err = f.resourcesDBClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
 		NodePools(newInternalNodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, newInternalNodePool, nil)
 	if err != nil {
@@ -662,12 +669,12 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, resourceID); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}
 
-	nodePool, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	nodePool, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
 	if database.IsNotFoundError(err) {
 		// For resource not found errors on deletion, ARM requires
 		writer.WriteHeader(http.StatusNoContent)
@@ -677,11 +684,17 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, nodePool.ID, nodePool.Properties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestDelete, nodePool.ID, nodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 
-	err = f.clusterServiceClient.DeleteNodePool(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
+	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the node
+	// pool has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete a node pool"))
+	}
+
+	err = f.clusterServiceClient.DeleteNodePool(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
 	var ocmError *ocmerrors.Error
 	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
 		// StatusNotFound means we have stale data in Cosmos DB.
@@ -695,7 +708,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(nodePool.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(nodePool.ID.SubscriptionID)
 	if err := f.addDeleteNodePoolToTransaction(ctx, writer, request, transaction, nodePool); err != nil {
 		return utils.TrackError(err)
 	}
@@ -717,7 +730,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 	// Cluster Service will take care of canceling any ongoing operations
 	// on the resource or child resources, but we need to do some database
 	// bookkeeping to reflect that.
-	_, err = database.CancelActiveOperations(ctx, f.dbClient, transaction, &database.DBClientListActiveOperationDocsOptions{
+	_, err = database.CancelActiveOperations(ctx, f.resourcesDBClient, transaction, &database.ResourcesDBClientListActiveOperationDocsOptions{
 		ExternalID:             nodePool.ID,
 		IncludeNestedResources: true,
 	})
@@ -725,10 +738,16 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
+	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the node pool
+	// has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete a node pool"))
+	}
+
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		nodePool.ID,
-		nodePool.ServiceProviderProperties.ClusterServiceID,
+		*nodePool.ServiceProviderProperties.ClusterServiceID,
 		f.azureLocation,
 		"",
 		"",
@@ -742,14 +761,14 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 		transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	}
-	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	_, err = f.resourcesDBClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
-	_, err = f.dbClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
+	_, err = f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
 	if err != nil {
 		return utils.TrackError(err)
@@ -759,7 +778,7 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 }
 
 func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftClusterNodePool, error) {
-	internalNodePool, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	internalNodePool, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
 	if database.IsNotFoundError(err) {
 		return nil, arm.NewResourceNotFoundError(resourceID)
 	}
@@ -781,8 +800,11 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	if !strings.EqualFold(internalNodePool.ID.String(), resourceID.String()) {
-		return nil, fmt.Errorf("unexpected resourceID: %s", internalNodePool.ID.String())
+	if internalNodePool.ResourceID == nil {
+		return nil, fmt.Errorf("stored nodepool document is missing cosmosMetadata.resourceID")
+	}
+	if !strings.EqualFold(internalNodePool.ResourceID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalNodePool.ResourceID.String())
 	}
 	internalNodePool.ID = resourceID
 

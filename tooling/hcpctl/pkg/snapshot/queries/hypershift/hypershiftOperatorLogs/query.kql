@@ -1,0 +1,15 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where namespace_name == 'hypershift'
+| where container_name == 'operator'
+{{- if eq (toLower .ResourceType) "microsoft.redhatopenshift/hcpopenshiftclusters" }}
+| where log.controllerKind == 'HostedCluster' and log.HostedCluster.namespace == '{{ .HostedClusterNamespace }}'
+{{- else }}
+| where log.controllerKind == 'NodePool' and log.NodePool.namespace == '{{ .HostedClusterNamespace }}'
+{{- end }}
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by msg = tostring(log.msg), err = tostring(log.error)
+| order by first_occurrence asc

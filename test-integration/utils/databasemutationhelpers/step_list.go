@@ -60,7 +60,7 @@ func (l *listStep[InternalAPIType]) StepID() StepID {
 }
 
 func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.DBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 	actualControllersIterator, err := resourceCRUDClient.List(ctx, nil)
 	require.NoError(t, err)
 

@@ -1,0 +1,59 @@
+{{- define "bundleMapCS" -}}
+{{ if .ClusterID -}}
+let bundleMapCS = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where cid == '{{ .ClusterID }}'
+| where log.msg has 'successfully sent create request of maestro bundle' and log.msg has 'containing resource'
+| extend bundleId = extract("bundle id '([^']+)'", 1, tostring(log.msg))
+| extend bundleName = extract("maestro bundle name '([^']+)'", 1, tostring(log.msg))
+| extend resource = extract("containing resource '([^']+)'", 1, tostring(log.msg))
+| extend groupVersion = extract("with GVK '([^,]+),", 1, tostring(log.msg))
+| extend resourceKind = extract("Kind=([^']+)", 1, tostring(log.msg))
+| where isnotempty(bundleId) and isnotempty(resource)
+| extend resourceNamespace = extract("^([^/]+)/", 1, resource)
+| extend resourceName = extract("/(.+)$", 1, resource)
+| distinct bundleId, bundleName, resource, groupVersion, resourceKind, resourceNamespace, resourceName;
+{{ end -}}
+{{- end -}}
+
+{{- define "bundleMapBackend" -}}
+{{ if and .ResourceGroup .ClusterResourceName .ServiceProviderResourceType -}}
+let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where container_name == 'aro-hcp-backend'
+| where log.controller_name == 'datadump'
+| where log.resource_group == '{{ .ResourceGroup }}'
+| where log.resource_name == '{{ .ClusterResourceName }}'
+| where log.content.resourceType =~ '{{ .ServiceProviderResourceType }}'
+| where log.content.resourceID has '{{ .ResourceName }}'
+| summarize content = take_any(log.content) by etag = tostring(log.content._etag)
+| mv-expand readOnlyBundle = content.properties.status.maestroReadonlyBundles
+| where tostring(readOnlyBundle) != ''
+| mv-expand resourceIdentifier = readOnlyBundle.resourceIdentifiers
+| distinct
+    bundleName = tostring(readOnlyBundle.name),
+    maestroBundleName = tostring(readOnlyBundle.maestroAPIMaestroBundleName),
+    maestroBundleId = tostring(readOnlyBundle.maestroAPIMaestroBundleID),
+    groupVersion = tostring(resourceIdentifier.apiVersion),
+    resourceKind = tostring(resourceIdentifier.kind),
+    resourceNamespace = tostring(resourceIdentifier.namespace),
+    resourceName = tostring(resourceIdentifier.name);
+{{ end -}}
+{{- end -}}
+
+{{- define "bundleMap" -}}
+{{ template "bundleMapCS" . -}}
+{{ template "bundleMapBackend" . -}}
+let bundleMap = union
+{{ if .ClusterID -}}
+    (bundleMapCS | project bundleId, groupVersion, resourceKind, resourceNamespace, resourceName, source = 'clustersService', label = strcat(groupVersion, '/', resourceKind, ' ', resource)){{ if and .ResourceGroup .ClusterResourceName .ServiceProviderResourceType }},{{ end }}
+{{ end -}}
+{{ if and .ResourceGroup .ClusterResourceName .ServiceProviderResourceType -}}
+    (bundleMapBackend | project bundleId = maestroBundleId, groupVersion, resourceKind, resourceNamespace, resourceName, source = 'backend', label = strcat(groupVersion, '/', resourceKind, ' ', resourceNamespace, '/', resourceName))
+{{ end -}}
+| summarize groupVersion = take_any(groupVersion), resourceKind = take_any(resourceKind), source = take_any(source), label = take_any(label), resourceNamespace = take_any(resourceNamespace), resourceName = take_any(resourceName) by bundleId;
+let bundleIds = bundleMap | project bundleId;
+let resourceNameToBundleId = bundleMap
+| where isnotempty(resourceName)
+| distinct resourceName, bundleId;
+{{- end -}}

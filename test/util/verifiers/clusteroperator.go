@@ -43,6 +43,7 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 		return fmt.Errorf("failed to create config client: %w", err)
 	}
 
+	start := time.Now()
 	var lastErr error
 	verifyErr := wait.PollUntilContextTimeout(ctx, 20*time.Second, 30*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		clusterOperators, err := configClient.ClusterOperators().List(ctx, metav1.ListOptions{})
@@ -80,6 +81,7 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 	})
 
 	if verifyErr == nil {
+		ginkgo.GinkgoLogr.Info("All cluster operators available", "duration", time.Since(start))
 		return nil
 	}
 

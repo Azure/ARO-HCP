@@ -190,7 +190,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 
 			By("verifying Azure VMs actually have ephemeral OS disks")
 			computeFactory := tc.GetARMComputeClientFactoryOrDie(ctx)
-			vms, err := framework.GetVirtualMachinesInResourceGroup(ctx, computeFactory, managedResourceGroupName, int(nodePoolParams.Replicas), 5*time.Minute)
+			vms, err := framework.GetVirtualMachinesInResourceGroup(ctx, computeFactory, managedResourceGroupName, int(nodePoolParams.Replicas))
 			Expect(err).NotTo(HaveOccurred())
 
 			workerVMs := filterNodePoolVMs(vms, customerNodePoolName)

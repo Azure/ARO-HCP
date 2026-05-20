@@ -152,14 +152,14 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			ctx := context.Background()
 
-			mockDBClient := databasetesting.NewMockDBClient()
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			syncer := &csStateDump{
-				cooldownChecker: &alwaysSyncCooldownChecker{},
-				cosmosClient:    mockDBClient,
-				csClient:        mockCSClient,
-				nextDumpChecker: &alwaysSyncCooldownChecker{},
+				cooldownChecker:   &alwaysSyncCooldownChecker{},
+				resourcesDBClient: mockResourcesDBClient,
+				csClient:          mockCSClient,
+				nextDumpChecker:   &alwaysSyncCooldownChecker{},
 			}
 
 			key := controllerutils.HCPClusterKey{
@@ -181,13 +181,13 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 					},
 				}
 
-				clustersCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+				clustersCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 				_, err := clustersCRUD.Create(ctx, cluster, nil)
 				require.NoError(t, err)
 			}
 
 			for _, np := range tt.createNodePools {
-				nodePoolsCRUD := mockDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
+				nodePoolsCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 				_, err := nodePoolsCRUD.Create(ctx, np, nil)
 				require.NoError(t, err)
 			}
@@ -211,6 +211,7 @@ func newTestNodePool(name, clusterServiceIDStr string) *api.HCPOpenShiftClusterN
 	nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/" + name))
 	np := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,
@@ -222,7 +223,7 @@ func newTestNodePool(name, clusterServiceIDStr string) *api.HCPOpenShiftClusterN
 	}
 	if clusterServiceIDStr != "" {
 		np.ServiceProviderProperties = api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-			ClusterServiceID: api.Must(api.NewInternalID(clusterServiceIDStr)),
+			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID(clusterServiceIDStr))),
 		}
 	}
 	return np

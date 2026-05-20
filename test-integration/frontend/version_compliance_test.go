@@ -131,7 +131,7 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 
 				// Complete the cluster creation operation
 				clusterResourceID := api.Must(azcorearm.ParseResourceID(scenario.ClusterResourceID))
-				require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, clusterResourceID.Name))
+				require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, clusterResourceID.Name))
 			}
 
 			// Create the resource under test using the scenario's createVersion
@@ -141,7 +141,7 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 
 			// Complete the creation operation
 			resourceID := api.Must(azcorearm.ParseResourceID(scenario.ResourceID))
-			require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.CosmosClient(), subscriptionID, resourceID.Name))
+			require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, resourceID.Name))
 
 			// GET via each version, compare to full expected response
 			for _, v := range allVersions {

@@ -17,7 +17,6 @@ package admission
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -31,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestMutateCluster(t *testing.T) {
@@ -52,7 +52,7 @@ func TestMutateCluster(t *testing.T) {
 		name                             string
 		subscription                     *arm.Subscription
 		tags                             map[string]string
-		expectError                      string
+		expectErrors                     []utils.ExpectedError
 		expectZeroFeatures               bool
 		expectedControlPlaneAvailability api.ControlPlaneAvailability
 		expectedControlPlanePodSizing    api.ControlPlanePodSizing
@@ -61,30 +61,35 @@ func TestMutateCluster(t *testing.T) {
 			name:               "nil subscription ignores all tags",
 			subscription:       nil,
 			tags:               map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:               "no AFEC registered ignores all tags",
 			subscription:       noAFEC,
 			tags:               map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:                             "AFEC registered with single-replica tag only",
 			subscription:                     afecRegistered,
 			tags:                             map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane)},
+			expectErrors:                     []utils.ExpectedError{},
 			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
 		},
 		{
 			name:                          "AFEC registered with size-override tag only",
 			subscription:                  afecRegistered,
 			tags:                          map[string]string{api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectErrors:                  []utils.ExpectedError{},
 			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
 		},
 		{
 			name:                             "AFEC registered with both tags",
 			subscription:                     afecRegistered,
 			tags:                             map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectErrors:                     []utils.ExpectedError{},
 			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
 			expectedControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
 		},
@@ -92,78 +97,97 @@ func TestMutateCluster(t *testing.T) {
 			name:               "AFEC registered but no tags",
 			subscription:       afecRegistered,
 			tags:               map[string]string{},
+			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:                          "AFEC registered with case insensitive tag keys - size-override",
 			subscription:                  afecRegistered,
 			tags:                          map[string]string{"ARO-HCP.Experimental.Cluster.Size-Override": string(api.MinimalControlPlanePodSizing)},
+			expectErrors:                  []utils.ExpectedError{},
 			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
 		},
 		{
 			name:                             "AFEC registered with case insensitive tag keys - single-replica",
 			subscription:                     afecRegistered,
 			tags:                             map[string]string{"ARO-HCP.Experimental.Cluster.Single-Replica": string(api.SingleReplicaControlPlane)},
+			expectErrors:                     []utils.ExpectedError{},
 			expectedControlPlaneAvailability: api.SingleReplicaControlPlane,
 		},
 		{
 			name:               "AFEC registered but tag values are empty strings",
 			subscription:       afecRegistered,
 			tags:               map[string]string{api.TagClusterSingleReplica: "", api.TagClusterSizeOverride: ""},
+			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:         "AFEC registered but single-replica tag has invalid value",
 			subscription: afecRegistered,
 			tags:         map[string]string{api.TagClusterSingleReplica: "yes"},
-			expectError:  "Invalid value",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
 		},
 		{
 			name:         "AFEC registered but single-replica tag rejects true",
 			subscription: afecRegistered,
 			tags:         map[string]string{api.TagClusterSingleReplica: "true"},
-			expectError:  "Invalid value",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
 		},
 		{
 			name:         "AFEC registered but size-override tag has invalid value",
 			subscription: afecRegistered,
 			tags:         map[string]string{api.TagClusterSizeOverride: "1"},
-			expectError:  "Invalid value",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
 		},
 		{
 			name:         "AFEC registered with unrecognized experimental tag",
 			subscription: afecRegistered,
 			tags:         map[string]string{"aro-hcp.experimental.cluster.unknown-feature": string(api.SingleReplicaControlPlane)},
-			expectError:  "unrecognized experimental tag",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+			},
 		},
 		{
 			name:                          "AFEC registered with only size-override after removing single-replica",
 			subscription:                  afecRegistered,
 			tags:                          map[string]string{api.TagClusterSizeOverride: string(api.MinimalControlPlanePodSizing)},
+			expectErrors:                  []utils.ExpectedError{},
 			expectedControlPlanePodSizing: api.MinimalControlPlanePodSizing,
 		},
 		{
 			name:         "AFEC registered with unrecognized experimental tag in mixed case",
 			subscription: afecRegistered,
 			tags:         map[string]string{"ARO-HCP.Experimental.Cluster.Unknown-Feature": string(api.SingleReplicaControlPlane)},
-			expectError:  "unrecognized experimental tag",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+			},
 		},
 		{
 			name:               "non-experimental tags are ignored",
 			subscription:       afecRegistered,
 			tags:               map[string]string{"environment": "dev", "team": "platform"},
+			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 		{
 			name:         "valid tag alongside unrecognized experimental tag fails",
 			subscription: afecRegistered,
 			tags:         map[string]string{api.TagClusterSingleReplica: string(api.SingleReplicaControlPlane), "aro-hcp.experimental.cluster.unknown": "value"},
-			expectError:  "unrecognized experimental tag",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "unrecognized experimental tag"},
+			},
 		},
 		{
 			name:               "nil tags",
 			subscription:       afecRegistered,
 			tags:               nil,
+			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
 	}
@@ -177,25 +201,7 @@ func TestMutateCluster(t *testing.T) {
 			}
 			errs := MutateCluster(cluster, tt.subscription)
 
-			if len(tt.expectError) != 0 {
-				if len(errs) == 0 {
-					t.Fatalf("expected error containing %q, got none", tt.expectError)
-				}
-				found := false
-				for _, e := range errs {
-					if strings.Contains(e.Error(), tt.expectError) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Fatalf("expected error containing %q, got %v", tt.expectError, errs)
-				}
-				return
-			}
-			if len(errs) != 0 {
-				t.Fatalf("unexpected errors: %v", errs)
-			}
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 
 			if tt.expectZeroFeatures {
 				if cluster.ServiceProviderProperties.ExperimentalFeatures != (api.ExperimentalFeatures{}) {
@@ -256,6 +262,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
 			clusterResourceID.String() + "/nodePools/" + name))
 		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: nodePoolResourceID,
+			},
 			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
 			Properties: api.HCPOpenShiftClusterNodePoolProperties{
 				Version: api.NodePoolVersionProfile{ID: versionID},
@@ -273,7 +282,6 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 		}
 		return &api.ServiceProviderNodePool{
 			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID},
-			ResourceID:     *spResourceID,
 			Status: api.ServiceProviderNodePoolStatus{
 				NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{ActiveVersions: active},
 			},
@@ -287,8 +295,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 		serviceProviderClusterStatus api.ServiceProviderClusterStatus
 		nodePools                    []*api.HCPOpenShiftClusterNodePool
 		serviceProviderNodePools     []*api.ServiceProviderNodePool
-		wantError                    bool
-		expectError                  string
+		expectErrors                 []utils.ExpectedError
 	}{
 		{
 			name:                         "empty desired version skips admission",
@@ -296,7 +303,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("np1", "4.10.0")},
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "unchanged version skips admission",
@@ -304,7 +311,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "unparsable old version id",
@@ -312,8 +319,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    nil,
-			wantError:                    true,
-			expectError:                  "Invalid character(s) found in minor number",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "Invalid character(s) found in minor number"},
+			},
 		},
 		{
 			name:                         "skips skew vs lowest when old minor matches lowest active cluster version",
@@ -321,7 +329,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21"),
 			nodePools:                    nil,
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.22 to 5.0 with active cluster version 4.22",
@@ -329,7 +337,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    nil,
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects 5.1 when old minor below lowest active cluster version",
@@ -337,8 +345,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    nil,
-			wantError:                    true,
-			expectError:                  "invalid upgrade path",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "invalid upgrade path"},
+			},
 		},
 		{
 			name:                         "rejects 4.24 when old minor below lowest active cluster version",
@@ -346,8 +355,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "4.24",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    nil,
-			wantError:                    true,
-			expectError:                  "only upgrade to the next minor is allowed",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "only upgrade to the next minor is allowed"},
+			},
 		},
 		{
 			name:                         "rejects version below highest active cluster version",
@@ -355,8 +365,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    nil,
-			wantError:                    true,
-			expectError:                  "must be at least",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must be at least"},
+			},
 		},
 		{
 			name:                         "allows upgrade across adjacent active cluster minors",
@@ -364,7 +375,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22", "4.21"),
 			nodePools:                    nil,
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects skip minor vs lowest when fleet spans minors",
@@ -372,8 +383,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.20", "4.22"),
 			nodePools:                    nil,
-			wantError:                    true,
-			expectError:                  "only upgrade to the next minor is allowed",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "only upgrade to the next minor is allowed"},
+			},
 		},
 		{
 			name:                         "rejects when node pool over two minors behind",
@@ -381,8 +393,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.17.0")},
-			wantError:                    true,
-			expectError:                  "must not be more than two minor versions ahead",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must not be more than two minor versions ahead"},
+			},
 		},
 		{
 			name:                         "allows no-op version with node pools in skew",
@@ -394,7 +407,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 				makeTestNodePool("infra", "4.20.3"),
 				makeTestNodePool("spot", "4.20.1"),
 			},
-			wantError: false,
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.22 to 5.0 node pool 4.22",
@@ -402,7 +415,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.22 to 5.0 node pool 4.21",
@@ -410,7 +423,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.23 to 5.1 node pool 4.22",
@@ -418,7 +431,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.23 to 5.1 node pool 4.23",
@@ -426,7 +439,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 5.1 to 5.2 node pool 4.23",
@@ -434,7 +447,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.2",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.1"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects 4.22 to 5.0 node pool 4.20",
@@ -442,8 +455,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
-			wantError:                    true,
-			expectError:                  "incompatible with node pool",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
+			},
 		},
 		{
 			name:                         "rejects 4.23 to 5.1 node pool 4.21",
@@ -451,8 +465,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
-			wantError:                    true,
-			expectError:                  "incompatible with node pool",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
+			},
 		},
 		{
 			name:                         "rejects 4.22 to 5.0 node pool 4.23",
@@ -460,8 +475,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			wantError:                    true,
-			expectError:                  "incompatible with node pool",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
+			},
 		},
 		{
 			name:                         "rejects 4.22 to 5.0 mixed node pool minors",
@@ -472,8 +488,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 				makeTestNodePool("workers", "4.22.0"),
 				makeTestNodePool("legacy", "4.20.0"),
 			},
-			wantError:   true,
-			expectError: "incompatible with node pool",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
+			},
 		},
 		{
 			name:                         "rejects 4.22 to 5.0 sp node pool behind customer minor",
@@ -482,8 +499,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
-			wantError:                    true,
-			expectError:                  "incompatible with node pool",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
+			},
 		},
 		{
 			name:                         "rejects minor upgrade sp node pool two minors behind",
@@ -492,8 +510,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
 			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
-			wantError:                    true,
-			expectError:                  "must not be more than two minor versions ahead",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must not be more than two minor versions ahead"},
+			},
 		},
 		{
 			name:                         "rejects 4.22 to 5.0 incompatible lowest active cluster version",
@@ -502,8 +521,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.0", "4.17.0")},
-			wantError:                    true,
-			expectError:                  "incompatible with node pool",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
+			},
 		},
 		{
 			name:                         "allows 4.22 to 5.0 compatible active cluster versions",
@@ -512,22 +532,16 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.1", "4.22.0")},
-			wantError:                    false,
+			expectErrors:                 []utils.ExpectedError{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if tt.wantError {
-				assert.NotEmpty(t, tt.expectError, "wantError is true but expectError is empty; set a non-empty substring to match admission errors")
-			} else {
-				assert.Empty(t, tt.expectError, "wantError is false but expectError is set (%q); clear expectError for success cases", tt.expectError)
-			}
 
 			serviceProviderCluster := &api.ServiceProviderCluster{
 				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID},
-				ResourceID:     *serviceProviderResourceID,
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
@@ -538,7 +552,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			for _, serviceProviderNodePool := range tt.serviceProviderNodePools {
 				resources = append(resources, serviceProviderNodePool)
 			}
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, resources)
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			assert.NoError(t, err)
 
 			oldCluster := &api.HCPOpenShiftCluster{
@@ -554,15 +568,9 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 				},
 			}
 
-			errs := AdmitClusterOnUpdate(ctx, operation.Operation{Type: operation.Update}, mockDB, oldCluster, newCluster)
+			errs := AdmitClusterOnUpdate(ctx, operation.Operation{Type: operation.Update}, mockResourcesDBClient, oldCluster, newCluster)
 
-			if tt.wantError {
-				assert.NotEmpty(t, errs, "expected field errors containing %q", tt.expectError)
-				assert.Contains(t, errs.ToAggregate().Error(), tt.expectError, "aggregated field errors should contain %q", tt.expectError)
-				return
-			}
-
-			assert.Empty(t, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }

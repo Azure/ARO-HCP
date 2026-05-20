@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cihealth.appName" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "cihealth.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  replicas: {{ ternary 0 .Values.app.replicas .Values.disableRuntimeWorkloads }}
+  selector:
+    matchLabels:
+      {{- include "cihealth.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: app
+  template:
+    metadata:
+      labels:
+        {{- include "cihealth.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: app
+      annotations:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: {{ include "cihealth.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: app
+          image: {{ include "cihealth.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              export CIHEALTH_POSTGRES_USER="$(cat {{ include "cihealth.postgresUsernameFile" . }})"
+              export CIHEALTH_POSTGRES_PASSWORD="$(cat {{ include "cihealth.postgresPasswordFile" . }})"
+              export CIHEALTH_POSTGRES_DATABASE="$(cat {{ include "cihealth.postgresDatabaseFile" . }})"
+              set -- \
+                "app" \
+                "--app.listen=0.0.0.0:{{ .Values.app.listenPort }}" \
+                "--history.weeks={{ .Values.app.historyWeeks }}" \
+                {{- if .Values.app.defaultWeek }}
+                "--week={{ .Values.app.defaultWeek }}" \
+                {{- end }}
+                "--storage.postgres.enabled=true" \
+                "--storage.postgres.embedded=false" \
+                "--storage.postgres.host={{ include "cihealth.postgresName" . }}" \
+                "--storage.postgres.port={{ .Values.postgres.service.port }}" \
+                "--storage.postgres.user=$CIHEALTH_POSTGRES_USER" \
+                "--storage.postgres.password=$CIHEALTH_POSTGRES_PASSWORD" \
+                "--storage.postgres.database=$CIHEALTH_POSTGRES_DATABASE" \
+                "--storage.postgres.sslmode={{ .Values.postgres.connection.sslMode }}" \
+                "--storage.postgres.initialize={{ ternary "true" "false" .Values.postgres.connection.initialize }}" \
+                "--storage.postgres.max-connections={{ .Values.postgres.connection.maxConnections }}" \
+                "--storage.postgres.min-connections={{ .Values.postgres.connection.minConnections }}" \
+                "--storage.postgres.connect-timeout-seconds={{ .Values.postgres.connection.connectTimeoutSeconds }}"
+              {{- with .Values.app.extraArgs }}
+              {{- range . }}
+              set -- "$@" {{ . | quote }}
+              {{- end }}
+              {{- end }}
+              exec /usr/local/bin/cihealth "$@"
+          {{- with .Values.app.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.listenPort }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: secrets-store
+              mountPath: {{ include "cihealth.secretsStoreMountPath" . | quote }}
+              readOnly: true
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "cihealth.secretProviderClassName" . }}

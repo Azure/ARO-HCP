@@ -278,7 +278,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			defer ctrl.Finish()
 
 			// Setup mock DB with the existing cluster
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{tc.existingCluster})
+			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster})
 			require.NoError(t, err)
 
 			// Setup mock CS client
@@ -293,7 +293,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			// Create syncer
 			syncer := &clusterPropertiesSyncer{
 				cooldownChecker:      &alwaysSyncCooldownChecker{},
-				cosmosClient:         mockDB,
+				resourcesDBClient:    mockResourcesDB,
 				clusterServiceClient: mockCSClient,
 			}
 
@@ -307,7 +307,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify the cluster state in Cosmos
-			updatedCluster, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+			updatedCluster, err := mockResourcesDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedConsoleURL, updatedCluster.ServiceProviderProperties.Console.URL)

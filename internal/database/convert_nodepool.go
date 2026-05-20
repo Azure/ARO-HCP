@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*NodePool, error) {
@@ -28,25 +28,30 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 		return nil, nil
 	}
 
+	// CosmosMetadata.ResourceID is the canonical identifier for cosmos-side
+	// concerns (partitioning, document UID, resource-type indexing). Use it
+	// instead of the TrackedResource.ID, which is an ARM-surface concern.
+	cosmosResourceID := internalObj.GetCosmosData().ResourceID
+	if cosmosResourceID == nil {
+		return nil, fmt.Errorf("internalObj is missing CosmosMetadata.ResourceID")
+	}
 	cosmosObj := &NodePool{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
-			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
-			ResourceID:   internalObj.ID,
-			ResourceType: internalObj.ID.ResourceType.String(),
+			PartitionKey: strings.ToLower(cosmosResourceID.SubscriptionID),
+			ResourceID:   cosmosResourceID,
+			ResourceType: cosmosResourceID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
-			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: internalObj.ID,
-			},
+			HCPOpenShiftClusterNodePool: *internalObj,
 			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        internalObj.ID,
-				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
+				ResourceID:        cosmosResourceID,
+				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
-				Identity:          toCosmosIdentity(internalObj.Identity),
+				Identity:          internalObj.Identity.DeepCopy(),
 				SystemData:        internalObj.SystemData,
 				Tags:              copyTags(internalObj.Tags),
 			},
@@ -56,17 +61,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 		},
 	}
 
-	// some pieces of data in the internalNodePool conflict with ResourceDocument fields.  We may evolve over time, but for
-	// now avoid persisting those.
-	cosmosObj.InternalState.InternalAPI.TrackedResource = arm.TrackedResource{
-		Location: internalObj.Location, // this is the only TrackedResource value not present elsewhere in ResourceDcoument
-	}
-	cosmosObj.InternalState.InternalAPI.Identity = nil
-	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
-	cosmosObj.InternalState.InternalAPI.SystemData = nil
-	cosmosObj.InternalState.InternalAPI.Tags = nil
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
+	cosmosObj.InternalState.InternalAPI.CosmosMetadata = api.CosmosMetadata{}
 
 	return cosmosObj, nil
 }
@@ -75,36 +70,17 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	if cosmosObj == nil {
 		return nil, nil
 	}
-	resourceDoc := cosmosObj.IntermediateResourceDoc
-	if resourceDoc == nil {
-		return nil, fmt.Errorf("resource document cannot be nil")
-	}
 
-	tempInternalAPI := cosmosObj.InternalState.InternalAPI
-	internalObj := &tempInternalAPI
-
-	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
-	internalObj.TrackedResource = arm.TrackedResource{
-		Resource: arm.Resource{
-			ID:         resourceDoc.ResourceID,
-			Name:       resourceDoc.ResourceID.Name,
-			Type:       resourceDoc.ResourceID.ResourceType.String(),
-			SystemData: resourceDoc.SystemData,
-		},
-		Location: cosmosObj.InternalState.InternalAPI.Location,
-		Tags:     resourceDoc.Tags,
+	internalObj := cosmosObj.DeepCopy()
+	internalObj.ExistingCosmosUID = cosmosObj.ID
+	internalObj.SetEtag(cosmosObj.CosmosETag)
+	if internalObj.GetResourceID() == nil {
+		if cosmosObj.ResourceID != nil {
+			internalObj.SetResourceID(cosmosObj.ResourceID)
+		} else {
+			return nil, fmt.Errorf("internalObj is missing a resourceID: %T: %q", cosmosObj, cosmosObj.ID)
+		}
 	}
-	// we carry over the CosmosETag from the cosmos object to the internal object into a
-	// temporary field until we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftClusterNodePool.
-	internalObj.CosmosETag = cosmosObj.CosmosETag
-	internalObj.Identity = toInternalIdentity(resourceDoc.Identity)
-	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
-	internalObj.SystemData = resourceDoc.SystemData
-	internalObj.Tags = copyTags(resourceDoc.Tags)
-	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
-	internalObj.ServiceProviderProperties.ClusterServiceID = resourceDoc.InternalID
-	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
 	internalObj.EnsureDefaults()
 

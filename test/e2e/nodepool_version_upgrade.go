@@ -103,7 +103,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-np-upgrade-"+suffix, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-upgrade-"+suffix, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
@@ -139,7 +140,9 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
 			err = tc.CreateNodePoolFromParam(
 				ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				clusterName,
 				nodePoolParams,
 				45*time.Minute,

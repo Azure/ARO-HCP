@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 var (
@@ -40,135 +41,135 @@ func TestClusterRequired(t *testing.T) {
 		resource     *api.HCPOpenShiftCluster
 		tweaks       *api.HCPOpenShiftCluster
 		opOptions    []string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:     "Empty cluster",
 			resource: &api.HCPOpenShiftCluster{},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "trackedResource.resource.id",
+					Message:   "Required value",
+					FieldPath: "trackedResource.resource.id",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "trackedResource.resource.systemData",
+					Message:   "Required value",
+					FieldPath: "trackedResource.resource.systemData",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "trackedResource.location",
+					Message:   "Required value",
+					FieldPath: "trackedResource.location",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.version.channelGroup",
+					Message:   "Required value",
+					FieldPath: "customerProperties.version.channelGroup",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.version.channelGroup",
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.version.channelGroup",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.version.id",
+					Message:   "Required value",
+					FieldPath: "customerProperties.version.id",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.network.networkType",
+					Message:   "Required value",
+					FieldPath: "customerProperties.network.networkType",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.network.networkType",
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.network.networkType",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.network.podCidr",
+					Message:   "Required value",
+					FieldPath: "customerProperties.network.podCidr",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.network.serviceCidr",
+					Message:   "Required value",
+					FieldPath: "customerProperties.network.serviceCidr",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.network.machineCidr",
+					Message:   "Required value",
+					FieldPath: "customerProperties.network.machineCidr",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.network.hostPrefix",
+					Message:   "Required value",
+					FieldPath: "customerProperties.network.hostPrefix",
 				},
 				{
-					message:   "must be greater than or equal to 23",
-					fieldPath: "customerProperties.network.hostPrefix",
+					Message:   "must be greater than or equal to 23",
+					FieldPath: "customerProperties.network.hostPrefix",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.api.visibility",
+					Message:   "Required value",
+					FieldPath: "customerProperties.api.visibility",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.api.visibility",
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.api.visibility",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.managedResourceGroup",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.subnetId",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.subnetId",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.outboundType",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.outboundType",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.platform.outboundType",
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.platform.outboundType",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.networkSecurityGroupId",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.networkSecurityGroupId",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
+					Message:   "Required value",
+					FieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
 				},
 				{
-					message:   "Invalid value: 0: must be greater than or equal to 1",
-					fieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
+					Message:   "Invalid value: 0: must be greater than or equal to 1",
+					FieldPath: "customerProperties.autoscaling.maxPodGracePeriodSeconds",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+					Message:   "Required value",
+					FieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
 				},
 				{
-					message:   "Invalid value: 0: must be greater than or equal to 1",
-					fieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
+					Message:   "Invalid value: 0: must be greater than or equal to 1",
+					FieldPath: "customerProperties.autoscaling.maxNodeProvisionTimeSeconds",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.autoscaling.podPriorityThreshold",
+					Message:   "Required value",
+					FieldPath: "customerProperties.autoscaling.podPriorityThreshold",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.clusterImageRegistry.state",
+					Message:   "Required value",
+					FieldPath: "customerProperties.clusterImageRegistry.state",
 				},
 				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.clusterImageRegistry.state",
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.clusterImageRegistry.state",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
+					Message:   "Required value",
+					FieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "serviceProviderProperties.clusterUID",
+					Message:   "Required value",
+					FieldPath: "serviceProviderProperties.clusterUID",
 				},
 			},
 		},
@@ -178,41 +179,41 @@ func TestClusterRequired(t *testing.T) {
 				api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster")),
 				api.TestLocation,
 			),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "trackedResource.resource.systemData",
+					Message:   "Required value",
+					FieldPath: "trackedResource.resource.systemData",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.version.id",
+					Message:   "Required value",
+					FieldPath: "customerProperties.version.id",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.managedResourceGroup",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.subnetId",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.subnetId",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.networkSecurityGroupId",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.networkSecurityGroupId",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
+					Message:   "Required value",
+					FieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "serviceProviderProperties.clusterUID",
+					Message:   "Required value",
+					FieldPath: "serviceProviderProperties.clusterUID",
 				},
 			},
 		},
 		{
 			name:         "Minimum valid cluster",
 			resource:     api.MinimumValidClusterTestCase(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Cluster with identity",
@@ -235,7 +236,7 @@ func TestClusterRequired(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -248,7 +249,7 @@ func TestClusterRequired(t *testing.T) {
 
 			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
 			actualErrors := ValidateCluster(context.TODO(), op, resource, nil, nil)
-			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
 }
@@ -261,12 +262,12 @@ func TestClusterValidate(t *testing.T) {
 		resource     *api.HCPOpenShiftCluster
 		tweaks       *api.HCPOpenShiftCluster
 		opOptions    []string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "Minimum valid cluster",
 			tweaks:       &api.HCPOpenShiftCluster{},
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Bad cidrv4",
@@ -277,10 +278,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "invalid CIDR address",
-					fieldPath: "customerProperties.network.podCidr",
+					Message:   "invalid CIDR address",
+					FieldPath: "customerProperties.network.podCidr",
 				},
 			},
 		},
@@ -293,10 +294,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be a valid DNS RFC 1035 label",
-					fieldPath: "customerProperties.dns.baseDomainPrefix",
+					Message:   "must be a valid DNS RFC 1035 label",
+					FieldPath: "customerProperties.dns.baseDomainPrefix",
 				},
 			},
 		},
@@ -309,10 +310,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "supported values: \"LoadBalancer\"",
-					fieldPath: "customerProperties.platform.outboundType",
+					Message:   "supported values: \"LoadBalancer\"",
+					FieldPath: "customerProperties.platform.outboundType",
 				},
 			},
 		},
@@ -323,10 +324,10 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ID = ""
 				return r
 			}(),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.version.id",
+					Message:   "Required value",
+					FieldPath: "customerProperties.version.id",
 				},
 			},
 		},
@@ -337,10 +338,10 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ID = "4.20.8"
 				return r
 			}(),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be specified as MAJOR.MINOR",
-					fieldPath: "customerProperties.version.id",
+					Message:   "must be specified as MAJOR.MINOR",
+					FieldPath: "customerProperties.version.id",
 				},
 			},
 		},
@@ -352,7 +353,7 @@ func TestClusterValidate(t *testing.T) {
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "ChannelGroup candidate is rejected without experimental flag",
@@ -361,10 +362,10 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ChannelGroup = "candidate"
 				return r
 			}(),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "supported values: \"fast\", \"stable\"",
-					fieldPath: "customerProperties.version.channelGroup",
+					Message:   "supported values: \"fast\", \"stable\"",
+					FieldPath: "customerProperties.version.channelGroup",
 				},
 			},
 		},
@@ -376,7 +377,7 @@ func TestClusterValidate(t *testing.T) {
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Version ID with prerelease is rejected without experimental flag",
@@ -385,10 +386,10 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ID = "4.21.0-rc.1"
 				return r
 			}(),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be specified as MAJOR.MINOR",
-					fieldPath: "customerProperties.version.id",
+					Message:   "must be specified as MAJOR.MINOR",
+					FieldPath: "customerProperties.version.id",
 				},
 			},
 		},
@@ -400,7 +401,7 @@ func TestClusterValidate(t *testing.T) {
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Version ID with nightly format is allowed with experimental flag",
@@ -411,7 +412,7 @@ func TestClusterValidate(t *testing.T) {
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "ChannelGroup fast is allowed without experimental flag",
@@ -420,7 +421,7 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ChannelGroup = "fast"
 				return r
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Version must be at least 4.20 without experimental flag",
@@ -429,7 +430,7 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ID = "4.20"
 				return r
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Version must be at least 4.19 with experimental flag",
@@ -439,7 +440,7 @@ func TestClusterValidate(t *testing.T) {
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "ChannelGroup nightly is rejected without experimental flag",
@@ -448,10 +449,10 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Version.ChannelGroup = "nightly"
 				return r
 			}(),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "supported values: \"fast\", \"stable\"",
-					fieldPath: "customerProperties.version.channelGroup",
+					Message:   "supported values: \"fast\", \"stable\"",
+					FieldPath: "customerProperties.version.channelGroup",
 				},
 			},
 		},
@@ -463,7 +464,7 @@ func TestClusterValidate(t *testing.T) {
 				return r
 			}(),
 			opOptions:    testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "ChannelGroup blah is rejected even with experimental flag",
@@ -473,10 +474,10 @@ func TestClusterValidate(t *testing.T) {
 				return r
 			}(),
 			opOptions: testFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "supported values: \"candidate\", \"fast\", \"nightly\", \"stable\"",
-					fieldPath: "customerProperties.version.channelGroup",
+					Message:   "supported values: \"candidate\", \"fast\", \"nightly\", \"stable\"",
+					FieldPath: "customerProperties.version.channelGroup",
 				},
 			},
 		},
@@ -489,10 +490,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "supported values: \"Private\", \"Public\"",
-					fieldPath: "customerProperties.api.visibility",
+					Message:   "supported values: \"Private\", \"Public\"",
+					FieldPath: "customerProperties.api.visibility",
 				},
 			},
 		},
@@ -503,10 +504,10 @@ func TestClusterValidate(t *testing.T) {
 					Type: "brokenServiceType",
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "supported values: \"None\", \"SystemAssigned\", \"SystemAssigned,UserAssigned\", \"UserAssigned\"",
-					fieldPath: "identity.state",
+					Message:   "supported values: \"None\", \"SystemAssigned\", \"SystemAssigned,UserAssigned\", \"UserAssigned\"",
+					FieldPath: "identity.state",
 				},
 			},
 		},
@@ -519,10 +520,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "supported values: \"Disabled\", \"Enabled\"",
-					fieldPath: "customerProperties.clusterImageRegistry.state",
+					Message:   "supported values: \"Disabled\", \"Enabled\"",
+					FieldPath: "customerProperties.clusterImageRegistry.state",
 				},
 			},
 		},
@@ -535,10 +536,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "may not be more than 15 bytes",
-					fieldPath: "customerProperties.dns.baseDomainPrefix",
+					Message:   "may not be more than 15 bytes",
+					FieldPath: "customerProperties.dns.baseDomainPrefix",
 				},
 			},
 		},
@@ -551,10 +552,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be greater than or equal to 23",
-					fieldPath: "customerProperties.network.hostPrefix",
+					Message:   "must be greater than or equal to 23",
+					FieldPath: "customerProperties.network.hostPrefix",
 				},
 			},
 		},
@@ -567,10 +568,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be less than or equal to 26",
-					fieldPath: "customerProperties.network.hostPrefix",
+					Message:   "must be less than or equal to 26",
+					FieldPath: "customerProperties.network.hostPrefix",
 				},
 			},
 		},
@@ -589,14 +590,14 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
 				},
 				{
-					message:   "identity is not assigned to this resource",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]",
+					Message:   "identity is not assigned to this resource",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]",
 				},
 			},
 		},
@@ -616,10 +617,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators",
 				},
 			},
 		},
@@ -634,10 +635,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be specified when `keyManagementMode` is \"CustomerManaged\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
+					Message:   "must be specified when `keyManagementMode` is \"CustomerManaged\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
 				},
 			},
 		},
@@ -653,14 +654,14 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "may only be specified when `keyManagementMode` is \"CustomerManaged\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
+					Message:   "may only be specified when `keyManagementMode` is \"CustomerManaged\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
 				},
 				{
-					message:   "supported values: \"KMS\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
+					Message:   "supported values: \"KMS\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
 				},
 			},
 		},
@@ -678,10 +679,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be specified when `encryptionType` is \"KMS\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms",
+					Message:   "must be specified when `encryptionType` is \"KMS\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms",
 				},
 			},
 		},
@@ -701,34 +702,34 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "supported values: \"KMS\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
+					Message:   "supported values: \"KMS\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
 				},
 				{
-					message:   "may only be specified when `encryptionType` is \"KMS\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms",
+					Message:   "may only be specified when `encryptionType` is \"KMS\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.name",
+					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.name",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName",
+					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version",
+					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
 				},
 				{
-					message:   "supported values: \"Private\", \"Public\"",
-					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
+					Message:   "supported values: \"Private\", \"Public\"",
+					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility",
 				},
 			},
 		},
@@ -747,10 +748,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "machine CIDR '10.0.0.0/16' and service CIDR '10.0.0.0/23' overlap",
-					fieldPath: "customerProperties.network",
+					Message:   "machine CIDR '10.0.0.0/16' and service CIDR '10.0.0.0/23' overlap",
+					FieldPath: "customerProperties.network",
 				},
 			},
 		},
@@ -764,10 +765,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "machine CIDR '10.1.0.0/23' and pod CIDR '10.1.0.0/18' overlap",
-					fieldPath: "customerProperties.network",
+					Message:   "machine CIDR '10.1.0.0/23' and pod CIDR '10.1.0.0/18' overlap",
+					FieldPath: "customerProperties.network",
 				},
 			},
 		},
@@ -781,10 +782,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "service CIDR '10.2.0.0/24' and pod CIDR '10.2.0.0/18' overlap",
-					fieldPath: "customerProperties.network",
+					Message:   "service CIDR '10.2.0.0/24' and pod CIDR '10.2.0.0/18' overlap",
+					FieldPath: "customerProperties.network",
 				},
 			},
 		},
@@ -800,10 +801,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must not be the same resource group name",
-					fieldPath: "customerProperties.platform.managedResourceGroup",
+					Message:   "must not be the same resource group name",
+					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 			},
 		},
@@ -818,18 +819,18 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must not be the same resource group name: \"MRG\"",
-					fieldPath: "customerProperties.platform.subnetId",
+					Message:   "must not be the same resource group name: \"MRG\"",
+					FieldPath: "customerProperties.platform.subnetId",
 				},
 				{
-					message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
-					fieldPath: "customerProperties.platform.subnetId",
+					Message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
+					FieldPath: "customerProperties.platform.subnetId",
 				},
 				{
-					message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
-					fieldPath: "customerProperties.platform.vnetIntegrationSubnetId",
+					Message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
+					FieldPath: "customerProperties.platform.vnetIntegrationSubnetId",
 				},
 			},
 		},
@@ -879,18 +880,18 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "identity is not assigned to this resource",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					Message:   "identity is not assigned to this resource",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
-					message:   "identity is assigned to this resource but not used",
-					fieldPath: "identity.userAssignedIdentities",
+					Message:   "identity is assigned to this resource but not used",
+					FieldPath: "identity.userAssignedIdentities",
 				},
 				{
-					message:   "identity is not assigned to this resource",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					Message:   "identity is not assigned to this resource",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				},
 			},
 		},
@@ -917,10 +918,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "identity is used multiple times",
-					fieldPath: "identity.userAssignedIdentities",
+					Message:   "identity is used multiple times",
+					FieldPath: "identity.userAssignedIdentities",
 				},
 			},
 		},
@@ -945,14 +946,14 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "identity is assigned to this resource but not used",
-					fieldPath: "identity.userAssignedIdentities",
+					Message:   "identity is assigned to this resource but not used",
+					FieldPath: "identity.userAssignedIdentities",
 				},
 				{
-					message:   "cannot use identity assigned to this resource by .identities.userAssignedIdentities",
-					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[operatorX]",
+					Message:   "cannot use identity assigned to this resource by .identities.userAssignedIdentities",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[operatorX]",
 				},
 			},
 		},
@@ -964,10 +965,10 @@ func TestClusterValidate(t *testing.T) {
 				r.CustomerProperties.Platform.ManagedResourceGroup = ""
 				return r
 			}(),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "customerProperties.platform.managedResourceGroup",
+					Message:   "Required value",
+					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 			},
 		},
@@ -980,10 +981,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "max 90 characters",
-					fieldPath: "customerProperties.platform.managedResourceGroup",
+					Message:   "max 90 characters",
+					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 			},
 		},
@@ -996,10 +997,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "max 90 characters",
-					fieldPath: "customerProperties.platform.managedResourceGroup",
+					Message:   "max 90 characters",
+					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 			},
 		},
@@ -1012,10 +1013,10 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "max 90 characters",
-					fieldPath: "customerProperties.platform.managedResourceGroup",
+					Message:   "max 90 characters",
+					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 			},
 		},
@@ -1028,7 +1029,7 @@ func TestClusterValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -1041,7 +1042,7 @@ func TestClusterValidate(t *testing.T) {
 
 			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
 			actualErrors := ValidateCluster(context.TODO(), op, resource, nil, nil)
-			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
 }

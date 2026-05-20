@@ -105,7 +105,6 @@ func (f *clusterTestFixture) newOperation(request database.OperationRequest) *ap
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: f.cosmosOperationResourceID,
 		},
-		ResourceID:  f.cosmosOperationResourceID,
 		TenantID:    testTenantID,
 		Status:      arm.ProvisioningStateAccepted,
 		Request:     request,
@@ -178,6 +177,7 @@ func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 
 func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 	return &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.nodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.nodePoolResourceID,
@@ -189,7 +189,7 @@ func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 			ProvisioningState: arm.ProvisioningStateAccepted,
 		},
 		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-			ClusterServiceID:  f.nodePoolInternalID,
+			ClusterServiceID:  &f.nodePoolInternalID,
 			ActiveOperationID: testOperationName,
 		},
 	}
@@ -283,7 +283,7 @@ func (f *externalAuthTestFixture) newExternalAuth() *api.HCPOpenShiftClusterExte
 			ProvisioningState: arm.ProvisioningStateAccepted,
 		},
 		ServiceProviderProperties: api.HCPOpenShiftClusterExternalAuthServiceProviderProperties{
-			ClusterServiceID:  f.externalAuthInternalID,
+			ClusterServiceID:  &f.externalAuthInternalID,
 			ActiveOperationID: testOperationName,
 		},
 	}

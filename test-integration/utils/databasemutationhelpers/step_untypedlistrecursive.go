@@ -75,7 +75,7 @@ func (l *untypedListRecursiveStep) StepID() StepID {
 }
 
 func (l *untypedListRecursiveStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	untypedCRUD, err := stepInput.DBClient.UntypedCRUD(*l.key.ParentResourceID)
+	untypedCRUD, err := stepInput.ResourcesDBClient.UntypedCRUD(*l.key.ParentResourceID)
 	require.NoError(t, err)
 	for _, childKey := range l.key.Descendents {
 		childResourceType, err := azcorearm.ParseResourceType(childKey.ResourceType)

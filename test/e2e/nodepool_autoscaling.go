@@ -72,7 +72,8 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
@@ -135,7 +136,9 @@ var _ = Describe("Customer", func() {
 				azNodePoolParams.AvailabilityZone = availabilityZone
 
 				err = tc.CreateNodePoolFromParam(ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
+					managedResourceGroupName,
 					customerClusterName,
 					azNodePoolParams,
 					45*time.Minute,
@@ -199,7 +202,9 @@ var _ = Describe("Customer", func() {
 			}
 
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				noAZNodePoolParams,
 				45*time.Minute,
@@ -253,7 +258,8 @@ var _ = Describe("Customer", func() {
 			By("creating cluster with MaxNodesTotal limit")
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 			clusterParams.Autoscaling = &hcpsdk20240610preview.ClusterAutoscalingProfile{
 				MaxNodesTotal: to.Ptr(int32(3)), // Set low limit
 			}
@@ -286,7 +292,9 @@ var _ = Describe("Customer", func() {
 
 			// Should fail quickly during validation
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				5*time.Minute,

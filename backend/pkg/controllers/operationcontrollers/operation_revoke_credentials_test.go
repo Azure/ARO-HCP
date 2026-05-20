@@ -25,6 +25,7 @@ import (
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -32,20 +33,70 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
+func TestOperationRevokeCredentials_ShouldProcess(t *testing.T) {
+	tests := []struct {
+		name              string
+		operationOverride func(*api.Operation)
+		expectedResult    bool
+	}{
+		{
+			name:              "Deleting status should be processed",
+			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateDeleting },
+			expectedResult:    true,
+		},
+		{
+			name:              "Terminal ProvisioningState should not be processed",
+			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateCanceled },
+			expectedResult:    false,
+		},
+		{
+			name:              "Wrong operation request type should not be processed",
+			operationOverride: func(o *api.Operation) { o.Request = database.OperationRequestRequestCredential },
+			expectedResult:    false,
+		},
+		{
+			name:              "ProvisioningStateAccepted should not be processed",
+			operationOverride: func(o *api.Operation) { o.Status = arm.ProvisioningStateAccepted },
+			expectedResult:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
+
+			fixture := newClusterTestFixture()
+			operation := fixture.newOperation(database.OperationRequestRevokeCredentials)
+			operation.Status = arm.ProvisioningStateDeleting
+			if tt.operationOverride != nil {
+				tt.operationOverride(operation)
+			}
+
+			controller := &operationRevokeCredentials{}
+			result := controller.ShouldProcess(ctx, operation)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+func TestOperationRevokeCredentials_SynchronizeOperation(t *testing.T) {
 	tests := []struct {
 		name                         string
+		operationOverride            func(*api.Operation)
 		breakGlassCredentialStatuses []cmv1.BreakGlassCredentialStatus
 		revokeCredentialsOperationID string
 		expectError                  bool
-		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture)
+		expectCSMockCalled           bool
+		verify                       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name:                         "no credentials present means operation is successful",
 			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			expectCSMockCalled:           true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -63,7 +114,8 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			expectCSMockCalled:           true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
@@ -82,7 +134,8 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			expectCSMockCalled:           true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
@@ -99,7 +152,8 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			},
 			revokeCredentialsOperationID: testOperationName,
 			expectError:                  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			expectCSMockCalled:           true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
@@ -113,10 +167,49 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			name:                         "mismatched RevokeCredentialsOperationID is left intact",
 			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{},
 			revokeCredentialsOperationID: "not-our-operation-id",
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockDBClient, fixture *clusterTestFixture) {
+			expectError:                  false,
+			expectCSMockCalled:           true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+				assert.Nil(t, op.Error)
+
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.Equal(t, "not-our-operation-id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
+			},
+		},
+		{
+			name:                         "unhandled BreakGlassCredentialStatus leads to error",
+			breakGlassCredentialStatuses: []cmv1.BreakGlassCredentialStatus{"CompleteFantasy"},
+			revokeCredentialsOperationID: testOperationName,
+			expectError:                  true,
+			expectCSMockCalled:           true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status) // no state change
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID) // no state change
+			},
+		},
+		{
+			name:                         "ShouldProcess returns false for terminal status and no state change occurs",
+			operationOverride:            func(o *api.Operation) { o.Status = arm.ProvisioningStateSucceeded },
+			revokeCredentialsOperationID: testOperationName,
+			expectError:                  false,
+			expectCSMockCalled:           false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status) // no state change
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.RevokeCredentialsOperationID) // no state change
 			},
 		},
 	}
@@ -133,28 +226,33 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
 			operation := fixture.newOperation(database.OperationRequestRevokeCredentials)
 			operation.Status = arm.ProvisioningStateDeleting
+			if tt.operationOverride != nil {
+				tt.operationOverride(operation)
+			}
 
-			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
-			mockCSClient.EXPECT().
-				ListBreakGlassCredentials(fixture.clusterInternalID, "").
-				DoAndReturn(func(_ ocm.InternalID, _ string) ocm.BreakGlassCredentialListIterator {
-					var objs []*cmv1.BreakGlassCredential
-					for _, status := range tt.breakGlassCredentialStatuses {
-						breakGlassCredential, err := cmv1.NewBreakGlassCredential().
-							Status(status).
-							Build()
-						require.NoError(t, err)
-						objs = append(objs, breakGlassCredential)
-					}
-					return ocm.NewSimpleBreakGlassCredentialsListIterator(objs, nil)
-				})
+			if tt.expectCSMockCalled {
+				mockCSClient.EXPECT().
+					ListBreakGlassCredentials(fixture.clusterInternalID, "").
+					DoAndReturn(func(_ ocm.InternalID, _ string) ocm.BreakGlassCredentialListIterator {
+						var objs []*cmv1.BreakGlassCredential
+						for _, status := range tt.breakGlassCredentialStatuses {
+							breakGlassCredential, err := cmv1.NewBreakGlassCredential().
+								Status(status).
+								Build()
+							require.NoError(t, err)
+							objs = append(objs, breakGlassCredential)
+						}
+						return ocm.NewSimpleBreakGlassCredentialsListIterator(objs, nil)
+					}).MaxTimes(1)
+			}
 
 			controller := &operationRevokeCredentials{
-				cosmosClient:          mockDB,
+				resourcesDBClient:     mockResourcesDBClient,
 				clustersServiceClient: mockCSClient,
 			}
 
@@ -167,7 +265,7 @@ func TestOperationRevokeCredentials_SyncrhonizeOperation(t *testing.T) {
 			}
 
 			if tt.verify != nil {
-				tt.verify(t, ctx, mockDB, fixture)
+				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
 	}

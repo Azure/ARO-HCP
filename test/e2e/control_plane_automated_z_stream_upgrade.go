@@ -24,14 +24,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/blang/semver/v4"
-
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	azcore "github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -53,11 +50,10 @@ var _ = Describe("Service Provider", func() {
 			if len(baseInstallVersion) == 0 {
 				baseInstallVersion = minorVersion // set it to minor so that we defaul to .0 as the patch version
 			}
-			configuredVersionID := api.Must(semver.ParseTolerant(baseInstallVersion))
-			installVersion, hasUpgradePath, err := framework.GetInstallVersionForZStreamUpgrade(ctx, "candidate", configuredVersionID.String())
+			installVersion, hasUpgradePath, err := framework.GetInstallVersionForZStreamUpgrade(ctx, "candidate", baseInstallVersion)
 			if err != nil {
 				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s (minor %s)", configuredVersionID, minorVersion))
+					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s (minor %s)", baseInstallVersion, minorVersion))
 				}
 				Expect(err).NotTo(HaveOccurred())
 			}

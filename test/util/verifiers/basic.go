@@ -31,6 +31,13 @@ type HostedClusterVerifier interface {
 	Verify(ctx context.Context, restConfig *rest.Config) error
 }
 
+// DiagnosticVerifier is an optional interface that verifiers can implement to
+// provide additional context when EventuallyVerify times out. The returned
+// string is logged alongside the timeout error.
+type DiagnosticVerifier interface {
+	DiagnoseFailure(ctx context.Context, restConfig *rest.Config) string
+}
+
 // ExpectForbidden returns a verifier that runs inner and succeeds only when inner.Verify
 // returns a forbidden (403) error. Use it to assert that an identity must not be able
 // to perform the action implemented by inner, without defining separate "Cannot" verifiers.

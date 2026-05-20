@@ -1,0 +1,4 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "{{ .mgmtAgent.k8s.namespace }}"

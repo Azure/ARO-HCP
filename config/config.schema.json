@@ -3,6 +3,11 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
+    "csvPrincipalList": {
+      "type": "string",
+      "description": "CSV separated list of principals, each in the format '(tenantId/)principalId' where tenantId is optional. Both tenantId and principalId must be UUIDs.",
+      "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(,([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})*$"
+    },
     "namespaceName": {
       "type": "string",
       "minLength": 1,
@@ -261,6 +266,10 @@
         "configVersion": {
           "description": "Geneva logs account namespace configuration version",
           "pattern": "^[0-9]+$",
+          "type": "string"
+        },
+        "mdsdConfigFile": {
+          "description": "Optional path to the checked-in MDSD agent config XML file, relative to the pipeline directory root",
           "type": "string"
         }
       },
@@ -1119,7 +1128,10 @@
         },
         "provisionShardStatus": {
           "type": "string",
-          "enum": ["active", "maintenance"],
+          "enum": [
+            "active",
+            "maintenance"
+          ],
           "description": "Status of the provision shard"
         },
         "k8s": {
@@ -1271,6 +1283,11 @@
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
         },
+        "logVerbosity": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Log verbosity level for the backend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
+        },
         "clusterScopedIdentitiesConfig": {
           "$ref": "#/definitions/clusterScopedIdentitiesConfig"
         }
@@ -1284,6 +1301,7 @@
         "azureRuntimeConfig",
         "maestro",
         "exitOnPanic",
+        "logVerbosity",
         "clusterScopedIdentitiesConfig"
       ]
     },
@@ -1341,6 +1359,74 @@
       "required": [
         "image",
         "k8s"
+      ]
+    },
+    "mgmtAgent": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the mgmt-agent to interact with Azure"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "k8s",
+        "managedIdentityName"
+      ]
+    },
+    "kubeApplier": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "cosmosContainerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$"
+        },
+        "cosmosContainerMaxScale": {
+          "type": "integer"
+        },
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "partitionKey": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "cosmosContainerName",
+        "cosmosContainerMaxScale",
+        "managedIdentityName",
+        "k8s",
+        "partitionKey"
+      ]
+    },
+    "fleet": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
       ]
     },
     "adminApi": {
@@ -1409,9 +1495,6 @@
         "cosmosDB": {
           "type": "object",
           "properties": {
-            "deploy": {
-              "type": "boolean"
-            },
             "disableLocalAuth": {
               "type": "boolean"
             },
@@ -1430,13 +1513,15 @@
             "locksContainerMaxScale": {
               "type": "integer"
             },
+            "fleetContainerMaxScale": {
+              "type": "integer"
+            },
             "zoneRedundantMode": {
               "$ref": "#/definitions/zoneRedundantMode"
             }
           },
           "additionalProperties": false,
           "required": [
-            "deploy",
             "disableLocalAuth",
             "name",
             "private"
@@ -1463,6 +1548,11 @@
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
+        },
+        "logVerbosity": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Log verbosity level for the frontend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
         }
       },
       "additionalProperties": false,
@@ -1473,7 +1563,8 @@
         "tracing",
         "k8s",
         "managedIdentityName",
-        "exitOnPanic"
+        "exitOnPanic",
+        "logVerbosity"
       ]
     },
     "billing": {
@@ -1848,10 +1939,16 @@
           "type": "string"
         },
         "adminGroups": {
-          "type": "string"
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of AAD groups to grant AllDatabasesAdmin on the Kusto cluster."
         },
         "viewerGroups": {
-          "type": "string"
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of AAD groups to grant AllDatabasesViewer on the Kusto cluster."
+        },
+        "viewerIdentities": {
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of app/managed identity principals to grant AllDatabasesViewer on the Kusto cluster."
         },
         "crossClusterServiceLogsScript": {
           "type": "string"
@@ -2153,6 +2250,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "subscriptionKey": {
+              "type": "string"
+            },
             "rg": {
               "$ref": "#/definitions/resourceGroupName"
             },
@@ -2161,6 +2261,7 @@
             }
           },
           "required": [
+            "subscriptionKey",
             "rg",
             "digest"
           ]
@@ -2185,6 +2286,34 @@
         },
         "keyVault": {
           "$ref": "#/definitions/keyVault"
+        },
+        "managementGroup": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "groupQuota": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "displayName"
+          ]
         }
       },
       "required": [
@@ -2192,7 +2321,9 @@
         "billing",
         "subscription",
         "region",
-        "keyVault"
+        "keyVault",
+        "managementGroup",
+        "groupQuota"
       ]
     },
     "hypershift": {
@@ -2704,6 +2835,39 @@
         "alertRuleOwningTeamTag"
       ]
     },
+    "quotaizer": {
+      "type": "object",
+      "properties": {
+        "quotaGroup": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "displayName"
+          ]
+        },
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "quotaGroup",
+        "managedIdentityName",
+        "image"
+      ]
+    },
     "routeMonitorOperator": {
       "type": "object",
       "properties": {
@@ -2952,7 +3116,12 @@
             "targetVersion": {
               "description": "The target istio version that will be updated to",
               "type": "string",
-              "enum": ["asm-1-26", "asm-1-27", "asm-1-28", "asm-1-29"]
+              "enum": [
+                "asm-1-26",
+                "asm-1-27",
+                "asm-1-28",
+                "asm-1-29"
+              ]
             },
             "ingressGatewayIPAddressName": {
               "type": "string"
@@ -3155,6 +3324,9 @@
     "secretSyncController",
     "maestro",
     "mgmt",
+    "mgmtAgent",
+    "fleet",
+    "kubeApplier",
     "mgmtKeyVault",
     "monitoring",
     "msiKeyVault",

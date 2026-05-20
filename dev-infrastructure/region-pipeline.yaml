@@ -2,6 +2,7 @@
 # Purpose: Manage regional resources for ARO HCP shared by SC and MC
 # Managed Resources:
 # * regional SVC and CX DNS zones and delegates them to the global ones
+# * CosmosDB account for the RP
 # * Eventgrid Namespaces MQTT for Maestro
 # * regional replication for the OCP and SVC ACRs
 # * regional Azure Monitor Workspace & linking into global Grafana
@@ -53,6 +54,11 @@ resourceGroups:
   - name: add-grafana-datasource
     action: GrafanaDatasources
     omitFromServiceGroupCompletion: true
+    automatedRetry:
+      errorContainsAny:
+      - "UpdateConflict"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
     grafanaName: "{{ .monitoring.grafanaName }}"
     identityFrom:
       resourceGroup: global
@@ -123,6 +129,11 @@ resourceGroups:
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "Internal error"
+      maximumRetryCount: 4
+      durationBetweenRetries: 2m
     variables:
     - name: globalMSIId
       input:

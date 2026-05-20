@@ -43,6 +43,7 @@ data:
   DB_URL: '__cosmosDBDocumentEndpoint__'
   BACKEND_MI_CLIENT_ID: '__backendMsiClientId__'
   CURRENT_VERSION: ''
+  DB_KUBE_APPLIER_CONTAINER: 'Manifests-MC-1'
   LOCATION: 'westus3'
 ---
 # Source: backend/templates/leader-election.role.yaml
@@ -166,6 +167,7 @@ spec:
         - "--maestro-source-environment-identifier"
         - "arohcpdev"
         - "--exit-on-panic=true"
+        - "--log-verbosity=4"
         - "--azure-cluster-scoped-identities-role-set-name"
         - "dev"
         env:
@@ -179,6 +181,11 @@ spec:
             configMapKeyRef:
               name: backend-config
               key: DB_URL
+        - name: DB_KUBE_APPLIER_CONTAINER
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DB_KUBE_APPLIER_CONTAINER
         - name: LOCATION
           valueFrom:
             configMapKeyRef:

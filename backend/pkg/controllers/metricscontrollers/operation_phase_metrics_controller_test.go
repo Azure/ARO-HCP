@@ -143,7 +143,6 @@ func newTestOperation(t *testing.T, opName string, request api.OperationRequest,
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID:         resourceID,
 		OperationID:        operationID,
 		Request:            request,
 		Status:             status,
@@ -309,7 +308,6 @@ func TestOperationPhaseMetricsHandler_SkipsNilOperationID(t *testing.T) {
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: resourceID,
 		},
-		ResourceID:         resourceID,
 		ExternalID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
 		Request:            api.OperationRequestCreate,
 		Status:             arm.ProvisioningStateAccepted,

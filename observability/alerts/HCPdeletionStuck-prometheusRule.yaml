@@ -14,6 +14,6 @@ spec:
       labels:
         severity: warning
       annotations:
-        summary: "Cluster {{ $labels.exported_namespace }} stuck deleting"
+        summary: "Cluster stuck deleting"
         description: "Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
         runbook_url: TBD

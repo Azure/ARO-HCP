@@ -249,7 +249,9 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.Replicas = int32(2)
 
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,

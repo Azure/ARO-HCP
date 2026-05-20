@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -43,9 +44,9 @@ import (
 // from CS and internal and helps selecting a valid desiredVersion within the user's
 // desired
 type nodePoolVersionSyncer struct {
-	cooldownChecker                       controllerutils.CooldownChecker
+	cooldownChecker                       controllerutil.CooldownChecker
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
-	cosmosClient                          database.DBClient
+	resourcesDBClient                     database.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 
 	cincinnatiClientCache cincinnati.ClientCache
@@ -57,7 +58,7 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 // from Cluster Service.
 // TODO: improve this description
 func NewNodePoolVersionController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
@@ -66,14 +67,14 @@ func NewNodePoolVersionController(
 	syncer := &nodePoolVersionSyncer{
 		cooldownChecker:                       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
-		cosmosClient:                          cosmosClient,
+		resourcesDBClient:                     resourcesDBClient,
 		clusterServiceClient:                  clusterServiceClient,
 		cincinnatiClientCache:                 cincinnati.NewClientCache(),
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
 		"NodePoolVersion",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		5*time.Minute, // Check for upgrades every 5 minutes
 		syncer,
@@ -108,7 +109,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	logger := utils.LoggerFromContext(ctx)
 
 	// Get node pool from Cosmos to get CS internal ID
-	nodePool, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
+	nodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 
 	if database.IsNotFoundError(err) {
@@ -117,21 +118,25 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cosmos: %w", err))
 	}
+	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		// if we have no clusterservice nodepool, we have nothing to sync.
+		return nil
+	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.cosmosClient, key.GetResourceID())
+	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}
 
 	// Get the ServiceProviderCluster for control plane version validation
 	clusterResourceID := api.Must(api.ToClusterResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName))
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.cosmosClient, clusterResourceID)
+	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterResourceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
 	// Get the cluster for Cincinnati client initialization
-	cluster, err := c.cosmosClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
 	}
@@ -145,17 +150,17 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
+	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
 	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.clusterManagementClusterContentLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return err
+		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}
 	if !found {
-		// will reappear once the informer relists; without the UUID we cannot build the Cincinnati client
-		return nil
+		logger.Info("missing cluster UUID, continuing with empty")
 	}
 
 	// Read node pool from Cluster Service
-	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, nodePool.ServiceProviderProperties.ClusterServiceID)
+	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool from CS: %w", err))
 	}
@@ -172,7 +177,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	oldActiveVersions := existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
 	existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions = prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
 
-	serviceProviderCosmosNodePoolClient := c.cosmosClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	serviceProviderCosmosNodePoolClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	// check if actualVersion from node pool in clusterService is different that the active versions in serviceProviderNodePool
 	// if it is different update the ActualVersion in the serviceProviderNodePool
 	// TODO: This is a simple gathering of the node pool versions. We should implement this to get the correct information.
@@ -202,7 +207,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	subscription, err := c.cosmosClient.Subscriptions().Get(ctx, cluster.ID.SubscriptionID)
+	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, cluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get subscription: %w", err))
 	}
@@ -224,7 +229,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	return nil
 }
 
-func (c *nodePoolVersionSyncer) CooldownChecker() controllerutils.CooldownChecker {
+func (c *nodePoolVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 

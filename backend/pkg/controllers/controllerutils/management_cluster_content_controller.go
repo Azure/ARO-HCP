@@ -30,7 +30,6 @@ func NewInitialManagementClusterContent(managementClusterContentResourceID *azco
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: managementClusterContentResourceID,
 		},
-		ResourceID: *managementClusterContentResourceID,
 	}
 }
 

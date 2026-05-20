@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -33,23 +34,25 @@ import (
 
 type cosmosClusterMatching struct {
 	clock                utilsclock.PassiveClock
-	cooldownChecker      controllerutils.CooldownChecker
-	cosmosClient         database.DBClient
+	cooldownChecker      controllerutil.CooldownChecker
+	resourcesDBClient    database.ResourcesDBClient
+	billingDBClient      database.BillingDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
 
 // NewCosmosClusterMatchingController periodically looks for mismatched cluster-service and cosmos externalauths
-func NewCosmosClusterMatchingController(clock utilsclock.PassiveClock, cosmosClient database.DBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
+func NewCosmosClusterMatchingController(clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, billingDBClient database.BillingDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
 	syncer := &cosmosClusterMatching{
 		clock:                clock,
-		cooldownChecker:      controllerutils.NewTimeBasedCooldownChecker(1 * time.Hour),
-		cosmosClient:         cosmosClient,
+		cooldownChecker:      controllerutil.NewTimeBasedCooldownChecker(1 * time.Hour),
+		resourcesDBClient:    resourcesDBClient,
+		billingDBClient:      billingDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
 		"CosmosMatchingClusters",
-		cosmosClient,
+		resourcesDBClient,
 		informers,
 		60*time.Minute,
 		syncer,
@@ -61,7 +64,7 @@ func NewCosmosClusterMatchingController(clock utilsclock.PassiveClock, cosmosCli
 func (c *cosmosClusterMatching) synchronizeClusters(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	cosmosCluster, err := c.cosmosClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
+	cosmosCluster, err := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName).Get(ctx, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -89,7 +92,7 @@ func (c *cosmosClusterMatching) synchronizeClusters(ctx context.Context, keyObj 
 	)
 
 	// we need to cleanup the cosmosCluster, finalizing billing first
-	if err := controllerutils.MarkBillingDocumentDeleted(ctx, c.cosmosClient, cosmosCluster.ID, c.clock.Now()); err != nil {
+	if err := controllerutils.MarkBillingDocumentDeleted(ctx, c.billingDBClient, cosmosCluster.ID, c.clock.Now()); err != nil {
 		// We are purposefully ignoring billing document errors while the cardinality of billing documents
 		// is being addressed to ensure that one billing document corresponds with one resourceID/cluster doc
 		logger.Error(err, "failed to mark billing document as deleted",
@@ -98,7 +101,7 @@ func (c *cosmosClusterMatching) synchronizeClusters(ctx context.Context, keyObj 
 		)
 	}
 
-	if err := controllerutils.DeleteRecursively(ctx, c.cosmosClient, cosmosCluster.ID); err != nil {
+	if err := controllerutils.DeleteRecursively(ctx, c.resourcesDBClient, cosmosCluster.ID); err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -110,6 +113,6 @@ func (c *cosmosClusterMatching) SyncOnce(ctx context.Context, keyObj controlleru
 	return utils.TrackError(syncErr)
 }
 
-func (c *cosmosClusterMatching) CooldownChecker() controllerutils.CooldownChecker {
+func (c *cosmosClusterMatching) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

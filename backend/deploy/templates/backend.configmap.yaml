@@ -8,4 +8,5 @@ data:
   DB_URL: '{{ .Values.configMap.databaseUrl }}'
   BACKEND_MI_CLIENT_ID: '{{ .Values.configMap.backendMiClientId }}'
   CURRENT_VERSION: '{{ .Values.configMap.currentVersion }}'
+  DB_KUBE_APPLIER_CONTAINER: '{{ .Values.configMap.kubeApplierCosmosContainerName }}'
   LOCATION: '{{ .Values.configMap.location }}'

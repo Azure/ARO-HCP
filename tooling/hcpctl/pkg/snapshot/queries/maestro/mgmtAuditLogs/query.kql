@@ -1,0 +1,13 @@
+{{ template "bundleMap" . }}
+let bundleResources = bundleMap
+| summarize groupVersion = take_any(groupVersion), resourceKind = take_any(resourceKind), label = take_any(label) by resourceNamespace, resourceName;
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('aksEvents')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where operationName == 'kube-audit'
+| extend event = parse_json(log)
+| where event.stage == 'ResponseComplete'
+| extend objectNamespace = tostring(event.objectRef.namespace), objectName = tostring(event.objectRef.name)
+| lookup bundleResources on $left.objectNamespace == $right.resourceNamespace, $left.objectName == $right.resourceName
+| where isnotempty(label)
+| project timestamp, groupVersion, resourceKind, label, objectNamespace, objectName, verb = tostring(event.verb), user = tostring(event.user.username), responseCode = toint(event.responseStatus.code)
+| order by timestamp asc

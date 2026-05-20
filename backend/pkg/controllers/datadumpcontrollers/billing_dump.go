@@ -21,34 +21,38 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type billingDump struct {
-	cooldownChecker controllerutils.CooldownChecker
-	cosmosClient    database.DBClient
+	cooldownChecker   controllerutil.CooldownChecker
+	resourcesDBClient database.ResourcesDBClient
+	billingDBClient   database.BillingDBClient
 
 	// nextDumpChecker ensures we don't hotloop from any source.
-	nextDumpChecker controllerutils.CooldownChecker
+	nextDumpChecker controllerutil.CooldownChecker
 }
 
 // NewBillingDumpController periodically dumps billing documents for each cluster.
 func NewBillingDumpController(
-	cosmosClient database.DBClient,
+	resourcesDBClient database.ResourcesDBClient,
+	billingDBClient database.BillingDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &billingDump{
-		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		cosmosClient:    cosmosClient,
-		nextDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient: resourcesDBClient,
+		billingDBClient:   billingDBClient,
+		nextDumpChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
 	return controllerutils.NewClusterWatchingController(
 		"BillingDump",
-		cosmosClient,
+		resourcesDBClient,
 		backendInformers,
 		1*time.Minute,
 		syncer,
@@ -62,7 +66,7 @@ func (c *billingDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 
 	logger := utils.LoggerFromContext(ctx)
 
-	if err := serverutils.DumpBillingToLogger(ctx, c.cosmosClient, key.GetResourceID()); err != nil {
+	if err := serverutils.DumpBillingToLogger(ctx, c.resourcesDBClient, c.billingDBClient, key.GetResourceID()); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump billing to logger")
 	}
@@ -70,6 +74,6 @@ func (c *billingDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	return nil
 }
 
-func (c *billingDump) CooldownChecker() controllerutils.CooldownChecker {
+func (c *billingDump) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }

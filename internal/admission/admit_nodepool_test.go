@@ -17,7 +17,6 @@ package admission
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
@@ -148,53 +148,48 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		newObj    *api.HCPOpenShiftClusterNodePool
-		oldObj    *api.HCPOpenShiftClusterNodePool
-		expectErr string
+		name         string
+		newObj       *api.HCPOpenShiftClusterNodePool
+		oldObj       *api.HCPOpenShiftClusterNodePool
+		expectErrors []utils.ExpectedError
 	}{
 		{
-			name:   "create: subnet matches cluster subnet (same cluster reuse allowed)",
-			newObj: nodePoolWithSubnet(clusterSubnet),
+			name:         "create: subnet matches cluster subnet (same cluster reuse allowed)",
+			newObj:       nodePoolWithSubnet(clusterSubnet),
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name:   "create: subnet in same VNet allowed",
-			newObj: nodePoolWithSubnet(sameVNetSubnet),
+			name:         "create: subnet in same VNet allowed",
+			newObj:       nodePoolWithSubnet(sameVNetSubnet),
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
-			name:      "create: subnet in different VNet rejected",
-			newObj:    nodePoolWithSubnet(differentVNetSubnet),
-			expectErr: "must belong to the same VNet as the parent cluster VNet",
-		},
-		{
-			name:   "update: unchanged subnet in different VNet not re-validated",
-			oldObj: nodePoolWithSubnet(differentVNetSubnet),
+			name:   "create: subnet in different VNet rejected",
 			newObj: nodePoolWithSubnet(differentVNetSubnet),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "must belong to the same VNet as the parent cluster VNet"},
+			},
 		},
 		{
-			name:      "update: subnet changed to different VNet rejected",
-			oldObj:    nodePoolWithSubnet(sameVNetSubnet),
-			newObj:    nodePoolWithSubnet(differentVNetSubnet),
-			expectErr: "must belong to the same VNet as the parent cluster VNet",
+			name:         "update: unchanged subnet in different VNet not re-validated",
+			oldObj:       nodePoolWithSubnet(differentVNetSubnet),
+			newObj:       nodePoolWithSubnet(differentVNetSubnet),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:   "update: subnet changed to different VNet rejected",
+			oldObj: nodePoolWithSubnet(sameVNetSubnet),
+			newObj: nodePoolWithSubnet(differentVNetSubnet),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "must belong to the same VNet as the parent cluster VNet"},
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := AdmitNodePool(tt.newObj, tt.oldObj, cluster)
-			if tt.expectErr == "" {
-				assert.Empty(t, errs)
-				return
-			}
-			require.NotEmpty(t, errs)
-			found := false
-			for _, e := range errs {
-				if strings.Contains(e.Error(), tt.expectErr) {
-					found = true
-					break
-				}
-			}
-			assert.True(t, found, "expected error containing %q, got %v", tt.expectErr, errs)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -219,8 +214,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 		clusterVersions    []string // active versions in ServiceProviderCluster (first is highest)
 		desiredVersion     string   // desired version in ServiceProviderNodePool.Spec
 		allowMajorUpgrades bool     // experimental feature flag
-		expectError        string
-		expectErrorCount   int
+		expectErrors       []utils.ExpectedError
 	}{
 		{
 			name:            "valid z-stream upgrade",
@@ -228,6 +222,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.17.1",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.17.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
 			name:            "valid y-stream upgrade",
@@ -235,6 +230,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.18.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.17.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
 			name:            "same version as desired skips validation",
@@ -242,6 +238,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.17.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.17.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
 			name:            "downgrade not allowed",
@@ -249,7 +246,10 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.17.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.18.0",
-			expectError:     "cannot downgrade",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot downgrade from current version"},
+				{FieldPath: "properties.version.id", Message: "cannot downgrade from version"},
+			},
 		},
 		{
 			name:            "major version change not allowed by default",
@@ -257,7 +257,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "5.0.0",
 			clusterVersions: []string{"5.0.0"},
 			desiredVersion:  "4.22.0",
-			expectError:     "major version changes are not supported",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
+			},
 		},
 		{
 			name:               "valid major upgrade 4.22 to 5.0",
@@ -266,6 +268,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			clusterVersions:    []string{"5.0.0"},
 			desiredVersion:     "4.22.0",
 			allowMajorUpgrades: true,
+			expectErrors:       []utils.ExpectedError{},
 		},
 		{
 			name:               "valid major upgrade 4.23 to 5.1",
@@ -274,6 +277,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			clusterVersions:    []string{"5.1.0"},
 			desiredVersion:     "4.23.0",
 			allowMajorUpgrades: true,
+			expectErrors:       []utils.ExpectedError{},
 		},
 		{
 			name:               "invalid major upgrade 4.22 to 5.1",
@@ -282,7 +286,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			clusterVersions:    []string{"5.1.0"},
 			desiredVersion:     "4.22.0",
 			allowMajorUpgrades: true,
-			expectError:        "4.22 can only upgrade to 5.0",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "4.22 can only upgrade to 5.0"},
+			},
 		},
 		{
 			name:               "invalid major upgrade 4.23 to 5.0",
@@ -291,7 +297,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			clusterVersions:    []string{"5.0.0"},
 			desiredVersion:     "4.23.0",
 			allowMajorUpgrades: true,
-			expectError:        "4.23 can only upgrade to 5.1",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "4.23 can only upgrade to 5.1"},
+			},
 		},
 		{
 			name:               "invalid major upgrade 4.20 not supported",
@@ -300,7 +308,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			clusterVersions:    []string{"5.0.0"},
 			desiredVersion:     "4.20.0",
 			allowMajorUpgrades: true,
-			expectError:        "major version upgrades are not supported",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "major version upgrades are not supported"},
+			},
 		},
 		{
 			name:            "skipping minor versions not allowed",
@@ -308,7 +318,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.18.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.16.0",
-			expectError:     "skipping minor versions is not allowed",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "skipping minor versions is not allowed"},
+			},
 		},
 		{
 			name:            "cannot exceed cluster version",
@@ -316,7 +328,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.18.0",
 			clusterVersions: []string{"4.17.5"},
 			desiredVersion:  "4.17.0",
-			expectError:     "cannot exceed control plane version",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot exceed control plane version"},
+			},
 		},
 		{
 			name:            "empty active versions allows any valid new version",
@@ -324,6 +338,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.18.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
 			name:            "empty active versions still validates against cluster",
@@ -331,7 +346,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.19.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "",
-			expectError:     "cannot exceed control plane version",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot exceed control plane version"},
+			},
 		},
 		{
 			name:            "empty new version skips validation",
@@ -339,15 +356,18 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.17.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:             "multiple validation failures",
-			activeVersions:   []string{"4.18.0"},
-			newVersion:       "4.15.0",
-			clusterVersions:  []string{"4.18.0"},
-			desiredVersion:   "4.18.0",
-			expectError:      "cannot downgrade",
-			expectErrorCount: 2,
+			name:            "multiple validation failures",
+			activeVersions:  []string{"4.18.0"},
+			newVersion:      "4.15.0",
+			clusterVersions: []string{"4.18.0"},
+			desiredVersion:  "4.18.0",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot downgrade from current version"},
+				{FieldPath: "properties.version.id", Message: "cannot downgrade from version"},
+			},
 		},
 		{
 			name:            "version already in active versions skips validation",
@@ -355,6 +375,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.18.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.18.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
 			name:            "X.Y format without patch is rejected",
@@ -362,7 +383,9 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.18",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.17.0",
-			expectError:     "invalid node pool version format",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "invalid node pool version format"},
+			},
 		},
 		{
 			name:            "prerelease version upgrade is valid",
@@ -370,6 +393,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.18.0-rc.1",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.17.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
 			name:            "nightly version upgrade is valid",
@@ -377,6 +401,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			newVersion:      "4.18.0-0.nightly-2024-01-15-123456",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.17.0",
+			expectErrors:    []utils.ExpectedError{},
 		},
 	}
 
@@ -465,30 +490,7 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			}
 
 			errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster, op)
-
-			if tt.expectError != "" {
-				if len(errs) == 0 {
-					t.Fatalf("expected error containing %q, got none", tt.expectError)
-				}
-				found := false
-				for _, e := range errs {
-					if strings.Contains(e.Error(), tt.expectError) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Fatalf("expected error containing %q, got %v", tt.expectError, errs)
-				}
-				if tt.expectErrorCount > 0 && len(errs) != tt.expectErrorCount {
-					t.Errorf("expected %d errors, got %d: %v", tt.expectErrorCount, len(errs), errs)
-				}
-				return
-			}
-
-			if len(errs) != 0 {
-				t.Fatalf("unexpected errors: %v", errs)
-			}
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -549,18 +551,9 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 
 	errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster, op)
 
-	if len(errs) == 0 {
-		t.Fatal("expected error for channel group mismatch, got none")
+	expectedErrors := []utils.ExpectedError{
+		{FieldPath: "properties.version.channelGroup", Message: "must be the same as control plane channel group"},
 	}
 
-	found := false
-	for _, e := range errs {
-		if strings.Contains(e.Error(), "must be the same as control plane channel group") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected channel group mismatch error, got %v", errs)
-	}
+	utils.VerifyErrorsMatch(t, expectedErrors, errs)
 }

@@ -22,71 +22,72 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestExternalAuthRequired(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     *api.HCPOpenShiftClusterExternalAuth
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:     "Empty External Auth",
 			resource: &api.HCPOpenShiftClusterExternalAuth{},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "trackedResource.resource.id",
+					Message:   "Required value",
+					FieldPath: "trackedResource.resource.id",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "trackedResource.resource.systemData",
+					Message:   "Required value",
+					FieldPath: "trackedResource.resource.systemData",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "properties.issuer.url",
+					Message:   "Required value",
+					FieldPath: "properties.issuer.url",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "properties.claim.mappings",
+					Message:   "Required value",
+					FieldPath: "properties.claim.mappings",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "properties.claim.mappings.username",
+					Message:   "Required value",
+					FieldPath: "properties.claim.mappings.username",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "properties.claim.mappings.username.claim",
+					Message:   "Required value",
+					FieldPath: "properties.claim.mappings.username.claim",
 				},
 				{
-					message:   "supported values: \"NoPrefix\", \"None\", \"Prefix\"",
-					fieldPath: "properties.claim.mappings.username.prefixPolicy",
+					Message:   "supported values: \"NoPrefix\", \"None\", \"Prefix\"",
+					FieldPath: "properties.claim.mappings.username.prefixPolicy",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "properties.issuer.audiences",
+					Message:   "Required value",
+					FieldPath: "properties.issuer.audiences",
 				},
 			},
 		},
 		{
 			name:     "Default external auth",
 			resource: api.NewDefaultHCPOpenShiftClusterExternalAuth(api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuths/test-auth"))),
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Required value",
-					fieldPath: "trackedResource.resource.systemData",
+					Message:   "Required value",
+					FieldPath: "trackedResource.resource.systemData",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "properties.claim.mappings.username.claim",
+					Message:   "Required value",
+					FieldPath: "properties.claim.mappings.username.claim",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "properties.issuer.url",
+					Message:   "Required value",
+					FieldPath: "properties.issuer.url",
 				},
 				{
-					message:   "Required value",
-					fieldPath: "properties.issuer.audiences",
+					Message:   "Required value",
+					FieldPath: "properties.issuer.audiences",
 				}},
 		},
 		{
@@ -98,7 +99,7 @@ func TestExternalAuthRequired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actualErrors := ValidateExternalAuthCreate(context.TODO(), tt.resource)
-			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
 }
@@ -115,7 +116,7 @@ func TestExternalAuthValidate(t *testing.T) {
 	tests := []struct {
 		name         string
 		tweaks       *api.HCPOpenShiftClusterExternalAuth
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:   "Minimum valid external auth",
@@ -134,7 +135,7 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{}, // This field is not being validated for length in the actual function
+			expectErrors: []utils.ExpectedError{}, // This field is not being validated for length in the actual function
 		},
 		{
 			name: "Max not satisfied for properties.claim.mappings.groups.claim",
@@ -149,10 +150,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "may not be more than 256 bytes",
-					fieldPath: "properties.claim.mappings.groups.claim",
+					Message:   "may not be more than 256 bytes",
+					FieldPath: "properties.claim.mappings.groups.claim",
 				},
 			},
 		},
@@ -175,10 +176,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "not a valid PEM",
-					fieldPath: "properties.issuer.ca",
+					Message:   "not a valid PEM",
+					FieldPath: "properties.issuer.ca",
 				},
 			},
 		},
@@ -191,10 +192,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be https URL",
-					fieldPath: "properties.issuer.url",
+					Message:   "must be https URL",
+					FieldPath: "properties.issuer.url",
 				},
 			},
 		},
@@ -207,10 +208,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be https URL",
-					fieldPath: "properties.issuer.url",
+					Message:   "must be https URL",
+					FieldPath: "properties.issuer.url",
 				},
 			},
 		},
@@ -238,10 +239,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must be specified when `prefixPolicy` is \"Prefix\"",
-					fieldPath: "properties.claim.mappings.username.prefix",
+					Message:   "must be specified when `prefixPolicy` is \"Prefix\"",
+					FieldPath: "properties.claim.mappings.username.prefix",
 				},
 			},
 		},
@@ -259,10 +260,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "may only be specified when `prefixPolicy` is \"Prefix\"",
-					fieldPath: "properties.claim.mappings.username.prefix",
+					Message:   "may only be specified when `prefixPolicy` is \"Prefix\"",
+					FieldPath: "properties.claim.mappings.username.prefix",
 				},
 			},
 		},
@@ -280,10 +281,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "may only be specified when `prefixPolicy` is \"Prefix\"",
-					fieldPath: "properties.claim.mappings.username.prefix",
+					Message:   "may only be specified when `prefixPolicy` is \"Prefix\"",
+					FieldPath: "properties.claim.mappings.username.prefix",
 				},
 			},
 		},
@@ -344,10 +345,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "must match an audience in issuer audiences",
-					fieldPath: "properties.clients",
+					Message:   "must match an audience in issuer audiences",
+					FieldPath: "properties.clients",
 				},
 			},
 		},
@@ -384,10 +385,10 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []expectedError{
+			expectErrors: []utils.ExpectedError{
 				{
-					message:   "Duplicate value",
-					fieldPath: "properties.clients",
+					Message:   "Duplicate value",
+					FieldPath: "properties.clients",
 				},
 			},
 		},
@@ -397,7 +398,7 @@ func TestExternalAuthValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := api.ExternalAuthTestCase(t, tt.tweaks)
 			actualErrors := ValidateExternalAuthCreate(context.TODO(), resource)
-			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
 }

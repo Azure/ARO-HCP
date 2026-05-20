@@ -312,7 +312,9 @@ var _ = Describe("SRE", func() {
 			nodePoolParams.Replicas = int32(1)
 
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				engineeringClusterName,
 				nodePoolParams,
 				45*time.Minute,
@@ -419,7 +421,9 @@ var _ = Describe("SRE", func() {
 			nodePoolParams.Replicas = int32(1)
 
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				engineeringClusterName,
 				nodePoolParams,
 				45*time.Minute,

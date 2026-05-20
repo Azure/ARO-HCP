@@ -33,10 +33,22 @@ trap cleanup EXIT INT TERM
 echo "Port-forward established: localhost:$LOCAL_PORT -> $SERVICE_NAME.$NAMESPACE:$REMOTE_PORT"
 echo "PID: $PORT_FORWARD_PID"
 
-# Wait a moment for port-forward to be ready
-sleep 2
+# Wait for port-forward to be ready
+for i in $(seq 1 30); do
+	if curl --silent --output /dev/null --max-time 1 "http://localhost:$LOCAL_PORT" 2>/dev/null; then
+		break
+	fi
+	if ! kill -0 "$PORT_FORWARD_PID" 2>/dev/null; then
+		echo "Port-forward process died unexpectedly"
+		exit 1
+	fi
+	if [ "$i" -eq 30 ]; then
+		echo "Timed out waiting for port-forward on localhost:$LOCAL_PORT"
+		exit 1
+	fi
+	sleep 1
+done
 
-# Test the connection
 echo "Running command: $*"
 
 "$@"

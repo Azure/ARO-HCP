@@ -30,7 +30,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/yaml"
@@ -392,19 +391,7 @@ param location string = resourceGroup().location
 					annotations["title"] = ptr.To(rule.Alert)
 				}
 
-				// We want to provide a sufficiently specific set of distinct labels to use for the correlation ID in IcM,
-				// where insufficiently specific IDs will mean that alerts get aggregated under one incident.
-				// For alerts we write ourselves, we can add the set of labels manually. For alerts we're importing, though,
-				// we will make the assumption that the `description` annotation refers to all the critical dimensions and use
-				// those in the correlation ID.
-				dimensions := sets.New[string]("{{ $labels.cluster }}") // we always want to be cluster-specific
-				if description, exists := annotations["description"]; exists && description != nil {
-					labelMatcher := regexp.MustCompile(`\$labels\.[^\s}]+`)
-					for _, match := range labelMatcher.FindAllString(*description, -1) {
-						dimensions.Insert(fmt.Sprintf("{{ %s }}", match))
-					}
-				}
-				annotations["correlationId"] = ptr.To(strings.Join(append([]string{rule.Alert}, sets.List(dimensions)...), "/"))
+				annotations["correlationId"] = ptr.To(rule.Alert + "/{{ $labels.cluster }}")
 
 				// Filter rules based on the output file type
 				if rule.Alert != "" && isAlertingRulesFile {

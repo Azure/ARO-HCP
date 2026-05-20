@@ -66,7 +66,8 @@ var _ = Describe("Customer", func() {
 
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 			clusterParams.Autoscaling = &hcpsdk20240610preview.ClusterAutoscalingProfile{
 				MaxNodeProvisionTimeSeconds: to.Ptr(autoscalingMaxNodeProvisionTimeSeconds),
 				MaxPodGracePeriodSeconds:    to.Ptr(autoscalingMaxPodGracePeriodSeconds),
@@ -116,7 +117,9 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.Replicas = int32(2)
 
 			err = tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				45*time.Minute,

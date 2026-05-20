@@ -93,7 +93,7 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	// the requirements of a skipToken for ARM pagination, so it is used directly as the
 	// nextLink token below.
 
-	internalClusterIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).List(ctx, dbListOptionsFromRequest(request))
+	internalClusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -160,7 +160,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		return utils.TrackError(err)
 	}
 
-	oldInternalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
+	oldInternalCluster, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if err != nil && !database.IsNotFoundError(err) {
 		return utils.TrackError(err)
 	}
@@ -169,7 +169,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	if updating {
 		// CheckForProvisioningStateConflict does not log conflict errors
 		// but does log unexpected errors like database failures.
-		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ProvisioningState); err != nil {
+		if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestUpdate, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ProvisioningState); err != nil {
 			return utils.TrackError(err)
 		}
 
@@ -335,7 +335,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 	newInternalCluster.ServiceProviderProperties.ClusterServiceID = &csID
 
-	transaction := f.dbClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
 
 	// TODO extract to straight instance creation and then validation.
 	clusterCreateOperation := database.NewOperation(
@@ -348,7 +348,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
-	_, err = f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterCreateOperation, nil)
+	_, err = f.resourcesDBClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterCreateOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -358,7 +358,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	newInternalCluster.ServiceProviderProperties.ActiveOperationID = clusterCreateOperation.ResourceID.Name
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterCreateOperation.Status
 
-	cosmosUID, err := f.dbClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
+	cosmosUID, err := f.resourcesDBClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -553,7 +553,7 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	subscription, err := f.dbClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
+	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -576,7 +576,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
 	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	validationErrs = append(validationErrs, admission.AdmitClusterOnUpdate(ctx, validationOp, f.dbClient, oldInternalCluster, newInternalCluster)...)
+	validationErrs = append(validationErrs, admission.AdmitClusterOnUpdate(ctx, validationOp, f.resourcesDBClient, oldInternalCluster, newInternalCluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -619,7 +619,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		}
 	}
 
-	transaction := f.dbClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
 	clusterUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		oldInternalCluster.ID,
@@ -630,7 +630,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterUpdateOperation.NotificationURI, clusterUpdateOperation.OperationID))
-	_, err = f.dbClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterUpdateOperation, nil)
+	_, err = f.resourcesDBClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterUpdateOperation, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -640,7 +640,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	newInternalCluster.ServiceProviderProperties.ActiveOperationID = clusterUpdateOperation.ResourceID.Name
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterUpdateOperation.Status
 
-	_, err = f.dbClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, newInternalCluster, nil)
+	_, err = f.resourcesDBClient.HCPClusters(newInternalCluster.ID.SubscriptionID, newInternalCluster.ID.ResourceGroupName).AddReplaceToTransaction(ctx, transaction, newInternalCluster, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -685,12 +685,12 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	}
 
 	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if err := serverutils.DumpDataToLogger(ctx, f.dbClient, resourceID); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, resourceID); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}
 
-	cluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
+	cluster, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if database.IsNotFoundError(err) {
 		// For resource not found errors on deletion, ARM requires
 		writer.WriteHeader(http.StatusNoContent)
@@ -700,11 +700,11 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
 
-	transaction := f.dbClient.NewTransaction(cluster.ID.SubscriptionID)
+	transaction := f.resourcesDBClient.NewTransaction(cluster.ID.SubscriptionID)
 	if err := f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster); err != nil {
 		return utils.TrackError(err)
 	}
@@ -745,7 +745,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	// Cluster Service will take care of canceling any ongoing operations
 	// on the resource or child resources, but we need to do some database
 	// bookkeeping to reflect that.
-	_, err = database.CancelActiveOperations(ctx, f.dbClient, transaction, &database.DBClientListActiveOperationDocsOptions{
+	_, err = database.CancelActiveOperations(ctx, f.resourcesDBClient, transaction, &database.ResourcesDBClientListActiveOperationDocsOptions{
 		ExternalID: cluster.ID,
 		// We don't include operations for resources below clusters (eg. nodepools) because, as part of the deletion flow,
 		// we will process each nested resource directly, delete it and cancel its operations then. If we handle resources
@@ -778,21 +778,21 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		operationDoc.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 		transaction.OnSuccess(addOperationResponseHeaders(writer, request, operationDoc.NotificationURI, operationDoc.OperationID))
 	}
-	_, err = f.dbClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
+	_, err = f.resourcesDBClient.Operations(operationDoc.OperationID.SubscriptionID).AddCreateToTransaction(ctx, transaction, operationDoc, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
-	_, err = f.dbClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
+	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	// recurse down to delete children
-	nodePoolIterator, err := f.dbClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
+	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -802,7 +802,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 			return utils.TrackError(err)
 		}
 	}
-	externalAuthIterator, err := f.dbClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
+	externalAuthIterator, err := f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).ExternalAuth(cluster.ID.Name).List(ctx, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -817,7 +817,7 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 }
 
 func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftCluster, error) {
-	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
+	internalCluster, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if database.IsNotFoundError(err) {
 		return nil, arm.NewResourceNotFoundError(resourceID)
 	}
