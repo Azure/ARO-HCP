@@ -714,7 +714,6 @@ func kqlDatetime(t time.Time) string {
 	return fmt.Sprintf("datetime(%s)", t.UTC().Format(time.RFC3339))
 }
 
-// hasCleanupStartTime returns true if a cleanup start time is available.
 // effectiveEndTime returns the cleanup start time if available, otherwise the
 // query window end time. This is used to populate EffectiveEndTime on queryData.
 func effectiveEndTime(input GatherInput) time.Time {

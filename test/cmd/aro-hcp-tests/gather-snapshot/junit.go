@@ -31,7 +31,7 @@ func reportsToJUnit(reports []*snapshot.VerificationReport) *junit.TestSuites {
 		Name: "aro-hcp-snapshot",
 	}
 
-	// Aggregate cases by (resourceType, query) key. Track whether any case
+	// Aggregate cases by (resourceType, query) key. Track whether all cases
 	// in the group failed, and collect failure messages.
 	type groupKey struct {
 		resourceType string
