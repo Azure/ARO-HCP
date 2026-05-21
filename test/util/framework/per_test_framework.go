@@ -682,7 +682,7 @@ func (tc *perItOrDescribeTestContext) collectHCPInspectData(ctx context.Context)
 		currKey := clusterKey
 		currConfig := restConfig
 		inspectGroup.Go(func() error {
-			utilruntime.HandleCrashWithContext(inspectCtx)
+			defer utilruntime.HandleCrashWithContext(inspectCtx)
 			tc.runOCAdmInspect(inspectCtx, currKey, currConfig)
 			return nil
 		})
@@ -717,12 +717,16 @@ func (tc *perItOrDescribeTestContext) runOCAdmInspect(ctx context.Context, clust
 		return
 	}
 	defer os.Remove(kubeconfigFile.Name())
+	defer kubeconfigFile.Close()
 
 	if _, err := kubeconfigFile.WriteString(kubeconfigContent); err != nil {
 		logger.Error(err, "failed to write temp kubeconfig file, skipping")
 		return
 	}
-	kubeconfigFile.Close()
+	if err := kubeconfigFile.Close(); err != nil {
+		logger.Error(err, "failed to flush temp kubeconfig file, skipping")
+		return
+	}
 
 	inspectDir := filepath.Join(tc.LogDirPath, fmt.Sprintf("inspect-%s", clusterName))
 
