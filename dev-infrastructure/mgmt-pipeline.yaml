@@ -239,6 +239,34 @@ resourceGroups:
       - "DeploymentScriptExceededMaxAllowedTime"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+  # AKS MC existence sentinel.
+  # Provides a stable topology barrier downstream of the `cluster` step that
+  # is decoupled from its LRO state, so RBAC steps and downstream service
+  # rollouts can ride out transient PUTs failures against a healthy cluster
+  # (e.g. stuck nodepool updates). See AROSLSRE-904.
+  - name: cluster-exists
+    action: ARM
+    template: templates/mgmt-cluster-exists.bicep
+    parameters: configurations/mgmt-cluster-exists.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: management
+      step: infra
+    # Retries cover the steady-state case where the cluster sentinel races
+    # the periodic `cluster` step on a healthy cluster, plus brownfield runs
+    # where the resource genuinely exists but ARM is temporarily slow to
+    # resolve it. Greenfield first-run regions where the AKS cluster has not
+    # been provisioned yet are expected to require an operator-driven re-run
+    # after `cluster` finishes the initial PUT.
+    automatedRetry:
+      errorContainsAny:
+      - "ResourceNotFound"
+      - "could not be found"
+      - "Could not be found"
+      - "NotFound"
+      maximumRetryCount: 10
+      durationBetweenRetries: 3m
   - name: svc-mgmt-aks-permissions
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -253,7 +281,7 @@ resourceGroups:
         name: sessiongate
     dependsOn:
     - resourceGroup: management
-      step: cluster
+      step: cluster-exists
   - name: delete-non-swift-user-nodepools
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell

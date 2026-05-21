@@ -84,6 +84,13 @@ resourceGroups:
     parameters: ./../dev-infrastructure/configurations/hypershift-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    # Wait for the management cluster sentinel before performing the
+    # lookup so the HO rollout is gated on the AKS resource existing,
+    # not on the latest ARM PUT against it. See AROSLSRE-904.
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
+      resourceGroup: management
+      step: cluster-exists
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm

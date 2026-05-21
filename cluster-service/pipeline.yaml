@@ -49,9 +49,11 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
     externalDependsOn:
+    # `cluster-exists` (instead of `cluster`) decouples the CS rollout
+    # from the AKS MC ARM LRO state. See AROSLSRE-904.
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
       resourceGroup: management
-      step: cluster
+      step: cluster-exists
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
       resourceGroup: management
       step: svc-mgmt-permissions
