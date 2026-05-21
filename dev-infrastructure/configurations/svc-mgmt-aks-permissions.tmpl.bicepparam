@@ -6,3 +6,7 @@ param aksClusterName = '{{ .mgmt.aks.name }}'
 // Session Gate identity
 // used for AKS access
 param sessiongateMIResourceId = '__sessiongateMIResourceId__'
+
+// Admin API identity
+// used for AKS access (management cluster operations)
+param adminApiMIResourceId = '__adminApiMIResourceId__'
