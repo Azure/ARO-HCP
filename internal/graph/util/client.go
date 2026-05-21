@@ -64,7 +64,7 @@ func NewClient(ctx context.Context, cred azcore.TokenCredential) (*Client, error
 
 	graphClient := graphsdk.NewGraphBaseServiceClient(httpClient, nil)
 
-	isUser, objectID, err := identifyCallerFromToken(ctx, cred)
+	isUser, objectID, err := IdentifyCallerFromToken(ctx, cred)
 	if err != nil {
 		return nil, fmt.Errorf("identify caller: %w", err)
 	}
@@ -76,10 +76,10 @@ func NewClient(ctx context.Context, cred azcore.TokenCredential) (*Client, error
 	}, nil
 }
 
-// identifyCallerFromToken acquires a Graph token and parses the JWT without
+// IdentifyCallerFromToken acquires a Graph token and parses the JWT without
 // verification to determine whether the caller is a user or a service principal.
 // Returns isUser, the caller's object ID, and any error.
-func identifyCallerFromToken(ctx context.Context, cred azcore.TokenCredential) (bool, string, error) {
+func IdentifyCallerFromToken(ctx context.Context, cred azcore.TokenCredential) (bool, string, error) {
 	accessToken, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://graph.microsoft.com/.default"},
 	})
