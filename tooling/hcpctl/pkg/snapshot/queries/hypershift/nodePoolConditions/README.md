@@ -24,4 +24,4 @@ A healthy node pool should have conditions like:
 
 - Check `nodePoolConditionTimeline` for the full history of condition changes.
 - If ignition is failing, check the ignition server logs in the hosted control plane's namespace.
-- If machines are failing to be created, check the `hypershift/clusterAPI*Logs` controller logs.
+- If machines are failing to be created, check the `logs/hypershift/clusterAPILogs.md` and `logs/hypershift/clusterAPIProviderLogs.md` controller logs.
