@@ -28,6 +28,7 @@ var _ = Describe("Customer", func() {
 
 	It("should be able to list available HCP OpenShift versions and validate response content",
 		labels.RequireNothing,
+		labels.MIDemandHigh,
 		labels.Medium,
 		labels.Positive,
 		labels.AroRpApiCompatible,

@@ -35,6 +35,7 @@ var _ = Describe("Customer", func() {
 
 	It("should be able to create an HCP cluster with custom autoscaling",
 		labels.RequireNothing,
+		labels.MIDemandHigh,
 		labels.Medium,
 		labels.Positive,
 		labels.AroRpApiCompatible,

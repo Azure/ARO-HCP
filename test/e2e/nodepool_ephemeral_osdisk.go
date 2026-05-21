@@ -66,6 +66,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 
 	It("should create a nodepool with ephemeral OS disk when autoRepair is enabled",
 		labels.RequireNothing,
+		labels.MIDemandHigh,
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,

@@ -232,13 +232,13 @@ var _ = Describe("Customer", func() {
 
 		},
 		Entry("from 4.20.z to 4.21.zLatest",
-			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.MIDemandMedium,
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.MIDemandHigh,
 			"4.20", "4.21"),
 		Entry("from 4.21.z to 4.21.zLatest",
-			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.MIDemandMedium,
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.MIDemandHigh,
 			"4.21", "4.21"),
 		Entry("from 4.20.z to 4.20.zLatest",
-			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.MIDemandMedium,
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, labels.MIDemandHigh,
 			"4.20", "4.20"),
 	)
 
