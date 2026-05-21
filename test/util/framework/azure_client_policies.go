@@ -15,6 +15,7 @@
 package framework
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,13 +55,30 @@ func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 	return req.Next()
 }
 
+type resourceGroupClient interface {
+	Get(ctx context.Context, subscriptionID, resourceGroupName string) error
+}
+
+type defaultResourceGroupClient struct {
+	cred azcore.TokenCredential
+}
+
+func (c *defaultResourceGroupClient) Get(ctx context.Context, subscriptionID, resourceGroupName string) error {
+	client, err := armresources.NewResourceGroupsClient(subscriptionID, c.cred, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create resource group client: %w", err)
+	}
+	_, err = client.Get(ctx, resourceGroupName, nil)
+	return err
+}
+
 // armResourceGroupValidationPolicy simulates ARM's resource group validation
 // for development environments where requests go directly to the RP frontend.
 // In production, ARM validates that the target resource group exists before
 // routing requests to the RP. This policy replicates that behavior so that
 // AroRpApiCompatible tests produce consistent results across environments.
 type armResourceGroupValidationPolicy struct {
-	cred azcore.TokenCredential
+	rgClient resourceGroupClient
 }
 
 func (p *armResourceGroupValidationPolicy) Do(req *policy.Request) (*http.Response, error) {
@@ -78,12 +96,7 @@ func (p *armResourceGroupValidationPolicy) Do(req *policy.Request) (*http.Respon
 		return req.Next()
 	}
 
-	client, err := armresources.NewResourceGroupsClient(subID, p.cred, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource group client: %w", err)
-	}
-
-	_, err = client.Get(req.Raw().Context(), rgName, nil)
+	err = p.rgClient.Get(req.Raw().Context(), subID, rgName)
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.ErrorCode == arm.CloudErrorCodeResourceGroupNotFound {

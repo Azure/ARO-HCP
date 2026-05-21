@@ -192,7 +192,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 		clientOpts.PerCallPolicies = []policy.Policy{
 			&requestIDPolicy{},
 			&armSystemDataPolicy{},
-			&armResourceGroupValidationPolicy{cred: tc.azureCredentials},
+			&armResourceGroupValidationPolicy{rgClient: &defaultResourceGroupClient{cred: tc.azureCredentials}},
 			&sanitizeAuthHeaderPolicy{},
 		}
 		return &azcorearm.ClientOptions{
