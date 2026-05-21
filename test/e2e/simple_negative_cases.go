@@ -105,7 +105,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
@@ -163,7 +163,7 @@ var _ = Describe("Customer", func() {
 				managedResourceGroupName,
 				clusterParams.ClusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", customerNodePoolName)
 

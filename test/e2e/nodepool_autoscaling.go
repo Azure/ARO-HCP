@@ -90,7 +90,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
@@ -141,7 +141,7 @@ var _ = Describe("Customer", func() {
 					managedResourceGroupName,
 					customerClusterName,
 					azNodePoolParams,
-					45*time.Minute,
+					framework.NodePoolCreationTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create AZ nodepool %s with autoscaling", azNodePoolName)
 
@@ -207,7 +207,7 @@ var _ = Describe("Customer", func() {
 				managedResourceGroupName,
 				customerClusterName,
 				noAZNodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create no-AZ nodepool %s with autoscaling", noAZNodePoolName)
 
@@ -277,7 +277,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s with MaxNodesTotal limit", customerClusterName)
 

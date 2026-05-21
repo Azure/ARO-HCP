@@ -124,7 +124,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to begin creation of second cluster %q", customerClusterName2)
 
 			By("waiting for first cluster to complete creation")
-			pollCtx, pollCancel := context.WithTimeout(ctx, 45*time.Minute)
+			pollCtx, pollCancel := context.WithTimeout(ctx, framework.ClusterCreationTimeout)
 			defer pollCancel()
 			_, err = poller1.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 				Frequency: framework.StandardPollInterval,
@@ -155,7 +155,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for third cluster %q", customerClusterName3)
 
 			By("attempting to create a third cluster using the same managed resource group as the second cluster")
-			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, 45*time.Minute)
+
+			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, framework.ClusterCreationTimeout)
 			Expect(err).To(HaveOccurred(), "expected error when creating third cluster %q with duplicate managed resource group", customerClusterName3)
 			Expect(err).To(MatchError(MatchRegexp("please provide a unique managed resource group name")), "error should indicate duplicate managed resource group name")
 
