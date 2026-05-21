@@ -98,15 +98,37 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, channelGroup))
-			err = tc.CreateHCPClusterFromParam(
-				ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				clusterParams,
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
+			// OCP 4.23 and 5.0 use v20251223preview to create Swift-based clusters so we can validate
+			// Swift NIC scheduling end-to-end: Hypershift sets aro.openshift.io/swift-nic limits overrides
+			// (https://github.com/openshift/hypershift/pull/8552), and Cluster Service applies the matching
+			// NIC resource request (https://redhat.atlassian.net/browse/ARO-27209).
+			if version == "4.23" || version == "5.0" {
+				By(fmt.Sprintf("creating a Swift cluster on version '%s' and channel group '%s'", clusterParams.OpenshiftVersionId, channelGroup))
+				clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
+				Expect(err).NotTo(HaveOccurred(), "Swift cluster resource for %s should build from params", clusterName)
+				clientFactory, err := tc.Get20251223ClientFactory(ctx)
+				Expect(err).NotTo(HaveOccurred(), "Get20251223ClientFactory: client factory should be obtained for Swift cluster %s", clusterName)
+				_, err = framework.CreateHCPCluster20251223AndWait(
+					ctx,
+					GinkgoLogr,
+					clientFactory.NewHcpOpenShiftClustersClient(),
+					*resourceGroup.Name,
+					clusterName,
+					clusterResource,
+					45*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred(), "Swift cluster %s/%s should provision", *resourceGroup.Name, clusterName)
+			} else {
+				By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, channelGroup))
+				err = tc.CreateHCPClusterFromParam(
+					ctx,
+					GinkgoLogr,
+					*resourceGroup.Name,
+					clusterParams,
+					45*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
+			}
 
 			By("verifying the cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
