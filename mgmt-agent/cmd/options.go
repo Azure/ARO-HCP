@@ -28,6 +28,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -80,6 +82,7 @@ type ValidatedControllerOptions struct {
 
 type completedControllerOptions struct {
 	ctrl              *controller.SwiftNICController
+	resourceWatcher   *controller.ResourceWatcher
 	kubeInformers     kubeinformers.SharedInformerFactory
 	workers           int
 	healthAddress     string
@@ -132,6 +135,18 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create controller: %w", err)
 	}
 
+	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	resourceWatcher := controller.NewResourceWatcher(dynamicClient, discoveryClient)
+
 	leaderElectionCfg := &controller.LeaderElectionConfig{
 		LockName:      LeaderElectionLockName,
 		LeaseDuration: 15 * time.Second,
@@ -144,6 +159,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
 			ctrl:              ctrl,
+			resourceWatcher:   resourceWatcher,
 			kubeInformers:     kubeInformers,
 			workers:           o.Workers,
 			healthAddress:     o.HealthAddress,
@@ -211,14 +227,24 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 
 	// controller with leader election
 	g.Go(func() error {
-		logger.Info("Starting swift-nic controller")
-		if err := controller.RunWithLeaderElection(ctx, "swift-nic", o.leaderElectionCfg, func(leaderCtx context.Context) error {
-			return o.ctrl.Run(leaderCtx, o.workers)
+		logger.Info("Starting controllers under leader election")
+		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
+			innerG, innerCtx := errgroup.WithContext(leaderCtx)
+
+			innerG.Go(func() error {
+				return o.ctrl.Run(innerCtx, o.workers)
+			})
+
+			innerG.Go(func() error {
+				return o.resourceWatcher.Run(innerCtx)
+			})
+
+			return innerG.Wait()
 		}); err != nil {
-			logger.Error(err, "Controller stopped with error")
+			logger.Error(err, "Controllers stopped with error")
 			return err
 		}
-		logger.Info("Controller stopped")
+		logger.Info("Controllers stopped")
 		return nil
 	})
 
