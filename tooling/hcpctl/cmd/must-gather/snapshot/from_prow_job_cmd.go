@@ -188,8 +188,8 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 				Start: startTime,
 				End:   endTime,
 			},
-			QueryTimeout: o.queryTimeout,
-			Concurrency:  o.concurrency,
+			QueryTimeout:     o.queryTimeout,
+			Concurrency:      o.concurrency,
 			CleanupStartTime: test.CleanupStartTime,
 		}
 

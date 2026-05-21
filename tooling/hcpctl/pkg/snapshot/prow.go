@@ -36,7 +36,7 @@ import (
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 
-	"github.com/Azure/ARO-HCP/test/util/timing"
+	"github.com/Azure/ARO-HCP/tooling/utilitytypes/timing"
 )
 
 const (

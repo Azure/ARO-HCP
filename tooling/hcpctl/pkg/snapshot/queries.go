@@ -66,9 +66,14 @@ const (
 	// resources/<type>/<name>/requests/<METHOD>-<client_request_id>/logs/<component>/<queryName>.md.
 	categoryTraceLogs queryCategory = "traceLogs"
 
-	// categoryEvents queries produce event logs scoped to a component. They run once
-	// per snapshot and are written to events/<component>/.
+	// categoryEvents queries produce event logs scoped to a service component. They run once
+	// per resource and are written to events/<component>/.
 	categoryEvents queryCategory = "events"
+
+	// categoryResourceEvents queries produce event logs specific to a single ARM resource
+	// (e.g. control plane events for a cluster). They are written to
+	// resources/<type>/<name>/events/<component>/<queryName>.md.
+	categoryResourceEvents queryCategory = "resourceEvents"
 )
 
 // querySpec describes a single KQL query in the dependency chain.
@@ -606,29 +611,29 @@ var allQueries = []querySpec{
 		queryName:    "events",
 		templatePath: "queries/hypershift/events/query.kql",
 		database:     "service",
-		category:     categoryEvents,
+		category:     categoryResourceEvents,
 		ready: func(d queryData) bool {
-			return d.HostedControlPlaneNamespace != ""
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
-		prerequisites: "HostedControlPlaneNamespace",
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
 	},
 	{
 		component:    "hypershift",
 		queryName:    "controlPlaneEvents",
 		templatePath: "queries/hypershift/controlPlaneEvents/query.kql",
 		database:     "service",
-		category:     categoryEvents,
+		category:     categoryResourceEvents,
 		ready: func(d queryData) bool {
-			return d.HostedControlPlaneNamespace != ""
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
-		prerequisites: "HostedControlPlaneNamespace",
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
 	},
 	{
 		component:    "hypershift",
 		queryName:    "pkiOperatorEvents",
 		templatePath: "queries/hypershift/pkiOperatorEvents/query.kql",
 		database:     "service",
-		category:     categoryEvents,
+		category:     categoryResourceEvents,
 		ready: func(d queryData) bool {
 			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/requestadmincredential")
 		},
