@@ -43,13 +43,19 @@ import (
 var TestArtifactsFS embed.FS
 
 var _ = Describe("ARO-HCP", func() {
-	// Use channel group from environment variable, or default to stable
-	var channelGroup = framework.DefaultOpenshiftChannelGroup()
-	var nodePoolChannelGroup = framework.DefaultOpenshiftNodePoolChannelGroup()
 
 	DescribeTable("should be able to perform a control plane and node pool install with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
 		func(ctx context.Context, version string) {
+			// Use channel group from environment variable, or default to stable
+			var channelGroup = framework.DefaultOpenshiftChannelGroup()
+			var nodePoolChannelGroup = framework.DefaultOpenshiftNodePoolChannelGroup()
 
+			if version == "4.23" || version == "5.0" {
+				// Nightly channel picks up the Hypershift fix for Swift NIC scheduling overrides
+				// (https://github.com/openshift/hypershift/pull/8552) and test it against the CS bump.
+				channelGroup = "nightly"
+				nodePoolChannelGroup = "nightly"
+			}
 			customerNetworkSecurityGroupName := "customer-nsg-" + channelGroup + "-"
 			customerVnetName := "customer-vnet-" + channelGroup + "-"
 			customerVnetSubnetName := "customer-vnet-subnet-" + channelGroup + "-"
@@ -61,6 +67,7 @@ var _ = Describe("ARO-HCP", func() {
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = version
+			clusterParams.ChannelGroup = channelGroup
 			openShiftControlPlaneVersion, err := framework.GetLatestInstallVersion(ctx, clusterParams.ChannelGroup, version)
 			if err != nil {
 				if errors.Is(err, framework.ErrNightlyReleaseStreamNotFound) || errors.Is(err, framework.ErrNoAcceptedNightlyTags) || errors.Is(err, framework.ErrVersionNotFound) {
@@ -103,7 +110,7 @@ var _ = Describe("ARO-HCP", func() {
 			// (https://github.com/openshift/hypershift/pull/8552), and Cluster Service applies the matching
 			// NIC resource request (https://redhat.atlassian.net/browse/ARO-27209).
 			if version == "4.23" || version == "5.0" {
-				By(fmt.Sprintf("creating a Swift cluster on version '%s' and channel group '%s'", clusterParams.OpenshiftVersionId, channelGroup))
+				By(fmt.Sprintf("creating a Swift cluster on version '%s' and channel group '%s'", clusterParams.OpenshiftVersionId, clusterParams.ChannelGroup))
 				clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
 				Expect(err).NotTo(HaveOccurred(), "Swift cluster resource for %s should build from params", clusterName)
 				clientFactory, err := tc.Get20251223ClientFactory(ctx)
@@ -146,6 +153,7 @@ var _ = Describe("ARO-HCP", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams()
 			nodePoolParams.ClusterName = clusterName
 			nodePoolParams.NodePoolName = nodePoolName
+			nodePoolParams.ChannelGroup = nodePoolChannelGroup
 			// Calculate the node pool version
 			configClient, err := configv1client.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create OpenShift config client for cluster %q", clusterName)
