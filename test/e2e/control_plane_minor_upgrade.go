@@ -76,7 +76,7 @@ var _ = Describe("Customer", func() {
 					previousMinor.String(),
 					channelGroup, err))
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get versions in previous minor %s on channel %s", previousMinor.String(), channelGroup)
 
 			for _, possibleInstallVersion := range possibleInstallVersions {
 				possibleUpgradeVersions, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetVer, []semver.Version{possibleInstallVersion})
@@ -85,7 +85,7 @@ var _ = Describe("Customer", func() {
 						targetVer.String(),
 						channelGroup, err))
 				}
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for install version %s", targetVer.String(), possibleInstallVersion.String())
 
 				for _, possibleUpgradeVersion := range possibleUpgradeVersions {
 					possibleNextUpgradeVersions, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetPlusOneVer, []semver.Version{possibleUpgradeVersion})
@@ -94,7 +94,7 @@ var _ = Describe("Customer", func() {
 						installVersion = &possibleInstallVersion
 						break
 					}
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for upgrade version %s", targetPlusOneVer.String(), possibleUpgradeVersion.String())
 					if len(possibleNextUpgradeVersions) > 0 {
 						// in this case we allow it because the possibleInstallVersion has a possibleUpgradeVersion that can upgrade to 4.y+2
 						installVersion = &possibleInstallVersion
@@ -114,7 +114,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			versionLabel := strings.ReplaceAll(targetMinor, ".", "-")
@@ -123,7 +123,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cp-ystream-upgrade-"+versionLabel, tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for y-stream upgrade to %s", targetMinor)
 
 			By("creating cluster parameters at install (previous minor) version")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -144,7 +144,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for y-stream upgrade cluster %q", clusterName)
 
 			By(fmt.Sprintf("creating the HCP cluster with install version %s (previous minor %s)", installVersion,
 				previousMinorLine))
@@ -155,7 +155,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with install version %s", clusterName, installVersion)
 
 			By("getting admin credentials")
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
@@ -166,17 +166,17 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 
 			By("verifying the cluster is viable before upgrade")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify cluster %q is viable before upgrade", clusterName)
 
-			Expect(ctx.Err()).NotTo(HaveOccurred())
+			Expect(ctx.Err()).NotTo(HaveOccurred(), "test context expired before triggering upgrade for cluster %q", clusterName)
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client for cluster %q", clusterName)
 			preUpgradeKubeAPIServerVersion, err := kubeClient.Discovery().ServerVersion()
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get pre-upgrade kube-apiserver version for cluster %q", clusterName)
 
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", targetMinor,
 				targetVer.String()))
@@ -189,7 +189,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = framework.UpdateHCPCluster(ctx, hcpClient, *resourceGroup.Name, clusterName, update, 45*time.Minute)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, targetMinor)
 
 			By("verifying control plane reached desired version and cluster remains viable")
 			Eventually(func() error {

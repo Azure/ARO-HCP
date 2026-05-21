@@ -53,12 +53,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "complex-cilium-kv", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for complex cilium keyvault test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -79,11 +79,11 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources with private key vault")
 
 			By("creating the HCP cluster with no CNI and private etcd via v20251223preview")
 			clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster resource from params")
 
 			// Set KeyVault visibility to Private
 			if clusterResource.Properties != nil && clusterResource.Properties.Etcd != nil &&
@@ -102,7 +102,7 @@ var _ = Describe("Customer", func() {
 				clusterResource,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with no CNI and private etcd", customerClusterName)
 
 			By("getting admin credentials for the cluster")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -112,22 +112,22 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
 
 			By("disabling kube-proxy via networks.operator.openshift.io patch")
 			opClient, err := operatorclient.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create operator client from admin REST config")
 
 			networkPatch := []byte(`{"spec": {"deployKubeProxy": false}}`)
 			_, err = opClient.OperatorV1().Networks().Patch(
 				ctx, "cluster", types.MergePatchType, networkPatch, metav1.PatchOptions{},
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to disable kube-proxy via network operator patch")
 			GinkgoLogr.Info("Disabled kube-proxy via network operator patch")
 
 			By("installing Cilium via helm SDK")
 			kubeconfigContent, err := framework.GenerateKubeconfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for Helm installation")
 			ciliumValues := map[string]any{
 				"cni": map[string]any{
 					"uninstall": false,
@@ -154,7 +154,7 @@ var _ = Describe("Customer", func() {
 				"tunnelProtocol": "vxlan",
 			}
 			err = framework.InstallCiliumChart(ctx, "1.19.2", ciliumValues, kubeconfigContent, "kube-system")
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to install Cilium chart via Helm")
 
 			By("creating the node pool via v20251223preview")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -204,11 +204,11 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodes become Ready with Cilium CNI")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady(), verifiers.VerifyCiliumOperational("kube-system", "k8s-app=cilium"))
-			Expect(errors.Join(err, nodePoolErr, consoleLogErr)).NotTo(HaveOccurred())
+			Expect(errors.Join(err, nodePoolErr, consoleLogErr)).NotTo(HaveOccurred(), "failed to verify nodes are Ready with Cilium CNI for cluster %q", customerClusterName)
 
 			By("verifying a simple web app can run with cilium")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs with cilium CNI")
 		},
 	)
 })

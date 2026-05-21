@@ -79,12 +79,12 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "ephemeral-osdisk", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for ephemeral OS disk test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -100,7 +100,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(ctx,
@@ -109,7 +109,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("creating nodepool with ephemeral OS disk and autoRepair enabled")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -136,12 +136,12 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				}
 				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s with ephemeral OS disk", customerNodePoolName)
 
 			By("verifying nodepool ARM resource has diskType=Ephemeral from LRO result")
-			Expect(created.Properties).ToNot(BeNil())
-			Expect(created.Properties.Platform).ToNot(BeNil())
-			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil())
+			Expect(created.Properties).ToNot(BeNil(), "created nodepool response Properties was nil")
+			Expect(created.Properties.Platform).ToNot(BeNil(), "created nodepool response Properties.Platform was nil")
+			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "created nodepool response Properties.Platform.OSDisk was nil")
 
 			diskTypeNotPresent := created.Properties.Platform.OSDisk.DiskType == nil
 			if diskTypeNotPresent {
@@ -150,9 +150,9 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				}
 				Fail(fmt.Sprintf("DiskType field still not present in v20251223preview nodepool response as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
-			Expect(*created.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral))
-			Expect(created.Properties.AutoRepair).ToNot(BeNil())
-			Expect(*created.Properties.AutoRepair).To(BeTrue())
+			Expect(*created.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral), "expected created nodepool OSDisk.DiskType to be Ephemeral")
+			Expect(created.Properties.AutoRepair).ToNot(BeNil(), "created nodepool response Properties.AutoRepair was nil")
+			Expect(*created.Properties.AutoRepair).To(BeTrue(), "expected created nodepool AutoRepair to be true")
 
 			By("confirming diskType and autoRepair persist via separate GET (round-trip verification)")
 			fetched, err := framework.GetNodePool20251223(ctx,
@@ -161,14 +161,14 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				customerClusterName,
 				customerNodePoolName,
 			)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(fetched.Properties).ToNot(BeNil())
-			Expect(fetched.Properties.Platform).ToNot(BeNil())
-			Expect(fetched.Properties.Platform.OSDisk).ToNot(BeNil())
-			Expect(fetched.Properties.Platform.OSDisk.DiskType).ToNot(BeNil())
-			Expect(*fetched.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral))
-			Expect(fetched.Properties.AutoRepair).ToNot(BeNil())
-			Expect(*fetched.Properties.AutoRepair).To(BeTrue())
+			Expect(err).NotTo(HaveOccurred(), "failed to GET nodepool %s for round-trip verification", customerNodePoolName)
+			Expect(fetched.Properties).ToNot(BeNil(), "fetched nodepool response Properties was nil")
+			Expect(fetched.Properties.Platform).ToNot(BeNil(), "fetched nodepool response Properties.Platform was nil")
+			Expect(fetched.Properties.Platform.OSDisk).ToNot(BeNil(), "fetched nodepool response Properties.Platform.OSDisk was nil")
+			Expect(fetched.Properties.Platform.OSDisk.DiskType).ToNot(BeNil(), "fetched nodepool response Properties.Platform.OSDisk.DiskType was nil")
+			Expect(*fetched.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral), "expected fetched nodepool OSDisk.DiskType to be Ephemeral")
+			Expect(fetched.Properties.AutoRepair).ToNot(BeNil(), "fetched nodepool response Properties.AutoRepair was nil")
+			Expect(*fetched.Properties.AutoRepair).To(BeTrue(), "expected fetched nodepool AutoRepair to be true")
 
 			By("getting credentials to verify cluster health")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -178,20 +178,20 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %s is viable", customerClusterName)
 
 			By("verifying count and ready status of nodes from the ephemeral nodepool")
-			Expect(verifiers.VerifyNodeCount(customerClusterName, int(nodePoolParams.Replicas)).Verify(ctx, adminRESTConfig)).To(Succeed())
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
+			Expect(verifiers.VerifyNodeCount(customerClusterName, int(nodePoolParams.Replicas)).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count matches expected replicas %d", nodePoolParams.Replicas)
+			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready")
 
 			By("verifying Azure VMs actually have ephemeral OS disks")
 			computeFactory := tc.GetARMComputeClientFactoryOrDie(ctx)
 			vms, err := framework.GetVirtualMachinesInResourceGroup(ctx, computeFactory, managedResourceGroupName, int(nodePoolParams.Replicas))
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get VMs in managed resource group %s", managedResourceGroupName)
 
 			workerVMs := filterNodePoolVMs(vms, customerNodePoolName)
 			By(fmt.Sprintf("found %d VMs for nodepool %s (out of %d total VMs in managed RG)", len(workerVMs), customerNodePoolName, len(vms)))

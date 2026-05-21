@@ -74,12 +74,12 @@ var _ = Describe("ARO-HCP", func() {
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-"+channelGroup+"-"+versionLabel, tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for version %s", version)
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-"+channelGroup+"-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -96,7 +96,7 @@ var _ = Describe("ARO-HCP", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", clusterName)
 
 			// OCP 4.23 and 5.0 use v20251223preview to create Swift-based clusters so we can validate
 			// Swift NIC scheduling end-to-end: Hypershift sets aro.openshift.io/swift-nic limits overrides
@@ -138,9 +138,9 @@ var _ = Describe("ARO-HCP", func() {
 				clusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			nodePoolName := "np-" + suffix
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -148,9 +148,9 @@ var _ = Describe("ARO-HCP", func() {
 			nodePoolParams.NodePoolName = nodePoolName
 			// Calculate the node pool version
 			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create OpenShift config client for cluster %q", clusterName)
 			clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get ClusterVersion for cluster %q", clusterName)
 			var parseableVersions []string
 			for _, h := range clusterVersion.Status.History {
 				if _, err := semver.ParseTolerant(h.Version); err != nil {
@@ -181,7 +181,7 @@ var _ = Describe("ARO-HCP", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
 
 			By("verifying nodepool DiskStorageAccountType matches framework default")
 			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
@@ -190,11 +190,11 @@ var _ = Describe("ARO-HCP", func() {
 				clusterName,
 				nodePoolName,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to validate DiskStorageAccountType for node pool %q in cluster %q", nodePoolName, clusterName)
 
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20"),
 		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),

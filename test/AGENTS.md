@@ -45,6 +45,13 @@
   * `Expect(resp.Properties).NotTo(BeNil(), "cluster response Properties was nil")`
   * `Expect(resp.Properties.API.URL).NotTo(BeNil(), "cluster Properties.API.URL was nil")`
   * Format strings are supported: `Expect(x).NotTo(BeNil(), "property %s was nil for cluster %s", propName, clusterName)`
+* **Descriptive error checks:** Every `Expect(err).NotTo(HaveOccurred())` or `Expect(err).To(HaveOccurred())` call **must** include an annotation string describing what operation was being attempted. Bare `HaveOccurred()` assertions produce failure messages like `Unexpected error: <raw error>` that give no indication of what the test was trying to do when it failed. A reader should be able to understand the failure without consulting the source code. Use Gomega's annotation argument to add context:
+  * `Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")`
+  * `Expect(err).NotTo(HaveOccurred(), "failed to verify a simple web app can run on the cluster")`
+  * `Expect(err).To(HaveOccurred(), "expected error when requesting serial console logs for non-existent VM")`
+  * Format strings are supported: `Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q", nodePoolName)`
+  * The message should describe the **intent** (what we were trying to achieve), not merely restate the function name. For example, prefer `"failed to verify the cluster is healthy"` over `"VerifyHCPCluster returned error"`.
+  * When a helper function returns an error, context should exist at **both layers**: the error itself should describe the proximal failure (e.g. `"route never returned a successful response: TLS error..."`), and the gomega annotation should describe the higher-level intent (e.g. `"failed to verify a simple web app can run on the cluster"`).
 * **General assertion clarity:** For any assertion where the failure message would be ambiguous (e.g. checking pointer values, map entries, or deeply nested fields), include an annotation string that identifies the value being checked and the expected condition.
 
 ## Logging
