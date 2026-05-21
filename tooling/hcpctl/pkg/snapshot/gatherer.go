@@ -28,11 +28,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/go-logr/logr"
 )
 
 // GatherInput provides the parameters needed to gather a diagnostic snapshot.
@@ -359,13 +360,14 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 				})
 			}
 
-			eventsDir := filepath.Join(outputDir, "events")
-			for _, q := range queriesByCategory(categoryEvents) {
+			eventsDir := filepath.Join(resDir, "events")
+			for _, q := range queriesByCategory(categoryResourceEvents) {
 				pool2Items = append(pool2Items, workItem{
-					query:     q,
-					data:      &rs.data,
-					mu:        rs.mu,
-					outputDir: eventsDir,
+					query:             q,
+					data:              &rs.data,
+					mu:                rs.mu,
+					outputDir:         eventsDir,
+					verificationSuite: key,
 				})
 			}
 		}
@@ -415,6 +417,20 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 				})
 			}
 		}
+	}
+
+	// Enqueue service-level event queries (scoped to the resource group, not
+	// to a specific ARM resource). These run once per snapshot.
+	serviceEventsDir := filepath.Join(outputDir, "events")
+	serviceEventData := seedData
+	serviceEventMu := &sync.Mutex{}
+	for _, q := range queriesByCategory(categoryEvents) {
+		pool2Items = append(pool2Items, workItem{
+			query:     q,
+			data:      &serviceEventData,
+			mu:        serviceEventMu,
+			outputDir: serviceEventsDir,
+		})
 	}
 
 	logger.Info("Running resource and trace queries", "items", len(pool2Items))

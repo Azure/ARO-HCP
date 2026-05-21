@@ -6,10 +6,11 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | where log.resource_name == '{{ .ClusterResourceName }}'
 | where log.content.resourceType =~ '{{ .ResourceType }}/hcpopenshiftcontrollers'
 | where log.content.resourceID has '{{ .ResourceName }}'
-| summarize content=take_any(log.content) by etag=tostring(log.content._etag)
+| summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
 | sort by tolong(content._ts) asc
 | extend content = parse_json(content)
 | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(content.resourceID))
 | mv-expand condition = content.properties.status.conditions
-| project lastTransitionTime=todatetime(condition.lastTransitionTime), controller_name, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message)
-| order by lastTransitionTime asc
+| project observedTime, lastTransitionTime=todatetime(condition.lastTransitionTime), controller_name, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message)
+| summarize observedTime=min(observedTime) by lastTransitionTime, controller_name, type, status, reason, message
+| order by lastTransitionTime asc, observedTime asc

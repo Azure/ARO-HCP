@@ -125,7 +125,8 @@ type RequestInfo struct {
 func directoryLayout() map[string]string {
 	return map[string]string{
 		"frontendRequests": "frontend/frontendRequests.md — all ARM requests in the resource group during the time window; start your analysis here",
-		"events":           "events/ — Kubernetes events for each component during the time window",
+		"serviceEvents":    "events/ — Kubernetes events for service-level components (frontend, backend, clusters-service, maestro) during the time window",
+		"resourceEvents":   "resources/<type>/<name>/events/ — Kubernetes events specific to a resource's control plane during the time window",
 		"discovery":        "resources/<type>/<name>/discovery/ — intermediate query results used to derive IDs, cluster associations, etc.",
 		"state":            "resources/<type>/<name>/state/ — time-windowed raw resource state dumps (ARM state, CS state, Maestro logs, etc.)",
 		"conditions":       "resources/<type>/<name>/conditions/ — status condition transition summaries (HyperShift conditions, controller conditions)",

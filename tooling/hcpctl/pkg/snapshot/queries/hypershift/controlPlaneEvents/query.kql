@@ -4,5 +4,7 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernete
     and objectName !contains 'control-plane-pki-operator'
     and objectName !contains 'control-plane-operator'
     and objectName !contains 'hosted-cluster-config-operator'
-| project timestamp, objectKind, objectName, reason, message
-| order by timestamp asc
+| extend firstSeen = coalesce(firstSeen, todatetime(log.event_time)), lastSeen = coalesce(lastSeen, todatetime(log.event_time))
+| summarize arg_max(count, firstSeen, lastSeen) by objectKind, objectName, reason, message
+| project objectKind, objectName, reason, message, firstSeen, lastSeen, count
+| order by firstSeen asc
