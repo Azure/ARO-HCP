@@ -27,7 +27,7 @@ import (
 )
 
 type schemaNode struct {
-	Type                 string                `json:"type"`
+	Type                 json.RawMessage       `json:"type"`
 	AdditionalProperties *json.RawMessage      `json:"additionalProperties"`
 	Properties           map[string]schemaNode `json:"properties"`
 	Definitions          map[string]schemaNode `json:"definitions"`
@@ -36,10 +36,33 @@ type schemaNode struct {
 	AllOf                []schemaNode          `json:"allOf"`
 	OneOf                []schemaNode          `json:"oneOf"`
 	AnyOf                []schemaNode          `json:"anyOf"`
+	Not                  *schemaNode           `json:"not"`
+}
+
+func (n schemaNode) isObject() bool {
+	if len(n.Properties) > 0 || len(n.PatternProperties) > 0 || n.AdditionalProperties != nil {
+		return true
+	}
+	if n.Type == nil {
+		return false
+	}
+	var s string
+	if json.Unmarshal(n.Type, &s) == nil {
+		return s == "object"
+	}
+	var arr []string
+	if json.Unmarshal(n.Type, &arr) == nil {
+		for _, t := range arr {
+			if t == "object" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func walkSchema(node schemaNode, path string, missing *[]string) {
-	if node.Type == "object" && node.AdditionalProperties == nil {
+	if node.isObject() && node.AdditionalProperties == nil {
 		if path == "" {
 			path = "(root)"
 		}
@@ -66,6 +89,9 @@ func walkSchema(node schemaNode, path string, missing *[]string) {
 	}
 	for _, child := range node.AnyOf {
 		walkSchema(child, path, missing)
+	}
+	if node.Not != nil {
+		walkSchema(*node.Not, joinPath(path, "(not)"), missing)
 	}
 }
 
