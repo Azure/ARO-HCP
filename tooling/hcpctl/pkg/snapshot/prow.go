@@ -301,7 +301,7 @@ func fetchCleanupStartTimes(ctx context.Context, gcsClient *storage.Client, arti
 			if err == nil {
 				result[testName] = t
 			} else {
-				logger.Error(err, "Failed to parse test result file, skipping", "path", objPath)
+				logger.Error(err, "Failed to parse finishedAt from timing metadata, skipping", "path", objPath)
 			}
 		}
 	}
@@ -327,14 +327,14 @@ func ExtractResourceGroup(output string) string {
 
 // sourceConfig represents the fields we read from the Prow job's config.yaml.
 type sourceConfig struct {
-	Region string      `yaml:"region"`
-	Kusto  sourceKusto `yaml:"kusto"`
+	Region string      `json:"region"`
+	Kusto  sourceKusto `json:"kusto"`
 }
 
 type sourceKusto struct {
-	KustoName                      string `yaml:"kustoName"`
-	HostedControlPlaneLogsDatabase string `yaml:"hostedControlPlaneLogsDatabase"`
-	ServiceLogsDatabase            string `yaml:"serviceLogsDatabase"`
+	KustoName                      string `json:"kustoName"`
+	HostedControlPlaneLogsDatabase string `json:"hostedControlPlaneLogsDatabase"`
+	ServiceLogsDatabase            string `json:"serviceLogsDatabase"`
 }
 
 func parseConfig(data []byte, isPR bool) (*ProwJobConfig, error) {
