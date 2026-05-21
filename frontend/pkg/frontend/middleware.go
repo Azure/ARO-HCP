@@ -104,8 +104,12 @@ func (mux *MiddlewareMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ContextWithPattern(r.Context(), patt))
 
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Capture the matched pattern when ServeMux returns or when a matched
+		// handler panics, so pre-mux middleware can read it from context.
+		defer func() {
+			*patt = r.Pattern
+		}()
 		mux.ServeMux.ServeHTTP(w, r)
-		*patt = r.Pattern
 	})
 
 	mux.middleware.Handler(mainHandler).ServeHTTP(w, r)
