@@ -299,7 +299,7 @@ func TestCliOutputFunc(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify file was created and contains log
-	expectedFile := filepath.Join(tempDir, "services", "cluster1-default-container1.jsonl")
+	expectedFile := filepath.Join(tempDir, "services", "cluster1_default_container1.jsonl")
 	assert.FileExists(t, expectedFile)
 	content, err := os.ReadFile(expectedFile)
 	require.NoError(t, err)
@@ -352,8 +352,8 @@ func TestCliOutputFunc_KubernetesEvents(t *testing.T) {
 	err = cliOutputFunc(t.Context(), logLineChan, options)
 	assert.NoError(t, err)
 
-	// Kubernetes events use cluster-querytype.jsonl naming
-	expectedFile := filepath.Join(tempDir, "cluster", "test-cluster-kubernetes-events.jsonl")
+	// Kubernetes events use cluster_querytype.jsonl naming
+	expectedFile := filepath.Join(tempDir, "cluster", "test-cluster_kubernetes-events.jsonl")
 	assert.FileExists(t, expectedFile)
 	content, err := os.ReadFile(expectedFile)
 	require.NoError(t, err)
@@ -386,7 +386,7 @@ func TestCliOutputFunc_SystemdLogs(t *testing.T) {
 	err = cliOutputFunc(t.Context(), logLineChan, options)
 	assert.NoError(t, err)
 
-	expectedFile := filepath.Join(tempDir, "cluster", "test-cluster-systemd-logs.jsonl")
+	expectedFile := filepath.Join(tempDir, "cluster", "test-cluster_systemd-logs.jsonl")
 	assert.FileExists(t, expectedFile)
 	content, err := os.ReadFile(expectedFile)
 	require.NoError(t, err)
@@ -687,7 +687,7 @@ func TestCliOutputFunc_JSONLFormat(t *testing.T) {
 	err = cliOutputFunc(t.Context(), logLineChan, options)
 	assert.NoError(t, err)
 
-	expectedFile := filepath.Join(tempDir, "services", "cluster1-default-container1.jsonl")
+	expectedFile := filepath.Join(tempDir, "services", "cluster1_default_container1.jsonl")
 	content, err := os.ReadFile(expectedFile)
 	require.NoError(t, err)
 
@@ -711,4 +711,145 @@ func splitNonEmpty(s string) []string {
 		}
 	}
 	return result
+}
+
+func TestCliOutputFunc_SplitByPod(t *testing.T) {
+	tempDir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(tempDir, "services"), 0755)
+	require.NoError(t, err)
+
+	logLineChan := make(chan *NormalizedLogLine, 3)
+	options := RowOutputOptions{
+		"outputPath":                    tempDir,
+		string(kusto.QueryTypeServices): "services",
+		"splitByPod":                    true,
+	}
+
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-a"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-abc123",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-b"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-def456",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-a again"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-abc123",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	close(logLineChan)
+
+	err = cliOutputFunc(t.Context(), logLineChan, options)
+	assert.NoError(t, err)
+
+	// Each pod should get its own file
+	fileA := filepath.Join(tempDir, "services", "cluster1_default_frontend_frontend-abc123.jsonl")
+	fileB := filepath.Join(tempDir, "services", "cluster1_default_frontend_frontend-def456.jsonl")
+	assert.FileExists(t, fileA)
+	assert.FileExists(t, fileB)
+
+	contentA, err := os.ReadFile(fileA)
+	require.NoError(t, err)
+	linesA := splitNonEmpty(string(contentA))
+	assert.Len(t, linesA, 2)
+	assert.Contains(t, linesA[0], "log from pod-a")
+	assert.Contains(t, linesA[1], "log from pod-a again")
+
+	contentB, err := os.ReadFile(fileB)
+	require.NoError(t, err)
+	linesB := splitNonEmpty(string(contentB))
+	assert.Len(t, linesB, 1)
+	assert.Contains(t, linesB[0], "log from pod-b")
+}
+
+func TestCliOutputFunc_SplitByPod_EmptyPodName(t *testing.T) {
+	tempDir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(tempDir, "services"), 0755)
+	require.NoError(t, err)
+
+	logLineChan := make(chan *NormalizedLogLine, 1)
+	options := RowOutputOptions{
+		"outputPath":                    tempDir,
+		string(kusto.QueryTypeServices): "services",
+		"splitByPod":                    true,
+	}
+
+	// When pod_name is empty (e.g. table doesn't have the column), fall back to default naming
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log without pod name"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "backend",
+		PodName:       "",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	close(logLineChan)
+
+	err = cliOutputFunc(t.Context(), logLineChan, options)
+	assert.NoError(t, err)
+
+	// Should fall back to the default naming without pod name
+	expectedFile := filepath.Join(tempDir, "services", "cluster1_default_backend.jsonl")
+	assert.FileExists(t, expectedFile)
+}
+
+func TestCliOutputFunc_SplitByPod_Disabled(t *testing.T) {
+	tempDir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(tempDir, "services"), 0755)
+	require.NoError(t, err)
+
+	logLineChan := make(chan *NormalizedLogLine, 2)
+	options := RowOutputOptions{
+		"outputPath":                    tempDir,
+		string(kusto.QueryTypeServices): "services",
+		"splitByPod":                    false,
+	}
+
+	// Even with pod names present, they should be grouped when splitByPod is false
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-a"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-abc123",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	logLineChan <- &NormalizedLogLine{
+		Log:           makeLogMap("message", "log from pod-b"),
+		Cluster:       "cluster1",
+		Namespace:     "default",
+		ContainerName: "frontend",
+		PodName:       "frontend-def456",
+		Timestamp:     time.Now(),
+		QueryType:     kusto.QueryTypeServices,
+	}
+	close(logLineChan)
+
+	err = cliOutputFunc(t.Context(), logLineChan, options)
+	assert.NoError(t, err)
+
+	// Both should go to the same file
+	expectedFile := filepath.Join(tempDir, "services", "cluster1_default_frontend.jsonl")
+	assert.FileExists(t, expectedFile)
+	content, err := os.ReadFile(expectedFile)
+	require.NoError(t, err)
+	lines := splitNonEmpty(string(content))
+	assert.Len(t, lines, 2)
 }
