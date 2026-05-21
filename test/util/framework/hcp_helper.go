@@ -118,12 +118,21 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
-		return clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+		restConfig, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
 			if m.Kubeconfig == nil {
 				return nil, fmt.Errorf("kubeconfig content is nil")
 			}
 			return clientcmd.Load([]byte(*m.Kubeconfig))
 		})
+		if err != nil {
+			return nil, err
+		}
+
+		tc.contextLock.Lock()
+		tc.hcpAdminConfigs[resourceGroupName+"/"+hcpClusterName] = restConfig
+		tc.contextLock.Unlock()
+
+		return restConfig, nil
 	default:
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
