@@ -53,9 +53,15 @@ See `test/util/framework/deployment_params.go`:
 **Action Required**: Test the changes
 
 ```bash
-# Run a quick test to verify the fix
-cd test
-go test -v -run "TestNodePoolLabels" ./e2e/
+# Build the test binary
+make -C test
+
+# Set required environment variables
+export CUSTOMER_SUBSCRIPTION=<subscriptionName>
+export LOCATION=uksouth
+
+# Run a specific test to verify the fix
+./test/aro-hcp-tests run-test "Customer should update node pool labels and taints"
 ```
 
 ### 📋 SOLUTION 2: Environment Variable Synchronization (ALTERNATIVE)
@@ -145,8 +151,15 @@ They are **helper tools** you can use:
 1. The code changes are already applied ✅
 2. Test to verify:
    ```bash
-   cd test
-   go test -v ./util/framework/ -run TestDefault
+   # Build the test binary
+   make -C test
+   
+   # Set required environment variables
+   export CUSTOMER_SUBSCRIPTION=<subscriptionName>
+   export LOCATION=uksouth
+   
+   # Run integration test suite
+   ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
    ```
 3. For CI/CD: Add `sync-ocp-versions-ci.sh` to pipeline
 
@@ -159,17 +172,20 @@ They are **helper tools** you can use:
 
 ### Verify Version Resolution
 ```bash
-# See what versions would be used
-cd test/util/framework
-go run -tags E2Etests . -ginkgo.dry-run
+# List available test cases to see what's available
+./test/aro-hcp-tests list | jq '.[].name'
 ```
 
 ### Run Failing Tests
 ```bash
-cd test
-go test -v ./e2e/ -run "nodepool_labels_taints"
-go test -v ./e2e/ -run "oidc_issuer_workload_identity"
-go test -v ./e2e/ -run "simple_negative_cases"
+# Ensure environment is configured
+export CUSTOMER_SUBSCRIPTION=<subscriptionName>
+export LOCATION=uksouth
+
+# Run specific test cases
+./test/aro-hcp-tests run-test "Customer should update node pool labels and taints"
+./test/aro-hcp-tests run-test "Customer should use workload identity via cluster OIDC"
+./test/aro-hcp-tests run-test "Customer should not perform invalid operations"
 ```
 
 ## Related Files Modified
