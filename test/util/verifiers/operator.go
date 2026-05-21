@@ -44,8 +44,6 @@ var (
 	}
 )
 
-var _ DiagnosticVerifier = verifyOperatorInstalled{}
-
 // imagePullErrorReasons lists all container waiting reasons that indicate an
 // image pull problem.  Values come from k8s.io/kubernetes/pkg/kubelet/images/types.go.
 var imagePullErrorReasons = sets.New(
@@ -361,7 +359,7 @@ func formatInstallPlanConditions(conditions []any) string {
 	return strings.Join(formatted, "\n")
 }
 
-func (v verifyOperatorInstalled) DiagnoseFailure(ctx context.Context, restConfig *rest.Config) string {
+func (v verifyOperatorInstalled) diagnoseFailure(ctx context.Context, restConfig *rest.Config) string {
 	var sections []string
 
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
@@ -528,11 +526,14 @@ func diagnoseEvents(ctx context.Context, kubeClient kubernetes.Interface, namesp
 	return lines
 }
 
-func VerifyOperatorInstalled(namespace, subscriptionName string) HostedClusterVerifier {
-	return verifyOperatorInstalled{
+func VerifyOperatorInstalled(namespace, subscriptionName string, opts ...PollOption) HostedClusterVerifier {
+	inner := verifyOperatorInstalled{
 		namespace:        namespace,
 		subscriptionName: subscriptionName,
 	}
+	return maybePoll(inner, opts, func(ctx context.Context, restConfig *rest.Config) string {
+		return inner.diagnoseFailure(ctx, restConfig)
+	})
 }
 
 type verifyOperatorCSV struct {
@@ -620,10 +621,10 @@ func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *r
 	return catalogSourceHealthCheck(ctx, cs, v.namespace, v.catalogSource, kubeClient, false)
 }
 
-// VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators
-func VerifyCatalogSourceReady(namespace, catalogSource string) HostedClusterVerifier {
-	return verifyCatalogSourceReady{
+// VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators.
+func VerifyCatalogSourceReady(namespace, catalogSource string, opts ...PollOption) HostedClusterVerifier {
+	return maybePoll(verifyCatalogSourceReady{
 		namespace:     namespace,
 		catalogSource: catalogSource,
-	}
+	}, opts, nil)
 }
