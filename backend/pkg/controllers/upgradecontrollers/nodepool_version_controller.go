@@ -99,7 +99,7 @@ func NewNodePoolVersionController(
 //   - The desired version must satisfy:
 //   - Not less than the highest active version (no downgrades)
 //   - Not greater than the lowest control plane version (node pools cannot exceed CP)
-//   - Minor version upgrades limited to +2
+//   - Minor version upgrades limited to +2 (implicitly: CP-NP skew caps CP at NP+2, and NP cannot exceed CP)
 //   - Exist as a known version in Cincinnati
 //   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
 //
