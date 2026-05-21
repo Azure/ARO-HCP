@@ -178,7 +178,7 @@ func setupCli() *cobra.Command {
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
 		// LEASED_MSI_CONTAINERS=20
-		Parallelism: 24,
+		Parallelism: 20,
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 	ext.AddSuite(e.Suite{
