@@ -89,6 +89,10 @@ verify-json-format: $(JQ)
 	hack/verify-json-format.sh $(JQ)
 .PHONY: verify-json-format
 
+verify-kql:
+	hack/kql-verify.sh
+.PHONY: verify-kql
+
 update: deepcopy json-format
 .PHONY: update
 
