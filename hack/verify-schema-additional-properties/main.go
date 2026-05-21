@@ -26,10 +26,54 @@ import (
 	"sort"
 )
 
-type schemaDefinition struct {
-	Type                 string                      `json:"type"`
-	AdditionalProperties *json.RawMessage            `json:"additionalProperties"`
-	Definitions          map[string]schemaDefinition `json:"definitions"`
+type schemaNode struct {
+	Type                 string                `json:"type"`
+	AdditionalProperties *json.RawMessage      `json:"additionalProperties"`
+	Properties           map[string]schemaNode `json:"properties"`
+	Definitions          map[string]schemaNode `json:"definitions"`
+	PatternProperties    map[string]schemaNode `json:"patternProperties"`
+	Items                *schemaNode           `json:"items"`
+	AllOf                []schemaNode          `json:"allOf"`
+	OneOf                []schemaNode          `json:"oneOf"`
+	AnyOf                []schemaNode          `json:"anyOf"`
+}
+
+func walkSchema(node schemaNode, path string, missing *[]string) {
+	if node.Type == "object" && node.AdditionalProperties == nil {
+		if path == "" {
+			path = "(root)"
+		}
+		*missing = append(*missing, path)
+	}
+
+	for name, child := range node.Definitions {
+		walkSchema(child, joinPath(path, name), missing)
+	}
+	for name, child := range node.Properties {
+		walkSchema(child, joinPath(path, name), missing)
+	}
+	for _, child := range node.PatternProperties {
+		walkSchema(child, joinPath(path, "(patternProperty)"), missing)
+	}
+	if node.Items != nil {
+		walkSchema(*node.Items, joinPath(path, "(items)"), missing)
+	}
+	for _, child := range node.AllOf {
+		walkSchema(child, path, missing)
+	}
+	for _, child := range node.OneOf {
+		walkSchema(child, path, missing)
+	}
+	for _, child := range node.AnyOf {
+		walkSchema(child, path, missing)
+	}
+}
+
+func joinPath(base, name string) string {
+	if base == "" {
+		return name
+	}
+	return base + "." + name
 }
 
 func check(path string) ([]string, error) {
@@ -38,20 +82,13 @@ func check(path string) ([]string, error) {
 		return nil, err
 	}
 
-	var schema schemaDefinition
+	var schema schemaNode
 	if err := json.Unmarshal(data, &schema); err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
 	}
 
 	var missing []string
-	if schema.Type == "object" && schema.AdditionalProperties == nil {
-		missing = append(missing, "(root)")
-	}
-	for name, def := range schema.Definitions {
-		if def.Type == "object" && def.AdditionalProperties == nil {
-			missing = append(missing, name)
-		}
-	}
+	walkSchema(schema, "", &missing)
 	sort.Strings(missing)
 	return missing, nil
 }

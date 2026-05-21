@@ -313,7 +313,8 @@
                 ]
               }
             }
-          }
+          },
+          "additionalProperties": false
         }
       }
     },
@@ -376,7 +377,8 @@
           "required": [
             "enabled",
             "days"
-          ]
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -1074,7 +1076,8 @@
           },
           "required": [
             "bundle"
-          ]
+          ],
+          "additionalProperties": false
         },
         "mce": {
           "type": "object",
@@ -1591,7 +1594,8 @@
           "required": [
             "accountName",
             "cloudSuffix"
-          ]
+          ],
+          "additionalProperties": false
         },
         "pav2": {
           "type": "object",
@@ -1602,7 +1606,8 @@
           },
           "required": [
             "cloudName"
-          ]
+          ],
+          "additionalProperties": false
         },
         "kusto": {
           "type": "object",
@@ -1636,7 +1641,8 @@
             "clusterPrincipals",
             "dstsGroups",
             "vmUsageStaleThreshold"
-          ]
+          ],
+          "additionalProperties": false
         },
         "eventHub": {
           "type": "object",
@@ -1655,7 +1661,8 @@
             "namespace",
             "subscriptionId",
             "resourceGroupName"
-          ]
+          ],
+          "additionalProperties": false
         },
         "imageArtifact": {
           "$ref": "#/definitions/imageArtifact"
@@ -2095,7 +2102,8 @@
             "applicationId",
             "authorityFQDN",
             "audienceFQDN"
-          ]
+          ],
+          "additionalProperties": false
         },
         "genevaActions": {
           "type": "object",
@@ -2117,7 +2125,8 @@
             "policyLabel",
             "authorityFQDN",
             "audienceFQDN"
-          ]
+          ],
+          "additionalProperties": false
         },
         "sessiongate": {
           "type": "object",
@@ -2139,7 +2148,8 @@
             "policyLabel",
             "authorityFQDN",
             "audience"
-          ]
+          ],
+          "additionalProperties": false
         },
         "image": {
           "$ref": "#/definitions/containerImage"
@@ -2474,7 +2484,8 @@
             "image"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "customExporter": {
       "type": "object",
@@ -3298,7 +3309,8 @@
               "type": "string",
               "description": "The name of the KeyVault secret in the global AKV that stores the token used to authenticate with Prow."
             }
-          }
+          },
+          "additionalProperties": false
         },
         "regionTest": {
           "type": "object",
@@ -3313,7 +3325,8 @@
           "required": [
             "prowJobName",
             "gatePromotion"
-          ]
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
