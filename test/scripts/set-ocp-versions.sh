@@ -30,7 +30,7 @@ get_latest_version() {
         return 1
     fi
 
-    local version=$(curl -s "$graph_url" | jq -r '.nodes[].version' | sort -V | tail -1)
+    local version=$(curl --silent --show-error --fail --location --retry 3 --retry-delay 2 --retry-connrefused --max-time 30 "$graph_url" | jq -r '.nodes[].version' | sort -V | tail -1)
 
     if [ -z "$version" ]; then
         echo "ERROR: No version found for channel $channel-$minor" >&2
@@ -67,7 +67,7 @@ echo "  export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=\"$VERSION\""
 echo "  export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=\"$VERSION\""
 echo ""
 echo "To apply these in your current shell, run:"
-echo "  source $0 $CHANNEL_GROUP $VERSION_MINOR"
+echo "  source ${BASH_SOURCE[0]} $CHANNEL_GROUP $VERSION_MINOR"
 echo ""
 echo "Or copy and paste:"
 cat <<EOF
