@@ -207,6 +207,7 @@ resourceGroups:
       - "Resource is in Updating state"
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
+      - "was not found in the AAD tenant"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: delete-old-user-nodepools

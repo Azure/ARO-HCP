@@ -216,4 +216,10 @@ type ManagementClusterStatus struct {
 	//
 	// +required, immutable once set.
 	ClusterServiceProvisionShardID *api.InternalID `json:"clusterServiceProvisionShardID,omitempty"`
+
+	// KubeApplierCosmosContainerName is the name of the Cosmos container that
+	// holds kube-applier *Desire documents for this management cluster.
+	//
+	// +required, immutable once set.
+	KubeApplierCosmosContainerName string `json:"kubeApplierCosmosContainerName,omitempty"`
 }

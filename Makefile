@@ -92,8 +92,12 @@ verify-json-format: $(JQ)
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions
 .PHONY: verify
+
+verify-gomega-assertions:
+	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/
+.PHONY: verify-gomega-assertions
 
 verify-yamlfmt: yamlfmt
 	./hack/verify.sh yamlfmt
@@ -385,7 +389,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services:
-	$(MAKE) -j5 build-frontend build-backend build-admin build-sessiongate build-mgmt-agent
+	$(MAKE) -j6 build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier
 .PHONY: build-services
 
 build-frontend:
@@ -408,18 +412,24 @@ build-mgmt-agent:
 	$(MAKE) -C mgmt-agent build-and-push
 .PHONY: build-mgmt-agent
 
+build-kube-applier:
+	$(MAKE) -C kube-applier build-and-push
+.PHONY: build-kube-applier
+
 record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C frontend record-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
 	$(MAKE) -C backend record-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
 	$(MAKE) -C admin record-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml
 	$(MAKE) -C sessiongate record-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
 	$(MAKE) -C mgmt-agent record-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
+	$(MAKE) -C kube-applier record-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
 	  /tmp/_admin-override.yaml \
 	  /tmp/_sessiongate-override.yaml \
 	  /tmp/_mgmt-agent-override.yaml \
+	  /tmp/_kube-applier-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: record-services-override
 
@@ -440,7 +450,7 @@ endif
 # Opstool topology local run
 #
 opstool-local-run:
-	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra"
+	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra" STEP_CACHE_DIR=""
 .PHONY: opstool-local-run
 
 #
@@ -492,6 +502,7 @@ pipeline/%:
 
 LOG_LEVEL ?= 3
 PERSIST ?= "false"
+STEP_CACHE_DIR ?= .step-cache
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
 CONFIG_OUTPUT ?= _artifacts/config.yaml
@@ -503,6 +514,7 @@ local-run: $(TEMPLATIZE)
 	                                 --dev-settings-file tooling/templatize/settings.yaml \
 	                                 --dev-environment $(DEPLOY_ENV) \
 	                                 $(WHAT) $(EXTRA_ARGS) \
+	                                 --step-cache-dir="$(STEP_CACHE_DIR)" \
 	                                 --persist-tag=$(PERSIST) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT) \

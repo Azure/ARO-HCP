@@ -125,6 +125,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 	nodePoolInternalID := api.Ptr(api.Must(api.NewInternalID(testCSNodePoolIDStr)))
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,
@@ -263,6 +264,9 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 					"/nodePools/" + testNodePoolName))
 				nodePool := &api.HCPOpenShiftClusterNodePool{
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: nodePoolResourceID,
+					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{
 							ID:   nodePoolResourceID,

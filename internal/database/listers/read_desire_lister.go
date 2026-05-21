@@ -20,6 +20,8 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
@@ -28,7 +30,7 @@ type ReadDesireLister interface {
 	List(ctx context.Context) ([]*kubeapplier.ReadDesire, error)
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplier.ReadDesire, error)
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ReadDesire, error)
-	ListForManagementCluster(ctx context.Context, managementCluster string) ([]*kubeapplier.ReadDesire, error)
+	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplier.ReadDesire, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplier.ReadDesire, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplier.ReadDesire, error)
 }
@@ -63,9 +65,12 @@ func (l *readDesireLister) GetForNodePool(
 }
 
 func (l *readDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster string,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ReadDesire, error) {
-	return listFromIndex[kubeapplier.ReadDesire](l.indexer, ByManagementCluster, strings.ToLower(managementCluster))
+	if managementClusterResourceID == nil {
+		return nil, nil
+	}
+	return listFromIndex[kubeapplier.ReadDesire](l.indexer, ByManagementCluster, strings.ToLower(managementClusterResourceID.String()))
 }
 
 func (l *readDesireLister) ListForCluster(

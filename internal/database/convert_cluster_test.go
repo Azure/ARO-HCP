@@ -138,7 +138,7 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 	case *api.HCPOpenShiftCluster:
 		cast.ServiceProviderProperties.ExistingCosmosUID = ""
 	case *api.HCPOpenShiftClusterNodePool:
-		cast.ServiceProviderProperties.ExistingCosmosUID = ""
+		cast.ExistingCosmosUID = ""
 	case *api.HCPOpenShiftClusterExternalAuth:
 		cast.ServiceProviderProperties.ExistingCosmosUID = ""
 	}

@@ -79,6 +79,9 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 ### Observability
 
+- [Alerts](alerts.md)
+  - How to write, test, and deploy Prometheus alerting rules
+  - CorrelationID behavior, severity mapping, IcM integration
 - [Grafana Dashboards](grafana-dashboards.md)
 - [Logging](logging.md)
 - [Prometheus Rules](prometheus-rules.md)

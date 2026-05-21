@@ -3,6 +3,11 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
+    "csvPrincipalList": {
+      "type": "string",
+      "description": "CSV separated list of principals, each in the format '(tenantId/)principalId' where tenantId is optional. Both tenantId and principalId must be UUIDs.",
+      "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(,([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})*$"
+    },
     "namespaceName": {
       "type": "string",
       "minLength": 1,
@@ -1278,6 +1283,11 @@
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
         },
+        "logVerbosity": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Log verbosity level for the backend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
+        },
         "clusterScopedIdentitiesConfig": {
           "$ref": "#/definitions/clusterScopedIdentitiesConfig"
         }
@@ -1291,6 +1301,7 @@
         "azureRuntimeConfig",
         "maestro",
         "exitOnPanic",
+        "logVerbosity",
         "clusterScopedIdentitiesConfig"
       ]
     },
@@ -1391,6 +1402,9 @@
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
+        },
+        "partitionKey": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1399,7 +1413,20 @@
         "cosmosContainerName",
         "cosmosContainerMaxScale",
         "managedIdentityName",
-        "k8s"
+        "k8s",
+        "partitionKey"
+      ]
+    },
+    "fleet": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image"
       ]
     },
     "adminApi": {
@@ -1521,6 +1548,11 @@
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
+        },
+        "logVerbosity": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Log verbosity level for the frontend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
         }
       },
       "additionalProperties": false,
@@ -1531,7 +1563,8 @@
         "tracing",
         "k8s",
         "managedIdentityName",
-        "exitOnPanic"
+        "exitOnPanic",
+        "logVerbosity"
       ]
     },
     "billing": {
@@ -1906,10 +1939,16 @@
           "type": "string"
         },
         "adminGroups": {
-          "type": "string"
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of AAD groups to grant AllDatabasesAdmin on the Kusto cluster."
         },
         "viewerGroups": {
-          "type": "string"
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of AAD groups to grant AllDatabasesViewer on the Kusto cluster."
+        },
+        "viewerIdentities": {
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of app/managed identity principals to grant AllDatabasesViewer on the Kusto cluster."
         },
         "crossClusterServiceLogsScript": {
           "type": "string"
@@ -2211,6 +2250,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "subscriptionKey": {
+              "type": "string"
+            },
             "rg": {
               "$ref": "#/definitions/resourceGroupName"
             },
@@ -2219,6 +2261,7 @@
             }
           },
           "required": [
+            "subscriptionKey",
             "rg",
             "digest"
           ]
@@ -2792,6 +2835,39 @@
         "alertRuleOwningTeamTag"
       ]
     },
+    "quotaizer": {
+      "type": "object",
+      "properties": {
+        "quotaGroup": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "displayName"
+          ]
+        },
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "quotaGroup",
+        "managedIdentityName",
+        "image"
+      ]
+    },
     "routeMonitorOperator": {
       "type": "object",
       "properties": {
@@ -3249,6 +3325,7 @@
     "maestro",
     "mgmt",
     "mgmtAgent",
+    "fleet",
     "kubeApplier",
     "mgmtKeyVault",
     "monitoring",

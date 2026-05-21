@@ -5,8 +5,17 @@ entrypoints:
 services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.Infra
   pipelinePath: dev-infrastructure/opstool-pipeline.yaml
-  purpose: Deploy the opstool AKS cluster and Prometheus monitoring stack.
+  purpose: Deploy shared network resources, the opstool AKS cluster, and the Prometheus monitoring stack.
   children:
   - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.TenantQuota
     pipelinePath: tooling/tenant-quota/pipeline.yaml
     purpose: Deploy the tenant-quota-collector.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.Gateway
+    pipelinePath: dev-infrastructure/opstool/opstool-gateway/pipeline.yaml
+    purpose: Deploy the shared Istio gateway and DNS wiring for opstool.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.CertManager
+    pipelinePath: dev-infrastructure/opstool/cert-manager/pipeline.yaml
+    purpose: Deploy cert-manager and the shared Azure DNS DNS-01 ClusterIssuer.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.CIHealth
+    pipelinePath: dev-infrastructure/opstool/cihealth/pipeline.yaml
+    purpose: Deploy the CIHealth runtime on cihealth.tools.hcpsvc.osadev.cloud.

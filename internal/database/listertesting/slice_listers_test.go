@@ -106,16 +106,14 @@ const (
 	testNodePool = "np"
 )
 
-// Management cluster identifiers. *ID values go into Spec.ManagementCluster;
-// the lowercased-string forms are what callers pass to
-// ListForManagementCluster (the partition-key form of the resourceID).
+// Management cluster identifiers. *ID values go into Spec.ManagementCluster
+// and are also what callers pass to ListForManagementCluster.
 var (
 	testMgmtAID = api.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
 	testMgmtBID = api.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/2/managementclusters/mgmt-b"))
 	testMgmtA = strings.ToLower(testMgmtAID.String())
-	testMgmtB = strings.ToLower(testMgmtBID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -219,7 +217,7 @@ func TestSliceApplyDesireLister_ListForManagementCluster(t *testing.T) {
 	ctx := context.Background()
 	l := &SliceApplyDesireLister{Desires: fixtureDesires(t)}
 
-	gotA, err := l.ListForManagementCluster(ctx, testMgmtA)
+	gotA, err := l.ListForManagementCluster(ctx, testMgmtAID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster mgmt-a: %v", err)
 	}
@@ -227,7 +225,7 @@ func TestSliceApplyDesireLister_ListForManagementCluster(t *testing.T) {
 		t.Errorf("ListForManagementCluster mgmt-a: len = %d, want 2 (cluster + nodepool)", len(gotA))
 	}
 
-	gotB, err := l.ListForManagementCluster(ctx, testMgmtB)
+	gotB, err := l.ListForManagementCluster(ctx, testMgmtBID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster mgmt-b: %v", err)
 	}
@@ -235,8 +233,10 @@ func TestSliceApplyDesireLister_ListForManagementCluster(t *testing.T) {
 		t.Errorf("ListForManagementCluster mgmt-b: len = %d, want 2", len(gotB))
 	}
 
-	// Case-insensitive: an uppercased copy of the partition-key form still matches.
-	gotUpperA, err := l.ListForManagementCluster(ctx, strings.ToUpper(testMgmtA))
+	// Case-insensitive: a resourceID parsed from the same path but with mixed case
+	// still matches the fixtures (which stamped the lowercased form into Spec).
+	upperRID := mustParseID(t, strings.ToUpper(testMgmtAID.String()))
+	gotUpperA, err := l.ListForManagementCluster(ctx, upperRID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster uppercased mgmt-a: %v", err)
 	}

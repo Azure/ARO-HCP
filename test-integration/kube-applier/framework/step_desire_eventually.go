@@ -104,7 +104,7 @@ var desireGetters = map[string]func(ctx context.Context, kac database.KubeApplie
 		if err != nil {
 			return nil, err
 		}
-		c, err := kac.KubeApplier(ManagementCluster).ApplyDesires(k.ResourceParent())
+		c, err := kac.ApplyDesires(k.ResourceParent())
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +115,7 @@ var desireGetters = map[string]func(ctx context.Context, kac database.KubeApplie
 		if err != nil {
 			return nil, err
 		}
-		c, err := kac.KubeApplier(ManagementCluster).DeleteDesires(k.ResourceParent())
+		c, err := kac.DeleteDesires(k.ResourceParent())
 		if err != nil {
 			return nil, err
 		}
@@ -126,7 +126,7 @@ var desireGetters = map[string]func(ctx context.Context, kac database.KubeApplie
 		if err != nil {
 			return nil, err
 		}
-		c, err := kac.KubeApplier(ManagementCluster).ReadDesires(k.ResourceParent())
+		c, err := kac.ReadDesires(k.ResourceParent())
 		if err != nil {
 			return nil, err
 		}

@@ -52,12 +52,12 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "private-keyvault", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for private keyvault test")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -76,11 +76,11 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources with private key vault")
 
 			By("creating the HCP cluster")
 			clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster resource from params")
 
 			// Set KeyVault visibility
 			if clusterResource.Properties != nil && clusterResource.Properties.Etcd != nil &&
@@ -105,7 +105,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				}
 				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private keyvault", customerClusterName)
 
 			By("verifying cluster was created with private keyvault visibility")
 			clientFactory := tc.Get20251223ClientFactoryOrDie(ctx)
@@ -115,12 +115,12 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				customerClusterName,
 				nil,
 			)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(cluster.Properties).ToNot(BeNil())
-			Expect(cluster.Properties.Etcd).ToNot(BeNil())
-			Expect(cluster.Properties.Etcd.DataEncryption).ToNot(BeNil())
-			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged).ToNot(BeNil())
-			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).ToNot(BeNil())
+			Expect(err).ToNot(HaveOccurred(), "failed to get cluster %q to verify private keyvault visibility", customerClusterName)
+			Expect(cluster.Properties).ToNot(BeNil(), "cluster %q Properties was nil", customerClusterName)
+			Expect(cluster.Properties.Etcd).ToNot(BeNil(), "cluster %q Properties.Etcd was nil", customerClusterName)
+			Expect(cluster.Properties.Etcd.DataEncryption).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption was nil", customerClusterName)
+			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged was nil", customerClusterName)
+			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged.Kms was nil", customerClusterName)
 
 			visibilityNotPresent := cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility == nil
 			if visibilityNotPresent {
@@ -129,7 +129,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				}
 				Fail(fmt.Sprintf("Visibility field still not present in v20251223preview cluster response as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
 			}
-			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPrivate))
+			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPrivate), "cluster etcd encryption key vault visibility should be Private")
 
 			GinkgoLogr.Info("Cluster created successfully with private keyvault",
 				"clusterName", customerClusterName,
@@ -150,7 +150,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for private keyvault cluster %q", nodePoolParams.NodePoolName, customerClusterName)
 
 			GinkgoLogr.Info("Nodepool created successfully for private keyvault cluster",
 				"clusterName", customerClusterName,
@@ -164,7 +164,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for private keyvault cluster %q", customerClusterName)
 
 			By("verifying the cluster is viable and pod logs can be fetched")
 			logVerifier := verifiers.VerifyGetDeploymentLogs("openshift-ingress", "router-default", "router")

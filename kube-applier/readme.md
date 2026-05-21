@@ -31,6 +31,8 @@ We may eventually add support for `ReadManyDesire`, but only if we find a need f
 ### ManagementCluster
 Every `*Desire` API has a `.spec.managementCluster` field.
 This is the name of the management cluster that the `kube-applier` is running in.
+It matches the value the kube-applier binary was started with via `--management-cluster`,
+and it is used as the Cosmos partition key inside that management cluster's container.
 It is reasonably likely that will someday before an `*azcorearm.ResourceID`, but if that happens we'll adjust the string format first,
 rewrite everything, then change the type.
 No need to do so now since the type is a string.
@@ -55,26 +57,48 @@ When the kube-apiserver call cannot be executed,
 3. `.status.conditions["Successful"].message` is whatever prevented us from calling the kube-apiserver.
 
 ## Database structure
-The database is a new cosmos container called "kube-applier".
-The cosmos container is partitioned by the name of the management cluster.
-The `.cosmosMetadata.resourceID` field will be formatted like:
+Every management cluster has its **own** Cosmos container. Each kube-applier pod has
+credentials scoped to exactly its own container; the container's partition key is the
+management cluster name, and only one partition is ever populated per container. The
+ARO-HCP backend running in the service cluster has credentials to every per-MC container
+(see the `KubeApplierDBClients` registry below) so it can write `*Desire` documents and
+sweep orphans across every management cluster.
+
+The `.cosmosMetadata.resourceID` field is formatted like:
 `subscriptions/{subscriptionID}/resourceGroups/{resourceGroupName}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{clusterName}/*desires/{resourceName}`
 or
 `subscriptions/{subscriptionID}/resourceGroups/{resourceGroupName}/providers/microsoft.redhatopenshift/hcpopenshiftclusters/{clusterName}/nodepools/{nodepoolName}/*desires/{resourceName}`
-This allows us to have each management cluster with credentials only to its own management cluster partition so that
-escapes from one management cluster don't compromise another.
-The ARO-HCP backend running in the service cluster will have access to the "kube-applier" container across all partitions.
-And the individual item IDs will nest nicely into our existing structures if we query all the data for a particular resourceID.
+
+The per-container layout means an escape from one management cluster's pod cannot read
+or write another management cluster's *Desires — there is no shared container to leak
+through. Item IDs still nest cleanly into our existing resourceID structure, so
+queries like "every *Desire under this HCPOpenShiftCluster" remain a prefix scan.
 
 ### Golang type details for Database
-The golang types will be in `internal/database`.
-A new `KubeApplierDBClient` will be created with `ResourceCRUD` style accessors for each `*Desire` API.
-The input will require the management cluster name, subscriptionName, resourceGroupName, clusterName, and nodePoolName if applicable.
-There will be a separate interface for listing across all partitions: this is needed for the ARO-HCP backend located in `backend` which will
-have access to all partitions and will create the various `*Desire` instances.
+The golang types live in `internal/database`.
 
-The `internal/database/informers`, `internal/database/listers`, `internal/database/listertesting` packages will be populated with the informers and listers for the various `*Desire` APIs.
-Look at the similar code in `backend/pkg/[informers,listers,listertesting]` packages for examples.
+`KubeApplierDBClient` is the per-container handle. It carries an open Cosmos container
+client plus the management cluster's partition-key value, and exposes:
+- `ApplyDesires(parent) ResourceCRUD[ApplyDesire]`
+- `DeleteDesires(parent) ResourceCRUD[DeleteDesire]`
+- `ReadDesires(parent) ResourceCRUD[ReadDesire]`
+- `Listers()` — per-container cross-type listers for feeding informers.
+- `UntypedCRUD(parentResourceID)` — TypedDocument prefix walk for cross-cutting cleanup.
+
+`KubeApplierDBClients` (plural) is the backend's registry of per-management-cluster
+clients. It is constructed with a `map[managementClusterResourceID]containerName`
+seed; `For(managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient`
+returns the per-MC client, building and caching it lazily on first access. The
+registry is thread-safe, and `ManagementClusterResourceIDs()` exposes the configured
+set so callers (e.g. the orphan-cleanup controller) can iterate every MC.
+
+The kube-applier sidecar binary opens exactly one container — its own — via the
+standalone `NewKubeApplierDBClient(container, managementClusterPartitionKey)`.
+It has no need for the plural registry.
+
+The `internal/database/informers`, `internal/database/listers`, and
+`internal/database/listertesting` packages provide the informers and listers for the
+`*Desire` APIs.
 
 ## Controller structure
 The `kube-applier` binary will be controller-based with many controllers structured similarly to the `backend` binary today.

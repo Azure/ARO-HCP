@@ -1,11 +1,3 @@
-cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'datadump'
-| where log.resource_group == '{{ .ResourceGroup }}'
-| where log.resource_name == '{{ .ClusterResourceName }}'
-| where log.content.resourceType =~ '{{ .ServiceProviderResourceType }}'
-| summarize content = take_any(log.content) by etag = tostring(log.content._etag)
-| extend resourceID = tostring(content.resourceID)
-| mv-expand readOnlyBundle = content.properties.status.maestroReadonlyBundles
-| distinct resourceID, name = tostring(readOnlyBundle.name), bundleName = tostring(readOnlyBundle.maestroAPIMaestroBundleName), bundleId = tostring(readOnlyBundle.maestroAPIMaestroBundleID)
+{{ template "bundleMapBackend" . }}
+bundleMapBackend
+| distinct bundleName, maestroBundleName, maestroBundleId, groupVersion, resourceKind, resourceNamespace, resourceName

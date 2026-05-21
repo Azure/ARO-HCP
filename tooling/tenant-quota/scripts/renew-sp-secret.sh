@@ -177,6 +177,7 @@ usage() {
 #
 TENANTS=(
     "RedHat0:64dc69e4-d083-49fc-9569-ebece1dd1408:1ef710d1-afd7-4bf3-8095-e8126650607f:custom-metrics-collector-redhat0-client-secret"
+    "TestTestARO:93b21e64-4824-439a-b893-46c9b2a51082:e46ecbd4-9ef3-439e-a28a-74a4d8270349:custom-metrics-collector-test-test-azure-arohcp-client-secret"
 )
 
 get_tenant_config() {

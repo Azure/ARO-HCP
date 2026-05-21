@@ -47,12 +47,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "clusternp128", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for nodepool osDisk test")
 
 			// creating cluster parameters
 			clusterParams := framework.NewDefaultClusterParams()
@@ -68,7 +68,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", customerClusterName)
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam(ctx,
@@ -77,7 +77,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", customerClusterName)
 
 			By("creating the node pool with custom osDisk size")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
@@ -93,7 +93,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q with 128GiB osDisk", customerNodePoolName)
 
 			By("getting credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -103,11 +103,11 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", customerClusterName)
 
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", customerClusterName)
 
 			By("verifying the node pool is created and has the correct osDisk size")
 			created, err := framework.GetNodePool(ctx,
@@ -116,12 +116,12 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get node pool %q for cluster %q", customerNodePoolName, customerClusterName)
 			Expect(created.Properties).ToNot(BeNil(), "nodepool Properties was nil")
 			Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "nodepool Properties.ProvisioningState was nil")
-			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded))
+			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded), "nodepool %q provisioning state should be Succeeded", customerNodePoolName)
 			Expect(created.Properties.Platform).ToNot(BeNil(), "nodepool Properties.Platform was nil")
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "nodepool Properties.Platform.OSDisk was nil")
-			Expect(*created.Properties.Platform.OSDisk.SizeGiB).To(Equal(customerNodeOsDiskSizeGiB))
+			Expect(*created.Properties.Platform.OSDisk.SizeGiB).To(Equal(customerNodeOsDiskSizeGiB), "nodepool OS disk size should be %d GiB", customerNodeOsDiskSizeGiB)
 		})
 })

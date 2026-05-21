@@ -2,5 +2,9 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendL
 | where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
 | where log.path =~ '{{ .AsyncOperationPath }}'
 | where log.msg == 'response complete'
-| project timestamp, method=tostring(log.method), response_status_code=tostring(log.response_status_code), msg=tostring(log.msg), error=tostring(log.error)
-| order by timestamp
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by method=tostring(log.method), response_status_code=tostring(log.response_status_code), error=tostring(log.error)
+| order by first_occurrence asc

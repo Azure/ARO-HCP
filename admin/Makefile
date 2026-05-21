@@ -17,10 +17,8 @@ BINARY = aro-hcp-admin
 CLI_BINARY = aro-hcp-admin-cli
 
 # Build flags
-BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 LDFLAGS = -ldflags "\
-	-X github.com/Azure/ARO-HCP/admin/pkg/version.commit=${ARO_HCP_REVISION} \
-	-X github.com/Azure/ARO-HCP/admin/pkg/version.buildDate=${BUILD_DATE}"
+	-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_REVISION}"
 
 # Source files
 ADMIN_API_SOURCES = $(shell find server ../internal -name '*.go' -o -name 'go.mod' -o -name 'go.sum')

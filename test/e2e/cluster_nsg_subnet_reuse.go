@@ -43,12 +43,12 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 2, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-nsg-subnet-reuse", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for NSG/subnet reuse test")
 
 			By("creating customer resources")
 			clusterParams1 := framework.NewDefaultClusterParams()
@@ -94,7 +94,7 @@ var _ = Describe("Customer", func() {
 			}()
 
 			<-customerRes1DoneCh
-			Expect(err1).NotTo(HaveOccurred())
+			Expect(err1).NotTo(HaveOccurred(), "failed to create customer resources for basic-cluster")
 
 			By("seeding HCP cluster")
 			err = tc.CreateHCPClusterFromParam(
@@ -104,10 +104,10 @@ var _ = Describe("Customer", func() {
 				clusterParams1,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create seed HCP cluster basic-cluster")
 
 			<-customerRes2DoneCh
-			Expect(err2).NotTo(HaveOccurred())
+			Expect(err2).NotTo(HaveOccurred(), "failed to create customer resources for cluster-subnet-reuse")
 
 			By("attempting to create HCP cluster with already used subnet resource")
 			originalSubnetResourceID := clusterParams2.SubnetResourceID
@@ -120,9 +120,9 @@ var _ = Describe("Customer", func() {
 				clusterParams2,
 				5*time.Minute,
 			)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when creating cluster with already-used subnet")
 			GinkgoLogr.Error(err, "cluster deployment error")
-			Expect(err.Error()).To(MatchRegexp("Subnet .* is already in use by another cluster"))
+			Expect(err.Error()).To(MatchRegexp("Subnet .* is already in use by another cluster"), "error should indicate subnet is already in use")
 			clusterParams2.SubnetResourceID = originalSubnetResourceID
 
 			By("attempting to create HCP cluster with already used NSG resource")
@@ -136,8 +136,8 @@ var _ = Describe("Customer", func() {
 				clusterParams2,
 				5*time.Minute,
 			)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when creating cluster with already-used NSG")
 			GinkgoLogr.Error(err, "cluster deployment error")
-			Expect(err.Error()).To(MatchRegexp("Network Security Group .* is already in use by another cluster"))
+			Expect(err.Error()).To(MatchRegexp("Network Security Group .* is already in use by another cluster"), "error should indicate NSG is already in use")
 		})
 })

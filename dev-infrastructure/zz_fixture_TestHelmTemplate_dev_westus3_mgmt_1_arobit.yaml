@@ -37,13 +37,11 @@ data:
         Plugins_File              /fluent-bit/etc/plugins.conf
         HTTP_Server               On
         storage.path              /var/fluent-bit/flb-storage
-        # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.
-        # (default: 128)
-        storage.max_chunks_up     256
-        # This option configure a hint of maximum value of memory to use when processing the backlog data.
-        # (default: 5M)
-        storage.backlog.mem_limit 50M
+        storage.max_chunks_up     128
+        storage.backlog.mem_limit 15M
         storage.metrics           on
+        storage.delete_irrecoverable_chunks on
+        scheduler.cap             600
         Grace                     30
         # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
         Health_Check              On
@@ -73,8 +71,8 @@ data:
         DB.locking        true
         Refresh_Interval  15
         Read_from_Head    On
-        Buffer_Chunk_Size 128K
-        Buffer_Max_Size   2M
+        Buffer_Chunk_Size 32K
+        Buffer_Max_Size   256K
         Skip_Long_Lines   On
         storage.type      filesystem
         Threaded          On
@@ -99,6 +97,7 @@ data:
         Alias  otlp
         Listen 0.0.0.0
         Port   4318
+        Mem_Buf_Limit 50M
 
     [INPUT]
         Name            systemd
@@ -133,6 +132,7 @@ data:
         Kube_Tag_Prefix     kubernetes.var.log.containers.
         Annotations         Off
         K8S-Logging.Exclude On
+        Kube_Meta_Cache_TTL 300
         Buffer_Size         64k
 
     [FILTER]
@@ -176,6 +176,7 @@ data:
     [OUTPUT]
         Match ocm.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -200,6 +201,7 @@ data:
     [OUTPUT]
         Match aro-hcp-frontend.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -224,6 +226,7 @@ data:
     [OUTPUT]
         Match aro-hcp-backend.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -248,6 +251,7 @@ data:
     [OUTPUT]
         Match clusters-service.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -271,6 +275,7 @@ data:
     [OUTPUT]
         Match kubernetes.*
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -295,6 +300,7 @@ data:
     [OUTPUT]
         Match kube-events.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -329,6 +335,7 @@ data:
     [OUTPUT]
         Match systemd.*
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -444,7 +451,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 6cd105a5d137e52af9da24c7962786df326951dd5c98f24e2c93839bdc0a3e36
+        checksum/configmap: daa48c40fc3f117b2650ffc65f9606a93231c8ba30f24e21bb4f8b598167c84b
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
@@ -501,7 +508,7 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              memory: 1Gi
+              memory: 1248Mi
           volumeMounts:
             - name: var-kusto
               mountPath: /var/kusto

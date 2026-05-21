@@ -460,7 +460,7 @@ func DeleteAllHCPClusters(
 	for _, hcpClusterName := range hcpClusterNames {
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			utilruntime.HandleCrashWithContext(ctx)
+			defer utilruntime.HandleCrashWithContext(ctx)
 
 			return DeleteHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName, timeout)
 		})
@@ -595,7 +595,7 @@ func UpdateNodePoolAndWait(
 
 	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start nodepool %q update in cluster %q resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
 
 	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
@@ -981,7 +981,7 @@ func CreateNodePoolAndWait(
 			if errors.Is(err, context.DeadlineExceeded) {
 				return nil, fmt.Errorf("failed to get nodepool, caused by: %w, error: %w", context.Cause(ctx), err)
 			}
-			return nil, err
+			return nil, fmt.Errorf("failed to get nodepool %q in cluster %q resourcegroup=%q after creation: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 		}
 		err = checkOperationResult(&expect.NodePool, &m.NodePool)
 		if err != nil {

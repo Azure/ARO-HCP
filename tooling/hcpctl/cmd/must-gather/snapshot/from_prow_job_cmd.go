@@ -86,33 +86,38 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 		"isPR", o.prowInfo.IsPR,
 	)
 
-	// Phase 1: Download Prow artifacts and parse config + failed tests.
-	jobConfig, failedTests, _, err := snapshotpkg.FetchProwJobData(ctx, o.prowInfo)
+	// Phase 1: Download Prow artifacts and parse config + test results.
+	jobConfig, allTests, err := snapshotpkg.FetchProwJobData(ctx, o.prowInfo)
 	if err != nil {
 		return fmt.Errorf("failed to fetch Prow job data: %w", err)
 	}
 
-	if len(failedTests) == 0 {
-		logger.Info("No failed tests found in this Prow job")
-		return nil
-	}
-
-	// Apply test selector if provided.
+	// When --test is provided, match against all tests regardless of pass/fail.
+	// Otherwise, only gather data for failed tests.
+	var tests []snapshotpkg.TestResult
 	if o.testSelector != "" {
-		var filtered []snapshotpkg.FailedTest
-		for _, t := range failedTests {
+		for _, t := range allTests {
 			if strings.Contains(t.Name, o.testSelector) {
-				filtered = append(filtered, t)
+				tests = append(tests, t)
 			}
 		}
-		if len(filtered) == 0 {
-			return fmt.Errorf("no failed tests match selector %q (found %d failed tests total)", o.testSelector, len(failedTests))
+		if len(tests) == 0 {
+			return fmt.Errorf("no tests match selector %q (found %d tests total)", o.testSelector, len(allTests))
 		}
-		logger.Info("Filtered failed tests", "selector", o.testSelector, "matched", len(filtered), "total", len(failedTests))
-		failedTests = filtered
+		logger.Info("Filtered tests by selector", "selector", o.testSelector, "matched", len(tests), "total", len(allTests))
+	} else {
+		for _, t := range allTests {
+			if t.Failed {
+				tests = append(tests, t)
+			}
+		}
+		if len(tests) == 0 {
+			logger.Info("No failed tests found in this Prow job")
+			return nil
+		}
 	}
 
-	logger.Info("Processing failed tests", "count", len(failedTests))
+	logger.Info("Processing tests", "count", len(tests))
 
 	// Phase 2: Create Kusto client from the job's config.
 	kustoEndpoint, err := kusto.KustoEndpoint(jobConfig.KustoName, jobConfig.Region)
@@ -134,9 +139,9 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 
 	gatherer := snapshotpkg.NewGatherer(kustoClient)
 
-	// Phase 3: For each failed test, gather a snapshot.
+	// Phase 3: For each test, gather a snapshot.
 	var gatherErrors []error
-	for _, test := range failedTests {
+	for _, test := range tests {
 		testName := snapshotpkg.SanitizeTestName(test.Name)
 		testOutputDir := filepath.Join(o.outputDir, o.prowInfo.JobName, o.prowInfo.ProwID, testName)
 
@@ -207,7 +212,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 	}
 
 	if len(gatherErrors) > 0 {
-		logger.Info("Some tests had errors", "errors", len(gatherErrors), "total", len(failedTests))
+		logger.Info("Some tests had errors", "errors", len(gatherErrors), "total", len(tests))
 		for _, err := range gatherErrors {
 			logger.Error(err, "Test error")
 		}

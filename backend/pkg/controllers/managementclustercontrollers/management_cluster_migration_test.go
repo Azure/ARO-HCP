@@ -17,6 +17,7 @@ package managementclustercontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -88,6 +89,14 @@ func buildExpectedManagementCluster(t *testing.T, shardID, consumerName, aksName
 	t.Helper()
 	aksResourceID := api.Must(azcorearm.ParseResourceID(testAKSResourceIDString(aksName)))
 	publicDNSZoneResourceID := api.Must(azcorearm.ParseResourceID(testPublicDNSZoneResourceIDString()))
+	// The conversion in internal/ocm/convert.go derives the stamp identifier
+	// from the AKS cluster name (suffix after the last dash) and uses it to
+	// build the kube-applier container name with the "Manifests-MC-<stamp>"
+	// convention. Mirror that here so the expected MC matches what the
+	// migration controller actually writes.
+	lastDash := strings.LastIndex(aksName, "-")
+	require.Greater(t, lastDash, -1, "aksName %q has no stamp identifier suffix", aksName)
+	stampIdentifier := aksName[lastDash+1:]
 	return &fleet.ManagementCluster{
 		Spec: fleet.ManagementClusterSpec{
 			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
@@ -102,6 +111,7 @@ func buildExpectedManagementCluster(t *testing.T, shardID, consumerName, aksName
 			MaestroConsumerName:                                  consumerName,
 			MaestroRESTAPIURL:                                    testMaestroRestURL,
 			MaestroGRPCTarget:                                    testMaestroGRPCURL,
+			KubeApplierCosmosContainerName:                       fmt.Sprintf("Manifests-MC-%s", stampIdentifier),
 			Conditions: []metav1.Condition{
 				{
 					Type:   string(fleet.ManagementClusterConditionReady),

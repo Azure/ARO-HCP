@@ -4,15 +4,15 @@ go 1.25.7
 
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
-	github.com/Azure/ARO-Tools/config v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260512140819-ecd1d9a0477a
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260512140819-ecd1d9a0477a
+	github.com/Azure/ARO-Tools/config v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260515164928-09422e2febea
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260515164928-09422e2febea
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
@@ -49,7 +49,7 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260512140819-ecd1d9a0477a // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260515164928-09422e2febea // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0 // indirect
@@ -116,7 +116,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/denormal/go-gitignore v0.0.0-20180930084346-ae8ad1d07817 // indirect
 	github.com/dylibso/observe-sdk/go v0.0.0-20240819160327-2d926c5d788a // indirect
-	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
+	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect
 	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
@@ -276,7 +276,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260427160629-7cedc36a6bc4 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -285,12 +285,12 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v4 v4.1.4 // indirect
 	k8s.io/api v0.35.3 // indirect
-	k8s.io/apiextensions-apiserver v0.35.2 // indirect
-	k8s.io/apiserver v0.35.2 // indirect
+	k8s.io/apiextensions-apiserver v0.35.3 // indirect
+	k8s.io/apiserver v0.35.3 // indirect
 	k8s.io/cli-runtime v0.35.3 // indirect
 	k8s.io/component-base v0.35.3 // indirect
-	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
+	k8s.io/klog/v2 v2.140.0 // indirect
+	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 	k8s.io/kubectl v0.35.1 // indirect
 	knative.dev/pkg v0.0.0-20260318013857-98d5a706d4fd // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
@@ -300,7 +300,7 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/prow v0.0.0-20251030184004-0e4d5be4200d // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
 
 replace github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65

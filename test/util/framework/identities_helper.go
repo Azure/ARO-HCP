@@ -277,7 +277,7 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 		if !errors.Is(err, ErrNotEnoughFreeIdentityContainers) {
 			ginkgo.GinkgoLogr.Info("Identity container assignment failed with unexpected error",
 				"error", err, "attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
-			return err
+			return fmt.Errorf("failed to assign identity containers: %w", err)
 		}
 
 		ginkgo.GinkgoLogr.Info("Not enough free identity containers, waiting to retry",
@@ -287,7 +287,7 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 		case <-ctx.Done():
 			ginkgo.GinkgoLogr.Info("Context cancelled while waiting for identity containers",
 				"attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
-			return ctx.Err()
+			return fmt.Errorf("failed to assign identity containers: %w", ctx.Err())
 		case <-time.After(waitBetweenRetries):
 		}
 	}

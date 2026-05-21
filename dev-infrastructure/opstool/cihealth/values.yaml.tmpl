@@ -1,0 +1,36 @@
+nameOverride: "cihealth"
+fullnameOverride: "cihealth"
+
+msiClientId: "__cihealthUAMIClientId__"
+
+secretProvider:
+  keyVault: "__workloadKVName__"
+  msiClientId: "__cihealthUAMIClientId__"
+  tenantId: "__tenantId__"
+
+image:
+  registry: "{{ .opstool.cihealth.image.registry }}"
+  repository: "{{ .opstool.cihealth.image.repository }}"
+  tag: "{{ .opstool.cihealth.image.tag }}"
+
+disableRuntimeWorkloads: {{ .opstool.cihealth.disableRuntimeWorkloads }}
+
+app:
+  replicas: {{ .opstool.cihealth.app.replicas }}
+
+controllers:
+  replicas: 1
+
+postgres:
+  keyVaultSecretNames:
+    username: "{{ .opstool.cihealth.postgres.usernameKeyVaultSecretName }}"
+    password: "{{ .opstool.cihealth.postgres.passwordKeyVaultSecretName }}"
+    database: "{{ .opstool.cihealth.postgres.databaseKeyVaultSecretName }}"
+
+httpRoute:
+  enabled: {{ .opstool.cihealth.httpRoute.enabled }}
+  host: "{{ .opstool.cihealth.httpRoute.host }}"
+  gatewayName: "{{ .opstool.cihealth.httpRoute.gatewayName }}"
+  gatewayNamespace: "{{ .opstool.cihealth.httpRoute.gatewayNamespace }}"
+  sectionName: "{{ .opstool.cihealth.httpRoute.sectionName }}"
+  blockReviewPath: {{ .opstool.cihealth.httpRoute.blockReviewPath }}

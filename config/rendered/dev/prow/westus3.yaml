@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:ba5f1c8aa7fe214006df15030fed39871238defa38e57891548b6e0041d12a9c
+      digest: sha256:c99e736026cede9648d0bbf4bcb89e78e5809eac5a909b7cb7e98f4bf662863b
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:9d8ce3630ead7c22b495db3295ea3eb9680fb40dbc1bc0e6a718a9fd6a60068c
+      digest: sha256:acd5cfe115e3598335bedd1932c5c67e7172e8f8edd7ede7a05aa26e9c095772
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-prow-j7654321
   image:
-    digest: sha256:34dae332d86c0592838963950e68ca1282dd54f4eefdf675dbed5c78009eb458
+    digest: sha256:96ae43456cedb9554adf5ea53a51b5147035df48a44222d64da9370ca38cfde3
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -65,12 +65,12 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:64c1bd6514307cc31e4f215235e4666a9011aa471adf50afc2ccb681486c71d8
+      digest: sha256:0328b8154dc000ef1b658ba6c1ee967db94011465f9f6080784e8b14ef5758e8
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
       limits:
-        memory: 1Gi
+        memory: 1248Mi
       requests:
         cpu: 100m
         memory: 256Mi
@@ -81,7 +81,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:3c8bc4980d6c602f8f1ffb852fa1dd6becb12f12581f3e7eecabd7a6b911d0b8
+      digest: sha256:38506fae6c31015fb18b8c743234e53ba8eee9a13f4c4d4061efd3ec034e41a6
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -102,7 +102,7 @@ backend:
     roleSetName: dev
   exitOnPanic: true
   image:
-    digest: sha256:a2d4091d0e41f9f745f4ea1d6989e31af3f5de0c6f2e67323bc6e7aad263d17c
+    digest: sha256:4cb71dbb1b4db221f43ca04908ca121b3451ae529937648557077c8c914c228b
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -115,6 +115,7 @@ backend:
         cpu: 100m
         memory: 500Mi
     serviceAccountName: backend
+  logVerbosity: 4
   maestro:
     sourceEnvironmentIdentifier: arohcpprow
   managedIdentityName: backend
@@ -162,7 +163,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpprow
   image:
-    digest: sha256:8ab0246038cbe1dfdca7bdf82f1ff27795402268caad9cdc6e040ab46a8e06e7
+    digest: sha256:c7c3d1b499fbc29760eda173fa1a8c4eb2cd2b0aa3a872c7fe3aacfc2ff8abe5
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -205,7 +206,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:2a09e619593b66ec89a722b92eafbb2f247b06b22b5257d6255e1e8281d83df7
+    digest: sha256:bfd9d65d3d2750800676f4c7926574f17a19509d07c06c8db93f936a54e865c6
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -251,6 +252,11 @@ firstPartyAppCertificate:
   manage: false
   name: firstPartyCert2
 firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
+fleet:
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: fleet
 frontend:
   audit:
     connectSocket: false
@@ -268,7 +274,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:20684d4502475ba4054bbdc67a8405de39bf7a0331a82d1b55023963e1b4991d
+    digest: sha256:adab3b8b6b443d7d804e67714a3030b6e9c525d3d1de80e6aaa8bed2b77da7a0
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -281,6 +287,7 @@ frontend:
         cpu: 100m
         memory: 512Mi
     serviceAccountName: frontend
+  logVerbosity: 0
   managedIdentityName: frontend
   tracing:
     address: http://ingest.observability:4318
@@ -349,6 +356,7 @@ global:
   billing:
     digest: placeholder
     rg: placeholder
+    subscriptionKey: hcp-billng-prow
   globalMSIName: global-rollout-identity
   groupQuota:
     displayName: empty-sentinel
@@ -403,7 +411,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:545d39ab5f3a6abc8caf3249b5e9c123532c777f1a5b54cfd6e57076e10e5e12
+    digest: sha256:70dc0dd7b9fb9d579d24026bec5aecc24a7aa39318f2a02ead28b948882b9036
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -418,11 +426,11 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:11cad5de9e799329f66ad52264e8efc3e1768ffff3668640665274353dca2cd4
+      digest: sha256:c8cad8b77d44ecc5ab99491589f9d525330449941cdd234c9aa9faf841622aa0
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
-    operatorVersionsToMirror: 4.18,4.19,4.20,4.21
+    operatorVersionsToMirror: 4.18,4.19,4.20,4.21,4.22
     pullSecretName: ocmirror-pull-secret
   ondemandSync:
     pullSecretName: component-sync-pull-secret
@@ -432,17 +440,25 @@ kubeApplier:
   cosmosContainerMaxScale: 4000
   cosmosContainerName: Manifests-MC-1
   image:
-    digest: ""
+    digest: sha256:9378a7668d2f67d0e7ea316113626539c75687556f99fff6a9dd9ae1bc830ba2
     registry: arohcpsvcdev.azurecr.io
     repository: kube-applier
   k8s:
     namespace: kube-applier
+    replicas: 1
+    resources:
+      limits:
+        memory: unlimited
+      requests:
+        cpu: 100m
+        memory: 128Mi
     serviceAccountName: kube-applier
   managedIdentityName: kube-applier
+  partitionKey: /providers/microsoft.redhatopenshift/stamps/1/managementclusters/default
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:b7c21e2a50ae351b02fa42fb6accad4dafdf48e313b36adb0d7070d84f2dbe80
+    digest: sha256:f118721e42720011410a3d5a235a66f348f7d0928bd8bf7f133c750deb7f91a7
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -470,6 +486,7 @@ kusto:
   sku: Standard_E8ads_v5
   tier: Standard
   viewerGroups: 64dc69e4-d083-49fc-9569-ebece1dd1408/6b6d3adf-8476-4727-9812-20ffdef2b85c
+  viewerIdentities: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
@@ -630,7 +647,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 695dface5e61ba84317fde2249ba493eb43a2e03e835a79f55615560d7757931
+        sha: 7c8689b44c1131e0f9cb830b65c2d33180e18934090c9c51e219b061ea3fc58a
       replicas: 2
       resources:
         limits:
@@ -678,7 +695,7 @@ mgmt:
     usePlannedQuota: true
 mgmtAgent:
   image:
-    digest: ""
+    digest: sha256:94629b89f87eb1e743d1b9a899e5dc1ddf8802766fb80bd80986c9bfc94c340b
     registry: arohcpsvcdev.azurecr.io
     repository: mgmt-agent
   k8s:
@@ -807,6 +824,15 @@ oidc:
     privateLinkLocation: westus3
     public: true
     zoneRedundantMode: Auto
+quotaizer:
+  image:
+    digest: ""
+    registry: empty-sentinel
+    repository: empty-sentinel
+  managedIdentityName: aro-quotaizer
+  quotaGroup:
+    displayName: HCP - prow westus3
+    id: aro-prow-westus3
 region: westus3
 regionRG: hcp-underlay-prow-j7654321
 routeMonitorOperator:
@@ -853,7 +879,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-prow-j7654321
   image:
-    digest: sha256:6afdcf3c1c83c041870df639dc0e6163776ef9ff6b34536dba73b47984d2c67c
+    digest: sha256:2fb5cdf4701847171824beaca8f5f17256318f6660fa40b4bed1a81110b42de2
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
@@ -907,7 +933,7 @@ svc:
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
-    istioctlVersion: 1.29.2
+    istioctlVersion: 1.30.0
     tag: prod-stable
     targetVersion: asm-1-28
     versions: asm-1-28
@@ -949,7 +975,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 695dface5e61ba84317fde2249ba493eb43a2e03e835a79f55615560d7757931
+        sha: 7c8689b44c1131e0f9cb830b65c2d33180e18934090c9c51e219b061ea3fc58a
       replicas: 2
       resources:
         limits:

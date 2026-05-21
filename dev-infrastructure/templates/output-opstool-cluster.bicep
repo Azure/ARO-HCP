@@ -23,8 +23,24 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' existing = {
   name: dcrName
 }
 
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' existing = {
+  name: aksClusterName
+}
+
+resource aksClusterUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: '${aksClusterName}-msi'
+}
+
 resource opstoolUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
   name: 'opstool'
+}
+
+resource cihealthUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
+  name: 'cihealth'
+}
+
+resource certManagerUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
+  name: 'cert-manager'
 }
 
 resource prometheusUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
@@ -50,13 +66,25 @@ output aksClusterName string = aksClusterName
 output sharedActionGroupId string = sharedActionGroup.id
 output azureMonitorWorkspaceId string = azureMonitorWorkspace.id
 output workloadKVName string = workloadKV.name
+output workloadKVUrl string = workloadKV.properties.vaultUri
 output opstoolUAMIClientId string = opstoolUAMI.properties.clientId
 output opstoolUAMIId string = opstoolUAMI.id
+output cihealthUAMIClientId string = cihealthUAMI.properties.clientId
+output cihealthUAMIId string = cihealthUAMI.id
+output certManagerUAMIClientId string = certManagerUAMI.properties.clientId
+output certManagerUAMIId string = certManagerUAMI.id
+output certManagerUAMIPrincipalId string = certManagerUAMI.properties.principalId
 output prometheusUAMIClientId string = prometheusUAMI.properties.clientId
 output prometheusUAMIId string = prometheusUAMI.id
 output tenantQuotaUAMIClientId string = tenantQuotaUAMI.properties.clientId
 output tenantQuotaUAMIId string = tenantQuotaUAMI.id
+output csiSecretStoreClientId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.clientId
+output csiSecretStorePrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
+output aksClusterManagedIdentityPrincipalId string = aksClusterUAMI.properties.principalId
+output aksClusterManagedIdentityId string = aksClusterUAMI.id
 output dcrRemoteWriteUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
+output tenantId string = tenant().tenantId
+output subscriptionId string = subscription().subscriptionId
 
 // Kusto placeholder outputs (opstool doesn't use kusto logging)
 output kustoUri string = ''

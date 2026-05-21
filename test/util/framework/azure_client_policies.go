@@ -123,22 +123,27 @@ func parseResourceGroupFromPath(path string) (subscriptionID, resourceGroupName 
 	return
 }
 
-// correlationRequestIDPolicy generates a UUIDv4 correlation ID per request
-// to the RP frontend, setting the X-Ms-Correlation-Request-Id header. When
-// requests go through ARM, ARM generates this header; in development
-// environments where e2e tests talk directly to the RP, we need to set it
-// ourselves. The header is only set when the request targets the RP frontend
-// and no correlation ID is already present.
-type correlationRequestIDPolicy struct{}
+// requestIDPolicy generates UUIDv4 correlation and client request IDs per
+// request to the RP frontend, setting the X-Ms-Correlation-Request-Id and
+// X-Ms-Client-Request-Id headers. When requests go through ARM, ARM generates
+// these headers; in development environments where e2e tests talk directly to
+// the RP, we need to set them ourselves. Headers are only set when the request
+// targets the RP frontend and no value is already present.
+type requestIDPolicy struct{}
 
-func (p *correlationRequestIDPolicy) Do(req *policy.Request) (*http.Response, error) {
+func (p *requestIDPolicy) Do(req *policy.Request) (*http.Response, error) {
 	frontendURL, err := url.Parse(frontendAddress())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse frontend address: %w", err)
 	}
 
-	if req.Raw().URL.Host == frontendURL.Host && req.Raw().Header.Get(arm.HeaderNameCorrelationRequestID) == "" {
-		req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, uuid.New().String())
+	if req.Raw().URL.Host == frontendURL.Host {
+		if req.Raw().Header.Get(arm.HeaderNameCorrelationRequestID) == "" {
+			req.Raw().Header.Set(arm.HeaderNameCorrelationRequestID, uuid.New().String())
+		}
+		if req.Raw().Header.Get(arm.HeaderNameClientRequestID) == "" {
+			req.Raw().Header.Set(arm.HeaderNameClientRequestID, uuid.New().String())
+		}
 	}
 	return req.Next()
 }

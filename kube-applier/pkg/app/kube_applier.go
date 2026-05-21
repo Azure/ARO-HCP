@@ -47,7 +47,7 @@ import (
 func (o *Options) Run(ctx context.Context) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info(fmt.Sprintf("%s (%s) starting on management cluster %q",
-		AppShortDescriptionName, version.CommitSHA, o.ManagementCluster))
+		AppShortDescriptionName, version.CommitSHA, o.ManagementCluster.String()))
 
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("Run returned"))
@@ -136,28 +136,23 @@ func (o *Options) runControllersUnderLeaderElection(
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// PartitionListers gives us a single-partition view scoped to this pod's
-	// management cluster, so the informer relists never touch other partitions.
-	partitionListers := o.KubeApplierDBClient.PartitionListers(o.ManagementCluster)
+	// In the per-management-cluster container model, KubeApplierDBClient is already
+	// scoped to this pod's MC; Listers() lists exactly that container's *Desires.
+	listers := o.KubeApplierDBClient.Listers()
 
-	applyInformer := informers.NewApplyDesireInformer(partitionListers.ApplyDesires())
-	deleteInformer := informers.NewDeleteDesireInformer(partitionListers.DeleteDesires())
-	readInformer := informers.NewReadDesireInformer(partitionListers.ReadDesires())
+	applyInformer := informers.NewApplyDesireInformer(listers.ApplyDesires())
+	deleteInformer := informers.NewDeleteDesireInformer(listers.DeleteDesires())
+	readInformer := informers.NewReadDesireInformer(listers.ReadDesires())
 
-	// Each controller takes its peer interface off the same per-management-cluster
-	// KubeApplierCRUD so status replaces use the correct (cluster, [nodepool])
-	// parent for every desire they touch.
-	kubeApplierCRUD := o.KubeApplierDBClient.KubeApplier(o.ManagementCluster)
-
-	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, o.DynamicClient, kubeApplierCRUD, apply_desire.Config{})
+	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, o.DynamicClient, o.KubeApplierDBClient, apply_desire.Config{})
 	if err != nil {
 		return fmt.Errorf("apply controller: %w", err)
 	}
-	deleteCtl, err := delete_desire.NewDeleteDesireController(deleteInformer, o.DynamicClient, kubeApplierCRUD, delete_desire.Config{})
+	deleteCtl, err := delete_desire.NewDeleteDesireController(deleteInformer, o.DynamicClient, o.KubeApplierDBClient, delete_desire.Config{})
 	if err != nil {
 		return fmt.Errorf("delete controller: %w", err)
 	}
-	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, o.DynamicClient, kubeApplierCRUD, read_desire_manager.Config{})
+	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, o.DynamicClient, o.KubeApplierDBClient, read_desire_manager.Config{})
 	if err != nil {
 		return fmt.Errorf("read manager: %w", err)
 	}

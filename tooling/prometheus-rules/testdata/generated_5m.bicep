@@ -50,7 +50,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubePodNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'KubePodNotReady/{{ $labels.cluster }}'
           description: 'Pod {{ $labels.namespace }}/{{ $labels.pod}} has been in a non-ready state for longer than 15 minutes.'
           info: 'Pod {{ $labels.namespace }}/{{ $labels.pod}} has been in a non-ready state for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready'
