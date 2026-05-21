@@ -9,6 +9,7 @@ require (
 	github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-Tools/config v0.0.0-20260515164928-09422e2febea
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260515164928-09422e2febea
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
@@ -353,6 +354,8 @@ replace github.com/Azure/ARO-HCP/internal => ../internal
 replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
 
 replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
+
+replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../tooling/utilitytypes
 
 replace github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
