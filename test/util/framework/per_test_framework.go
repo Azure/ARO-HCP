@@ -657,6 +657,10 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 }
 
 func (tc *perItOrDescribeTestContext) collectHCPInspectData(ctx context.Context) {
+	if tc.LogDirPath == "" {
+		return
+	}
+
 	if _, err := exec.LookPath("oc"); err != nil {
 		ginkgo.GinkgoLogr.Info("oc not found in PATH, skipping HCP inspect data collection")
 		return
@@ -720,7 +724,7 @@ func (tc *perItOrDescribeTestContext) runOCAdmInspect(ctx context.Context, clust
 	}
 	kubeconfigFile.Close()
 
-	inspectDir := filepath.Join(tc.perBinaryInvocationTestContext.artifactDir, fmt.Sprintf("inspect-%s", clusterName))
+	inspectDir := filepath.Join(tc.LogDirPath, fmt.Sprintf("inspect-%s", clusterName))
 
 	inspectCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
