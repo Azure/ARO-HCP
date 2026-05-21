@@ -96,8 +96,12 @@ verify-kql:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-schema
 .PHONY: verify
+
+verify-schema:
+	go run ./hack/verify-schema-additional-properties config/config.schema.json
+.PHONY: verify-schema
 
 verify-gomega-assertions:
 	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/

@@ -48,6 +48,7 @@
           "type": "boolean"
         }
       },
+      "additionalProperties": false,
       "required": [
         "name"
       ]
@@ -86,7 +87,8 @@
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "k8sDeploymentStrategy": {
       "type": "object",
@@ -99,7 +101,8 @@
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "k8sDeployment": {
       "type": "object",
@@ -236,6 +239,7 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "keyVault",
         "name"
@@ -975,7 +979,8 @@
         "storageAccountContainerName": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     }
   },
   "properties": {
