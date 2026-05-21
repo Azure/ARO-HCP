@@ -256,13 +256,13 @@ var _ = Describe("Customer", func() {
 			if errors.Is(err, framework.ErrNoEdgePairFound) {
 				Skip(fmt.Sprintf("no version pair without upgrade edge in minor %s on channel %s", minor, channelGroup))
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get version pair without upgrade edge for minor %s", minor)
 
 			clusterInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, minor)
 			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", minor, channelGroup))
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get latest version in minor %s", minor)
 
 			clusterVersion := api.Must(semver.ParseTolerant(clusterInstallVersion))
 			Expect(toVersion.LTE(clusterVersion)).To(BeTrue(),
@@ -272,7 +272,7 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
 			suffix := rand.String(6)
@@ -280,7 +280,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-np-noedge-"+suffix, tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams()
@@ -301,7 +301,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
 			err = tc.CreateHCPClusterFromParam(
@@ -311,7 +311,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", clusterName)
 
 			By(fmt.Sprintf("creating nodepool at version %s (no Cincinnati edge to %s)", fromVersion, toVersion))
 			customerNodePoolName := fmt.Sprintf("npnoedge-%s", strings.ReplaceAll(minor, ".", "-"))
@@ -329,7 +329,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s at version %s", customerNodePoolName, fromVersion)
 
 			By("getting admin credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -339,11 +339,11 @@ var _ = Describe("Customer", func() {
 				clusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
 
 			By("capturing node release images before upgrade")
 			previousReleaseImages, err := framework.NodePoolReleaseImages(ctx, adminRESTConfig, customerNodePoolName)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to capture node release images for nodepool %s", customerNodePoolName)
 			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before upgrade")
 
 			By(fmt.Sprintf("triggering nodepool upgrade from %s to %s (no Cincinnati edge)", fromVersion, toVersion))
@@ -357,7 +357,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = framework.UpdateNodePoolAndWait(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to upgrade nodepool %s from %s to %s", customerNodePoolName, fromVersion, toVersion)
 
 			By("verifying nodes are recreated at the target version")
 			Eventually(func() error {
@@ -366,11 +366,11 @@ var _ = Describe("Customer", func() {
 
 			By("verifying node pool GET reflects the target version")
 			npGetResponse, err := framework.GetNodePool(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(npGetResponse.Properties).NotTo(BeNil())
-			Expect(npGetResponse.Properties.Version).NotTo(BeNil())
-			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil())
-			Expect(*npGetResponse.Properties.Version.ID).To(Equal(toVersion.String()))
+			Expect(err).NotTo(HaveOccurred(), "failed to GET nodepool %s", customerNodePoolName)
+			Expect(npGetResponse.Properties).NotTo(BeNil(), "nodepool %s response Properties was nil", customerNodePoolName)
+			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "nodepool %s Properties.Version was nil", customerNodePoolName)
+			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
+			Expect(*npGetResponse.Properties.Version.ID).To(Equal(toVersion.String()), "nodepool %s version should be %s but got %s", customerNodePoolName, toVersion, *npGetResponse.Properties.Version.ID)
 		},
 		Entry("z-stream upgrade without Cincinnati edge in 4.20",
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
