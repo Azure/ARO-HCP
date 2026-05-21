@@ -236,6 +236,7 @@ func cluster(t *testing.T, name string) *api.HCPOpenShiftCluster {
 	t.Helper()
 	rid := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroup, name))
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   rid,
