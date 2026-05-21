@@ -116,21 +116,23 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("getting the cluster's OIDC issuer URL and apps base domain")
+			By("creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.Replicas = int32(2)
+			Expect(tc.CreateNodePoolFromParam(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)).To(Succeed())
+
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster Properties was nil")
-			Expect(clusterResp.Properties.Platform).NotTo(BeNil(), "cluster Properties.Platform was nil")
-			Expect(clusterResp.Properties.Platform.IssuerURL).NotTo(BeNil(), "cluster OIDC IssuerURL was nil")
-			oidcIssuerURL := *clusterResp.Properties.Platform.IssuerURL
-
-			Expect(clusterResp.Properties.Console).NotTo(BeNil(), "cluster Properties.Console was nil")
-			Expect(clusterResp.Properties.Console.URL).NotTo(BeNil(), "cluster Properties.Console.URL was nil")
-			consoleURL := *clusterResp.Properties.Console.URL
-			appsBaseDomain := appsBaseDomainFromConsoleURL(consoleURL)
-			Expect(appsBaseDomain).NotTo(BeEmpty(), "could not derive apps base domain from console URL %s", consoleURL)
-			GinkgoLogr.Info("cluster identity", "oidcIssuer", oidcIssuerURL, "appsBaseDomain", appsBaseDomain)
 
 			By("getting admin credentials")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -145,19 +147,18 @@ var _ = Describe("Customer", func() {
 			By("ensuring the cluster is viable")
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
-			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePoolParams.ClusterName = customerClusterName
-			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.Replicas = int32(2)
-			Expect(tc.CreateNodePoolFromParam(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				managedResourceGroupName,
-				customerClusterName,
-				nodePoolParams,
-				45*time.Minute,
-			)).To(Succeed())
+			By("getting the cluster's OIDC issuer URL and apps base domain")
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster Properties was nil")
+			Expect(clusterResp.Properties.Platform).NotTo(BeNil(), "cluster Properties.Platform was nil")
+			Expect(clusterResp.Properties.Platform.IssuerURL).NotTo(BeNil(), "cluster OIDC IssuerURL was nil")
+			oidcIssuerURL := *clusterResp.Properties.Platform.IssuerURL
+
+			Expect(clusterResp.Properties.Console).NotTo(BeNil(), "cluster Properties.Console was nil")
+			Expect(clusterResp.Properties.Console.URL).NotTo(BeNil(), "cluster Properties.Console.URL was nil")
+			consoleURL := *clusterResp.Properties.Console.URL
+			appsBaseDomain := appsBaseDomainFromConsoleURL(consoleURL)
+			Expect(appsBaseDomain).NotTo(BeEmpty(), "could not derive apps base domain from console URL %s", consoleURL)
+			GinkgoLogr.Info("cluster identity", "oidcIssuer", oidcIssuerURL, "appsBaseDomain", appsBaseDomain)
 
 			By("creating a UAMI for ESO and federating it to the in-cluster ServiceAccount")
 			subscriptionID, err := tc.SubscriptionID(ctx)
