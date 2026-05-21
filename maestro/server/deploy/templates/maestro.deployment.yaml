@@ -61,18 +61,18 @@ spec:
         - /bin/sh
         - -c
         - |
-          set -euo pipefail
+          set -eu
           DB_HOST=$(cat /secrets/db/db.host)
           DB_PORT=$(cat /secrets/db/db.port)
           DB_USER=$(cat /secrets/db/db.user)
-          TIMEOUT=300
+          TIMEOUT=180
           ELAPSED=0
           until /usr/bin/pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q; do
             if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
               echo "PostgreSQL not ready after ${TIMEOUT}s, giving up"
               exit 1
             fi
-            echo "Waiting for postgres at $DB_HOST:$DB_PORT (${ELAPSED}s/${TIMEOUT}s)..."
+            echo "waiting for postgres at $DB_HOST:$DB_PORT (${ELAPSED}s/${TIMEOUT}s)..."
             sleep 5
             ELAPSED=$((ELAPSED + 5))
           done
