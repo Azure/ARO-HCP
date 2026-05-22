@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
@@ -78,6 +79,7 @@ type BackendOptions struct {
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
 	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
+	BackendIdentityAzureCachedReaders  *cachedreader.BackendIdentityAzureCachedReaders
 	ExitOnPanic                        bool
 	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
 	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
