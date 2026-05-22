@@ -17,7 +17,6 @@ package api
 import (
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -27,16 +26,11 @@ import (
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterExternalAuth struct {
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
-	// populated on DB read via the CosmosToInternalExternalAuth() conversion function.
-	// We carry it across the API boundary between ExternalAuth (the direct cosmos db type) and HCPOpenShiftClusterExternalAuth (this)
-	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
-	// This can be removed once we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftClusterExternalAuth.
-	CosmosETag azcore.ETag `json:"-"`
 }
 
 // EnsureDefaults fills in default values for fields that may be absent in
@@ -55,14 +49,6 @@ func (ea *HCPOpenShiftClusterExternalAuth) EnsureDefaults() {
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
-func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		CosmosETag:        o.CosmosETag,
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
-	}
-}
-
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
@@ -74,7 +60,6 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
-	ExistingCosmosUID string      `json:"-"`
 	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string      `json:"activeOperationId,omitempty"`
 }

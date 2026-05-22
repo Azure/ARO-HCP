@@ -60,7 +60,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.RevokeCredentialsOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = nil
-			j.ExistingCosmosUID = ""
 			// ExperimentalFeatures does not roundtrip through the external type because it is purely an internal detail
 			j.ExperimentalFeatures = api.ExperimentalFeatures{}
 			// ManagedIdentitiesDataPlaneIdentityURL does not roundtrip through the external type because
@@ -85,7 +84,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = nil
-			j.ExistingCosmosUID = ""
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -107,8 +105,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
-		// CosmosETag does not roundtrip through the external type because it is purely a database concern
-		original.CosmosETag = ""
 		roundTripHCPCluster(t, original)
 	}
 
