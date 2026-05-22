@@ -17,6 +17,9 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strconv"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
@@ -24,6 +27,16 @@ import (
 )
 
 func runGrafanaDatasourcesStep(_ graph.Identifier, step *types.GrafanaDatasourcesStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, _ *ExecutionState) error {
+	skipSync, err := strconv.ParseBool(step.SkipSync)
+	if err != nil {
+		return fmt.Errorf("could not parse skip sync flag %q: %w", step.SkipSync, err)
+	}
+	if skipSync {
+		logger := logr.FromContextOrDiscard(ctx)
+		logger.Info("Skipping grafana datasource sync")
+		return nil
+	}
+
 	opts := modify.DefaultAddDatasourceOptions()
 	opts.GrafanaName = step.GrafanaName
 	opts.SubscriptionID = executionTarget.GetSubscriptionID()
