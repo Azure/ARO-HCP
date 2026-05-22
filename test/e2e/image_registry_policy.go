@@ -78,10 +78,10 @@ var _ = Describe("Image Registry Policy", func() {
 				ctx, "image-registry-allowlist-policy-binding", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred(), "Failed to get VAP binding")
 
-			isAuditMode := false
+			hasDenyAction := false
 			for _, action := range binding.Spec.ValidationActions {
-				if action == admissionregistrationv1.Audit {
-					isAuditMode = true
+				if action == admissionregistrationv1.Deny {
+					hasDenyAction = true
 					break
 				}
 			}
@@ -105,21 +105,21 @@ var _ = Describe("Image Registry Policy", func() {
 			}
 			_, err = kubeClient.CoreV1().Pods(testNS).Create(ctx, pod, metav1.CreateOptions{})
 
-			if isAuditMode {
-				if err != nil && apierrors.IsForbidden(err) {
-					GinkgoLogr.Info("Pod was denied even in Audit mode — policy may have been switched to Deny")
-				} else {
-					GinkgoLogr.Info("Pod with disallowed image was allowed (policy in Audit mode) — violation logged but not blocked")
-				}
-				if err == nil {
-					_ = kubeClient.CoreV1().Pods(testNS).Delete(ctx, pod.Name, metav1.DeleteOptions{})
-				}
-			} else {
+			if hasDenyAction {
 				Expect(err).To(HaveOccurred(), "Pod with disallowed image should be denied")
 				Expect(apierrors.IsForbidden(err)).To(BeTrue(),
 					"Expected Forbidden error for disallowed image, got: %v", err)
 				Expect(err.Error()).To(ContainSubstring("not from an allowed registry"),
 					"Denial should come from the image registry policy, got: %v", err)
+			} else {
+				if err != nil && apierrors.IsForbidden(err) {
+					GinkgoLogr.Info("Pod was denied even without Deny validation action; another admission policy may be enforcing")
+				} else {
+					GinkgoLogr.Info("Pod with disallowed image was allowed because policy does not include Deny")
+				}
+				if err == nil {
+					_ = kubeClient.CoreV1().Pods(testNS).Delete(ctx, pod.Name, metav1.DeleteOptions{})
+				}
 			}
 		})
 
