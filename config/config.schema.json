@@ -2519,8 +2519,9 @@
       "type": "object",
       "properties": {
         "extraAllowedRegistries": {
-          "description": "Comma-separated additional image registry prefixes to allow. Leave empty when no extra registries are needed.",
-          "type": "string"
+          "description": "Comma-separated additional image registry prefixes to allow. Entries must not contain whitespace. Leave empty when no extra registries are needed.",
+          "type": "string",
+          "pattern": "^$|^[^,\\s]+(,[^,\\s]+)*$"
         },
         "validationActions": {
           "description": "Comma-separated ValidatingAdmissionPolicyBinding validation actions. Allowed values are Deny, Audit, and Warn.",
