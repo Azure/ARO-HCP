@@ -83,7 +83,7 @@ func Analyze(ctx context.Context, logger logr.Logger, session *Session, kustoCli
 		maxValidationRounds = 10
 	}
 	reviewRounds := opts.ReviewRounds
-	if reviewRounds < 0 {
+	if reviewRounds <= 0 {
 		reviewRounds = 3
 	}
 

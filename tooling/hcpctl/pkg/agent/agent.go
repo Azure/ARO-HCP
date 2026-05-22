@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -97,7 +98,7 @@ func NewCopilotClient(cfg *AgentConfig) (*CopilotClient, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading GitHub token from %s: %w", cfg.GitHubTokenFile, err)
 		}
-		clientOpts.GitHubToken = string(token)
+		clientOpts.GitHubToken = strings.TrimSpace(string(token))
 	case CopilotAuthModeBYOK:
 		// BYOK auth is configured per-session via ProviderConfig, not at the
 		// client level. Disable logged-in auth so the CLI doesn't try to

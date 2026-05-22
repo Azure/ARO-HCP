@@ -127,7 +127,7 @@ Your final output MUST be a valid JSON object with this structure:
 #### Output Schema Notes
 
 - The `log` proof type is *only* for referring to content from the test's stdout
-  or stderr logs, provided in the data directory under `test/{output,error}.log`
+  or stderr logs, provided in the data directory under `test_logs/{output,error}.log`
 - Use Markdown in all free-form text content to correctly format the output and
   improve communication efficacy.
 
@@ -150,7 +150,7 @@ Use standard CommonMark syntax:
 ## Debugging Methodology
 
 First, determine which phase of the test failed - some setup code runs before the spec,
-and some cleanup/teardown code runs after the code test finishes. Remember than more
+and some cleanup/teardown code runs after the code test finishes. Remember that more
 than one phase can fail, but if it's clear that only a particular phase failed, focus
 on debugging that, rather than investigating the other phases. For example, if only
 cleanup/teardown fails, don't focus on the core test phase. Review the correct phase
@@ -172,7 +172,7 @@ Markdown documents, where the following sections exist:
 - understanding the output section, which is a Markdown table-formatted version of the
   Kusto output
 
-Being by reviewing the Frontend requests in the data directory to find the mutating
+Begin by reviewing the Frontend requests in the data directory to find the mutating
 request(s) that correspond to the failures seen in the test. Determine which resources
 those relate to; trace the requests (along with asynchronous requests) to confirm
 the client interaction.

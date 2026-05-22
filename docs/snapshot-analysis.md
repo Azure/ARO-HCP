@@ -13,7 +13,7 @@ The workflow has two steps:
 ## Prerequisites
 
 - Azure CLI logged in (`az login`) — needed for Kusto queries.
-- GitHub Copilot CLI [installed])(https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli)
+- GitHub Copilot CLI [installed](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli)
   and authenticated (`gh auth login`) — needed for the analysis agent.
 - Local git checkouts of the four repositories at the commits that were deployed
   when the test ran: ARO-HCP, HyperShift, Maestro, and Clusters Service.

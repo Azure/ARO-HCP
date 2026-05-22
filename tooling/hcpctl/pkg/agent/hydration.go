@@ -198,13 +198,9 @@ func (h *Hydrator) backfillAllDiscovery(ctx context.Context) []HydratedDiscovery
 		if !d.IsDir() || d.Name() != "discovery" {
 			return nil
 		}
-		relPath, relErr := filepath.Rel(h.dataDir, p)
-		if relErr != nil {
-			return nil
-		}
-		items, hydrateErr := h.hydrateDiscoveryDir(p, relPath)
+		items, hydrateErr := h.hydrateDiscoveryDir(p)
 		if hydrateErr != nil {
-			slog.WarnContext(ctx, "Failed to hydrate discovery directory; skipping.", "path", relPath, "error", hydrateErr)
+			slog.WarnContext(ctx, "Failed to hydrate discovery directory; skipping.", "path", p, "error", hydrateErr)
 			return filepath.SkipDir
 		}
 		result = append(result, items...)
@@ -284,77 +280,78 @@ func (h *Hydrator) extractLogExcerpt(source string, start, end int) (string, err
 	return strings.Join(allLines[start-1:end], "\n"), nil
 }
 
-// hydrateDiscoveryDir walks a discovery directory and produces a HydratedDiscovery
-// for each Markdown file in its immediate subdirectories that contains a KQL query.
-func (h *Hydrator) hydrateDiscoveryDir(absDir, relativeBase string) ([]HydratedDiscovery, error) {
+// hydrateDiscoveryDir recursively walks a discovery directory and produces a
+// HydratedDiscovery for every Markdown file that contains a KQL query block,
+// regardless of nesting depth.
+func (h *Hydrator) hydrateDiscoveryDir(absDir string) ([]HydratedDiscovery, error) {
 	var items []HydratedDiscovery
 
-	components, err := os.ReadDir(absDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read discovery directory: %w", err)
-	}
-
-	for _, component := range components {
-		if !component.IsDir() {
-			continue
-		}
-		componentDir := filepath.Join(absDir, component.Name())
-		files, err := os.ReadDir(componentDir)
+	err := filepath.WalkDir(absDir, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
-			slog.Warn("Failed to read discovery component directory; skipping.", "path", componentDir, "error", err)
-			continue
+			return nil
 		}
-		for _, file := range files {
-			if file.IsDir() || !strings.HasSuffix(file.Name(), ".md") {
-				continue
-			}
-			filePath := filepath.Join(componentDir, file.Name())
-			content, err := os.ReadFile(filePath)
-			if err != nil {
-				slog.Warn("Failed to read discovery markdown file; skipping.", "path", filePath, "error", err)
-				continue
-			}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+			return nil
+		}
 
-			kql := extractMarkdownKQL(string(content))
-			if kql == "" {
-				continue // No KQL block — skip this file.
-			}
+		content, err := os.ReadFile(p)
+		if err != nil {
+			slog.Warn("Failed to read discovery markdown file; skipping.", "path", p, "error", err)
+			return nil
+		}
 
-			factName := strings.TrimSuffix(file.Name(), ".md")
-			leafRelPath := filepath.Join(relativeBase, component.Name(), factName)
+		kql := extractMarkdownKQL(string(content))
+		if kql == "" {
+			return nil // No KQL block — skip this file.
+		}
 
-			hd := HydratedDiscovery{
-				Directory: leafRelPath,
-				KQL:       kql,
-			}
+		relPath, err := filepath.Rel(filepath.Dir(absDir), p)
+		if err != nil {
+			slog.Warn("Failed to compute relative path for discovery file; skipping.", "path", p, "error", err)
+			return nil
+		}
+		// Strip the .md extension for the directory label.
+		relPath = strings.TrimSuffix(relPath, ".md")
 
-			// Extract label from ## Summary section.
-			hd.Label = extractReadmeSummary(string(content))
-			if hd.Label == "" {
-				hd.Label = component.Name() + " / " + factName
-			}
+		// Use the parent directory name and file stem as a fallback label.
+		parentDir := filepath.Base(filepath.Dir(p))
+		factName := strings.TrimSuffix(d.Name(), ".md")
 
-			// Generate share URI.
-			shareURI, err := queryToDeepLink(h.kustoEndpoint, h.kustoDatabase, hd.KQL)
-			if err != nil {
-				slog.Warn("Failed to generate share URI for discovery query; continuing.", "path", leafRelPath, "error", err)
+		hd := HydratedDiscovery{
+			Directory: relPath,
+			KQL:       kql,
+		}
+
+		// Extract label from ## Summary section.
+		hd.Label = extractReadmeSummary(string(content))
+		if hd.Label == "" {
+			hd.Label = parentDir + " / " + factName
+		}
+
+		// Generate share URI.
+		shareURI, err := queryToDeepLink(h.kustoEndpoint, h.kustoDatabase, hd.KQL)
+		if err != nil {
+			slog.Warn("Failed to generate share URI for discovery query; continuing.", "path", relPath, "error", err)
+		} else {
+			hd.ShareURI = shareURI
+		}
+
+		// Parse table from ## Results section.
+		resultsMarkdown := extractMarkdownResults(string(content))
+		if resultsMarkdown != "" {
+			table, parseErr := parseMarkdownTable(resultsMarkdown)
+			if parseErr != nil {
+				slog.Warn("Failed to parse results table; continuing.", "path", relPath, "error", parseErr)
 			} else {
-				hd.ShareURI = shareURI
+				hd.Table = table
 			}
-
-			// Parse table from ## Results section.
-			resultsMarkdown := extractMarkdownResults(string(content))
-			if resultsMarkdown != "" {
-				table, parseErr := parseMarkdownTable(resultsMarkdown)
-				if parseErr != nil {
-					slog.Warn("Failed to parse results table; continuing.", "path", leafRelPath, "error", parseErr)
-				} else {
-					hd.Table = table
-				}
-			}
-
-			items = append(items, hd)
 		}
+
+		items = append(items, hd)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk discovery directory: %w", err)
 	}
 
 	return items, nil
