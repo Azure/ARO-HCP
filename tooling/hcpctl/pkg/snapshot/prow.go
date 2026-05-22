@@ -53,7 +53,12 @@ type ProwJobInfo struct {
 	JobName   string
 	ProwID    string
 	GCSPrefix string
-	IsPR      bool
+}
+
+// IsPullRequest reports whether the job is a pull-ci (PR) job,
+// determined by the job name prefix.
+func (p *ProwJobInfo) IsPullRequest() bool {
+	return strings.HasPrefix(p.JobName, "pull-ci")
 }
 
 // ProwJobConfig holds the Kusto connection info extracted from a Prow job's config.yaml.
@@ -62,6 +67,13 @@ type ProwJobConfig struct {
 	KustoName       string
 	HCPDatabase     string
 	ServiceDatabase string
+
+	// ServiceClusterName and ManagementClusterName are the AKS cluster names
+	// used to filter Kusto queries to only relevant clusters. These are only
+	// populated for PR (pull-ci) jobs where the shared Kusto database contains
+	// data from multiple clusters.
+	ServiceClusterName    string
+	ManagementClusterName string
 }
 
 // TestResult represents a single test with its metadata.
@@ -112,7 +124,6 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 				JobName:   segments[i+4],
 				ProwID:    prowID,
 				GCSPrefix: strings.Join(segments[i:i+6], "/"),
-				IsPR:      true,
 			}, nil
 		}
 		if seg == "logs" {
@@ -128,7 +139,6 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 				JobName:   segments[i+1],
 				ProwID:    prowID,
 				GCSPrefix: strings.Join(segments[i:i+3], "/"),
-				IsPR:      false,
 			}, nil
 		}
 	}
@@ -152,7 +162,7 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
-	logger.Info("Found artifact directory", "dir", artifactDir)
+	logger.V(1).Info("Found artifact directory", "dir", artifactDir)
 
 	artifactPrefix := fmt.Sprintf("%s/artifacts/%s", info.GCSPrefix, artifactDir)
 
@@ -163,11 +173,11 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 		return nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
 	}
 
-	jobConfig, err := parseConfig(configData, info.IsPR)
+	jobConfig, err := parseConfig(configData, info.JobName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse config.yaml: %w", err)
 	}
-	logger.Info("Parsed job config",
+	logger.V(1).Info("Parsed job config",
 		"region", jobConfig.Region,
 		"kusto", jobConfig.KustoName,
 		"serviceDB", jobConfig.ServiceDatabase,
@@ -176,7 +186,7 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 
 	// Download test results.
 	testStep := testStepPersistent
-	if info.IsPR {
+	if info.IsPullRequest() {
 		testStep = testStepLocal
 	}
 	testResultsPrefix := fmt.Sprintf("%s/%s/artifacts/extension_test_result_e2e_", artifactPrefix, testStep)
@@ -292,7 +302,7 @@ func deriveSetupTestBoundary(steps []timing.StepTimingMetadata) (setupFinishTime
 // container" are treated as setup; the remaining steps are the test itself.
 func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, artifactPrefix string, logger logr.Logger) map[string]testTimingBoundaries {
 	prefix := fmt.Sprintf("%s/%stiming-metadata-", artifactPrefix, timingMetadataPath)
-	logger.Info("Fetching timing metadata", "prefix", prefix)
+	logger.V(1).Info("Fetching timing metadata", "prefix", prefix)
 	files, err := listObjects(ctx, gcsClient, prefix)
 	if err != nil {
 		logger.V(1).Info("Could not list timing metadata files, skipping timing enrichment", "err", err)
@@ -358,7 +368,7 @@ func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, artifactPr
 		result[testName] = boundaries
 	}
 
-	logger.Info("Loaded test timing boundaries from timing metadata", "count", len(result))
+	logger.V(1).Info("Loaded test timing boundaries from timing metadata", "count", len(result))
 	return result
 }
 
@@ -381,6 +391,8 @@ func ExtractResourceGroup(output string) string {
 type sourceConfig struct {
 	Region string      `json:"region"`
 	Kusto  sourceKusto `json:"kusto"`
+	Svc    sourceAKS   `json:"svc"`
+	Mgmt   sourceAKS   `json:"mgmt"`
 }
 
 type sourceKusto struct {
@@ -389,23 +401,39 @@ type sourceKusto struct {
 	ServiceLogsDatabase            string `json:"serviceLogsDatabase"`
 }
 
-func parseConfig(data []byte, isPR bool) (*ProwJobConfig, error) {
+type sourceAKS struct {
+	AKS sourceAKSName `json:"aks"`
+}
+
+type sourceAKSName struct {
+	Name string `json:"name"`
+}
+
+func parseConfig(data []byte, jobName string) (*ProwJobConfig, error) {
 	var src sourceConfig
 	if err := yaml.Unmarshal(data, &src); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
 	region := src.Region
-	if isPR {
+	isPullRequest := strings.HasPrefix(jobName, "pull-ci")
+	if isPullRequest {
 		region = prKustoRegion
 	}
 
-	return &ProwJobConfig{
+	config := &ProwJobConfig{
 		Region:          region,
 		KustoName:       src.Kusto.KustoName,
 		HCPDatabase:     src.Kusto.HostedControlPlaneLogsDatabase,
 		ServiceDatabase: src.Kusto.ServiceLogsDatabase,
-	}, nil
+	}
+
+	if isPullRequest {
+		config.ServiceClusterName = src.Svc.AKS.Name
+		config.ManagementClusterName = src.Mgmt.AKS.Name
+	}
+
+	return config, nil
 }
 
 // findArtifactDir lists subdirectories under artifacts/ and returns the one

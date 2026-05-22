@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/mc"
 	mustgather "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/must-gather"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/sc"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/snapshot"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/version"
 )
 
@@ -94,6 +95,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 		hcp.NewCommand,
 		mustgather.NewCommand,
 		datadumptogit.NewCommand,
+		snapshot.NewCommand,
 	}
 	for _, newCmd := range mainCommands {
 		c, err := newCmd(mainGroupID)

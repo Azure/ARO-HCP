@@ -52,9 +52,9 @@ type Manifest struct {
 	DirectoryLayout map[string]string `json:"directory_layout"`
 }
 
-// PhaseManifest describes the diagnostic data gathered for a single phase (test or cleanup).
+// PhaseManifest describes the diagnostic data gathered for a single phase (test_phase or cleanup_phase).
 type PhaseManifest struct {
-	// Name is the phase name ("test" or "cleanup").
+	// Name is the phase name ("test_phase" or "cleanup_phase").
 	Name string `json:"name"`
 
 	// Dir is the phase output directory, relative to the snapshot root.
@@ -152,8 +152,9 @@ type RequestInfo struct {
 func directoryLayout() map[string]string {
 	return map[string]string{
 		"discovery":      "discovery/ — phase-independent query results: frontend requests, resource IDs, cluster associations, etc.",
-		"test":           "test/ — diagnostic data from the test phase (between test start and cleanup start)",
-		"cleanup":        "cleanup/ — diagnostic data from the cleanup phase (between cleanup start and overall end)",
+		"test_logs":      "test_logs/ — the test's error.log and output.log from the Prow job",
+		"test_phase":     "test_phase/ — diagnostic data from the test phase (between test start and cleanup start)",
+		"cleanup_phase":  "cleanup_phase/ — diagnostic data from the cleanup phase (between cleanup start and overall end)",
 		"serviceEvents":  "<phase>/events/ — Kubernetes events for service-level components (frontend, backend, clusters-service, maestro) during the phase",
 		"resourceEvents": "<phase>/resources/<type>/<name>/events/ — Kubernetes events specific to a resource's control plane during the phase",
 		"state":          "<phase>/resources/<type>/<name>/state/ — time-windowed raw resource state dumps (ARM state, CS state, Maestro logs, etc.)",

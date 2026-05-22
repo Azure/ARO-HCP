@@ -59,6 +59,13 @@ type GatherInput struct {
 	// CleanupStartTime is the time at which test cleanup (resource deletion)
 	// began. A zero value means no cleanup time is available.
 	CleanupStartTime time.Time
+
+	// ServiceClusterName and ManagementClusterName are AKS cluster names
+	// used to filter queries for PR jobs. When both are non-empty, queries
+	// include a "| where cluster in (...)" filter to scope results to only
+	// the relevant clusters.
+	ServiceClusterName    string
+	ManagementClusterName string
 }
 
 // concurrency returns the effective concurrency limit.
@@ -87,13 +94,13 @@ func computePhases(input GatherInput) []phaseSpec {
 
 	if input.CleanupStartTime.IsZero() {
 		return []phaseSpec{
-			{name: "test", start: testStart, end: input.TimeWindow.End},
+			{name: "test_phase", start: testStart, end: input.TimeWindow.End},
 		}
 	}
 
 	return []phaseSpec{
-		{name: "test", start: testStart, end: input.CleanupStartTime},
-		{name: "cleanup", start: input.CleanupStartTime, end: input.TimeWindow.End},
+		{name: "test_phase", start: testStart, end: input.CleanupStartTime},
+		{name: "cleanup_phase", start: input.CleanupStartTime, end: input.TimeWindow.End},
 	}
 }
 
@@ -138,7 +145,7 @@ func recordVerification(report *VerificationReport, suite string, q querySpec, d
 		return
 	}
 
-	// Render KQL for downstream consumers (e.g. HTML overview).
+	// Render KQL for consumers that display the query text (e.g. HTML overview).
 	var renderedKQL string
 	if rendered, err := renderQuery(q.templatePath, data); err == nil {
 		renderedKQL = rendered
@@ -208,12 +215,14 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 	// Build seed queryData for discovery (full time window).
 	seedData := queryData{
-		ClusterURI:      input.ClusterURI,
-		ServiceDatabase: input.ServiceDatabase,
-		HCPDatabase:     input.HCPDatabase,
-		ResourceGroup:   input.ResourceGroup,
-		FullStartTime:   input.TimeWindow.Start,
-		FullEndTime:     input.TimeWindow.End,
+		ClusterURI:            input.ClusterURI,
+		ServiceDatabase:       input.ServiceDatabase,
+		HCPDatabase:           input.HCPDatabase,
+		ResourceGroup:         input.ResourceGroup,
+		ServiceClusterName:    input.ServiceClusterName,
+		ManagementClusterName: input.ManagementClusterName,
+		FullStartTime:         input.TimeWindow.Start,
+		FullEndTime:           input.TimeWindow.End,
 		// Discovery queries use the full window for phase fields too.
 		PhaseStartTime: input.TimeWindow.Start,
 		PhaseEndTime:   input.TimeWindow.End,
@@ -364,7 +373,7 @@ func (g *Gatherer) runDiscovery(
 		}
 	}
 
-	logger.Info("Running request discovery", "requests", len(trackedReqs), "queries", len(pool1Items))
+	logger.V(1).Info("Running request discovery", "requests", len(trackedReqs), "queries", len(pool1Items))
 	pool.runPool(ctx, pool1Items)
 
 	// Populate cachedResults from pool1 items.
@@ -444,7 +453,7 @@ func (g *Gatherer) runDiscovery(
 		}
 	}
 
-	logger.Info("Running resource discovery", "items", len(pool2Items))
+	logger.V(1).Info("Running resource discovery", "items", len(pool2Items))
 	pool.runPool(ctx, pool2Items)
 
 	// Record verification for resource discovery.
@@ -656,15 +665,17 @@ func (g *Gatherer) gatherPhase(
 	// Service-level event queries for this phase.
 	serviceEventsDir := filepath.Join(phaseDir, "events")
 	serviceEventData := queryData{
-		ClusterURI:      input.ClusterURI,
-		ServiceDatabase: input.ServiceDatabase,
-		HCPDatabase:     input.HCPDatabase,
-		ResourceGroup:   input.ResourceGroup,
-		FullStartTime:   input.TimeWindow.Start,
-		FullEndTime:     input.TimeWindow.End,
-		PhaseStartTime:  phase.start,
-		PhaseEndTime:    phase.end,
-		PhaseName:       phase.name,
+		ClusterURI:            input.ClusterURI,
+		ServiceDatabase:       input.ServiceDatabase,
+		HCPDatabase:           input.HCPDatabase,
+		ResourceGroup:         input.ResourceGroup,
+		ServiceClusterName:    input.ServiceClusterName,
+		ManagementClusterName: input.ManagementClusterName,
+		FullStartTime:         input.TimeWindow.Start,
+		FullEndTime:           input.TimeWindow.End,
+		PhaseStartTime:        phase.start,
+		PhaseEndTime:          phase.end,
+		PhaseName:             phase.name,
 	}
 	serviceEventMu := &sync.Mutex{}
 	for _, q := range queriesByCategory(categoryEvents) {
@@ -676,7 +687,7 @@ func (g *Gatherer) gatherPhase(
 		})
 	}
 
-	logger.Info("Running phase queries", "phase", phase.name, "items", len(poolItems))
+	logger.V(1).Info("Running phase queries", "phase", phase.name, "items", len(poolItems))
 	pool.runPool(ctx, poolItems)
 
 	// Record verification results from phase pool items.
@@ -698,7 +709,7 @@ func (g *Gatherer) gatherPhase(
 // requestInPhase returns true if the request's timestamp falls within the phase window.
 func (g *Gatherer) requestInPhase(req frontendRequest, phase phaseSpec) bool {
 	if req.Timestamp.IsZero() {
-		return phase.name == "test" // default to test phase if timestamp unknown
+		return phase.name == "test_phase" // default to test phase if timestamp unknown
 	}
 	return !req.Timestamp.Before(phase.start) && req.Timestamp.Before(phase.end)
 }
@@ -861,7 +872,7 @@ func composeOutput(readme string, rendered string, rows []resultRow) string {
 }
 
 // executeQuery renders and executes a single query spec, writes a combined
-// output file (<queryName>.md), and returns the result rows for downstream
+// output file (<queryName>.md), and returns the result rows for
 // dependency resolution.
 func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryData, baseDir string, input GatherInput) ([]resultRow, error) {
 	logger := logr.FromContextOrDiscard(ctx)
@@ -895,9 +906,9 @@ func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryDat
 	}
 
 	if len(rows) > 0 {
-		logger.Info("Wrote query output", "query", q.key(), "rows", len(rows), "file", mdFile)
+		logger.V(1).Info("Wrote query output", "query", q.key(), "rows", len(rows), "file", mdFile)
 	} else {
-		logger.Info("Query returned no results", "query", q.key())
+		logger.V(1).Info("Query returned no results", "query", q.key())
 	}
 
 	return rows, nil
@@ -925,9 +936,9 @@ func (g *Gatherer) executeQueryToDir(ctx context.Context, q querySpec, data *que
 	}
 
 	if len(rows) > 0 {
-		logger.Info("Query returned results (deferred write)", "query", q.key(), "rows", len(rows))
+		logger.V(1).Info("Query returned results (deferred write)", "query", q.key(), "rows", len(rows))
 	} else {
-		logger.Info("Query returned no results", "query", q.key())
+		logger.V(1).Info("Query returned no results", "query", q.key())
 	}
 
 	return rows, nil

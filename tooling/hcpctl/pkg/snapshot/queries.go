@@ -98,7 +98,7 @@ type querySpec struct {
 	// empty results are always acceptable (it will not appear in verification output).
 	requiredWhen func(queryData) bool
 	// storeResult is called with the full result rows from the query.
-	// It stores discovered values for downstream queries. If the results
+	// It stores discovered values for dependent queries. If the results
 	// are ambiguous (e.g. multiple distinct values for a single-valued field),
 	// storeResult should return an error.
 	storeResult func(*queryData, []resultRow) error
@@ -116,6 +116,12 @@ type queryData struct {
 	ServiceDatabase string
 	HCPDatabase     string
 	ResourceGroup   string
+
+	// ServiceClusterName and ManagementClusterName are AKS cluster names
+	// used to filter queries for PR jobs. When both are non-empty, queries
+	// include a "| where cluster in (...)" filter.
+	ServiceClusterName    string
+	ManagementClusterName string
 
 	// FullStartTime and FullEndTime define the entire snapshot window. Use
 	// these for broad timestamp pre-filters (Kusto partition pruning) and
