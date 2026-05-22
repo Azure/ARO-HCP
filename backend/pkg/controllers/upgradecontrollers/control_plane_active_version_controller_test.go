@@ -77,9 +77,11 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 				createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "4.19.15", State: configv1.CompletedUpdate},
-				})
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.19.15", State: configv1.CompletedUpdate},
+					}},
+				)
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -96,10 +98,12 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "4.19.17", State: configv1.PartialUpdate}, {Version: "4.19.16", State: configv1.PartialUpdate}, {Version: "4.19.15", State: configv1.CompletedUpdate},
-					{Version: "4.19.14", State: configv1.PartialUpdate}, {Version: "4.19.13", State: configv1.CompletedUpdate},
-				})
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.19.17", State: configv1.PartialUpdate}, {Version: "4.19.16", State: configv1.PartialUpdate}, {Version: "4.19.15", State: configv1.CompletedUpdate},
+						{Version: "4.19.14", State: configv1.PartialUpdate}, {Version: "4.19.13", State: configv1.CompletedUpdate},
+					}},
+				)
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -112,13 +116,15 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "one active version when version history has one element",
+			name: "one active version when control plane history has one element",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "4.19.16", State: configv1.PartialUpdate},
-				})
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.19.16", State: configv1.PartialUpdate},
+					}},
+				)
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -131,11 +137,26 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "no active versions when version history is empty",
+			name: "no active versions when control plane history is empty",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{})
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, nil, hsv1beta1.ControlPlaneVersionStatus{})
+			},
+			expectedError: false,
+			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.Empty(t, spc.Status.ControlPlaneVersion.ActiveVersions)
+			},
+		},
+		{
+			name: "no active versions when control plane history empty and version status nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, nil, hsv1beta1.ControlPlaneVersionStatus{})
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -150,11 +171,13 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "", State: configv1.PartialUpdate},
-					{Version: "not-a-version", State: configv1.PartialUpdate},
-					{Version: "4.19.15", State: configv1.CompletedUpdate},
-				})
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "", State: configv1.PartialUpdate},
+						{Version: "not-a-version", State: configv1.PartialUpdate},
+						{Version: "4.19.15", State: configv1.CompletedUpdate},
+					}},
+				)
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -167,13 +190,39 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "nightly version in history is parsed and included",
+			name: "prefers controlPlaneVersion history over version history when both set",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "4.19.0-0.nightly-multi-2026-01-10-204154", State: configv1.CompletedUpdate},
-				})
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient,
+					&hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
+						{Version: "4.20.1", State: configv1.PartialUpdate},
+					}},
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.20.1", State: configv1.CompletedUpdate},
+					}},
+				)
+			},
+			expectedError: false,
+			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, []api.HCPClusterActiveVersion{
+					{Version: ptr.To(semver.MustParse("4.20.1")), State: configv1.CompletedUpdate},
+				}, spc.Status.ControlPlaneVersion.ActiveVersions)
+			},
+		},
+		{
+			name: "nightly version in control plane history is parsed and included",
+			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.19.0-0.nightly-multi-2026-01-10-204154", State: configv1.CompletedUpdate},
+					}},
+				)
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -182,6 +231,32 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, []api.HCPClusterActiveVersion{
 					{Version: ptr.To(api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))), State: configv1.CompletedUpdate},
+				}, spc.Status.ControlPlaneVersion.ActiveVersions)
+			},
+		},
+		{
+			name: "falls back to version history when control plane history empty",
+			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient,
+					&hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
+						{Version: "4.19.17", State: configv1.PartialUpdate},
+						{Version: "4.19.16", State: configv1.PartialUpdate},
+						{Version: "4.19.15", State: configv1.CompletedUpdate},
+					}},
+					hsv1beta1.ControlPlaneVersionStatus{},
+				)
+			},
+			expectedError: false,
+			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, []api.HCPClusterActiveVersion{
+					{Version: ptr.To(semver.MustParse("4.19.17")), State: configv1.PartialUpdate},
+					{Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate},
+					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
 				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
 		},
@@ -250,9 +325,11 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	createTestHCPCluster(t, runCtx, mockResourcesDBClient)
 	createServiceProviderClusterWithVersion(t, runCtx, mockResourcesDBClient, "4.19.15")
-	createManagementClusterContentWithHostedClusterHistory(t, runCtx, mockResourcesDBClient, []configv1.UpdateHistory{
-		{Version: "4.19.15", State: configv1.CompletedUpdate},
-	})
+	createManagementClusterContentWithHostedClusterHistory(t, runCtx, mockResourcesDBClient, nil,
+		hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+			{Version: "4.19.15", State: configv1.CompletedUpdate},
+		}},
+	)
 
 	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 	before, err := spcCRUD.Get(runCtx, api.ServiceProviderClusterResourceName)
@@ -307,15 +384,22 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 }
 
 // createManagementClusterContentWithHostedClusterHistory creates a ManagementClusterContent with
-// KubeContent containing a HostedCluster whose status.version.history is built from entries (newest first).
-func createManagementClusterContentWithHostedClusterHistory(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, entries []configv1.UpdateHistory) {
+// KubeContent containing a HostedCluster. Pass nil version to omit status.version; history entries are newest first.
+func createManagementClusterContentWithHostedClusterHistory(
+	t *testing.T,
+	ctx context.Context,
+	mockResourcesDBClient *databasetesting.MockResourcesDBClient,
+	version *hsv1beta1.ClusterVersionStatus,
+	controlPlaneVersion hsv1beta1.ControlPlaneVersionStatus,
+) {
 	t.Helper()
 
 	hc := &hsv1beta1.HostedCluster{}
 	hc.APIVersion = "hypershift.openshift.io/v1beta1"
 	hc.Kind = "HostedCluster"
 	hc.SetName(testClusterName)
-	hc.Status.Version = &hsv1beta1.ClusterVersionStatus{History: entries}
+	hc.Status.ControlPlaneVersion = controlPlaneVersion
+	hc.Status.Version = version
 	uObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(hc)
 	require.NoError(t, err)
 	u := &unstructured.Unstructured{Object: uObj}
