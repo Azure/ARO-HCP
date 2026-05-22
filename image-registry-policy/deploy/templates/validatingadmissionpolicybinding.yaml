@@ -8,8 +8,8 @@ metadata:
 spec:
   policyName: "image-registry-allowlist-policy"
   validationActions:
-  {{- range .Values.validationActions }}
-  - {{ . }}
+  {{- range splitList "," .Values.validationActions }}
+  - {{ . | trim }}
   {{- end }}
   paramRef:
     name: "image-registry-allowlist-config"

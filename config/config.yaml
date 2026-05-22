@@ -98,9 +98,8 @@ defaults:
         days: 90
   # Image Registry Policy
   imageRegistryPolicy:
-    extraAllowedRegistries: []
-    validationActions:
-    - Audit
+    extraAllowedRegistries: ""
+    validationActions: Audit
   # ACR Pull
   acrPull:
     image:
@@ -1257,13 +1256,8 @@ clouds:
             shards: 1
       # Image Registry Policy — dev-only image prefixes for local dev tooling
       imageRegistryPolicy:
-        extraAllowedRegistries:
-        - docker.io/jaegertracing
-        - docker.io/grafana
-        - docker.io/otel
-        - docker.io/library/postgres
-        validationActions:
-        - Deny
+        extraAllowedRegistries: docker.io/jaegertracing,docker.io/grafana,docker.io/otel,docker.io/library/postgres
+        validationActions: Deny
       # ACRs
       acr:
         svc:

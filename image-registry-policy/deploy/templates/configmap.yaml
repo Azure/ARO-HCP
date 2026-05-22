@@ -7,4 +7,4 @@ metadata:
     app.kubernetes.io/name: image-registry-policy
     app.kubernetes.io/managed-by: Helm
 data:
-  allowedRegistries: '{{ .Values.allowedRegistries | join "," }}'
+  allowedRegistries: '{{ .Values.allowedRegistries | trimSuffix "," }}'

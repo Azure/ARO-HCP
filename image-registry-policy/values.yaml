@@ -1,12 +1,2 @@
-allowedRegistries:
-- '{{ .acr.svc.name }}.{{ .acrDNSSuffix }}'
-- '{{ .acr.ocp.name }}.{{ .acrDNSSuffix }}'
-- mcr.microsoft.com
-- kubernetesshared.azurecr.io
-{{- range .imageRegistryPolicy.extraAllowedRegistries }}
-- '{{ . }}'
-{{- end }}
-validationActions:
-{{- range .imageRegistryPolicy.validationActions }}
-- '{{ . }}'
-{{- end }}
+allowedRegistries: '{{ .acr.svc.name }}.{{ .acrDNSSuffix }},{{ .acr.ocp.name }}.{{ .acrDNSSuffix }},mcr.microsoft.com,kubernetesshared.azurecr.io,{{ .imageRegistryPolicy.extraAllowedRegistries }}'
+validationActions: '{{ .imageRegistryPolicy.validationActions }}'

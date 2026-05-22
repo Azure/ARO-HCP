@@ -2519,17 +2519,13 @@
       "type": "object",
       "properties": {
         "extraAllowedRegistries": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "description": "Comma-separated additional image registry prefixes to allow. Leave empty when no extra registries are needed.",
+          "type": "string"
         },
         "validationActions": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["Deny", "Audit", "Warn"]
-          }
+          "description": "Comma-separated ValidatingAdmissionPolicyBinding validation actions. Allowed values are Deny, Audit, and Warn.",
+          "type": "string",
+          "pattern": "^(Deny|Audit|Warn)(,(Deny|Audit|Warn))*$"
         }
       },
       "additionalProperties": false,
