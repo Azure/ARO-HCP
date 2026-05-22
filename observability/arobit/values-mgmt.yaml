@@ -60,6 +60,16 @@ forwarder:
       repository: "{{ .arobit.mdsd.image.repository }}"
       digest: "{{ .arobit.mdsd.image.digest }}"
       pullPolicy: IfNotPresent
+  ## Watchdog sidecar that recreates the pod when the Geneva auth cert
+  ## never mounts. See AROSLSRE-879 and forwarder-watchdog-rbac.yaml.
+  watchdog:
+    image:
+      registry: "{{ .aksCommandRuntime.image.registry }}"
+      repository: "{{ .aksCommandRuntime.image.repository }}"
+      digest: "{{ .aksCommandRuntime.image.digest }}"
+      pullPolicy: IfNotPresent
+    timeoutSeconds: 300
+    intervalSeconds: 15
   kusto:
     serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
     hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
