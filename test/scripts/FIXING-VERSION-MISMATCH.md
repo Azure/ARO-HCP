@@ -26,47 +26,11 @@ See `test/util/framework/deployment_params.go`:
   - Race condition window exists between fetches
   - Explicit env vars can override and cause mismatches
 
-## Solutions
+## Solution
 
-### ✅ SOLUTION 1: Code Changes (RECOMMENDED - ALREADY APPLIED)
+Code changes in `deployment_params.go`. Alternatively you may use the scripts provided for a quick workaround, explanation is below.
 
-**What Changed**:
-
-1. **Enhanced synchronization logic** (`deployment_params.go:DefaultOpenshiftNodePoolVersionId()`)
-   - Now ALWAYS uses control plane version when channel groups match
-   - Fixed edge case where versions could diverge
-   - Added clear comments explaining the critical synchronization
-
-2. **Early validation** (`deployment_params.go:NewDefaultNodePoolParams()`)
-   - Added version comparison in `NewDefaultNodePoolParams()`
-   - Fails fast with helpful error message if mismatch detected
-   - Shows exact configuration causing the issue
-
-3. **Import added**: `github.com/blang/semver/v4` for version comparison
-
-**Benefits**:
-- ✅ Automatic - no manual steps needed
-- ✅ Catches configuration errors early
-- ✅ Works for all test runs (local, CI/CD)
-- ✅ Prevents the issue at the source
-
-**Action Required**: Test the changes
-
-```bash
-# Build the test binary
-make -C test
-
-# Set required environment variables
-export CUSTOMER_SUBSCRIPTION=<subscriptionName>
-export LOCATION=uksouth
-
-# Run a specific test to verify the fix
-./test/aro-hcp-tests run-test "Customer should update node pool labels and taints"
-```
-
-### 📋 SOLUTION 2: Environment Variable Synchronization (ALTERNATIVE)
-
-If you prefer explicit version control or need a quick workaround:
+## 📋 Environment Variable Synchronization
 
 #### For Local Development (Bash)
 

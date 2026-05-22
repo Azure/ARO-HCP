@@ -159,7 +159,7 @@ func DefaultOpenshiftNodePoolVersionId() string {
 			}
 		} else {
 			// For stable channel, also use control plane version to avoid mismatches
-			version = DefaultOCPVersionId
+			version = DefaultOpenshiftControlPlaneVersionId()
 		}
 	}
 	return version
