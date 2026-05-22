@@ -1,5 +1,8 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
 {{- if eq (toLower .ResourceType) "microsoft.redhatopenshift/hcpopenshiftclusters" }}
 | where log.aro_hcp_cluster_resource_id =~ '{{ .ResourceID }}'
 | where isempty(log.aro_hcp_node_pool_resource_id)

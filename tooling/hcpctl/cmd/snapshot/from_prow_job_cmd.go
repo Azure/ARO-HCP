@@ -88,7 +88,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 	logger.Info("Fetching Prow job data",
 		"job", o.prowInfo.JobName,
 		"prowID", o.prowInfo.ProwID,
-		"isPR", o.prowInfo.IsPR,
+		"isPR", o.prowInfo.IsPullRequest(),
 	)
 
 	// Phase 1 (per-job): Download Prow artifacts and parse config + test results.

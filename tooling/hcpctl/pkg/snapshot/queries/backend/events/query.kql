@@ -1,5 +1,8 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
 | where eventNamespace == 'aro-hcp'
 | where objectName has 'backend'
 | extend firstSeen = coalesce(firstSeen, todatetime(log.event_time)), lastSeen = coalesce(lastSeen, todatetime(log.event_time))

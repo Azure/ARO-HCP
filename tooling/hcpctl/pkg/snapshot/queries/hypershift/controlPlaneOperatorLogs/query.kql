@@ -1,5 +1,8 @@
 cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('containerLogs')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
 | where namespace_name == '{{ .HostedControlPlaneNamespace }}'
 | where container_name == 'control-plane-operator'
 | summarize

@@ -1,5 +1,8 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
 | where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
 | where container_name == 'aro-hcp-backend'
 | where log.controller_name == 'datadump'
 | where log.content.resourceID =~ '{{ .ResourceID }}'
