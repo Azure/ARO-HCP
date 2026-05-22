@@ -2515,29 +2515,6 @@
         "enabled"
       ]
     },
-    "imageRegistryPolicy": {
-      "type": "object",
-      "properties": {
-        "extraAllowedRegistries": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "validationActions": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["Deny", "Audit", "Warn"]
-          }
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "extraAllowedRegistries",
-        "validationActions"
-      ]
-    },
     "acrPull": {
       "type": "object",
       "properties": {
@@ -3343,7 +3320,6 @@
     "global",
     "hypershift",
     "imageSync",
-    "imageRegistryPolicy",
     "acrPull",
     "secretSyncController",
     "maestro",
