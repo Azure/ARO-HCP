@@ -1,5 +1,5 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
 | where namespace_name == 'hypershift'
 | where container_name == 'operator'
 {{- if eq (toLower .ResourceType) "microsoft.redhatopenshift/hcpopenshiftclusters" }}

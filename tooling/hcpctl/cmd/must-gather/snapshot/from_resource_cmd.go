@@ -162,7 +162,7 @@ func (o *completedFromResourceOptions) run(ctx context.Context) error {
 
 	logger.Info("Snapshot complete",
 		"outputDir", o.outputDir,
-		"resources", len(manifest.Resources),
+		"phases", len(manifest.Phases),
 	)
 
 	return nil

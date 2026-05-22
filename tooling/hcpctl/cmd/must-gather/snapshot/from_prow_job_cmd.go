@@ -185,11 +185,13 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 			HCPDatabase:     jobConfig.HCPDatabase,
 			ResourceGroup:   test.ResourceGroup,
 			TimeWindow: snapshotpkg.TimeWindow{
-				Start: startTime,
-				End:   endTime,
+				Start:           startTime,
+				End:             endTime,
+				SetupFinishTime: test.SetupFinishTime,
 			},
 			QueryTimeout:     o.queryTimeout,
 			Concurrency:      o.concurrency,
+			TestStartTime:    test.TestStartTime,
 			CleanupStartTime: test.CleanupStartTime,
 		}
 
@@ -197,6 +199,9 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 		if err != nil {
 			logger.Error(err, "Failed to gather snapshot for test", "test", test.Name)
 			gatherErrors = append(gatherErrors, fmt.Errorf("test %q: %w", test.Name, err))
+			if ctx.Err() != nil {
+				break
+			}
 			continue
 		}
 
@@ -213,7 +218,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 
 		logger.Info("Snapshot complete for test",
 			"test", test.Name,
-			"resources", len(manifest.Resources),
+			"phases", len(manifest.Phases),
 		)
 	}
 

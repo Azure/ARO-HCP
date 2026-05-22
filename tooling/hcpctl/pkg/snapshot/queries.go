@@ -115,18 +115,21 @@ type queryData struct {
 	ClusterURI      string
 	ServiceDatabase string
 	HCPDatabase     string
-	StartTime       time.Time
-	EndTime         time.Time
 	ResourceGroup   string
 
-	// CleanupStartTime is the time at which test cleanup began. A zero
-	// value means no cleanup time is available.
-	CleanupStartTime time.Time
+	// FullStartTime and FullEndTime define the entire snapshot window. Use
+	// these for broad timestamp pre-filters (Kusto partition pruning) and
+	// for discovery queries that must see the complete time range.
+	FullStartTime time.Time
+	FullEndTime   time.Time
 
-	// EffectiveEndTime is the cleanup start time if available, otherwise the
-	// test end time. Use this when queries need a point-in-time snapshot of
-	// state before teardown.
-	EffectiveEndTime time.Time
+	// PhaseStartTime and PhaseEndTime define the current phase (test or
+	// cleanup). Use these for queries that should be scoped to a single phase.
+	PhaseStartTime time.Time
+	PhaseEndTime   time.Time
+
+	// PhaseName is the human-readable name of the current phase ("test" or "cleanup").
+	PhaseName string
 
 	// Per-request context — set when tracing a specific request.
 	CorrelationID      string
@@ -712,15 +715,6 @@ func queriesByCategory(cat queryCategory) []querySpec {
 // kqlDatetime formats a time.Time as a KQL datetime literal.
 func kqlDatetime(t time.Time) string {
 	return fmt.Sprintf("datetime(%s)", t.UTC().Format(time.RFC3339))
-}
-
-// effectiveEndTime returns the cleanup start time if available, otherwise the
-// query window end time. This is used to populate EffectiveEndTime on queryData.
-func effectiveEndTime(input GatherInput) time.Time {
-	if !input.CleanupStartTime.IsZero() {
-		return input.CleanupStartTime
-	}
-	return input.TimeWindow.End
 }
 
 // templateFuncMap provides template functions available to KQL templates.

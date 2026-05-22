@@ -1,5 +1,5 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
 | where container_name == 'aro-hcp-backend'
 | where log.controller_name == 'datadump'
 | where log.resource_group == '{{ .ResourceGroup }}'
@@ -12,5 +12,6 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | where manifest.kind == 'HostedCluster'
 | mv-expand condition = manifest.status.conditions
 | project observedTime, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message), lastTransitionTime=todatetime(condition.lastTransitionTime)
+| where lastTransitionTime between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
 | summarize observedTime=min(observedTime) by type, status, reason, message, lastTransitionTime
 | order by lastTransitionTime asc, observedTime asc

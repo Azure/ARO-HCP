@@ -73,6 +73,8 @@ type TestResult struct {
 	StartTime        time.Time
 	EndTime          time.Time
 	ResourceGroup    string // extracted from test output
+	SetupFinishTime  time.Time
+	TestStartTime    time.Time
 	CleanupStartTime time.Time
 }
 
@@ -226,11 +228,13 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 
 	logger.Info("Found test results", "total", len(tests), "failed", numFailed)
 
-	// Enrich test results with cleanup start times from timing metadata.
-	cleanupTimes := fetchCleanupStartTimes(ctx, gcsClient, artifactPrefix, logger)
+	// Enrich test results with timing boundaries from timing metadata.
+	testTimings := fetchTestTimings(ctx, gcsClient, artifactPrefix, logger)
 	for i := range tests {
-		if t, ok := cleanupTimes[tests[i].Name]; ok {
-			tests[i].CleanupStartTime = t
+		if t, ok := testTimings[tests[i].Name]; ok {
+			tests[i].SetupFinishTime = t.SetupFinishTime
+			tests[i].TestStartTime = t.TestStartTime
+			tests[i].CleanupStartTime = t.CleanupStartTime
 		}
 	}
 
@@ -239,16 +243,59 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 
 const timingMetadataPath = "aro-hcp-gather-test-visualization/artifacts/test-timing/"
 
-// fetchCleanupStartTimes downloads timing metadata files from the GCS bucket and
-// returns a map from test name to the cleanup start time. The top-level finishedAt
-// in each timing metadata file marks when the core test work completed and cleanup
-// began.
-func fetchCleanupStartTimes(ctx context.Context, gcsClient *storage.Client, artifactPrefix string, logger logr.Logger) map[string]time.Time {
+// testTimingBoundaries holds the derived phase boundaries for a single test.
+type testTimingBoundaries struct {
+	SetupFinishTime  time.Time
+	TestStartTime    time.Time
+	CleanupStartTime time.Time
+}
+
+// identityContainerStep reports whether a step name refers to identity container setup.
+func identityContainerStep(name string) bool {
+	return strings.Contains(strings.ToLower(name), "identity container")
+}
+
+// deriveSetupTestBoundary inspects the steps in the timing metadata and returns:
+//   - setupFinishTime: the latest FinishedAt among steps whose name contains
+//     "identity container" (setup steps).
+//   - testStartTime: the earliest StartedAt among steps whose name does NOT
+//     contain "identity container" (test steps).
+//
+// Either or both may be zero when the relevant steps are not present or their
+// timestamps cannot be parsed.
+func deriveSetupTestBoundary(steps []timing.StepTimingMetadata) (setupFinishTime, testStartTime time.Time) {
+	for _, step := range steps {
+		if identityContainerStep(step.Name) {
+			if step.FinishedAt != "" {
+				if t, err := time.Parse(time.RFC3339, step.FinishedAt); err == nil {
+					if setupFinishTime.IsZero() || t.After(setupFinishTime) {
+						setupFinishTime = t
+					}
+				}
+			}
+		} else {
+			if step.StartedAt != "" {
+				if t, err := time.Parse(time.RFC3339, step.StartedAt); err == nil {
+					if testStartTime.IsZero() || t.Before(testStartTime) {
+						testStartTime = t
+					}
+				}
+			}
+		}
+	}
+	return setupFinishTime, testStartTime
+}
+
+// fetchTestTimings downloads timing metadata files from the GCS bucket and
+// returns a map from test name to the derived timing boundaries. The top-level
+// finishedAt marks when cleanup began. Steps whose name contains "identity
+// container" are treated as setup; the remaining steps are the test itself.
+func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, artifactPrefix string, logger logr.Logger) map[string]testTimingBoundaries {
 	prefix := fmt.Sprintf("%s/%stiming-metadata-", artifactPrefix, timingMetadataPath)
 	logger.Info("Fetching timing metadata", "prefix", prefix)
 	files, err := listObjects(ctx, gcsClient, prefix)
 	if err != nil {
-		logger.V(1).Info("Could not list timing metadata files, skipping cleanup time enrichment", "err", err)
+		logger.V(1).Info("Could not list timing metadata files, skipping timing enrichment", "err", err)
 		return nil
 	}
 	if len(files) == 0 {
@@ -256,7 +303,7 @@ func fetchCleanupStartTimes(ctx context.Context, gcsClient *storage.Client, arti
 		return nil
 	}
 
-	result := make(map[string]time.Time)
+	result := make(map[string]testTimingBoundaries)
 	for _, objPath := range files {
 		fileName := objPath[strings.LastIndex(objPath, "/")+1:]
 		if !strings.HasPrefix(fileName, "timing-metadata-") {
@@ -296,17 +343,22 @@ func fetchCleanupStartTimes(ctx context.Context, gcsClient *storage.Client, arti
 		}
 
 		testName := strings.Join(tm.Identifier, " ")
+		boundaries := testTimingBoundaries{}
+
 		if tm.FinishedAt != "" {
 			t, err := time.Parse(time.RFC3339, tm.FinishedAt)
 			if err == nil {
-				result[testName] = t
+				boundaries.CleanupStartTime = t
 			} else {
 				logger.Error(err, "Failed to parse finishedAt from timing metadata, skipping", "path", objPath)
 			}
 		}
+
+		boundaries.SetupFinishTime, boundaries.TestStartTime = deriveSetupTestBoundary(tm.Steps)
+		result[testName] = boundaries
 	}
 
-	logger.Info("Loaded cleanup start times from timing metadata", "count", len(result))
+	logger.Info("Loaded test timing boundaries from timing metadata", "count", len(result))
 	return result
 }
 

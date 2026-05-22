@@ -1,7 +1,7 @@
 {{- define "bundleMapCS" -}}
 {{ if .ClusterID -}}
 let bundleMapCS = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
 | where cid == '{{ .ClusterID }}'
 | where log.msg has 'successfully sent create request of maestro bundle' and log.msg has 'containing resource'
 | extend bundleId = extract("bundle id '([^']+)'", 1, tostring(log.msg))
@@ -19,7 +19,7 @@ let bundleMapCS = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}'
 {{- define "bundleMapBackend" -}}
 {{ if and .ResourceGroup .ClusterResourceName .ServiceProviderResourceType -}}
 let bundleMapBackend = cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
 | where container_name == 'aro-hcp-backend'
 | where log.controller_name == 'datadump'
 | where log.resource_group == '{{ .ResourceGroup }}'
