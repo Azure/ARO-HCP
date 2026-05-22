@@ -4,6 +4,8 @@ exclude:
 - '**/zz_fixture_*.yaml'
 - 'frontend/deploy/templates/frontend.deployment.yaml'
 - 'frontend/deploy/templates/frontend-v2.deployment.yaml'
+- 'image-registry-policy/values.yaml'
+- 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
 formatter:
   type: basic
   indentless_arrays: true
