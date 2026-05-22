@@ -59,8 +59,7 @@ func main() {
 
 	if err := run(timeout); err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
-		fmt.Printf("\n=== PKO cleanup completed with 1 error(s) (best-effort, not blocking rollout) ===\n")
-		return
+		os.Exit(1)
 	}
 }
 
@@ -91,7 +90,7 @@ func run(timeout time.Duration) error {
 	defer cancel()
 	var errors int
 
-	fmt.Println("=== Package Operator cleanup (best-effort) ===")
+	fmt.Println("=== Package Operator cleanup ===")
 
 	crds, err := discoverPKOCRDs(ctx, crdClient)
 	if err != nil {
@@ -104,10 +103,10 @@ func run(timeout time.Duration) error {
 		}
 		errors += cleanupPKOOperator(ctx, kubeClient)
 		if errors > 0 {
-			fmt.Printf("\n=== PKO cleanup completed with %d error(s) (best-effort, not blocking rollout) ===\n", errors)
-		} else {
-			fmt.Println("\n=== PKO cleanup complete ===")
+			fmt.Printf("\n=== PKO cleanup completed with %d error(s) ===\n", errors)
+			return fmt.Errorf("PKO cleanup completed with %d error(s)", errors)
 		}
+		fmt.Println("\n=== PKO cleanup complete ===")
 		return nil
 	}
 
@@ -148,10 +147,10 @@ func run(timeout time.Duration) error {
 	errors += cleanupPKOOperator(ctx, kubeClient)
 
 	if errors > 0 {
-		fmt.Printf("\n=== PKO cleanup completed with %d error(s) (best-effort, not blocking rollout) ===\n", errors)
-	} else {
-		fmt.Println("\n=== PKO cleanup complete ===")
+		fmt.Printf("\n=== PKO cleanup completed with %d error(s) ===\n", errors)
+		return fmt.Errorf("PKO cleanup completed with %d error(s)", errors)
 	}
+	fmt.Println("\n=== PKO cleanup complete ===")
 	return nil
 }
 
