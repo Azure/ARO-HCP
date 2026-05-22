@@ -51,7 +51,9 @@ type TimeWindow struct {
 type TimingInfo struct {
 	StartTime          time.Time
 	EndTime            time.Time
+	CleanupStartTime   time.Time
 	ResourceGroupNames []string
+	Steps              []StepTimingMetadata
 }
 
 // LoadSteps reads a steps.yaml(.gz) file from the given directory.
@@ -173,7 +175,9 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 		result[key] = TimingInfo{
 			StartTime:          startedAt,
 			EndTime:            finishedAt.Add(endGracePeriodDuration),
+			CleanupStartTime:   finishedAt,
 			ResourceGroupNames: rgNames,
+			Steps:              tm.Steps,
 		}
 		return nil
 	})

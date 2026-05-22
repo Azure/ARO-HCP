@@ -36,6 +36,7 @@ type RawFromProwJobOptions struct {
 	TestSelector string // optional: only gather data for tests whose name contains this substring
 	OutputDir    string
 	QueryTimeout time.Duration
+	Concurrency  int
 }
 
 func defaultFromProwJobOptions() *RawFromProwJobOptions {
@@ -50,6 +51,7 @@ func bindFromProwJobOptions(opts *RawFromProwJobOptions, cmd *cobra.Command) err
 	cmd.Flags().StringVar(&opts.TestSelector, "test", opts.TestSelector, "Only gather data for tests whose name contains this substring")
 	cmd.Flags().StringVar(&opts.OutputDir, "output-dir", opts.OutputDir, "Directory to write snapshot output")
 	cmd.Flags().DurationVar(&opts.QueryTimeout, "query-timeout", opts.QueryTimeout, "Timeout for individual Kusto queries")
+	cmd.Flags().IntVar(&opts.Concurrency, "concurrency", opts.Concurrency, "Maximum number of concurrent Kusto queries (0 = 4*NumCPU)")
 
 	if err := cmd.MarkFlagRequired("url"); err != nil {
 		return fmt.Errorf("failed to mark url as required: %w", err)
@@ -62,6 +64,7 @@ type validatedFromProwJobOptions struct {
 	testSelector string
 	outputDir    string
 	queryTimeout time.Duration
+	concurrency  int
 }
 
 func (o *RawFromProwJobOptions) validate() (*validatedFromProwJobOptions, error) {
@@ -74,6 +77,7 @@ func (o *RawFromProwJobOptions) validate() (*validatedFromProwJobOptions, error)
 		testSelector: o.TestSelector,
 		outputDir:    o.OutputDir,
 		queryTimeout: o.QueryTimeout,
+		concurrency:  o.Concurrency,
 	}, nil
 }
 
@@ -184,7 +188,9 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 				Start: startTime,
 				End:   endTime,
 			},
-			QueryTimeout: o.queryTimeout,
+			QueryTimeout:     o.queryTimeout,
+			Concurrency:      o.concurrency,
+			CleanupStartTime: test.CleanupStartTime,
 		}
 
 		manifest, _, err := gatherer.Gather(ctx, input, testOutputDir)

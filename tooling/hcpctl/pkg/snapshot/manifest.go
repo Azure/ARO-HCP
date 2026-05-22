@@ -54,6 +54,11 @@ type Manifest struct {
 type TimeWindow struct {
 	Start time.Time `json:"start"`
 	End   time.Time `json:"end"`
+
+	// CleanupStartTime is when test cleanup began. Point-in-time condition
+	// snapshots use this (when non-zero) instead of End to capture state
+	// before teardown.
+	CleanupStartTime time.Time `json:"cleanup_start_time,omitempty"`
 }
 
 // ResourceEntry describes diagnostic data gathered for a single ARM resource.
@@ -120,7 +125,8 @@ type RequestInfo struct {
 func directoryLayout() map[string]string {
 	return map[string]string{
 		"frontendRequests": "frontend/frontendRequests.md — all ARM requests in the resource group during the time window; start your analysis here",
-		"events":           "events/ — Kubernetes events for each component during the time window",
+		"serviceEvents":    "events/ — Kubernetes events for service-level components (frontend, backend, clusters-service, maestro) during the time window",
+		"resourceEvents":   "resources/<type>/<name>/events/ — Kubernetes events specific to a resource's control plane during the time window",
 		"discovery":        "resources/<type>/<name>/discovery/ — intermediate query results used to derive IDs, cluster associations, etc.",
 		"state":            "resources/<type>/<name>/state/ — time-windowed raw resource state dumps (ARM state, CS state, Maestro logs, etc.)",
 		"conditions":       "resources/<type>/<name>/conditions/ — status condition transition summaries (HyperShift conditions, controller conditions)",

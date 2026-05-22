@@ -31,15 +31,15 @@ func reportsToJUnit(reports []*snapshot.VerificationReport) *junit.TestSuites {
 		Name: "aro-hcp-snapshot",
 	}
 
-	// Aggregate cases by (resourceType, query) key. Track whether any case
+	// Aggregate cases by (resourceType, query) key. Track whether all cases
 	// in the group failed, and collect failure messages.
 	type groupKey struct {
 		resourceType string
 		query        string
 	}
 	type groupState struct {
-		failed   bool
-		messages []string
+		anyPassed bool
+		messages  []string
 	}
 	groups := make(map[groupKey]*groupState)
 	var groupOrder []groupKey
@@ -61,9 +61,11 @@ func reportsToJUnit(reports []*snapshot.VerificationReport) *junit.TestSuites {
 				groupOrder = append(groupOrder, key)
 			}
 
-			if c.Status == snapshot.VerificationFail {
-				gs.failed = true
+			switch c.Status {
+			case snapshot.VerificationFail:
 				gs.messages = append(gs.messages, c.Message)
+			case snapshot.VerificationPass:
+				gs.anyPassed = true
 			}
 		}
 	}
@@ -75,7 +77,7 @@ func reportsToJUnit(reports []*snapshot.VerificationReport) *junit.TestSuites {
 			Classname: key.resourceType,
 		}
 
-		if gs.failed {
+		if !gs.anyPassed && len(gs.messages) > 0 {
 			tc.FailureOutput = &junit.FailureOutput{
 				Message: "query returned no results",
 				Output:  strings.Join(gs.messages, "\n"),

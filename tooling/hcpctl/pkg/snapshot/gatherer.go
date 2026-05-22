@@ -23,7 +23,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -31,6 +33,7 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata"
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 	azkquery "github.com/Azure/azure-kusto-go/azkustodata/query"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // GatherInput provides the parameters needed to gather a diagnostic snapshot.
@@ -47,6 +50,23 @@ type GatherInput struct {
 	TimeWindow TimeWindow
 	// QueryTimeout is the timeout for individual Kusto queries.
 	QueryTimeout time.Duration
+	// Concurrency is the maximum number of concurrent Kusto queries.
+	// A value of 0 defaults to 4 * runtime.NumCPU().
+	Concurrency int
+	// CleanupStartTime is the time at which test cleanup (resource deletion)
+	// began. When set, queries that want a "point-in-time" snapshot of resource
+	// state will use this as the upper bound instead of EndTime, so that the
+	// snapshot reflects the resource as it existed before deletion.
+	// A zero value means no cleanup time is available and EndTime is used.
+	CleanupStartTime time.Time
+}
+
+// concurrency returns the effective concurrency limit.
+func (g GatherInput) concurrency() int {
+	if g.Concurrency > 0 {
+		return g.Concurrency
+	}
+	return 4 * runtime.NumCPU()
 }
 
 // Gatherer produces structured diagnostic data directories by running
@@ -151,13 +171,17 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	}
 
 	seedData := queryData{
-		ClusterURI:      input.ClusterURI,
-		ServiceDatabase: input.ServiceDatabase,
-		HCPDatabase:     input.HCPDatabase,
-		StartTime:       input.TimeWindow.Start,
-		EndTime:         input.TimeWindow.End,
-		ResourceGroup:   input.ResourceGroup,
+		ClusterURI:       input.ClusterURI,
+		ServiceDatabase:  input.ServiceDatabase,
+		HCPDatabase:      input.HCPDatabase,
+		StartTime:        input.TimeWindow.Start,
+		EndTime:          input.TimeWindow.End,
+		ResourceGroup:    input.ResourceGroup,
+		CleanupStartTime: input.CleanupStartTime,
+		EffectiveEndTime: effectiveEndTime(input),
 	}
+
+	pool := &queryPool{gatherer: g, input: input}
 
 	// Phase 1: Run initial context queries (frontendRequests) to discover all ARM requests.
 	for _, q := range contextQueries {
@@ -174,94 +198,114 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 	}
 
 	manifest := &Manifest{
-		TimeWindow:      input.TimeWindow,
+		TimeWindow: TimeWindow{
+			Start:            input.TimeWindow.Start,
+			End:              input.TimeWindow.End,
+			CleanupStartTime: input.CleanupStartTime,
+		},
 		ResourceGroup:   input.ResourceGroup,
 		KustoCluster:    input.ClusterURI,
 		KustoDatabase:   input.ServiceDatabase,
 		DirectoryLayout: directoryLayout(),
 	}
 
-	// Phase 2: Per-request discovery — run requestDiscovery queries for each mutating request.
-	var trackedRequests []trackedRequest
+	// Phase 2 (Pool 1): Per-request discovery — run requestDiscovery queries
+	// for each mutating request concurrently.
+	type trackedRequestWithMu struct {
+		trackedRequest
+		mu *sync.Mutex
+	}
+	var trackedReqs []trackedRequestWithMu
+	discoveryQueries := queriesByCategory(categoryRequestDiscovery)
+
 	for _, req := range requests {
 		isMutating := req.Method == "PUT" || req.Method == "POST" || req.Method == "PATCH" || req.Method == "DELETE"
 		if !isMutating {
 			continue
 		}
 
-		logger.Info("Running request discovery", "clientRequestId", req.ClientRequestID, "correlationId", req.CorrelationID, "method", req.Method, "path", req.Path)
-
 		reqData := seedData // copy seed values
 		reqData.CorrelationID = req.CorrelationID
 		reqData.ClientRequestID = req.ClientRequestID
 		reqData.ResponseStatusCode = req.Status
+		reqData.ResourceID = req.ResourceID
+		reqData.ResourceType = req.ResourceType
+		reqData.ResourceName = req.ResourceName
+		reqData.ClusterResourceID = req.ClusterResourceID
+		reqData.ClusterResourceName = req.ClusterResourceName
+		reqData.ServiceProviderResourceType = req.ServiceProviderResourceType
 
-		cachedResults := make(map[string][]resultRow)
-
-		// Run request discovery queries. We don't know the resource yet, so we
-		// write to a temporary location and move later once we know the resource.
-		for _, q := range queriesByCategory(categoryRequestDiscovery) {
-			if q.ready != nil && !q.ready(reqData) {
-				logger.Info("Skipping request discovery query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-				continue
-			}
-
-			results, err := g.executeQueryToDir(ctx, q, &reqData, "", input)
-			if err != nil {
-				logger.Error(err, "Request discovery query failed, continuing", "query", q.key())
-				continue
-			}
-			cachedResults[q.key()] = results
-			if q.storeResult != nil && len(results) > 0 {
-				if err := q.storeResult(&reqData, results); err != nil {
-					logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
-				}
-			}
-		}
-
-		trackedRequests = append(trackedRequests, trackedRequest{req: req, data: reqData, cachedResults: cachedResults})
+		trackedReqs = append(trackedReqs, trackedRequestWithMu{
+			trackedRequest: trackedRequest{
+				req:           req,
+				data:          reqData,
+				cachedResults: make(map[string][]resultRow),
+			},
+			mu: &sync.Mutex{},
+		})
 	}
 
-	// Phase 3: Resource discovery + state — deduplicated per resource.
-	// Build a map of unique resources and pick the richest queryData for each.
+	// Build pool1 work items after the trackedReqs slice is finalized, so
+	// that pointers into the slice are stable (append may reallocate).
+	var pool1Items []workItem
+	for idx := range trackedReqs {
+		for _, q := range discoveryQueries {
+			pool1Items = append(pool1Items, workItem{
+				query: q,
+				data:  &trackedReqs[idx].data,
+				mu:    trackedReqs[idx].mu,
+			})
+		}
+	}
+
+	logger.Info("Running request discovery", "requests", len(trackedReqs), "queries", len(pool1Items))
+	pool.runPool(ctx, pool1Items)
+
+	// Populate cachedResults from pool1 items for later writing.
+	itemIdx := 0
+	for i := range trackedReqs {
+		for range discoveryQueries {
+			item := &pool1Items[itemIdx]
+			trackedReqs[i].cachedResults[item.query.key()] = item.resultRows
+			itemIdx++
+		}
+	}
+
+	// Sync point: Deduplicate resources and build Pool 2 work items.
 	type resourceState struct {
 		data     queryData
+		mu       *sync.Mutex
 		requests []trackedRequest
 	}
 	resources := make(map[string]*resourceState)
-	// Track insertion order so output is deterministic.
 	var resourceOrder []string
 
-	for i := range trackedRequests {
-		tr := &trackedRequests[i]
+	for i := range trackedReqs {
+		tr := &trackedReqs[i]
 		key := resourceKey(tr.data)
 		if key == "" {
 			key = "unknown/" + tr.req.ClientRequestID
 		}
 		if _, ok := resources[key]; !ok {
 			resData := tr.data
-			// ResponseStatusCode is per-request context and should not
-			// influence resource-level query decisions.
 			resData.ResponseStatusCode = 0
-			resources[key] = &resourceState{data: resData}
+			resources[key] = &resourceState{data: resData, mu: &sync.Mutex{}}
 			resourceOrder = append(resourceOrder, key)
 		}
-		resources[key].requests = append(resources[key].requests, *tr)
+		resources[key].requests = append(resources[key].requests, tr.trackedRequest)
 	}
+
+	// Write cached request discovery output and build Pool 2 work items.
+	var pool2Items []workItem
 
 	for _, key := range resourceOrder {
 		rs := resources[key]
-		// Use the first request's client request ID as a fallback identifier
-		// when resource type/name are unknown (discovery failed).
 		var fallbackID string
 		if len(rs.requests) > 0 {
 			fallbackID = rs.requests[0].req.ClientRequestID
 		}
 		resDir := resourceDir(outputDir, rs.data, fallbackID)
 
-		// If all requests for this resource were client errors (4xx), skip
-		// resource-level queries — the backend never processed these requests
-		// so there is no resource-level data to gather.
 		allClientErrors := len(rs.requests) > 0
 		for _, tr := range rs.requests {
 			if tr.req.Status < 400 || tr.req.Status >= 500 {
@@ -270,186 +314,167 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 		}
 
-		logger.Info("Running resource discovery and state queries", "resource", key)
-
+		// Enqueue resource-level queries if not all client errors.
 		if !allClientErrors {
-			// Run resource discovery queries.
 			discoveryDir := filepath.Join(resDir, "discovery")
 			for _, q := range queriesByCategory(categoryResourceDiscovery) {
-				if q.ready != nil && !q.ready(rs.data) {
-					logger.Info("Skipping resource discovery query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-					recordVerification(report, key, q, rs.data, 0, true)
-					continue
-				}
-
-				results, err := g.executeQuery(ctx, q, &rs.data, discoveryDir, input)
-				if err != nil {
-					logger.Error(err, "Resource discovery query failed, continuing", "query", q.key())
-					continue
-				}
-				recordVerification(report, key, q, rs.data, len(results), false)
-				if q.storeResult != nil && len(results) > 0 {
-					if err := q.storeResult(&rs.data, results); err != nil {
-						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
-					}
-				}
+				pool2Items = append(pool2Items, workItem{
+					query:             q,
+					data:              &rs.data,
+					mu:                rs.mu,
+					outputDir:         discoveryDir,
+					verificationSuite: key,
+				})
 			}
 
-			// Run state queries.
 			stateDir := filepath.Join(resDir, "state")
 			for _, q := range queriesByCategory(categoryState) {
-				if q.ready != nil && !q.ready(rs.data) {
-					logger.Info("Skipping state query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-					recordVerification(report, key, q, rs.data, 0, true)
-					continue
-				}
-
-				results, err := g.executeQuery(ctx, q, &rs.data, stateDir, input)
-				if err != nil {
-					logger.Error(err, "State query failed, continuing", "query", q.key())
-					continue
-				}
-				recordVerification(report, key, q, rs.data, len(results), false)
-				if q.storeResult != nil && len(results) > 0 {
-					if err := q.storeResult(&rs.data, results); err != nil {
-						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
-					}
-				}
+				pool2Items = append(pool2Items, workItem{
+					query:             q,
+					data:              &rs.data,
+					mu:                rs.mu,
+					outputDir:         stateDir,
+					verificationSuite: key,
+				})
 			}
 
-			// Run conditions queries.
 			conditionsDir := filepath.Join(resDir, "conditions")
 			for _, q := range queriesByCategory(categoryConditions) {
-				if q.ready != nil && !q.ready(rs.data) {
-					logger.Info("Skipping conditions query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-					recordVerification(report, key, q, rs.data, 0, true)
-					continue
-				}
-
-				results, err := g.executeQuery(ctx, q, &rs.data, conditionsDir, input)
-				if err != nil {
-					logger.Error(err, "Conditions query failed, continuing", "query", q.key())
-					continue
-				}
-				recordVerification(report, key, q, rs.data, len(results), false)
-				if q.storeResult != nil && len(results) > 0 {
-					if err := q.storeResult(&rs.data, results); err != nil {
-						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
-					}
-				}
+				pool2Items = append(pool2Items, workItem{
+					query:             q,
+					data:              &rs.data,
+					mu:                rs.mu,
+					outputDir:         conditionsDir,
+					verificationSuite: key,
+				})
 			}
 
-			// Run logs queries.
 			logsDir := filepath.Join(resDir, "logs")
 			for _, q := range queriesByCategory(categoryLogs) {
-				if q.ready != nil && !q.ready(rs.data) {
-					logger.Info("Skipping logs query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-					recordVerification(report, key, q, rs.data, 0, true)
-					continue
-				}
-
-				results, err := g.executeQuery(ctx, q, &rs.data, logsDir, input)
-				if err != nil {
-					logger.Error(err, "Logs query failed, continuing", "query", q.key())
-					continue
-				}
-				recordVerification(report, key, q, rs.data, len(results), false)
-				if q.storeResult != nil && len(results) > 0 {
-					if err := q.storeResult(&rs.data, results); err != nil {
-						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
-					}
-				}
+				pool2Items = append(pool2Items, workItem{
+					query:             q,
+					data:              &rs.data,
+					mu:                rs.mu,
+					outputDir:         logsDir,
+					verificationSuite: key,
+				})
 			}
-		} // end if !allClientErrors
 
-		// Phase 4: Per-request trace queries + write request discovery output.
-		for _, tr := range rs.requests {
+			eventsDir := filepath.Join(resDir, "events")
+			for _, q := range queriesByCategory(categoryResourceEvents) {
+				pool2Items = append(pool2Items, workItem{
+					query:             q,
+					data:              &rs.data,
+					mu:                rs.mu,
+					outputDir:         eventsDir,
+					verificationSuite: key,
+				})
+			}
+		}
+
+		// Enqueue per-request trace queries and write cached discovery output.
+		for i := range rs.requests {
+			tr := &rs.requests[i]
 			reqDir := filepath.Join(resDir, "requests", tr.req.Method+"-"+tr.req.ClientRequestID)
 			reqSuite := key + "/" + tr.req.Method + "-" + tr.req.ClientRequestID
 
 			// Write request discovery output now that we know the resource directory.
 			reqDiscoveryDir := filepath.Join(reqDir, "discovery")
 			traceData := tr.data
-			// Merge resource-level discoveries into the per-request data so trace
-			// queries have access to ClusterID, HostedClusterNamespace, etc.
 			mergeResourceData(&traceData, rs.data)
 
 			for _, q := range queriesByCategory(categoryRequestDiscovery) {
-				if q.ready != nil && !q.ready(traceData) {
-					recordVerification(report, reqSuite, q, traceData, 0, true)
-					continue
-				}
-				// Write cached results from Phase 2 without re-executing the query.
 				cached := tr.cachedResults[q.key()]
 				if err := writeQueryOutput(q, traceData, reqDiscoveryDir, cached); err != nil {
 					logger.Error(err, "Failed to write request discovery output", "query", q.key())
 				}
-				// For verification, check if discovery already found results (stored in traceData).
-				rowCount := requestDiscoveryRowCount(q, traceData)
-				recordVerification(report, reqSuite, q, traceData, rowCount, false)
 			}
 
-			// Run trace state queries.
+			// Store the traceData for this request so trace queries can use it.
+			// We need a stable pointer, so store it back.
+			tr.data = traceData
+			trMu := &sync.Mutex{}
+
 			traceStateDir := filepath.Join(reqDir, "state")
 			for _, q := range queriesByCategory(categoryTraceState) {
-				if q.ready != nil && !q.ready(traceData) {
-					logger.Info("Skipping trace state query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-					recordVerification(report, reqSuite, q, traceData, 0, true)
-					continue
-				}
-
-				results, err := g.executeQuery(ctx, q, &traceData, traceStateDir, input)
-				if err != nil {
-					logger.Error(err, "Trace state query failed, continuing", "query", q.key())
-					continue
-				}
-				recordVerification(report, reqSuite, q, traceData, len(results), false)
-				if q.storeResult != nil && len(results) > 0 {
-					if err := q.storeResult(&traceData, results); err != nil {
-						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
-					}
-				}
+				pool2Items = append(pool2Items, workItem{
+					query:             q,
+					data:              &tr.data,
+					mu:                trMu,
+					outputDir:         traceStateDir,
+					verificationSuite: reqSuite,
+				})
 			}
 
-			// Run trace logs queries.
 			traceLogsDir := filepath.Join(reqDir, "logs")
 			for _, q := range queriesByCategory(categoryTraceLogs) {
-				if q.ready != nil && !q.ready(traceData) {
-					logger.Info("Skipping trace logs query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-					recordVerification(report, reqSuite, q, traceData, 0, true)
-					continue
-				}
+				pool2Items = append(pool2Items, workItem{
+					query:             q,
+					data:              &tr.data,
+					mu:                trMu,
+					outputDir:         traceLogsDir,
+					verificationSuite: reqSuite,
+				})
+			}
+		}
+	}
 
-				results, err := g.executeQuery(ctx, q, &traceData, traceLogsDir, input)
-				if err != nil {
-					logger.Error(err, "Trace logs query failed, continuing", "query", q.key())
-					continue
-				}
-				recordVerification(report, reqSuite, q, traceData, len(results), false)
-				if q.storeResult != nil && len(results) > 0 {
-					if err := q.storeResult(&traceData, results); err != nil {
-						logger.Error(err, "Ambiguous discovery result, using first row", "query", q.key())
-					}
+	// Enqueue service-level event queries (scoped to the resource group, not
+	// to a specific ARM resource). These run once per snapshot.
+	serviceEventsDir := filepath.Join(outputDir, "events")
+	serviceEventData := seedData
+	serviceEventMu := &sync.Mutex{}
+	for _, q := range queriesByCategory(categoryEvents) {
+		pool2Items = append(pool2Items, workItem{
+			query:     q,
+			data:      &serviceEventData,
+			mu:        serviceEventMu,
+			outputDir: serviceEventsDir,
+		})
+	}
+
+	logger.Info("Running resource and trace queries", "items", len(pool2Items))
+	pool.runPool(ctx, pool2Items)
+
+	// Record verification results from Pool 2 items.
+	for i := range pool2Items {
+		item := &pool2Items[i]
+		if item.verificationSuite == "" {
+			continue
+		}
+		if !item.executed {
+			// Query was never ready — record as skipped.
+			recordVerification(report, item.verificationSuite, item.query, *item.data, 0, true)
+		} else if !item.failed {
+			recordVerification(report, item.verificationSuite, item.query, *item.data, len(item.resultRows), false)
+		}
+	}
+
+	// Record verification for request discovery (from Pool 1 cached results).
+	for _, key := range resourceOrder {
+		rs := resources[key]
+		for _, tr := range rs.requests {
+			reqSuite := key + "/" + tr.req.Method + "-" + tr.req.ClientRequestID
+			for _, q := range queriesByCategory(categoryRequestDiscovery) {
+				if q.ready != nil && !q.ready(tr.data) {
+					recordVerification(report, reqSuite, q, tr.data, 0, true)
+				} else {
+					rowCount := requestDiscoveryRowCount(q, tr.data)
+					recordVerification(report, reqSuite, q, tr.data, rowCount, false)
 				}
 			}
 		}
+	}
 
-		// Run events queries that need resource-level data (e.g. hypershift events
-		// need HostedControlPlaneNamespace).
-		if !allClientErrors {
-			eventsDir := filepath.Join(outputDir, "events")
-			for _, q := range queriesByCategory(categoryEvents) {
-				if q.ready != nil && !q.ready(rs.data) {
-					logger.Info("Skipping events query (prerequisites not met)", "query", q.key(), "prerequisites", q.prerequisites)
-					continue
-				}
-				if _, err := g.executeQuery(ctx, q, &rs.data, eventsDir, input); err != nil {
-					logger.Error(err, "Events query failed, continuing", "query", q.key())
-				}
-			}
+	// Build manifest.
+	for _, key := range resourceOrder {
+		rs := resources[key]
+		var fallbackID string
+		if len(rs.requests) > 0 {
+			fallbackID = rs.requests[0].req.ClientRequestID
 		}
+		resDir := resourceDir(outputDir, rs.data, fallbackID)
 
-		// Record in manifest — skip resources where we never discovered a type.
 		if rs.data.ResourceType == "" {
 			logger.Info("Skipping manifest entry for unknown resource", "key", key)
 			continue
@@ -509,19 +534,24 @@ func mergeResourceData(dst *queryData, src queryData) {
 
 // frontendRequest represents a single ARM request discovered in frontend logs.
 type frontendRequest struct {
-	CorrelationID   string
-	ClientRequestID string
-	Method          string
-	Path            string
-	ResourceType    string
-	ResourceName    string
-	Status          int
-	Timestamp       time.Time
+	CorrelationID               string
+	ClientRequestID             string
+	Method                      string
+	Path                        string
+	ResourceID                  string
+	ResourceType                string
+	ResourceName                string
+	ClusterResourceID           string
+	ClusterResourceName         string
+	ServiceProviderResourceType string
+	Status                      int
+	Timestamp                   time.Time
 }
 
 // discoverRequests queries frontend logs to find all ARM requests in the resource group
 // during the time window.
 func (g *Gatherer) discoverRequests(ctx context.Context, input GatherInput, data queryData) ([]frontendRequest, error) {
+	logger := logr.FromContextOrDiscard(ctx)
 	rendered, err := renderQuery("queries/frontend/frontendRequests/query.kql", data)
 	if err != nil {
 		return nil, err
@@ -546,67 +576,57 @@ func (g *Gatherer) discoverRequests(ctx context.Context, input GatherInput, data
 				req.Method = strings.ToUpper(val)
 			case "path":
 				req.Path = val
+			case "cluster_resource_id":
+				if val != "" {
+					req.ClusterResourceID = val
+					if clusterParsed, err := azcorearm.ParseResourceID(val); err == nil {
+						req.ClusterResourceName = clusterParsed.Name
+					}
+				}
 			case "status":
 				_, _ = fmt.Sscanf(val, "%d", &req.Status)
 			case "timestamp":
 				req.Timestamp, _ = time.Parse(time.RFC3339, val)
 			}
 		}
-		// Parse resource type and name from the path.
+		// Parse resource type and name from the path. The path column from
+		// frontendRequests is the full ARM resource ID.
 		if req.Path != "" {
-			if parsed, err := parseResourceFromPath(req.Path); err == nil {
-				req.ResourceType = parsed.resourceType
-				req.ResourceName = parsed.resourceName
+			if res, err := azcorearm.ParseResourceID(req.Path); err == nil {
+				req.ResourceID = req.Path
+				req.ResourceType = res.ResourceType.String()
+				req.ResourceName = res.Name
+				req.ServiceProviderResourceType = serviceProviderResourceType(req.ResourceType)
+				// If cluster_resource_id wasn't returned by the query, fall
+				// back to deriving it from the path.
+				if req.ClusterResourceName == "" {
+					if res.Parent != nil && res.Parent.ResourceType.Type != "" {
+						req.ClusterResourceID = res.Parent.String()
+						req.ClusterResourceName = res.Parent.Name
+					} else {
+						req.ClusterResourceID = req.Path
+						req.ClusterResourceName = res.Name
+					}
+				}
+				logger.V(2).Info("Parsed resource from request path",
+					"clientRequestID", req.ClientRequestID,
+					"resourceType", req.ResourceType,
+					"resourceName", req.ResourceName,
+					"clusterResourceName", req.ClusterResourceName,
+					"path", req.Path,
+				)
+			} else {
+				logger.V(2).Info("Failed to parse resource from request path",
+					"clientRequestID", req.ClientRequestID,
+					"path", req.Path,
+					"err", err,
+				)
 			}
 		}
 		requests = append(requests, req)
 	}
 
 	return requests, nil
-}
-
-type parsedResource struct {
-	resourceType string
-	resourceName string
-}
-
-func parseResourceFromPath(path string) (parsedResource, error) {
-	// ARM resource IDs look like:
-	// /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{name}
-	// /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{name}/nodePools/{npName}
-	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	providerIdx := -1
-	for i, p := range parts {
-		if strings.EqualFold(p, "providers") {
-			providerIdx = i
-			break
-		}
-	}
-	if providerIdx < 0 || providerIdx+2 >= len(parts) {
-		return parsedResource{}, fmt.Errorf("cannot parse resource from path: %s", path)
-	}
-	// Build resource type and find the last name segment.
-	remaining := parts[providerIdx+1:] // e.g. ["Microsoft.RedHatOpenShift", "hcpOpenShiftClusters", "name", "nodePools", "npName"]
-	if len(remaining) < 2 {
-		return parsedResource{}, fmt.Errorf("cannot parse resource from path: %s", path)
-	}
-
-	// Resource type segments: provider/type[/subType]*
-	// Resource name is the last segment.
-	var typeParts []string
-	var name string
-	typeParts = append(typeParts, remaining[0]) // provider namespace
-	for i := 1; i < len(remaining); i += 2 {
-		typeParts = append(typeParts, remaining[i])
-		if i+1 < len(remaining) {
-			name = remaining[i+1]
-		}
-	}
-
-	return parsedResource{
-		resourceType: strings.Join(typeParts, "/"),
-		resourceName: name,
-	}, nil
 }
 
 // resultRow is a simple container for a row of query results.

@@ -15,6 +15,8 @@
 package snapshot
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -29,9 +31,12 @@ import (
 	"github.com/go-logr/logr"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"gopkg.in/yaml.v3"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
+
+	"github.com/Azure/ARO-HCP/tooling/utilitytypes/timing"
 )
 
 const (
@@ -61,13 +66,14 @@ type ProwJobConfig struct {
 
 // TestResult represents a single test with its metadata.
 type TestResult struct {
-	Name          string
-	Output        string
-	Error         string
-	Failed        bool
-	StartTime     time.Time
-	EndTime       time.Time
-	ResourceGroup string // extracted from test output
+	Name             string
+	Output           string
+	Error            string
+	Failed           bool
+	StartTime        time.Time
+	EndTime          time.Time
+	ResourceGroup    string // extracted from test output
+	CleanupStartTime time.Time
 }
 
 // ParseProwURL extracts job name, Prow ID, GCS prefix, and PR status from a Prow job URL.
@@ -219,7 +225,89 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 	}
 
 	logger.Info("Found test results", "total", len(tests), "failed", numFailed)
+
+	// Enrich test results with cleanup start times from timing metadata.
+	cleanupTimes := fetchCleanupStartTimes(ctx, gcsClient, artifactPrefix, logger)
+	for i := range tests {
+		if t, ok := cleanupTimes[tests[i].Name]; ok {
+			tests[i].CleanupStartTime = t
+		}
+	}
+
 	return jobConfig, tests, nil
+}
+
+const timingMetadataPath = "aro-hcp-gather-test-visualization/artifacts/test-timing/"
+
+// fetchCleanupStartTimes downloads timing metadata files from the GCS bucket and
+// returns a map from test name to the cleanup start time. The top-level finishedAt
+// in each timing metadata file marks when the core test work completed and cleanup
+// began.
+func fetchCleanupStartTimes(ctx context.Context, gcsClient *storage.Client, artifactPrefix string, logger logr.Logger) map[string]time.Time {
+	prefix := fmt.Sprintf("%s/%stiming-metadata-", artifactPrefix, timingMetadataPath)
+	logger.Info("Fetching timing metadata", "prefix", prefix)
+	files, err := listObjects(ctx, gcsClient, prefix)
+	if err != nil {
+		logger.V(1).Info("Could not list timing metadata files, skipping cleanup time enrichment", "err", err)
+		return nil
+	}
+	if len(files) == 0 {
+		logger.V(1).Info("No timing metadata files found")
+		return nil
+	}
+
+	result := make(map[string]time.Time)
+	for _, objPath := range files {
+		fileName := objPath[strings.LastIndex(objPath, "/")+1:]
+		if !strings.HasPrefix(fileName, "timing-metadata-") {
+			continue
+		}
+		if !strings.HasSuffix(fileName, ".yaml") && !strings.HasSuffix(fileName, ".yaml.gz") {
+			continue
+		}
+
+		data, err := downloadObject(ctx, gcsClient, objPath)
+		if err != nil {
+			logger.V(1).Info("Failed to download timing metadata file, skipping", "path", objPath, "err", err)
+			continue
+		}
+
+		var timingBytes []byte
+		if strings.HasSuffix(objPath, ".gz") {
+			gzipReader, err := gzip.NewReader(bytes.NewReader(data))
+			if err != nil {
+				logger.V(1).Info("Failed to create gzip reader for timing metadata, skipping", "path", objPath, "err", err)
+				continue
+			}
+			timingBytes, err = io.ReadAll(gzipReader)
+			gzipReader.Close()
+			if err != nil {
+				logger.V(1).Info("Failed to decompress timing metadata, skipping", "path", objPath, "err", err)
+				continue
+			}
+		} else {
+			timingBytes = data
+		}
+
+		var tm timing.SpecTimingMetadata
+		if err := yaml.Unmarshal(timingBytes, &tm); err != nil {
+			logger.V(1).Info("Failed to unmarshal timing metadata, skipping", "path", objPath, "err", err)
+			continue
+		}
+
+		testName := strings.Join(tm.Identifier, " ")
+		if tm.FinishedAt != "" {
+			t, err := time.Parse(time.RFC3339, tm.FinishedAt)
+			if err == nil {
+				result[testName] = t
+			} else {
+				logger.Error(err, "Failed to parse finishedAt from timing metadata, skipping", "path", objPath)
+			}
+		}
+	}
+
+	logger.Info("Loaded cleanup start times from timing metadata", "count", len(result))
+	return result
 }
 
 // resourceGroupRegex matches log lines like:
@@ -239,14 +327,14 @@ func ExtractResourceGroup(output string) string {
 
 // sourceConfig represents the fields we read from the Prow job's config.yaml.
 type sourceConfig struct {
-	Region string      `yaml:"region"`
-	Kusto  sourceKusto `yaml:"kusto"`
+	Region string      `json:"region"`
+	Kusto  sourceKusto `json:"kusto"`
 }
 
 type sourceKusto struct {
-	KustoName                      string `yaml:"kustoName"`
-	HostedControlPlaneLogsDatabase string `yaml:"hostedControlPlaneLogsDatabase"`
-	ServiceLogsDatabase            string `yaml:"serviceLogsDatabase"`
+	KustoName                      string `json:"kustoName"`
+	HostedControlPlaneLogsDatabase string `json:"hostedControlPlaneLogsDatabase"`
+	ServiceLogsDatabase            string `json:"serviceLogsDatabase"`
 }
 
 func parseConfig(data []byte, isPR bool) (*ProwJobConfig, error) {
