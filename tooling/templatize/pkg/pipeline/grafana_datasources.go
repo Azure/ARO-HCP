@@ -17,16 +17,21 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"strings"
+	"strconv"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/modify"
-	"github.com/go-logr/logr"
 )
 
 func runGrafanaDatasourcesStep(_ graph.Identifier, step *types.GrafanaDatasourcesStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, _ *ExecutionState) error {
-	if strings.EqualFold(step.SkipSync, "true") {
+	skipSync, err := strconv.ParseBool(step.SkipSync)
+	if err != nil {
+		return fmt.Errorf("could not parse skip sync flag %q: %w", step.SkipSync, err)
+	}
+	if skipSync {
 		logger := logr.FromContextOrDiscard(ctx)
 		logger.Info("Skipping grafana datasource sync")
 		return nil
