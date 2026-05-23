@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	snapshotpkg "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
@@ -121,8 +122,15 @@ type completedFromResourceOptions struct {
 }
 
 func (o *validatedFromResourceOptions) complete() (*completedFromResourceOptions, error) {
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		AdditionallyAllowedTenants:   []string{"*"},
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+	}
 	kcsb := azkustodata.NewConnectionStringBuilder(o.kustoEndpoint.String())
-	kcsb = kcsb.WithDefaultAzureCredential()
+	kcsb = kcsb.WithTokenCredential(cred)
 	client, err := azkustodata.New(kcsb)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
@@ -162,7 +170,7 @@ func (o *completedFromResourceOptions) run(ctx context.Context) error {
 
 	logger.Info("Snapshot complete",
 		"outputDir", o.outputDir,
-		"resources", len(manifest.Resources),
+		"phases", len(manifest.Phases),
 	)
 
 	return nil

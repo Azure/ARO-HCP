@@ -1,5 +1,8 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
 | where container_name == 'aro-hcp-backend'
 | where log.controller_name == 'datadump'
 | where log.resource_group == '{{ .ResourceGroup }}'
@@ -12,5 +15,6 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(content.resourceID))
 | mv-expand condition = content.properties.status.conditions
 | project observedTime, lastTransitionTime=todatetime(condition.lastTransitionTime), controller_name, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message)
+| where lastTransitionTime between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
 | summarize observedTime=min(observedTime) by lastTransitionTime, controller_name, type, status, reason, message
 | order by lastTransitionTime asc, observedTime asc

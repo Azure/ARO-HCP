@@ -98,7 +98,7 @@ type querySpec struct {
 	// empty results are always acceptable (it will not appear in verification output).
 	requiredWhen func(queryData) bool
 	// storeResult is called with the full result rows from the query.
-	// It stores discovered values for downstream queries. If the results
+	// It stores discovered values for dependent queries. If the results
 	// are ambiguous (e.g. multiple distinct values for a single-valued field),
 	// storeResult should return an error.
 	storeResult func(*queryData, []resultRow) error
@@ -115,18 +115,27 @@ type queryData struct {
 	ClusterURI      string
 	ServiceDatabase string
 	HCPDatabase     string
-	StartTime       time.Time
-	EndTime         time.Time
 	ResourceGroup   string
 
-	// CleanupStartTime is the time at which test cleanup began. A zero
-	// value means no cleanup time is available.
-	CleanupStartTime time.Time
+	// ServiceClusterName and ManagementClusterName are AKS cluster names
+	// used to filter queries for PR jobs. When both are non-empty, queries
+	// include a "| where cluster in (...)" filter.
+	ServiceClusterName    string
+	ManagementClusterName string
 
-	// EffectiveEndTime is the cleanup start time if available, otherwise the
-	// test end time. Use this when queries need a point-in-time snapshot of
-	// state before teardown.
-	EffectiveEndTime time.Time
+	// FullStartTime and FullEndTime define the entire snapshot window. Use
+	// these for broad timestamp pre-filters (Kusto partition pruning) and
+	// for discovery queries that must see the complete time range.
+	FullStartTime time.Time
+	FullEndTime   time.Time
+
+	// PhaseStartTime and PhaseEndTime define the current phase (test or
+	// cleanup). Use these for queries that should be scoped to a single phase.
+	PhaseStartTime time.Time
+	PhaseEndTime   time.Time
+
+	// PhaseName is the human-readable name of the current phase ("test" or "cleanup").
+	PhaseName string
 
 	// Per-request context — set when tracing a specific request.
 	CorrelationID      string
@@ -712,15 +721,6 @@ func queriesByCategory(cat queryCategory) []querySpec {
 // kqlDatetime formats a time.Time as a KQL datetime literal.
 func kqlDatetime(t time.Time) string {
 	return fmt.Sprintf("datetime(%s)", t.UTC().Format(time.RFC3339))
-}
-
-// effectiveEndTime returns the cleanup start time if available, otherwise the
-// query window end time. This is used to populate EffectiveEndTime on queryData.
-func effectiveEndTime(input GatherInput) time.Time {
-	if !input.CleanupStartTime.IsZero() {
-		return input.CleanupStartTime
-	}
-	return input.TimeWindow.End
 }
 
 // templateFuncMap provides template functions available to KQL templates.

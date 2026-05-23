@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/azure-kusto-go/azkustodata"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	snapshotpkg "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
@@ -87,10 +88,10 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 	logger.Info("Fetching Prow job data",
 		"job", o.prowInfo.JobName,
 		"prowID", o.prowInfo.ProwID,
-		"isPR", o.prowInfo.IsPR,
+		"isPR", o.prowInfo.IsPullRequest(),
 	)
 
-	// Phase 1: Download Prow artifacts and parse config + test results.
+	// Phase 1 (per-job): Download Prow artifacts and parse config + test results.
 	jobConfig, allTests, err := snapshotpkg.FetchProwJobData(ctx, o.prowInfo)
 	if err != nil {
 		return fmt.Errorf("failed to fetch Prow job data: %w", err)
@@ -123,14 +124,25 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 
 	logger.Info("Processing tests", "count", len(tests))
 
-	// Phase 2: Create Kusto client from the job's config.
+	// Compute sibling test summaries once for all tests.
+	siblingTests := snapshotpkg.ConvertTestResults(allTests)
+
+	// Phase 1 (per-job): Create Kusto client from the job's config.
 	kustoEndpoint, err := kusto.KustoEndpoint(jobConfig.KustoName, jobConfig.Region)
 	if err != nil {
 		return fmt.Errorf("failed to create Kusto endpoint: %w", err)
 	}
 
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+		AdditionallyAllowedTenants:   []string{"*"},
+		RequireAzureTokenCredentials: true,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Azure credential: %w", err)
+	}
+
 	kcsb := azkustodata.NewConnectionStringBuilder(kustoEndpoint.String())
-	kcsb = kcsb.WithDefaultAzureCredential()
+	kcsb = kcsb.WithTokenCredential(cred)
 	kustoClient, err := azkustodata.New(kcsb)
 	if err != nil {
 		return fmt.Errorf("failed to create Kusto client: %w", err)
@@ -143,77 +155,45 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 
 	gatherer := snapshotpkg.NewGatherer(kustoClient)
 
-	// Phase 3: For each test, gather a snapshot.
+	// Phase 2 (per-test): Gather an enriched snapshot for each test.
 	var gatherErrors []error
-	for _, test := range tests {
+	for i := range tests {
+		test := &tests[i]
 		testName := snapshotpkg.SanitizeTestName(test.Name)
 		testOutputDir := filepath.Join(o.outputDir, o.prowInfo.JobName, o.prowInfo.ProwID, testName)
-
-		if test.ResourceGroup == "" {
-			logger.Info("Skipping test: could not extract resource group from test output",
-				"test", test.Name,
-			)
-			gatherErrors = append(gatherErrors, fmt.Errorf("test %q: no resource group found in test output", test.Name))
-			continue
-		}
-
-		// Determine time window: use test start/end times, with padding.
-		startTime := test.StartTime
-		endTime := test.EndTime
-		if startTime.IsZero() || endTime.IsZero() {
-			logger.Info("Skipping test: no start/end time available",
-				"test", test.Name,
-			)
-			gatherErrors = append(gatherErrors, fmt.Errorf("test %q: no start/end time available", test.Name))
-			continue
-		}
-		// Add 5-minute padding on each side to capture setup/teardown activity.
-		startTime = startTime.Add(-5 * time.Minute)
-		endTime = endTime.Add(5 * time.Minute)
 
 		logger.Info("Gathering snapshot for test",
 			"test", test.Name,
 			"resourceGroup", test.ResourceGroup,
-			"startTime", startTime.Format(time.RFC3339),
-			"endTime", endTime.Format(time.RFC3339),
 			"outputDir", testOutputDir,
 		)
 
-		input := snapshotpkg.GatherInput{
-			ClusterURI:      kustoEndpoint.String(),
-			ServiceDatabase: jobConfig.ServiceDatabase,
-			HCPDatabase:     jobConfig.HCPDatabase,
-			ResourceGroup:   test.ResourceGroup,
-			TimeWindow: snapshotpkg.TimeWindow{
-				Start: startTime,
-				End:   endTime,
-			},
-			QueryTimeout:     o.queryTimeout,
-			Concurrency:      o.concurrency,
-			CleanupStartTime: test.CleanupStartTime,
-		}
-
-		manifest, _, err := gatherer.Gather(ctx, input, testOutputDir)
+		result, err := snapshotpkg.GatherForTest(ctx, snapshotpkg.GatherForTestOptions{
+			Gatherer:              gatherer,
+			Test:                  test,
+			ProwJobURL:            o.prowInfo.URL,
+			KustoEndpoint:         kustoEndpoint.String(),
+			ServiceDatabase:       jobConfig.ServiceDatabase,
+			HCPDatabase:           jobConfig.HCPDatabase,
+			ServiceClusterName:    jobConfig.ServiceClusterName,
+			ManagementClusterName: jobConfig.ManagementClusterName,
+			SiblingTests:          siblingTests,
+			OutputDir:             testOutputDir,
+			QueryTimeout:          o.queryTimeout,
+			Concurrency:           o.concurrency,
+		})
 		if err != nil {
 			logger.Error(err, "Failed to gather snapshot for test", "test", test.Name)
 			gatherErrors = append(gatherErrors, fmt.Errorf("test %q: %w", test.Name, err))
-			continue
-		}
-
-		// Set the test name in the manifest.
-		manifest.TestName = test.Name
-		manifest.ProwJobURL = o.prowInfo.URL
-
-		// Re-write the manifest with the test name populated.
-		if err := snapshotpkg.WriteManifest(testOutputDir, manifest); err != nil {
-			logger.Error(err, "Failed to write manifest", "test", test.Name)
-			gatherErrors = append(gatherErrors, fmt.Errorf("test %q: failed to write manifest: %w", test.Name, err))
+			if ctx.Err() != nil {
+				break
+			}
 			continue
 		}
 
 		logger.Info("Snapshot complete for test",
 			"test", test.Name,
-			"resources", len(manifest.Resources),
+			"phases", len(result.Manifest.Phases),
 		)
 	}
 
@@ -231,10 +211,15 @@ func newFromProwJobCommand() (*cobra.Command, error) {
 	opts := defaultFromProwJobOptions()
 	cmd := &cobra.Command{
 		Use:   "from-prow-job",
-		Short: "Gather diagnostic snapshots for failed tests in a Prow job",
-		Long: `Gather structured diagnostic snapshots by downloading Prow job artifacts from
-GCS, parsing the job's config.yaml for Kusto connection info, identifying
-failed tests, and running the data gathering pipeline for each one.
+		Short: "Gather enriched diagnostic snapshots for tests in a Prow job",
+		Long: `Gather structured, enriched diagnostic snapshots by downloading Prow job
+artifacts from GCS, parsing the job's config.yaml for Kusto connection info,
+identifying failed tests, and running the full data gathering pipeline for
+each one.
+
+Each test snapshot includes Kusto query results, test logs (error and output),
+sibling test metadata, and a manifest.json index suitable for automated
+analysis via the analyze subcommand.
 
 The Kusto cluster, region, and database names are automatically extracted
 from the job's config.yaml artifact. The resource group and time window
@@ -242,16 +227,16 @@ are extracted from each test's output logs and metadata.
 
 Use --test to filter to a specific test by name substring.`,
 		Example: `  # Gather snapshots for all failed tests in a periodic job
-  hcpctl must-gather snapshot from-prow-job \
+  hcpctl snapshot from-prow-job \
     --url https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-Azure-ARO-HCP-main-aro-hcp-e2e-parallel/1234567890
 
   # Gather snapshot for a specific test
-  hcpctl must-gather snapshot from-prow-job \
+  hcpctl snapshot from-prow-job \
     --url https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-Azure-ARO-HCP-main-aro-hcp-e2e-parallel/1234567890 \
     --test TestNodePoolCreation
 
   # PR job
-  hcpctl must-gather snapshot from-prow-job \
+  hcpctl snapshot from-prow-job \
     --url https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/Azure_ARO-HCP/9999/pull-ci-Azure-ARO-HCP-main-aro-hcp-e2e-parallel/1234567890`,
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,

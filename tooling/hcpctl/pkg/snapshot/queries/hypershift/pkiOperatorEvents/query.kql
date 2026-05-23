@@ -1,5 +1,8 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
 | where eventNamespace == '{{ .HostedControlPlaneNamespace }}'
 | where objectName == 'control-plane-pki-operator'
 | where reason contains 'CertificateSigningRequest'

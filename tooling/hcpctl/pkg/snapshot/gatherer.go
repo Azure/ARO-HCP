@@ -46,19 +46,26 @@ type GatherInput struct {
 	HCPDatabase string
 	// ResourceGroup is the Azure resource group to scope queries to.
 	ResourceGroup string
-	// TimeWindow is the time range to query.
+	// TimeWindow is the full time range to query.
 	TimeWindow TimeWindow
 	// QueryTimeout is the timeout for individual Kusto queries.
 	QueryTimeout time.Duration
 	// Concurrency is the maximum number of concurrent Kusto queries.
 	// A value of 0 defaults to 4 * runtime.NumCPU().
 	Concurrency int
+	// TestStartTime is when the first non-setup test step began. Zero when
+	// no non-setup steps are present in the timing metadata.
+	TestStartTime time.Time
 	// CleanupStartTime is the time at which test cleanup (resource deletion)
-	// began. When set, queries that want a "point-in-time" snapshot of resource
-	// state will use this as the upper bound instead of EndTime, so that the
-	// snapshot reflects the resource as it existed before deletion.
-	// A zero value means no cleanup time is available and EndTime is used.
+	// began. A zero value means no cleanup time is available.
 	CleanupStartTime time.Time
+
+	// ServiceClusterName and ManagementClusterName are AKS cluster names
+	// used to filter queries for PR jobs. When both are non-empty, queries
+	// include a "| where cluster in (...)" filter to scope results to only
+	// the relevant clusters.
+	ServiceClusterName    string
+	ManagementClusterName string
 }
 
 // concurrency returns the effective concurrency limit.
@@ -67,6 +74,34 @@ func (g GatherInput) concurrency() int {
 		return g.Concurrency
 	}
 	return 4 * runtime.NumCPU()
+}
+
+// phaseSpec describes a single phase (test or cleanup) with its time boundaries.
+type phaseSpec struct {
+	name  string
+	start time.Time
+	end   time.Time
+}
+
+// computePhases returns the phases to gather based on the input time boundaries.
+// If TestStartTime is zero, StartTime is used as the test phase start.
+// If CleanupStartTime is zero, only a test phase is returned spanning to EndTime.
+func computePhases(input GatherInput) []phaseSpec {
+	testStart := input.TestStartTime
+	if testStart.IsZero() {
+		testStart = input.TimeWindow.Start
+	}
+
+	if input.CleanupStartTime.IsZero() {
+		return []phaseSpec{
+			{name: "test_phase", start: testStart, end: input.TimeWindow.End},
+		}
+	}
+
+	return []phaseSpec{
+		{name: "test_phase", start: testStart, end: input.CleanupStartTime},
+		{name: "cleanup_phase", start: input.CleanupStartTime, end: input.TimeWindow.End},
+	}
 }
 
 // Gatherer produces structured diagnostic data directories by running
@@ -88,13 +123,13 @@ func resourceKey(data queryData) string {
 	return sanitizePath(data.ResourceType) + "/" + sanitizePath(data.ResourceName)
 }
 
-// resourceDir returns the output directory for a resource within the snapshot.
+// resourceDir returns the output directory for a resource within a base directory.
 // When resource type is unknown, correlationID is used to produce a unique path.
-func resourceDir(outputDir string, data queryData, correlationID string) string {
+func resourceDir(baseDir string, data queryData, correlationID string) string {
 	if data.ResourceType == "" {
-		return filepath.Join(outputDir, "resources", "unknown", sanitizePath(correlationID))
+		return filepath.Join(baseDir, "resources", "unknown", sanitizePath(correlationID))
 	}
-	return filepath.Join(outputDir, "resources", sanitizePath(data.ResourceType), sanitizePath(data.ResourceName))
+	return filepath.Join(baseDir, "resources", sanitizePath(data.ResourceType), sanitizePath(data.ResourceName))
 }
 
 // trackedRequest holds per-request discovery data and the original frontend request.
@@ -110,7 +145,7 @@ func recordVerification(report *VerificationReport, suite string, q querySpec, d
 		return
 	}
 
-	// Render KQL for downstream consumers (e.g. HTML overview).
+	// Render KQL for consumers that display the query text (e.g. HTML overview).
 	var renderedKQL string
 	if rendered, err := renderQuery(q.templatePath, data); err == nil {
 		renderedKQL = rendered
@@ -160,8 +195,16 @@ func requestDiscoveryRowCount(q querySpec, data queryData) int {
 	return 0
 }
 
+// resourceState holds per-resource discovery data across requests.
+type resourceState struct {
+	data     queryData
+	mu       *sync.Mutex
+	requests []trackedRequest
+}
+
 // Gather runs the full diagnostic data gathering pipeline for a resource group
-// and writes structured output to outputDir.
+// and writes structured output to outputDir. It runs discovery queries once,
+// then per-phase (test and cleanup) queries with appropriate time boundaries.
 func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir string) (*Manifest, *VerificationReport, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 	report := &VerificationReport{}
@@ -170,22 +213,32 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		return nil, nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	// Build seed queryData for discovery (full time window).
 	seedData := queryData{
-		ClusterURI:       input.ClusterURI,
-		ServiceDatabase:  input.ServiceDatabase,
-		HCPDatabase:      input.HCPDatabase,
-		StartTime:        input.TimeWindow.Start,
-		EndTime:          input.TimeWindow.End,
-		ResourceGroup:    input.ResourceGroup,
-		CleanupStartTime: input.CleanupStartTime,
-		EffectiveEndTime: effectiveEndTime(input),
+		ClusterURI:            input.ClusterURI,
+		ServiceDatabase:       input.ServiceDatabase,
+		HCPDatabase:           input.HCPDatabase,
+		ResourceGroup:         input.ResourceGroup,
+		ServiceClusterName:    input.ServiceClusterName,
+		ManagementClusterName: input.ManagementClusterName,
+		FullStartTime:         input.TimeWindow.Start,
+		FullEndTime:           input.TimeWindow.End,
+		// Discovery queries use the full window for phase fields too.
+		PhaseStartTime: input.TimeWindow.Start,
+		PhaseEndTime:   input.TimeWindow.End,
 	}
 
 	pool := &queryPool{gatherer: g, input: input}
 
-	// Phase 1: Run initial context queries (frontendRequests) to discover all ARM requests.
+	// =========================================================================
+	// Phase-independent discovery
+	// =========================================================================
+
+	discoveryDir := filepath.Join(outputDir, "discovery")
+
+	// Run context queries (frontendRequests) to discover all ARM requests.
 	for _, q := range contextQueries {
-		if _, err := g.executeQuery(ctx, q, &seedData, outputDir, input); err != nil {
+		if _, err := g.executeQuery(ctx, q, &seedData, discoveryDir, input); err != nil {
 			return nil, nil, fmt.Errorf("context query %s failed: %w", q.key(), err)
 		}
 	}
@@ -197,10 +250,24 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		requests = nil
 	}
 
+	// Run per-request and per-resource discovery.
+	trackedReqs, resources, resourceOrder := g.runDiscovery(ctx, pool, seedData, requests, discoveryDir, report, logger)
+
+	if ctx.Err() != nil {
+		return nil, nil, ctx.Err()
+	}
+
+	// =========================================================================
+	// Per-phase execution
+	// =========================================================================
+
+	phases := computePhases(input)
 	manifest := &Manifest{
 		TimeWindow: TimeWindow{
 			Start:            input.TimeWindow.Start,
 			End:              input.TimeWindow.End,
+			SetupFinishTime:  input.TimeWindow.SetupFinishTime,
+			TestStartTime:    input.TestStartTime,
 			CleanupStartTime: input.CleanupStartTime,
 		},
 		ResourceGroup:   input.ResourceGroup,
@@ -209,8 +276,57 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		DirectoryLayout: directoryLayout(),
 	}
 
-	// Phase 2 (Pool 1): Per-request discovery — run requestDiscovery queries
-	// for each mutating request concurrently.
+	for _, phase := range phases {
+		if ctx.Err() != nil {
+			return nil, nil, ctx.Err()
+		}
+
+		phaseDir := filepath.Join(outputDir, phase.name)
+		logger.Info("Gathering phase", "phase", phase.name, "start", phase.start.Format(time.RFC3339), "end", phase.end.Format(time.RFC3339))
+
+		phaseManifest := g.gatherPhase(ctx, pool, input, phase, phaseDir, resources, resourceOrder, trackedReqs, report, logger)
+		manifest.Phases = append(manifest.Phases, *phaseManifest)
+
+		if err := writePhaseManifest(phaseDir, phaseManifest); err != nil {
+			logger.Error(err, "Failed to write phase manifest", "phase", phase.name)
+		}
+	}
+
+	// Record verification for request discovery.
+	for _, key := range resourceOrder {
+		rs := resources[key]
+		for _, tr := range rs.requests {
+			reqSuite := key + "/" + tr.req.Method + "-" + tr.req.ClientRequestID
+			for _, q := range queriesByCategory(categoryRequestDiscovery) {
+				if q.ready != nil && !q.ready(tr.data) {
+					recordVerification(report, reqSuite, q, tr.data, 0, true)
+				} else {
+					rowCount := requestDiscoveryRowCount(q, tr.data)
+					recordVerification(report, reqSuite, q, tr.data, rowCount, false)
+				}
+			}
+		}
+	}
+
+	if err := WriteManifest(outputDir, manifest); err != nil {
+		return nil, nil, err
+	}
+
+	return manifest, report, nil
+}
+
+// runDiscovery executes request-level and resource-level discovery queries,
+// writing output to the discovery directory. Returns the tracked requests,
+// deduplicated resources, and resource ordering.
+func (g *Gatherer) runDiscovery(
+	ctx context.Context,
+	pool *queryPool,
+	seedData queryData,
+	requests []frontendRequest,
+	discoveryDir string,
+	report *VerificationReport,
+	logger logr.Logger,
+) ([]trackedRequest, map[string]*resourceState, []string) {
 	type trackedRequestWithMu struct {
 		trackedRequest
 		mu *sync.Mutex
@@ -245,8 +361,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		})
 	}
 
-	// Build pool1 work items after the trackedReqs slice is finalized, so
-	// that pointers into the slice are stable (append may reallocate).
+	// Pool 1: Run request discovery queries concurrently.
 	var pool1Items []workItem
 	for idx := range trackedReqs {
 		for _, q := range discoveryQueries {
@@ -258,10 +373,10 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		}
 	}
 
-	logger.Info("Running request discovery", "requests", len(trackedReqs), "queries", len(pool1Items))
+	logger.V(1).Info("Running request discovery", "requests", len(trackedReqs), "queries", len(pool1Items))
 	pool.runPool(ctx, pool1Items)
 
-	// Populate cachedResults from pool1 items for later writing.
+	// Populate cachedResults from pool1 items.
 	itemIdx := 0
 	for i := range trackedReqs {
 		for range discoveryQueries {
@@ -271,12 +386,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		}
 	}
 
-	// Sync point: Deduplicate resources and build Pool 2 work items.
-	type resourceState struct {
-		data     queryData
-		mu       *sync.Mutex
-		requests []trackedRequest
-	}
+	// Deduplicate resources.
 	resources := make(map[string]*resourceState)
 	var resourceOrder []string
 
@@ -295,7 +405,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		resources[key].requests = append(resources[key].requests, tr.trackedRequest)
 	}
 
-	// Write cached request discovery output and build Pool 2 work items.
+	// Pool 2: Run resource discovery queries + write cached request discovery output.
 	var pool2Items []workItem
 
 	for _, key := range resourceOrder {
@@ -304,7 +414,7 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		if len(rs.requests) > 0 {
 			fallbackID = rs.requests[0].req.ClientRequestID
 		}
-		resDir := resourceDir(outputDir, rs.data, fallbackID)
+		resDir := resourceDir(discoveryDir, rs.data, fallbackID)
 
 		allClientErrors := len(rs.requests) > 0
 		for _, tr := range rs.requests {
@@ -314,93 +424,192 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 			}
 		}
 
-		// Enqueue resource-level queries if not all client errors.
 		if !allClientErrors {
-			discoveryDir := filepath.Join(resDir, "discovery")
 			for _, q := range queriesByCategory(categoryResourceDiscovery) {
 				pool2Items = append(pool2Items, workItem{
 					query:             q,
 					data:              &rs.data,
 					mu:                rs.mu,
-					outputDir:         discoveryDir,
-					verificationSuite: key,
-				})
-			}
-
-			stateDir := filepath.Join(resDir, "state")
-			for _, q := range queriesByCategory(categoryState) {
-				pool2Items = append(pool2Items, workItem{
-					query:             q,
-					data:              &rs.data,
-					mu:                rs.mu,
-					outputDir:         stateDir,
-					verificationSuite: key,
-				})
-			}
-
-			conditionsDir := filepath.Join(resDir, "conditions")
-			for _, q := range queriesByCategory(categoryConditions) {
-				pool2Items = append(pool2Items, workItem{
-					query:             q,
-					data:              &rs.data,
-					mu:                rs.mu,
-					outputDir:         conditionsDir,
-					verificationSuite: key,
-				})
-			}
-
-			logsDir := filepath.Join(resDir, "logs")
-			for _, q := range queriesByCategory(categoryLogs) {
-				pool2Items = append(pool2Items, workItem{
-					query:             q,
-					data:              &rs.data,
-					mu:                rs.mu,
-					outputDir:         logsDir,
-					verificationSuite: key,
-				})
-			}
-
-			eventsDir := filepath.Join(resDir, "events")
-			for _, q := range queriesByCategory(categoryResourceEvents) {
-				pool2Items = append(pool2Items, workItem{
-					query:             q,
-					data:              &rs.data,
-					mu:                rs.mu,
-					outputDir:         eventsDir,
+					outputDir:         resDir,
 					verificationSuite: key,
 				})
 			}
 		}
 
-		// Enqueue per-request trace queries and write cached discovery output.
+		// Write cached request discovery output.
 		for i := range rs.requests {
 			tr := &rs.requests[i]
 			reqDir := filepath.Join(resDir, "requests", tr.req.Method+"-"+tr.req.ClientRequestID)
-			reqSuite := key + "/" + tr.req.Method + "-" + tr.req.ClientRequestID
-
-			// Write request discovery output now that we know the resource directory.
-			reqDiscoveryDir := filepath.Join(reqDir, "discovery")
 			traceData := tr.data
 			mergeResourceData(&traceData, rs.data)
 
 			for _, q := range queriesByCategory(categoryRequestDiscovery) {
 				cached := tr.cachedResults[q.key()]
-				if err := writeQueryOutput(q, traceData, reqDiscoveryDir, cached); err != nil {
+				if err := writeQueryOutput(q, traceData, reqDir, cached); err != nil {
 					logger.Error(err, "Failed to write request discovery output", "query", q.key())
 				}
 			}
-
-			// Store the traceData for this request so trace queries can use it.
-			// We need a stable pointer, so store it back.
 			tr.data = traceData
-			trMu := &sync.Mutex{}
+		}
+	}
+
+	logger.V(1).Info("Running resource discovery", "items", len(pool2Items))
+	pool.runPool(ctx, pool2Items)
+
+	// Record verification for resource discovery.
+	for i := range pool2Items {
+		item := &pool2Items[i]
+		if item.verificationSuite == "" {
+			continue
+		}
+		if !item.executed {
+			recordVerification(report, item.verificationSuite, item.query, *item.data, 0, true)
+		} else if !item.failed {
+			recordVerification(report, item.verificationSuite, item.query, *item.data, len(item.resultRows), false)
+		}
+	}
+
+	// Flatten trackedReqs for return.
+	flat := make([]trackedRequest, len(trackedReqs))
+	for i := range trackedReqs {
+		flat[i] = trackedReqs[i].trackedRequest
+	}
+
+	return flat, resources, resourceOrder
+}
+
+// gatherPhase runs all non-discovery queries for a single phase, writing output
+// to phaseDir. It partitions requests by timestamp into this phase and runs
+// state, conditions, logs, events, and trace queries.
+func (g *Gatherer) gatherPhase(
+	ctx context.Context,
+	pool *queryPool,
+	input GatherInput,
+	phase phaseSpec,
+	phaseDir string,
+	resources map[string]*resourceState,
+	resourceOrder []string,
+	allTrackedReqs []trackedRequest,
+	report *VerificationReport,
+	logger logr.Logger,
+) *PhaseManifest {
+
+	phaseManifest := &PhaseManifest{
+		Name:  phase.name,
+		Dir:   phase.name,
+		Start: phase.start,
+		End:   phase.end,
+	}
+
+	var poolItems []workItem
+
+	// For each resource, enqueue phase-scoped queries.
+	for _, key := range resourceOrder {
+		rs := resources[key]
+
+		allClientErrors := len(rs.requests) > 0
+		for _, tr := range rs.requests {
+			if tr.req.Status < 400 || tr.req.Status >= 500 {
+				allClientErrors = false
+				break
+			}
+		}
+
+		var fallbackID string
+		if len(rs.requests) > 0 {
+			fallbackID = rs.requests[0].req.ClientRequestID
+		}
+		resDir := resourceDir(phaseDir, rs.data, fallbackID)
+
+		// Build phase-scoped queryData for this resource.
+		phaseData := rs.data
+		phaseData.FullStartTime = input.TimeWindow.Start
+		phaseData.FullEndTime = input.TimeWindow.End
+		phaseData.PhaseStartTime = phase.start
+		phaseData.PhaseEndTime = phase.end
+		phaseData.PhaseName = phase.name
+
+		phaseDataPtr := &phaseData
+		phaseMu := &sync.Mutex{}
+
+		if !allClientErrors {
+			// State queries
+			stateDir := filepath.Join(resDir, "state")
+			for _, q := range queriesByCategory(categoryState) {
+				poolItems = append(poolItems, workItem{
+					query:             q,
+					data:              phaseDataPtr,
+					mu:                phaseMu,
+					outputDir:         stateDir,
+					verificationSuite: phase.name + "/" + key,
+				})
+			}
+
+			// Conditions queries
+			conditionsDir := filepath.Join(resDir, "conditions")
+			for _, q := range queriesByCategory(categoryConditions) {
+				poolItems = append(poolItems, workItem{
+					query:             q,
+					data:              phaseDataPtr,
+					mu:                phaseMu,
+					outputDir:         conditionsDir,
+					verificationSuite: phase.name + "/" + key,
+				})
+			}
+
+			// Logs queries
+			logsDir := filepath.Join(resDir, "logs")
+			for _, q := range queriesByCategory(categoryLogs) {
+				poolItems = append(poolItems, workItem{
+					query:             q,
+					data:              phaseDataPtr,
+					mu:                phaseMu,
+					outputDir:         logsDir,
+					verificationSuite: phase.name + "/" + key,
+				})
+			}
+
+			// Resource events queries
+			eventsDir := filepath.Join(resDir, "events")
+			for _, q := range queriesByCategory(categoryResourceEvents) {
+				poolItems = append(poolItems, workItem{
+					query:             q,
+					data:              phaseDataPtr,
+					mu:                phaseMu,
+					outputDir:         eventsDir,
+					verificationSuite: phase.name + "/" + key,
+				})
+			}
+		}
+
+		// Per-request trace queries — only for requests in this phase.
+		for i := range rs.requests {
+			tr := &rs.requests[i]
+			if !g.requestInPhase(tr.req, phase) {
+				continue
+			}
+
+			reqDir := filepath.Join(resDir, "requests", tr.req.Method+"-"+tr.req.ClientRequestID)
+			reqSuite := phase.name + "/" + key + "/" + tr.req.Method + "-" + tr.req.ClientRequestID
+
+			// Trace queries use full time window so we get the complete request lifecycle.
+			traceData := tr.data
+			mergeResourceData(&traceData, rs.data)
+			traceData.FullStartTime = input.TimeWindow.Start
+			traceData.FullEndTime = input.TimeWindow.End
+			traceData.PhaseStartTime = input.TimeWindow.Start
+			traceData.PhaseEndTime = input.TimeWindow.End
+			traceData.PhaseName = phase.name
+
+			traceDataPtr := &traceData
+			traceMu := &sync.Mutex{}
 
 			traceStateDir := filepath.Join(reqDir, "state")
 			for _, q := range queriesByCategory(categoryTraceState) {
-				pool2Items = append(pool2Items, workItem{
+				poolItems = append(poolItems, workItem{
 					query:             q,
-					data:              &tr.data,
-					mu:                trMu,
+					data:              traceDataPtr,
+					mu:                traceMu,
 					outputDir:         traceStateDir,
 					verificationSuite: reqSuite,
 				})
@@ -408,24 +617,69 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 			traceLogsDir := filepath.Join(reqDir, "logs")
 			for _, q := range queriesByCategory(categoryTraceLogs) {
-				pool2Items = append(pool2Items, workItem{
+				poolItems = append(poolItems, workItem{
 					query:             q,
-					data:              &tr.data,
-					mu:                trMu,
+					data:              traceDataPtr,
+					mu:                traceMu,
 					outputDir:         traceLogsDir,
 					verificationSuite: reqSuite,
 				})
 			}
 		}
+
+		// Build resource entry for phase manifest.
+		if rs.data.ResourceType != "" {
+			relDir, _ := filepath.Rel(phaseDir, resDir)
+			var requestInfos []RequestInfo
+			for _, tr := range rs.requests {
+				if !g.requestInPhase(tr.req, phase) {
+					continue
+				}
+				reqRelDir := filepath.Join(relDir, "requests", tr.req.Method+"-"+tr.req.ClientRequestID)
+				requestInfos = append(requestInfos, RequestInfo{
+					ClientRequestID: tr.req.ClientRequestID,
+					CorrelationID:   tr.req.CorrelationID,
+					Method:          tr.req.Method,
+					Path:            tr.req.Path,
+					Status:          tr.req.Status,
+					Timestamp:       tr.req.Timestamp,
+					Dir:             reqRelDir,
+				})
+			}
+			phaseManifest.Resources = append(phaseManifest.Resources, ResourceEntry{
+				Type:                        rs.data.ResourceType,
+				Name:                        rs.data.ResourceName,
+				Dir:                         relDir,
+				ResourceID:                  rs.data.ResourceID,
+				ClusterResourceID:           rs.data.ClusterResourceID,
+				ClusterResourceName:         rs.data.ClusterResourceName,
+				InternalID:                  rs.data.InternalID,
+				ClusterID:                   rs.data.ClusterID,
+				HostedClusterNamespace:      rs.data.HostedClusterNamespace,
+				HostedControlPlaneNamespace: rs.data.HostedControlPlaneNamespace,
+				Requests:                    requestInfos,
+			})
+		}
 	}
 
-	// Enqueue service-level event queries (scoped to the resource group, not
-	// to a specific ARM resource). These run once per snapshot.
-	serviceEventsDir := filepath.Join(outputDir, "events")
-	serviceEventData := seedData
+	// Service-level event queries for this phase.
+	serviceEventsDir := filepath.Join(phaseDir, "events")
+	serviceEventData := queryData{
+		ClusterURI:            input.ClusterURI,
+		ServiceDatabase:       input.ServiceDatabase,
+		HCPDatabase:           input.HCPDatabase,
+		ResourceGroup:         input.ResourceGroup,
+		ServiceClusterName:    input.ServiceClusterName,
+		ManagementClusterName: input.ManagementClusterName,
+		FullStartTime:         input.TimeWindow.Start,
+		FullEndTime:           input.TimeWindow.End,
+		PhaseStartTime:        phase.start,
+		PhaseEndTime:          phase.end,
+		PhaseName:             phase.name,
+	}
 	serviceEventMu := &sync.Mutex{}
 	for _, q := range queriesByCategory(categoryEvents) {
-		pool2Items = append(pool2Items, workItem{
+		poolItems = append(poolItems, workItem{
 			query:     q,
 			data:      &serviceEventData,
 			mu:        serviceEventMu,
@@ -433,86 +687,31 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 		})
 	}
 
-	logger.Info("Running resource and trace queries", "items", len(pool2Items))
-	pool.runPool(ctx, pool2Items)
+	logger.V(1).Info("Running phase queries", "phase", phase.name, "items", len(poolItems))
+	pool.runPool(ctx, poolItems)
 
-	// Record verification results from Pool 2 items.
-	for i := range pool2Items {
-		item := &pool2Items[i]
+	// Record verification results from phase pool items.
+	for i := range poolItems {
+		item := &poolItems[i]
 		if item.verificationSuite == "" {
 			continue
 		}
 		if !item.executed {
-			// Query was never ready — record as skipped.
 			recordVerification(report, item.verificationSuite, item.query, *item.data, 0, true)
 		} else if !item.failed {
 			recordVerification(report, item.verificationSuite, item.query, *item.data, len(item.resultRows), false)
 		}
 	}
 
-	// Record verification for request discovery (from Pool 1 cached results).
-	for _, key := range resourceOrder {
-		rs := resources[key]
-		for _, tr := range rs.requests {
-			reqSuite := key + "/" + tr.req.Method + "-" + tr.req.ClientRequestID
-			for _, q := range queriesByCategory(categoryRequestDiscovery) {
-				if q.ready != nil && !q.ready(tr.data) {
-					recordVerification(report, reqSuite, q, tr.data, 0, true)
-				} else {
-					rowCount := requestDiscoveryRowCount(q, tr.data)
-					recordVerification(report, reqSuite, q, tr.data, rowCount, false)
-				}
-			}
-		}
+	return phaseManifest
+}
+
+// requestInPhase returns true if the request's timestamp falls within the phase window.
+func (g *Gatherer) requestInPhase(req frontendRequest, phase phaseSpec) bool {
+	if req.Timestamp.IsZero() {
+		return phase.name == "test_phase" // default to test phase if timestamp unknown
 	}
-
-	// Build manifest.
-	for _, key := range resourceOrder {
-		rs := resources[key]
-		var fallbackID string
-		if len(rs.requests) > 0 {
-			fallbackID = rs.requests[0].req.ClientRequestID
-		}
-		resDir := resourceDir(outputDir, rs.data, fallbackID)
-
-		if rs.data.ResourceType == "" {
-			logger.Info("Skipping manifest entry for unknown resource", "key", key)
-			continue
-		}
-		relDir, _ := filepath.Rel(outputDir, resDir)
-		var requestInfos []RequestInfo
-		for _, tr := range rs.requests {
-			reqRelDir := filepath.Join(relDir, "requests", tr.req.Method+"-"+tr.req.ClientRequestID)
-			requestInfos = append(requestInfos, RequestInfo{
-				ClientRequestID: tr.req.ClientRequestID,
-				CorrelationID:   tr.req.CorrelationID,
-				Method:          tr.req.Method,
-				Path:            tr.req.Path,
-				Status:          tr.req.Status,
-				Timestamp:       tr.req.Timestamp,
-				Dir:             reqRelDir,
-			})
-		}
-		manifest.Resources = append(manifest.Resources, ResourceEntry{
-			Type:                        rs.data.ResourceType,
-			Name:                        rs.data.ResourceName,
-			Dir:                         relDir,
-			ResourceID:                  rs.data.ResourceID,
-			ClusterResourceID:           rs.data.ClusterResourceID,
-			ClusterResourceName:         rs.data.ClusterResourceName,
-			InternalID:                  rs.data.InternalID,
-			ClusterID:                   rs.data.ClusterID,
-			HostedClusterNamespace:      rs.data.HostedClusterNamespace,
-			HostedControlPlaneNamespace: rs.data.HostedControlPlaneNamespace,
-			Requests:                    requestInfos,
-		})
-	}
-
-	if err := WriteManifest(outputDir, manifest); err != nil {
-		return nil, nil, err
-	}
-
-	return manifest, report, nil
+	return !req.Timestamp.Before(phase.start) && req.Timestamp.Before(phase.end)
 }
 
 // mergeResourceData copies resource-level discovered fields into a per-request
@@ -673,7 +872,7 @@ func composeOutput(readme string, rendered string, rows []resultRow) string {
 }
 
 // executeQuery renders and executes a single query spec, writes a combined
-// output file (<queryName>.md), and returns the result rows for downstream
+// output file (<queryName>.md), and returns the result rows for
 // dependency resolution.
 func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryData, baseDir string, input GatherInput) ([]resultRow, error) {
 	logger := logr.FromContextOrDiscard(ctx)
@@ -707,9 +906,9 @@ func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryDat
 	}
 
 	if len(rows) > 0 {
-		logger.Info("Wrote query output", "query", q.key(), "rows", len(rows), "file", mdFile)
+		logger.V(1).Info("Wrote query output", "query", q.key(), "rows", len(rows), "file", mdFile)
 	} else {
-		logger.Info("Query returned no results", "query", q.key())
+		logger.V(1).Info("Query returned no results", "query", q.key())
 	}
 
 	return rows, nil
@@ -737,9 +936,9 @@ func (g *Gatherer) executeQueryToDir(ctx context.Context, q querySpec, data *que
 	}
 
 	if len(rows) > 0 {
-		logger.Info("Query returned results (deferred write)", "query", q.key(), "rows", len(rows))
+		logger.V(1).Info("Query returned results (deferred write)", "query", q.key(), "rows", len(rows))
 	} else {
-		logger.Info("Query returned no results", "query", q.key())
+		logger.V(1).Info("Query returned no results", "query", q.key())
 	}
 
 	return rows, nil

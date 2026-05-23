@@ -51,6 +51,8 @@ type TimeWindow struct {
 type TimingInfo struct {
 	StartTime          time.Time
 	EndTime            time.Time
+	SetupFinishTime    time.Time
+	TestStartTime      time.Time
 	CleanupStartTime   time.Time
 	ResourceGroupNames []string
 	Steps              []StepTimingMetadata
@@ -171,10 +173,14 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 			}
 		}
 
+		setupFinishTime, testStartTime := deriveSetupTestBoundary(tm.Steps)
+
 		key := strings.Join(tm.Identifier, " ")
 		result[key] = TimingInfo{
 			StartTime:          startedAt,
 			EndTime:            finishedAt.Add(endGracePeriodDuration),
+			SetupFinishTime:    setupFinishTime,
+			TestStartTime:      testStartTime,
 			CleanupStartTime:   finishedAt,
 			ResourceGroupNames: rgNames,
 			Steps:              tm.Steps,
@@ -185,6 +191,42 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 		return nil, fmt.Errorf("failed to walk timing input dir %s: %w", dir, err)
 	}
 	return result, nil
+}
+
+// identityContainerStep reports whether a step name refers to identity container setup.
+func identityContainerStep(name string) bool {
+	return strings.Contains(strings.ToLower(name), "identity container")
+}
+
+// deriveSetupTestBoundary inspects the steps in the timing metadata and returns:
+//   - setupFinishTime: the latest FinishedAt among steps whose name contains
+//     "identity container" (setup steps).
+//   - testStartTime: the earliest StartedAt among steps whose name does NOT
+//     contain "identity container" (test steps).
+//
+// Either or both may be zero when the relevant steps are not present or their
+// timestamps cannot be parsed.
+func deriveSetupTestBoundary(steps []StepTimingMetadata) (setupFinishTime, testStartTime time.Time) {
+	for _, step := range steps {
+		if identityContainerStep(step.Name) {
+			if step.FinishedAt != "" {
+				if t, err := time.Parse(time.RFC3339, step.FinishedAt); err == nil {
+					if setupFinishTime.IsZero() || t.After(setupFinishTime) {
+						setupFinishTime = t
+					}
+				}
+			}
+		} else {
+			if step.StartedAt != "" {
+				if t, err := time.Parse(time.RFC3339, step.StartedAt); err == nil {
+					if testStartTime.IsZero() || t.Before(testStartTime) {
+						testStartTime = t
+					}
+				}
+			}
+		}
+	}
+	return setupFinishTime, testStartTime
 }
 
 // ComputeTimeWindow derives a start/end time range from steps, test timing
