@@ -23,7 +23,7 @@ images:
     group: hypershift-stack
     source:
       image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      tag: "latest"
+      tag: "cf2b91fbc02ebe5d3d66515cb2ea3e097290ac13" # pinned: latest includes be263214 which rejects Azure HostedClusters (AROSLSRE-919)
       multiArch: true # Use multi-arch manifest
       useAuth: true
       keyVault:

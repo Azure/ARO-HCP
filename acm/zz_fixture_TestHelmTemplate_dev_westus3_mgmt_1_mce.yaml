@@ -3441,7 +3441,8 @@ metadata:
     capabilities: Seamless Upgrades
     categories: Integration & Delivery
     certified: "true"
-    description: Foundational components for central management of multiple OpenShift Container Platform and Kubernetes clusters
+    description: Foundational components for central management of multiple OpenShift
+      Container Platform and Kubernetes clusters
     repository: https://github.com/open-cluster-management/backplane-operator
     support: Red Hat
   labels:
