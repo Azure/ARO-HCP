@@ -1,10 +1,7 @@
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/crds/agent.open-cluster-management.io_klusterletaddonconfigs_crd.yaml
 # Copyright (c) 2020 Red Hat, Inc.
-
 # Copyright Contributors to the Open Cluster Management project
-
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -82,8 +79,7 @@ spec:
                 description: DEPRECATED in release 2.11 and will be removed in the future since not used anymore.
                 properties:
                   enabled:
-                    description: Enabled is the flag to enable/disable the addon.
-                      default is false.
+                    description: Enabled is the flag to enable/disable the addon. default is false.
                     type: boolean
                   proxyPolicy:
                     description: |-
@@ -248,14 +244,10 @@ spec:
         description: PlacementRule is the Schema for the placementrules API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -264,8 +256,7 @@ spec:
             properties:
               clusterConditions:
                 items:
-                  description: ClusterConditionFilter defines filter to filter cluster
-                    condition
+                  description: ClusterConditionFilter defines filter to filter cluster condition
                   properties:
                     status:
                       type: string
@@ -278,34 +269,21 @@ spec:
                 format: int32
                 type: integer
               clusterSelector:
-                description: A label selector is a label query over a set of resources.
-                  The result of matchLabels and matchExpressions are ANDed. An empty
-                  label selector matches all objects. A null label selector matches
-                  no objects.
+                description: A label selector is a label query over a set of resources. The result of matchLabels and matchExpressions are ANDed. An empty label selector matches all objects. A null label selector matches no objects.
                 properties:
                   matchExpressions:
-                    description: matchExpressions is a list of label selector requirements.
-                      The requirements are ANDed.
+                    description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                     items:
-                      description: A label selector requirement is a selector that
-                        contains values, a key, and an operator that relates the key
-                        and values.
+                      description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                       properties:
                         key:
-                          description: key is the label key that the selector applies
-                            to.
+                          description: key is the label key that the selector applies to.
                           type: string
                         operator:
-                          description: operator represents a key's relationship to
-                            a set of values. Valid operators are In, NotIn, Exists
-                            and DoesNotExist.
+                          description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                           type: string
                         values:
-                          description: values is an array of string values. If the
-                            operator is In or NotIn, the values array must be non-empty.
-                            If the operator is Exists or DoesNotExist, the values
-                            array must be empty. This array is replaced during a strategic
-                            merge patch.
+                          description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                           items:
                             type: string
                           type: array
@@ -317,11 +295,7 @@ spec:
                   matchLabels:
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single
-                      {key,value} in the matchLabels map is equivalent to an element
-                      of matchExpressions, whose key field is "key", the operator
-                      is "In", and the values array contains only "value". The requirements
-                      are ANDed.
+                    description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                     type: object
                 type: object
               clusters:
@@ -337,47 +311,13 @@ spec:
               policies:
                 description: Set Policy Filters
                 items:
-                  description: 'ObjectReference contains enough information to let
-                    you inspect or modify the referred object. --- New uses of this
-                    type are discouraged because of difficulty describing its usage
-                    when embedded in APIs.  1. Ignored fields.  It includes many fields
-                    which are not generally honored.  For instance, ResourceVersion
-                    and FieldPath are both very rarely valid in actual usage.  2.
-                    Invalid usage help.  It is impossible to add specific help for
-                    individual usage.  In most embedded usages, there are particular     restrictions
-                    like, "must refer only to types A and B" or "UID not honored"
-                    or "name must be restricted".     Those cannot be well described
-                    when embedded.  3. Inconsistent validation.  Because the usages
-                    are different, the validation rules are different by usage, which
-                    makes it hard for users to predict what will happen.  4. The fields
-                    are both imprecise and overly precise.  Kind is not a precise
-                    mapping to a URL. This can produce ambiguity     during interpretation
-                    and require a REST mapping.  In most cases, the dependency is
-                    on the group,resource tuple     and the version of the actual
-                    struct is irrelevant.  5. We cannot easily change it.  Because
-                    this type is embedded in many locations, updates to this type     will
-                    affect numerous schemas.  Don''t make new APIs embed an underspecified
-                    API type they do not control. Instead of using this type, create
-                    a locally provided and used type that is well-focused on your
-                    reference. For example, ServiceReferences for admission registration:
-                    https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533
-                    .'
+                  description: 'ObjectReference contains enough information to let you inspect or modify the referred object. --- New uses of this type are discouraged because of difficulty describing its usage when embedded in APIs.  1. Ignored fields.  It includes many fields which are not generally honored.  For instance, ResourceVersion and FieldPath are both very rarely valid in actual usage.  2. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular     restrictions like, "must refer only to types A and B" or "UID not honored" or "name must be restricted".     Those cannot be well described when embedded.  3. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.  4. The fields are both imprecise and overly precise.  Kind is not a precise mapping to a URL. This can produce ambiguity     during interpretation and require a REST mapping.  In most cases, the dependency is on the group,resource tuple     and the version of the actual struct is irrelevant.  5. We cannot easily change it.  Because this type is embedded in many locations, updates to this type     will affect numerous schemas.  Don''t make new APIs embed an underspecified API type they do not control. Instead of using this type, create a locally provided and used type that is well-focused on your reference. For example, ServiceReferences for admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533 .'
                   properties:
                     apiVersion:
                       description: API version of the referent.
                       type: string
                     fieldPath:
-                      description: 'If referring to a piece of an object instead of
-                        an entire object, this string should contain a valid JSON/Go
-                        field access statement, such as desiredState.manifest.containers[2].
-                        For example, if the object reference is to a container within
-                        a pod, this would take on a value like: "spec.containers{name}"
-                        (where "name" refers to the name of the container that triggered
-                        the event) or if no container name is specified "spec.containers[2]"
-                        (container with index 2 in this pod). This syntax is chosen
-                        only to have some well-defined way of referencing a part of
-                        an object. TODO: this design is not final and this field is
-                        subject to change in the future.'
+                      description: 'If referring to a piece of an object instead of an entire object, this string should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2]. For example, if the object reference is to a container within a pod, this would take on a value like: "spec.containers{name}" (where "name" refers to the name of the container that triggered the event) or if no container name is specified "spec.containers[2]" (container with index 2 in this pod). This syntax is chosen only to have some well-defined way of referencing a part of an object. TODO: this design is not final and this field is subject to change in the future.'
                       type: string
                     kind:
                       description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
@@ -389,8 +329,7 @@ spec:
                       description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
                       type: string
                     resourceVersion:
-                      description: 'Specific resourceVersion to which this reference
-                        is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                      description: 'Specific resourceVersion to which this reference is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
                       type: string
                     uid:
                       description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
@@ -408,18 +347,14 @@ spec:
                     type: string
                 type: object
               schedulerName:
-                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
-                  schedulerName, default to use mcm controller'
+                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster Important: Run "make" to regenerate code after modifying this file schedulerName, default to use mcm controller'
                 type: string
             type: object
           status:
             description: PlacementRuleStatus defines the observed state of PlacementRule
             properties:
               decisions:
-                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
-                  of cluster Important: Run "make" to regenerate code after modifying
-                  this file'
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state of cluster Important: Run "make" to regenerate code after modifying this file'
                 items:
                   description: PlacementDecision defines the decision made by controller
                   properties:
@@ -440,7 +375,6 @@ spec:
 
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/crds/policy.open-cluster-management.io_placementbindings.yaml
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -462,23 +396,18 @@ spec:
     schema:
       openAPIV3Schema:
         description: >-
-          PlacementBinding is the schema for the placementbindings API. A PlacementBinding resource binds a
-          managed cluster placement resource to a policy or policy set, along with configurable overrides.
+          PlacementBinding is the schema for the placementbindings API. A PlacementBinding resource binds a managed cluster placement resource to a policy or policy set, along with configurable overrides.
         properties:
           apiVersion:
             description: >-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           bindingOverrides:
             description: BindingOverrides defines the overrides for the subjects.
             properties:
               remediationAction:
                 description: >-
-                  RemediationAction overrides the policy remediationAction on target clusters. This parameter is
-                  optional. If you set it, you must set it to "enforce".
+                  RemediationAction overrides the policy remediationAction on target clusters. This parameter is optional. If you set it, you must set it to "enforce".
                 enum:
                 - Enforce
                 - enforce
@@ -486,24 +415,17 @@ spec:
             type: object
           kind:
             description: >-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
           placementRef:
             description: >-
-              PlacementSubject defines the placement resource that is being bound to the subjects defined in
-              the placement binding.
+              PlacementSubject defines the placement resource that is being bound to the subjects defined in the placement binding.
             properties:
               apiGroup:
                 description: >-
-                  APIGroup is the API group to which the kind belongs. Must be set to
-                  "cluster.open-cluster-management.io" for Placement or "apps.open-cluster-management.io" for
-                  PlacementRule (deprecated).
+                  APIGroup is the API group to which the kind belongs. Must be set to "cluster.open-cluster-management.io" for Placement or "apps.open-cluster-management.io" for PlacementRule (deprecated).
                 enum:
                 - apps.open-cluster-management.io
                 - cluster.open-cluster-management.io
@@ -511,8 +433,7 @@ spec:
                 type: string
               kind:
                 description: >-
-                  Kind is the kind of the placement resource. Must be set to either "Placement" or
-                  "PlacementRule" (deprecated).
+                  Kind is the kind of the placement resource. Must be set to either "Placement" or "PlacementRule" (deprecated).
                 enum:
                 - PlacementRule
                 - Placement
@@ -528,15 +449,11 @@ spec:
             - name
             type: object
           status:
-            description: PlacementBindingStatus defines the observed state of the
-              PlacementBinding resource.
+            description: PlacementBindingStatus defines the observed state of the PlacementBinding resource.
             type: object
           subFilter:
             description: >-
-              SubFilter provides the ability to apply overrides to a subset of bound clusters when multiple
-              placement bindings are used to bind a policy to placements. When set, only the overrides will be
-              applied to the clusters bound by this placement binding but it will not be considered for placing
-              the policy. This parameter is optional. If you set it, you must set it to "restricted".
+              SubFilter provides the ability to apply overrides to a subset of bound clusters when multiple placement bindings are used to bind a policy to placements. When set, only the overrides will be applied to the clusters bound by this placement binding but it will not be considered for placing the policy. This parameter is optional. If you set it, you must set it to "restricted".
             enum:
             - restricted
             type: string
@@ -546,24 +463,21 @@ spec:
               properties:
                 apiGroup:
                   description: >-
-                    APIGroup is the API group to which the kind belongs. Must be set to
-                    "policy.open-cluster-management.io".
+                    APIGroup is the API group to which the kind belongs. Must be set to "policy.open-cluster-management.io".
                   enum:
                   - policy.open-cluster-management.io
                   minLength: 1
                   type: string
                 kind:
                   description: >-
-                    Kind is the kind of the object to bind to the placement resource. Must be set to either
-                    "Policy" or "PolicySet".
+                    Kind is the kind of the object to bind to the placement resource. Must be set to either "Policy" or "PolicySet".
                   enum:
                   - Policy
                   - PolicySet
                   minLength: 1
                   type: string
                 name:
-                  description: Name is the name of the policy or policy set to bind
-                    to the placement resource.
+                  description: Name is the name of the policy or policy set to bind to the placement resource.
                   minLength: 1
                   type: string
               required:
@@ -584,7 +498,6 @@ spec:
 
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/crds/policy.open-cluster-management.io_policies.yaml
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -616,50 +529,32 @@ spec:
     schema:
       openAPIV3Schema:
         description: >-
-          Policy is the schema for the policies API. Policy wraps other policy engine resources in its
-          "policy-templates" array in order to deliver the resources to managed clusters.
+          Policy is the schema for the policies API. Policy wraps other policy engine resources in its "policy-templates" array in order to deliver the resources to managed clusters.
         properties:
           apiVersion:
             description: >-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
             description: >-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
           spec:
             description: >-
-              PolicySpec defines the configurations of the policy engine resources to deliver to the managed
-              clusters.
+              PolicySpec defines the configurations of the policy engine resources to deliver to the managed clusters.
             properties:
               copyPolicyMetadata:
                 description: >-
-                  CopyPolicyMetadata specifies whether the labels and annotations of a policy should be copied
-                  when replicating the policy to a managed cluster. If set to "true", all of the labels and
-                  annotations of the policy are copied to the replicated policy. If set to "false", only the
-                  policy framework-specific policy labels and annotations are copied to the replicated policy.
-                  This setting is useful if there is tracking for metadata that should only exist on the root
-                  policy. It is recommended to set this to "false" when using Argo CD to deploy the policy
-                  definition since Argo CD uses metadata for tracking that should not be replicated. The default
-                  value is "true".
+                  CopyPolicyMetadata specifies whether the labels and annotations of a policy should be copied when replicating the policy to a managed cluster. If set to "true", all of the labels and annotations of the policy are copied to the replicated policy. If set to "false", only the policy framework-specific policy labels and annotations are copied to the replicated policy. This setting is useful if there is tracking for metadata that should only exist on the root policy. It is recommended to set this to "false" when using Argo CD to deploy the policy definition since Argo CD uses metadata for tracking that should not be replicated. The default value is "true".
                 type: boolean
               dependencies:
                 description: >-
-                  PolicyDependencies is a list of dependency objects detailed with extra considerations for
-                  compliance that should be fulfilled before applying the policies to the managed clusters.
+                  PolicyDependencies is a list of dependency objects detailed with extra considerations for compliance that should be fulfilled before applying the policies to the managed clusters.
                 items:
                   description: >-
-                    Each PolicyDependency defines an object reference which must be in a certain compliance
-                    state before the policy should be created.
+                    Each PolicyDependency defines an object reference which must be in a certain compliance state before the policy should be created.
                   oneOf:
                   - properties:
                       kind:
@@ -675,15 +570,11 @@ spec:
                   properties:
                     apiVersion:
                       description: >-
-                        APIVersion defines the versioned schema of this representation of an object.
-                        Servers should convert recognized schemas to the latest internal value, and
-                        may reject unrecognized values.
-                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                        APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
                       type: string
                     compliance:
                       description: >-
-                        Compliance is the required ComplianceState of the object that the policy depends on, at the
-                        following path, .status.compliant.
+                        Compliance is the required ComplianceState of the object that the policy depends on, at the following path, .status.compliant.
                       enum:
                       - Compliant
                       - Pending
@@ -691,19 +582,13 @@ spec:
                       type: string
                     kind:
                       description: >-
-                        Kind is a string value representing the REST resource this object represents.
-                        Servers may infer this from the endpoint the client submits requests to.
-                        Cannot be updated.
-                        In CamelCase.
-                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                        Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
                       type: string
                     name:
-                      description: Name is the name of the object that the policy
-                        depends on.
+                      description: Name is the name of the object that the policy depends on.
                       type: string
                     namespace:
-                      description: Namespace is the namespace of the object that the
-                        policy depends on (optional).
+                      description: Namespace is the namespace of the object that the policy depends on (optional).
                       type: string
                   required:
                   - compliance
@@ -712,40 +597,29 @@ spec:
                 type: array
               disabled:
                 description: >-
-                  Disabled is a boolean parameter you can use to enable and disable the policy. When disabled,
-                  the policy is removed from managed clusters.
+                  Disabled is a boolean parameter you can use to enable and disable the policy. When disabled, the policy is removed from managed clusters.
                 type: boolean
               hubTemplateOptions:
-                description: HubTemplateOptions changes the default behavior of hub
-                  templates.
+                description: HubTemplateOptions changes the default behavior of hub templates.
                 properties:
                   serviceAccountName:
                     description: >-
-                      ServiceAccountName is the name of a service account in the same namespace as the policy to use for all hub
-                      template lookups. The service account must have list and watch permissions on any object the hub templates
-                      look up. If not specified, lookups are restricted to namespaced objects in the same namespace as the policy and
-                      to the `ManagedCluster` object associated with the propagated policy.
+                      ServiceAccountName is the name of a service account in the same namespace as the policy to use for all hub template lookups. The service account must have list and watch permissions on any object the hub templates look up. If not specified, lookups are restricted to namespaced objects in the same namespace as the policy and to the `ManagedCluster` object associated with the propagated policy.
                     type: string
                 type: object
               policy-templates:
                 description: >-
-                  PolicyTemplates is a list of definitions of policy engine resources to apply to managed
-                  clusters along with configurations on how it should be applied.
+                  PolicyTemplates is a list of definitions of policy engine resources to apply to managed clusters along with configurations on how it should be applied.
                 items:
                   description: >-
-                    PolicyTemplate is the definition of the policy engine resource to apply to the managed cluster,
-                    along with configurations on how it should be applied.
+                    PolicyTemplate is the definition of the policy engine resource to apply to the managed cluster, along with configurations on how it should be applied.
                   properties:
                     extraDependencies:
                       description: >-
-                        ExtraDependencies is additional PolicyDependencies that only apply to this policy template.
-                        ExtraDependencies is a list of dependency objects detailed with extra considerations for
-                        compliance that should be fulfilled before applying the policy template to the managed
-                        clusters.
+                        ExtraDependencies is additional PolicyDependencies that only apply to this policy template. ExtraDependencies is a list of dependency objects detailed with extra considerations for compliance that should be fulfilled before applying the policy template to the managed clusters.
                       items:
                         description: >-
-                          Each PolicyDependency defines an object reference which must be in a certain compliance
-                          state before the policy should be created.
+                          Each PolicyDependency defines an object reference which must be in a certain compliance state before the policy should be created.
                         oneOf:
                         - properties:
                             kind:
@@ -761,15 +635,11 @@ spec:
                         properties:
                           apiVersion:
                             description: >-
-                              APIVersion defines the versioned schema of this representation of an object.
-                              Servers should convert recognized schemas to the latest internal value, and
-                              may reject unrecognized values.
-                              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                              APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
                             type: string
                           compliance:
                             description: >-
-                              Compliance is the required ComplianceState of the object that the policy depends on, at the
-                              following path, .status.compliant.
+                              Compliance is the required ComplianceState of the object that the policy depends on, at the following path, .status.compliant.
                             enum:
                             - Compliant
                             - Pending
@@ -777,19 +647,13 @@ spec:
                             type: string
                           kind:
                             description: >-
-                              Kind is a string value representing the REST resource this object represents.
-                              Servers may infer this from the endpoint the client submits requests to.
-                              Cannot be updated.
-                              In CamelCase.
-                              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                              Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
                             type: string
                           name:
-                            description: Name is the name of the object that the policy
-                              depends on.
+                            description: Name is the name of the object that the policy depends on.
                             type: string
                           namespace:
-                            description: Namespace is the namespace of the object
-                              that the policy depends on (optional).
+                            description: Namespace is the namespace of the object that the policy depends on (optional).
                             type: string
                         required:
                         - compliance
@@ -798,13 +662,10 @@ spec:
                       type: array
                     ignorePending:
                       description: >-
-                        IgnorePending is a boolean parameter to specify whether to ignore the "Pending" status of this
-                        template when calculating the overall policy status. The default value is "false" to not ignore a
-                        "Pending" status.
+                        IgnorePending is a boolean parameter to specify whether to ignore the "Pending" status of this template when calculating the overall policy status. The default value is "false" to not ignore a "Pending" status.
                       type: boolean
                     objectDefinition:
-                      description: A Kubernetes object defining the policy to apply
-                        to a managed cluster
+                      description: A Kubernetes object defining the policy to apply to a managed cluster
                       type: object
                       x-kubernetes-preserve-unknown-fields: true
                   required:
@@ -813,10 +674,7 @@ spec:
                 type: array
               remediationAction:
                 description: >-
-                  RemediationAction specifies the remediation of the policy. The parameter values are "enforce"
-                  and "inform". If specified, the value that is defined overrides any remediationAction parameter
-                  defined in the child policies in the "policy-templates" section. Important: Not all policy
-                  engine kinds support the enforce feature.
+                  RemediationAction specifies the remediation of the policy. The parameter values are "enforce" and "inform". If specified, the value that is defined overrides any remediationAction parameter defined in the child policies in the "policy-templates" section. Important: Not all policy engine kinds support the enforce feature.
                 enum:
                 - Inform
                 - inform
@@ -828,13 +686,11 @@ spec:
             - policy-templates
             type: object
           status:
-            description: PolicyStatus reports the observed status of the policy resulting
-              from its policy templates.
+            description: PolicyStatus reports the observed status of the policy resulting from its policy templates.
             properties:
               compliant:
                 description: >-
-                  ComplianceState reports the observed status resulting from the definitions of this policy. This
-                  status field is only used in the replicated policy in the managed cluster namespace.
+                  ComplianceState reports the observed status resulting from the definitions of this policy. This status field is only used in the replicated policy in the managed cluster namespace.
                 enum:
                 - Compliant
                 - Pending
@@ -842,16 +698,13 @@ spec:
                 type: string
               details:
                 description: >-
-                  Details is the list of compliance details for each policy template definition. This status
-                  field is only used in the replicated policy in the managed cluster namespace.
+                  Details is the list of compliance details for each policy template definition. This status field is only used in the replicated policy in the managed cluster namespace.
                 items:
                   description: >-
-                    DetailsPerTemplate reports the current compliance state and list of recent compliance messages
-                    for a given policy template.
+                    DetailsPerTemplate reports the current compliance state and list of recent compliance messages for a given policy template.
                   properties:
                     compliant:
-                      description: ComplianceState reports the observed status resulting
-                        from the definitions of the policy.
+                      description: ComplianceState reports the observed status resulting from the definitions of the policy.
                       enum:
                       - Compliant
                       - Pending
@@ -859,21 +712,17 @@ spec:
                       type: string
                     history:
                       items:
-                        description: ComplianceHistory reports a compliance message
-                          from a given time and event.
+                        description: ComplianceHistory reports a compliance message from a given time and event.
                         properties:
                           eventName:
-                            description: EventName is the name of the event attached
-                              to the message.
+                            description: EventName is the name of the event attached to the message.
                             type: string
                           lastTimestamp:
-                            description: LastTimestamp is the timestamp of the event
-                              that reported the message.
+                            description: LastTimestamp is the timestamp of the event that reported the message.
                             format: date-time
                             type: string
                           message:
-                            description: Message is the compliance message resulting
-                              from evaluating the policy resource.
+                            description: Message is the compliance message resulting from evaluating the policy resource.
                             type: string
                         type: object
                       type: array
@@ -884,18 +733,14 @@ spec:
                 type: array
               placement:
                 description: >-
-                  Placement is a list of managed cluster placement resources bound to the policy. This status
-                  field is only used in the root policy on the hub cluster.
+                  Placement is a list of managed cluster placement resources bound to the policy. This status field is only used in the root policy on the hub cluster.
                 items:
-                  description: Placement reports how and what managed cluster placement
-                    resources are attached to the policy.
+                  description: Placement reports how and what managed cluster placement resources are attached to the policy.
                   properties:
                     decisions:
-                      description: Decisions is the list of managed clusters returned
-                        by the placement resource for this binding.
+                      description: Decisions is the list of managed clusters returned by the placement resource for this binding.
                       items:
-                        description: PlacementDecision is the cluster name returned
-                          by the placement resource.
+                        description: PlacementDecision is the cluster name returned by the placement resource.
                         properties:
                           clusterName:
                             type: string
@@ -905,43 +750,35 @@ spec:
                       type: array
                     placement:
                       description: >-
-                        Placement is the name of the Placement resource, from the cluster.open-cluster-management.io
-                        API group, that is bound to the policy.
+                        Placement is the name of the Placement resource, from the cluster.open-cluster-management.io API group, that is bound to the policy.
                       type: string
                     placementBinding:
                       description: >-
-                        PlacementBinding is the name of the PlacementBinding resource, from the
-                        policies.open-cluster-management.io API group, that binds the placement resource to the policy.
+                        PlacementBinding is the name of the PlacementBinding resource, from the policies.open-cluster-management.io API group, that binds the placement resource to the policy.
                       type: string
                     placementRule:
                       description: >-
-                        PlacementRule (deprecated) is the name of the PlacementRule resource, from the
-                        apps.open-cluster-management.io API group, that is bound to the policy.
+                        PlacementRule (deprecated) is the name of the PlacementRule resource, from the apps.open-cluster-management.io API group, that is bound to the policy.
                       type: string
                     policySet:
                       description: >-
-                        PolicySet is the name of the policy set containing this policy and bound to the placement. If
-                        specified, then for this placement the policy is being propagated through this policy set
-                        rather than the policy being bound directly to a placement and propagated individually.
+                        PolicySet is the name of the policy set containing this policy and bound to the placement. If specified, then for this placement the policy is being propagated through this policy set rather than the policy being bound directly to a placement and propagated individually.
                       type: string
                   type: object
                 type: array
               status:
                 description: >-
-                  Status is a list of managed clusters and the current compliance state of each one. This
-                  status field is only used in the root policy on the hub cluster.
+                  Status is a list of managed clusters and the current compliance state of each one. This status field is only used in the root policy on the hub cluster.
                 items:
                   description: >-
-                    CompliancePerClusterStatus reports the name of a managed cluster and its compliance state for
-                    this policy.
+                    CompliancePerClusterStatus reports the name of a managed cluster and its compliance state for this policy.
                   properties:
                     clustername:
                       type: string
                     clusternamespace:
                       type: string
                     compliant:
-                      description: ComplianceState reports the observed status resulting
-                        from the definitions of the policy.
+                      description: ComplianceState reports the observed status resulting from the definitions of the policy.
                       enum:
                       - Compliant
                       - Pending
@@ -961,7 +798,6 @@ spec:
 
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/crds/policy.open-cluster-management.io_policyautomations.yaml
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -983,60 +819,43 @@ spec:
     schema:
       openAPIV3Schema:
         description: >-
-          PolicyAutomation is the schema for the policyautomations API. PolicyAutomation configures
-          creation of an AnsibleJob, from the tower.ansible.com API group, to initiate Ansible to run upon
-          noncompliant events of the attached policy, or when you manually initiate the run with the
-          "policy.open-cluster-management.io/rerun=true" annotation.
+          PolicyAutomation is the schema for the policyautomations API. PolicyAutomation configures creation of an AnsibleJob, from the tower.ansible.com API group, to initiate Ansible to run upon noncompliant events of the attached policy, or when you manually initiate the run with the "policy.open-cluster-management.io/rerun=true" annotation.
         properties:
           apiVersion:
             description: >-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
             description: >-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
           spec:
-            description: PolicyAutomationSpec defines how and when automation is initiated
-              for the referenced policy.
+            description: PolicyAutomationSpec defines how and when automation is initiated for the referenced policy.
             properties:
               automationDef:
                 description: AutomationDef defines the automation to invoke.
                 properties:
                   extra_vars:
-                    description: ExtraVars is passed to the Ansible job at execution
-                      time and is a known Ansible entity.
+                    description: ExtraVars is passed to the Ansible job at execution time and is a known Ansible entity.
                     type: object
                     x-kubernetes-preserve-unknown-fields: true
                   jobTtl:
                     description: >-
-                      JobTTL sets the time to live for the Kubernetes Job object after the Ansible job playbook run
-                      has finished.
+                      JobTTL sets the time to live for the Kubernetes Job object after the Ansible job playbook run has finished.
                     type: integer
                   name:
-                    description: Name of the Ansible Template to run in Ansible Automation
-                      Platform as a job.
+                    description: Name of the Ansible Template to run in Ansible Automation Platform as a job.
                     minLength: 1
                     type: string
                   policyViolationsLimit:
                     description: >-
-                      The maximum number of violating cluster contexts that are provided to the Ansible job as
-                      extra variables. When policyViolationsLimit is set to "0", it means no limit. The default value
-                      is "1000".
+                      The maximum number of violating cluster contexts that are provided to the Ansible job as extra variables. When policyViolationsLimit is set to "0", it means no limit. The default value is "1000".
                     minimum: 0
                     type: integer
                   secret:
-                    description: TowerSecret is the name of the secret that contains
-                      the Ansible Automation Platform credential.
+                    description: TowerSecret is the name of the secret that contains the Ansible Automation Platform credential.
                     minLength: 1
                     type: string
                   type:
@@ -1048,35 +867,29 @@ spec:
                 type: object
               delayAfterRunSeconds:
                 description: >-
-                  DelayAfterRunSeconds sets the minimum number of seconds before an automation can run again due
-                  to a new violation on the same managed cluster. This only applies to the EveryEvent mode. The
-                  default value is "0".
+                  DelayAfterRunSeconds sets the minimum number of seconds before an automation can run again due to a new violation on the same managed cluster. This only applies to the EveryEvent mode. The default value is "0".
                 minimum: 0
                 type: integer
               eventHook:
                 default: noncompliant
                 description: >-
-                  EventHook specifies the compliance state that initiates automation. This must be set to
-                  "noncompliant".
+                  EventHook specifies the compliance state that initiates automation. This must be set to "noncompliant".
                 enum:
                 - noncompliant
                 type: string
               mode:
                 description: >-
-                  Mode specifies how often automation is initiated. The supported values are "once", "everyEvent",
-                  and "disabled".
+                  Mode specifies how often automation is initiated. The supported values are "once", "everyEvent", and "disabled".
                 enum:
                 - once
                 - everyEvent
                 - disabled
                 type: string
               policyRef:
-                description: PolicyRef is the name of the policy that this automation
-                  resource is bound to.
+                description: PolicyRef is the name of the policy that this automation resource is bound to.
                 type: string
               rescanAfter:
-                description: RescanAfter is reserved for future use and should not
-                  be set.
+                description: RescanAfter is reserved for future use and should not be set.
                 type: string
             required:
             - automationDef
@@ -1084,21 +897,17 @@ spec:
             - policyRef
             type: object
           status:
-            description: PolicyAutomationStatus defines the observed state of the
-              PolicyAutomation resource.
+            description: PolicyAutomationStatus defines the observed state of the PolicyAutomation resource.
             properties:
               clustersWithEvent:
                 additionalProperties:
-                  description: ClusterEvent shows the PolicyAutomation event on each
-                    target cluster.
+                  description: ClusterEvent shows the PolicyAutomation event on each target cluster.
                   properties:
                     automationStartTime:
-                      description: AutomationStartTime is the policy automation start
-                        time for everyEvent mode.
+                      description: AutomationStartTime is the policy automation start time for everyEvent mode.
                       type: string
                     eventTime:
-                      description: EventTime is the last policy compliance transition
-                        event time.
+                      description: EventTime is the last policy compliance transition event time.
                       type: string
                   required:
                   - automationStartTime
@@ -1117,7 +926,6 @@ spec:
 
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/crds/policy.open-cluster-management.io_policysets.yaml
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -1146,37 +954,26 @@ spec:
     schema:
       openAPIV3Schema:
         description: >-
-          PolicySet is the schema for the policysets API. A policy set is a logical grouping of policies
-          from the same namespace. The policy set is bound to a placement resource and applies the
-          placement to all policies within the set. The status reports the overall compliance of the set.
+          PolicySet is the schema for the policysets API. A policy set is a logical grouping of policies from the same namespace. The policy set is bound to a placement resource and applies the placement to all policies within the set. The status reports the overall compliance of the set.
         properties:
           apiVersion:
             description: >-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
             description: >-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
           spec:
-            description: PolicySetSpec defines the group of policies to be included
-              in the policy set.
+            description: PolicySetSpec defines the group of policies to be included in the policy set.
             properties:
               description:
                 description: Description is the description of this policy set.
                 type: string
               policies:
-                description: Policies is a list of policy names that are contained
-                  within the policy set.
+                description: Policies is a list of policy names that are contained within the policy set.
                 items:
                   minLength: 1
                   type: string
@@ -1185,12 +982,10 @@ spec:
             - policies
             type: object
           status:
-            description: PolicySetStatus reports the observed status of the policy
-              set resulting from its policies.
+            description: PolicySetStatus reports the observed status of the policy set resulting from its policies.
             properties:
               compliant:
-                description: Compliant reports the observed status resulting from
-                  the compliance of the policies within.
+                description: Compliant reports the observed status resulting from the compliance of the policies within.
                 enum:
                 - Compliant
                 - Pending
@@ -1199,30 +994,24 @@ spec:
               placement:
                 items:
                   description: >-
-                    PolicySetStatusPlacement reports how and what managed cluster placement resources are attached to
-                    the policy set.
+                    PolicySetStatusPlacement reports how and what managed cluster placement resources are attached to the policy set.
                   properties:
                     placement:
                       description: >-
-                        Placement is the name of the Placement resource, from the cluster.open-cluster-management.io
-                        API group, that is bound to the policy.
+                        Placement is the name of the Placement resource, from the cluster.open-cluster-management.io API group, that is bound to the policy.
                       type: string
                     placementBinding:
                       description: >-
-                        PlacementBinding is the name of the PlacementBinding resource, from the
-                        policies.open-cluster-management.io API group, that binds the placement resource to the policy
-                        set.
+                        PlacementBinding is the name of the PlacementBinding resource, from the policies.open-cluster-management.io API group, that binds the placement resource to the policy set.
                       type: string
                     placementRule:
                       description: >-
-                        PlacementRule (deprecated) is the name of the PlacementRule resource, from the
-                        apps.open-cluster-management.io API group, that is bound to the policy.
+                        PlacementRule (deprecated) is the name of the PlacementRule resource, from the apps.open-cluster-management.io API group, that is bound to the policy.
                       type: string
                   type: object
                 type: array
               statusMessage:
-                description: StatusMessge reports the current state while determining
-                  the compliance of the policy set.
+                description: StatusMessge reports the current state while determining the compliance of the policy set.
                 type: string
             type: object
         required:
@@ -1270,7 +1059,6 @@ metadata:
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/cluster-lifecycle/templates/klusterlet-addon-role.yaml
 # Copyright Contributors to the Open Cluster Management project
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -1348,7 +1136,6 @@ rules:
   - patch
   - update
   - watch
-
 # appmgr
 - apiGroups:
   - apps.open-cluster-management.io
@@ -1370,9 +1157,9 @@ rules:
   - update
   - watch
   - delete
-- apiGroups: 
+- apiGroups:
   - addon.open-cluster-management.io
-  resources: 
+  resources:
   - managedclusteraddons
   - managedclusteraddons/status
   - clustermanagementaddons
@@ -1385,21 +1172,21 @@ rules:
   - update
   - watch
 - apiGroups:
-    - imageregistry.open-cluster-management.io
+  - imageregistry.open-cluster-management.io
   resources:
-    - managedclusterimageregistries
-    - managedclusterimageregistries/status
+  - managedclusterimageregistries
+  - managedclusterimageregistries/status
   verbs:
-    - get
-    - list
-    - watch
+  - get
+  - list
+  - watch
 - apiGroups:
-    - operator.open-cluster-management.io
+  - operator.open-cluster-management.io
   resources:
-    - multiclusterhubs
+  - multiclusterhubs
   verbs:
-    - get
-    - list
+  - get
+  - list
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/grc/templates/grc-clusterrole.yaml
 # Copyright (c) 2020 Red Hat, Inc.
@@ -1511,7 +1298,6 @@ rules:
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/grc/templates/grc-policy-addon-clusterrole.yaml
 # Copyright (c) 2022 Red Hat, Inc.
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -1832,7 +1618,6 @@ rules:
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/cluster-lifecycle/templates/klusterlet-addon-role_binding.yaml
 # Copyright Contributors to the Open Cluster Management project
-
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -1884,7 +1669,6 @@ subjects:
 ---
 # Source: multicluster-engine-local-cluster/charts/policy/charts/grc/templates/grc-policy-addon-role.yaml
 # Copyright (c) 2022 Red Hat, Inc.
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
