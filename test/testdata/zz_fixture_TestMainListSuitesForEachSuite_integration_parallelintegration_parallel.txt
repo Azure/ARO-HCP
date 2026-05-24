@@ -58,6 +58,7 @@ Customer should be able to lifecycle and confirm external auth on a cluster
 HCP Nodepools GPU instances creates and deletes vm type NC4asT4v3 in a single cluster
 Customer should be able to create an HCP cluster and manage ImageDigestMirrors
 Customer should be able to create an HCP cluster with Image Registry not present
+Image Registry Policy should allow pods with images from allowed registries and have a valid allowlist
 MISE Routing routes to the correct frontend based on version header MISE v2 when x-ms-mise-version header is set
 MISE Routing routes to the correct frontend based on version header default route returns no version header
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits

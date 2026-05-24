@@ -426,6 +426,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -475,6 +477,34 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: image-registry-policy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: image-registry-policy
+    releaseNamespace: image-registry-policy
+    chartDir: ./../image-registry-policy/deploy
+    valuesFile: ./../image-registry-policy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -491,6 +521,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -519,6 +551,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -545,6 +579,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -661,6 +697,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
