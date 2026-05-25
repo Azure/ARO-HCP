@@ -99,7 +99,7 @@ func NewNodePoolVersionController(
 //   - The desired version must satisfy:
 //   - Not less than the highest active version (no downgrades)
 //   - Not greater than the lowest control plane version (node pools cannot exceed CP)
-//   - Minor version upgrades limited to +2 (implicitly: CP-NP skew caps CP at NP+2, and NP cannot exceed CP)
+//   - Minor version upgrades limited to +2 (Kubernetes N-2 skew policy)
 //   - Exist as a known version in Cincinnati
 //   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
 //
@@ -255,7 +255,7 @@ func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersio
 // It validates:
 //   - The desired version is not less than the highest active node pool version (no downgrades)
 //   - The desired version is not greater than the lowest control plane version
-//   - Minor version upgrades limited to +2 (implicitly: CP-NP skew caps CP at NP+2, and NP cannot exceed CP)
+//   - Minor version upgrades limited to +2 (Kubernetes N-2 skew policy)
 //   - No major version changes (unless FeatureExperimentalReleaseFeatures is registered)
 //   - The desired version exists in Cincinnati
 //

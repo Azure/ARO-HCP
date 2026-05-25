@@ -419,6 +419,14 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		{
+			name:                 "y-stream upgrade (+3) - fail",
+			desiredVersion:       "4.21.5",
+			activeVersions:       []string{"4.18.10"},
+			controlPlaneVersions: []string{"4.21.5"},
+			expectError:          true,
+			errorContains:        "skipping more than 2 minor versions",
+		},
+		{
 			name:                 "major version change - fail by default",
 			desiredVersion:       "5.0.0",
 			activeVersions:       []string{"4.22.0"},
