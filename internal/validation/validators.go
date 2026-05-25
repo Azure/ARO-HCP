@@ -894,7 +894,7 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 // - No downgrades from highest active version
 // - Cannot exceed lowest control plane version
 // - No major version changes without AFEC (uses existing ValidateMajorUpgrade)
-// - Minor version upgrades limited to +2 (Kubernetes N-2 skew policy)
+// - Minor version upgrades limited to +2 (N-2 skew policy)
 func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
 	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
@@ -930,7 +930,7 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 		return ValidateMajorUpgrade(*lowest, desiredVersion)
 	}
 
-	// Minor skip validation (Kubernetes N-2 skew policy)
+	// Minor skip validation (N-2 skew policy)
 	if lowest != nil && desiredVersion.Minor > lowest.Minor+2 {
 		return fmt.Errorf(
 			"invalid upgrade path from %s to %s: skipping more than 2 minor versions is not allowed",

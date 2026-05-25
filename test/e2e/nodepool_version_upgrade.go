@@ -375,7 +375,7 @@ var _ = Describe("Customer", func() {
 			"4.20"),
 	)
 
-	// Nodepool upgrade skipping one minor version (+2): the Kubernetes N-2 skew policy allows
+	// Nodepool upgrade skipping one minor version (+2): the N-2 skew policy allows
 	// kubelet to be 2 minor versions behind kube-apiserver, and HCP nodepools use Replace
 	// strategy, so no step-through requirement exists.
 	DescribeTable("should upgrade a nodepool skipping one minor version (+2)",
