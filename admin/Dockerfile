@@ -1,6 +1,6 @@
 ARG PLATFORM
 
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25.10-1-azurelinux3.0-amd64 as builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 as builder
 COPY internal/go.mod internal/go.sum internal/
 COPY test-integration/go.mod test-integration/
 COPY sessiongate/go.mod sessiongate/go.sum sessiongate/
