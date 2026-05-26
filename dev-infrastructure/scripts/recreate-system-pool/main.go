@@ -118,6 +118,7 @@ const (
 	defaultThreshold  = 10
 	defaultWindowMin  = 15
 	lroAbortAgeMin    = 30
+	lroLookupWindow   = "7d"
 	systmpReadyTOMin  = 10
 	systemReadyTOMin  = 10
 	pollIntervalSec   = 30
@@ -167,7 +168,7 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), overallTimeoutMin*time.Minute)
 	defer cancel()
 
-	cfg, err := loadConfig(ctx)
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -188,21 +189,9 @@ func run() error {
 		logf("cluster %s/%s does not exist yet (greenfield rollout). Exiting no-op.", cfg.resourceGroup, cfg.clusterName)
 		return nil
 	}
-	logf("cluster found: nodeResourceGroup=%s currentKubernetesVersion=%s", cfg.nodeRG, cfg.cpVersion)
+	logf("cluster found: provisioning fields nodeResourceGroup=%q currentKubernetesVersion=%q", cfg.nodeRG, cfg.cpVersion)
 
-	logBanner("KUBECONFIG BOOTSTRAP")
-	kubeconfigPath, err := clients.bootstrapKube(ctx, mc)
-	if err != nil {
-		return fmt.Errorf("bootstrap kube client: %w", err)
-	}
-	defer func() {
-		if rerr := os.Remove(kubeconfigPath); rerr != nil && !os.IsNotExist(rerr) {
-			logf("WARN: failed to remove kubeconfig %s: %v", kubeconfigPath, rerr)
-		}
-	}()
-	logf("kubeconfig=%s", kubeconfigPath)
-
-	logBanner("PRE-FLIGHT STATE")
+	logBanner("PRE-FLIGHT ARM STATE")
 	if err := clients.dumpPreflight(ctx); err != nil {
 		logf("WARN: pre-flight dump partial: %v", err)
 	}
@@ -221,6 +210,26 @@ func run() error {
 	if cfg.dryRun {
 		logf("DRY_RUN=true — guards passed; would proceed with recreate. Exiting no-op.")
 		return nil
+	}
+	if cfg.cpVersion == "" {
+		return errors.New("currentKubernetesVersion empty after guards passed; refusing to act")
+	}
+
+	logBanner("KUBECONFIG BOOTSTRAP")
+	kubeconfigPath, err := clients.bootstrapKube(ctx, mc)
+	if err != nil {
+		return fmt.Errorf("bootstrap kube client: %w", err)
+	}
+	defer func() {
+		if rerr := os.Remove(kubeconfigPath); rerr != nil && !os.IsNotExist(rerr) {
+			logf("WARN: failed to remove kubeconfig %s: %v", kubeconfigPath, rerr)
+		}
+	}()
+	logf("kubeconfig=%s", kubeconfigPath)
+
+	logBanner("PRE-ACTION STATE")
+	if err := clients.dumpPreflight(ctx); err != nil {
+		logf("WARN: pre-action dump partial: %v", err)
 	}
 
 	if err := clients.preflightChecks(ctx); err != nil {
@@ -339,17 +348,8 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 	return c, nil
 }
 
-func loadConfig(ctx context.Context) (*config, error) {
-	c, err := parseEnvConfig(os.Getenv)
-	if err != nil {
-		return nil, err
-	}
-	sub, err := azShellTSV(ctx, "account", "show", "--query", "id")
-	if err != nil {
-		return nil, fmt.Errorf("az account show: %w", err)
-	}
-	c.subscriptionID = sub
-	return c, nil
+func loadConfig() (*config, error) {
+	return parseEnvConfig(os.Getenv)
 }
 
 func (c *config) logEnv() {
@@ -402,7 +402,10 @@ func newAzureClients(cfg *config) (*clients, error) {
 // ensureCluster does an ARM Get on the managed cluster. If the cluster
 // does not exist (HTTP 404), returns (zero, false, nil) so the caller
 // can no-op exit cleanly. On any other error returns (zero, false, error).
-// On success populates cfg.nodeRG and cfg.cpVersion from the live cluster.
+// On success, it records nodeRG and cpVersion when ARM has populated them,
+// but deliberately does not require them yet: partially-created clusters can
+// be returned without these fields, and evalGuard2 should reject Creating as
+// a no-op guard failure instead of failing the Shell step.
 func (c *clients) ensureCluster(ctx context.Context) (armcs.ManagedCluster, bool, error) {
 	resp, err := c.cluster.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
 	if err != nil {
@@ -412,20 +415,13 @@ func (c *clients) ensureCluster(ctx context.Context) (armcs.ManagedCluster, bool
 		return armcs.ManagedCluster{}, false, fmt.Errorf("cluster get: %w", err)
 	}
 	mc := resp.ManagedCluster
-	if mc.Properties == nil {
-		return mc, true, errors.New("cluster has no properties")
-	}
-	if mc.Properties.NodeResourceGroup != nil {
-		c.cfg.nodeRG = *mc.Properties.NodeResourceGroup
-	}
-	if mc.Properties.CurrentKubernetesVersion != nil {
-		c.cfg.cpVersion = *mc.Properties.CurrentKubernetesVersion
-	}
-	if c.cfg.nodeRG == "" {
-		return mc, true, errors.New("nodeResourceGroup empty")
-	}
-	if c.cfg.cpVersion == "" {
-		return mc, true, errors.New("currentKubernetesVersion empty")
+	if mc.Properties != nil {
+		if mc.Properties.NodeResourceGroup != nil {
+			c.cfg.nodeRG = *mc.Properties.NodeResourceGroup
+		}
+		if mc.Properties.CurrentKubernetesVersion != nil {
+			c.cfg.cpVersion = *mc.Properties.CurrentKubernetesVersion
+		}
 	}
 	return mc, true, nil
 }
@@ -549,44 +545,52 @@ func kubeconfigWithBearerToken(clusterName, server string, caData []byte, token 
 
 func (c *clients) dumpPreflight(ctx context.Context) error {
 	logf("--- nodepools ---")
-	if _, err := runCmd(ctx, "az", "aks", "nodepool", "list",
+	if err := runCmd(ctx, "az", "aks", "nodepool", "list",
 		"-g", c.cfg.resourceGroup, "--cluster-name", c.cfg.clusterName,
 		"--query", "[].{name:name,mode:mode,state:provisioningState,count:count,min:minCount,max:maxCount,k8s:currentOrchestratorVersion,vmSize:vmSize}",
 		"-o", "table"); err != nil {
 		return err
 	}
 	logf("--- cluster ---")
-	if _, err := runCmd(ctx, "az", "aks", "show",
+	if err := runCmd(ctx, "az", "aks", "show",
 		"-g", c.cfg.resourceGroup, "-n", c.cfg.clusterName,
 		"--query", "{prov:provisioningState,power:powerState.code,cpVer:currentKubernetesVersion,target:kubernetesVersion}",
 		"-o", "json"); err != nil {
 		return err
 	}
 	logf("--- k8s nodes (all) ---")
-	_, _ = runCmd(ctx, "kubectl", "get", "nodes", "-o", "wide")
+	_ = runCmd(ctx, "kubectl", "get", "nodes", "-o", "wide")
 	logf("--- k8s nodes (system) ---")
-	_, _ = runCmd(ctx, "kubectl", "get", "nodes", "-l", "agentpool="+systemPoolName, "-o", "wide")
+	_ = runCmd(ctx, "kubectl", "get", "nodes", "-l", "agentpool="+systemPoolName, "-o", "wide")
 	return nil
 }
 
 func (c *clients) dumpPostflight(ctx context.Context) error {
 	logf("--- final nodepools ---")
-	_, _ = runCmd(ctx, "az", "aks", "nodepool", "list",
+	_ = runCmd(ctx, "az", "aks", "nodepool", "list",
 		"-g", c.cfg.resourceGroup, "--cluster-name", c.cfg.clusterName,
 		"--query", "[].{name:name,mode:mode,state:provisioningState,count:count,min:minCount,max:maxCount,k8s:currentOrchestratorVersion}",
 		"-o", "table")
 	logf("--- final cluster ---")
-	_, _ = runCmd(ctx, "az", "aks", "show",
+	_ = runCmd(ctx, "az", "aks", "show",
 		"-g", c.cfg.resourceGroup, "-n", c.cfg.clusterName,
 		"--query", "{prov:provisioningState,power:powerState.code,cpVer:currentKubernetesVersion}",
 		"-o", "json")
 	logf("--- post-flight: residual NRP failures (informational) ---")
 	out, err := azJSON(ctx, "monitor", "activity-log", "list", "-g", c.cfg.nodeRG, "--offset", "10m")
 	if err == nil {
-		hits := countNRPFailures(out, "")
+		hits, parseErr := countNRPFailures(out, "")
+		if parseErr != nil {
+			logf("WARN: failed to parse post-flight activity log: %v", parseErr)
+			return nil
+		}
 		logf("Failed VMSS-write events on %s in last 10m: %d", c.cfg.nodeRG, hits)
 		if hits > 0 {
-			ids := nrpResourceIDs(out)
+			ids, parseErr := nrpResourceIDs(out)
+			if parseErr != nil {
+				logf("WARN: failed to parse post-flight NRP resource IDs: %v", parseErr)
+				return nil
+			}
 			for _, id := range ids {
 				logf("    %s", id)
 			}
@@ -599,8 +603,8 @@ func (c *clients) dumpPostflight(ctx context.Context) error {
 // detection
 // ---------------------------------------------------------------------------
 
-// evalGuard2 reports whether NRP failure count exceeds the threshold.
-func evalGuard2(failures, threshold int) (bool, string) {
+// evalGuard1 reports whether NRP failure count exceeds the threshold.
+func evalGuard1(failures, threshold int) (bool, string) {
 	if threshold <= 0 {
 		return false, fmt.Sprintf("guard 1 FAIL: threshold=%d (invalid)", threshold)
 	}
@@ -610,7 +614,7 @@ func evalGuard2(failures, threshold int) (bool, string) {
 	return true, ""
 }
 
-// evalGuard3 reports whether the cluster is in a state where we can act.
+// evalGuard2 reports whether the cluster is in a state where we can act.
 //
 // Acceptable:
 //   - Succeeded / Canceled / Failed: settled, no LRO to fight, free to PUT.
@@ -626,7 +630,7 @@ func evalGuard2(failures, threshold int) (bool, string) {
 //     pool we'd want to recreate doesn't exist in a stable form.
 //   - Deleting: someone is tearing the cluster down; do not interfere.
 //   - empty / unknown future states: be conservative.
-func evalGuard3(provisioningState string) (bool, string) {
+func evalGuard2(provisioningState string) (bool, string) {
 	switch provisioningState {
 	case "Succeeded", "Canceled", "Failed", "Updating", "Upgrading":
 		return true, ""
@@ -640,13 +644,13 @@ func evalGuard3(provisioningState string) (bool, string) {
 	return false, fmt.Sprintf("guard 2 FAIL: cluster provisioningState=%q is not a recognized recoverable state", provisioningState)
 }
 
-// evalGuard4 reports whether all non-system pools have count > 0 and a
+// evalGuard3 reports whether all non-system pools have count > 0 and a
 // system pool exists. Also reports the system pool's minCount and
 // provisioningState back to the caller so the latter can be fed into
-// evalGuard5 without a second list-pools API call.
+// evalGuard4 without a second list-pools API call.
 //
 // Returns (pass, systemMin, systemProvState, reason).
-func evalGuard4(pools []*armcs.AgentPool) (bool, int32, string, string) {
+func evalGuard3(pools []*armcs.AgentPool) (bool, int32, string, string) {
 	var systemMin int32
 	var systemProvState string
 	systemFound := false
@@ -679,7 +683,7 @@ func evalGuard4(pools []*armcs.AgentPool) (bool, int32, string, string) {
 	return true, systemMin, systemProvState, ""
 }
 
-// evalGuard5 reports whether the system pool itself is in a wedge-
+// evalGuard4 reports whether the system pool itself is in a wedge-
 // compatible state. Refines guard 1 (NRP failure storm) with a positive
 // signal scoped to this exact agent-pool resource.
 //
@@ -697,7 +701,7 @@ func evalGuard4(pools []*armcs.AgentPool) (bool, int32, string, string) {
 //   - Creating  — pool not fully created yet; do not interfere.
 //   - Deleting  — pool being torn down; do not interfere.
 //   - empty / unknown — fail conservatively.
-func evalGuard5(systemProvState string) (bool, string) {
+func evalGuard4(systemProvState string) (bool, string) {
 	switch systemProvState {
 	case "Failed", "Canceled", "Updating", "Upgrading":
 		return true, ""
@@ -724,7 +728,7 @@ func (c *clients) detect(ctx context.Context) (bool, string, error) {
 		cs = *mc.Properties.ProvisioningState
 	}
 	logf("guard 2 :: cluster provisioningState=%s (accept: Succeeded/Canceled/Failed/Updating/Upgrading; reject: Creating/Deleting/unknown)", cs)
-	if pass, reason := evalGuard3(cs); !pass {
+	if pass, reason := evalGuard2(cs); !pass {
 		return false, reason, nil
 	}
 	logf("guard 2 PASS")
@@ -739,47 +743,31 @@ func (c *clients) detect(ctx context.Context) (bool, string, error) {
 		}
 		allPools = append(allPools, page.Value...)
 	}
-	pass, systemMin, systemProvState, reason := evalGuard4(allPools)
+	pass, systemMin, systemProvState, reason := evalGuard3(allPools)
 	if !pass {
 		return false, reason, nil
 	}
 	logf("guard 3 PASS (system minCount=%d systemProvState=%q)", systemMin, systemProvState)
 
 	// Guard 4: system pool itself is in a wedge-compatible state.
-	if pass, reason := evalGuard5(systemProvState); !pass {
+	if pass, reason := evalGuard4(systemProvState); !pass {
 		return false, reason, nil
 	}
 	logf("guard 4 PASS (system pool provisioningState=%q)", systemProvState)
-
-	// Diagnostic only: ready system nodes can remain >= minCount during
-	// the stuck-upgrade form of the NRP-KVS wedge. In INT, ready < minCount
-	// only appeared after operators manually triggered extra scale-up/surge
-	// attempts. Do not gate on this value; log it for postmortem context.
-	nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-		LabelSelector: "agentpool=" + systemPoolName,
-	})
-	if err != nil {
-		return false, "", fmt.Errorf("list system nodes for diagnostics: %w", err)
-	}
-	readyCount := int32(0)
-	for _, n := range nodes.Items {
-		if isNodeReady(&n) {
-			readyCount++
-		}
-	}
-	logf("diagnostic :: system minCount=%d registered=%d ready=%d", systemMin, len(nodes.Items), readyCount)
 
 	// Guard 1: NRP retry loop on aks-system-* VMSS
 	logf("guard 1 :: checking activity log on %s for last %d min", c.cfg.nodeRG, c.cfg.windowMin)
 	out, err := azJSON(ctx, "monitor", "activity-log", "list", "-g", c.cfg.nodeRG, "--offset", fmt.Sprintf("%dm", c.cfg.windowMin))
 	if err != nil {
-		// Reader role on node RG missing is a fail-closed scenario.
-		return false, fmt.Sprintf("guard 1 FAIL: activity log query failed: %v", err), nil
+		return false, "", fmt.Errorf("guard 1 activity-log query failed: %w", err)
 	}
-	hits := countNRPFailures(out, "aks-system-")
+	hits, err := countNRPFailures(out, "aks-system-")
+	if err != nil {
+		return false, "", fmt.Errorf("guard 1 activity-log parse failed: %w", err)
+	}
 	logf("guard 1 :: NRP-KVS (%s) Failed events on aks-system-* in window: %d (threshold %d)",
 		nrpKVSErrorCode, hits, c.cfg.threshold)
-	if pass, reason := evalGuard2(hits, c.cfg.threshold); !pass {
+	if pass, reason := evalGuard1(hits, c.cfg.threshold); !pass {
 		return false, reason, nil
 	}
 	logf("guard 1 PASS")
@@ -897,24 +885,17 @@ func isActiveClusterState(state string) bool {
 	return state == "Updating" || state == "Upgrading"
 }
 
-// maybeAbortLRO inspects the cluster's latest LRO and decides what to do:
+// maybeAbortLRO age-gates and aborts a stuck cluster LRO without relying
+// on `az aks operation show-latest` (that command requires the aks-preview
+// extension, which is not available in EV2 runners).
 //
-//   - no latest LRO accessible while
-//     cluster state is settled            -> proceed (nothing to abort).
-//   - no latest LRO accessible while
-//     cluster state is active             -> fail closed (cannot age-gate).
-//   - latest LRO already finished         -> proceed (nothing to abort).
-//   - active LRO younger than 30 min      -> NO-OP (return proceed=false,
-//     no error). The caller exits 0
-//     to avoid racing a potentially
-//     healthy in-progress operation.
-//   - active LRO >= 30 min old            -> abort via `az aks
-//     operation-abort`, then proceed.
-//
-// The 30-min threshold is the same heuristic the on-call SREs used during
-// AROSLSRE-924 / AROSLSRE-880: a healthy upgrade or scale converges
-// within minutes; anything older than 30 min on the same correlation
-// chain is the NRP-KVS retry storm and is safe to abort.
+// If the cluster is not in an active LRO state, there is nothing to abort.
+// If it is active (Updating/Upgrading), we derive LRO age from the latest
+// management-cluster write Started event in Activity Log. Once the event is
+// at least 30 minutes old, the NRP-KVS retry storm has outlived healthy
+// upgrade/scale behavior, so we abort via the typed AKS SDK
+// BeginAbortLatestOperation. If the latest start is younger, return
+// proceed=false so the caller exits 0 without racing a healthy operation.
 func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 	clusterState := ""
 	mc, err := c.cluster.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
@@ -924,58 +905,35 @@ func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 	if mc.Properties != nil && mc.Properties.ProvisioningState != nil {
 		clusterState = *mc.Properties.ProvisioningState
 	}
-	clusterActive := isActiveClusterState(clusterState)
-	logf("cluster provisioningState before LRO inspection: %s", clusterState)
+	if !isActiveClusterState(clusterState) {
+		logf("cluster provisioningState=%s; no active LRO to abort", clusterState)
+		return true, nil
+	}
 
-	// SDK lacks a typed "show-latest cluster operation" helper; use az.
-	out, err := azJSON(ctx, "aks", "operation", "show-latest", "-g", c.cfg.resourceGroup, "-n", c.cfg.clusterName)
+	clusterID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s",
+		c.cfg.subscriptionID, c.cfg.resourceGroup, c.cfg.clusterName)
+	logf("cluster provisioningState=%s; locating latest managedClusters/write Started event in last %s", clusterState, lroLookupWindow)
+	out, err := azJSON(ctx, "monitor", "activity-log", "list", "-g", c.cfg.resourceGroup, "--offset", lroLookupWindow)
 	if err != nil {
-		if clusterActive {
-			return false, fmt.Errorf("latest LRO unavailable while cluster provisioningState=%q is active: %w", clusterState, err)
-		}
-		logf("no latest LRO accessible (continuing): %v", err)
-		return true, nil
+		return false, fmt.Errorf("activity-log query for active cluster LRO: %w", err)
 	}
-	var op struct {
-		Status    string `json:"status"`
-		StartTime string `json:"startTime"`
-		EndTime   string `json:"endTime"`
-	}
-	if err := json.Unmarshal(out, &op); err != nil {
-		if clusterActive {
-			return false, fmt.Errorf("could not parse latest LRO while cluster provisioningState=%q is active: %w", clusterState, err)
-		}
-		logf("could not parse latest LRO: %v (continuing)", err)
-		return true, nil
-	}
-	logf("latest LRO: status=%s start=%s end=%s", op.Status, op.StartTime, op.EndTime)
-	if op.EndTime != "" {
-		logf("no active LRO")
-		return true, nil
-	}
-	if op.Status == "" {
-		if clusterActive {
-			return false, fmt.Errorf("latest LRO status empty while cluster provisioningState=%q is active", clusterState)
-		}
-		logf("no active LRO")
-		return true, nil
-	}
-	start, err := time.Parse(time.RFC3339, op.StartTime)
+	start, correlationID, err := latestClusterWriteStart(out, clusterID)
 	if err != nil {
-		if clusterActive {
-			return false, fmt.Errorf("could not parse active LRO startTime %q while cluster provisioningState=%q is active: %w", op.StartTime, clusterState, err)
-		}
-		logf("could not parse LRO startTime: %v (continuing)", err)
-		return true, nil
+		return false, fmt.Errorf("determine active cluster LRO age: %w", err)
 	}
 	age := time.Since(start)
-	logf("active LRO age: %s", age.Round(time.Minute))
+	logf("latest cluster write LRO: started=%s age=%s correlationID=%s", start.UTC().Format(time.RFC3339), age.Round(time.Minute), correlationID)
 	if age < lroAbortAgeMin*time.Minute {
 		return false, nil
 	}
-	logf("aborting LRO (age >= %dm)", lroAbortAgeMin)
-	if _, err := runCmd(ctx, "az", "aks", "operation-abort", "-g", c.cfg.resourceGroup, "-n", c.cfg.clusterName); err != nil {
-		return false, fmt.Errorf("operation-abort: %w", err)
+
+	logf("aborting latest cluster LRO via SDK (age >= %dm)", lroAbortAgeMin)
+	poller, err := c.cluster.BeginAbortLatestOperation(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin abort latest cluster operation: %w", err)
+	}
+	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
+		return false, fmt.Errorf("poll abort latest cluster operation: %w", err)
 	}
 	time.Sleep(15 * time.Second)
 	return true, nil
@@ -1090,11 +1048,11 @@ func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Durat
 	for _, n := range nodes.Items {
 		name := n.Name
 		logf(">>> cordoning %s", name)
-		if _, err := runCmd(ctx, "kubectl", "cordon", name); err != nil {
+		if err := runCmd(ctx, "kubectl", "cordon", name); err != nil {
 			logf("WARN: cordon %s: %v (continuing)", name, err)
 		}
 		logf(">>> draining %s (timeout=%s)", name, timeoutStr)
-		if _, err := runCmd(ctx, "kubectl", "drain", name,
+		if err := runCmd(ctx, "kubectl", "drain", name,
 			"--ignore-daemonsets", "--delete-emptydir-data", "--timeout", timeoutStr); err != nil {
 			// Don't fail the whole script on drain hiccups; delete-pool will force-evict.
 			logf("WARN: drain %s returned: %v (continuing)", name, err)
@@ -1162,7 +1120,7 @@ func (c *clients) reconcileTagPut(ctx context.Context) error {
 	ts := time.Now().UTC().Format(time.RFC3339Nano)
 	id := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s",
 		c.cfg.subscriptionID, c.cfg.resourceGroup, c.cfg.clusterName)
-	_, err := runCmd(ctx, "az", "resource", "update", "--ids", id,
+	err := runCmd(ctx, "az", "resource", "update", "--ids", id,
 		"--latest-include-preview",
 		"--set", "tags.aroslsre-924-recreate="+ts)
 	return err
@@ -1174,24 +1132,31 @@ func (c *clients) reconcileTagPut(ctx context.Context) error {
 
 func (c *clients) waitForReadyNodes(ctx context.Context, pool string, want int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
+	var lastListErr error
 	for {
 		nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 			LabelSelector: "agentpool=" + pool,
 		})
 		if err != nil {
-			return fmt.Errorf("list nodes for pool %s: %w", pool, err)
-		}
-		ready := 0
-		for _, n := range nodes.Items {
-			if isNodeReady(&n) {
-				ready++
+			lastListErr = fmt.Errorf("list nodes for pool %s: %w", pool, err)
+			logf("WARN: %v; retrying", lastListErr)
+		} else {
+			lastListErr = nil
+			ready := 0
+			for _, n := range nodes.Items {
+				if isNodeReady(&n) {
+					ready++
+				}
+			}
+			logf("  pool=%s ready=%d/%d", pool, ready, want)
+			if ready >= want {
+				return nil
 			}
 		}
-		logf("  pool=%s ready=%d/%d", pool, ready, want)
-		if ready >= want {
-			return nil
-		}
 		if time.Now().After(deadline) {
+			if lastListErr != nil {
+				return fmt.Errorf("pool %s did not reach %d ready nodes within %s; last list error: %w", pool, want, timeout, lastListErr)
+			}
 			return fmt.Errorf("pool %s did not reach %d ready nodes within %s", pool, want, timeout)
 		}
 		select {
@@ -1254,10 +1219,10 @@ func hasNRPKVSSignature(e activityEvent) bool {
 	return body.Error.Code == nrpKVSErrorCode
 }
 
-func countNRPFailures(raw []byte, vmssPrefix string) int {
-	var events []activityEvent
-	if err := json.Unmarshal(raw, &events); err != nil {
-		return 0
+func countNRPFailures(raw []byte, vmssPrefix string) (int, error) {
+	events, err := parseActivityEvents(raw)
+	if err != nil {
+		return 0, err
 	}
 	n := 0
 	for _, e := range events {
@@ -1267,21 +1232,24 @@ func countNRPFailures(raw []byte, vmssPrefix string) int {
 		if !strings.Contains(strings.ToLower(e.OperationName.Value), "virtualmachinescalesets") {
 			continue
 		}
-		if vmssPrefix != "" && !strings.Contains(strings.ToLower(e.ResourceID), strings.ToLower("/virtualMachineScaleSets/"+vmssPrefix)) {
-			continue
-		}
 		if !hasNRPKVSSignature(e) {
 			continue
 		}
-		n++
+		if vmssPrefix == "" {
+			n++
+			continue
+		}
+		if strings.Contains(strings.ToLower(e.ResourceID), strings.ToLower("/virtualMachineScaleSets/"+vmssPrefix)) {
+			n++
+		}
 	}
-	return n
+	return n, nil
 }
 
-func nrpResourceIDs(raw []byte) []string {
-	var events []activityEvent
-	if err := json.Unmarshal(raw, &events); err != nil {
-		return nil
+func nrpResourceIDs(raw []byte) ([]string, error) {
+	events, err := parseActivityEvents(raw)
+	if err != nil {
+		return nil, err
 	}
 	seen := map[string]struct{}{}
 	var out []string
@@ -1301,26 +1269,69 @@ func nrpResourceIDs(raw []byte) []string {
 		seen[e.ResourceID] = struct{}{}
 		out = append(out, e.ResourceID)
 	}
-	return out
+	return out, nil
+}
+
+func latestClusterWriteStart(raw []byte, clusterResourceID string) (time.Time, string, error) {
+	events, err := parseActivityEvents(raw)
+	if err != nil {
+		return time.Time{}, "", err
+	}
+	clusterResourceID = strings.ToLower(clusterResourceID)
+	var latest time.Time
+	var correlationID string
+	for _, e := range events {
+		if e.Status.Value != "Started" {
+			continue
+		}
+		if !strings.EqualFold(e.ResourceID, clusterResourceID) {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(e.OperationName.Value), "managedclusters/write") {
+			continue
+		}
+		if e.EventTime == "" {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, e.EventTime)
+		if err != nil {
+			return time.Time{}, "", fmt.Errorf("parse cluster write eventTimestamp %q: %w", e.EventTime, err)
+		}
+		if latest.IsZero() || t.After(latest) {
+			latest = t
+			correlationID = e.CorrelationID
+		}
+	}
+	if latest.IsZero() {
+		return time.Time{}, "", fmt.Errorf("no Started Microsoft.ContainerService/managedClusters/write event found for %s in activity log", clusterResourceID)
+	}
+	return latest, correlationID, nil
+}
+
+func parseActivityEvents(raw []byte) ([]activityEvent, error) {
+	var events []activityEvent
+	if err := json.Unmarshal(raw, &events); err != nil {
+		return nil, fmt.Errorf("parse activity log JSON: %w", err)
+	}
+	return events, nil
 }
 
 // ---------------------------------------------------------------------------
 // shell helpers
 // ---------------------------------------------------------------------------
 
-func runCmd(ctx context.Context, name string, args ...string) ([]byte, error) {
+func runCmd(ctx context.Context, name string, args ...string) error {
 	logf("$ %s %s", name, strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return nil, err
-	}
-	return nil, nil
+	return cmd.Run()
 }
 
 func azJSON(ctx context.Context, args ...string) ([]byte, error) {
-	full := append([]string{"-o", "json"}, args...)
+	full := make([]string, 0, len(args)+2)
+	full = append(full, "-o", "json")
+	full = append(full, args...)
 	logf("$ az %s", strings.Join(full, " "))
 	cmd := exec.CommandContext(ctx, "az", full...)
 	out, err := cmd.Output()
@@ -1331,18 +1342,6 @@ func azJSON(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, err
 	}
 	return out, nil
-}
-
-func azShellTSV(ctx context.Context, args ...string) (string, error) {
-	full := append([]string{"-o", "tsv"}, args...)
-	out, err := exec.CommandContext(ctx, "az", full...).Output()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("az %v failed: %w: %s", args, err, string(ee.Stderr))
-		}
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
 }
 
 // ---------------------------------------------------------------------------

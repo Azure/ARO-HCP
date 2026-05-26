@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,7 +68,7 @@ func TestParseEnvConfig_MinimalRequiredFields(t *testing.T) {
 }
 
 func TestParseEnvConfig_MissingClusterName(t *testing.T) {
-	env := envFromMap(map[string]string{"RESOURCE_GROUP": "rg"})
+	env := envFromMap(map[string]string{"RESOURCE_GROUP": "rg", "SUBSCRIPTION_ID": "sub"})
 	_, err := parseEnvConfig(env)
 	if err == nil || !strings.Contains(err.Error(), "CLUSTER_NAME") {
 		t.Errorf("expected CLUSTER_NAME error, got %v", err)
@@ -75,7 +76,7 @@ func TestParseEnvConfig_MissingClusterName(t *testing.T) {
 }
 
 func TestParseEnvConfig_MissingResourceGroup(t *testing.T) {
-	env := envFromMap(map[string]string{"CLUSTER_NAME": "c"})
+	env := envFromMap(map[string]string{"CLUSTER_NAME": "c", "SUBSCRIPTION_ID": "sub"})
 	_, err := parseEnvConfig(env)
 	if err == nil || !strings.Contains(err.Error(), "RESOURCE_GROUP") {
 		t.Errorf("expected RESOURCE_GROUP error, got %v", err)
@@ -183,7 +184,7 @@ func TestParseEnvConfig_DryRunFlag(t *testing.T) {
 // evalGuard1..4
 // =============================================================================
 
-func TestEvalGuard2(t *testing.T) {
+func TestEvalGuard1(t *testing.T) {
 	cases := []struct {
 		name                string
 		failures, threshold int
@@ -198,7 +199,7 @@ func TestEvalGuard2(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, reason := evalGuard2(tc.failures, tc.threshold)
+			pass, reason := evalGuard1(tc.failures, tc.threshold)
 			if pass != tc.wantPass {
 				t.Errorf("failures=%d threshold=%d: pass=%t want %t (%s)", tc.failures, tc.threshold, pass, tc.wantPass, reason)
 			}
@@ -209,7 +210,7 @@ func TestEvalGuard2(t *testing.T) {
 	}
 }
 
-func TestEvalGuard3(t *testing.T) {
+func TestEvalGuard2(t *testing.T) {
 	cases := []struct {
 		name  string
 		state string
@@ -241,7 +242,7 @@ func TestEvalGuard3(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, reason := evalGuard3(tc.state)
+			pass, reason := evalGuard2(tc.state)
 			if pass != tc.want {
 				t.Errorf("state=%q: pass=%t want %t (%s)", tc.state, pass, tc.want, reason)
 			}
@@ -273,12 +274,12 @@ func mkPoolWithState(name string, count, minCount *int32, provState string) *arm
 	return p
 }
 
-func TestEvalGuard4_AllHealthy(t *testing.T) {
+func TestEvalGuard3_AllHealthy(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		mkPoolWithState("system", ptr(int32(2)), ptr(int32(2)), "Succeeded"),
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, sysMin, sysState, reason := evalGuard4(pools)
+	pass, sysMin, sysState, reason := evalGuard3(pools)
 	if !pass {
 		t.Fatalf("expected pass, got fail: %s", reason)
 	}
@@ -290,12 +291,12 @@ func TestEvalGuard4_AllHealthy(t *testing.T) {
 	}
 }
 
-func TestEvalGuard4_NonSystemPoolEmpty(t *testing.T) {
+func TestEvalGuard3_NonSystemPoolEmpty(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		mkPool("system", ptr(int32(2)), ptr(int32(2))),
 		mkPool("userswft3", ptr(int32(0)), ptr(int32(0))),
 	}
-	pass, _, _, reason := evalGuard4(pools)
+	pass, _, _, reason := evalGuard3(pools)
 	if pass {
 		t.Fatal("expected fail when non-system pool has count=0")
 	}
@@ -304,11 +305,11 @@ func TestEvalGuard4_NonSystemPoolEmpty(t *testing.T) {
 	}
 }
 
-func TestEvalGuard4_NoSystemPool(t *testing.T) {
+func TestEvalGuard3_NoSystemPool(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, _, _, reason := evalGuard4(pools)
+	pass, _, _, reason := evalGuard3(pools)
 	if pass {
 		t.Fatal("expected fail when no system pool")
 	}
@@ -317,13 +318,13 @@ func TestEvalGuard4_NoSystemPool(t *testing.T) {
 	}
 }
 
-func TestEvalGuard4_SystemPoolWithZeroCount_OK(t *testing.T) {
+func TestEvalGuard3_SystemPoolWithZeroCount_OK(t *testing.T) {
 	// System pool itself can have count=0 (that's the whole point of this script).
 	pools := []*armcs.AgentPool{
 		mkPool("system", ptr(int32(0)), ptr(int32(2))),
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, sysMin, _, reason := evalGuard4(pools)
+	pass, sysMin, _, reason := evalGuard3(pools)
 	if !pass {
 		t.Fatalf("system pool with count=0 should not fail guard 4: %s", reason)
 	}
@@ -332,45 +333,45 @@ func TestEvalGuard4_SystemPoolWithZeroCount_OK(t *testing.T) {
 	}
 }
 
-func TestEvalGuard4_NilPoolsSkipped(t *testing.T) {
+func TestEvalGuard3_NilPoolsSkipped(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		nil,
 		mkPool("system", ptr(int32(2)), ptr(int32(2))),
 		nil,
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, _, _, reason := evalGuard4(pools)
+	pass, _, _, reason := evalGuard3(pools)
 	if !pass {
 		t.Fatalf("nil pools should be skipped: %s", reason)
 	}
 }
 
-func TestEvalGuard4_PoolMissingFieldsSkipped(t *testing.T) {
+func TestEvalGuard3_PoolMissingFieldsSkipped(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		{Name: ptr("orphan")}, // no properties
 		{Properties: &armcs.ManagedClusterAgentPoolProfileProperties{Count: ptr(int32(3))}}, // no name
 		mkPool("system", ptr(int32(1)), ptr(int32(2))),
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, _, _, reason := evalGuard4(pools)
+	pass, _, _, reason := evalGuard3(pools)
 	if !pass {
 		t.Fatalf("malformed pool entries should be skipped: %s", reason)
 	}
 }
 
-func TestEvalGuard4_SystemMissingMinCount_DefaultsZero(t *testing.T) {
+func TestEvalGuard3_SystemMissingMinCount_DefaultsZero(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		mkPool("system", ptr(int32(1)), nil),
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, sysMin, _, _ := evalGuard4(pools)
+	pass, sysMin, _, _ := evalGuard3(pools)
 	if !pass || sysMin != 0 {
 		t.Errorf("systemMin=%d pass=%t (want 0/true)", sysMin, pass)
 	}
 }
 
-func TestEvalGuard4_EmptyList(t *testing.T) {
-	pass, _, _, reason := evalGuard4(nil)
+func TestEvalGuard3_EmptyList(t *testing.T) {
+	pass, _, _, reason := evalGuard3(nil)
 	if pass {
 		t.Fatal("empty pool list must fail")
 	}
@@ -379,7 +380,7 @@ func TestEvalGuard4_EmptyList(t *testing.T) {
 	}
 }
 
-func TestEvalGuard4_ExtractsSystemProvState(t *testing.T) {
+func TestEvalGuard3_ExtractsSystemProvState(t *testing.T) {
 	cases := []struct {
 		name  string
 		state string
@@ -395,7 +396,7 @@ func TestEvalGuard4_ExtractsSystemProvState(t *testing.T) {
 				mkPoolWithState("system", ptr(int32(0)), ptr(int32(2)), tc.state),
 				mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 			}
-			pass, _, gotState, _ := evalGuard4(pools)
+			pass, _, gotState, _ := evalGuard3(pools)
 			if !pass {
 				t.Fatal("expected pass")
 			}
@@ -809,18 +810,36 @@ func mustMarshal(t *testing.T, v any) []byte {
 	return b
 }
 
+func mustCountNRPFailures(t *testing.T, raw []byte, vmssPrefix string) int {
+	t.Helper()
+	n, err := countNRPFailures(raw, vmssPrefix)
+	if err != nil {
+		t.Fatalf("countNRPFailures: %v", err)
+	}
+	return n
+}
+
+func mustNRPResourceIDs(t *testing.T, raw []byte) []string {
+	t.Helper()
+	ids, err := nrpResourceIDs(raw)
+	if err != nil {
+		t.Fatalf("nrpResourceIDs: %v", err)
+	}
+	return ids
+}
+
 func TestCountNRPFailures_EmptyJSONArray(t *testing.T) {
-	if n := countNRPFailures([]byte("[]"), "aks-system-"); n != 0 {
+	if n := mustCountNRPFailures(t, []byte("[]"), "aks-system-"); n != 0 {
 		t.Errorf("got %d want 0", n)
 	}
 }
 
-func TestCountNRPFailures_InvalidJSONReturnsZero(t *testing.T) {
-	if n := countNRPFailures([]byte("not json"), "aks-system-"); n != 0 {
-		t.Errorf("got %d want 0 on invalid input", n)
+func TestCountNRPFailures_InvalidJSONReturnsError(t *testing.T) {
+	if _, err := countNRPFailures([]byte("not json"), "aks-system-"); err == nil {
+		t.Fatal("expected invalid JSON to return an error")
 	}
-	if n := countNRPFailures(nil, "aks-system-"); n != 0 {
-		t.Errorf("got %d want 0 on nil input", n)
+	if _, err := countNRPFailures(nil, "aks-system-"); err == nil {
+		t.Fatal("expected nil JSON to return an error")
 	}
 }
 
@@ -833,7 +852,7 @@ func TestCountNRPFailures_OnlyFailedCounted(t *testing.T) {
 		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/write",
 			"/subscriptions/x/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/aks-system-2"),
 	}
-	got := countNRPFailures(mustMarshal(t, events), "aks-system-")
+	got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-system-")
 	if got != 2 {
 		t.Errorf("got %d want 2", got)
 	}
@@ -846,7 +865,7 @@ func TestCountNRPFailures_FiltersByVMSSOperation(t *testing.T) {
 		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/write",
 			"/subscriptions/x/.../virtualMachineScaleSets/aks-system-1"),
 	}
-	got := countNRPFailures(mustMarshal(t, events), "aks-system-")
+	got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-system-")
 	if got != 1 {
 		t.Errorf("got %d want 1 (only VMSS-write failed)", got)
 	}
@@ -859,13 +878,13 @@ func TestCountNRPFailures_PrefixFilter(t *testing.T) {
 		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/write",
 			"/subscriptions/x/.../virtualMachineScaleSets/aks-userswft3-9"),
 	}
-	if got := countNRPFailures(mustMarshal(t, events), "aks-system-"); got != 1 {
+	if got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-system-"); got != 1 {
 		t.Errorf("prefix filter: got %d want 1", got)
 	}
-	if got := countNRPFailures(mustMarshal(t, events), ""); got != 2 {
+	if got := mustCountNRPFailures(t, mustMarshal(t, events), ""); got != 2 {
 		t.Errorf("empty prefix: got %d want 2", got)
 	}
-	if got := countNRPFailures(mustMarshal(t, events), "aks-other-"); got != 0 {
+	if got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-other-"); got != 0 {
 		t.Errorf("non-matching prefix: got %d want 0", got)
 	}
 }
@@ -875,7 +894,7 @@ func TestCountNRPFailures_CaseInsensitiveOperationAndPrefix(t *testing.T) {
 		mkActivityEvent("Failed", "MICROSOFT.COMPUTE/VIRTUALMACHINESCALESETS/WRITE",
 			"/SUBSCRIPTIONS/X/.../VIRTUALMACHINESCALESETS/AKS-SYSTEM-1"),
 	}
-	got := countNRPFailures(mustMarshal(t, events), "aks-system-")
+	got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-system-")
 	if got != 1 {
 		t.Errorf("case-insensitive match failed: got %d want 1", got)
 	}
@@ -894,7 +913,7 @@ func TestCountNRPFailures_RequiresNRPKVSSignature(t *testing.T) {
 		// Another NRP-KVS — counts (total = 2)
 		mkActivityEvent("Failed", op, resID, nrpKVSErrorCode),
 	}
-	got := countNRPFailures(mustMarshal(t, events), "aks-system-")
+	got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-system-")
 	if got != 2 {
 		t.Errorf("got %d want 2 (only NRP-KVS signed failures count)", got)
 	}
@@ -909,7 +928,7 @@ func TestCountNRPFailures_MissingPropertiesNotCounted(t *testing.T) {
 			"resourceId":    "/subscriptions/x/.../virtualMachineScaleSets/aks-system-1",
 		},
 	}
-	if got := countNRPFailures(mustMarshal(t, events), "aks-system-"); got != 0 {
+	if got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-system-"); got != 0 {
 		t.Errorf("got %d want 0 (event without properties.statusMessage must not count)", got)
 	}
 }
@@ -930,7 +949,7 @@ func TestCountNRPFailures_MalformedStatusMessageNotCounted(t *testing.T) {
 			"properties": map[string]string{"statusMessage": `{"foo":"bar"}`},
 		},
 	}
-	if got := countNRPFailures(mustMarshal(t, events), "aks-system-"); got != 0 {
+	if got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-system-"); got != 0 {
 		t.Errorf("got %d want 0 (malformed/empty inner error body must not count)", got)
 	}
 }
@@ -947,7 +966,7 @@ func TestNRPResourceIDs_DedupAndOrder(t *testing.T) {
 		mkActivityEvent("Succeeded", "Microsoft.Compute/virtualMachineScaleSets/write", "vmss-C"),
 		mkActivityEvent("Failed", "Microsoft.Network/networkInterfaces/write", "nic-D"),
 	}
-	got := nrpResourceIDs(mustMarshal(t, events))
+	got := mustNRPResourceIDs(t, mustMarshal(t, events))
 	want := []string{"vmss-A", "vmss-B"}
 	sort.Strings(got)
 	sort.Strings(want)
@@ -957,11 +976,11 @@ func TestNRPResourceIDs_DedupAndOrder(t *testing.T) {
 }
 
 func TestNRPResourceIDs_EmptyAndInvalid(t *testing.T) {
-	if got := nrpResourceIDs([]byte("[]")); got != nil {
+	if got := mustNRPResourceIDs(t, []byte("[]")); got != nil {
 		t.Errorf("empty list got %v want nil", got)
 	}
-	if got := nrpResourceIDs([]byte("garbage")); got != nil {
-		t.Errorf("invalid input got %v want nil", got)
+	if _, err := nrpResourceIDs([]byte("garbage")); err == nil {
+		t.Fatal("expected invalid JSON to return an error")
 	}
 }
 
@@ -976,12 +995,58 @@ func TestNRPResourceIDs_RequiresNRPKVSSignature(t *testing.T) {
 		// Another NRP-KVS on a third resource — listed
 		mkActivityEvent("Failed", op, "vmss-D", nrpKVSErrorCode),
 	}
-	got := nrpResourceIDs(mustMarshal(t, events))
+	got := mustNRPResourceIDs(t, mustMarshal(t, events))
 	want := []string{"vmss-A", "vmss-D"}
 	sort.Strings(got)
 	sort.Strings(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v want %v (only NRP-KVS-signed failures listed)", got, want)
+	}
+}
+
+func mkClusterWriteEvent(status, resourceID, timestamp, correlationID string) map[string]any {
+	return map[string]any{
+		"status":         map[string]string{"value": status},
+		"operationName":  map[string]string{"value": "Microsoft.ContainerService/managedClusters/write"},
+		"resourceId":     resourceID,
+		"eventTimestamp": timestamp,
+		"correlationId":  correlationID,
+	}
+}
+
+func TestLatestClusterWriteStart_PicksNewestStartedEvent(t *testing.T) {
+	clusterID := "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/c"
+	oldTime := "2026-05-25T10:00:00Z"
+	newTime := "2026-05-26T10:00:00Z"
+	events := []map[string]any{
+		mkClusterWriteEvent("Started", clusterID, oldTime, "old"),
+		mkClusterWriteEvent("Succeeded", clusterID, "2026-05-26T10:30:00Z", "terminal"),
+		mkClusterWriteEvent("Started", clusterID, newTime, "new"),
+		mkClusterWriteEvent("Started", "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/other", "2026-05-27T10:00:00Z", "other"),
+	}
+	got, corr, err := latestClusterWriteStart(mustMarshal(t, events), clusterID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want, _ := time.Parse(time.RFC3339, newTime)
+	if !got.Equal(want) || corr != "new" {
+		t.Fatalf("got time=%s corr=%s, want %s/new", got.Format(time.RFC3339), corr, want.Format(time.RFC3339))
+	}
+}
+
+func TestLatestClusterWriteStart_NoStartedEvent(t *testing.T) {
+	clusterID := "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/c"
+	events := []map[string]any{
+		mkClusterWriteEvent("Succeeded", clusterID, "2026-05-26T10:30:00Z", "terminal"),
+	}
+	if _, _, err := latestClusterWriteStart(mustMarshal(t, events), clusterID); err == nil {
+		t.Fatal("expected error when no Started managedClusters/write event exists")
+	}
+}
+
+func TestLatestClusterWriteStart_MalformedJSON(t *testing.T) {
+	if _, _, err := latestClusterWriteStart([]byte("not-json"), "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/c"); err == nil {
+		t.Fatal("expected malformed activity-log JSON to return an error")
 	}
 }
 
@@ -1238,10 +1303,10 @@ func TestKubeconfigWithBearerToken_NoExecPluginsRequired(t *testing.T) {
 }
 
 // =============================================================================
-// evalGuard5  (system pool provisioningState == "Failed")
+// evalGuard4  (system pool provisioningState == "Failed")
 // =============================================================================
 
-func TestEvalGuard5(t *testing.T) {
+func TestEvalGuard4(t *testing.T) {
 	cases := []struct {
 		name  string
 		state string
@@ -1264,7 +1329,7 @@ func TestEvalGuard5(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, reason := evalGuard5(tc.state)
+			pass, reason := evalGuard4(tc.state)
 			if pass != tc.want {
 				t.Errorf("state=%q: pass=%t want %t (%s)", tc.state, pass, tc.want, reason)
 			}
