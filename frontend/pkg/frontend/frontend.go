@@ -571,6 +571,9 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			logger.Info(message)
 		}
 		if len(messages) > 0 {
+			// Carry the etag of the just-read document forward so Replace
+			// is conditional on it; the DB layer refuses unconditional updates.
+			requestSubscription.CosmosETag = existingSubscription.CosmosETag
 			resultingSubscription, err = f.resourcesDBClient.Subscriptions().Replace(ctx, &requestSubscription, nil)
 			if err != nil {
 				return utils.TrackError(err)

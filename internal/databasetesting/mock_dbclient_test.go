@@ -345,9 +345,10 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, retrieved.State)
 	}
 
-	// Replace
-	subscription.State = arm.SubscriptionStateSuspended
-	replaced, err := subscriptionCRUD.Replace(ctx, subscription, nil)
+	// Replace using the object returned from Create so the etag is carried
+	// over; Replace refuses unconditional updates.
+	created.State = arm.SubscriptionStateSuspended
+	replaced, err := subscriptionCRUD.Replace(ctx, created, nil)
 	if err != nil {
 		t.Fatalf("Failed to replace subscription: %v", err)
 	}
