@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	kubeinformers "k8s.io/client-go/informers"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -38,7 +39,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	hypershiftclient "github.com/openshift/hypershift/client/clientset/clientset"
+	hypershiftinformers "github.com/openshift/hypershift/client/informers/externalversions"
+
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 )
 
 const (
@@ -51,6 +56,7 @@ type RawControllerOptions struct {
 	Namespace     string
 	Workers       int
 	LogVerbosity  int
+	KSMImage      string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -68,6 +74,7 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&o.LogVerbosity, "log-verbosity", o.LogVerbosity,
 		"Log verbosity. 0 is the default verbosity level, equivalent to INFO. "+
 			"It must be a value >= 0, where a higher value means more verbose output.")
+	cmd.Flags().StringVar(&o.KSMImage, "ksm-image", o.KSMImage, "Container image for kube-state-metrics deployed per HCP namespace")
 
 	return nil
 }
@@ -81,12 +88,14 @@ type ValidatedControllerOptions struct {
 }
 
 type completedControllerOptions struct {
-	ctrl              *controller.SwiftNICController
-	resourceWatcher   *controller.ResourceWatcher
-	kubeInformers     kubeinformers.SharedInformerFactory
-	workers           int
-	healthAddress     string
-	leaderElectionCfg *controller.LeaderElectionConfig
+	ctrl                *controller.SwiftNICController
+	ksmCtrl             *ksmhcp.KSMHCPController
+	resourceWatcher     *controller.ResourceWatcher
+	kubeInformers       kubeinformers.SharedInformerFactory
+	hypershiftInformers hypershiftinformers.SharedInformerFactory
+	workers             int
+	healthAddress       string
+	leaderElectionCfg   *controller.LeaderElectionConfig
 }
 
 type ControllerOptions struct {
@@ -126,6 +135,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
 	}
 
+	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
 	kubeInformers := kubeinformers.NewSharedInformerFactory(kubeClientset, 10*time.Minute)
 
 	ctrl, err := controller.NewSwiftNICController(
@@ -150,6 +164,22 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	resourceWatcher := controller.NewResourceWatcher(dynamicClient, discoveryClient)
 
+	hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
+	}
+	hsInformers := hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
+
+	ksmCtrl, err := ksmhcp.NewKSMHCPController(
+		kubeClientset,
+		dynamicClient,
+		hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+		o.KSMImage,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
+	}
+
 	leaderElectionCfg := &controller.LeaderElectionConfig{
 		LockName:      LeaderElectionLockName,
 		LeaseDuration: 15 * time.Second,
@@ -161,12 +191,14 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
-			ctrl:              ctrl,
-			resourceWatcher:   resourceWatcher,
-			kubeInformers:     kubeInformers,
-			workers:           o.Workers,
-			healthAddress:     o.HealthAddress,
-			leaderElectionCfg: leaderElectionCfg,
+			ctrl:                ctrl,
+			ksmCtrl:             ksmCtrl,
+			resourceWatcher:     resourceWatcher,
+			kubeInformers:       kubeInformers,
+			hypershiftInformers: hsInformers,
+			workers:             o.Workers,
+			healthAddress:       o.HealthAddress,
+			leaderElectionCfg:   leaderElectionCfg,
 		},
 	}, nil
 }
@@ -199,6 +231,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
 	o.kubeInformers.Start(ctx.Done())
+	o.hypershiftInformers.Start(ctx.Done())
 	logger.V(6).Info("Informer factories started")
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -228,7 +261,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// controller with leader election
+	// swift-nic controller with leader election
 	g.Go(func() error {
 		logger.Info("Starting controllers under leader election")
 		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
@@ -241,6 +274,12 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 			innerG.Go(func() error {
 				return o.resourceWatcher.Run(innerCtx)
 			})
+
+			if o.ksmCtrl != nil {
+				innerG.Go(func() error {
+					return o.ksmCtrl.Run(innerCtx, o.workers)
+				})
+			}
 
 			return innerG.Wait()
 		}); err != nil {
