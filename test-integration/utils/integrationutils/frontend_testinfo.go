@@ -44,6 +44,7 @@ type StorageIntegrationTestInfo interface {
 	ResourcesDBClient() database.ResourcesDBClient
 	BillingDBClient() database.BillingDBClient
 	LocksDBClient() database.LocksDBClient
+	FleetDBClient() database.FleetDBClient
 
 	Cleanup(ctx context.Context)
 }
