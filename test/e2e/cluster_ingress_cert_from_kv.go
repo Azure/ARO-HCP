@@ -46,10 +46,13 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -197,8 +200,9 @@ var _ = Describe("Customer", func() {
 			roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, nil)
 			Expect(err).NotTo(HaveOccurred())
 			// Built-in role definition IDs:
-			//   Key Vault Certificate User: db79e9a7-68ee-4b58-9aeb-b90e7c24fcba
-			//   Key Vault Secrets User:     4633458b-17de-408a-b874-0445c86b69e6
+			//   Key Vault Certificate User:    db79e9a7-68ee-4b58-9aeb-b90e7c24fcba (read for the UAMI)
+			//   Key Vault Secrets User:        4633458b-17de-408a-b874-0445c86b69e6 (read for the UAMI)
+			//   Key Vault Certificates Officer: a4417e6f-fecd-4de8-b567-7b0420556985 (write for the test caller)
 			for _, roleDefID := range []string{
 				"db79e9a7-68ee-4b58-9aeb-b90e7c24fcba",
 				"4633458b-17de-408a-b874-0445c86b69e6",
@@ -206,10 +210,26 @@ var _ = Describe("Customer", func() {
 				Expect(assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, uamiPrincipalID, roleDefID)).To(Succeed())
 			}
 
+			By("granting the test caller Key Vault Certificates Officer on the customer KV so it can issue and rotate the cert")
+			callerOID, err := currentCallerObjectID(ctx, cred)
+			Expect(err).NotTo(HaveOccurred(), "looking up the e2e caller's OID from its ARM token")
+			Expect(assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, callerOID, "a4417e6f-fecd-4de8-b567-7b0420556985")).To(Succeed())
+
 			By("creating cert v1 in the customer Key Vault with a rotation policy")
 			vaultURL := fmt.Sprintf("https://%s.vault.azure.net", clusterParams.KeyVaultName)
-			v1, err := framework.CreateOrRotateSelfSignedKVCert(ctx, cred, vaultURL, kvCertName, appsBaseDomain, 12, 80)
-			Expect(err).NotTo(HaveOccurred())
+			// Azure RBAC propagation on a KV can lag by 30-60s after the
+			// role assignment lands, so we retry the first cert create until
+			// the 403 clears.
+			var v1 *framework.KeyVaultCertResult
+			Eventually(func() error {
+				out, err := framework.CreateOrRotateSelfSignedKVCert(ctx, cred, vaultURL, kvCertName, appsBaseDomain, 12, 80)
+				if err != nil {
+					return err
+				}
+				v1 = out
+				return nil
+			}).WithContext(ctx).WithTimeout(3 * time.Minute).WithPolling(15 * time.Second).Should(Succeed(),
+				"creating cert v1 should succeed once RBAC propagates")
 			GinkgoLogr.Info("issued cert v1", "version", v1.Version, "sha256", v1.SHA256)
 
 			By("installing External Secrets Operator from the pinned upstream release manifest")
@@ -288,9 +308,18 @@ var _ = Describe("Customer", func() {
 			//}).WithContext(ctx).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(Succeed())
 
 			By("rotating: creating cert v2 in the customer Key Vault")
-			v2, err := framework.CreateOrRotateSelfSignedKVCert(ctx, cred, vaultURL, kvCertName, appsBaseDomain, 12, 80)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(v2.SHA256).NotTo(Equal(v1.SHA256), "v2 SHA should differ from v1")
+			var v2 *framework.KeyVaultCertResult
+			Eventually(func() error {
+				out, err := framework.CreateOrRotateSelfSignedKVCert(ctx, cred, vaultURL, kvCertName, appsBaseDomain, 12, 80)
+				if err != nil {
+					return err
+				}
+				if out.SHA256 == v1.SHA256 {
+					return fmt.Errorf("v2 SHA equals v1 SHA — rotation did not produce a new cert version")
+				}
+				v2 = out
+				return nil
+			}).WithContext(ctx).WithTimeout(3 * time.Minute).WithPolling(15 * time.Second).Should(Succeed())
 			GinkgoLogr.Info("issued cert v2", "version", v2.Version, "sha256", v2.SHA256)
 
 			By("waiting for the ingress-tls Secret to pick up cert v2")
@@ -509,11 +538,35 @@ func assignBuiltInRoleAtScope(
 		Properties: &armauthorization.RoleAssignmentProperties{
 			PrincipalID:      to.Ptr(principalID),
 			RoleDefinitionID: to.Ptr(roleDefResourceID),
-			PrincipalType:    to.Ptr(armauthorization.PrincipalTypeServicePrincipal),
+			// PrincipalType intentionally unset — Azure infers it. The
+			// principal here can be either a ServicePrincipal (CI) or a
+			// User (local dev), so we can't hardcode it.
 		},
 	}, nil)
 	if err != nil && !strings.Contains(err.Error(), "RoleAssignmentExists") {
 		return fmt.Errorf("assigning role %s on %s to %s: %w", roleDefinitionID, scope, principalID, err)
 	}
 	return nil
+}
+
+// currentCallerObjectID returns the object ID of the principal backing the
+// supplied credential by decoding the "oid" claim out of an ARM-scoped JWT.
+// Works for both Service Principals (CI) and Users (local dev).
+func currentCallerObjectID(ctx context.Context, cred azcore.TokenCredential) (string, error) {
+	tok, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://management.azure.com/.default"},
+	})
+	if err != nil {
+		return "", fmt.Errorf("acquiring ARM token: %w", err)
+	}
+	claims := jwt.MapClaims{}
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	if _, _, err := parser.ParseUnverified(tok.Token, &claims); err != nil {
+		return "", fmt.Errorf("parsing ARM token: %w", err)
+	}
+	oid, _ := claims["oid"].(string)
+	if oid == "" {
+		return "", fmt.Errorf("oid claim missing from ARM token")
+	}
+	return oid, nil
 }
