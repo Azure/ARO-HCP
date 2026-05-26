@@ -167,7 +167,7 @@ func TestNodePoolChildResourceCleanupController_SyncOnce(t *testing.T) {
 				nodePoolResourceID := key.GetResourceID()
 				untypedCRUD, err := mockResourcesDBClient.UntypedCRUD(*nodePoolResourceID)
 				require.NoError(t, err)
-				childIterator, err := untypedCRUD.List(ctx, nil)
+				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
 				require.NoError(t, err)
 
 				var remainingCount int

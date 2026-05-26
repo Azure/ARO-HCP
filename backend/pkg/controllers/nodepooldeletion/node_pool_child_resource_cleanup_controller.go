@@ -105,7 +105,7 @@ func (c *nodePoolChildResourceCleanupController) SyncOnce(ctx context.Context, k
 		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for node pool children: %w", err))
 	}
 
-	childIterator, err := untypedCRUD.List(ctx, nil)
+	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to list node pool child resources: %w", err))
 	}
