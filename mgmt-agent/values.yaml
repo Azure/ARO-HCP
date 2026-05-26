@@ -2,6 +2,10 @@ image:
   registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
   repository: "{{ .mgmtAgent.image.repository }}"
   digest: "{{ .mgmtAgent.image.digest }}"
+ksmImage:
+  registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
+  repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
+  digest: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
 deployment:
   replicas: "{{ .mgmtAgent.k8s.replicas }}"
   requests:
