@@ -146,7 +146,8 @@ func DefaultOpenshiftNodePoolVersionId() string {
 			return DefaultOpenshiftControlPlaneVersionId()
 		}
 
-		// Only fetch separately if using a different channel group
+		// Only fetch separately when using a different channel group and that
+		// channel group is not stable; stable also uses the control plane version.
 		if channelGroup != "stable" {
 			var err error
 			version, err = GetLatestInstallVersion(context.Background(), channelGroup, DefaultOCPVersionId)
@@ -229,7 +230,37 @@ func NewDefaultNodePoolParams() NodePoolParams {
 	// This catches configuration errors early before they reach the API validation
 	npVer, npErr := semver.ParseTolerant(npVersion)
 	cpVer, cpErr := semver.ParseTolerant(cpVersion)
-	if npErr == nil && cpErr == nil && npVer.GT(cpVer) {
+	if npErr != nil {
+		Fail(fmt.Sprintf(
+			"Configuration error: failed to parse node pool version %q: %v. "+
+				"Check your channel group settings:\n"+
+				"  ARO_HCP_OPENSHIFT_CHANNEL_GROUP=%s\n"+
+				"  ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP=%s\n"+
+				"  ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=%s\n"+
+				"  ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=%s",
+			npVersion, npErr,
+			DefaultOpenshiftChannelGroup(),
+			DefaultOpenshiftNodePoolChannelGroup(),
+			os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION"),
+			os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION"),
+		))
+	}
+	if cpErr != nil {
+		Fail(fmt.Sprintf(
+			"Configuration error: failed to parse control plane version %q: %v. "+
+				"Check your channel group settings:\n"+
+				"  ARO_HCP_OPENSHIFT_CHANNEL_GROUP=%s\n"+
+				"  ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP=%s\n"+
+				"  ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=%s\n"+
+				"  ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=%s",
+			cpVersion, cpErr,
+			DefaultOpenshiftChannelGroup(),
+			DefaultOpenshiftNodePoolChannelGroup(),
+			os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION"),
+			os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION"),
+		))
+	}
+	if npVer.GT(cpVer) {
 		Fail(fmt.Sprintf(
 			"Configuration error: Node pool version (%s) exceeds control plane version (%s). "+
 				"This will fail API validation. Check your channel group settings:\n"+
