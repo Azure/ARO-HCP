@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/lru"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -64,6 +66,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 		name                                string
 		existingNodePool                    *api.HCPOpenShiftClusterNodePool
 		cacheNodePool                       *api.HCPOpenShiftClusterNodePool
+		firstSeenDeletionAt                 time.Time
 		expectCSDelete                      bool
 		csDeleteErr                         error
 		wantClusterServiceDeletionTimestamp bool // whether the controller should have stamped it
@@ -89,18 +92,19 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 			cacheNodePool: newTestNodePool(t, nil),
 		},
 		{
-			name: "DeletionTimestamp set, no ClusterServiceID, within timeout — wait",
+			name: "no ClusterServiceID, first seen within timeout — wait",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Second)}
+				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 		},
 		{
-			name: "DeletionTimestamp set, no ClusterServiceID, past timeout — give up and stamp",
+			name: "no ClusterServiceID, first seen past timeout — give up and stamp",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-3 * time.Minute)}
+				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
+			firstSeenDeletionAt:                 fixedNow.Add(-missingClusterServiceIDTimeout),
 			wantClusterServiceDeletionTimestamp: true,
 		},
 		{
@@ -112,17 +116,9 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 			wantClusterServiceDeletionTimestamp: true,
 		},
 		{
-			name: "CS delete returns 404, within timeout — wait, no stamp",
+			name: "CS delete returns 404 after grace, equal timeouts — stamp without extra wait",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Minute)}
-			}),
-			expectCSDelete: true,
-			csDeleteErr:    fakeOCMNotFoundError(),
-		},
-		{
-			name: "CS delete returns 404, past timeout — stamp",
-			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-3 * time.Minute)}
+				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			expectCSDelete:                      true,
 			csDeleteErr:                         fakeOCMNotFoundError(),
@@ -183,12 +179,31 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}
 
+			firstSeenDeletionTimestampCache := lru.New(10)
+			if tc.existingNodePool != nil &&
+				tc.existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
+				tc.existingNodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil {
+				switch {
+				case !tc.firstSeenDeletionAt.IsZero():
+					firstSeenDeletionTimestampCache.Add(
+						strings.ToLower(tc.existingNodePool.ID.String()),
+						tc.firstSeenDeletionAt,
+					)
+				case tc.expectCSDelete || tc.wantClusterServiceDeletionTimestamp:
+					firstSeenDeletionTimestampCache.Add(
+						strings.ToLower(tc.existingNodePool.ID.String()),
+						fixedNow.Add(-firstSeenDeletionGracePeriod),
+					)
+				}
+			}
+
 			syncer := &nodePoolDeletionClusterServiceDeleter{
-				clock:                clocktesting.NewFakePassiveClock(fixedNow),
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
-				nodePoolLister:       &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
-				resourcesDBClient:    mockResourcesDBClient,
-				clusterServiceClient: mockCSClient,
+				clock:                           clocktesting.NewFakePassiveClock(fixedNow),
+				cooldownChecker:                 &alwaysSyncCooldownChecker{},
+				nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
+				resourcesDBClient:               mockResourcesDBClient,
+				clusterServiceClient:            mockCSClient,
+				firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 			}
 
 			key := controllerutils.HCPNodePoolKey{
@@ -225,6 +240,229 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNodePoolDeletionClusterServiceDeleter_SyncOnce_firstSeenDeletionGracePeriod(t *testing.T) {
+	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
+
+	newDeletingNodePool := func() *api.HCPOpenShiftClusterNodePool {
+		return newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			// Deletion was stamped long ago; grace period is measured from controller first sight.
+			np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
+		})
+	}
+
+	key := controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	}
+
+	t.Run("first sync records first seen and returns without deleting", func(t *testing.T) {
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		ctrl := gomock.NewController(t)
+
+		nodePool := newDeletingNodePool()
+		mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{nodePool})
+		require.NoError(t, err)
+
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		firstSeenDeletionTimestampCache := lru.New(10)
+
+		syncer := &nodePoolDeletionClusterServiceDeleter{
+			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
+			cooldownChecker:                 &alwaysSyncCooldownChecker{},
+			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
+			resourcesDBClient:               mockResourcesDBClient,
+			clusterServiceClient:            mockCSClient,
+			firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
+		}
+
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+
+		cacheKey := strings.ToLower(nodePool.ID.String())
+		firstSeenEntry, ok := firstSeenDeletionTimestampCache.Get(cacheKey)
+		require.True(t, ok, "expected first seen deletion timestamp to be cached")
+		assert.True(t, firstSeenEntry.(time.Time).Equal(fixedNow))
+
+		stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
+	})
+
+	t.Run("within grace period returns without deleting even with ClusterServiceID", func(t *testing.T) {
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		ctrl := gomock.NewController(t)
+
+		nodePool := newDeletingNodePool()
+		mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{nodePool})
+		require.NoError(t, err)
+
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		firstSeenDeletionTimestampCache := lru.New(10)
+		firstSeenDeletionTimestampCache.Add(strings.ToLower(nodePool.ID.String()), fixedNow.Add(-90*time.Second))
+
+		syncer := &nodePoolDeletionClusterServiceDeleter{
+			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
+			cooldownChecker:                 &alwaysSyncCooldownChecker{},
+			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
+			resourcesDBClient:               mockResourcesDBClient,
+			clusterServiceClient:            mockCSClient,
+			firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
+		}
+
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+
+		stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
+	})
+
+	t.Run("after grace period issues cluster service delete and stamps", func(t *testing.T) {
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		ctrl := gomock.NewController(t)
+
+		nodePool := newDeletingNodePool()
+		mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{nodePool})
+		require.NoError(t, err)
+
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		mockCSClient.EXPECT().
+			DeleteNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+			Return(nil)
+
+		firstSeenDeletionTimestampCache := lru.New(10)
+		firstSeenDeletionTimestampCache.Add(strings.ToLower(nodePool.ID.String()), fixedNow.Add(-firstSeenDeletionGracePeriod))
+
+		syncer := &nodePoolDeletionClusterServiceDeleter{
+			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
+			cooldownChecker:                 &alwaysSyncCooldownChecker{},
+			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
+			resourcesDBClient:               mockResourcesDBClient,
+			clusterServiceClient:            mockCSClient,
+			firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
+		}
+
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+
+		stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
+		assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedNow))
+	})
+
+	t.Run("multiple syncs wait until grace period elapses", func(t *testing.T) {
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		ctrl := gomock.NewController(t)
+
+		nodePool := newDeletingNodePool()
+		mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{nodePool})
+		require.NoError(t, err)
+
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		mockCSClient.EXPECT().
+			DeleteNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+			Return(nil).
+			Times(1)
+
+		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+		firstSeenDeletionTimestampCache := lru.New(10)
+		syncer := &nodePoolDeletionClusterServiceDeleter{
+			clock:                           fakeClock,
+			cooldownChecker:                 &alwaysSyncCooldownChecker{},
+			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
+			resourcesDBClient:               mockResourcesDBClient,
+			clusterServiceClient:            mockCSClient,
+			firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
+		}
+
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+		fakeClock.SetTime(fixedNow.Add(90 * time.Second))
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+
+		stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
+
+		fakeClock.SetTime(fixedNow.Add(firstSeenDeletionGracePeriod))
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+
+		stored, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
+		assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedNow.Add(firstSeenDeletionGracePeriod)))
+	})
+
+	t.Run("old deletion with no ClusterServiceID waits from first seen not deletion timestamp", func(t *testing.T) {
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		ctrl := gomock.NewController(t)
+
+		nodePool := newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
+			np.ServiceProviderProperties.ClusterServiceID = nil
+		})
+		mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{nodePool})
+		require.NoError(t, err)
+
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		firstSeenDeletionTimestampCache := lru.New(10)
+		firstSeenDeletionTimestampCache.Add(strings.ToLower(nodePool.ID.String()), fixedNow.Add(-90*time.Second))
+
+		syncer := &nodePoolDeletionClusterServiceDeleter{
+			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
+			cooldownChecker:                 &alwaysSyncCooldownChecker{},
+			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
+			resourcesDBClient:               mockResourcesDBClient,
+			clusterServiceClient:            mockCSClient,
+			firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
+		}
+
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+
+		stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
+	})
+
+	t.Run("old deletion with no ClusterServiceID gives up after first seen timeout", func(t *testing.T) {
+		ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+		ctrl := gomock.NewController(t)
+
+		nodePool := newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
+			np.ServiceProviderProperties.ClusterServiceID = nil
+		})
+		mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{nodePool})
+		require.NoError(t, err)
+
+		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+		firstSeenDeletionTimestampCache := lru.New(10)
+		firstSeenDeletionTimestampCache.Add(strings.ToLower(nodePool.ID.String()), fixedNow.Add(-missingClusterServiceIDTimeout))
+
+		syncer := &nodePoolDeletionClusterServiceDeleter{
+			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
+			cooldownChecker:                 &alwaysSyncCooldownChecker{},
+			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
+			resourcesDBClient:               mockResourcesDBClient,
+			clusterServiceClient:            mockCSClient,
+			firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
+		}
+
+		require.NoError(t, syncer.SyncOnce(ctx, key))
+
+		stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp)
+		assert.True(t, stored.ServiceProviderProperties.ClusterServiceDeletionTimestamp.Time.Equal(fixedNow))
+	})
 }
 
 func fakeOCMNotFoundError() error {

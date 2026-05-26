@@ -26,6 +26,7 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
+	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
@@ -37,10 +38,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// missingClusterServiceIDTimeout is how long we wait after DeletionTimestamp
-// for the ClusterServiceID to appear before concluding that the corresponding
-// Cluster Service NodePool was never created and we have no work to do.
+// missingClusterServiceIDTimeout is how long we wait after first observing
+// DeletionTimestamp for the ClusterServiceID to appear before concluding
+// that the corresponding Cluster Service Node Pool was never created and we have
+// no work to do (or before treating a 404 from Cluster Service as definitive).
 const missingClusterServiceIDTimeout = 120 * time.Second
+
+// firstSeenDeletionGracePeriod is how long we wait after first observing
+// DeletionTimestamp for a node pool before calling Cluster Service to delete the node pool.
+const firstSeenDeletionGracePeriod = 2 * time.Minute
 
 // nodePoolDeletionClusterServiceDeleter issues a Cluster Service delete for any
 // NodePool whose DeletionTimestamp has been set. The frontend records the
@@ -50,12 +56,22 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // waiting for a ClusterServiceID), it stamps ClusterServiceDeletionTimestamp
 // on the NodePool to record that this step is complete and avoid re-issuing
 // the delete on subsequent syncs.
+// The controller also caches the time the controller has first seen the
+// serviceProviderProperties.deletionTimestamp being set for a nodepool. This
+// is used to avoid immediately triggering deletion in scenarios where the
+// nodepool was marked for deletion but the controllers were not available for
+// some reason until some time afterwards.
 type nodePoolDeletionClusterServiceDeleter struct {
 	clock                utilsclock.PassiveClock
 	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
+	// firstSeenDeletionTimestampCache is a cache that contains the time the controller
+	// has first seen the serviceProviderProperties.deletionTimestamp being set
+	// for a nodepool. The cache key is the lowercased node pool's resource ID and
+	// the value is a time.Time in UTC indicating the first seen deletion timestamp.
+	firstSeenDeletionTimestampCache *lru.Cache
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionClusterServiceDeleter)(nil)
@@ -69,11 +85,12 @@ func NewNodePoolDeletionClusterServiceDeleterController(
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	syncer := &nodePoolDeletionClusterServiceDeleter{
-		clock:                clock,
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		nodePoolLister:       nodePoolLister,
-		resourcesDBClient:    resourcesDBClient,
-		clusterServiceClient: clusterServiceClient,
+		clock:                           clock,
+		cooldownChecker:                 controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		nodePoolLister:                  nodePoolLister,
+		resourcesDBClient:               resourcesDBClient,
+		clusterServiceClient:            clusterServiceClient,
+		firstSeenDeletionTimestampCache: lru.New(50000),
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
@@ -100,10 +117,10 @@ func (c *nodePoolDeletionClusterServiceDeleter) NeedsWork(nodePool *api.HCPOpenS
 // SyncOnce calls Cluster Service to delete the NodePool when its DeletionTimestamp is set.
 //
 // If the NodePool has no ClusterServiceID yet, we may have raced cluster-service NodePool
-// creation. We wait for missingClusterServiceIDTimeout from DeletionTimestamp before
-// concluding the cluster-service NodePool was never created and we have nothing to delete.
+// creation. We wait for missingClusterServiceIDTimeout from when we first observed
+// DeletionTimestamp before concluding the cluster-service NodePool was never created.
 //
-// In either terminal case — CS delete issued or wait abandoned — we stamp
+// In either terminal case - CS delete issued or wait abandoned - we stamp
 // ClusterServiceDeletionTimestamp so the next sync short-circuits.
 func (c *nodePoolDeletionClusterServiceDeleter) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -134,11 +151,28 @@ func (c *nodePoolDeletionClusterServiceDeleter) SyncOnce(ctx context.Context, ke
 		return nil
 	}
 
-	csID := nodePool.ServiceProviderProperties.ClusterServiceID
-	deletedAt := nodePool.ServiceProviderProperties.DeletionTimestamp.Time
+	// We check if we have seen the deletion marker being set for this node pool
+	// for at least the duration specified in firstSeenDeletionGracePeriod. If we
+	// don't we don't proceed with the deletion. This is to avoid immediately
+	// triggering deletion in scenarios where the nodepool was marked for deletion
+	// but the controllers were not available for some reason until some time afterwards
+	// for some reason. For example, both create and delete controllers not being available
+	// and restarting at the same time.
+	nodePoolDeletionTimestamp := nodePool.ServiceProviderProperties.DeletionTimestamp.Time
+	cacheKey := strings.ToLower(nodePool.ID.String())
+	firstSeenEntry, ok := c.firstSeenDeletionTimestampCache.Get(cacheKey)
+	if !ok {
+		c.firstSeenDeletionTimestampCache.Add(cacheKey, c.clock.Now().UTC())
+		return nil
+	}
+	firstSeenNodePoolDeletionTimestamp := firstSeenEntry.(time.Time)
+	if c.clock.Since(firstSeenNodePoolDeletionTimestamp) < firstSeenDeletionGracePeriod {
+		return nil
+	}
 
+	csID := nodePool.ServiceProviderProperties.ClusterServiceID
 	if csID == nil || len(csID.String()) == 0 {
-		elapsed := c.clock.Since(deletedAt)
+		elapsed := c.clock.Since(firstSeenNodePoolDeletionTimestamp)
 		if elapsed < missingClusterServiceIDTimeout {
 			// The frontend may still be in the middle of creating the cluster-service
 			// NodePool, or the controller that does so hasn't run yet. Re-check on the
@@ -146,7 +180,7 @@ func (c *nodePoolDeletionClusterServiceDeleter) SyncOnce(ctx context.Context, ke
 			return nil
 		}
 		logger.Info("giving up on cluster-service NodePool delete - ClusterServiceID never appeared",
-			"deletionTimestamp", deletedAt)
+			"nodePoolDeletionTimestamp", nodePoolDeletionTimestamp, "nodePoolFirstSeenDeletionTimestamp", firstSeenNodePoolDeletionTimestamp)
 	} else if err := c.clusterServiceClient.DeleteNodePool(ctx, *csID); err != nil {
 		var ocmError *ocmerrors.Error
 
@@ -165,7 +199,7 @@ func (c *nodePoolDeletionClusterServiceDeleter) SyncOnce(ctx context.Context, ke
 		case errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound:
 			// OCM error 404 - could be a stale CSID or a race against an in-flight CS
 			// create. Wait before treating the NodePool as definitively gone
-			elapsed := c.clock.Since(deletedAt)
+			elapsed := c.clock.Since(firstSeenNodePoolDeletionTimestamp)
 			if elapsed < missingClusterServiceIDTimeout {
 				return nil
 			}
