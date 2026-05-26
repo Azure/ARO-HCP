@@ -457,8 +457,8 @@ cd dev-infrastructure/
 # Create certificates in Key Vault, app registrations and role assignments
 make create-msi-mock-pool
 
-# Grant the pool SPs access to the E2E test subscription
-make grant-msi-mock-pool-e2e-access
+# Apply the shared E2E customer-subscription RBAC rollout
+make dev-ci-e2e-subscription-rbac-local-run
 ```
 
 After creation, run [`dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`](../dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh) to populate [`dev-infrastructure/openshift-ci/msi-mock-pool.yaml`](../dev-infrastructure/openshift-ci/msi-mock-pool.yaml) with the real client IDs and principal IDs:

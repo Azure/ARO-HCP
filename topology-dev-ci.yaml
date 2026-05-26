@@ -10,6 +10,9 @@ services:
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.TenantQuota
     pipelinePath: tooling/tenant-quota/pipeline.yaml
     purpose: Deploy the tenant-quota-collector.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
+    pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml
+    purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
     pipelinePath: dev-infrastructure/dev-ci/gateway/pipeline.yaml
     purpose: Deploy the shared Istio gateway and DNS wiring for opstool.

@@ -5,7 +5,10 @@ targetScope = 'subscription'
 @description('Array of roles for platform workload identity')
 param roles array = []
 
-param e2eTestSubscription string
+@description('Explicit E2E customer subscription IDs that need these roles in assignableScopes')
+param e2eTestSubscriptions array = []
+
+var e2eTestSubscriptionScopes = [for subscriptionId in e2eTestSubscriptions: '/subscriptions/${subscriptionId}']
 
 resource roleDef 'Microsoft.Authorization/roleDefinitions@2022-04-01' = [
   for role in roles: {
@@ -22,10 +25,9 @@ resource roleDef 'Microsoft.Authorization/roleDefinitions@2022-04-01' = [
           notDataActions: role.notDataActions
         }
       ]
-      assignableScopes: [
+      assignableScopes: concat([
         subscription().id
-        '/subscriptions/${e2eTestSubscription}'
-      ]
+      ], e2eTestSubscriptionScopes)
     }
   }
 ]
