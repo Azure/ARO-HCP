@@ -184,7 +184,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: kube-applier
-      digest: sha256:9378a7668d2f67d0e7ea316113626539c75687556f99fff6a9dd9ae1bc830ba2 # f64835f (2026-05-18 15:45)
+      digest: sha256:c8526efb6a13bb3da45cfdfb406de9badccf8014cd12a41e5338c89dfd555b0f # 00ddf2b (2026-05-25 22:32)
     cosmosContainerName: "Manifests-MC-{{ .ctx.stamp }}"
     partitionKey: "/providers/microsoft.redhatopenshift/stamps/{{ .ctx.stamp }}/managementclusters/default"
     cosmosContainerMaxScale: 4000

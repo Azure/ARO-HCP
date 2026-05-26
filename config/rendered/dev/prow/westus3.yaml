@@ -443,7 +443,7 @@ kubeApplier:
   cosmosContainerMaxScale: 4000
   cosmosContainerName: Manifests-MC-1
   image:
-    digest: sha256:9378a7668d2f67d0e7ea316113626539c75687556f99fff6a9dd9ae1bc830ba2
+    digest: sha256:c8526efb6a13bb3da45cfdfb406de9badccf8014cd12a41e5338c89dfd555b0f
     registry: arohcpsvcdev.azurecr.io
     repository: kube-applier
   k8s:
