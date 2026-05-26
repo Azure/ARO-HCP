@@ -393,7 +393,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services:
-	$(MAKE) -j6 build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier
+	$(MAKE) -j7 build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet
 .PHONY: build-services
 
 build-frontend:
@@ -420,6 +420,10 @@ build-kube-applier:
 	$(MAKE) -C kube-applier build-and-push
 .PHONY: build-kube-applier
 
+build-fleet:
+	$(MAKE) -C fleet build-and-push
+.PHONY: build-fleet
+
 record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C frontend record-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
 	$(MAKE) -C backend record-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
@@ -427,6 +431,7 @@ record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C sessiongate record-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
 	$(MAKE) -C mgmt-agent record-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
 	$(MAKE) -C kube-applier record-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
+	$(MAKE) -C fleet record-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
@@ -434,6 +439,7 @@ record-services-override: $(YQ) $(ORAS)
 	  /tmp/_sessiongate-override.yaml \
 	  /tmp/_mgmt-agent-override.yaml \
 	  /tmp/_kube-applier-override.yaml \
+	  /tmp/_fleet-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: record-services-override
 

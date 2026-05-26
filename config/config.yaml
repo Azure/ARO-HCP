@@ -705,10 +705,14 @@ defaults:
       roleSetName: "public"
   # Fleet
   fleet:
+    managedIdentityName: fleet
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: fleet
       digest: ""
+    k8s:
+      namespace: fleet
+      serviceAccountName: fleet
   # Admin API
   adminApi:
     audit:

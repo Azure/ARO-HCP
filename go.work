@@ -6,6 +6,7 @@ use (
 	./backend
 	./dev-infrastructure/scripts/cleanup-pko-resources
 	./dev-infrastructure/scripts/recreate-system-pool
+	./fleet
 	./frontend
 	./hack/verify-gomega-assertions
 	./internal

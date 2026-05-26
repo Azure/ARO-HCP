@@ -1,0 +1,15 @@
+serviceAccount:
+  name: "{{ .fleet.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__fleetMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
+image:
+  registry: '{{ .acr.svc.name }}.azurecr.io'
+  repository: '{{ .fleet.image.repository }}'
+  digest: '{{ .fleet.image.digest }}'
+cloudEnvironmentName: '{{ .cloudEnvironmentName }}'
+region: '{{ .region }}'
+cosmos:
+  url: "__cosmosUrl__"
+  name: '{{ .frontend.cosmosDB.name }}'
+controller:
+  namespace: '{{ .fleet.k8s.namespace }}'

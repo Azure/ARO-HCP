@@ -1,0 +1,186 @@
+---
+# Source: fleet/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: fleet
+  annotations:
+    azure.workload.identity/client-id: '__fleetMsiClientId__'
+    azure.workload.identity/tenant-id: '__tenantId__'
+  name: fleet
+  namespace: fleet
+---
+# Source: fleet/templates/leader-election.role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-election
+  namespace: 'fleet'
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+  - patch
+---
+# Source: fleet/templates/leader-election.rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fleet-controller-leader-election
+  namespace: 'fleet'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: leader-election
+subjects:
+- kind: ServiceAccount
+  name: 'fleet'
+  namespace: 'fleet'
+---
+# Source: fleet/templates/metrics.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: fleet-controller
+    port: metrics
+  name: fleet-controller-metrics
+  namespace: 'fleet'
+spec:
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+    name: metrics
+  selector:
+    app.kubernetes.io/name: fleet-controller
+---
+# Source: fleet/templates/controller.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-controller
+  namespace: fleet
+  labels:
+    app.kubernetes.io/name: fleet-controller
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fleet-controller
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: fleet
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: fleet-controller
+        image: 'arohcpsvcdev.azurecr.io/fleet@sha256:1234567890'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 256Mi
+        env:
+        - name: AZURE_TOKEN_CREDENTIALS
+          value: "WorkloadIdentityCredential"
+        args:
+        - controller
+        - --cloud-environment
+        - 'AzurePublicCloud'
+        - --region
+        - 'westus3'
+        - --cosmos-url
+        - '__cosmosUrl__'
+        - --cosmos-name
+        - 'arohcpdev-rp-usw3'
+        - --kube-namespace
+        - 'fleet'
+        ports:
+        - name: healthz
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 8081
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+# Source: fleet/templates/allow-metrics.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-fleet-controller
+  namespace: 'fleet'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8081"]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "fleet-controller"
+---
+# Source: fleet/templates/peerauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: fleet-controller-metrics
+  namespace: 'fleet'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-controller
+  portLevelMtls:
+    8081:
+      mode: PERMISSIVE
+---
+# Source: fleet/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: fleet-controller
+  namespace: 'fleet'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'fleet'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-controller
+      port: metrics
+
