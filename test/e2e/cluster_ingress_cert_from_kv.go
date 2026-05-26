@@ -70,6 +70,7 @@ var _ = Describe("Customer", func() {
 		labels.High,
 		labels.Positive,
 		labels.CreateCluster,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "ingress-cert-kv"
@@ -229,7 +230,7 @@ var _ = Describe("Customer", func() {
 				}
 				v1 = out
 				return nil
-			}).WithContext(ctx).WithTimeout(3 * time.Minute).WithPolling(15 * time.Second).Should(Succeed(),
+			}).WithContext(ctx).WithTimeout(3*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
 				"creating cert v1 should succeed once RBAC propagates")
 			GinkgoLogr.Info("issued cert v1", "version", v1.Version, "sha256", v1.SHA256)
 
