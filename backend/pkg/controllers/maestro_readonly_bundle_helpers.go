@@ -14,10 +14,6 @@
 
 package controllers
 
-import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
 // readonlyBundleManagedByK8sLabelKey is the K8s label key that identifies
 // which backend controller manages a readonly Maestro bundle. The
 // delete-orphaned-bundles controller filters Maestro bundles by this label
@@ -40,15 +36,3 @@ const (
 	// nodepool-scoped bundle creator used to tag its bundles.
 	readonlyBundleManagedByK8sLabelValueNodePoolScoped = "create-nodepool-scoped-maestro-readonly-bundles-controller"
 )
-
-// buildDegradedCondition is a small constructor shared by the kube-content
-// flow and the orphan-cleanup controller for assembling Degraded conditions
-// on ManagementClusterContent / ServiceProviderCluster documents.
-func buildDegradedCondition(conditionStatus metav1.ConditionStatus, conditionReason string, conditionMessage string) metav1.Condition {
-	return metav1.Condition{
-		Type:    "Degraded",
-		Status:  conditionStatus,
-		Reason:  conditionReason,
-		Message: conditionMessage,
-	}
-}

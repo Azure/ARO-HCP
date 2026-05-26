@@ -16,13 +16,10 @@ package upgradecontrollers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/blang/semver/v4"
-
-	"k8s.io/apimachinery/pkg/runtime"
 
 	configv1 "github.com/openshift/api/config/v1"
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -30,35 +27,40 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // controlPlaneActiveVersionSyncer is a Cluster syncer that updates the control plane active
-// versions in ServiceProviderCluster status by reading the version from the management cluster
-// content (HostedCluster status persisted from Maestro readonly bundles).
+// versions in ServiceProviderCluster status by reading the version from the per-cluster
+// ReadDesire kubeContent (the kube-applier's mirror of the management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
 	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
+	readDesireLister  dblisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 
 // NewControlPlaneActiveVersionController creates a new controller that updates
-// Status.ControlPlaneVersion.ActiveVersions from the management cluster content
-// (HostedCluster status stored in ManagementClusterContent).
+// Status.ControlPlaneVersion.ActiveVersions from the per-cluster ReadDesire's
+// observed HostedCluster.
 func NewControlPlaneActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &controlPlaneActiveVersionSyncer{
 		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient: resourcesDBClient,
+		readDesireLister:  readDesireLister,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -76,7 +78,7 @@ func (c *controlPlaneActiveVersionSyncer) CooldownChecker() controllerutil.Coold
 }
 
 // SyncOnce updates ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
-// from the management cluster content (HostedCluster status). Each active version
+// from the per-cluster ReadDesire's observed HostedCluster. Each active version
 // includes Version and State (Completed or Partial) and is persisted on replace.
 func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	_, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
@@ -87,20 +89,17 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 
-	managementClusterContentClient := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ManagementClusterContents(key.HCPClusterName)
-	managementClusterContent, err := managementClusterContentClient.Get(ctx, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
-	if database.IsNotFoundError(err) {
-		return nil
-	}
+	hostedCluster, err := maestrohelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ManagementClusterContent: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}
-
-	if managementClusterContent.Status.KubeContent == nil {
+	if hostedCluster == nil {
+		// ReadDesire absent or kubeContent not yet observed; retrigger
+		// once the kube-applier writes status.
 		return nil
 	}
 
-	newActiveVersions, err := c.getControlPlaneActiveVersionsFromManagementClusterContent(ctx, managementClusterContent.Status.KubeContent.Items)
+	newActiveVersions, err := c.getHostedClusterActiveVersions(ctx, hostedCluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -128,23 +127,6 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	}
 
 	return nil
-}
-
-// getControlPlaneActiveVersionsFromManagementClusterContent reads the HostedCluster content and returns
-// the active versions (each with Version and State). Returns nil if no content or no version.
-func (c *controlPlaneActiveVersionSyncer) getControlPlaneActiveVersionsFromManagementClusterContent(ctx context.Context, items []runtime.RawExtension) ([]api.HCPClusterActiveVersion, error) {
-	hostedCluster, err := c.findHostedClusterInKubeContent(items)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	if hostedCluster == nil {
-		return nil, utils.TrackError(fmt.Errorf("no HostedCluster found in KubeContent"))
-	}
-	versions, err := c.getHostedClusterActiveVersions(ctx, hostedCluster)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	return versions, nil
 }
 
 // getHostedClusterActiveVersions derives active versions from HostedCluster version history (newest first).
@@ -192,47 +174,4 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 		}
 	}
 	return activeVersions, nil
-}
-
-// findHostedClusterInKubeContent returns the HostedCluster from KubeContent items by matching
-// APIVersion and Kind, then parsing into the typed HostedCluster. Returns nil, nil if none found.
-func (c *controlPlaneActiveVersionSyncer) findHostedClusterInKubeContent(items []runtime.RawExtension) (*hsv1beta1.HostedCluster, error) {
-	for i := range items {
-		hc, err := c.tryParseHostedCluster(&items[i])
-		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("item %d: %w", i, err))
-		}
-		if hc != nil {
-			return hc, nil
-		}
-	}
-	return nil, nil
-}
-
-// tryParseHostedCluster decodes a RawExtension directly into *HostedCluster, then returns it only if Kind and APIVersion match.
-// Returns (nil, nil) when the item is not a HostedCluster; (nil, error) on decode failure; (hc, nil) on success.
-func (c *controlPlaneActiveVersionSyncer) tryParseHostedCluster(ext *runtime.RawExtension) (*hsv1beta1.HostedCluster, error) {
-	if ext == nil {
-		return nil, utils.TrackError(fmt.Errorf("nil RawExtension"))
-	}
-	var raw []byte
-	if len(ext.Raw) > 0 {
-		raw = ext.Raw
-	} else if ext.Object != nil {
-		var err error
-		raw, err = json.Marshal(ext.Object)
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-	} else {
-		return nil, utils.TrackError(fmt.Errorf("RawExtension has no Object or Raw"))
-	}
-	hc := &hsv1beta1.HostedCluster{}
-	if err := json.Unmarshal(raw, hc); err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to decode HostedCluster: %w", err))
-	}
-	if hc.APIVersion != "hypershift.openshift.io/v1beta1" || hc.Kind != "HostedCluster" {
-		return nil, nil
-	}
-	return hc, nil
 }

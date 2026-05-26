@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -53,11 +54,11 @@ const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 // It handles automated (managed) z-stream (patch) upgrades and assists with y-stream (minor)
 // version upgrades by selecting the appropriate z-stream within the user-desired minor version.
 type controlPlaneDesiredVersionSyncer struct {
-	cooldownChecker                       controllerutil.CooldownChecker
-	clusterManagementClusterContentLister listers.ManagementClusterContentLister
-	resourcesDBClient                     database.ResourcesDBClient
-	clusterServiceClient                  ocm.ClusterServiceClientSpec
-	subscriptionLister                    listers.SubscriptionLister
+	cooldownChecker      controllerutil.CooldownChecker
+	readDesireLister     dblisters.ReadDesireLister
+	resourcesDBClient    database.ResourcesDBClient
+	clusterServiceClient ocm.ClusterServiceClientSpec
+	subscriptionLister   listers.SubscriptionLister
 
 	cincinnatiClientCache cincinnati.ClientCache
 }
@@ -73,16 +74,16 @@ func NewControlPlaneDesiredVersionController(
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+	readDesireLister dblisters.ReadDesireLister,
 	subscriptionLister listers.SubscriptionLister,
 ) controllerutils.Controller {
-	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
 	syncer := &controlPlaneDesiredVersionSyncer{
-		cooldownChecker:                       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
-		cincinnatiClientCache:                 cincinnati.NewClientCache(),
-		resourcesDBClient:                     resourcesDBClient,
-		clusterServiceClient:                  clusterServiceClient,
-		subscriptionLister:                    subscriptionLister,
+		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		readDesireLister:      readDesireLister,
+		cincinnatiClientCache: cincinnati.NewClientCache(),
+		resourcesDBClient:     resourcesDBClient,
+		clusterServiceClient:  clusterServiceClient,
+		subscriptionLister:    subscriptionLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -133,7 +134,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
 	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
-	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.clusterManagementClusterContentLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}

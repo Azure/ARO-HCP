@@ -1135,12 +1135,12 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 			syncer := &controlPlaneDesiredVersionSyncer{
-				cooldownChecker:                       &alwaysSyncCooldownChecker{},
-				clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-				resourcesDBClient:                     mockResourcesDBClient,
-				clusterServiceClient:                  mockCS,
-				subscriptionLister:                    subscriptionLister,
-				cincinnatiClientCache:                 mockClientCache,
+				cooldownChecker:       &alwaysSyncCooldownChecker{},
+				readDesireLister:      newValidHostedClusterReadDesireLister(t),
+				resourcesDBClient:     mockResourcesDBClient,
+				clusterServiceClient:  mockCS,
+				subscriptionLister:    subscriptionLister,
+				cincinnatiClientCache: mockClientCache,
 			}
 
 			err := syncer.SyncOnce(ctx, clusterKey)
