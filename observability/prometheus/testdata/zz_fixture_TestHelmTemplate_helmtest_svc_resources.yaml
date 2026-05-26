@@ -68446,7 +68446,6 @@ spec:
       cpu: '20'
       memory: '1Gi'
     limits:
-      cpu: '20'
       memory: '100Gi'
   affinity:
     nodeAffinity:
@@ -68527,10 +68526,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
+      capacity: 10000
       maxShards: 500
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s
@@ -68545,10 +68544,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
+      capacity: 10000
       maxShards: 500
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s

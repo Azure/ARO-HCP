@@ -1,6 +1,6 @@
 {{- $none := "NONE" -}}
 {{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
-{{- $setLimits := or (ne (.Values.prometheusSpec.resources.limits.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.limits.memory | toString) $none) -}}
+{{- $setLimits := ne (.Values.prometheusSpec.resources.limits.memory | toString) $none -}}
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: PrometheusAgent
 metadata:
@@ -22,9 +22,6 @@ spec:
     {{- end }}
     {{- if $setLimits }}
     limits:
-      {{- if ne (.Values.prometheusSpec.resources.limits.cpu | toString) $none }}
-      cpu: '{{ .Values.prometheusSpec.resources.limits.cpu }}'
-      {{- end }}
       {{- if ne (.Values.prometheusSpec.resources.limits.memory | toString) $none }}
       memory: '{{ .Values.prometheusSpec.resources.limits.memory }}'
       {{- end }}
@@ -100,6 +97,19 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+  {{- if .Values.prometheusSpec.purgeWAL }}
+  initContainers:
+  - name: purge-wal
+    image: '{{ .Values.prometheusSpec.image.registry }}/{{ .Values.prometheusSpec.image.repository }}@sha256:{{ .Values.prometheusSpec.image.sha }}'
+    command: ["sh", "-c", "rm -rf /prometheus/wal/* && echo 'WAL purged'"]
+    volumeMounts:
+    - name: prometheus-prometheus-db
+      mountPath: /prometheus
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 2000
+  {{- end }}
   walCompression: true
   externalLabels:
     cluster: '{{ .Values.prometheusSpec.externalLabels.cluster }}'
@@ -109,10 +119,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
+      capacity: 10000
       maxShards: 500
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s
@@ -130,10 +140,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
+      capacity: 10000
       maxShards: 500
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s

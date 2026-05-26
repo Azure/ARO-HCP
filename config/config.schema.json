@@ -778,6 +778,9 @@
             "retentionSize": {
               "type": "string",
               "pattern": "^$|^(0|([0-9]*[.])?[0-9]+((K|M|G|T|E|P)i?)?B)$"
+            },
+            "purgeWAL": {
+              "type": "boolean"
             }
           }
         },

@@ -650,11 +650,11 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: cd2d184c3beae9475a21230f489e7cd886f76de88de9d758c69f25542328c8dd
+        sha: 7c8689b44c1131e0f9cb830b65c2d33180e18934090c9c51e219b061ea3fc58a
+      purgeWAL: false
       replicas: 2
       resources:
         limits:
-          cpu: NONE
           memory: NONE
         requests:
           cpu: NONE
@@ -978,11 +978,11 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: cd2d184c3beae9475a21230f489e7cd886f76de88de9d758c69f25542328c8dd
+        sha: 7c8689b44c1131e0f9cb830b65c2d33180e18934090c9c51e219b061ea3fc58a
+      purgeWAL: false
       replicas: 2
       resources:
         limits:
-          cpu: NONE
           memory: NONE
         requests:
           cpu: NONE

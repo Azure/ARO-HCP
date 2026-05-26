@@ -522,10 +522,10 @@ defaults:
             cpu: NONE
             memory: NONE
           limits:
-            cpu: NONE
             memory: NONE
         replicas: 2
         shards: 2
+        purgeWAL: false
       prometheusConfigReloader:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -649,10 +649,10 @@ defaults:
             cpu: NONE
             memory: NONE
           limits:
-            cpu: NONE
             memory: NONE
         replicas: 2
         shards: 2
+        purgeWAL: false
       prometheusConfigReloader:
         image:
           registry: mcr.microsoft.com/oss/v2
