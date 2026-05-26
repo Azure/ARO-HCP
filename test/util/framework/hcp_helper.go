@@ -168,7 +168,9 @@ func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
 	}
 }
 
-// DeleteHCPCluster deletes an hcp cluster and waits for the operation to complete
+// DeleteHCPCluster deletes an hcp cluster and waits for the operation to complete.
+// Transient ConflictingConcurrentWriteNotAllowed (409) errors are retried automatically
+// with exponential backoff.
 func DeleteHCPCluster(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
@@ -179,6 +181,38 @@ func DeleteHCPCluster(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	var attempt int
+	retryErr := wait.ExponentialBackoffWithContext(ctx, stateConflictBackoff, func(ctx context.Context) (bool, error) {
+		attempt++
+		err := deleteHCPClusterAttempt(ctx, hcpClient, resourceGroupName, hcpClusterName)
+		if err == nil {
+			return true, nil
+		}
+		if isTransientDeleteError(err) {
+			ginkgo.GinkgoLogr.Info("transient conflict during cluster delete, retrying",
+				"cluster", hcpClusterName, "resourceGroup", resourceGroupName,
+				"attempt", attempt, "error", err.Error())
+			return false, nil
+		}
+		return false, err
+	})
+
+	if retryErr != nil && attempt > 1 {
+		ginkgo.GinkgoLogr.Info("cluster delete failed after retries",
+			"cluster", hcpClusterName, "resourceGroup", resourceGroupName,
+			"attempts", attempt, "error", retryErr.Error())
+	}
+
+	return retryErr
+}
+
+// deleteHCPClusterAttempt performs a single delete attempt for an HCP cluster.
+func deleteHCPClusterAttempt(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+) error {
 	poller, err := hcpClient.BeginDelete(ctx, resourceGroupName, hcpClusterName, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
@@ -329,6 +363,21 @@ var stateConflictBackoff = wait.Backoff{
 // csStateConflictPattern matches the cluster-service error message format:
 // "Cluster '<id>' is in state '<state>', can't update"
 var csStateConflictPattern = regexp.MustCompile(`is in state '[^']+', can't update`)
+
+// isTransientDeleteError detects transient write conflicts during cluster deletion.
+// Only matches ConflictingConcurrentWriteNotAllowed, which is caused by optimistic
+// concurrency control in the backend and resolves on retry.
+func isTransientDeleteError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var responseError *azcore.ResponseError
+	if !errors.As(err, &responseError) {
+		return false
+	}
+	return responseError.StatusCode == http.StatusConflict &&
+		responseError.ErrorCode == "ConflictingConcurrentWriteNotAllowed"
+}
 
 // isTransientUpdateError detects errors worth retrying during cluster updates:
 //   - HTTP 500: e.g. Cosmos DB ETag conflict after cluster-service commit
