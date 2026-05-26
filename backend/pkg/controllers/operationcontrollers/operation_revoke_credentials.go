@@ -201,7 +201,7 @@ func (opsync *operationRevokeCredentials) SynchronizeOperation(ctx context.Conte
 	}
 
 	logger.Info("updating status")
-	err = patchOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, PostAsyncNotificationFn(opsync.notificationClient))
+	err = patchOperation(ctx, opsync.clock, opsync.resourcesDBClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

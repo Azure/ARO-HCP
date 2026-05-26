@@ -16,6 +16,7 @@ package operationcontrollers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,13 +28,16 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 )
 
 type operationNodePoolDelete struct {
-	clock              utilsclock.PassiveClock
-	resourcesDBClient  database.ResourcesDBClient
-	notificationClient *http.Client
+	clock                utilsclock.PassiveClock
+	resourcesDBClient    database.ResourcesDBClient
+	clusterServiceClient ocm.ClusterServiceClientSpec
+	notificationClient   *http.Client
 }
 
 // NewOperationNodePoolDeleteController returns a new Controller instance that
@@ -58,13 +62,15 @@ type operationNodePoolDelete struct {
 func NewOperationNodePoolDeleteController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationNodePoolDelete{
-		clock:              clock,
-		resourcesDBClient:  resourcesDBClient,
-		notificationClient: notificationClient,
+		clock:                clock,
+		resourcesDBClient:    resourcesDBClient,
+		clusterServiceClient: clusterServiceClient,
+		notificationClient:   notificationClient,
 	}
 
 	controller := NewGenericOperationController(
@@ -107,10 +113,10 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	}
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).NodePools(operation.ExternalID.Parent.Name)
-	_, err = nodePoolCRUD.Get(ctx, operation.ExternalID.Name)
+	nodePool, err := nodePoolCRUD.Get(ctx, operation.ExternalID.Name)
 	if database.IsNotFoundError(err) {
 		logger.Info("node pool document deleted - completing operation")
-		err = SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, PostAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -118,6 +124,49 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
+	}
+
+	if !c.shouldReconcileOperationAndResourceStatus(nodePool) {
+		return nil
+	}
+	err = c.reconcileOperationAndResourceStatus(ctx, operation, nodePool)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
+func (c *operationNodePoolDelete) shouldReconcileOperationAndResourceStatus(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
+		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
+		nodePool.ServiceProviderProperties.ClusterServiceID != nil
+}
+
+func (c *operationNodePoolDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *api.Operation, nodePool *api.HCPOpenShiftClusterNodePool) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID
+
+	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePoolCSID)
+	if err != nil {
+		var ocmError *ocmerrors.Error
+		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service NodePool status: %w", err))
+		}
+		// 404 - CS has finished deleting. nodePoolClusterServiceIDClearer will clear the ID.
+		logger.Info("cluster-service NodePool gone - skipping operation update", "clusterServiceID", nodePoolCSID.String())
+		return nil
+	}
+
+	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
+	if err != nil {
+		return utils.TrackError(err)
 	}
 
 	return nil

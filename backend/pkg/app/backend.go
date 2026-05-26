@@ -451,6 +451,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationNodePoolDeleteController := operationcontrollers.NewOperationNodePoolDeleteController(
 		b.clock,
 		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
@@ -639,13 +640,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.MaestroSourceEnvironmentIdentifier,
 		maestroClientBuilder,
 	)
-	nodePoolDeletionOperationStatusController := nodepooldeletion.NewNodePoolDeletionOperationStatusController(
-		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
-		http.DefaultClient,
-		activeOperationLister,
-		backendInformers,
-	)
 
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
@@ -706,7 +700,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolChildResourceCleanupController.Run(ctx, 20)
 				go nodePoolDeletionController.Run(ctx, 20)
 				go nodePoolScopedMaestroReadonlyBundlesDeleteController.Run(ctx, 20)
-				go nodePoolDeletionOperationStatusController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
