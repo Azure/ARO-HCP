@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -83,6 +84,9 @@ func TestNodePoolChildResourceCleanupController_SyncOnce(t *testing.T) {
 		childResources     []any
 		wantChildrenGone   bool
 		wantControllerKept bool
+		wantSPNPGone       bool
+		wantSPNPKept       bool
+		wantMCCAbsentNamed string
 	}{
 		{
 			name:             "no DeletionTimestamp -- no-op",
@@ -126,6 +130,32 @@ func TestNodePoolChildResourceCleanupController_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "node pool not found -- no-op",
+		},
+		{
+			name:             "all conditions met, SPNP Maestro bundles empty -- deletes ServiceProviderNodePool cosmos doc",
+			existingNodePool: newTestNodePool(t, readyToDelete),
+			childResources:   []any{newTestSPNP(t, api.MaestroBundleReferenceList{})},
+			wantSPNPGone:     true,
+		},
+		{
+			name:             "all conditions met, SPNP has Maestro readonly bundles -- skips deleting ServiceProviderNodePool",
+			existingNodePool: newTestNodePool(t, readyToDelete),
+			childResources: []any{newTestSPNP(t, api.MaestroBundleReferenceList{
+				{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
+			})},
+			wantSPNPKept: true,
+		},
+		{
+			name:             "all conditions met, MCC plus SPNP with bundles -- deletes MCC only",
+			existingNodePool: newTestNodePool(t, readyToDelete),
+			childResources: []any{
+				newTestManagementClusterContent(t, "gate-mcc"),
+				newTestSPNP(t, api.MaestroBundleReferenceList{
+					{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
+				}),
+			},
+			wantMCCAbsentNamed: "gate-mcc",
+			wantSPNPKept:       true,
 		},
 	}
 
@@ -188,6 +218,25 @@ func TestNodePoolChildResourceCleanupController_SyncOnce(t *testing.T) {
 				} else if tc.wantControllerKept {
 					assert.Equal(t, 1, controllerCount, "expected controller child to remain")
 				}
+			}
+
+			if tc.wantSPNPGone {
+				spnpCRUD := mockResourcesDBClient.ServiceProviderNodePools(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.True(t, database.IsNotFoundError(err))
+			}
+			if tc.wantSPNPKept {
+				spnpCRUD := mockResourcesDBClient.ServiceProviderNodePools(
+					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err)
+			}
+			if tc.wantMCCAbsentNamed != "" {
+				mccCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
+					NodePools(key.HCPClusterName).ManagementClusterContents(key.HCPNodePoolName)
+				_, err := mccCRUD.Get(ctx, tc.wantMCCAbsentNamed)
+				require.True(t, database.IsNotFoundError(err))
 			}
 		})
 	}

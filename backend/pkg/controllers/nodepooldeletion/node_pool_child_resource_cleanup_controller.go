@@ -27,6 +27,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // nodePoolChildResourceCleanupController deletes direct child resources scoped
@@ -105,31 +106,34 @@ func (c *nodePoolChildResourceCleanupController) SyncOnce(ctx context.Context, k
 		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for node pool children: %w", err))
 	}
 
+	// extraDeleteGates is a map of resource types to extra delete gates that are used to determine if a resource should be deleted.
+	// Keys are strings.ToLower(api resource type strings) so lookups match TypedDocument.resourceType regardless of casing.
+	// The value of the map is a function that takes a context and a resource ID and returns a boolean indicating if the resource should be deleted, or
+	// an error.
+	// If the resource type is not in the map, the resource is deleted.
+	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
+		strings.ToLower(api.ServiceProviderNodePoolResourceType.String()): c.extraDeleteGateShouldDeleteServiceProviderNodePool,
+		// We never delete node pool controllers here, as there might be controllers still running for the NodePool until the very
+		// end of the deletion process
+		strings.ToLower(api.NodePoolControllerResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
+	}
+
 	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to list node pool child resources: %w", err))
 	}
 	for _, childResource := range childIterator.Items(ctx) {
-		if strings.EqualFold(childResource.ResourceType, api.NodePoolControllerResourceType.String()) {
-			continue
-		}
-
 		if childResource.ResourceID == nil {
 			return utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
 		}
 
-		// We only delete the ServiceProviderNodePool if all the Maestro readonly bundles have been unset
-		if childResource.ResourceType == api.ServiceProviderNodePoolResourceType.String() {
-			spnp, err := c.resourcesDBClient.ServiceProviderNodePools(nodePoolResourceID.SubscriptionID, nodePoolResourceID.ResourceGroupName, nodePoolResourceID.Parent.Name, nodePoolResourceID.Name).Get(ctx, api.ServiceProviderNodePoolResourceName)
-			if database.IsNotFoundError(err) {
-				continue
-			}
+		extraDeleteGate, ok := extraDeleteGates[strings.ToLower(childResource.ResourceType)]
+		if ok {
+			shouldDelete, err := extraDeleteGate(ctx, childResource.ResourceID)
 			if err != nil {
-				return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
+				return utils.TrackError(err)
 			}
-			if len(spnp.Status.MaestroReadonlyBundles) > 0 {
-				logger.Info("waiting for nodepool-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
-					"serviceProviderNodePoolResourceID", spnp.ResourceID.String(), "remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
+			if !shouldDelete {
 				continue
 			}
 		}
@@ -144,4 +148,35 @@ func (c *nodePoolChildResourceCleanupController) SyncOnce(ctx context.Context, k
 	}
 
 	return nil
+}
+
+// extraDeleteGateShouldDeleteServiceProviderNodePool is an extra delete gate that checks if the ServiceProviderNodePool has any Maestro readonly bundles.
+// serviceProviderNodePoolResourceID is the child's ARM resource ID (serviceProviderNodePools/default).
+// If there are bundles it returns false, otherwise it returns true.
+func (c *nodePoolChildResourceCleanupController) extraDeleteGateShouldDeleteServiceProviderNodePool(ctx context.Context, serviceProviderNodePoolResourceID *azcorearm.ResourceID) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	if serviceProviderNodePoolResourceID.Parent == nil || serviceProviderNodePoolResourceID.Parent.Parent == nil {
+		return false, utils.TrackError(fmt.Errorf(
+			"service provider node pool resource ID missing cluster or node pool parent: %s",
+			serviceProviderNodePoolResourceID.String()))
+	}
+
+	clusterName := serviceProviderNodePoolResourceID.Parent.Parent.Name
+	nodePoolName := serviceProviderNodePoolResourceID.Parent.Name
+
+	spnp, err := c.resourcesDBClient.ServiceProviderNodePools(serviceProviderNodePoolResourceID.SubscriptionID, serviceProviderNodePoolResourceID.ResourceGroupName, clusterName, nodePoolName).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	if database.IsNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
+	}
+
+	if len(spnp.Status.MaestroReadonlyBundles) > 0 {
+		logger.Info("waiting for nodepool-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
+			"serviceProviderNodePoolResourceID", spnp.ResourceID.String(), "remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
+		return false, nil
+	}
+	return true, nil
 }
