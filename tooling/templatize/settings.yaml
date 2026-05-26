@@ -56,9 +56,9 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "p${USER:0:4}"
-- name: opstool
+- name: dev-ci
   description: |
-    AKS cluster for SRE operational tooling.
+    Shared development and CI infrastructure topology.
   defaults:
     region: westus3
     cloud: dev

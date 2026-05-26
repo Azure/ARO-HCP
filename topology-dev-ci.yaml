@@ -1,0 +1,21 @@
+entrypoints:
+- identifier: 'Microsoft.Azure.ARO.HCP.DevCI.Infra'
+  metadata:
+    name: Dev CI Infrastructure
+services:
+- serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Infra
+  pipelinePath: dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml
+  purpose: Deploy shared dev/CI network resources, the opstool AKS cluster, and the Prometheus monitoring stack.
+  children:
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.TenantQuota
+    pipelinePath: tooling/tenant-quota/pipeline.yaml
+    purpose: Deploy the tenant-quota-collector.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
+    pipelinePath: dev-infrastructure/dev-ci/gateway/pipeline.yaml
+    purpose: Deploy the shared Istio gateway and DNS wiring for opstool.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CertManager
+    pipelinePath: dev-infrastructure/dev-ci/cert-manager/pipeline.yaml
+    purpose: Deploy cert-manager and the shared Azure DNS DNS-01 ClusterIssuer.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CIHealth
+    pipelinePath: dev-infrastructure/dev-ci/cihealth/pipeline.yaml
+    purpose: Deploy the CIHealth runtime on cihealth.tools.hcpsvc.osadev.cloud.

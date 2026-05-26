@@ -1,13 +1,13 @@
-$schema: config-opstool.schema.json
+$schema: config-dev-ci.schema.json
 #
 # Usage (from repo root):
 #   PROJECT_ROOT_DIR="$(pwd)" && \
 #   ./tooling/templatize/templatize pipeline run \
-#     --config-file="${PROJECT_ROOT_DIR}/config/config-opstool.yaml" \
-#     --topology-file="${PROJECT_ROOT_DIR}/topology-opstool.yaml" \
+#     --config-file="${PROJECT_ROOT_DIR}/config/config-dev-ci.yaml" \
+#     --topology-file="${PROJECT_ROOT_DIR}/topology-dev-ci.yaml" \
 #     --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
-#     --dev-environment opstool \
-#     --service-group Microsoft.Azure.ARO.HCP.Opstool.Infra
+#     --dev-environment dev-ci \
+#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Infra
 #
 # Prerequisites for manual deployment:
 #   - Build templatize: make templatize
@@ -200,6 +200,6 @@ clouds:
               - brazilsouth
               - eastus2
     environments:
-      opstool:
+      dev-ci:
         regions:
           westus3: {}

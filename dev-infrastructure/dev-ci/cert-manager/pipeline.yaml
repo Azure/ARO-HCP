@@ -1,5 +1,5 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.CertManager
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CertManager
 rolloutName: Opstool cert-manager Rollout
 resourceGroups:
 - name: opstool
@@ -44,7 +44,7 @@ resourceGroups:
     - resourceGroup: opstool
       step: output
     externalDependsOn:
-    - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.Infra
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Infra
       resourceGroup: opstool
       step: network
     identityFrom:
