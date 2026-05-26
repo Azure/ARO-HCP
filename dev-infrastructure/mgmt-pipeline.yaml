@@ -23,6 +23,12 @@ buildStep:
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/cleanup-pko-resources/cleanup-pko-resources
     trap - EXIT
+    tmp2="$(mktemp ./scripts/recreate-system-pool/recreate-system-pool.XXXXXX)"
+    trap 'rm -f "${tmp2}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp2}" ./scripts/recreate-system-pool
+    chmod 0755 "${tmp2}"
+    mv "${tmp2}" ./scripts/recreate-system-pool/recreate-system-pool
+    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -189,6 +195,37 @@ resourceGroups:
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
+  # Detect and self-heal the AKS system pool when NRP KVS corruption
+  # has wedged it (AROSLSRE-924 / ICM 798003653). Runs BEFORE the cluster
+  # ARM step so the cluster PUT does not get stuck behind a wedged
+  # VMSS update. The Go binary checks cluster existence first and exits
+  # 0 (no-op) if the cluster has not been created yet (greenfield
+  # rollout), or if any of the five detection guards fail.
+  - name: recreate-system-pool-if-broken
+    action: Shell
+    command: ./scripts/recreate-system-pool/recreate-system-pool
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: NRP_FAIL_THRESHOLD
+      value: '10'
+    - name: NRP_FAIL_WINDOW_MIN
+      value: '15'
+    dependsOn:
+    - resourceGroup: management
+      step: cx-oncert-public-kv-issuer
+    - resourceGroup: management
+      step: oncert-private-kv-issuer
+    - resourceGroup: management
+      step: oncert-public-kv-issuer
   # Build the MC
   - name: cluster
     action: ARM
@@ -243,6 +280,8 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: management
       step: oncert-public-kv-issuer
+    - resourceGroup: management
+      step: recreate-system-pool-if-broken
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
