@@ -2,7 +2,29 @@
 # Script to set synchronized OpenShift versions for E2E tests
 # This ensures control plane and node pool use the same version
 
+# Detect if script is being sourced or executed
+# When sourced, preserve parent shell options to avoid mutating caller's environment
+(return 0 2>/dev/null) && SOURCED=1 || SOURCED=0
+
+# Preserve shell options if sourced
+if [ "$SOURCED" = "1" ]; then
+    # Save current shell options
+    OLD_SHELL_OPTS=$(set +o)
+fi
+
 set -euo pipefail
+
+# Helper function to exit/return appropriately
+script_exit() {
+    local exit_code=$1
+    if [ "$SOURCED" = "1" ]; then
+        # Restore shell options before returning
+        eval "$OLD_SHELL_OPTS"
+        return "$exit_code"
+    else
+        exit "$exit_code"
+    fi
+}
 
 # Parse command line arguments
 CHANNEL_GROUP="${1:-candidate}"
@@ -45,7 +67,7 @@ VERSION=$(get_latest_version "$CHANNEL_GROUP" "$VERSION_MINOR")
 
 if [ -z "$VERSION" ]; then
     echo "ERROR: Failed to resolve version" >&2
-    exit 1
+    script_exit 1
 fi
 
 echo "Resolved Version: $VERSION"
@@ -76,3 +98,8 @@ export ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP="$CHANNEL_GROUP"
 export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION="$VERSION"
 export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION="$VERSION"
 EOF
+
+# Restore shell options if sourced
+if [ "$SOURCED" = "1" ]; then
+    eval "$OLD_SHELL_OPTS"
+fi

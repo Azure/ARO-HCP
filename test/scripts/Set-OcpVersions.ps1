@@ -29,8 +29,31 @@ function Get-LatestOpenShiftVersion {
             return $null
         }
 
-        # Get the latest version
-        $latestVersion = $response.nodes.version | Sort-Object | Select-Object -Last 1
+        # Get the latest version using semantic version sorting
+        # This handles pre-release versions like "4.20.0-0.nightly-..." correctly
+        $versions = $response.nodes.version
+
+        # Try to use SemanticVersion (PowerShell 6+), fall back to custom sorting
+        try {
+            $latestVersion = $versions | ForEach-Object {
+                [PSCustomObject]@{
+                    Original = $_
+                    SemVer = [System.Management.Automation.SemanticVersion]::new($_)
+                }
+            } | Sort-Object -Property SemVer | Select-Object -Last 1 -ExpandProperty Original
+        }
+        catch {
+            # Fallback for Windows PowerShell 5.1 or if SemanticVersion parsing fails
+            # Sort by splitting version components and comparing numerically
+            $latestVersion = $versions | Sort-Object -Property {
+                $parts = $_ -split '[\.-]'
+                # Pad each part to ensure numeric comparison
+                ($parts[0].PadLeft(10, '0') +
+                 $parts[1].PadLeft(10, '0') +
+                 $parts[2].PadLeft(10, '0'))
+            } | Select-Object -Last 1
+        }
+
         return $latestVersion
     }
     catch {

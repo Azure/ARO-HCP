@@ -3,7 +3,29 @@
 # This script fetches the version once and exports it for both control plane and node pools
 # Designed for use in CI environments (Prow, GitHub Actions, etc.)
 
+# Detect if script is being sourced or executed
+# When sourced, preserve parent shell options and use return instead of exit
+(return 0 2>/dev/null) && SOURCED=1 || SOURCED=0
+
+# Preserve shell options if sourced
+if [ "$SOURCED" = "1" ]; then
+    # Save current shell options
+    OLD_SHELL_OPTS=$(set +o)
+fi
+
 set -euo pipefail
+
+# Helper function to exit/return appropriately
+script_exit() {
+    local exit_code=$1
+    if [ "$SOURCED" = "1" ]; then
+        # Restore shell options before returning
+        eval "$OLD_SHELL_OPTS"
+        return "$exit_code"
+    else
+        exit "$exit_code"
+    fi
+}
 
 # Configuration
 CHANNEL_GROUP="${ARO_HCP_OPENSHIFT_CHANNEL_GROUP:-candidate}"
@@ -28,11 +50,11 @@ if [ -n "${ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION:-}" ] && [ -n "${ARO_HCP_OPENS
         echo "ERROR: Control plane and node pool versions differ!" >&2
         echo "  This will cause validation errors." >&2
         echo "  Either unset both variables or ensure they match." >&2
-        exit 1
+        script_exit 1
     fi
 
     echo "✓ Versions are synchronized"
-    exit 0
+    script_exit 0
 fi
 
 # Fetch latest version from Cincinnati
@@ -51,7 +73,7 @@ for i in $(seq 1 $MAX_RETRIES); do
 
     if [ $i -eq $MAX_RETRIES ]; then
         echo "ERROR: Failed to fetch version after $MAX_RETRIES attempts" >&2
-        exit 1
+        script_exit 1
     fi
 
     echo "Attempt $i failed, retrying in ${RETRY_DELAY}s..."
@@ -104,3 +126,8 @@ echo "export ARO_HCP_OPENSHIFT_CHANNEL_GROUP=\"$CHANNEL_GROUP\""
 echo "export ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP=\"$CHANNEL_GROUP\""
 echo "export ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION=\"$VERSION\""
 echo "export ARO_HCP_OPENSHIFT_NODEPOOL_VERSION=\"$VERSION\""
+
+# Restore shell options if sourced
+if [ "$SOURCED" = "1" ]; then
+    eval "$OLD_SHELL_OPTS"
+fi
