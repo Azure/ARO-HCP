@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// verify-schema-additional-properties checks that all object definitions in a
+// verify-schema-additional-properties checks that all object schemas in a
 // JSON schema file have an "additionalProperties" field set. Without it, the
 // schema silently allows unexpected properties, defeating typo detection.
 //
-// Exit code is 1 if any object definitions are missing the field.
+// Exit code is 1 if any object schemas are missing the field.
 package main
 
 import (
@@ -134,11 +134,11 @@ func main() {
 			continue
 		}
 		if len(missing) > 0 {
-			fmt.Fprintf(os.Stderr, "ERROR: %d object definition(s) missing additionalProperties in %s:\n", len(missing), path)
+			fmt.Fprintf(os.Stderr, "ERROR: %d object schema(s) missing additionalProperties in %s:\n", len(missing), path)
 			for _, m := range missing {
 				fmt.Fprintf(os.Stderr, "  - %s\n", m)
 			}
-			fmt.Fprintf(os.Stderr, "\nAdd \"additionalProperties\": false (or true) to each definition.\n")
+			fmt.Fprintf(os.Stderr, "\nAdd \"additionalProperties\": false (or true) to each object schema.\n")
 			exitCode = 1
 		}
 	}
