@@ -224,76 +224,12 @@ create-msi-mock-pool: configurations/mock-identity-pool.bicepparam
 
 .PHONY: create-msi-mock-pool
 
-grant-msi-mock-pool-e2e-access:
-	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
-		echo "Granting E2E access to MSI mock pool SP $$i ..."; \
-		az role assignment create \
-			--role "dev-msi-mock" \
-			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
-			--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
-			--only-show-errors; \
-		az role assignment create \
-			--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
-			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
-			--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
-			--only-show-errors; \
-	done
-
-.PHONY: grant-msi-mock-pool-e2e-access
-
 populate-msi-mock-pool:
 	cd openshift-ci && \
 	MSI_MOCK_POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \
 	./populate-msi-mock-pool.sh
 
 .PHONY: populate-msi-mock-pool
-
-grant-e2e-access:
-	az role assignment create \
-		--role "dev-first-party-mock" \
-		--assignee "$(shell az ad app list --display-name aro-dev-first-party2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
-
-	az role assignment create \
-		--role "Contributor" \
-		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
-
-	az role assignment create \
-		--role "Role Based Access Control Administrator" \
-		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/974ebd46-8ad3-41e3-afef-7ef25fd5c371" \
-		--only-show-errors
-
-	az role assignment create \
-		--role "dev-msi-mock" \
-		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
-
-	az role assignment create \
-		--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
-		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
-		--only-show-errors
-
-	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
-		echo "Granting E2E access to MSI mock pool SP $$i ..."; \
-		az role assignment create \
-			--role "dev-msi-mock" \
-			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
-			--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
-			--only-show-errors; \
-		az role assignment create \
-			--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
-			--assignee "$$(az ad app list --filter "displayName eq 'aro-dev-msi-mock-pool-$$i'" --query '[*].appId' -o tsv)" \
-			--scope "/subscriptions/$(E2E_TESTING_SUBSCRIPTION_ID)" \
-			--only-show-errors; \
-	done
-
-.PHONY: grant-e2e-access
 
 grant-int-e2e-access:
 	az role assignment create \
@@ -602,33 +538,10 @@ secrets-yes-i-want-to-update-the-shared-secrets:
 .PHONY: secrets-yes-i-want-to-update-the-shared-secrets
 
 #
-# Operator roles for platform workload identity
-#
-
-operator-roles:
-	az deployment sub create \
-	    --location westus3 \
-		--name operator-roles \
-		--template-file templates/dev-operator-roles.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters configurations/dev-operator-roles.bicepparam \
-		--parameters e2eTestSubscription=$(E2E_TESTING_SUBSCRIPTION_ID)
-.PHONY: operator-roles
-
-operator-roles.what-if:
-	az deployment sub what-if \
-	    --location westus3 \
-		--name operator-roles \
-		--template-file templates/dev-operator-roles.bicep \
-		--parameters configurations/dev-operator-roles.bicepparam \
-		--parameters e2eTestSubscription=$(E2E_TESTING_SUBSCRIPTION_ID)
-.PHONY: operator-roles.what-if
-
-#
 # Common
 #
 
-what-if: global.what-if acr.what-if region.what-if svc.what-if mgmt.what-if monitoring.what-if operator-roles.what-if
+what-if: global.what-if acr.what-if region.what-if svc.what-if mgmt.what-if monitoring.what-if
 .PHONY: what-if
 
 infra: region svc.init mgmt.init monitoring
