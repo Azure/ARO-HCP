@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
@@ -124,15 +125,18 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.Positive,
 		labels.CoreInfraService,
 		func(ctx context.Context) {
-			By("verifying the ValidatingAdmissionPolicy exists")
-			_, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get(
-				ctx, "image-registry-allowlist-policy", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicy should exist")
+			// INT, STG and PROD do not have cluster-scoped RBAC to verify the policy exists
+			if framework.IsDevelopmentEnvironment() {
+				By("verifying the ValidatingAdmissionPolicy exists")
+				_, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get(
+					ctx, "image-registry-allowlist-policy", metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicy should exist")
 
-			By("verifying the ValidatingAdmissionPolicyBinding exists")
-			_, err = kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Get(
-				ctx, "image-registry-allowlist-policy-binding", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicyBinding should exist")
+				By("verifying the ValidatingAdmissionPolicyBinding exists")
+				_, err = kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Get(
+					ctx, "image-registry-allowlist-policy-binding", metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicyBinding should exist")
+			}
 
 			By("verifying the ConfigMap allowlist is non-empty and contains required registries")
 			cm, err := kubeClient.CoreV1().ConfigMaps("image-registry-policy").Get(
