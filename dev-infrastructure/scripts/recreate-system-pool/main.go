@@ -837,7 +837,7 @@ func (c *clients) snapshotSystem(ctx context.Context) (*armcs.AgentPool, error) 
 // Read-only fields stripped (RP rejects user-supplied values):
 //   - top-level: id, name, type
 //   - properties: provisioningState, currentOrchestratorVersion,
-//     nodeImageVersion, powerState, creationData
+//     nodeImageVersion, powerState, creationData, eTag
 //
 // orchestratorVersion is overwritten with the live cluster control-plane
 // version to guarantee we never request a version downgrade.
@@ -872,6 +872,7 @@ func sanitizeForRecreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentP
 	out.Properties.NodeImageVersion = nil
 	out.Properties.PowerState = nil
 	out.Properties.CreationData = nil
+	out.Properties.ETag = nil
 	// Pin to the live CP version so we never request a downgrade.
 	v := cpVersion
 	out.Properties.OrchestratorVersion = &v
@@ -892,9 +893,16 @@ func sanitizeForRecreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentP
 // step 2 :: maybe abort LRO
 // ---------------------------------------------------------------------------
 
+func isActiveClusterState(state string) bool {
+	return state == "Updating" || state == "Upgrading"
+}
+
 // maybeAbortLRO inspects the cluster's latest LRO and decides what to do:
 //
-//   - no latest LRO accessible            -> proceed (nothing to abort).
+//   - no latest LRO accessible while
+//     cluster state is settled            -> proceed (nothing to abort).
+//   - no latest LRO accessible while
+//     cluster state is active             -> fail closed (cannot age-gate).
 //   - latest LRO already finished         -> proceed (nothing to abort).
 //   - active LRO younger than 30 min      -> NO-OP (return proceed=false,
 //     no error). The caller exits 0
@@ -908,9 +916,23 @@ func sanitizeForRecreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentP
 // within minutes; anything older than 30 min on the same correlation
 // chain is the NRP-KVS retry storm and is safe to abort.
 func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
+	clusterState := ""
+	mc, err := c.cluster.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
+	if err != nil {
+		return false, fmt.Errorf("cluster get before LRO inspection: %w", err)
+	}
+	if mc.Properties != nil && mc.Properties.ProvisioningState != nil {
+		clusterState = *mc.Properties.ProvisioningState
+	}
+	clusterActive := isActiveClusterState(clusterState)
+	logf("cluster provisioningState before LRO inspection: %s", clusterState)
+
 	// SDK lacks a typed "show-latest cluster operation" helper; use az.
 	out, err := azJSON(ctx, "aks", "operation", "show-latest", "-g", c.cfg.resourceGroup, "-n", c.cfg.clusterName)
 	if err != nil {
+		if clusterActive {
+			return false, fmt.Errorf("latest LRO unavailable while cluster provisioningState=%q is active: %w", clusterState, err)
+		}
 		logf("no latest LRO accessible (continuing): %v", err)
 		return true, nil
 	}
@@ -920,16 +942,29 @@ func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 		EndTime   string `json:"endTime"`
 	}
 	if err := json.Unmarshal(out, &op); err != nil {
+		if clusterActive {
+			return false, fmt.Errorf("could not parse latest LRO while cluster provisioningState=%q is active: %w", clusterState, err)
+		}
 		logf("could not parse latest LRO: %v (continuing)", err)
 		return true, nil
 	}
 	logf("latest LRO: status=%s start=%s end=%s", op.Status, op.StartTime, op.EndTime)
-	if op.EndTime != "" || op.Status == "" {
+	if op.EndTime != "" {
+		logf("no active LRO")
+		return true, nil
+	}
+	if op.Status == "" {
+		if clusterActive {
+			return false, fmt.Errorf("latest LRO status empty while cluster provisioningState=%q is active", clusterState)
+		}
 		logf("no active LRO")
 		return true, nil
 	}
 	start, err := time.Parse(time.RFC3339, op.StartTime)
 	if err != nil {
+		if clusterActive {
+			return false, fmt.Errorf("could not parse active LRO startTime %q while cluster provisioningState=%q is active: %w", op.StartTime, clusterState, err)
+		}
 		logf("could not parse LRO startTime: %v (continuing)", err)
 		return true, nil
 	}

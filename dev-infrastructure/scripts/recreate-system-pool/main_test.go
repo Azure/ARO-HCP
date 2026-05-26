@@ -420,6 +420,7 @@ func mkLiveSystemPool() *armcs.AgentPool {
 	curOrch := "1.35.4"
 	nodeImg := "AKSAzureLinux-V3gen2-202605.20.0"
 	mainV := "1.35.4"
+	etag := "etag-value"
 	count := int32(2)
 	minc := int32(2)
 	maxc := int32(4)
@@ -435,6 +436,7 @@ func mkLiveSystemPool() *armcs.AgentPool {
 			CurrentOrchestratorVersion: &curOrch,
 			NodeImageVersion:           &nodeImg,
 			PowerState:                 &armcs.PowerState{Code: &powerCode},
+			ETag:                       &etag,
 			OrchestratorVersion:        &mainV,
 			Mode:                       &mode,
 			VMSize:                     ptr("Standard_E8ds_v5"),
@@ -502,6 +504,9 @@ func TestSanitizeForRecreate_StripsPropertyReadOnly(t *testing.T) {
 	}
 	if p.CreationData != nil {
 		t.Errorf("CreationData not stripped")
+	}
+	if p.ETag != nil {
+		t.Errorf("ETag not stripped")
 	}
 }
 
@@ -588,8 +593,35 @@ func TestSanitizeForRecreate_DoesNotMutateInput(t *testing.T) {
 	if live.Properties.OrchestratorVersion == nil || *live.Properties.OrchestratorVersion != "1.35.4" {
 		t.Errorf("live.OrchestratorVersion was mutated to %v", live.Properties.OrchestratorVersion)
 	}
+	if live.Properties.ETag == nil || *live.Properties.ETag != "etag-value" {
+		t.Errorf("live.ETag was mutated to %v", live.Properties.ETag)
+	}
 	if _, ok := live.Properties.Tags["aks-managed-foo"]; !ok {
 		t.Errorf("live.Tags was mutated")
+	}
+}
+
+func TestIsActiveClusterState(t *testing.T) {
+	cases := []struct {
+		state string
+		want  bool
+	}{
+		{"Updating", true},
+		{"Upgrading", true},
+		{"Succeeded", false},
+		{"Canceled", false},
+		{"Failed", false},
+		{"Creating", false},
+		{"Deleting", false},
+		{"", false},
+		{"updating", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.state, func(t *testing.T) {
+			if got := isActiveClusterState(tc.state); got != tc.want {
+				t.Errorf("isActiveClusterState(%q)=%t want %t", tc.state, got, tc.want)
+			}
+		})
 	}
 }
 
