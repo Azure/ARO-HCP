@@ -19,6 +19,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -41,7 +42,8 @@ import (
 
 const (
 	gcsBucket          = "test-platform-results"
-	configPath         = "aro-hcp-write-config/artifacts/config.yaml"
+	configPathPrimary  = "aro-hcp-provision-environment/artifacts/config.yaml"
+	configPathFallback = "aro-hcp-write-config/artifacts/config.yaml"
 	testStepPersistent = "aro-hcp-test-persistent"
 	testStepLocal      = "aro-hcp-test-local"
 	prKustoRegion      = "eastus2"
@@ -166,11 +168,19 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 
 	artifactPrefix := fmt.Sprintf("%s/artifacts/%s", info.GCSPrefix, artifactDir)
 
-	// Download and parse config.yaml.
-	configGCSPath := fmt.Sprintf("%s/%s", artifactPrefix, configPath)
+	// Download and parse config.yaml, trying the primary path first.
+	configGCSPath := fmt.Sprintf("%s/%s", artifactPrefix, configPathPrimary)
 	configData, err := downloadObject(ctx, gcsClient, configGCSPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
+		if !errors.Is(err, storage.ErrObjectNotExist) {
+			return nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
+		}
+		logger.V(1).Info("Primary config not present, trying fallback", "primary", configGCSPath)
+		configGCSPath = fmt.Sprintf("%s/%s", artifactPrefix, configPathFallback)
+		configData, err = downloadObject(ctx, gcsClient, configGCSPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
+		}
 	}
 
 	jobConfig, err := parseConfig(configData, info.JobName)
