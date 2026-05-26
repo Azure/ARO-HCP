@@ -101,7 +101,7 @@ spec:
   initContainers:
   - name: purge-wal
     image: '{{ .Values.prometheusSpec.image.registry }}/{{ .Values.prometheusSpec.image.repository }}@sha256:{{ .Values.prometheusSpec.image.sha }}'
-    command: ["sh", "-c", "rm -rf /prometheus/wal/* && echo 'WAL purged'"]
+    command: ["sh", "-c", "rm -rf /prometheus/wal && mkdir -p /prometheus/wal && echo 'WAL purged'"]
     volumeMounts:
     - name: prometheus-prometheus-db
       mountPath: /prometheus
