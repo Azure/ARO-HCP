@@ -48,6 +48,7 @@ type CosmosIntegrationTestInfo struct {
 	resourcesDBClient    database.ResourcesDBClient
 	billingDBClient      database.BillingDBClient
 	locksDBClient        database.LocksDBClient
+	fleetDBClient        database.FleetDBClient
 	cosmosClient         *azcosmos.Client
 }
 
@@ -72,6 +73,10 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the locks database client: %w", err)
 	}
+	fleetDBClient, err := database.NewFleetDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the fleet database client: %w", err)
+	}
 
 	testInfo := &CosmosIntegrationTestInfo{
 		ArtifactsDir:         path.Join(getArtifactDir(), t.Name()),
@@ -79,6 +84,7 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 		resourcesDBClient:    resourcesDBClient,
 		billingDBClient:      billingDBClient,
 		locksDBClient:        locksDBClient,
+		fleetDBClient:        fleetDBClient,
 		cosmosClient:         cosmosClient,
 	}
 	return testInfo, nil
@@ -124,6 +130,10 @@ func (s *CosmosIntegrationTestInfo) BillingDBClient() database.BillingDBClient {
 
 func (s *CosmosIntegrationTestInfo) LocksDBClient() database.LocksDBClient {
 	return s.locksDBClient
+}
+
+func (s *CosmosIntegrationTestInfo) FleetDBClient() database.FleetDBClient {
+	return s.fleetDBClient
 }
 
 func LoadCosmosContent(ctx context.Context, cosmosContainer *azcosmos.ContainerClient, content []byte) error {
@@ -450,6 +460,7 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 		{"Resources", "/partitionKey", nil},
 		{"Billing", "/subscriptionId", nil},
 		{"Locks", "/id", &[]int32{10}[0]}, // 10 second TTL for locks
+		{"Fleet", "/partitionKey", nil},
 	}
 
 	start := time.Now()
