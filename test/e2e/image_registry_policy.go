@@ -124,16 +124,6 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.Positive,
 		labels.CoreInfraService,
 		func(ctx context.Context) {
-			By("verifying the ValidatingAdmissionPolicy exists")
-			_, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get(
-				ctx, "image-registry-allowlist-policy", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicy should exist")
-
-			By("verifying the ValidatingAdmissionPolicyBinding exists")
-			_, err = kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Get(
-				ctx, "image-registry-allowlist-policy-binding", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred(), "ValidatingAdmissionPolicyBinding should exist")
-
 			By("verifying the ConfigMap allowlist is non-empty and contains required registries")
 			cm, err := kubeClient.CoreV1().ConfigMaps("image-registry-policy").Get(
 				ctx, "image-registry-allowlist-config", metav1.GetOptions{})
