@@ -29,8 +29,8 @@ function Get-LatestOpenShiftVersion {
             return $null
         }
 
-        # Get the latest version
-        $latestVersion = $response.nodes.version | Sort-Object | Select-Object -Last 1
+        # Get the latest version using semantic version ordering
+        $latestVersion = $response.nodes.version | Sort-Object { [version]$_ } | Select-Object -Last 1
         return $latestVersion
     }
     catch {
