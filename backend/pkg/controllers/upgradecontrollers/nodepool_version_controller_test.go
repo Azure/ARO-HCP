@@ -412,12 +412,19 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		{
-			name:                 "skip minor version (+2) - fail",
+			name:                 "y-stream upgrade (+2) - pass",
 			desiredVersion:       "4.20.5",
 			activeVersions:       []string{"4.18.10"},
 			controlPlaneVersions: []string{"4.20.5"},
+			expectError:          false,
+		},
+		{
+			name:                 "y-stream upgrade (+3) - fail",
+			desiredVersion:       "4.21.5",
+			activeVersions:       []string{"4.18.10"},
+			controlPlaneVersions: []string{"4.21.5"},
 			expectError:          true,
-			errorContains:        "skipping minor versions is not allowed",
+			errorContains:        "skipping more than 2 minor versions",
 		},
 		{
 			name:                 "major version change - fail by default",
@@ -651,53 +658,6 @@ func newCSNodePoolWithVersion(t *testing.T, version string) *arohcpv1alpha1.Node
 		Build()
 	require.NoError(t, err)
 	return csNodePool
-}
-
-func TestNodePoolVersionSyncer_SyncOnce_SkipMinorVersionFails(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
-
-	// Create node pool with desired version 4.20.0 (skips from 4.18.x)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// Create ServiceProviderCluster with control plane at 4.20.0 (allowing the desired version)
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// Create ServiceProviderNodePool with active version 4.18.10 (to create skew)
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.18.10")
-
-	// CS returns node pool with current version 4.18.10
-	csNodePool := newCSNodePoolWithVersion(t, "4.18.10")
-	mockCS.EXPECT().
-		GetNodePool(gomock.Any(), gomock.Any()).
-		Return(csNodePool, nil).
-		Times(1)
-
-	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       &alwaysSyncCooldownChecker{},
-		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-		resourcesDBClient:                     mockResourcesDBClient,
-		clusterServiceClient:                  mockCS,
-		cincinnatiClientCache:                 mockClientCache,
-	}
-
-	testKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
-	}
-
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "skipping minor versions is not allowed")
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testing.T) {
