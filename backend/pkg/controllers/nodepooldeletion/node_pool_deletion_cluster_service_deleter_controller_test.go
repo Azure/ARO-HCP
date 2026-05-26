@@ -275,3 +275,19 @@ func newTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) 
 	}
 	return np
 }
+
+func newTestSPNP(t *testing.T, bundles api.MaestroBundleReferenceList) *api.ServiceProviderNodePool {
+	t.Helper()
+	spnpResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/nodePools/" + testNodePoolName +
+			"/serviceProviderNodePools/default"))
+	return &api.ServiceProviderNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
+		Status: api.ServiceProviderNodePoolStatus{
+			MaestroReadonlyBundles: bundles,
+		},
+	}
+}
