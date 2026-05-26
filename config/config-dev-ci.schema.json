@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Opstool Configuration Schema",
-  "description": "Schema for opstool AKS cluster configuration",
+  "title": "Dev CI Configuration Schema",
+  "description": "Schema for the shared dev/CI topology configuration",
   "type": "object",
   "properties": {
     "$schema": {

@@ -144,7 +144,7 @@ usage() {
     echo "  To add a new tenant, update the TENANTS array in this script with:"
     echo "    \"DisplayName:AzureADTenantId:ClientId:KeyVaultSecretName\""
     echo ""
-    echo "  Also update config/config-opstool.yaml with the same tenant configuration."
+    echo "  Also update config/config-dev-ci.yaml with the same tenant configuration."
 }
 
 # =============================================================================
@@ -162,11 +162,11 @@ usage() {
 # - The AzureADTenantId is used to warn you which tenant to login to
 #
 # To add a new tenant/SP:
-# 1. Create the SP in the target tenant (see config/config-opstool.yaml and
+# 1. Create the SP in the target tenant (see config/config-dev-ci.yaml and
 #    scripts/manage-service-principals.sh for the current workflow)
 # 2. Store the secret in Key Vault
 # 3. Add an entry here in the same format
-# 4. Add the corresponding entry in config/config-opstool.yaml
+# 4. Add the corresponding entry in config/config-dev-ci.yaml
 #
 # EXAMPLE - SPs from DIFFERENT Azure AD tenants:
 #   "RedHat0:64dc69e4-...:abc123:custom-metrics-collector-redhat0-client-secret"
