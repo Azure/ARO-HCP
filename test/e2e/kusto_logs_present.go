@@ -33,6 +33,7 @@ var _ = Describe("Engineering", func() {
 
 	It("should be able to retrieve kusto logs for a cluster and services",
 		labels.RequireNothing,
+		labels.MIDemandHigh,
 		labels.High,
 		labels.Positive,
 		labels.CoreInfraService,

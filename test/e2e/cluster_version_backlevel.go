@@ -48,6 +48,7 @@ var _ = Describe("Customer", func() {
 	for _, version := range backlevelVersions {
 		It("should be able to create an HCP cluster with back-level version "+version.controlPlaneVersion,
 			labels.RequireNothing,
+			labels.MIDemandHigh,
 			labels.Critical,
 			labels.Positive,
 			labels.AroRpApiCompatible,

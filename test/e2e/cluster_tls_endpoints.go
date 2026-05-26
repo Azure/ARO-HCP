@@ -44,6 +44,7 @@ var _ = Describe("Customer", func() {
 
 	It("should create an HCP cluster and validate TLS certificates",
 		labels.RequireNothing,
+		labels.MIDemandHigh,
 		labels.Critical,
 		labels.Positive,
 		func(ctx context.Context) {

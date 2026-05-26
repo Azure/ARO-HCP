@@ -38,6 +38,7 @@ var _ = Describe("Customer", func() {
 
 	It("should be able to update node pool labels and taints",
 		labels.RequireNothing,
+		labels.MIDemandHigh,
 		labels.Medium,
 		labels.Positive,
 		labels.AroRpApiCompatible,

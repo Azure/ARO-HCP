@@ -45,6 +45,7 @@ var _ = Describe("Authorized CIDRs", func() {
 	Context("Connectivity", func() {
 		It("should allow API access only from authorized VM IP",
 			labels.RequireNothing,
+			labels.MIDemandHigh,
 			labels.Critical,
 			labels.Positive,
 			labels.AroRpApiCompatible,

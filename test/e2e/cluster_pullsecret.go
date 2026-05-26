@@ -46,6 +46,7 @@ var _ = Describe("Customer", func() {
 
 	It("should be able to create an HCP cluster and manage pull secrets",
 		labels.RequireNothing,
+		labels.MIDemandHigh,
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,

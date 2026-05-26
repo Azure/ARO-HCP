@@ -34,6 +34,7 @@ var _ = Describe("Customer", func() {
 
 	It("should be able to create node pools with ARM64-based VMs",
 		labels.RequireNothing,
+		labels.MIDemandHigh,
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,

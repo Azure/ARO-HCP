@@ -178,7 +178,7 @@ func setupCli() *cobra.Command {
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
 		// LEASED_MSI_CONTAINERS=20
-		Parallelism: 24,
+		Parallelism: 20,
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 	ext.AddSuite(e.Suite{
@@ -257,10 +257,9 @@ func setupCli() *cobra.Command {
 	//	}
 	// })
 
-	// Sort specs so tests with higher managed identity container demand are
-	// dispatched first. This prevents starvation: multi-container tests get
-	// dispatched while the pool is full, before single-container tests can
-	// consume all available capacity.
+	// Sort specs so high-priority tests are dispatched first. This covers
+	// both multi-container tests (which need pool capacity) and long-running
+	// tests like upgrades (which need to start early to finish in time).
 	sort.SliceStable(specs, func(i, j int) bool {
 		return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
 	})
