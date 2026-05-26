@@ -43,16 +43,20 @@
 //
 // Detection guards (ALL must pass; otherwise exit 0 no-op)
 // --------------------------------------------------------
-//   1. `system` pool has fewer Ready k8s nodes than its minCount.
-//   2. >= NRP_FAIL_THRESHOLD Failed VMSS-write events on an
-//      `aks-system-*` VMSS in the last NRP_FAIL_WINDOW_MIN.
-//   3. Cluster provisioningState is recoverable: Succeeded, Canceled,
+//   1. >= NRP_FAIL_THRESHOLD Failed VMSS-write events on an
+//      `aks-system-*` VMSS in the last NRP_FAIL_WINDOW_MIN whose inner
+//      error code is NetworkingInternalOperationError (the NRP-KVS
+//      signature). Other failure modes — quota/capacity/policy/image
+//      pull / etc — never satisfy this guard, so they cannot trigger
+//      a destructive pool recreation that would not address their
+//      actual root cause.
+//   2. Cluster provisioningState is recoverable: Succeeded, Canceled,
 //      Failed (settled) OR Updating, Upgrading (mid-LRO — the NRP-KVS
 //      wedge signature itself; step 2 decides whether to abort).
 //      Creating and Deleting are rejected; unknown states are
 //      rejected conservatively.
-//   4. Every non-system pool has count > 0.
-//   5. `system` pool's own provisioningState is NOT Succeeded —
+//   3. Every non-system pool has count > 0.
+//   4. `system` pool's own provisioningState is NOT Succeeded —
 //      positive confirmation that this specific pool is wedged.
 //      Accepts Failed, Canceled, Updating, Upgrading: an NRP-KVS wedge
 //      typically leaves the pool in Updating while its parent cluster
@@ -126,6 +130,15 @@ const (
 	// cluster without depending on `kubelogin` being installed in the
 	// EV2 runner image.
 	aksAADServerAppID = "6dae42f8-4368-4678-94ff-3960e28e3630"
+
+	// nrpKVSErrorCode is the ARM inner error code emitted by NRP when
+	// the per-VMSS KVS entity is corrupted (the AROSLSRE-880 /
+	// ICM 798003653 wedge signature). Activity-log
+	// properties.statusMessage on the Failed VMSS-write event carries
+	// `{"error":{"code":"NetworkingInternalOperationError",...}}`.
+	// Guard 2 requires this code so that other failure modes
+	// (quota, capacity, policy, image pull) cannot trip the threshold.
+	nrpKVSErrorCode = "NetworkingInternalOperationError"
 )
 
 func main() {
@@ -586,25 +599,13 @@ func (c *clients) dumpPostflight(ctx context.Context) error {
 // detection
 // ---------------------------------------------------------------------------
 
-// evalGuard1 reports whether the system pool is degraded (ready < minCount).
-// Returns (pass, reason). If pass is false, reason explains why.
-func evalGuard1(readyCount, systemMin int32) (bool, string) {
-	if systemMin <= 0 {
-		return false, fmt.Sprintf("guard 1 FAIL: system minCount=%d (no degradation possible)", systemMin)
-	}
-	if readyCount >= systemMin {
-		return false, fmt.Sprintf("guard 1 FAIL: ready (%d) >= minCount (%d)", readyCount, systemMin)
-	}
-	return true, ""
-}
-
 // evalGuard2 reports whether NRP failure count exceeds the threshold.
 func evalGuard2(failures, threshold int) (bool, string) {
 	if threshold <= 0 {
-		return false, fmt.Sprintf("guard 2 FAIL: threshold=%d (invalid)", threshold)
+		return false, fmt.Sprintf("guard 1 FAIL: threshold=%d (invalid)", threshold)
 	}
 	if failures < threshold {
-		return false, fmt.Sprintf("guard 2 FAIL: only %d NRP failures < %d", failures, threshold)
+		return false, fmt.Sprintf("guard 1 FAIL: only %d NRP failures < %d", failures, threshold)
 	}
 	return true, ""
 }
@@ -630,13 +631,13 @@ func evalGuard3(provisioningState string) (bool, string) {
 	case "Succeeded", "Canceled", "Failed", "Updating", "Upgrading":
 		return true, ""
 	case "Creating":
-		return false, "guard 3 FAIL: cluster provisioningState=\"Creating\" (cluster not fully provisioned)"
+		return false, "guard 2 FAIL: cluster provisioningState=\"Creating\" (cluster not fully provisioned)"
 	case "Deleting":
-		return false, "guard 3 FAIL: cluster provisioningState=\"Deleting\" (cluster is being torn down)"
+		return false, "guard 2 FAIL: cluster provisioningState=\"Deleting\" (cluster is being torn down)"
 	case "":
-		return false, "guard 3 FAIL: cluster provisioningState is empty"
+		return false, "guard 2 FAIL: cluster provisioningState is empty"
 	}
-	return false, fmt.Sprintf("guard 3 FAIL: cluster provisioningState=%q is not a recognized recoverable state", provisioningState)
+	return false, fmt.Sprintf("guard 2 FAIL: cluster provisioningState=%q is not a recognized recoverable state", provisioningState)
 }
 
 // evalGuard4 reports whether all non-system pools have count > 0 and a
@@ -669,17 +670,17 @@ func evalGuard4(pools []*armcs.AgentPool) (bool, int32, string, string) {
 			cnt = *p.Properties.Count
 		}
 		if cnt == 0 {
-			return false, 0, "", fmt.Sprintf("guard 4 FAIL: non-system pool %q has count=0", name)
+			return false, 0, "", fmt.Sprintf("guard 3 FAIL: non-system pool %q has count=0", name)
 		}
 	}
 	if !systemFound {
-		return false, 0, "", "guard 4 FAIL: no system pool found"
+		return false, 0, "", "guard 3 FAIL: no system pool found"
 	}
 	return true, systemMin, systemProvState, ""
 }
 
 // evalGuard5 reports whether the system pool itself is in a wedge-
-// compatible state. Refines guard 2 (NRP failure storm) with a positive
+// compatible state. Refines guard 1 (NRP failure storm) with a positive
 // signal scoped to this exact agent-pool resource.
 //
 // Accepts:
@@ -687,7 +688,7 @@ func evalGuard4(pools []*armcs.AgentPool) (bool, int32, string, string) {
 //   - Canceled — operator already aborted the parent LRO.
 //   - Updating / Upgrading — the cluster LRO is still retrying the
 //     pool update forever (AROSLSRE-880 / INT
-//     2026-05-16..18 signature). Guard 2 confirms
+//     2026-05-16..18 signature). Guard 1 confirms
 //     that the retries are NRP errors and not a
 //     healthy upgrade.
 //
@@ -701,40 +702,40 @@ func evalGuard5(systemProvState string) (bool, string) {
 	case "Failed", "Canceled", "Updating", "Upgrading":
 		return true, ""
 	case "Succeeded":
-		return false, "guard 5 FAIL: system pool provisioningState=\"Succeeded\" (no wedge)"
+		return false, "guard 4 FAIL: system pool provisioningState=\"Succeeded\" (no wedge)"
 	case "Creating":
-		return false, "guard 5 FAIL: system pool provisioningState=\"Creating\" (not fully created)"
+		return false, "guard 4 FAIL: system pool provisioningState=\"Creating\" (not fully created)"
 	case "Deleting":
-		return false, "guard 5 FAIL: system pool provisioningState=\"Deleting\" (being torn down)"
+		return false, "guard 4 FAIL: system pool provisioningState=\"Deleting\" (being torn down)"
 	case "":
-		return false, "guard 5 FAIL: system pool provisioningState is empty"
+		return false, "guard 4 FAIL: system pool provisioningState is empty"
 	}
-	return false, fmt.Sprintf("guard 5 FAIL: system pool provisioningState=%q is not a recognized wedge-compatible state", systemProvState)
+	return false, fmt.Sprintf("guard 4 FAIL: system pool provisioningState=%q is not a recognized wedge-compatible state", systemProvState)
 }
 
 func (c *clients) detect(ctx context.Context) (bool, string, error) {
-	// Guard 3: cluster provisioning state
+	// Guard 2: cluster provisioning state
 	mc, err := c.cluster.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
 	if err != nil {
-		return false, "", fmt.Errorf("guard 3 cluster get: %w", err)
+		return false, "", fmt.Errorf("guard 2 cluster get: %w", err)
 	}
 	cs := ""
 	if mc.Properties != nil && mc.Properties.ProvisioningState != nil {
 		cs = *mc.Properties.ProvisioningState
 	}
-	logf("guard 3 :: cluster provisioningState=%s (accept: Succeeded/Canceled/Failed/Updating/Upgrading; reject: Creating/Deleting/unknown)", cs)
+	logf("guard 2 :: cluster provisioningState=%s (accept: Succeeded/Canceled/Failed/Updating/Upgrading; reject: Creating/Deleting/unknown)", cs)
 	if pass, reason := evalGuard3(cs); !pass {
 		return false, reason, nil
 	}
-	logf("guard 3 PASS")
+	logf("guard 2 PASS")
 
-	// Guard 4: non-system pools healthy, plus discover system minCount.
+	// Guard 3: non-system pools healthy, plus discover system minCount.
 	pager := c.pools.NewListPager(c.cfg.resourceGroup, c.cfg.clusterName, nil)
 	var allPools []*armcs.AgentPool
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return false, "", fmt.Errorf("guard 4 list pools: %w", err)
+			return false, "", fmt.Errorf("guard 3 list pools: %w", err)
 		}
 		allPools = append(allPools, page.Value...)
 	}
@@ -742,20 +743,23 @@ func (c *clients) detect(ctx context.Context) (bool, string, error) {
 	if !pass {
 		return false, reason, nil
 	}
-	logf("guard 4 PASS (system minCount=%d systemProvState=%q)", systemMin, systemProvState)
+	logf("guard 3 PASS (system minCount=%d systemProvState=%q)", systemMin, systemProvState)
 
-	// Guard 5: system pool itself is in Failed state.
+	// Guard 4: system pool itself is in a wedge-compatible state.
 	if pass, reason := evalGuard5(systemProvState); !pass {
 		return false, reason, nil
 	}
-	logf("guard 5 PASS (system pool is Failed)")
+	logf("guard 4 PASS (system pool provisioningState=%q)", systemProvState)
 
-	// Guard 1: ready system nodes < minCount
+	// Diagnostic only: ready system nodes can remain >= minCount during
+	// the stuck-upgrade form of the NRP-KVS wedge. In INT, ready < minCount
+	// only appeared after operators manually triggered extra scale-up/surge
+	// attempts. Do not gate on this value; log it for postmortem context.
 	nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 		LabelSelector: "agentpool=" + systemPoolName,
 	})
 	if err != nil {
-		return false, "", fmt.Errorf("guard 1 list nodes: %w", err)
+		return false, "", fmt.Errorf("list system nodes for diagnostics: %w", err)
 	}
 	readyCount := int32(0)
 	for _, n := range nodes.Items {
@@ -763,25 +767,22 @@ func (c *clients) detect(ctx context.Context) (bool, string, error) {
 			readyCount++
 		}
 	}
-	logf("guard 1 :: system minCount=%d ready=%d", systemMin, readyCount)
-	if pass, reason := evalGuard1(readyCount, systemMin); !pass {
-		return false, reason, nil
-	}
-	logf("guard 1 PASS")
+	logf("diagnostic :: system minCount=%d registered=%d ready=%d", systemMin, len(nodes.Items), readyCount)
 
-	// Guard 2: NRP retry loop on aks-system-* VMSS
-	logf("guard 2 :: checking activity log on %s for last %d min", c.cfg.nodeRG, c.cfg.windowMin)
+	// Guard 1: NRP retry loop on aks-system-* VMSS
+	logf("guard 1 :: checking activity log on %s for last %d min", c.cfg.nodeRG, c.cfg.windowMin)
 	out, err := azJSON(ctx, "monitor", "activity-log", "list", "-g", c.cfg.nodeRG, "--offset", fmt.Sprintf("%dm", c.cfg.windowMin))
 	if err != nil {
 		// Reader role on node RG missing is a fail-closed scenario.
-		return false, fmt.Sprintf("guard 2 FAIL: activity log query failed: %v", err), nil
+		return false, fmt.Sprintf("guard 1 FAIL: activity log query failed: %v", err), nil
 	}
 	hits := countNRPFailures(out, "aks-system-")
-	logf("guard 2 :: NRP Failed events on aks-system-* in window: %d (threshold %d)", hits, c.cfg.threshold)
+	logf("guard 1 :: NRP-KVS (%s) Failed events on aks-system-* in window: %d (threshold %d)",
+		nrpKVSErrorCode, hits, c.cfg.threshold)
 	if pass, reason := evalGuard2(hits, c.cfg.threshold); !pass {
 		return false, reason, nil
 	}
-	logf("guard 2 PASS")
+	logf("guard 1 PASS")
 
 	return true, "", nil
 }
@@ -1188,6 +1189,34 @@ type activityEvent struct {
 	ResourceID    string                 `json:"resourceId"`
 	CorrelationID string                 `json:"correlationId"`
 	EventTime     string                 `json:"eventTimestamp"`
+	Properties    struct {
+		// StatusMessage is the inner ARM error body as an embedded
+		// JSON string, e.g.
+		// `{"error":{"code":"NetworkingInternalOperationError",...}}`.
+		// Activity-log events deliver it as a string for backward
+		// compatibility with classic-portal consumers.
+		StatusMessage string `json:"statusMessage"`
+	} `json:"properties"`
+}
+
+// hasNRPKVSSignature reports whether an activity-log event's inner ARM
+// error body carries the NetworkingInternalOperationError code. Returns
+// false on any parse error or missing field — guard 2 must fail closed
+// rather than over-count.
+func hasNRPKVSSignature(e activityEvent) bool {
+	msg := strings.TrimSpace(e.Properties.StatusMessage)
+	if msg == "" {
+		return false
+	}
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(msg), &body); err != nil {
+		return false
+	}
+	return body.Error.Code == nrpKVSErrorCode
 }
 
 func countNRPFailures(raw []byte, vmssPrefix string) int {
@@ -1203,13 +1232,13 @@ func countNRPFailures(raw []byte, vmssPrefix string) int {
 		if !strings.Contains(strings.ToLower(e.OperationName.Value), "virtualmachinescalesets") {
 			continue
 		}
-		if vmssPrefix == "" {
-			n++
+		if vmssPrefix != "" && !strings.Contains(strings.ToLower(e.ResourceID), strings.ToLower("/virtualMachineScaleSets/"+vmssPrefix)) {
 			continue
 		}
-		if strings.Contains(strings.ToLower(e.ResourceID), strings.ToLower("/virtualMachineScaleSets/"+vmssPrefix)) {
-			n++
+		if !hasNRPKVSSignature(e) {
+			continue
 		}
+		n++
 	}
 	return n
 }
@@ -1226,6 +1255,9 @@ func nrpResourceIDs(raw []byte) []string {
 			continue
 		}
 		if !strings.Contains(strings.ToLower(e.OperationName.Value), "virtualmachinescalesets") {
+			continue
+		}
+		if !hasNRPKVSSignature(e) {
 			continue
 		}
 		if _, ok := seen[e.ResourceID]; ok {

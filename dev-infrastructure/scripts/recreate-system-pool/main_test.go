@@ -183,32 +183,6 @@ func TestParseEnvConfig_DryRunFlag(t *testing.T) {
 // evalGuard1..4
 // =============================================================================
 
-func TestEvalGuard1(t *testing.T) {
-	cases := []struct {
-		name       string
-		ready, min int32
-		wantPass   bool
-	}{
-		{"degraded_ready_zero", 0, 2, true},
-		{"degraded_ready_one_of_two", 1, 2, true},
-		{"healthy_ready_equals_min", 2, 2, false},
-		{"healthy_ready_above_min", 3, 2, false},
-		{"invalid_min_zero", 0, 0, false},
-		{"invalid_min_negative", 0, -1, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			pass, reason := evalGuard1(tc.ready, tc.min)
-			if pass != tc.wantPass {
-				t.Errorf("ready=%d min=%d: pass=%t want %t (%s)", tc.ready, tc.min, pass, tc.wantPass, reason)
-			}
-			if !pass && reason == "" {
-				t.Errorf("non-pass result must have a reason")
-			}
-		})
-	}
-}
-
 func TestEvalGuard2(t *testing.T) {
 	cases := []struct {
 		name                string
@@ -768,11 +742,29 @@ func TestBuildSystmpAgentPool_InheritsDiskSizeAndOSType(t *testing.T) {
 // countNRPFailures
 // =============================================================================
 
-func mkActivityEvent(status, op, resID string) map[string]any {
+// mkActivityEvent builds a synthetic activity-log event. The optional
+// errorCode argument (defaults to nrpKVSErrorCode) is injected into
+// `properties.statusMessage` as the inner ARM error body so the event
+// matches the NRP-KVS signature required by countNRPFailures and
+// nrpResourceIDs. Pass an explicit code to simulate other failure
+// modes (quota, capacity, policy, ...).
+func mkActivityEvent(status, op, resID string, errorCode ...string) map[string]any {
+	code := nrpKVSErrorCode
+	if len(errorCode) > 0 {
+		code = errorCode[0]
+	}
+	statusMessage := ""
+	if code != "" {
+		statusMessage = fmt.Sprintf(
+			`{"error":{"code":%q,"message":"An error occurred.","details":[]}}`,
+			code,
+		)
+	}
 	return map[string]any{
 		"status":        map[string]string{"value": status},
 		"operationName": map[string]string{"value": op},
 		"resourceId":    resID,
+		"properties":    map[string]string{"statusMessage": statusMessage},
 	}
 }
 
@@ -857,6 +849,60 @@ func TestCountNRPFailures_CaseInsensitiveOperationAndPrefix(t *testing.T) {
 	}
 }
 
+func TestCountNRPFailures_RequiresNRPKVSSignature(t *testing.T) {
+	resID := "/subscriptions/x/.../virtualMachineScaleSets/aks-system-1"
+	op := "Microsoft.Compute/virtualMachineScaleSets/write"
+	events := []map[string]any{
+		// NRP-KVS coded — counts
+		mkActivityEvent("Failed", op, resID, nrpKVSErrorCode),
+		// Quota / capacity / policy — must NOT count
+		mkActivityEvent("Failed", op, resID, "OperationNotAllowed"),
+		mkActivityEvent("Failed", op, resID, "AllocationFailed"),
+		mkActivityEvent("Failed", op, resID, "RequestDisallowedByPolicy"),
+		// Another NRP-KVS — counts (total = 2)
+		mkActivityEvent("Failed", op, resID, nrpKVSErrorCode),
+	}
+	got := countNRPFailures(mustMarshal(t, events), "aks-system-")
+	if got != 2 {
+		t.Errorf("got %d want 2 (only NRP-KVS signed failures count)", got)
+	}
+}
+
+func TestCountNRPFailures_MissingPropertiesNotCounted(t *testing.T) {
+	// Build an event with no `properties` block at all.
+	events := []map[string]any{
+		{
+			"status":        map[string]string{"value": "Failed"},
+			"operationName": map[string]string{"value": "Microsoft.Compute/virtualMachineScaleSets/write"},
+			"resourceId":    "/subscriptions/x/.../virtualMachineScaleSets/aks-system-1",
+		},
+	}
+	if got := countNRPFailures(mustMarshal(t, events), "aks-system-"); got != 0 {
+		t.Errorf("got %d want 0 (event without properties.statusMessage must not count)", got)
+	}
+}
+
+func TestCountNRPFailures_MalformedStatusMessageNotCounted(t *testing.T) {
+	events := []map[string]any{
+		{
+			"status":        map[string]string{"value": "Failed"},
+			"operationName": map[string]string{"value": "Microsoft.Compute/virtualMachineScaleSets/write"},
+			"resourceId":    "/subscriptions/x/.../virtualMachineScaleSets/aks-system-1",
+			"properties":    map[string]string{"statusMessage": "not-valid-json"},
+		},
+		{
+			"status":        map[string]string{"value": "Failed"},
+			"operationName": map[string]string{"value": "Microsoft.Compute/virtualMachineScaleSets/write"},
+			"resourceId":    "/subscriptions/x/.../virtualMachineScaleSets/aks-system-2",
+			// Valid JSON but no error.code field.
+			"properties": map[string]string{"statusMessage": `{"foo":"bar"}`},
+		},
+	}
+	if got := countNRPFailures(mustMarshal(t, events), "aks-system-"); got != 0 {
+		t.Errorf("got %d want 0 (malformed/empty inner error body must not count)", got)
+	}
+}
+
 // =============================================================================
 // nrpResourceIDs
 // =============================================================================
@@ -884,6 +930,26 @@ func TestNRPResourceIDs_EmptyAndInvalid(t *testing.T) {
 	}
 	if got := nrpResourceIDs([]byte("garbage")); got != nil {
 		t.Errorf("invalid input got %v want nil", got)
+	}
+}
+
+func TestNRPResourceIDs_RequiresNRPKVSSignature(t *testing.T) {
+	op := "Microsoft.Compute/virtualMachineScaleSets/write"
+	events := []map[string]any{
+		// NRP-KVS coded — listed
+		mkActivityEvent("Failed", op, "vmss-A", nrpKVSErrorCode),
+		// Quota / capacity — must be filtered out even though same op
+		mkActivityEvent("Failed", op, "vmss-B", "OperationNotAllowed"),
+		mkActivityEvent("Failed", op, "vmss-C", "AllocationFailed"),
+		// Another NRP-KVS on a third resource — listed
+		mkActivityEvent("Failed", op, "vmss-D", nrpKVSErrorCode),
+	}
+	got := nrpResourceIDs(mustMarshal(t, events))
+	want := []string{"vmss-A", "vmss-D"}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v want %v (only NRP-KVS-signed failures listed)", got, want)
 	}
 }
 
