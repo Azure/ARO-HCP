@@ -22,9 +22,9 @@ The version mismatch occurs due to **timing differences in Cincinnati version re
 See `test/util/framework/deployment_params.go`:
 
 - `resolveDefaultControlPlaneVersion()`: Caches first result
-- `DefaultOpenshiftNodePoolVersionId()`: Should reuse CP version when channels match, but:
-  - Race condition window exists between fetches
-  - Explicit env vars can override and cause mismatches
+- Before the fix, `DefaultOpenshiftNodePoolVersionId()` could resolve separately from the control plane version, so:
+  - A race condition window existed between fetches
+- Even after the fix, explicit env vars can still override defaults and cause mismatches
 
 ## Solution
 
