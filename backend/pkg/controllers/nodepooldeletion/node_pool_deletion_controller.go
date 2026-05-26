@@ -100,6 +100,8 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
+	// We do a quick check to see if the ServiceProviderNodePool has any Maestro readonly bundles.
+	// If it does, we return early as we need to wait for the bundles to be deleted.
 	cachedSPNP, spnpCacheErr := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if spnpCacheErr == nil && len(cachedSPNP.Status.MaestroReadonlyBundles) > 0 {
 		return nil
@@ -120,36 +122,21 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	// We do not proceed until we know that all the maestro readonly bundles have been eliminated
-	spnpCRUD := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	spnp, spnpErr := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
-	if spnpErr != nil && !database.IsNotFoundError(spnpErr) {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", spnpErr))
+	preconditionMet, err := c.deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared(ctx, key)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
-	if spnp != nil && len(spnp.Status.MaestroReadonlyBundles) > 0 {
-		logger.Info("waiting for nodepool-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
-			"remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
+	if !preconditionMet {
 		return nil
 	}
 
-	// We do not proceed until we know that all the cosmos direct child resources have been eliminated
-	nodePoolResourceID := key.GetResourceID()
-	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*nodePoolResourceID)
+	// We do not proceed until we know that the cosmos child resources have been eliminated
+	preconditionMet, err = c.deletePreconditionCosmosChildResourcesDeleted(ctx, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for child check: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
-	childIterator, err := untypedCRUD.List(ctx, nil)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list child resources: %w", err))
-	}
-	for _, childResource := range childIterator.Items(ctx) {
-		if strings.EqualFold(childResource.ResourceType, api.NodePoolControllerResourceType.String()) {
-			continue
-		}
-		logger.Info("child resource still exists, waiting for cleanup", "childResourceID", childResource.ResourceID)
+	if !preconditionMet {
 		return nil
-	}
-	if err := childIterator.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("error iterating child resources: %w", err))
 	}
 
 	logger.Info("deleting node pool from Cosmos")
@@ -160,4 +147,54 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 	logger.Info("node pool deleted from Cosmos")
 
 	return nil
+}
+
+// deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared checks if the ServiceProviderNodePool has any Maestro readonly bundles.
+// If it does, it returns false, otherwise it returns true.
+func (c *nodePoolDeletionController) deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared(ctx context.Context, key controllerutils.HCPNodePoolKey) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	spnpCRUD := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	spnp, spnpErr := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	if spnpErr != nil && !database.IsNotFoundError(spnpErr) {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", spnpErr))
+	}
+	if spnp != nil && len(spnp.Status.MaestroReadonlyBundles) > 0 {
+		logger.Info("waiting for nodepool-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
+			"remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
+		return false, nil
+	}
+	return true, nil
+}
+
+// deletePreconditionCosmosChildResourcesDeleted checks if the cosmos child resources have been deleted.
+// If they have, it returns true, otherwise it returns false.
+// It ignores node pool controllers here, as there might be controllers still running for the NodePool until the very
+// end of the deletion process.
+func (c *nodePoolDeletionController) deletePreconditionCosmosChildResourcesDeleted(ctx context.Context, key controllerutils.HCPNodePoolKey) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	nodePoolResourceID := key.GetResourceID()
+	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*nodePoolResourceID)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to create untyped CRUD for child check: %w", err))
+	}
+	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to list child resources: %w", err))
+	}
+	for _, childResource := range childIterator.Items(ctx) {
+		// We ignore node pool controllers here, as there might be controllers still running for the NodePool until the very
+		// end of the deletion process
+		if strings.EqualFold(childResource.ResourceType, api.NodePoolControllerResourceType.String()) {
+			continue
+		}
+		logger.Info("child resource still exists, waiting for cleanup", "childResourceID", childResource.ResourceID)
+		return false, nil
+	}
+	if err := childIterator.GetError(); err != nil {
+		return false, utils.TrackError(fmt.Errorf("error iterating child resources: %w", err))
+	}
+
+	return true, nil
 }
