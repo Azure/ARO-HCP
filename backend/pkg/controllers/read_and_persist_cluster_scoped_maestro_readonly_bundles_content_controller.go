@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -57,6 +58,7 @@ func NewReadAndPersistClusterScopedMaestroReadonlyBundlesContentController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	maestroSourceEnvironmentIdentifier string,
 	maestroClientBuilder maestro.MaestroClientBuilder,
 ) controllerutils.Controller {
@@ -74,6 +76,7 @@ func NewReadAndPersistClusterScopedMaestroReadonlyBundlesContentController(
 		"ReadAndPersistClusterScopedMaestroReadonlyBundlesContent",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)

@@ -40,7 +40,7 @@ func (h *CosmosDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	if err := serverutils.DumpDataToLogger(ctx, h.resourcesDBClient, resourceID); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, h.resourcesDBClient, nil, nil, resourceID); err != nil {
 		return utils.TrackError(err)
 	}
 

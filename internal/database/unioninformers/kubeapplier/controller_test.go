@@ -214,15 +214,15 @@ func ctlMC(rid *azcorearm.ResourceID) *fleet.ManagementCluster {
 // Tests
 // =============================================================================
 
-// 1. Build a controller with a fake MC informer and a stub factory that
-//    returns mock-backed sub-informers for mgmt-a (preloaded with two
-//    ApplyDesires).
-// 2. Seed the lister with mgmt-a so SyncOnce.Get returns it.
-// 3. Run the controller with one worker.
-// 4. Emit an Add for mgmt-a from the MC informer.
-// 5. Poll until the union ApplyDesireLister.ListForManagementCluster
-//    returns both desires.
-// 6. Cancel ctx and assert Run returns.
+//  1. Build a controller with a fake MC informer and a stub factory that
+//     returns mock-backed sub-informers for mgmt-a (preloaded with two
+//     ApplyDesires).
+//  2. Seed the lister with mgmt-a so SyncOnce.Get returns it.
+//  3. Run the controller with one worker.
+//  4. Emit an Add for mgmt-a from the MC informer.
+//  5. Poll until the union ApplyDesireLister.ListForManagementCluster
+//     returns both desires.
+//  6. Cancel ctx and assert Run returns.
 func TestController_AddRegistersSubInformer(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -264,13 +264,13 @@ func TestController_AddRegistersSubInformer(t *testing.T) {
 	waitChan(t, runDone, "controller Run returned")
 }
 
-// 1. Build controller with two MCs registered with the factory; each MC
-//    has a single distinguishable ApplyDesire. Seed the lister with both.
-// 2. Emit Adds for both, wait for the union to see 3 desires total.
-// 3. Drop mgmt-a from the lister and emit a Delete event for it.
-// 4. Wait for the union to see only 1 desire (mgmt-b's).
-// 5. Assert ListForManagementCluster(mgmt-a) returns nil.
-// 6. Cancel ctx and assert Run returns.
+//  1. Build controller with two MCs registered with the factory; each MC
+//     has a single distinguishable ApplyDesire. Seed the lister with both.
+//  2. Emit Adds for both, wait for the union to see 3 desires total.
+//  3. Drop mgmt-a from the lister and emit a Delete event for it.
+//  4. Wait for the union to see only 1 desire (mgmt-b's).
+//  5. Assert ListForManagementCluster(mgmt-a) returns nil.
+//  6. Cancel ctx and assert Run returns.
 func TestController_RemoveDropsSubInformer(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -338,15 +338,15 @@ func TestController_RemoveDropsSubInformer(t *testing.T) {
 	waitChan(t, runDone, "controller Run returned")
 }
 
-// 1. Build controller with no factory entries registered for mgmt-a (so
-//    factory returns nil even though the lister knows about mgmt-a).
-// 2. Run the controller.
-// 3. Emit an Add for mgmt-a; SyncOnce sees the MC, calls factory, gets
-//    nil — silently skips. Assert no union registration happened and the
-//    factory recorded a miss.
-// 4. Register the factory entry and emit an Update for mgmt-a.
-// 5. Wait for the union to pick up the sub.
-// 6. Cancel and join.
+//  1. Build controller with no factory entries registered for mgmt-a (so
+//     factory returns nil even though the lister knows about mgmt-a).
+//  2. Run the controller.
+//  3. Emit an Add for mgmt-a; SyncOnce sees the MC, calls factory, gets
+//     nil — silently skips. Assert no union registration happened and the
+//     factory recorded a miss.
+//  4. Register the factory entry and emit an Update for mgmt-a.
+//  5. Wait for the union to pick up the sub.
+//  6. Cancel and join.
 func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -395,10 +395,10 @@ func TestController_FactoryNilSkipsRegistrationAndRetries(t *testing.T) {
 // 1. Build controller with two MCs in lister + factory.
 // 2. Emit Adds for both; wait for both subs to be visible (factory.runs == 2).
 // 3. Cancel ctx and join Run. After Run returns:
-//    - the union should expose no listers' worth of data
-//    - the per-MC sub-informer goroutines should have exited
-//      (controllerSubEntry done channels closed — implicit because shutdown
-//      waits on them).
+//   - the union should expose no listers' worth of data
+//   - the per-MC sub-informer goroutines should have exited
+//     (controllerSubEntry done channels closed — implicit because shutdown
+//     waits on them).
 func TestController_ContextCancelStopsAllSubs(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()

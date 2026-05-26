@@ -64,9 +64,13 @@ type subInformer struct {
 // subInformer; the cache.ResourceEventHandlerRegistration returned to the
 // caller is a unionHandlerRegistration that wraps this pointer plus a
 // backref to the union (so HasSynced can read across all sub-informers).
+//
+// At most one of resyncPeriod or options is meaningful; both unset selects
+// the plain AddEventHandler API on the sub-informer.
 type handlerEntry struct {
 	handler      cache.ResourceEventHandler
-	resyncPeriod time.Duration // 0 means use AddEventHandler instead of AddEventHandlerWithResyncPeriod
+	resyncPeriod time.Duration         // 0 means don't use AddEventHandlerWithResyncPeriod
+	options      *cache.HandlerOptions // nil means don't use AddEventHandlerWithOptions
 }
 
 // unionHandlerRegistration is the registration handle returned to callers.
@@ -190,6 +194,17 @@ func (u *UnionDesireInformer) AddEventHandlerWithResyncPeriod(
 	return u.addHandler(&handlerEntry{handler: handler, resyncPeriod: resyncPeriod})
 }
 
+// AddEventHandlerWithOptions is the options-bearing variant; it lets callers
+// pass cache.HandlerOptions (logger, resync period) through to every
+// sub-informer. This is the API the backend's generic watching-controller
+// machinery (controllerutils.Notifier) consumes, so providing it lets the
+// union plug into cluster-watching controllers verbatim.
+func (u *UnionDesireInformer) AddEventHandlerWithOptions(
+	handler cache.ResourceEventHandler, options cache.HandlerOptions,
+) (cache.ResourceEventHandlerRegistration, error) {
+	return u.addHandler(&handlerEntry{handler: handler, options: &options})
+}
+
 func (u *UnionDesireInformer) addHandler(h *handlerEntry) (cache.ResourceEventHandlerRegistration, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -272,8 +287,12 @@ func (u *UnionDesireInformer) removeAllHandlersLocked(sub *subInformer) {
 }
 
 // installHandler picks the right cache.SharedIndexInformer.AddEventHandler*
-// overload based on whether the entry carries a resync period.
+// overload based on what the entry carries: explicit options take
+// precedence, then a resync period, then the plain AddEventHandler.
 func installHandler(sub cache.SharedIndexInformer, h *handlerEntry) (cache.ResourceEventHandlerRegistration, error) {
+	if h.options != nil {
+		return sub.AddEventHandlerWithOptions(h.handler, *h.options)
+	}
 	if h.resyncPeriod > 0 {
 		return sub.AddEventHandlerWithResyncPeriod(h.handler, h.resyncPeriod)
 	}
