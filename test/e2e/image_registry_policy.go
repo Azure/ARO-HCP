@@ -123,6 +123,7 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.High,
 		labels.Positive,
 		labels.CoreInfraService,
+		labels.DevelopmentOnly,
 		func(ctx context.Context) {
 			By("verifying the ValidatingAdmissionPolicy exists")
 			_, err := kubeClient.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get(
