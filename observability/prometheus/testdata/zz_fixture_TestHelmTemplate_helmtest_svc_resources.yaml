@@ -68526,8 +68526,8 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 10000
-      maxShards: 500
+      capacity: 50000
+      maxShards: 50
       minShards: 1
       maxSamplesPerSend: 10000
       batchSendDeadline: 60s
@@ -68544,8 +68544,8 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 10000
-      maxShards: 500
+      capacity: 50000
+      maxShards: 50
       minShards: 1
       maxSamplesPerSend: 10000
       batchSendDeadline: 60s
