@@ -87,6 +87,9 @@ func createKubeApplier[InternalAPIType, CosmosAPIType any](
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
+	if err := PrepareForCreate(newObj); err != nil {
+		return nil, err
+	}
 	cosmosMetadata, data, err := serializeKubeApplierItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, err
@@ -125,6 +128,9 @@ func replaceKubeApplier[InternalAPIType, CosmosAPIType any](
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
+	if err := PrepareForReplace(newObj); err != nil {
+		return nil, err
+	}
 	cosmosMetadata, data, err := serializeKubeApplierItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, err
@@ -143,9 +149,7 @@ func replaceKubeApplier[InternalAPIType, CosmosAPIType any](
 	if opts == nil {
 		opts = &azcosmos.ItemOptions{}
 	}
-	if len(cosmosMetadata.CosmosETag) > 0 {
-		opts.IfMatchEtag = &cosmosMetadata.CosmosETag
-	}
+	opts.IfMatchEtag = &cosmosMetadata.CosmosETag
 	opts.EnableContentResponseOnWrite = true
 
 	responseItem, err := containerClient.ReplaceItem(
@@ -167,6 +171,9 @@ func addKubeApplierCreateToTransaction[InternalAPIType, CosmosAPIType any](
 	partitionKeyString := transaction.GetPartitionKey()
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
+	}
+	if err := PrepareForCreate(newObj); err != nil {
+		return "", err
 	}
 	cosmosMetadata, data, err := serializeKubeApplierItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
@@ -210,6 +217,9 @@ func addKubeApplierReplaceToTransaction[InternalAPIType, CosmosAPIType any](
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return "", fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
+	if err := PrepareForReplace(newObj); err != nil {
+		return "", err
+	}
 	cosmosMetadata, data, err := serializeKubeApplierItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", err
@@ -235,9 +245,7 @@ func addKubeApplierReplaceToTransaction[InternalAPIType, CosmosAPIType any](
 	if opts == nil {
 		opts = &azcosmos.TransactionalBatchItemOptions{}
 	}
-	if len(cosmosMetadata.CosmosETag) > 0 {
-		opts.IfMatchETag = &cosmosMetadata.CosmosETag
-	}
+	opts.IfMatchETag = &cosmosMetadata.CosmosETag
 
 	transaction.AddStep(
 		transactionDetails,
