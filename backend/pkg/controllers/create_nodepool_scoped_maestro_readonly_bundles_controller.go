@@ -49,7 +49,7 @@ const (
 
 // createNodePoolScopedMaestroReadonlyBundlesSyncer reconciles Maestro readonly bundles scoped to a node pool.
 //
-// While the node pool is not being deleted, it is responsible for creating the Maestro readonly bundles and storing a reference to them In Cosmos.
+// While the node pool is not being deleted, it is responsible for creating the Maestro readonly bundles and storing a reference to them in Cosmos.
 // It does not persist the content of the Maestro bundles themselves. That is handled by readAndPersistMaestroReadonlyBundlesContentSyncer.
 //
 // During node pool deletion, when the "serviceProviderProperties.clusterServiceID" property of the node pool is cleared, it deletes Maestro bundles and
@@ -57,7 +57,7 @@ const (
 //
 // TODO the name of this controller is no longer accurate, at some point we should rename it to reflect the fact that now it has
 // both create and delete reconciliation paths. When doing that, we should make sure it does not impact functionality and
-// references to the old name in Cosmos are cleant up.
+// references to the old name in Cosmos are cleaned up.
 type createNodePoolScopedMaestroReadonlyBundlesSyncer struct {
 	cooldownChecker controllerutil.CooldownChecker
 

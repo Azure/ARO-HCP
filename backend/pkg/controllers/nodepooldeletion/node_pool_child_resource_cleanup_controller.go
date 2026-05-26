@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -27,7 +29,6 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // nodePoolChildResourceCleanupController deletes direct child resources scoped

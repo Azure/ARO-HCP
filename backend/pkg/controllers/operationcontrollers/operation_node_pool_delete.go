@@ -25,12 +25,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 )
 
 type operationNodePoolDelete struct {
@@ -44,10 +45,14 @@ type operationNodePoolDelete struct {
 // follows an asynchronous node pool deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
 //
-// This controller waits for the NodePool Cosmos document to be deleted by the
-// nodePoolDeletionController. Once the document is gone, it cleans up child
-// resources and marks the operation as succeeded. Intermediate status updates
-// (e.g. Deleting) are handled separately by nodePoolDeletionOperationStatusController.
+// The controller has the following responsibilities:
+//   - While the NodePool Cosmos document is present, it reconciles the
+//     operation and the node pool status.
+//   - When the NodePool Cosmos document is deleted (by the nodePoolDeletionController),
+//     it marks the operation as Succeeded. It also cleans up child
+//     resources. TODO Note: This last part is handled by other controllers too but
+//     because the SetDeleteOperationAsCompleted is still reused by other operations
+//     that have not been migrated to asynchronous flow yet this remains.
 //
 // Note that "to completion" does not imply success. An operation is considered
 // complete when its status field reaches what Azure defines as a terminal value;

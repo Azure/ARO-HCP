@@ -30,7 +30,7 @@ import (
 )
 
 // nodePoolDeletionController issues a Cosmos nodepool delete
-// for the Node Pools that have their DeletionTimestamp and ClusteServiceDeletionTimestamp set,
+// for the Node Pools that have their DeletionTimestamp and ClusterServiceDeletionTimestamp set,
 // their ClusterServiceID has been cleared, and all nodepool-scoped Maestro readonly bundles
 // have been deleted from the ServiceProviderNodePool.
 type nodePoolDeletionController struct {
@@ -108,7 +108,7 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 	}
 
 	// Confirm against the live document. The cache can lag behind a write that
-	// that modified one of the NeedsWork conditions.
+	// modified one of the NeedsWork conditions.
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {

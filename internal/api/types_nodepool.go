@@ -66,7 +66,7 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
 	// Service Delete NodePool request against Cluster Service for this node
 	// pool has been handled. It is set after a successful DeleteNodePool call
-	// to Cluster Service, but also when the it's determined no delete call is
+	// to Cluster Service, but also when it's determined that no delete call is
 	// needed but we consider we should behave as if the delete call was successfully
 	// issued (for example, if the parent cluster of the nodepool is already being
 	// uninstalled, because cluster-service will already take care of deleting the
