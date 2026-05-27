@@ -31,33 +31,34 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// nodePoolChildResourceCleanupController deletes direct child resources scoped
-// under a NodePool (e.g. ManagementClusterContent documents) once the NodePool
-// is marked for deletion and Cluster Service has confirmed the delete. Controller
-// status documents (NodePoolControllerResourceType) are left alone -- the orphan
-// scraper handles those after the NodePool document itself is removed.
-type nodePoolChildResourceCleanupController struct {
+// nodePoolChildResourcesCleanupController deletes child resources scoped
+// under a NodePool (e.g. ManagementClusterContent documents) recursively once
+// the NodePool is marked for deletion and Cluster Service has confirmed the
+// delete on its side. Controller status documents (NodePoolControllerResourceType)
+// are left alone. The orphan scraper handles those after the NodePool document
+// itself is removed.
+type nodePoolChildResourcesCleanupController struct {
 	cooldownChecker   controllerutil.CooldownChecker
 	nodePoolLister    listers.NodePoolLister
 	resourcesDBClient database.ResourcesDBClient
 }
 
-var _ controllerutils.NodePoolSyncer = (*nodePoolChildResourceCleanupController)(nil)
+var _ controllerutils.NodePoolSyncer = (*nodePoolChildResourcesCleanupController)(nil)
 
-func NewNodePoolChildResourceCleanupController(
+func NewNodePoolChildResourcesCleanupController(
 	resourcesDBClient database.ResourcesDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
-	syncer := &nodePoolChildResourceCleanupController{
+	syncer := &nodePoolChildResourcesCleanupController{
 		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:    nodePoolLister,
 		resourcesDBClient: resourcesDBClient,
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolChildResourceCleanupController",
+		"NodePoolChildResourcesCleanupController",
 		resourcesDBClient,
 		informers,
 		time.Minute,
@@ -65,17 +66,17 @@ func NewNodePoolChildResourceCleanupController(
 	)
 }
 
-func (c *nodePoolChildResourceCleanupController) CooldownChecker() controllerutil.CooldownChecker {
+func (c *nodePoolChildResourcesCleanupController) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *nodePoolChildResourceCleanupController) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolChildResourcesCleanupController) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceID == nil
 }
 
-func (c *nodePoolChildResourceCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolChildResourcesCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
@@ -154,7 +155,7 @@ func (c *nodePoolChildResourceCleanupController) SyncOnce(ctx context.Context, k
 // extraDeleteGateShouldDeleteServiceProviderNodePool is an extra delete gate that checks if the ServiceProviderNodePool has any Maestro readonly bundles.
 // serviceProviderNodePoolResourceID is the child's ARM resource ID (serviceProviderNodePools/default).
 // If there are bundles it returns false, otherwise it returns true.
-func (c *nodePoolChildResourceCleanupController) extraDeleteGateShouldDeleteServiceProviderNodePool(ctx context.Context, serviceProviderNodePoolResourceID *azcorearm.ResourceID) (bool, error) {
+func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteServiceProviderNodePool(ctx context.Context, serviceProviderNodePoolResourceID *azcorearm.ResourceID) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	if serviceProviderNodePoolResourceID.Parent == nil || serviceProviderNodePoolResourceID.Parent.Parent == nil {

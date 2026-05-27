@@ -70,7 +70,7 @@ func newTestNodePoolController(t *testing.T, name string) *api.Controller {
 	}
 }
 
-func TestNodePoolChildResourceCleanupController_SyncOnce(t *testing.T) {
+func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 	readyToDelete := func(np *api.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
@@ -177,7 +177,7 @@ func TestNodePoolChildResourceCleanupController_SyncOnce(t *testing.T) {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}
 
-			syncer := &nodePoolChildResourceCleanupController{
+			syncer := &nodePoolChildResourcesCleanupController{
 				cooldownChecker:   &alwaysSyncCooldownChecker{},
 				nodePoolLister:    &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				resourcesDBClient: mockResourcesDBClient,
