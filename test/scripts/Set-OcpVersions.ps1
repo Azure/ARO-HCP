@@ -33,24 +33,62 @@ function Get-LatestOpenShiftVersion {
         # This handles pre-release versions like "4.20.0-0.nightly-..." correctly
         $versions = $response.nodes.version
 
-        # Try to use SemanticVersion (PowerShell 6+), fall back to custom sorting
-        try {
-            $latestVersion = $versions | ForEach-Object {
-                [PSCustomObject]@{
-                    Original = $_
-                    SemVer = [System.Management.Automation.SemanticVersion]::new($_)
+        # Try to use SemanticVersion (PowerShell 6+)
+        $useSemanticVersion = $true
+        $parsedVersions = @()
+
+        foreach ($ver in $versions) {
+            try {
+                $semVer = [System.Management.Automation.SemanticVersion]::new($ver)
+                $parsedVersions += [PSCustomObject]@{
+                    Original = $ver
+                    SemVer = $semVer
                 }
-            } | Sort-Object -Property SemVer | Select-Object -Last 1 -ExpandProperty Original
+            }
+            catch {
+                # SemanticVersion not available or version string incompatible
+                $useSemanticVersion = $false
+                break
+            }
         }
-        catch {
-            # Fallback for Windows PowerShell 5.1 or if SemanticVersion parsing fails
-            # Sort by splitting version components and comparing numerically
+
+        if ($useSemanticVersion -and $parsedVersions.Count -gt 0) {
+            # Use SemanticVersion sorting (PowerShell 6+)
+            $latestVersion = $parsedVersions | Sort-Object -Property SemVer | Select-Object -Last 1 -ExpandProperty Original
+        }
+        else {
+            # Fallback: Custom semver-aware sorting for PowerShell 5.1
+            # Properly handles major.minor.patch and pre-release identifiers
             $latestVersion = $versions | Sort-Object -Property {
-                $parts = $_ -split '[\.-]'
-                # Pad each part to ensure numeric comparison
-                ($parts[0].PadLeft(10, '0') +
-                 $parts[1].PadLeft(10, '0') +
-                 $parts[2].PadLeft(10, '0'))
+                $v = $_
+
+                # Parse version: separate base version from pre-release/build metadata
+                if ($v -match '^(\d+)\.(\d+)\.(\d+)(?:-(.+?))?(?:\+(.+))?$') {
+                    $major = [int]$matches[1]
+                    $minor = [int]$matches[2]
+                    $patch = [int]$matches[3]
+                    $prerelease = $matches[4]  # e.g., "0.nightly-2024-05-26"
+
+                    # Sort key: major.minor.patch as padded numbers, then pre-release
+                    # Versions without pre-release come AFTER pre-release (semver rule)
+                    $sortKey = "{0:D10}.{1:D10}.{2:D10}" -f $major, $minor, $patch
+
+                    if ($prerelease) {
+                        # Has pre-release: append "0" + prerelease to sort before release
+                        $sortKey += ".0.$prerelease"
+                    }
+                    else {
+                        # No pre-release: append "1" to sort after pre-release versions
+                        $sortKey += ".1"
+                    }
+
+                    return $sortKey
+                }
+                else {
+                    # Fallback for unexpected formats: use original string
+                    Write-Warning "Version '$v' doesn't match expected semver format"
+                    return "0000000000.0000000000.0000000000.9.$v"
+                }
             } | Select-Object -Last 1
         }
 

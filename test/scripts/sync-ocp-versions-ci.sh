@@ -13,42 +13,16 @@ is_sourced() {
 # Preserve shell options if sourced and set up restoration trap
 if is_sourced; then
     OLD_SHELL_OPTS=$(set +o)
-    # Trap to restore shell options on exit/return, even on error
-    trap 'eval "$OLD_SHELL_OPTS"' RETURN ERR EXIT
+    # Trap RETURN only (fires when sourced script finishes)
+    # Avoid ERR/EXIT traps as they would leak into parent shell
+    trap 'eval "$OLD_SHELL_OPTS"; trap - RETURN' RETURN
 fi
 
 set -euo pipefail
 
-# Portable version sorting function
-# Works on both Linux (GNU sort) and macOS (BSD sort)
-sort_versions() {
-    # Try sort -V (GNU sort, available on Linux and via coreutils on macOS)
-    if sort -V /dev/null &>/dev/null 2>&1; then
-        sort -V
-    # Try gsort -V (GNU sort via Homebrew coreutils on macOS)
-    elif command -v gsort &>/dev/null && gsort -V /dev/null &>/dev/null 2>&1; then
-        gsort -V
-    # Fallback: use Python for semantic version sorting
-    elif command -v python3 &>/dev/null; then
-        python3 -c '
-import sys
-from packaging import version
-versions = [line.strip() for line in sys.stdin if line.strip()]
-try:
-    sorted_versions = sorted(versions, key=lambda v: version.parse(v))
-    for v in sorted_versions:
-        print(v)
-except:
-    # Fallback to basic string sort if packaging module not available
-    for v in sorted(versions):
-        print(v)
-'
-    else
-        # Last resort: basic alphanumeric sort (not semver-aware, but better than nothing)
-        echo "WARNING: No proper version sorting available. Install GNU coreutils or Python with packaging module for accurate results." >&2
-        sort
-    fi
-}
+# Source shared version sorting library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/version-sort.sh"
 
 main() {
     # Configuration
@@ -160,6 +134,8 @@ fi
 
 # Restore shell options if sourced
 if is_sourced; then
+    # Clear trap before manual restoration to avoid double-firing
+    trap - RETURN
     eval "$OLD_SHELL_OPTS"
     return "$status"
 else
