@@ -1005,7 +1005,7 @@ func newNodePoolMaestroDeleteTestSPNP(t *testing.T, bundles api.MaestroBundleRef
 	}
 }
 
-func newNodePoolMaestroDeleteTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
+func newNodePoolMaestroTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
 	t.Helper()
 	resourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + nodePoolMaestroDeleteTestSubscriptionID +
@@ -1041,6 +1041,52 @@ func newNodePoolMaestroDeleteTestNodePool(t *testing.T, opts func(*api.HCPOpenSh
 	return np
 }
 
+func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileCreate(t *testing.T) {
+	fixedNow := time.Now().UTC().Truncate(time.Second)
+	syncer := &createNodePoolScopedMaestroReadonlyBundlesSyncer{}
+
+	testCases := []struct {
+		name     string
+		nodePool *api.HCPOpenShiftClusterNodePool
+		want     bool
+	}{
+		{
+			name:     "no DeletionTimestamp and ClusterServiceID set -- true",
+			nodePool: newNodePoolMaestroTestNodePool(t, nil),
+			want:     true,
+		},
+		{
+			name: "DeletionTimestamp set -- false",
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
+			}),
+			want: false,
+		},
+		{
+			name: "no ClusterServiceID -- false",
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.ServiceProviderProperties.ClusterServiceID = nil
+			}),
+			want: false,
+		},
+		{
+			name: "DeletionTimestamp set and no ClusterServiceID -- false",
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
+				np.ServiceProviderProperties.ClusterServiceID = nil
+			}),
+			want: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := syncer.shouldReconcileCreate(tc.nodePool)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(t *testing.T) {
 	fixedNow := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
 	syncer := &createNodePoolScopedMaestroReadonlyBundlesSyncer{}
@@ -1056,13 +1102,13 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(
 	}{
 		{
 			name:     "all nil: false",
-			nodePool: newNodePoolMaestroDeleteTestNodePool(t, nil),
+			nodePool: newNodePoolMaestroTestNodePool(t, nil),
 			spnp:     newNodePoolMaestroDeleteTestSPNP(t, bundles),
 			want:     false,
 		},
 		{
-			name: "DeletionTimestamp only: false",
-			nodePool: newNodePoolMaestroDeleteTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			name: "DeletionTimestamp set only: false",
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 			}),
 			spnp: newNodePoolMaestroDeleteTestSPNP(t, bundles),
@@ -1070,7 +1116,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(
 		},
 		{
 			name: "DeletionTimestamp + CSDeletionTimestamp but CSID set: false",
-			nodePool: newNodePoolMaestroDeleteTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow}
 			}),
@@ -1079,17 +1125,17 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(
 		},
 		{
 			name: "all node pool conditions met but no bundles: false",
-			nodePool: newNodePoolMaestroDeleteTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
-			spnp: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{}),
+			spnp: newNodePoolMaestroDeleteTestSPNP(t, nil),
 			want: false,
 		},
 		{
 			name: "all conditions met: true",
-			nodePool: newNodePoolMaestroDeleteTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceID = nil
@@ -1108,8 +1154,8 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(
 }
 
 func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *testing.T) {
-	fixedNow := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
-	readyToDelete := func(np *api.HCPOpenShiftClusterNodePool) {
+	fixedNow := time.Now().UTC().Truncate(time.Second)
+	readyToDeleteNodePoolOptsFunc := func(np *api.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		np.ServiceProviderProperties.ClusterServiceID = nil
@@ -1117,59 +1163,70 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 
 	mcResourceID := api.Must(fleet.ToManagementClusterResourceID(nodePoolMaestroDeleteTestStampID))
 
-	tests := []struct {
-		name                   string
-		existingNodePool       *api.HCPOpenShiftClusterNodePool
-		existingSPNP           *api.ServiceProviderNodePool
-		existingSPC            *api.ServiceProviderCluster
-		fleetResources         []any
-		setupMocks             func(*maestro.MockMaestroClientBuilder, *maestro.MockClient)
-		wantErr                bool
-		wantErrSubstr          string
-		wantRemainingBundles   int
-		wantRemainingBundleRef *api.MaestroBundleInternalName
+	getSPNPBundles := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) api.MaestroBundleReferenceList {
+		t.Helper()
+		spnpCRUD := db.ServiceProviderNodePools(
+			nodePoolMaestroDeleteTestSubscriptionID,
+			nodePoolMaestroDeleteTestResourceGroupName,
+			nodePoolMaestroDeleteTestClusterName,
+			nodePoolMaestroDeleteTestNodePoolName,
+		)
+		updatedSPNP, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+		require.NoError(t, err)
+		return updatedSPNP.Status.MaestroReadonlyBundles
+	}
+
+	verifyBundlesCleared := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+		t.Helper()
+		assert.Empty(t, getSPNPBundles(t, ctx, db), "expected all bundle references to be cleared")
+	}
+
+	testCases := []struct {
+		name             string
+		existingNodePool *api.HCPOpenShiftClusterNodePool
+		existingSPNP     *api.ServiceProviderNodePool
+		existingSPC      *api.ServiceProviderCluster
+		fleetResources   []any
+		setupMocks       func(*maestro.MockMaestroClientBuilder, *maestro.MockClient)
+		wantErr          bool
+		wantErrSubstr    string
+		verifyDB         func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name: "nodepool not found: no-op",
+			name: "nodepool not found -- no-op",
 		},
 		{
-			name: "nodepool not marked for deletion: no-op",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				// No ClusterServiceID so neither create nor delete reconciliation runs.
-				np.ServiceProviderProperties.ClusterServiceID = nil
-			}),
+			name:             "no SPNP -- no-op",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 		},
 		{
-			name:             "no SPNP: no-op",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "SPNP with no bundle list -- no-op",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			existingSPNP:     newNodePoolMaestroDeleteTestSPNP(t, nil),
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				assert.Empty(t, getSPNPBundles(t, ctx, db), "expected bundle list to remain empty")
+			},
 		},
 		{
-			name:             "SPNP with empty bundle list: no-op",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
-			existingSPNP:     newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{}),
-		},
-		{
-			name:             "ServiceProviderCluster not found: error",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "ServiceProviderCluster not found -- clears bundle refs",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 			}),
-			wantErr:              true,
-			wantErrSubstr:        "ServiceProviderCluster not found",
-			wantRemainingBundles: 1,
+			verifyDB: verifyBundlesCleared,
 		},
 		{
-			name:             "SPC without management cluster: clears bundle refs",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "SPC without management cluster -- clears bundle refs",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, nil),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 			}),
-			wantRemainingBundles: 0,
+			verifyDB: verifyBundlesCleared,
 		},
 		{
-			name:             "single bundle: successful delete and confirmed gone",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "single bundle -- successful delete and confirmed gone",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1182,11 +1239,11 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 				mc.EXPECT().Get(gomock.Any(), "name-a", metav1.GetOptions{}).Return(nil,
 					k8serrors.NewNotFound(schema.GroupResource{}, "name-a"))
 			},
-			wantRemainingBundles: 0,
+			verifyDB: verifyBundlesCleared,
 		},
 		{
-			name:             "single bundle: delete ok but still exists in maestro, reference kept",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "single bundle -- delete ok but still exists in maestro, reference kept",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1198,11 +1255,14 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 				mc.EXPECT().Delete(gomock.Any(), "name-a", metav1.DeleteOptions{}).Return(nil)
 				mc.EXPECT().Get(gomock.Any(), "name-a", metav1.GetOptions{}).Return(&workv1.ManifestWork{}, nil)
 			},
-			wantRemainingBundles: 1,
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				bundles := getSPNPBundles(t, ctx, db)
+				assert.Len(t, bundles, 1)
+			},
 		},
 		{
-			name:             "single bundle: delete ok but Get returns error, reference kept",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "single bundle -- delete ok but Get returns error, reference kept",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1214,13 +1274,16 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 				mc.EXPECT().Delete(gomock.Any(), "name-a", metav1.DeleteOptions{}).Return(nil)
 				mc.EXPECT().Get(gomock.Any(), "name-a", metav1.GetOptions{}).Return(nil, fmt.Errorf("maestro connection error"))
 			},
-			wantErr:              true,
-			wantErrSubstr:        "failed to verify deletion of Maestro Bundle",
-			wantRemainingBundles: 1,
+			wantErr:       true,
+			wantErrSubstr: "failed to verify deletion of Maestro Bundle",
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				bundles := getSPNPBundles(t, ctx, db)
+				assert.Len(t, bundles, 1)
+			},
 		},
 		{
-			name:             "single bundle: maestro delete 404 then Get 404 treated as success",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "single bundle -- maestro delete 404 then Get 404 treated as success",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1234,11 +1297,11 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 				mc.EXPECT().Get(gomock.Any(), "name-a", metav1.GetOptions{}).Return(nil,
 					k8serrors.NewNotFound(schema.GroupResource{}, "name-a"))
 			},
-			wantRemainingBundles: 0,
+			verifyDB: verifyBundlesCleared,
 		},
 		{
-			name:             "single bundle: maestro error",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "single bundle -- maestro error",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1249,13 +1312,16 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 					nodePoolMaestroDeleteTestConsumer, nodePoolMaestroDeleteTestMaestroSourceID(t)).Return(mc, nil)
 				mc.EXPECT().Delete(gomock.Any(), "name-a", metav1.DeleteOptions{}).Return(fmt.Errorf("maestro connection error"))
 			},
-			wantErr:              true,
-			wantErrSubstr:        "failed to delete Maestro Bundle",
-			wantRemainingBundles: 1,
+			wantErr:       true,
+			wantErrSubstr: "failed to delete Maestro Bundle",
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				bundles := getSPNPBundles(t, ctx, db)
+				assert.Len(t, bundles, 1)
+			},
 		},
 		{
-			name:             "multiple bundles: all succeed",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "multiple bundles -- all succeed",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1272,11 +1338,11 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 				mc.EXPECT().Get(gomock.Any(), "name-b", metav1.GetOptions{}).Return(nil,
 					k8serrors.NewNotFound(schema.GroupResource{}, "name-b"))
 			},
-			wantRemainingBundles: 0,
+			verifyDB: verifyBundlesCleared,
 		},
 		{
-			name:             "multiple bundles: second delete fails",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "multiple bundles -- second delete fails",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1291,14 +1357,19 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 					k8serrors.NewNotFound(schema.GroupResource{}, "name-a"))
 				mc.EXPECT().Delete(gomock.Any(), "name-b", metav1.DeleteOptions{}).Return(fmt.Errorf("maestro error"))
 			},
-			wantErr:                true,
-			wantErrSubstr:          "failed to delete Maestro Bundle",
-			wantRemainingBundles:   1,
-			wantRemainingBundleRef: ptr.To(api.MaestroBundleInternalName("bundleB")),
+			wantErr:       true,
+			wantErrSubstr: "failed to delete Maestro Bundle",
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				bundles := getSPNPBundles(t, ctx, db)
+				require.Len(t, bundles, 1)
+				ref, err := bundles.Get("bundleB")
+				require.NoError(t, err)
+				assert.NotNil(t, ref, "expected bundleB to remain")
+			},
 		},
 		{
-			name:             "multiple bundles: first still exists after delete",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "multiple bundles -- first still exists after delete",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1314,12 +1385,17 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 				mc.EXPECT().Get(gomock.Any(), "name-b", metav1.GetOptions{}).Return(nil,
 					k8serrors.NewNotFound(schema.GroupResource{}, "name-b"))
 			},
-			wantRemainingBundles:   1,
-			wantRemainingBundleRef: ptr.To(api.MaestroBundleInternalName("bundleA")),
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				bundles := getSPNPBundles(t, ctx, db)
+				require.Len(t, bundles, 1)
+				ref, err := bundles.Get("bundleA")
+				require.NoError(t, err)
+				assert.NotNil(t, ref, "expected bundleA to remain")
+			},
 		},
 		{
-			name:             "bundle with empty maestro name: removed without maestro call",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			name:             "bundle with empty maestro name -- removed without maestro call",
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "", MaestroAPIMaestroBundleID: ""},
@@ -1329,23 +1405,26 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 				mb.EXPECT().NewClient(gomock.Any(), nodePoolMaestroDeleteTestRESTURL, nodePoolMaestroDeleteTestGRPC,
 					nodePoolMaestroDeleteTestConsumer, nodePoolMaestroDeleteTestMaestroSourceID(t)).Return(mc, nil)
 			},
-			wantRemainingBundles: 0,
+			verifyDB: verifyBundlesCleared,
 		},
 		{
 			name:             "management cluster not in fleet DB",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 			}),
-			fleetResources:       nil,
-			wantErr:              true,
-			wantErrSubstr:        "failed to get management cluster",
-			wantRemainingBundles: 1,
+			fleetResources: nil,
+			wantErr:        true,
+			wantErrSubstr:  "failed to get management cluster",
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				bundles := getSPNPBundles(t, ctx, db)
+				assert.Len(t, bundles, 1)
+			},
 		},
 		{
 			name:             "maestro client creation fails",
-			existingNodePool: newNodePoolMaestroDeleteTestNodePool(t, readyToDelete),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1355,46 +1434,49 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 				mb.EXPECT().NewClient(gomock.Any(), nodePoolMaestroDeleteTestRESTURL, nodePoolMaestroDeleteTestGRPC,
 					nodePoolMaestroDeleteTestConsumer, nodePoolMaestroDeleteTestMaestroSourceID(t)).Return(nil, fmt.Errorf("client error"))
 			},
-			wantErr:              true,
-			wantErrSubstr:        "failed to create Maestro client",
-			wantRemainingBundles: 1,
+			wantErr:       true,
+			wantErrSubstr: "failed to create Maestro client",
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				bundles := getSPNPBundles(t, ctx, db)
+				assert.Len(t, bundles, 1)
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			ctrl := gomock.NewController(t)
 			mockMaestroBuilder := maestro.NewMockMaestroClientBuilder(ctrl)
 			mockMaestroClient := maestro.NewMockClient(ctrl)
 
-			if tt.setupMocks != nil {
-				tt.setupMocks(mockMaestroBuilder, mockMaestroClient)
+			if tc.setupMocks != nil {
+				tc.setupMocks(mockMaestroBuilder, mockMaestroClient)
 			}
 
 			resources := []any{}
-			if tt.existingNodePool != nil {
-				resources = append(resources, tt.existingNodePool)
+			if tc.existingNodePool != nil {
+				resources = append(resources, tc.existingNodePool)
 			}
-			if tt.existingSPC != nil {
-				resources = append(resources, tt.existingSPC)
+			if tc.existingSPC != nil {
+				resources = append(resources, tc.existingSPC)
 			}
-			if tt.existingSPNP != nil {
-				resources = append(resources, tt.existingSPNP)
+			if tc.existingSPNP != nil {
+				resources = append(resources, tc.existingSPNP)
 			}
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			fleetDBClient, err := databasetesting.NewMockFleetDBClientWithResources(ctx, tt.fleetResources)
+			fleetDBClient, err := databasetesting.NewMockFleetDBClientWithResources(ctx, tc.fleetResources)
 			require.NoError(t, err)
 
 			nodePoolsForLister := []*api.HCPOpenShiftClusterNodePool{}
-			if tt.existingNodePool != nil {
-				nodePoolsForLister = append(nodePoolsForLister, tt.existingNodePool)
+			if tc.existingNodePool != nil {
+				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}
 			spnpForLister := []*api.ServiceProviderNodePool{}
-			if tt.existingSPNP != nil {
-				spnpForLister = append(spnpForLister, tt.existingSPNP)
+			if tc.existingSPNP != nil {
+				spnpForLister = append(spnpForLister, tc.existingSPNP)
 			}
 
 			syncer := &createNodePoolScopedMaestroReadonlyBundlesSyncer{
@@ -1416,29 +1498,15 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 			}
 
 			err = syncer.SyncOnce(ctx, key)
-			if tt.wantErr {
+			if tc.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErrSubstr)
+				assert.Contains(t, err.Error(), tc.wantErrSubstr)
 			} else {
 				require.NoError(t, err)
 			}
 
-			if tt.existingSPNP != nil {
-				spnpCRUD := mockResourcesDBClient.ServiceProviderNodePools(
-					nodePoolMaestroDeleteTestSubscriptionID,
-					nodePoolMaestroDeleteTestResourceGroupName,
-					nodePoolMaestroDeleteTestClusterName,
-					nodePoolMaestroDeleteTestNodePoolName,
-				)
-				updatedSPNP, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
-				require.NoError(t, err)
-				assert.Len(t, updatedSPNP.Status.MaestroReadonlyBundles, tt.wantRemainingBundles)
-
-				if tt.wantRemainingBundleRef != nil {
-					ref, err := updatedSPNP.Status.MaestroReadonlyBundles.Get(*tt.wantRemainingBundleRef)
-					require.NoError(t, err)
-					assert.NotNil(t, ref)
-				}
+			if tc.verifyDB != nil {
+				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
 		})
 	}

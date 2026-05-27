@@ -198,17 +198,6 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncCreateOrDelete(ct
 		return c.syncCreate(ctx, existingNodePool)
 	}
 
-	spnpCRUD := c.resourcesDBClient.ServiceProviderNodePools(existingNodePool.ID.SubscriptionID, existingNodePool.ID.ResourceGroupName, existingNodePool.ID.Parent.Name, existingNodePool.Name)
-	spnp, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
-	if database.IsNotFoundError(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
-	}
-	if !c.shouldReconcileDelete(existingNodePool, spnp) {
-		return nil
-	}
 	return c.syncDelete(ctx, existingNodePool)
 }
 
@@ -329,24 +318,25 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncDelete(ctx contex
 		return nil
 	}
 
-	spc, err := c.resourcesDBClient.ServiceProviderClusters(existingNodePool.ID.SubscriptionID, existingNodePool.ID.ResourceGroupName, existingNodePool.ID.Parent.Name).Get(ctx, api.ServiceProviderClusterResourceName)
-	if database.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("ServiceProviderCluster not found"))
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
-	}
-	// If the ServiceProviderCluster has no management cluster resource ID, we clear the
-	// maestro bundle references from the ServiceProviderNodePool and return, as there's nothing else we can do
-	// at that point.
-	if spc.Status.ManagementClusterResourceID == nil {
-		logger.Info("ServiceProviderCluster has no management cluster resource ID, deferring maestro bundle cleanup to orphaned bundles controller")
+	clearBundleRefs := func(reason string) error {
+		logger.Info(reason + ", deferring maestro bundle cleanup to orphaned bundles controller")
 		existingSPNP.Status.MaestroReadonlyBundles = nil
-		_, err = spnpCRUD.Replace(ctx, existingSPNP, nil)
+		_, err := spnpCRUD.Replace(ctx, existingSPNP, nil)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to persist ServiceProviderNodePool: %w", err))
 		}
 		return nil
+	}
+
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(existingNodePool.ID.SubscriptionID, existingNodePool.ID.ResourceGroupName, existingNodePool.ID.Parent.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	if err != nil && !database.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	if database.IsNotFoundError(err) {
+		return clearBundleRefs("ServiceProviderCluster not found")
+	}
+	if spc.Status.ManagementClusterResourceID == nil {
+		return clearBundleRefs("ServiceProviderCluster has no management cluster resource ID")
 	}
 
 	managementCluster, err := c.fleetDBClient.Stamps().ManagementClusters(spc.Status.ManagementClusterResourceID.Parent.Name).Get(ctx, spc.Status.ManagementClusterResourceID.Name)
@@ -366,7 +356,7 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncDelete(ctx contex
 	var bundlesToRemove []api.MaestroBundleInternalName
 	for _, ref := range existingSPNP.Status.MaestroReadonlyBundles {
 		if len(ref.MaestroAPIMaestroBundleName) == 0 {
-			logger.Info("skipping bundle reference with empty Maestro API name", "bundleInternalName", ref.Name)
+			logger.Info("adding bundle reference with empty Maestro API name to removal list", "bundleInternalName", ref.Name)
 			bundlesToRemove = append(bundlesToRemove, ref.Name)
 			continue
 		}
@@ -388,11 +378,12 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncDelete(ctx contex
 			continue
 		}
 
-		logger.Info("deleted Maestro readonly bundle", "bundleInternalName", ref.Name, "maestroAPIMaestroBundleName", ref.MaestroAPIMaestroBundleName)
+		logger.Info("deleted Maestro readonly bundle. Adding to removal list", "bundleInternalName", ref.Name, "maestroAPIMaestroBundleName", ref.MaestroAPIMaestroBundleName)
 		bundlesToRemove = append(bundlesToRemove, ref.Name)
 	}
 
 	if len(bundlesToRemove) > 0 {
+		logger.Info("removing bundle references from ServiceProviderNodePool", "bundlesToRemove", bundlesToRemove)
 		for _, name := range bundlesToRemove {
 			if err := existingSPNP.Status.MaestroReadonlyBundles.Remove(name); err != nil {
 				syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to remove bundle reference %q: %w", name, err)))
