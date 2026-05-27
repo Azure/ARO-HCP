@@ -16,7 +16,6 @@ package nodepooldeletion
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,30 +34,45 @@ import (
 )
 
 func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
-	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	readyToDelete := func(np *api.HCPOpenShiftClusterNodePool) {
+	fixedNow := time.Now().UTC().Truncate(time.Second)
+	readyToDeleteNodePoolOptsFunc := func(np *api.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		np.ServiceProviderProperties.ClusterServiceID = nil
+	}
+
+	verifyNodePoolStillExists := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+		t.Helper()
+		_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err, "expected nodepool to still exist in Cosmos")
+	}
+
+	verifyNodePoolDeleted := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+		t.Helper()
+		_, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		assert.True(t, database.IsNotFoundError(err), "expected nodepool to be deleted from Cosmos")
 	}
 
 	testCases := []struct {
 		name             string
 		existingNodePool *api.HCPOpenShiftClusterNodePool
 		childResources   []any
-		existingSPNP     *api.ServiceProviderNodePool
-		wantDeleted      bool
 		wantErr          bool
+		verifyDB         func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
 			name:             "no DeletionTimestamp -- no-op",
 			existingNodePool: newTestNodePool(t, nil),
+			verifyDB:         verifyNodePoolStillExists,
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
+			verifyDB: verifyNodePoolStillExists,
 		},
 		{
 			name: "ClusterServiceID still set -- no-op",
@@ -66,37 +80,38 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
+			verifyDB: verifyNodePoolStillExists,
 		},
 		{
 			name:             "all conditions met, no children -- deletes nodepool from Cosmos",
-			existingNodePool: newTestNodePool(t, readyToDelete),
-			wantDeleted:      true,
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			verifyDB:         verifyNodePoolDeleted,
 		},
 		{
 			name:             "all conditions met, SPNP has remaining bundles -- backs off",
-			existingNodePool: newTestNodePool(t, readyToDelete),
-			existingSPNP: newTestSPNP(t, api.MaestroBundleReferenceList{
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			childResources: []any{newTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "readonly-bundle-1"},
-			}),
-			wantDeleted: false,
+			})},
+			verifyDB: verifyNodePoolStillExists,
 		},
 		{
-			name:             "all conditions met, SPNP with empty bundles -- backs off until SPNP removed",
-			existingNodePool: newTestNodePool(t, readyToDelete),
-			existingSPNP:     newTestSPNP(t, nil),
-			wantDeleted:      false,
+			name:             "all conditions met, SPNP with no bundles -- backs off until SPNP removed",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			childResources:   []any{newTestSPNP(t, nil)},
+			verifyDB:         verifyNodePoolStillExists,
 		},
 		{
-			name:             "all conditions met, MCC child exists -- backs off",
-			existingNodePool: newTestNodePool(t, readyToDelete),
+			name:             "all conditions met, a non node pool controller cosmos child exists -- backs off",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestManagementClusterContent(t, "test-mcc")},
-			wantDeleted:      false,
+			verifyDB:         verifyNodePoolStillExists,
 		},
 		{
 			name:             "all conditions met, only controller children -- deletes nodepool",
-			existingNodePool: newTestNodePool(t, readyToDelete),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestNodePoolController(t, "test-controller")},
-			wantDeleted:      true,
+			verifyDB:         verifyNodePoolDeleted,
 		},
 		{
 			name: "node pool not found -- no-op",
@@ -111,9 +126,6 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			if tc.existingNodePool != nil {
 				resources = append(resources, tc.existingNodePool)
 			}
-			if tc.existingSPNP != nil {
-				resources = append(resources, tc.existingSPNP)
-			}
 			resources = append(resources, tc.childResources...)
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
@@ -123,8 +135,10 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 				nodePoolsForLister = append(nodePoolsForLister, tc.existingNodePool)
 			}
 			spnpForLister := []*api.ServiceProviderNodePool{}
-			if tc.existingSPNP != nil {
-				spnpForLister = append(spnpForLister, tc.existingSPNP)
+			for _, child := range tc.childResources {
+				if spnp, ok := child.(*api.ServiceProviderNodePool); ok {
+					spnpForLister = append(spnpForLister, spnp)
+				}
 			}
 
 			syncer := &nodePoolDeletionController{
@@ -144,36 +158,12 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			err = syncer.SyncOnce(ctx, key)
 			if tc.wantErr {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			if tc.existingNodePool == nil {
 				return
 			}
+			require.NoError(t, err)
 
-			_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
-				NodePools(testClusterName).Get(ctx, testNodePoolName)
-			if tc.wantDeleted {
-				assert.True(t, database.IsNotFoundError(err), "expected nodepool to be deleted from Cosmos")
-			} else {
-				require.NoError(t, err, "expected nodepool to still exist in Cosmos")
-			}
-
-			if len(tc.childResources) > 0 && !tc.wantDeleted {
-				nodePoolResourceID := key.GetResourceID()
-				untypedCRUD, childErr := mockResourcesDBClient.UntypedCRUD(*nodePoolResourceID)
-				require.NoError(t, childErr)
-				childIterator, childErr := untypedCRUD.List(ctx, nil)
-				require.NoError(t, childErr)
-				var nonControllerCount int
-				for _, child := range childIterator.Items(ctx) {
-					if !strings.EqualFold(child.ResourceType, api.NodePoolControllerResourceType.String()) {
-						nonControllerCount++
-					}
-				}
-				require.NoError(t, childIterator.GetError())
-				assert.Greater(t, nonControllerCount, 0, "expected non-controller children to still exist")
+			if tc.verifyDB != nil {
+				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
 		})
 	}

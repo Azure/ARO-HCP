@@ -80,12 +80,8 @@ func (c *nodePoolDeletionController) NeedsWork(nodePool *api.HCPOpenShiftCluster
 		nodePool.ServiceProviderProperties.ClusterServiceID == nil
 }
 
-// SyncOnce calls Cosmos to delete the NodePool when the NeedsWork condition is met.
-// Note: for now this controller only deletes the NodePool from Cosmos but we might end up placing
-// the logic that deletes ManagementClusterContents scoped at the NodePool level as well as Maestro Bundles
-// scoped at the NodePool level as well, and maybe even other conditions. Maybe we even decide it's just a coordinator
-// waiting for the N conditions and other controllers handling the individual conditions with this one being reserved
-// just for the coordination and the final Cosmos entry deletion.
+// SyncOnce calls Cosmos to delete the NodePool when the NeedsWork condition is met and
+// all the delete preconditions are met.
 func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
