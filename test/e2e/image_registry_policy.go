@@ -124,6 +124,7 @@ var _ = Describe("Image Registry Policy", func() {
 		labels.High,
 		labels.Positive,
 		labels.CoreInfraService,
+		labels.DevelopmentOnly,
 		func(ctx context.Context) {
 			// INT, STG and PROD do not have cluster-scoped RBAC to verify the policy exists
 			if framework.IsDevelopmentEnvironment() {
