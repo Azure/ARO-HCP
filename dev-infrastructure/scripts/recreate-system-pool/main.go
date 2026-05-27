@@ -736,34 +736,34 @@ func (c *clients) snapshotSystem(ctx context.Context) (*armcs.AgentPool, error) 
 	return &live, nil
 }
 
-// sanitizeForRecreate produces a deep-copy of the snapshotted AgentPool with
-// read-only fields and AKS-managed tags stripped, ready to feed back into
+// agentPoolForCreate produces a deep-copy of the snapshotted AgentPool with
+// read-only fields and AKS-managed tags stripped, ready to feed into
 // CreateOrUpdate. The input is never mutated.
 //
 // Read-only fields stripped (RP rejects user-supplied values):
 //   - top-level: id, name, type
 //   - properties: provisioningState, currentOrchestratorVersion,
-//     nodeImageVersion, powerState, creationData, eTag
+//     nodeImageVersion, powerState, creationData, ETag
 //
 // orchestratorVersion is overwritten with the live cluster control-plane
 // version to guarantee we never request a version downgrade.
 //
 // Tags prefixed `aks-managed-` are stripped (RP rejects user PUTs that
 // contain them; they will be re-added by AKS).
-func sanitizeForRecreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPool, error) {
+func agentPoolForCreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPool, error) {
 	if live == nil {
-		return nil, errors.New("sanitizeForRecreate: nil input")
+		return nil, errors.New("agentPoolForCreate: nil input")
 	}
 	// Deep-copy via JSON round-trip so we never mutate the snapshot the
 	// caller still holds. Slower than reflect-based copy, but bullet-proof
 	// against future SDK shape changes.
 	raw, err := json.Marshal(live)
 	if err != nil {
-		return nil, fmt.Errorf("sanitizeForRecreate: marshal: %w", err)
+		return nil, fmt.Errorf("agentPoolForCreate: marshal: %w", err)
 	}
 	var out armcs.AgentPool
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("sanitizeForRecreate: unmarshal: %w", err)
+		return nil, fmt.Errorf("agentPoolForCreate: unmarshal: %w", err)
 	}
 
 	out.ID = nil
@@ -771,7 +771,7 @@ func sanitizeForRecreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentP
 	out.Type = nil
 
 	if out.Properties == nil {
-		return nil, errors.New("sanitizeForRecreate: nil properties after copy")
+		return nil, errors.New("agentPoolForCreate: nil properties after copy")
 	}
 	out.Properties.ProvisioningState = nil
 	out.Properties.CurrentOrchestratorVersion = nil
@@ -784,15 +784,17 @@ func sanitizeForRecreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentP
 	out.Properties.OrchestratorVersion = &v
 	// Strip AKS-managed tags.
 	if out.Properties.Tags != nil {
-		cleaned := map[string]*string{}
-		for k, v := range out.Properties.Tags {
-			if !strings.HasPrefix(k, "aks-managed-") {
-				cleaned[k] = v
-			}
-		}
-		out.Properties.Tags = cleaned
+		out.Properties.Tags = cloneStringPtrMapWithoutPrefix(out.Properties.Tags, "aks-managed-")
 	}
 	return &out, nil
+}
+
+func sanitizeForRecreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPool, error) {
+	out, err := agentPoolForCreate(live, cpVersion)
+	if err != nil {
+		return nil, fmt.Errorf("sanitizeForRecreate: %w", err)
+	}
+	return out, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -872,13 +874,14 @@ func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 // CriticalAddonsOnly taint and an obviously-temporary label so it does
 // not pick up arbitrary workloads.
 func buildSystmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPool, error) {
-	if live == nil || live.Properties == nil {
-		return nil, errors.New("buildSystmpAgentPool: live snapshot has no properties")
+	body, err := agentPoolForCreate(live, cpVersion)
+	if err != nil {
+		return nil, fmt.Errorf("buildSystmpAgentPool: %w", err)
 	}
-	if live.Properties.VMSize == nil || *live.Properties.VMSize == "" {
+	if body.Properties.VMSize == nil || *body.Properties.VMSize == "" {
 		return nil, errors.New("buildSystmpAgentPool: live snapshot has no VMSize")
 	}
-	if live.Properties.OSDiskSizeGB == nil || *live.Properties.OSDiskSizeGB <= 0 {
+	if body.Properties.OSDiskSizeGB == nil || *body.Properties.OSDiskSizeGB <= 0 {
 		return nil, errors.New("buildSystmpAgentPool: live snapshot has no OSDiskSizeGB")
 	}
 	if cpVersion == "" {
@@ -886,65 +889,21 @@ func buildSystmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.Agent
 	}
 	mode := armcs.AgentPoolModeSystem
 	cnt := int32(1)
-	v := cpVersion
-	diskGB := *live.Properties.OSDiskSizeGB
-	labels := cloneStringPtrMap(live.Properties.NodeLabels)
-	labels["aro-hcp.azure.com/role"] = ptr("system")
-	tags := cloneStringPtrMapWithoutPrefix(live.Properties.Tags, "aks-managed-")
-	tags["purpose"] = ptr("temp-system-aroslsre-924")
-	body := &armcs.AgentPool{
-		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
-			Mode:                &mode,
-			VMSize:              ptr(*live.Properties.VMSize),
-			OrchestratorVersion: &v,
-			Count:               &cnt,
-			OSDiskSizeGB:        &diskGB,
-			NodeTaints:          []*string{ptr("CriticalAddonsOnly=true:NoSchedule")},
-			NodeLabels:          labels,
-			Tags:                tags,
-		},
+	body.Properties.Mode = &mode
+	body.Properties.Count = &cnt
+	body.Properties.MinCount = nil
+	body.Properties.MaxCount = nil
+	body.Properties.EnableAutoScaling = nil
+	body.Properties.NodeTaints = []*string{ptr("CriticalAddonsOnly=true:NoSchedule")}
+	if body.Properties.NodeLabels == nil {
+		body.Properties.NodeLabels = map[string]*string{}
 	}
-	copyOptionalAgentPoolFields(body.Properties, live.Properties)
+	body.Properties.NodeLabels["aro-hcp.azure.com/role"] = ptr("system")
+	if body.Properties.Tags == nil {
+		body.Properties.Tags = map[string]*string{}
+	}
+	body.Properties.Tags["purpose"] = ptr("temp-system-aroslsre-924")
 	return body, nil
-}
-
-func copyOptionalAgentPoolFields(dst, src *armcs.ManagedClusterAgentPoolProfileProperties) {
-	if src.AvailabilityZones != nil {
-		dst.AvailabilityZones = cloneStringPtrSlice(src.AvailabilityZones)
-	}
-	if src.MaxPods != nil {
-		v := *src.MaxPods
-		dst.MaxPods = &v
-	}
-	if src.EnableEncryptionAtHost != nil {
-		v := *src.EnableEncryptionAtHost
-		dst.EnableEncryptionAtHost = &v
-	}
-	if src.EnableFIPS != nil {
-		v := *src.EnableFIPS
-		dst.EnableFIPS = &v
-	}
-	if src.OSType != nil {
-		v := *src.OSType
-		dst.OSType = &v
-	} else {
-		v := armcs.OSTypeLinux
-		dst.OSType = &v
-	}
-	if src.OSSKU != nil {
-		v := *src.OSSKU
-		dst.OSSKU = &v
-	}
-	if src.OSDiskType != nil {
-		v := *src.OSDiskType
-		dst.OSDiskType = &v
-	}
-	if src.VnetSubnetID != nil {
-		dst.VnetSubnetID = ptr(*src.VnetSubnetID)
-	}
-	if src.PodSubnetID != nil {
-		dst.PodSubnetID = ptr(*src.PodSubnetID)
-	}
 }
 
 func (c *clients) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
@@ -1407,30 +1366,6 @@ func logBuffer(prefix, value string) {
 			logf("%s: %s", prefix, line)
 		}
 	}
-}
-
-func cloneStringPtrSlice(in []*string) []*string {
-	out := make([]*string, 0, len(in))
-	for _, v := range in {
-		if v == nil {
-			out = append(out, nil)
-			continue
-		}
-		out = append(out, ptr(*v))
-	}
-	return out
-}
-
-func cloneStringPtrMap(in map[string]*string) map[string]*string {
-	out := map[string]*string{}
-	for k, v := range in {
-		if v == nil {
-			out[k] = nil
-			continue
-		}
-		out[k] = ptr(*v)
-	}
-	return out
 }
 
 func cloneStringPtrMapWithoutPrefix(in map[string]*string, prefix string) map[string]*string {
