@@ -876,9 +876,9 @@ func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 // OSSKU) are inherited from the live snapshot — hard-coding these is
 // unsafe because management clusters across stg/prod use different VM
 // SKUs and disk sizes (see config/config.yaml entries for systemAgentPool
-// across environments). The temporary pool inherits Count=1, plus the
-// CriticalAddonsOnly taint and an obviously-temporary label so it does
-// not pick up arbitrary workloads.
+// across environments). The temporary pool overrides Count=1 and adds
+// an obviously-temporary purpose tag while otherwise relying on the
+// sanitized live-pool clone for node labels, taints and VMSS tags.
 func buildSystmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPool, error) {
 	body, err := agentPoolForCreate(live, cpVersion)
 	if err != nil {
@@ -900,7 +900,6 @@ func buildSystmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.Agent
 	body.Properties.MinCount = nil
 	body.Properties.MaxCount = nil
 	body.Properties.EnableAutoScaling = nil
-	body.Properties.NodeTaints = []*string{ptr("CriticalAddonsOnly=true:NoSchedule")}
 	if body.Properties.Tags == nil {
 		body.Properties.Tags = map[string]*string{}
 	}
@@ -913,7 +912,7 @@ func (c *clients) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
 	if err != nil {
 		return err
 	}
-	logf("creating systmp (vmSize=%s, 1 node, k8s=%s, CriticalAddonsOnly tainted)", strDeref(live.Properties.VMSize), c.cfg.cpVersion)
+	logf("creating systmp (vmSize=%s, 1 node, k8s=%s, inherited taints)", strDeref(live.Properties.VMSize), c.cfg.cpVersion)
 	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, systmpPoolName, *body, nil)
 	if err != nil {
 		return fmt.Errorf("begin create systmp: %w", err)
