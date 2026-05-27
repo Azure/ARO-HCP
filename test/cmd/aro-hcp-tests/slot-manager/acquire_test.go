@@ -187,6 +187,9 @@ func TestDefaultAcquireOptionsLeaseWaitDefaults(t *testing.T) {
 	t.Parallel()
 
 	opts := DefaultAcquireOptions()
+	if opts.LeaseProxyTimeout != slots.DefaultLeaseProxyTimeout {
+		t.Fatalf("expected default lease proxy timeout %s, got %s", slots.DefaultLeaseProxyTimeout, opts.LeaseProxyTimeout)
+	}
 	if opts.LeaseWaitInterval != DefaultLeaseWaitInterval {
 		t.Fatalf("expected default lease wait interval %s, got %s", DefaultLeaseWaitInterval, opts.LeaseWaitInterval)
 	}
@@ -229,7 +232,7 @@ environments:
 
 	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
 		"aro-hcp-dev-centralus-a-slot": {
-			exhaustedAcquireReply("aro-hcp-dev-centralus-a-slot"),
+			unavailableAcquireReply("aro-hcp-dev-centralus-a-slot"),
 		},
 		"aro-hcp-dev-centralus-b-slot": {
 			successAcquireReply("aro-hcp-dev-centralus-b-slot-00"),
@@ -245,7 +248,7 @@ environments:
 		SharedDir:           sharedDir,
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
-		LeaseProxyTimeout:   5 * time.Second,
+		LeaseProxyTimeout:   50 * time.Millisecond,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
 	})
@@ -284,6 +287,73 @@ environments:
 	}
 }
 
+func TestAcquireRunFallsBackWhenCandidatePoolTimesOut(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+      - subscription_name: dev-sub-b
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-b-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, releaseCalls := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": {
+			delayedLeaseProxyReply(200*time.Millisecond, successAcquireReply("aro-hcp-dev-centralus-a-slot-00")),
+		},
+		"aro-hcp-dev-centralus-b-slot": {
+			successAcquireReply("aro-hcp-dev-centralus-b-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	sharedDir := t.TempDir()
+	err := Acquire(context.Background(), &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           sharedDir,
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   50 * time.Millisecond,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+	})
+	if err != nil {
+		t.Fatalf("expected acquire to fall back after timeout: %v", err)
+	}
+
+	if got, want := *acquireCalls, []string{"aro-hcp-dev-centralus-a-slot", "aro-hcp-dev-centralus-b-slot"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+	if got := *releaseCalls; len(got) != 0 {
+		t.Fatalf("expected no release calls, got %v", got)
+	}
+
+	state, err := slots.LoadAcquiredSlotState(sharedDir)
+	if err != nil {
+		t.Fatalf("expected acquired slot state to load: %v", err)
+	}
+	if state.Slot.ResourceType != "aro-hcp-dev-centralus-b-slot" {
+		t.Fatalf("expected fallback pool resource type, got %q", state.Slot.ResourceType)
+	}
+}
+
 func TestAcquireRunRuntimeSelectedFallsBackAcrossSubscriptions(t *testing.T) {
 	t.Parallel()
 
@@ -311,7 +381,7 @@ environments:
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
 		"aro-hcp-prod-shard0-slot": {
-			exhaustedAcquireReply("aro-hcp-prod-shard0-slot"),
+			unavailableAcquireReply("aro-hcp-prod-shard0-slot"),
 		},
 		"aro-hcp-prod-shard1-slot": {
 			successAcquireReply("aro-hcp-prod-shard1-slot-00"),
@@ -327,7 +397,7 @@ environments:
 		SharedDir:           sharedDir,
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
-		LeaseProxyTimeout:   5 * time.Second,
+		LeaseProxyTimeout:   50 * time.Millisecond,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
 	})
@@ -412,7 +482,7 @@ environments:
 	}
 }
 
-func TestAcquireRunRetriesAfterFullExhaustedPass(t *testing.T) {
+func TestAcquireRunRetriesAfterFullUnavailablePassAcrossPools(t *testing.T) {
 	t.Parallel()
 
 	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-b")
@@ -438,9 +508,9 @@ environments:
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
-		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(exhaustedAcquireReply("aro-hcp-dev-centralus-a-slot"), 2),
+		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(unavailableAcquireReply("aro-hcp-dev-centralus-a-slot"), 2),
 		"aro-hcp-dev-centralus-b-slot": {
-			exhaustedAcquireReply("aro-hcp-dev-centralus-b-slot"),
+			unavailableAcquireReply("aro-hcp-dev-centralus-b-slot"),
 			successAcquireReply("aro-hcp-dev-centralus-b-slot-00"),
 		},
 	})
@@ -453,7 +523,7 @@ environments:
 		SharedDir:           t.TempDir(),
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
-		LeaseProxyTimeout:   5 * time.Second,
+		LeaseProxyTimeout:   50 * time.Millisecond,
 		MaxWaitForLease:     2 * time.Minute,
 		LeaseWaitInterval:   1 * time.Minute,
 	})
@@ -469,6 +539,61 @@ environments:
 		"aro-hcp-dev-centralus-b-slot",
 		"aro-hcp-dev-centralus-a-slot",
 		"aro-hcp-dev-centralus-b-slot",
+	}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+	if got, want := clock.slept, []time.Duration{1 * time.Minute}; !equalDurations(got, want) {
+		t.Fatalf("unexpected sleep durations: got %v want %v", got, want)
+	}
+}
+
+func TestAcquireRunRetriesAfterFullUnavailablePassAfterRetryableServerFailure(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-a-slot": {
+			{statusCode: http.StatusServiceUnavailable},
+			successAcquireReply("aro-hcp-dev-centralus-a-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	completed := completeAcquireForTest(t, &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		Region:              "centralus",
+		SharedDir:           t.TempDir(),
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   50 * time.Millisecond,
+		MaxWaitForLease:     2 * time.Minute,
+		LeaseWaitInterval:   1 * time.Minute,
+	})
+	clock := newFakeClock(time.Unix(0, 0))
+	completed.Now = clock.Now
+	completed.Sleep = clock.Sleep
+
+	if err := completed.Run(context.Background()); err != nil {
+		t.Fatalf("expected acquire run to succeed after an unavailable pass retry: %v", err)
+	}
+	if got, want := *acquireCalls, []string{
+		"aro-hcp-dev-centralus-a-slot",
+		"aro-hcp-dev-centralus-a-slot",
 	}; !equalStrings(got, want) {
 		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
 	}
@@ -496,7 +621,7 @@ environments:
 `)
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
-		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(exhaustedAcquireReply("aro-hcp-dev-centralus-a-slot"), 4),
+		"aro-hcp-dev-centralus-a-slot": repeatLeaseProxyReply(unavailableAcquireReply("aro-hcp-dev-centralus-a-slot"), 4),
 	})
 	defer server.Close()
 
@@ -507,7 +632,7 @@ environments:
 		SharedDir:           t.TempDir(),
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
-		LeaseProxyTimeout:   5 * time.Second,
+		LeaseProxyTimeout:   50 * time.Millisecond,
 		MaxWaitForLease:     3 * time.Minute,
 		LeaseWaitInterval:   1 * time.Minute,
 	})
@@ -519,8 +644,8 @@ environments:
 	if err == nil {
 		t.Fatal("expected acquire run to fail after max wait budget is exhausted")
 	}
-	if !strings.Contains(err.Error(), `were exhausted for 3m0s across 4 full pass(es)`) {
-		t.Fatalf("expected bounded exhaustion error, got %v", err)
+	if !strings.Contains(err.Error(), `yielded an immediate lease for 3m0s across 4 full pass(es)`) {
+		t.Fatalf("expected bounded no-immediate-lease error, got %v", err)
 	}
 	if got, want := *acquireCalls, []string{
 		"aro-hcp-dev-centralus-a-slot",
@@ -555,7 +680,7 @@ environments:
 
 	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
 		"aro-hcp-dev-centralus-a-slot": {
-			exhaustedAcquireReply("aro-hcp-dev-centralus-a-slot"),
+			unavailableAcquireReply("aro-hcp-dev-centralus-a-slot"),
 		},
 	})
 	defer server.Close()
@@ -567,7 +692,7 @@ environments:
 		SharedDir:           t.TempDir(),
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
-		LeaseProxyTimeout:   5 * time.Second,
+		LeaseProxyTimeout:   50 * time.Millisecond,
 		MaxWaitForLease:     0,
 		LeaseWaitInterval:   1 * time.Minute,
 	})
@@ -781,9 +906,10 @@ func completeAcquireForTest(t *testing.T, raw *RawAcquireOptions) *AcquireOption
 type leaseProxyReply struct {
 	statusCode int
 	body       string
+	delay      time.Duration
 }
 
-func exhaustedAcquireReply(resourceType string) leaseProxyReply {
+func unavailableAcquireReply(resourceType string) leaseProxyReply {
 	return leaseProxyReply{
 		statusCode: http.StatusInternalServerError,
 		body:       fmt.Sprintf("Failed to acquire lease %q: resources not found\n", resourceType),
@@ -799,6 +925,11 @@ func successAcquireReply(resourceName string) leaseProxyReply {
 		statusCode: http.StatusOK,
 		body:       string(body),
 	}
+}
+
+func delayedLeaseProxyReply(delay time.Duration, reply leaseProxyReply) leaseProxyReply {
+	reply.delay = delay
+	return reply
 }
 
 func repeatLeaseProxyReply(reply leaseProxyReply, count int) []leaseProxyReply {
@@ -834,6 +965,9 @@ func newTestLeaseProxyServer(t *testing.T, acquireReplies map[string][]leaseProx
 			}
 
 			reply := replies[replyIndex]
+			if reply.delay > 0 {
+				time.Sleep(reply.delay)
+			}
 			w.WriteHeader(reply.statusCode)
 			_, _ = w.Write([]byte(reply.body))
 		case "/lease/release":

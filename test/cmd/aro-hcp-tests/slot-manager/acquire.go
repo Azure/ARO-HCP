@@ -68,9 +68,9 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
-	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Timeout per lease proxy request attempt")
-	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool exhaustion. Zero waits forever.")
-	cmd.Flags().DurationVar(&opts.LeaseWaitInterval, "lease-wait-interval", opts.LeaseWaitInterval, "Wait between retries after a full exhausted pass across all candidate pools.")
+	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend probing a single candidate pool, including retryable proxy/network retries.")
+	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool passes yield no immediate lease. Zero waits forever.")
+	cmd.Flags().DurationVar(&opts.LeaseWaitInterval, "lease-wait-interval", opts.LeaseWaitInterval, "Wait between retries after a full candidate-pool pass yields no immediate lease.")
 	return nil
 }
 
@@ -233,15 +233,15 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 	}
 
 	for pass := 1; ; pass++ {
-		exhaustedPools := make([]string, 0, len(o.CandidatePools))
+		unavailablePools := make([]string, 0, len(o.CandidatePools))
 
 		for _, pool := range o.CandidatePools {
 			leasedName, err := slots.AcquireLease(ctx, o.LeaseProxyURL, pool.ResourceType, o.LeaseProxyTimeout)
 			if err != nil {
-				if errors.Is(err, slots.ErrLeasePoolExhausted) {
-					exhaustedPools = append(exhaustedPools, describePool(pool))
+				if errors.Is(err, slots.ErrLeasePoolUnavailableNow) {
+					unavailablePools = append(unavailablePools, describePool(pool))
 					logger.Info(
-						"Candidate pool exhausted, trying next pool",
+						"Candidate pool did not yield an immediate lease, trying next pool",
 						"pass", pass,
 						"environment", o.PoolEnvironment,
 						"pool", describePool(pool),
@@ -265,47 +265,52 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 			return o.finalizeAcquiredLease(ctx, logger, pool, leasedName)
 		}
 
+		poolFailureSummary := strings.Join(unavailablePools, ", ")
+		waitMessage := "No candidate pool yielded an immediate lease, waiting before retrying full pass"
+
 		if o.MaxWaitForLease > 0 {
 			currentTime := now()
 			if !currentTime.Before(deadline) {
 				return fmt.Errorf(
-					"all candidate pools for environment %q were exhausted for %s across %d full pass(es): %s",
+					"no candidate pool for environment %q yielded an immediate lease for %s across %d full pass(es): %s",
 					o.PoolEnvironment,
 					o.MaxWaitForLease,
 					pass,
-					strings.Join(exhaustedPools, ", "),
+					poolFailureSummary,
 				)
 			}
 
 			remainingWait := deadline.Sub(currentTime)
 			sleepDuration := min(o.LeaseWaitInterval, deadline.Sub(currentTime))
 			logger.Info(
-				"All candidate pools exhausted, waiting before retrying full pass",
+				waitMessage,
 				"pass", pass,
 				"environment", o.PoolEnvironment,
 				"candidatePoolCount", len(o.CandidatePools),
+				"candidatePoolFailures", poolFailureSummary,
 				"sleepDuration", sleepDuration,
 				"leaseWaitInterval", o.LeaseWaitInterval,
 				"remainingWait", remainingWait,
 				"maxWaitForLease", o.MaxWaitForLease,
 			)
 			if err := sleep(ctx, sleepDuration); err != nil {
-				return fmt.Errorf("waiting to retry exhausted candidate pools: %w", err)
+				return fmt.Errorf("waiting to retry candidate pool pass: %w", err)
 			}
 			continue
 		}
 
 		logger.Info(
-			"All candidate pools exhausted, waiting before retrying full pass",
+			waitMessage,
 			"pass", pass,
 			"environment", o.PoolEnvironment,
 			"candidatePoolCount", len(o.CandidatePools),
+			"candidatePoolFailures", poolFailureSummary,
 			"sleepDuration", o.LeaseWaitInterval,
 			"leaseWaitInterval", o.LeaseWaitInterval,
 			"maxWaitForLease", o.MaxWaitForLease,
 		)
 		if err := sleep(ctx, o.LeaseWaitInterval); err != nil {
-			return fmt.Errorf("waiting to retry exhausted candidate pools: %w", err)
+			return fmt.Errorf("waiting to retry candidate pool pass: %w", err)
 		}
 	}
 }

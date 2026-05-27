@@ -29,9 +29,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-const DefaultLeaseProxyTimeout = 2 * time.Minute
+const DefaultLeaseProxyTimeout = 30 * time.Second
 
-var ErrLeasePoolExhausted = errors.New("lease pool exhausted")
+var ErrLeasePoolUnavailableNow = errors.New("lease pool temporarily unavailable")
 
 var leaseProxyRequestBackoff = wait.Backoff{
 	Duration: 2 * time.Second,
@@ -49,21 +49,39 @@ type releaseLeaseRequest struct {
 	Names []string `json:"names"`
 }
 
-type LeasePoolExhaustedError struct {
+type LeasePoolUnavailableError struct {
 	ResourceType string
-	Message      string
+	Cause        error
 }
 
-func (e *LeasePoolExhaustedError) Error() string {
-	message := strings.TrimSpace(e.Message)
-	if message == "" {
-		message = ErrLeasePoolExhausted.Error()
+func (e *LeasePoolUnavailableError) Error() string {
+	if e.Cause == nil {
+		return fmt.Sprintf("failed to immediately acquire lease type %q: %s", e.ResourceType, ErrLeasePoolUnavailableNow.Error())
 	}
-	return fmt.Sprintf("failed to acquire lease type %q: %s", e.ResourceType, message)
+	return fmt.Sprintf("failed to immediately acquire lease type %q within lease-proxy timeout budget: %v", e.ResourceType, e.Cause)
 }
 
-func (e *LeasePoolExhaustedError) Is(target error) bool {
-	return target == ErrLeasePoolExhausted
+func (e *LeasePoolUnavailableError) Is(target error) bool {
+	return target == ErrLeasePoolUnavailableNow
+}
+
+func (e *LeasePoolUnavailableError) Unwrap() error {
+	return e.Cause
+}
+
+type retryableLeaseProxyError struct {
+	Cause error
+}
+
+func (e *retryableLeaseProxyError) Error() string {
+	if e.Cause == nil {
+		return "lease proxy request did not succeed before retry budget expired"
+	}
+	return e.Cause.Error()
+}
+
+func (e *retryableLeaseProxyError) Unwrap() error {
+	return e.Cause
 }
 
 func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string, timeout time.Duration) (string, error) {
@@ -85,12 +103,6 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 			if response.StatusCode >= 200 && response.StatusCode < 300 {
 				return true, nil
 			}
-			if isLeasePoolExhaustedResponse(response.StatusCode, responseBody) {
-				return false, &LeasePoolExhaustedError{
-					ResourceType: resourceType,
-					Message:      strings.TrimSpace(string(responseBody)),
-				}
-			}
 			if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500 {
 				return false, nil // retryable
 			}
@@ -98,6 +110,13 @@ func AcquireLease(ctx context.Context, leaseProxyServerURL, resourceType string,
 		},
 	)
 	if err != nil {
+		var retryableErr *retryableLeaseProxyError
+		if errors.As(err, &retryableErr) {
+			return "", &LeasePoolUnavailableError{
+				ResourceType: resourceType,
+				Cause:        retryableErr.Unwrap(),
+			}
+		}
 		return "", err
 	}
 	defer response.Body.Close()
@@ -148,36 +167,50 @@ func ReleaseLease(ctx context.Context, leaseProxyServerURL, name string, timeout
 }
 
 // doLeaseProxyRequestWithRetry executes an HTTP request with exponential
-// backoff. The classifyResponse callback inspects each response and signals
-// one of three outcomes:
+// backoff until it succeeds, returns a fatal response classification, the
+// parent context is canceled, or the provided timeout budget is exhausted.
+// The classifyResponse callback inspects each response and signals one of
+// three outcomes:
 //
 //   - success  (success=true,  fatal=nil)  → stop retrying, return the response
 //   - retry    (success=false, fatal=nil)  → wait and try again (transient: 429, 5xx, network errors)
 //   - fatal    (success=false, fatal=err)  → stop retrying, propagate the error immediately
 //
 // Network-level errors from requestFunc (connection refused, DNS failure, etc.)
-// are always treated as retryable. If all retry attempts are exhausted, the
-// last observed error is returned.
+// are always treated as retryable. If the retry budget is exhausted, the
+// helper returns the last observed retryable error wrapped in
+// retryableLeaseProxyError so callers can distinguish "did not succeed in
+// time" from fatal responses like type-not-found.
 func doLeaseProxyRequestWithRetry(
 	ctx context.Context,
 	timeout time.Duration,
 	requestFunc func(context.Context, *http.Client) (*http.Response, error),
 	classifyResponse func(*http.Response, []byte) (success bool, fatal error),
 ) (*http.Response, error) {
-	client := &http.Client{Timeout: timeout}
+	requestCtx := ctx
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		requestCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	client := &http.Client{}
 
 	var response *http.Response
 	var lastErr error
-	err := wait.ExponentialBackoffWithContext(ctx, leaseProxyRequestBackoff, func(ctx context.Context) (bool, error) {
-		currentResponse, err := requestFunc(ctx, client)
+	retryableFailure := false
+	err := wait.ExponentialBackoffWithContext(requestCtx, leaseProxyRequestBackoff, func(attemptCtx context.Context) (bool, error) {
+		currentResponse, err := requestFunc(attemptCtx, client)
 		if err != nil {
 			lastErr = err
+			retryableFailure = true
 			return false, nil // retry
 		}
 		responseBody, err := io.ReadAll(currentResponse.Body)
 		currentResponse.Body.Close()
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read lease proxy response body: %w", err)
+			retryableFailure = true
 			return false, nil // retry
 		}
 		currentResponse.Body = io.NopCloser(bytes.NewReader(responseBody))
@@ -185,18 +218,30 @@ func doLeaseProxyRequestWithRetry(
 		success, fatal := classifyResponse(currentResponse, responseBody)
 		if fatal != nil {
 			lastErr = fatal
+			retryableFailure = false
 			return false, fatal // stop immediately
 		}
 		if !success {
 			lastErr = fmt.Errorf("retryable status %s", currentResponse.Status)
+			retryableFailure = true
 			return false, nil // retry
 		}
 
 		response = currentResponse
 		lastErr = nil
+		retryableFailure = false
 		return true, nil // done
 	})
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if retryableFailure {
+			if lastErr == nil {
+				lastErr = err
+			}
+			return nil, &retryableLeaseProxyError{Cause: lastErr}
+		}
 		if lastErr != nil {
 			return nil, lastErr
 		}
@@ -204,42 +249,6 @@ func doLeaseProxyRequestWithRetry(
 	}
 
 	return response, nil
-}
-
-// isLeasePoolExhaustedResponse determines whether a proxy response indicates
-// that all resources of the requested type are currently leased (pool
-// exhaustion) as opposed to the resource type not existing at all, or some
-// unrelated server error.
-//
-// The ci-tools lease proxy (pkg/lease/proxy) already encodes the distinction
-// via HTTP status codes:
-//   - 404 → lease.ErrTypeNotFound ("resource type not found")
-//   - 500 → lease.ErrNotFound     ("resources not found") or other errors
-//
-// For 500 responses, we additionally check the body against the known error
-// strings produced by the Boskos ecosystem to avoid false positives from
-// unrelated 500 errors (e.g. "Failed to get lease client"). The strings
-// originate from:
-//   - Boskos client sentinel: "resources not found"          (sigs.k8s.io/boskos/client.ErrNotFound)
-//   - Boskos server ranch:    "no available resource <name>" (sigs.k8s.io/boskos/ranch.ResourceNotFound)
-func isLeasePoolExhaustedResponse(statusCode int, responseBody []byte) bool {
-	if statusCode == http.StatusNotFound {
-		return false
-	}
-	if statusCode < http.StatusInternalServerError {
-		return false
-	}
-
-	message := strings.ToLower(strings.TrimSpace(string(responseBody)))
-
-	if strings.Contains(message, "resources not found") {
-		return true
-	}
-	if strings.Contains(message, "no available resource") {
-		return true
-	}
-
-	return false
 }
 
 func leaseProxyResponseMessage(status string, responseBody []byte) string {
