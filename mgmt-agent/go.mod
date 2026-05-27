@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/mgmt-agent
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-HCP/internal v0.0.0-20260512110147-2543c657a16a
+	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.3.0
@@ -73,3 +73,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/Azure/ARO-HCP/internal => ../internal
