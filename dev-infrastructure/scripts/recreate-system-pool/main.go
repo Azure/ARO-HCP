@@ -929,6 +929,10 @@ func (c *clients) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
 // step 4/7 :: drain (client-go drain helper)
 // ---------------------------------------------------------------------------
 
+// drainPool cordons each node before inspecting/deleting pods. Cordon failure is fatal:
+// if new pods can still land on the node, the graceful-drain phase is not reliable.
+// Force=true matches the later authoritative nodepool deletion and lets drain remove
+// unmanaged pods instead of getting stuck before the pool delete.
 func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Duration) error {
 	nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 		LabelSelector: "agentpool=" + pool,
@@ -945,6 +949,7 @@ func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Durat
 	drainer := &drain.Helper{
 		Ctx:                 ctx,
 		Client:              c.kube,
+		Force:               true,
 		GracePeriodSeconds:  -1,
 		IgnoreAllDaemonSets: true,
 		DeleteEmptyDirData:  true,
@@ -956,7 +961,7 @@ func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Durat
 		name := n.Name
 		logf(">>> cordoning %s", name)
 		if err := drain.RunCordonOrUncordon(drainer, n.DeepCopy(), true); err != nil {
-			logf("WARN: cordon %s: %v (continuing)", name, err)
+			return fmt.Errorf("cordon %s: %w", name, err)
 		}
 		logf(">>> draining %s (timeout=%s)", name, timeout)
 		podList, errs := drainer.GetPodsForDeletion(name)
