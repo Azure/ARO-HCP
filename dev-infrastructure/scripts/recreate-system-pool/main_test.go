@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1262,6 +1263,357 @@ func TestEvalGuard4(t *testing.T) {
 			}
 			if !pass && reason == "" {
 				t.Errorf("non-pass result must have a reason")
+			}
+		})
+	}
+}
+
+// =============================================================================
+// runWith orchestration integration tests
+// =============================================================================
+
+type mockOrchestrator struct {
+	calls       []string
+	detectCount int
+
+	ensureClusterFn   func(ctx context.Context) (armcs.ManagedCluster, bool, error)
+	bootstrapKubeFn   func(ctx context.Context, mc armcs.ManagedCluster) error
+	detectFn          func(ctx context.Context, n int) (bool, string, error)
+	preflightChecksFn func(ctx context.Context) error
+	snapshotSystemFn  func(ctx context.Context) (*armcs.AgentPool, error)
+	maybeAbortLROFn   func(ctx context.Context) (bool, error)
+	addSystmpFn       func(ctx context.Context, live *armcs.AgentPool) error
+	drainPoolFn       func(ctx context.Context, pool string, timeout time.Duration) error
+	deletePoolFn      func(ctx context.Context, pool string) error
+	recreateSystemFn  func(ctx context.Context, live *armcs.AgentPool) error
+	reconcileTagPutFn func(ctx context.Context) error
+}
+
+func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
+
+func (m *mockOrchestrator) ensureCluster(ctx context.Context) (armcs.ManagedCluster, bool, error) {
+	m.record("ensureCluster")
+	if m.ensureClusterFn != nil {
+		return m.ensureClusterFn(ctx)
+	}
+	return armcs.ManagedCluster{}, true, nil
+}
+
+func (m *mockOrchestrator) bootstrapKube(ctx context.Context, mc armcs.ManagedCluster) error {
+	m.record("bootstrapKube")
+	if m.bootstrapKubeFn != nil {
+		return m.bootstrapKubeFn(ctx, mc)
+	}
+	return nil
+}
+
+func (m *mockOrchestrator) detect(ctx context.Context) (bool, string, error) {
+	m.detectCount++
+	m.record(fmt.Sprintf("detect:%d", m.detectCount))
+	if m.detectFn != nil {
+		return m.detectFn(ctx, m.detectCount)
+	}
+	return true, "", nil
+}
+
+func (m *mockOrchestrator) dumpPreflight(ctx context.Context) error {
+	m.record("dumpPreflight")
+	return nil
+}
+
+func (m *mockOrchestrator) dumpPostflight(ctx context.Context) error {
+	m.record("dumpPostflight")
+	return nil
+}
+
+func (m *mockOrchestrator) preflightChecks(ctx context.Context) error {
+	m.record("preflightChecks")
+	if m.preflightChecksFn != nil {
+		return m.preflightChecksFn(ctx)
+	}
+	return nil
+}
+
+func (m *mockOrchestrator) snapshotSystem(ctx context.Context) (*armcs.AgentPool, error) {
+	m.record("snapshotSystem")
+	if m.snapshotSystemFn != nil {
+		return m.snapshotSystemFn(ctx)
+	}
+	return &armcs.AgentPool{}, nil
+}
+
+func (m *mockOrchestrator) maybeAbortLRO(ctx context.Context) (bool, error) {
+	m.record("maybeAbortLRO")
+	if m.maybeAbortLROFn != nil {
+		return m.maybeAbortLROFn(ctx)
+	}
+	return true, nil
+}
+
+func (m *mockOrchestrator) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
+	m.record("addSystmp")
+	if m.addSystmpFn != nil {
+		return m.addSystmpFn(ctx, live)
+	}
+	return nil
+}
+
+func (m *mockOrchestrator) drainPool(ctx context.Context, pool string, timeout time.Duration) error {
+	m.record("drainPool:" + pool)
+	if m.drainPoolFn != nil {
+		return m.drainPoolFn(ctx, pool, timeout)
+	}
+	return nil
+}
+
+func (m *mockOrchestrator) deletePool(ctx context.Context, pool string) error {
+	m.record("deletePool:" + pool)
+	if m.deletePoolFn != nil {
+		return m.deletePoolFn(ctx, pool)
+	}
+	return nil
+}
+
+func (m *mockOrchestrator) recreateSystem(ctx context.Context, live *armcs.AgentPool) error {
+	m.record("recreateSystem")
+	if m.recreateSystemFn != nil {
+		return m.recreateSystemFn(ctx, live)
+	}
+	return nil
+}
+
+func (m *mockOrchestrator) reconcileTagPut(ctx context.Context) error {
+	m.record("reconcileTagPut")
+	if m.reconcileTagPutFn != nil {
+		return m.reconcileTagPutFn(ctx)
+	}
+	return nil
+}
+
+func TestRunWith(t *testing.T) {
+	dummyErr := errors.New("boom")
+
+	fullHappyPath := []string{
+		"ensureCluster", "dumpPreflight", "detect:1",
+		"bootstrapKube", "dumpPreflight", "preflightChecks",
+		"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+		"addSystmp",
+		"drainPool:system", "deletePool:system",
+		"recreateSystem",
+		"drainPool:systmp", "deletePool:systmp",
+		"reconcileTagPut", "dumpPostflight",
+	}
+
+	cases := []struct {
+		name      string
+		cfg       *config
+		setup     func(m *mockOrchestrator)
+		wantErr   string
+		wantCalls []string
+	}{
+		{
+			name: "greenfield_cluster_not_found",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.ensureClusterFn = func(context.Context) (armcs.ManagedCluster, bool, error) {
+					return armcs.ManagedCluster{}, false, nil
+				}
+			},
+			wantCalls: []string{"ensureCluster"},
+		},
+		{
+			name: "ensureCluster_error",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.ensureClusterFn = func(context.Context) (armcs.ManagedCluster, bool, error) {
+					return armcs.ManagedCluster{}, false, dummyErr
+				}
+			},
+			wantErr:   "ensure cluster:",
+			wantCalls: []string{"ensureCluster"},
+		},
+		{
+			name: "guards_do_not_fire",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "guard 1 FAIL", nil
+				}
+			},
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+		},
+		{
+			name: "detect_error",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "", dummyErr
+				}
+			},
+			wantErr:   "detection:",
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+		},
+		{
+			name:      "dry_run_exits_after_guards",
+			cfg:       &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+		},
+		{
+			name:      "cpVersion_empty_rejected",
+			cfg:       &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: ""},
+			wantErr:   "currentKubernetesVersion empty",
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+		},
+		{
+			name: "lro_too_young_exits",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.maybeAbortLROFn = func(context.Context) (bool, error) {
+					return false, nil
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"snapshotSystem", "maybeAbortLRO",
+			},
+		},
+		{
+			name: "guards_fail_after_lro_abort",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
+					if n == 1 {
+						return true, "", nil
+					}
+					return false, "guard 4 FAIL after LRO", nil
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"snapshotSystem", "maybeAbortLRO", "detect:2",
+			},
+		},
+		{
+			name:      "full_happy_path",
+			cfg:       &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			wantCalls: fullHappyPath,
+		},
+		{
+			name: "addSystmp_error",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.addSystmpFn = func(context.Context, *armcs.AgentPool) error { return dummyErr }
+			},
+			wantErr: "add systmp:",
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"addSystmp",
+			},
+		},
+		{
+			name: "drain_system_error",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.drainPoolFn = func(_ context.Context, pool string, _ time.Duration) error {
+					if pool == "system" {
+						return dummyErr
+					}
+					return nil
+				}
+			},
+			wantErr: "drain system:",
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"addSystmp", "drainPool:system",
+			},
+		},
+		{
+			name: "delete_system_error",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.deletePoolFn = func(_ context.Context, pool string) error {
+					if pool == "system" {
+						return dummyErr
+					}
+					return nil
+				}
+			},
+			wantErr: "delete system:",
+		},
+		{
+			name: "recreate_system_error",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.recreateSystemFn = func(context.Context, *armcs.AgentPool) error { return dummyErr }
+			},
+			wantErr: "recreate system:",
+		},
+		{
+			name: "systmp_drain_warns_but_continues",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.drainPoolFn = func(_ context.Context, pool string, _ time.Duration) error {
+					if pool == "systmp" {
+						return dummyErr
+					}
+					return nil
+				}
+			},
+			wantCalls: fullHappyPath,
+		},
+		{
+			name: "delete_systmp_error",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.deletePoolFn = func(_ context.Context, pool string) error {
+					if pool == "systmp" {
+						return dummyErr
+					}
+					return nil
+				}
+			},
+			wantErr: "delete systmp:",
+		},
+		{
+			name: "tag_reconcile_error",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.reconcileTagPutFn = func(context.Context) error { return dummyErr }
+			},
+			wantErr: "tag reconcile:",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &mockOrchestrator{}
+			if tc.setup != nil {
+				tc.setup(mock)
+			}
+			ctx := context.Background()
+			err := runWith(ctx, tc.cfg, mock)
+
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tc.wantErr)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tc.wantCalls != nil {
+				if !reflect.DeepEqual(mock.calls, tc.wantCalls) {
+					t.Errorf("calls mismatch:\n  got:  %v\n  want: %v", mock.calls, tc.wantCalls)
+				}
 			}
 		})
 	}

@@ -152,6 +152,22 @@ func main() {
 	}
 }
 
+type orchestrator interface {
+	ensureCluster(ctx context.Context) (armcs.ManagedCluster, bool, error)
+	bootstrapKube(ctx context.Context, mc armcs.ManagedCluster) error
+	detect(ctx context.Context) (bool, string, error)
+	dumpPreflight(ctx context.Context) error
+	dumpPostflight(ctx context.Context) error
+	preflightChecks(ctx context.Context) error
+	snapshotSystem(ctx context.Context) (*armcs.AgentPool, error)
+	maybeAbortLRO(ctx context.Context) (bool, error)
+	addSystmp(ctx context.Context, live *armcs.AgentPool) error
+	drainPool(ctx context.Context, pool string, timeout time.Duration) error
+	deletePool(ctx context.Context, pool string) error
+	recreateSystem(ctx context.Context, live *armcs.AgentPool) error
+	reconcileTagPut(ctx context.Context) error
+}
+
 func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), overallTimeoutMin*time.Minute)
 	defer cancel()
@@ -168,8 +184,12 @@ func run() error {
 		return fmt.Errorf("init azure clients: %w", err)
 	}
 
+	return runWith(ctx, cfg, clients)
+}
+
+func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	logBanner("CLUSTER EXISTENCE CHECK")
-	mc, exists, err := clients.ensureCluster(ctx)
+	mc, exists, err := orch.ensureCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("ensure cluster: %w", err)
 	}
@@ -180,12 +200,12 @@ func run() error {
 	logf("cluster found: provisioning fields nodeResourceGroup=%q currentKubernetesVersion=%q", cfg.nodeRG, cfg.cpVersion)
 
 	logBanner("PRE-FLIGHT ARM STATE")
-	if err := clients.dumpPreflight(ctx); err != nil {
+	if err := orch.dumpPreflight(ctx); err != nil {
 		logf("WARN: pre-flight dump partial: %v", err)
 	}
 
 	logBanner("DETECTION GUARDS")
-	act, reason, err := clients.detect(ctx)
+	act, reason, err := orch.detect(ctx)
 	if err != nil {
 		return fmt.Errorf("detection: %w", err)
 	}
@@ -204,26 +224,26 @@ func run() error {
 	}
 
 	logBanner("KUBECONFIG BOOTSTRAP")
-	if err := clients.bootstrapKube(ctx, mc); err != nil {
+	if err := orch.bootstrapKube(ctx, mc); err != nil {
 		return fmt.Errorf("bootstrap kube client: %w", err)
 	}
 
 	logBanner("PRE-ACTION STATE")
-	if err := clients.dumpPreflight(ctx); err != nil {
+	if err := orch.dumpPreflight(ctx); err != nil {
 		logf("WARN: pre-action dump partial: %v", err)
 	}
 
-	if err := clients.preflightChecks(ctx); err != nil {
+	if err := orch.preflightChecks(ctx); err != nil {
 		return err
 	}
 
 	logBanner("STEP 1 :: snapshot system pool")
-	if _, err := clients.snapshotSystem(ctx); err != nil {
+	if _, err := orch.snapshotSystem(ctx); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
 
 	logBanner("STEP 2 :: abort long-stuck cluster LRO if any")
-	proceed, err := clients.maybeAbortLRO(ctx)
+	proceed, err := orch.maybeAbortLRO(ctx)
 	if err != nil {
 		return fmt.Errorf("abort LRO: %w", err)
 	}
@@ -233,7 +253,7 @@ func run() error {
 	}
 
 	logBanner("STEP 2b :: re-check detection guards after LRO handling")
-	act, reason, err = clients.detect(ctx)
+	act, reason, err = orch.detect(ctx)
 	if err != nil {
 		return fmt.Errorf("post-LRO detection: %w", err)
 	}
@@ -242,46 +262,46 @@ func run() error {
 		return nil
 	}
 	logf("guards still pass after LRO handling")
-	live, err := clients.snapshotSystem(ctx)
+	live, err := orch.snapshotSystem(ctx)
 	if err != nil {
 		return fmt.Errorf("post-LRO snapshot: %w", err)
 	}
 
 	logBanner("STEP 3 :: add throwaway 'systmp' System pool")
-	if err := clients.addSystmp(ctx, live); err != nil {
+	if err := orch.addSystmp(ctx, live); err != nil {
 		return fmt.Errorf("add systmp: %w", err)
 	}
 
 	logBanner("STEP 4 :: cordon + drain existing system nodes")
-	if err := clients.drainPool(ctx, systemPoolName, 10*time.Minute); err != nil {
+	if err := orch.drainPool(ctx, systemPoolName, 10*time.Minute); err != nil {
 		return fmt.Errorf("drain system: %w", err)
 	}
 
 	logBanner("STEP 5 :: delete the broken 'system' pool")
-	if err := clients.deletePool(ctx, systemPoolName); err != nil {
+	if err := orch.deletePool(ctx, systemPoolName); err != nil {
 		return fmt.Errorf("delete system: %w", err)
 	}
 
 	logBanner("STEP 6 :: re-create 'system' via SDK CreateOrUpdate")
-	if err := clients.recreateSystem(ctx, live); err != nil {
+	if err := orch.recreateSystem(ctx, live); err != nil {
 		return fmt.Errorf("recreate system: %w", err)
 	}
 
 	logBanner("STEP 7 :: drain + delete throwaway 'systmp' pool")
-	if err := clients.drainPool(ctx, systmpPoolName, 5*time.Minute); err != nil {
+	if err := orch.drainPool(ctx, systmpPoolName, 5*time.Minute); err != nil {
 		logf("WARN: systmp drain returned: %v (continuing to delete)", err)
 	}
-	if err := clients.deletePool(ctx, systmpPoolName); err != nil {
+	if err := orch.deletePool(ctx, systmpPoolName); err != nil {
 		return fmt.Errorf("delete systmp: %w", err)
 	}
 
 	logBanner("STEP 8 :: no-op reconcile via tag update")
-	if err := clients.reconcileTagPut(ctx); err != nil {
+	if err := orch.reconcileTagPut(ctx); err != nil {
 		return fmt.Errorf("tag reconcile: %w", err)
 	}
 
 	logBanner("DONE")
-	if err := clients.dumpPostflight(ctx); err != nil {
+	if err := orch.dumpPostflight(ctx); err != nil {
 		logf("WARN: post-flight dump partial: %v", err)
 	}
 	return nil
