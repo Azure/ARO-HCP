@@ -649,7 +649,6 @@ mgmt:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
         sha: cd2d184c3beae9475a21230f489e7cd886f76de88de9d758c69f25542328c8dd
-      purgeWAL: false
       replicas: 2
       resources:
         limits:
@@ -975,7 +974,6 @@ svc:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
         sha: cd2d184c3beae9475a21230f489e7cd886f76de88de9d758c69f25542328c8dd
-      purgeWAL: false
       replicas: 2
       resources:
         limits:

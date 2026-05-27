@@ -97,19 +97,6 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
-  {{- if .Values.prometheusSpec.purgeWAL }}
-  initContainers:
-  - name: purge-wal
-    image: '{{ .Values.prometheusSpec.image.registry }}/{{ .Values.prometheusSpec.image.repository }}@sha256:{{ .Values.prometheusSpec.image.sha }}'
-    command: ["sh", "-c", "rm -rf /prometheus/wal && mkdir -p /prometheus/wal && echo 'WAL purged'"]
-    volumeMounts:
-    - name: prometheus-prometheus-db
-      mountPath: /prometheus
-    securityContext:
-      runAsNonRoot: true
-      runAsUser: 1000
-      runAsGroup: 2000
-  {{- end }}
   walCompression: true
   externalLabels:
     cluster: '{{ .Values.prometheusSpec.externalLabels.cluster }}'

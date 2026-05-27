@@ -91,7 +91,6 @@ prometheusSpec:
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
-  purgeWAL: {{ .svc.prometheus.prometheusSpec.purgeWAL }}
   resources:
     requests:
       cpu: {{ .svc.prometheus.prometheusSpec.resources.requests.cpu }}
