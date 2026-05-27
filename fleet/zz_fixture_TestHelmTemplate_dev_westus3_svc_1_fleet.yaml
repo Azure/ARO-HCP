@@ -100,10 +100,10 @@ spec:
             drop: ["ALL"]
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 200m
+            memory: 512Mi
           limits:
-            memory: 256Mi
+            memory: 1Gi
         env:
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
@@ -132,6 +132,24 @@ spec:
             port: healthz
           initialDelaySeconds: 5
           periodSeconds: 5
+---
+# Source: fleet/templates/acrpullbinding.yaml
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: fleet-pull-binding
+  namespace: 'fleet'
+spec:
+  acr:
+    environment: PublicCloud
+    server: 'arohcpsvcdev.azurecr.io'
+    scope: 'repository:fleet:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: 'fleet'
+      clientID: '__imagePullerMsiClientId__'
+      tenantID: '__imagePullerMsiTenantId__'
+  serviceAccountName: 'fleet'
 ---
 # Source: fleet/templates/allow-metrics.authorizationpolicy.yaml
 apiVersion: security.istio.io/v1

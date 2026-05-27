@@ -86,6 +86,17 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: msiClientId
+      imagePullerMsiClientId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiClientId
+      imagePullerMsiTenantId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiTenantId
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
     identityFrom:
       resourceGroup: global
       step: output

@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: fleet-controller
 spec:
-  replicas: 2
+  replicas: {{ .Values.deployment.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: fleet-controller
@@ -34,10 +34,10 @@ spec:
             drop: ["ALL"]
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: {{ .Values.deployment.resources.requests.cpu }}
+            memory: {{ .Values.deployment.resources.requests.memory }}
           limits:
-            memory: 256Mi
+            memory: {{ .Values.deployment.resources.limits.memory }}
         env:
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
