@@ -94,7 +94,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -102,14 +101,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	armcs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
+	mcclient "github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 )
 
 const (
@@ -124,21 +123,7 @@ const (
 	pollIntervalSec   = 30
 	overallTimeoutMin = 60
 
-	// aksAADServerAppID is the well-known Azure AD application ID of
-	// the AKS API server in the public cloud. The MSI fetches tokens
-	// scoped to this app to authenticate against kube-apiserver, which
-	// is how this binary (and child kubectl invocations) talk to the
-	// cluster without depending on `kubelogin` being installed in the
-	// EV2 runner image.
-	aksAADServerAppID = "6dae42f8-4368-4678-94ff-3960e28e3630"
-
-	// nrpKVSErrorCode is the ARM inner error code emitted by NRP when
-	// the per-VMSS KVS entity is corrupted (the AROSLSRE-880 /
-	// ICM 798003653 wedge signature). Activity-log
-	// properties.statusMessage on the Failed VMSS-write event carries
-	// `{"error":{"code":"NetworkingInternalOperationError",...}}`.
-	// Guard 2 requires this code so that other failure modes
-	// (quota, capacity, policy, image pull) cannot trip the threshold.
+	// Guard 1 requires this code so other failure modes cannot trip the threshold.
 	nrpKVSErrorCode = "NetworkingInternalOperationError"
 )
 
@@ -216,16 +201,9 @@ func run() error {
 	}
 
 	logBanner("KUBECONFIG BOOTSTRAP")
-	kubeconfigPath, err := clients.bootstrapKube(ctx, mc)
-	if err != nil {
+	if err := clients.bootstrapKube(ctx, mc); err != nil {
 		return fmt.Errorf("bootstrap kube client: %w", err)
 	}
-	defer func() {
-		if rerr := os.Remove(kubeconfigPath); rerr != nil && !os.IsNotExist(rerr) {
-			logf("WARN: failed to remove kubeconfig %s: %v", kubeconfigPath, rerr)
-		}
-	}()
-	logf("kubeconfig=%s", kubeconfigPath)
 
 	logBanner("PRE-ACTION STATE")
 	if err := clients.dumpPreflight(ctx); err != nil {
@@ -311,16 +289,20 @@ type config struct {
 // not call any external tools or APIs, which makes it safe to unit-test.
 func parseEnvConfig(env func(string) string) (*config, error) {
 	c := &config{
-		clusterName:   env("CLUSTER_NAME"),
-		resourceGroup: env("RESOURCE_GROUP"),
-		threshold:     defaultThreshold,
-		windowMin:     defaultWindowMin,
+		clusterName:    env("CLUSTER_NAME"),
+		resourceGroup:  env("RESOURCE_GROUP"),
+		subscriptionID: env("SUBSCRIPTION_ID"),
+		threshold:      defaultThreshold,
+		windowMin:      defaultWindowMin,
 	}
 	if c.clusterName == "" {
 		return nil, errors.New("CLUSTER_NAME is required")
 	}
 	if c.resourceGroup == "" {
 		return nil, errors.New("RESOURCE_GROUP is required")
+	}
+	if c.subscriptionID == "" {
+		return nil, errors.New("SUBSCRIPTION_ID is required")
 	}
 	if v := env("NRP_FAIL_THRESHOLD"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -366,11 +348,13 @@ func (c *config) logEnv() {
 // ---------------------------------------------------------------------------
 
 type clients struct {
-	cfg     *config
-	cred    azcore.TokenCredential
-	pools   *armcs.AgentPoolsClient
-	cluster *armcs.ManagedClustersClient
-	kube    kubernetes.Interface
+	cfg          *config
+	cred         azcore.TokenCredential
+	pools        *armcs.AgentPoolsClient
+	cluster      *armcs.ManagedClustersClient
+	activityLogs *armmonitor.ActivityLogsClient
+	tags         *armresources.TagsClient
+	kube         kubernetes.Interface
 }
 
 // newAzureClients sets up Azure SDK clients only. Kubernetes client is
@@ -391,11 +375,21 @@ func newAzureClients(cfg *config) (*clients, error) {
 	if err != nil {
 		return nil, fmt.Errorf("arm containerservice factory: %w", err)
 	}
+	activityLogs, err := armmonitor.NewActivityLogsClient(cfg.subscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("arm monitor activity logs client: %w", err)
+	}
+	tags, err := armresources.NewTagsClient(cfg.subscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("arm resources tags client: %w", err)
+	}
 	return &clients{
-		cfg:     cfg,
-		cred:    cred,
-		pools:   clientFactory.NewAgentPoolsClient(),
-		cluster: clientFactory.NewManagedClustersClient(),
+		cfg:          cfg,
+		cred:         cred,
+		pools:        clientFactory.NewAgentPoolsClient(),
+		cluster:      clientFactory.NewManagedClustersClient(),
+		activityLogs: activityLogs,
+		tags:         tags,
 	}, nil
 }
 
@@ -426,53 +420,24 @@ func (c *clients) ensureCluster(ctx context.Context) (armcs.ManagedCluster, bool
 	return mc, true, nil
 }
 
-// bootstrapKube fetches the AKS user kubeconfig via ARM
-// (ListClusterUserCredentials), extracts the API server URL and CA from
-// it, and writes a new kubeconfig that authenticates with a bearer
-// token from the MSI scoped to the AKS AAD server app. The resulting
-// kubeconfig works for both client-go (in this binary) and child
-// `kubectl` invocations without depending on `kubelogin` being
-// installed. The path is exported via KUBECONFIG so kubectl picks it up.
-func (c *clients) bootstrapKube(ctx context.Context, mc armcs.ManagedCluster) (string, error) {
-	credsResp, err := c.cluster.ListClusterUserCredentials(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
+// bootstrapKube builds a Kubernetes client using the shared sessiongate AKS
+// REST config helper. That helper injects an Azure token per request, relying
+// on the Azure credential's internal cache/refresh behavior, so long-running
+// runs don't depend on a single static bearer token.
+func (c *clients) bootstrapKube(ctx context.Context, mc armcs.ManagedCluster) error {
+	if mc.ID == nil || *mc.ID == "" {
+		return errors.New("cluster ARM ID empty; cannot bootstrap kube client")
+	}
+	restCfg, err := mcclient.GetAKSRESTConfig(ctx, *mc.ID, c.cred)
 	if err != nil {
-		return "", fmt.Errorf("ListClusterUserCredentials: %w", err)
-	}
-	if len(credsResp.Kubeconfigs) == 0 || credsResp.Kubeconfigs[0] == nil || credsResp.Kubeconfigs[0].Value == nil {
-		return "", errors.New("ListClusterUserCredentials returned no kubeconfig")
-	}
-	rawKubeconfig := credsResp.Kubeconfigs[0].Value
-
-	server, caData, err := extractAPIServerAndCA(rawKubeconfig)
-	if err != nil {
-		return "", fmt.Errorf("parse kubeconfig: %w", err)
-	}
-
-	tok, err := c.cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{aksAADServerAppID + "/.default"}})
-	if err != nil {
-		return "", fmt.Errorf("MSI token for AKS scope: %w", err)
-	}
-
-	kubeconfigPath := filepath.Join(os.TempDir(), fmt.Sprintf("recreate-system-pool-%d.kubeconfig", os.Getpid()))
-	cfg := kubeconfigWithBearerToken(c.cfg.clusterName, server, caData, tok.Token)
-	if err := clientcmd.WriteToFile(*cfg, kubeconfigPath); err != nil {
-		return "", fmt.Errorf("write kubeconfig: %w", err)
-	}
-	if err := os.Setenv("KUBECONFIG", kubeconfigPath); err != nil {
-		return kubeconfigPath, fmt.Errorf("set KUBECONFIG: %w", err)
-	}
-
-	restCfg := &rest.Config{
-		Host:            server,
-		BearerToken:     tok.Token,
-		TLSClientConfig: rest.TLSClientConfig{CAData: caData},
+		return fmt.Errorf("AKS REST config: %w", err)
 	}
 	kc, err := kubernetes.NewForConfig(restCfg)
 	if err != nil {
-		return kubeconfigPath, fmt.Errorf("kubernetes client: %w", err)
+		return fmt.Errorf("kubernetes client: %w", err)
 	}
 	c.kube = kc
-	return kubeconfigPath, nil
+	return nil
 }
 
 // isNotFoundErr reports whether err is an azcore HTTP 404 ResponseError
@@ -487,56 +452,6 @@ func isNotFoundErr(err error) bool {
 		return re.StatusCode == http.StatusNotFound
 	}
 	return false
-}
-
-// extractAPIServerAndCA parses an AKS-emitted kubeconfig blob and
-// returns the API server URL and CA bundle for its (single) cluster
-// entry. We deliberately ignore any auth info in the kubeconfig — the
-// caller substitutes a bearer token from the MSI.
-func extractAPIServerAndCA(raw []byte) (string, []byte, error) {
-	if len(raw) == 0 {
-		return "", nil, errors.New("empty kubeconfig")
-	}
-	apiCfg, err := clientcmd.Load(raw)
-	if err != nil {
-		return "", nil, err
-	}
-	if len(apiCfg.Clusters) == 0 {
-		return "", nil, errors.New("kubeconfig has no clusters")
-	}
-	for _, cl := range apiCfg.Clusters {
-		if cl == nil {
-			continue
-		}
-		if cl.Server == "" {
-			return "", nil, errors.New("kubeconfig cluster has empty server")
-		}
-		if len(cl.CertificateAuthorityData) == 0 {
-			return "", nil, errors.New("kubeconfig cluster has empty CA data")
-		}
-		return cl.Server, cl.CertificateAuthorityData, nil
-	}
-	return "", nil, errors.New("kubeconfig contained only nil clusters")
-}
-
-// kubeconfigWithBearerToken builds an in-memory kubeconfig that talks
-// to `server` with the given CA, authenticating via a static bearer
-// token. The context name matches the cluster name for clarity.
-func kubeconfigWithBearerToken(clusterName, server string, caData []byte, token string) *clientcmdapi.Config {
-	cfg := clientcmdapi.NewConfig()
-	cfg.Clusters[clusterName] = &clientcmdapi.Cluster{
-		Server:                   server,
-		CertificateAuthorityData: caData,
-	}
-	cfg.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
-		Token: token,
-	}
-	cfg.Contexts[clusterName] = &clientcmdapi.Context{
-		Cluster:  clusterName,
-		AuthInfo: clusterName,
-	}
-	cfg.CurrentContext = clusterName
-	return cfg
 }
 
 // ---------------------------------------------------------------------------
@@ -577,7 +492,7 @@ func (c *clients) dumpPostflight(ctx context.Context) error {
 		"--query", "{prov:provisioningState,power:powerState.code,cpVer:currentKubernetesVersion}",
 		"-o", "json")
 	logf("--- post-flight: residual NRP failures (informational) ---")
-	out, err := azJSON(ctx, "monitor", "activity-log", "list", "-g", c.cfg.nodeRG, "--offset", "10m")
+	out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, "10m")
 	if err == nil {
 		hits, parseErr := countNRPFailures(out, "")
 		if parseErr != nil {
@@ -757,7 +672,7 @@ func (c *clients) detect(ctx context.Context) (bool, string, error) {
 
 	// Guard 1: NRP retry loop on aks-system-* VMSS
 	logf("guard 1 :: checking activity log on %s for last %d min", c.cfg.nodeRG, c.cfg.windowMin)
-	out, err := azJSON(ctx, "monitor", "activity-log", "list", "-g", c.cfg.nodeRG, "--offset", fmt.Sprintf("%dm", c.cfg.windowMin))
+	out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", c.cfg.windowMin))
 	if err != nil {
 		return false, "", fmt.Errorf("guard 1 activity-log query failed: %w", err)
 	}
@@ -913,7 +828,7 @@ func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 	clusterID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s",
 		c.cfg.subscriptionID, c.cfg.resourceGroup, c.cfg.clusterName)
 	logf("cluster provisioningState=%s; locating latest managedClusters/write Started event in last %s", clusterState, lroLookupWindow)
-	out, err := azJSON(ctx, "monitor", "activity-log", "list", "-g", c.cfg.resourceGroup, "--offset", lroLookupWindow)
+	out, err := c.activityLogJSON(ctx, c.cfg.resourceGroup, lroLookupWindow)
 	if err != nil {
 		return false, fmt.Errorf("activity-log query for active cluster LRO: %w", err)
 	}
@@ -1120,9 +1035,15 @@ func (c *clients) reconcileTagPut(ctx context.Context) error {
 	ts := time.Now().UTC().Format(time.RFC3339Nano)
 	id := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s",
 		c.cfg.subscriptionID, c.cfg.resourceGroup, c.cfg.clusterName)
-	err := runCmd(ctx, "az", "resource", "update", "--ids", id,
-		"--latest-include-preview",
-		"--set", "tags.aroslsre-924-recreate="+ts)
+	operation := armresources.TagsPatchOperationMerge
+	_, err := c.tags.UpdateAtScope(ctx, id, armresources.TagsPatchResource{
+		Operation: &operation,
+		Properties: &armresources.Tags{
+			Tags: map[string]*string{
+				"aroslsre-924-recreate": &ts,
+			},
+		},
+	}, nil)
 	return err
 }
 
@@ -1177,6 +1098,83 @@ func isNodeReady(n *corev1.Node) bool {
 		}
 	}
 	return false
+}
+
+// activityLogJSON returns Activity Log events in the compact JSON shape used
+// by the pure parsing helpers and tests. Keeping this conversion boundary lets
+// detection use the Azure Monitor SDK while unit tests remain simple.
+func (c *clients) activityLogJSON(ctx context.Context, resourceGroup string, offset string) ([]byte, error) {
+	start, end, err := activityLogWindow(offset)
+	if err != nil {
+		return nil, err
+	}
+	filter := fmt.Sprintf("eventTimestamp ge '%s' and eventTimestamp le '%s' and resourceGroupName eq '%s'",
+		start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339), resourceGroup)
+	logf("querying activity logs: %s", filter)
+	pager := c.activityLogs.NewListPager(filter, nil)
+	var events []activityEvent
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range page.Value {
+			if e == nil {
+				continue
+			}
+			events = append(events, activityEventFromSDK(e))
+		}
+	}
+	return json.Marshal(events)
+}
+
+func activityLogWindow(offset string) (time.Time, time.Time, error) {
+	end := time.Now().UTC()
+	if offset == "" {
+		return time.Time{}, time.Time{}, errors.New("activity-log offset is required")
+	}
+	unit := offset[len(offset)-1]
+	value, err := strconv.Atoi(offset[:len(offset)-1])
+	if err != nil || value <= 0 {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid activity-log offset %q", offset)
+	}
+	var d time.Duration
+	switch unit {
+	case 'm':
+		d = time.Duration(value) * time.Minute
+	case 'h':
+		d = time.Duration(value) * time.Hour
+	case 'd':
+		d = time.Duration(value) * 24 * time.Hour
+	default:
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid activity-log offset unit %q in %q", string(unit), offset)
+	}
+	return end.Add(-d), end, nil
+}
+
+func activityEventFromSDK(e *armmonitor.EventData) activityEvent {
+	out := activityEvent{}
+	if e.Status != nil && e.Status.Value != nil {
+		out.Status.Value = *e.Status.Value
+	}
+	if e.OperationName != nil && e.OperationName.Value != nil {
+		out.OperationName.Value = *e.OperationName.Value
+	}
+	if e.ResourceID != nil {
+		out.ResourceID = *e.ResourceID
+	}
+	if e.CorrelationID != nil {
+		out.CorrelationID = *e.CorrelationID
+	}
+	if e.EventTimestamp != nil {
+		out.EventTime = e.EventTimestamp.UTC().Format(time.RFC3339)
+	}
+	if e.Properties != nil {
+		if msg := e.Properties["statusMessage"]; msg != nil {
+			out.Properties.StatusMessage = *msg
+		}
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -1326,22 +1324,6 @@ func runCmd(ctx context.Context, name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-func azJSON(ctx context.Context, args ...string) ([]byte, error) {
-	full := make([]string, 0, len(args)+2)
-	full = append(full, "-o", "json")
-	full = append(full, args...)
-	logf("$ az %s", strings.Join(full, " "))
-	cmd := exec.CommandContext(ctx, "az", full...)
-	out, err := cmd.Output()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("az %v failed: %w: %s", args, err, string(ee.Stderr))
-		}
-		return nil, err
-	}
-	return out, nil
 }
 
 // ---------------------------------------------------------------------------

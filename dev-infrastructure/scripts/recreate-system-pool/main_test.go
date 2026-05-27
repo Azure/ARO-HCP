@@ -15,7 +15,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,8 +42,9 @@ func envFromMap(m map[string]string) func(string) string {
 
 func TestParseEnvConfig_MinimalRequiredFields(t *testing.T) {
 	env := envFromMap(map[string]string{
-		"CLUSTER_NAME":   "int-uksouth-mgmt-1",
-		"RESOURCE_GROUP": "hcp-underlay-int-uksouth-mgmt-1",
+		"CLUSTER_NAME":    "int-uksouth-mgmt-1",
+		"RESOURCE_GROUP":  "hcp-underlay-int-uksouth-mgmt-1",
+		"SUBSCRIPTION_ID": "sub-0001",
 	})
 	c, err := parseEnvConfig(env)
 	if err != nil {
@@ -55,6 +55,9 @@ func TestParseEnvConfig_MinimalRequiredFields(t *testing.T) {
 	}
 	if c.resourceGroup != "hcp-underlay-int-uksouth-mgmt-1" {
 		t.Errorf("resourceGroup=%q", c.resourceGroup)
+	}
+	if c.subscriptionID != "sub-0001" {
+		t.Errorf("subscriptionID=%q", c.subscriptionID)
 	}
 	if c.threshold != defaultThreshold {
 		t.Errorf("threshold=%d want default %d", c.threshold, defaultThreshold)
@@ -83,10 +86,19 @@ func TestParseEnvConfig_MissingResourceGroup(t *testing.T) {
 	}
 }
 
+func TestParseEnvConfig_MissingSubscriptionID(t *testing.T) {
+	env := envFromMap(map[string]string{"CLUSTER_NAME": "c", "RESOURCE_GROUP": "rg"})
+	_, err := parseEnvConfig(env)
+	if err == nil || !strings.Contains(err.Error(), "SUBSCRIPTION_ID") {
+		t.Errorf("expected SUBSCRIPTION_ID error, got %v", err)
+	}
+}
+
 func TestParseEnvConfig_CustomThresholdAndWindow(t *testing.T) {
 	env := envFromMap(map[string]string{
 		"CLUSTER_NAME":        "c",
 		"RESOURCE_GROUP":      "rg",
+		"SUBSCRIPTION_ID":     "sub",
 		"NRP_FAIL_THRESHOLD":  "25",
 		"NRP_FAIL_WINDOW_MIN": "30",
 	})
@@ -113,6 +125,7 @@ func TestParseEnvConfig_InvalidThreshold(t *testing.T) {
 			env := envFromMap(map[string]string{
 				"CLUSTER_NAME":       "c",
 				"RESOURCE_GROUP":     "rg",
+				"SUBSCRIPTION_ID":    "sub",
 				"NRP_FAIL_THRESHOLD": tc.v,
 			})
 			if _, err := parseEnvConfig(env); err == nil {
@@ -136,6 +149,7 @@ func TestParseEnvConfig_InvalidWindow(t *testing.T) {
 			env := envFromMap(map[string]string{
 				"CLUSTER_NAME":        "c",
 				"RESOURCE_GROUP":      "rg",
+				"SUBSCRIPTION_ID":     "sub",
 				"NRP_FAIL_WINDOW_MIN": tc.v,
 			})
 			if _, err := parseEnvConfig(env); err == nil {
@@ -165,9 +179,10 @@ func TestParseEnvConfig_DryRunFlag(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.v, func(t *testing.T) {
 			env := envFromMap(map[string]string{
-				"CLUSTER_NAME":   "c",
-				"RESOURCE_GROUP": "rg",
-				"DRY_RUN":        tc.v,
+				"CLUSTER_NAME":    "c",
+				"RESOURCE_GROUP":  "rg",
+				"SUBSCRIPTION_ID": "sub",
+				"DRY_RUN":         tc.v,
 			})
 			c, err := parseEnvConfig(env)
 			if err != nil {
@@ -1170,134 +1185,6 @@ func TestIsNotFoundErr_AzcoreResponseOther(t *testing.T) {
 		re := &azcore.ResponseError{StatusCode: code}
 		if isNotFoundErr(re) {
 			t.Errorf("status %d must not be NotFound", code)
-		}
-	}
-}
-
-// =============================================================================
-// extractAPIServerAndCA
-// =============================================================================
-
-func encodedCA() string {
-	return base64.StdEncoding.EncodeToString([]byte("-----BEGIN CERTIFICATE-----\nMIIBfakecert\n-----END CERTIFICATE-----\n"))
-}
-
-func sampleKubeconfig(server, caB64 string) []byte {
-	return []byte(fmt.Sprintf(`apiVersion: v1
-kind: Config
-clusters:
-- name: testcluster
-  cluster:
-    server: %s
-    certificate-authority-data: %s
-users:
-- name: clusterUser_testcluster
-  user:
-    token: dummy-token-should-be-ignored
-contexts:
-- name: testcluster
-  context:
-    cluster: testcluster
-    user: clusterUser_testcluster
-current-context: testcluster
-`, server, caB64))
-}
-
-func TestExtractAPIServerAndCA_HappyPath(t *testing.T) {
-	server, ca, err := extractAPIServerAndCA(sampleKubeconfig("https://test.hcp.uksouth.azmk8s.io:443", encodedCA()))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if server != "https://test.hcp.uksouth.azmk8s.io:443" {
-		t.Errorf("server=%q want https://test.hcp.uksouth.azmk8s.io:443", server)
-	}
-	if !strings.Contains(string(ca), "BEGIN CERTIFICATE") {
-		t.Errorf("CA data not preserved: %q", string(ca))
-	}
-}
-
-func TestExtractAPIServerAndCA_Empty(t *testing.T) {
-	if _, _, err := extractAPIServerAndCA(nil); err == nil {
-		t.Error("nil input should error")
-	}
-	if _, _, err := extractAPIServerAndCA([]byte{}); err == nil {
-		t.Error("empty input should error")
-	}
-}
-
-func TestExtractAPIServerAndCA_InvalidYAML(t *testing.T) {
-	if _, _, err := extractAPIServerAndCA([]byte("not: a [valid kubeconfig")); err == nil {
-		t.Error("invalid yaml should error")
-	}
-}
-
-func TestExtractAPIServerAndCA_EmptyServer(t *testing.T) {
-	cfg := sampleKubeconfig("", encodedCA())
-	if _, _, err := extractAPIServerAndCA(cfg); err == nil {
-		t.Error("empty server should error")
-	}
-}
-
-func TestExtractAPIServerAndCA_EmptyCA(t *testing.T) {
-	cfg := sampleKubeconfig("https://x", "")
-	if _, _, err := extractAPIServerAndCA(cfg); err == nil {
-		t.Error("empty CA should error")
-	}
-}
-
-func TestExtractAPIServerAndCA_NoClusters(t *testing.T) {
-	cfg := []byte("apiVersion: v1\nkind: Config\nclusters: []\nusers: []\ncontexts: []\n")
-	if _, _, err := extractAPIServerAndCA(cfg); err == nil {
-		t.Error("no clusters should error")
-	}
-}
-
-// =============================================================================
-// kubeconfigWithBearerToken
-// =============================================================================
-
-func TestKubeconfigWithBearerToken_AllFields(t *testing.T) {
-	cfg := kubeconfigWithBearerToken("mycluster", "https://api.example", []byte("CADATA"), "BEARER-XYZ")
-	if cfg.CurrentContext != "mycluster" {
-		t.Errorf("CurrentContext=%q", cfg.CurrentContext)
-	}
-	cl, ok := cfg.Clusters["mycluster"]
-	if !ok || cl == nil {
-		t.Fatal("cluster entry missing")
-	}
-	if cl.Server != "https://api.example" {
-		t.Errorf("Server=%q", cl.Server)
-	}
-	if string(cl.CertificateAuthorityData) != "CADATA" {
-		t.Errorf("CA data not preserved")
-	}
-	auth, ok := cfg.AuthInfos["mycluster"]
-	if !ok || auth == nil {
-		t.Fatal("auth entry missing")
-	}
-	if auth.Token != "BEARER-XYZ" {
-		t.Errorf("Token=%q", auth.Token)
-	}
-	ctxEntry, ok := cfg.Contexts["mycluster"]
-	if !ok || ctxEntry == nil {
-		t.Fatal("context entry missing")
-	}
-	if ctxEntry.Cluster != "mycluster" || ctxEntry.AuthInfo != "mycluster" {
-		t.Errorf("context wires: cluster=%q auth=%q", ctxEntry.Cluster, ctxEntry.AuthInfo)
-	}
-}
-
-func TestKubeconfigWithBearerToken_NoExecPluginsRequired(t *testing.T) {
-	// Critical: the generated kubeconfig must NOT contain any exec
-	// auth provider or external dependency. Other Shell steps in EV2
-	// would fail if our kubeconfig required kubelogin/etc.
-	cfg := kubeconfigWithBearerToken("c", "https://x", []byte("ca"), "tok")
-	for name, ai := range cfg.AuthInfos {
-		if ai.Exec != nil {
-			t.Errorf("AuthInfo %q has Exec plugin (forbidden)", name)
-		}
-		if ai.AuthProvider != nil {
-			t.Errorf("AuthInfo %q has AuthProvider (forbidden)", name)
 		}
 	}
 }
