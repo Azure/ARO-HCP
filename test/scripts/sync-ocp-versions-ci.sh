@@ -2,6 +2,7 @@
 # CI/CD script to synchronize OpenShift versions for E2E tests
 # This script fetches the version once and exports it for both control plane and node pools
 # Designed for use in CI environments (Prow, GitHub Actions, etc.)
+# Compatible with Linux and macOS (automatically detects available sorting methods)
 
 # Detect if script is being sourced or executed
 # When sourced, preserve parent shell options and use return instead of exit
@@ -9,12 +10,45 @@ is_sourced() {
     [[ "${BASH_SOURCE[0]}" != "$0" ]]
 }
 
-# Preserve shell options if sourced
+# Preserve shell options if sourced and set up restoration trap
 if is_sourced; then
     OLD_SHELL_OPTS=$(set +o)
+    # Trap to restore shell options on exit/return, even on error
+    trap 'eval "$OLD_SHELL_OPTS"' RETURN ERR EXIT
 fi
 
 set -euo pipefail
+
+# Portable version sorting function
+# Works on both Linux (GNU sort) and macOS (BSD sort)
+sort_versions() {
+    # Try sort -V (GNU sort, available on Linux and via coreutils on macOS)
+    if sort -V /dev/null &>/dev/null 2>&1; then
+        sort -V
+    # Try gsort -V (GNU sort via Homebrew coreutils on macOS)
+    elif command -v gsort &>/dev/null && gsort -V /dev/null &>/dev/null 2>&1; then
+        gsort -V
+    # Fallback: use Python for semantic version sorting
+    elif command -v python3 &>/dev/null; then
+        python3 -c '
+import sys
+from packaging import version
+versions = [line.strip() for line in sys.stdin if line.strip()]
+try:
+    sorted_versions = sorted(versions, key=lambda v: version.parse(v))
+    for v in sorted_versions:
+        print(v)
+except:
+    # Fallback to basic string sort if packaging module not available
+    for v in sorted(versions):
+        print(v)
+'
+    else
+        # Last resort: basic alphanumeric sort (not semver-aware, but better than nothing)
+        echo "WARNING: No proper version sorting available. Install GNU coreutils or Python with packaging module for accurate results." >&2
+        sort
+    fi
+}
 
 main() {
     # Configuration
@@ -77,7 +111,7 @@ main() {
         return 1
     fi
 
-    VERSION=$(echo "$GRAPH_JSON" | jq -r '.nodes[].version' | sort -V | tail -1)
+    VERSION=$(echo "$GRAPH_JSON" | jq -r '.nodes[].version' | sort_versions | tail -1)
 
     if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
         echo "ERROR: No version found for channel ${CHANNEL_GROUP}-${VERSION_MINOR}" >&2

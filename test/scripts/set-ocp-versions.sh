@@ -1,15 +1,18 @@
 #!/bin/bash
 # Script to set synchronized OpenShift versions for E2E tests
 # This ensures control plane and node pool use the same version
+# Compatible with Linux and macOS (automatically detects available sorting methods)
 
 # Detect if script is being sourced or executed
 # When sourced, preserve parent shell options to avoid mutating caller's environment
 (return 0 2>/dev/null) && SOURCED=1 || SOURCED=0
 
-# Preserve shell options if sourced
+# Preserve shell options if sourced and set up restoration trap
 if [ "$SOURCED" = "1" ]; then
     # Save current shell options
     OLD_SHELL_OPTS=$(set +o)
+    # Trap to restore shell options on exit/return, even on error
+    trap 'eval "$OLD_SHELL_OPTS"' RETURN ERR EXIT
 fi
 
 set -euo pipefail
@@ -38,6 +41,37 @@ echo ""
 # Resolve the latest version for the channel
 echo "Fetching latest version from Cincinnati..."
 
+# Portable version sorting function
+# Works on both Linux (GNU sort) and macOS (BSD sort)
+sort_versions() {
+    # Try sort -V (GNU sort, available on Linux and via coreutils on macOS)
+    if sort -V /dev/null &>/dev/null 2>&1; then
+        sort -V
+    # Try gsort -V (GNU sort via Homebrew coreutils on macOS)
+    elif command -v gsort &>/dev/null && gsort -V /dev/null &>/dev/null 2>&1; then
+        gsort -V
+    # Fallback: use Python for semantic version sorting
+    elif command -v python3 &>/dev/null; then
+        python3 -c '
+import sys
+from packaging import version
+versions = [line.strip() for line in sys.stdin if line.strip()]
+try:
+    sorted_versions = sorted(versions, key=lambda v: version.parse(v))
+    for v in sorted_versions:
+        print(v)
+except:
+    # Fallback to basic string sort if packaging module not available
+    for v in sorted(versions):
+        print(v)
+'
+    else
+        # Last resort: basic alphanumeric sort (not semver-aware, but better than nothing)
+        echo "WARNING: No proper version sorting available. Install GNU coreutils or Python with packaging module for accurate results." >&2
+        sort
+    fi
+}
+
 # Function to get latest version (simplified - you may want to use the Go helper)
 get_latest_version() {
     local channel="$1"
@@ -52,7 +86,7 @@ get_latest_version() {
         return 1
     fi
 
-    local version=$(curl --silent --show-error --fail --location --retry 3 --retry-delay 2 --retry-connrefused --max-time 30 "$graph_url" | jq -r '.nodes[].version' | sort -V | tail -1)
+    local version=$(curl --silent --show-error --fail --location --retry 3 --retry-delay 2 --retry-connrefused --max-time 30 "$graph_url" | jq -r '.nodes[].version' | sort_versions | tail -1)
 
     if [ -z "$version" ]; then
         echo "ERROR: No version found for channel $channel-$minor" >&2
@@ -63,7 +97,11 @@ get_latest_version() {
 }
 
 # Get the version
-VERSION=$(get_latest_version "$CHANNEL_GROUP" "$VERSION_MINOR")
+# Note: We capture both the output and the exit status to handle errors properly
+if ! VERSION=$(get_latest_version "$CHANNEL_GROUP" "$VERSION_MINOR"); then
+    echo "ERROR: Failed to fetch version from Cincinnati" >&2
+    script_exit 1
+fi
 
 if [ -z "$VERSION" ]; then
     echo "ERROR: Failed to resolve version" >&2
