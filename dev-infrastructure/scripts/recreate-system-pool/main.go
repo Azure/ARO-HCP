@@ -803,14 +803,6 @@ func agentPoolForCreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPo
 	return &out, nil
 }
 
-func sanitizeForRecreate(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPool, error) {
-	out, err := agentPoolForCreate(live, cpVersion)
-	if err != nil {
-		return nil, fmt.Errorf("sanitizeForRecreate: %w", err)
-	}
-	return out, nil
-}
-
 // ---------------------------------------------------------------------------
 // step 2 :: maybe abort LRO
 // ---------------------------------------------------------------------------
@@ -909,10 +901,6 @@ func buildSystmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.Agent
 	body.Properties.MaxCount = nil
 	body.Properties.EnableAutoScaling = nil
 	body.Properties.NodeTaints = []*string{ptr("CriticalAddonsOnly=true:NoSchedule")}
-	if body.Properties.NodeLabels == nil {
-		body.Properties.NodeLabels = map[string]*string{}
-	}
-	body.Properties.NodeLabels["aro-hcp.azure.com/role"] = ptr("system")
 	if body.Properties.Tags == nil {
 		body.Properties.Tags = map[string]*string{}
 	}
@@ -1013,9 +1001,9 @@ func (c *clients) deletePool(ctx context.Context, pool string) error {
 // ---------------------------------------------------------------------------
 
 func (c *clients) recreateSystem(ctx context.Context, live *armcs.AgentPool) error {
-	body, err := sanitizeForRecreate(live, c.cfg.cpVersion)
+	body, err := agentPoolForCreate(live, c.cfg.cpVersion)
 	if err != nil {
-		return fmt.Errorf("sanitize: %w", err)
+		return fmt.Errorf("agent pool clone: %w", err)
 	}
 	if b, err := json.MarshalIndent(body, "", "  "); err == nil {
 		logf("--- sanitized PUT body ---\n%s", string(b))

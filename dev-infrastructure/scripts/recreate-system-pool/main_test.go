@@ -423,7 +423,7 @@ func TestEvalGuard3_ExtractsSystemProvState(t *testing.T) {
 }
 
 // =============================================================================
-// sanitizeForRecreate
+// agentPoolForCreate
 // =============================================================================
 
 func mkLiveSystemPool() *armcs.AgentPool {
@@ -481,15 +481,15 @@ func mkLiveSystemPool() *armcs.AgentPool {
 	}
 }
 
-func TestSanitizeForRecreate_NilInput(t *testing.T) {
-	if _, err := sanitizeForRecreate(nil, "1.35.4"); err == nil {
+func TestAgentPoolForCreate_NilInput(t *testing.T) {
+	if _, err := agentPoolForCreate(nil, "1.35.4"); err == nil {
 		t.Fatal("expected error for nil input")
 	}
 }
 
-func TestSanitizeForRecreate_StripsTopLevelReadOnly(t *testing.T) {
+func TestAgentPoolForCreate_StripsTopLevelReadOnly(t *testing.T) {
 	live := mkLiveSystemPool()
-	out, err := sanitizeForRecreate(live, "1.35.4")
+	out, err := agentPoolForCreate(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -504,9 +504,9 @@ func TestSanitizeForRecreate_StripsTopLevelReadOnly(t *testing.T) {
 	}
 }
 
-func TestSanitizeForRecreate_StripsPropertyReadOnly(t *testing.T) {
+func TestAgentPoolForCreate_StripsPropertyReadOnly(t *testing.T) {
 	live := mkLiveSystemPool()
-	out, _ := sanitizeForRecreate(live, "1.35.4")
+	out, _ := agentPoolForCreate(live, "1.35.4")
 	p := out.Properties
 	if p.ProvisioningState != nil {
 		t.Errorf("ProvisioningState not stripped")
@@ -528,9 +528,9 @@ func TestSanitizeForRecreate_StripsPropertyReadOnly(t *testing.T) {
 	}
 }
 
-func TestSanitizeForRecreate_PreservesWriteableFields(t *testing.T) {
+func TestAgentPoolForCreate_PreservesWriteableFields(t *testing.T) {
 	live := mkLiveSystemPool()
-	out, _ := sanitizeForRecreate(live, "1.35.4")
+	out, _ := agentPoolForCreate(live, "1.35.4")
 	p := out.Properties
 	if p.VMSize == nil || *p.VMSize != "Standard_E8ds_v5" {
 		t.Errorf("VMSize not preserved: %v", p.VMSize)
@@ -564,17 +564,17 @@ func TestSanitizeForRecreate_PreservesWriteableFields(t *testing.T) {
 	}
 }
 
-func TestSanitizeForRecreate_OverridesOrchestratorVersion(t *testing.T) {
+func TestAgentPoolForCreate_OverridesOrchestratorVersion(t *testing.T) {
 	live := mkLiveSystemPool()
-	out, _ := sanitizeForRecreate(live, "1.36.2")
+	out, _ := agentPoolForCreate(live, "1.36.2")
 	if out.Properties.OrchestratorVersion == nil || *out.Properties.OrchestratorVersion != "1.36.2" {
 		t.Errorf("OrchestratorVersion=%v want 1.36.2", out.Properties.OrchestratorVersion)
 	}
 }
 
-func TestSanitizeForRecreate_StripsAKSManagedTags(t *testing.T) {
+func TestAgentPoolForCreate_StripsAKSManagedTags(t *testing.T) {
 	live := mkLiveSystemPool()
-	out, _ := sanitizeForRecreate(live, "1.35.4")
+	out, _ := agentPoolForCreate(live, "1.35.4")
 	tags := out.Properties.Tags
 	if _, ok := tags["aks-managed-foo"]; ok {
 		t.Errorf("aks-managed-foo not stripped")
@@ -587,11 +587,11 @@ func TestSanitizeForRecreate_StripsAKSManagedTags(t *testing.T) {
 	}
 }
 
-func TestSanitizeForRecreate_DoesNotMutateInput(t *testing.T) {
+func TestAgentPoolForCreate_DoesNotMutateInput(t *testing.T) {
 	live := mkLiveSystemPool()
 	beforeRaw, _ := json.Marshal(live)
 
-	_, err := sanitizeForRecreate(live, "1.99.99")
+	_, err := agentPoolForCreate(live, "1.99.99")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -643,10 +643,10 @@ func TestIsActiveClusterState(t *testing.T) {
 	}
 }
 
-func TestSanitizeForRecreate_NilTagsOK(t *testing.T) {
+func TestAgentPoolForCreate_NilTagsOK(t *testing.T) {
 	live := mkLiveSystemPool()
 	live.Properties.Tags = nil
-	out, err := sanitizeForRecreate(live, "1.35.4")
+	out, err := agentPoolForCreate(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -655,9 +655,9 @@ func TestSanitizeForRecreate_NilTagsOK(t *testing.T) {
 	}
 }
 
-func TestSanitizeForRecreate_NilProperties(t *testing.T) {
+func TestAgentPoolForCreate_NilProperties(t *testing.T) {
 	live := &armcs.AgentPool{Name: ptr("system")}
-	_, err := sanitizeForRecreate(live, "1.35.4")
+	_, err := agentPoolForCreate(live, "1.35.4")
 	if err == nil {
 		t.Fatal("expected error when Properties is nil")
 	}
