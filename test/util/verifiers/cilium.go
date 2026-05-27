@@ -185,7 +185,15 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 		}
 	}()
 
-	// Deploy all YAML files from the connectivity check directory
+	// Deploy all YAML files from the connectivity check directory.
+	// Several connectivity check deployments use requiredDuringScheduling
+	// podAntiAffinity against the echo-b label to enforce cross-node
+	// placement. Because this constraint is bidirectional, the scheduler
+	// also blocks echo-b from landing on a node that already hosts one of
+	// those anti-affinity pods. When all deployments are created at once,
+	// a scheduling race can prevent echo-b from ever being placed.
+	// To avoid this, we deploy echo-a and echo-b first and wait for their
+	// pods to be scheduled before creating the remaining resources.
 	expectedPodCount := 0
 	checkDir := fmt.Sprintf("artifacts/cilium-connectivity-check-%s", v.ciliumVersion)
 	entries, err := fs.ReadDir(staticFiles, checkDir)
@@ -193,11 +201,10 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 		return fmt.Errorf("failed to read connectivity check artifacts directory: %w", err)
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-			continue
-		}
+	echoDeploymentNames := map[string]bool{"echo-a": true, "echo-b": true}
+	echoDeploymentsCreated := 0
 
+	createResource := func(entry fs.DirEntry) error {
 		filePath := filepath.Join(checkDir, entry.Name())
 		deploymentYAML, err := staticFiles.ReadFile(filePath)
 		if err != nil {
@@ -213,12 +220,16 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 		}
 		if resource.GetKind() == "Deployment" {
 			replicas := int64(1)
-			if spec, ok := resource.Object["spec"].(map[string]interface{}); ok {
+			if spec, ok := resource.Object["spec"].(map[string]any); ok {
 				if r, ok := spec["replicas"].(int64); ok {
 					replicas = r
 				}
 			}
 			expectedPodCount += int(replicas)
+
+			if echoDeploymentNames[resource.GetName()] {
+				echoDeploymentsCreated++
+			}
 		}
 
 		logger.Info("created resource",
@@ -227,7 +238,57 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 			"name", resource.GetName(),
 			"namespace", resource.GetNamespace(),
 		)
+		return nil
+	}
 
+	// Phase 1: create resources up to and including both echo deployments.
+	phase2Start := 0
+	for i, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+		if err := createResource(entry); err != nil {
+			return err
+		}
+		if echoDeploymentsCreated >= len(echoDeploymentNames) {
+			phase2Start = i + 1
+			break
+		}
+	}
+
+	// Wait for echo-a and echo-b pods to be assigned to nodes before
+	// creating resources with anti-affinity rules against them.
+	if echoDeploymentsCreated >= len(echoDeploymentNames) {
+		logger.Info("waiting for echo-a and echo-b pods to be scheduled")
+		waitErr := wait.PollUntilContextTimeout(ctx, 2*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+			pods, listErr := kubeClient.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{
+				LabelSelector: "name in (echo-a, echo-b)",
+			})
+			if listErr != nil {
+				return false, nil
+			}
+			scheduled := 0
+			for _, pod := range pods.Items {
+				if pod.Spec.NodeName != "" {
+					scheduled++
+				}
+			}
+			return scheduled >= 2, nil
+		})
+		if waitErr != nil {
+			return fmt.Errorf("echo-a/echo-b pods were not scheduled in time: %w", waitErr)
+		}
+		logger.Info("echo-a and echo-b pods are scheduled, deploying remaining resources")
+	}
+
+	// Phase 2: create remaining resources.
+	for _, entry := range entries[phase2Start:] {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+		if err := createResource(entry); err != nil {
+			return err
+		}
 	}
 
 	// Wait for all test pods to be running and ready. Any unhealthy pod
