@@ -914,16 +914,20 @@ func TestCountNRPFailures_OnlyFailedCounted(t *testing.T) {
 	}
 }
 
-func TestCountNRPFailures_FiltersByVMSSOperation(t *testing.T) {
+func TestCountNRPFailures_FiltersByVMSSWriteOperation(t *testing.T) {
 	events := []map[string]any{
 		mkActivityEvent("Failed", "Microsoft.Network/networkInterfaces/write",
 			"/subscriptions/x/.../networkInterfaces/foo"),
+		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/delete",
+			"/subscriptions/x/.../virtualMachineScaleSets/aks-system-1"),
+		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/extensions/write",
+			"/subscriptions/x/.../virtualMachineScaleSets/aks-system-1/extensions/foo"),
 		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/write",
 			"/subscriptions/x/.../virtualMachineScaleSets/aks-system-1"),
 	}
 	got := mustCountNRPFailures(t, mustMarshal(t, events), "aks-system-")
 	if got != 1 {
-		t.Errorf("got %d want 1 (only VMSS-write failed)", got)
+		t.Errorf("got %d want 1 (only exact VMSS write failed)", got)
 	}
 }
 
@@ -1021,6 +1025,8 @@ func TestNRPResourceIDs_DedupAndOrder(t *testing.T) {
 		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/write", "vmss-A"),
 		mkActivityEvent("Succeeded", "Microsoft.Compute/virtualMachineScaleSets/write", "vmss-C"),
 		mkActivityEvent("Failed", "Microsoft.Network/networkInterfaces/write", "nic-D"),
+		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/delete", "vmss-E"),
+		mkActivityEvent("Failed", "Microsoft.Compute/virtualMachineScaleSets/extensions/write", "vmss-F"),
 	}
 	got := mustNRPResourceIDs(t, mustMarshal(t, events))
 	want := []string{"vmss-A", "vmss-B"}

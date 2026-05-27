@@ -127,7 +127,8 @@ const (
 	overallTimeoutMin = 60
 
 	// Guard 1 requires this code so other failure modes cannot trip the threshold.
-	nrpKVSErrorCode = "NetworkingInternalOperationError"
+	nrpKVSErrorCode    = "NetworkingInternalOperationError"
+	vmssWriteOperation = "Microsoft.Compute/virtualMachineScaleSets/write"
 )
 
 func main() {
@@ -1260,6 +1261,10 @@ func hasNRPKVSSignature(e activityEvent) bool {
 	return body.Error.Code == nrpKVSErrorCode
 }
 
+func isVMSSWriteOperation(operation string) bool {
+	return strings.EqualFold(strings.TrimSpace(operation), vmssWriteOperation)
+}
+
 func countNRPFailures(raw []byte, vmssPrefix string) (int, error) {
 	events, err := parseActivityEvents(raw)
 	if err != nil {
@@ -1270,7 +1275,7 @@ func countNRPFailures(raw []byte, vmssPrefix string) (int, error) {
 		if e.Status.Value != "Failed" {
 			continue
 		}
-		if !strings.Contains(strings.ToLower(e.OperationName.Value), "virtualmachinescalesets") {
+		if !isVMSSWriteOperation(e.OperationName.Value) {
 			continue
 		}
 		if !hasNRPKVSSignature(e) {
@@ -1298,7 +1303,7 @@ func nrpResourceIDs(raw []byte) ([]string, error) {
 		if e.Status.Value != "Failed" {
 			continue
 		}
-		if !strings.Contains(strings.ToLower(e.OperationName.Value), "virtualmachinescalesets") {
+		if !isVMSSWriteOperation(e.OperationName.Value) {
 			continue
 		}
 		if !hasNRPKVSSignature(e) {
