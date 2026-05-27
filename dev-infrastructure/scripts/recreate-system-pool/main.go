@@ -77,7 +77,7 @@
 //      latest LRO is younger than 30 min, we no-op exit 0 instead of
 //      racing a potentially-healthy in-progress operation.
 //   3. Add throwaway `systmp` System pool (same vmSize + taint + label).
-//   4. Cordon + drain existing system nodes (kubectl drain).
+//   4. Cordon + drain existing system nodes (client-go drain helper).
 //   5. Delete the broken `system` pool.
 //   6. Re-create `system` via SDK CreateOrUpdate with the sanitized
 //      AgentPool struct from the snapshot.
@@ -87,6 +87,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -102,6 +103,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/kubectl/pkg/drain"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -963,7 +965,7 @@ func (c *clients) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
 }
 
 // ---------------------------------------------------------------------------
-// step 4/7 :: drain (shell out to kubectl)
+// step 4/7 :: drain (client-go drain helper)
 // ---------------------------------------------------------------------------
 
 func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Duration) error {
@@ -977,20 +979,42 @@ func (c *clients) drainPool(ctx context.Context, pool string, timeout time.Durat
 		logf("no nodes to drain in pool %s", pool)
 		return nil
 	}
-	timeoutStr := fmt.Sprintf("%ds", int(timeout.Seconds()))
+
+	var out, errOut bytes.Buffer
+	drainer := &drain.Helper{
+		Ctx:                 ctx,
+		Client:              c.kube,
+		GracePeriodSeconds:  -1,
+		IgnoreAllDaemonSets: true,
+		DeleteEmptyDirData:  true,
+		Timeout:             timeout,
+		Out:                 &out,
+		ErrOut:              &errOut,
+	}
 	for _, n := range nodes.Items {
 		name := n.Name
 		logf(">>> cordoning %s", name)
-		if err := runCmd(ctx, "kubectl", "cordon", name); err != nil {
+		if err := drain.RunCordonOrUncordon(drainer, n.DeepCopy(), true); err != nil {
 			logf("WARN: cordon %s: %v (continuing)", name, err)
 		}
-		logf(">>> draining %s (timeout=%s)", name, timeoutStr)
-		if err := runCmd(ctx, "kubectl", "drain", name,
-			"--ignore-daemonsets", "--delete-emptydir-data", "--timeout", timeoutStr); err != nil {
+		logf(">>> draining %s (timeout=%s)", name, timeout)
+		podList, errs := drainer.GetPodsForDeletion(name)
+		for _, err := range errs {
+			logf("WARN: inspect pods for %s: %v (continuing)", name, err)
+		}
+		if podList == nil {
+			continue
+		}
+		if warnings := podList.Warnings(); warnings != "" {
+			logf("WARN: drain warnings for %s: %s", name, warnings)
+		}
+		if err := drainer.DeleteOrEvictPods(podList.Pods()); err != nil {
 			// Don't fail the whole script on drain hiccups; delete-pool will force-evict.
 			logf("WARN: drain %s returned: %v (continuing)", name, err)
 		}
 	}
+	logBuffer("drain stdout", out.String())
+	logBuffer("drain stderr", errOut.String())
 	return nil
 }
 
@@ -1371,6 +1395,18 @@ func logBanner(s string) {
 	slog.Info(strings.Repeat("=", 60), "phase", s)
 	slog.Info(">>> "+s, "phase", s)
 	slog.Info(strings.Repeat("=", 60), "phase", s)
+}
+
+func logBuffer(prefix, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	for _, line := range strings.Split(value, "\n") {
+		if strings.TrimSpace(line) != "" {
+			logf("%s: %s", prefix, line)
+		}
+	}
 }
 
 func cloneStringPtrSlice(in []*string) []*string {
