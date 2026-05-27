@@ -1170,6 +1170,35 @@ func TestIsNodeReady(t *testing.T) {
 	}
 }
 
+func TestIsNodeSchedulableReady(t *testing.T) {
+	ready := mkNode("ready", corev1.NodeCondition{Type: corev1.NodeReady, Status: corev1.ConditionTrue})
+	cordoned := ready.DeepCopy()
+	cordoned.Spec.Unschedulable = true
+	deleting := ready.DeepCopy()
+	deletionTime := metav1.Now()
+	deleting.DeletionTimestamp = &deletionTime
+	notReady := mkNode("not-ready", corev1.NodeCondition{Type: corev1.NodeReady, Status: corev1.ConditionFalse})
+
+	cases := []struct {
+		name string
+		node *corev1.Node
+		want bool
+	}{
+		{"nil", nil, false},
+		{"ready_schedulable", ready, true},
+		{"ready_but_cordoned", cordoned, false},
+		{"ready_but_deleting", deleting, false},
+		{"not_ready", notReady, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isNodeSchedulableReady(tc.node); got != tc.want {
+				t.Errorf("got %t want %t", got, tc.want)
+			}
+		})
+	}
+}
+
 // =============================================================================
 // ptr / strDeref helpers
 // =============================================================================

@@ -1109,7 +1109,7 @@ func (c *clients) waitForReadyNodes(ctx context.Context, pool string, want int, 
 			lastListErr = nil
 			ready := 0
 			for _, n := range nodes.Items {
-				if isNodeReady(&n) {
+				if isNodeSchedulableReady(&n) {
 					ready++
 				}
 			}
@@ -1142,6 +1142,16 @@ func isNodeReady(n *corev1.Node) bool {
 		}
 	}
 	return false
+}
+
+func isNodeSchedulableReady(n *corev1.Node) bool {
+	if !isNodeReady(n) {
+		return false
+	}
+	if n.Spec.Unschedulable {
+		return false
+	}
+	return n.DeletionTimestamp == nil
 }
 
 // activityLogJSON returns Activity Log events in the compact JSON shape used
