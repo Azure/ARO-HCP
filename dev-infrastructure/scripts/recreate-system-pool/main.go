@@ -37,6 +37,7 @@
 // -------------------------------------------------
 //   CLUSTER_NAME              AKS cluster name (e.g. int-uksouth-mgmt-1)
 //   RESOURCE_GROUP            Resource group containing the AKS cluster
+//   SUBSCRIPTION_ID           Azure subscription ID containing the AKS cluster
 //   NRP_FAIL_THRESHOLD        Failed-event count threshold (default 10)
 //   NRP_FAIL_WINDOW_MIN       Activity-log lookback window in min (default 15)
 //   DRY_RUN                   "true" to print intended actions but make no writes
@@ -117,7 +118,7 @@ const (
 	defaultThreshold  = 10
 	defaultWindowMin  = 15
 	lroAbortAgeMin    = 30
-	lroLookupWindow   = "7d"
+	lroLookupWindow   = "14d"
 	systmpReadyTOMin  = 10
 	systemReadyTOMin  = 10
 	pollIntervalSec   = 30
@@ -1026,7 +1027,7 @@ func (c *clients) recreateSystem(ctx context.Context, live *armcs.AgentPool) err
 }
 
 // ---------------------------------------------------------------------------
-// step 8 :: no-op tag reconcile (shell out — no clean SDK path for tag-only PATCH)
+// step 8 :: no-op tag reconcile via SDK tag PATCH
 // ---------------------------------------------------------------------------
 
 func (c *clients) reconcileTagPut(ctx context.Context) error {
@@ -1199,7 +1200,7 @@ type activityEvent struct {
 
 // hasNRPKVSSignature reports whether an activity-log event's inner ARM
 // error body carries the NetworkingInternalOperationError code. Returns
-// false on any parse error or missing field — guard 2 must fail closed
+// false on any parse error or missing field — guard 1 must fail closed
 // rather than over-count.
 func hasNRPKVSSignature(e activityEvent) bool {
 	msg := strings.TrimSpace(e.Properties.StatusMessage)
