@@ -17,13 +17,16 @@ package operationcontrollers
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -31,28 +34,30 @@ import (
 )
 
 func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
-	tests := []struct {
-		name           string
-		includeCluster bool
-		includeNP      bool
-		expectError    bool
-		verify         func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture)
+	fixture := newNodePoolTestFixture()
+
+	testCases := []struct {
+		name             string
+		existingNodePool *api.HCPOpenShiftClusterNodePool
+		wantErr          bool
+		verifyDB         func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name:           "node pool gone marks operation succeeded",
-			includeCluster: true,
-			includeNP:      false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
+			name: "node pool gone marks operation succeeded",
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
 			},
 		},
 		{
-			name:           "node pool still exists - no action",
-			includeCluster: true,
-			includeNP:      true,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
+			name: "node pool still exists but cluster service deletion process still not initiated",
+			existingNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := fixture.newNodePool()
+				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				return np
+			}(),
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
@@ -64,18 +69,13 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			ctx = utils.ContextWithLogger(ctx, testr.New(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
-			fixture := newNodePoolTestFixture()
-			cluster := fixture.newCluster()
-			operation := fixture.newOperation(database.OperationRequestDelete)
-
-			resources := []any{cluster, operation}
-			if tt.includeNP {
-				resources = append(resources, fixture.newNodePool())
+			resources := []any{fixture.newOperation(database.OperationRequestDelete)}
+			if tc.existingNodePool != nil {
+				resources = append(resources, tc.existingNodePool)
 			}
 
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
@@ -88,15 +88,14 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			}
 
 			err = controller.SynchronizeOperation(ctx, fixture.operationKey())
-
-			if tt.expectError {
+			if tc.wantErr {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+			require.NoError(t, err)
 
-			if tt.verify != nil {
-				tt.verify(t, ctx, mockResourcesDBClient, fixture)
+			if tc.verifyDB != nil {
+				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
 		})
 	}
