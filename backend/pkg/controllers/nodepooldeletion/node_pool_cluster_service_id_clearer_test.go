@@ -38,65 +38,98 @@ import (
 )
 
 func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
-	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	withDeletionStamps := func(np *api.HCPOpenShiftClusterNodePool) {
+	fixedNow := time.Now().UTC().Truncate(time.Second)
+	withDeletionStampsNodePoolOptsFunc := func(np *api.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
+	}
+
+	verifyClusterServiceIDUnchanged := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+		t.Helper()
+		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Get(ctx, testNodePoolName)
+		require.NoError(t, err)
+		require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should not be nil")
+		assert.Equal(t, testNodePoolCSIDStr, stored.ServiceProviderProperties.ClusterServiceID.String(),
+			"ClusterServiceID should be unchanged")
 	}
 
 	testCases := []struct {
 		name              string
 		existingNodePool  *api.HCPOpenShiftClusterNodePool
-		expectGetNodePool bool
-		csNodePool        *arohcpv1alpha1.NodePool
-		getNodePoolErr    error
-		wantCSIDCleared   bool
+		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
 		wantErr           bool
 		wantErrContain    string
+		verifyDB          func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name:             "no DeletionTimestamp — no-op",
+			name:             "no DeletionTimestamp -- no-op",
 			existingNodePool: newTestNodePool(t, nil),
+			verifyDB:         verifyClusterServiceIDUnchanged,
 		},
 		{
-			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not yet — no-op",
+			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not yet -- no-op",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
+			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
-			name: "ClusterServiceID already cleared — no-op",
+			name: "ClusterServiceID already cleared -- no-op",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				withDeletionStamps(np)
+				withDeletionStampsNodePoolOptsFunc(np)
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).Get(ctx, testNodePoolName)
+				require.NoError(t, err)
+				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should remain nil")
+			},
 		},
 		{
-			name: "CS NodePool still present — wait",
+			name: "CS NodePool still present -- wait",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				withDeletionStamps(np)
+				withDeletionStampsNodePoolOptsFunc(np)
 			}),
-			expectGetNodePool: true,
-			csNodePool:        newCSNodePool(t),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+					Return(newCSNodePool(t), nil)
+			},
+			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
-			name: "CS returns 404 — clear ClusterServiceID",
+			name: "CS returns 404 -- clear ClusterServiceID",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				withDeletionStamps(np)
+				withDeletionStampsNodePoolOptsFunc(np)
 			}),
-			expectGetNodePool: true,
-			getNodePoolErr:    fakeOCMNotFoundError(),
-			wantCSIDCleared:   true,
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+					Return(nil, fakeOCMNotFoundError())
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).Get(ctx, testNodePoolName)
+				require.NoError(t, err)
+				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "expected ClusterServiceID to be cleared")
+			},
 		},
 		{
-			name: "CS returns transient error — propagated, no clear",
+			name: "CS returns one of the not handled errors -- propagated, no clear",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				withDeletionStamps(np)
+				withDeletionStampsNodePoolOptsFunc(np)
 			}),
-			expectGetNodePool: true,
-			getNodePoolErr:    errors.New("boom"),
-			wantErr:           true,
-			wantErrContain:    "failed to get cluster-service NodePool",
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr))).
+					Return(nil, errors.New("boom"))
+			},
+			wantErr:        true,
+			wantErrContain: "failed to get cluster-service NodePool",
 		},
 		{
 			name: "node pool not found",
@@ -116,14 +149,8 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-			if tc.expectGetNodePool {
-				call := mockCSClient.EXPECT().
-					GetNodePool(gomock.Any(), api.Must(api.NewInternalID(testNodePoolCSIDStr)))
-				if tc.getNodePoolErr != nil {
-					call.Return(nil, tc.getNodePoolErr)
-				} else {
-					call.Return(tc.csNodePool, nil)
-				}
+			if tc.setupMockCSClient != nil {
+				tc.setupMockCSClient(mockCSClient)
 			}
 
 			nodePoolsForLister := []*api.HCPOpenShiftClusterNodePool{}
@@ -148,30 +175,15 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			err = syncer.SyncOnce(ctx, key)
 			if tc.wantErr {
 				require.Error(t, err)
-				require.Greater(t, len(tc.wantErrContain), 0, "wantErrContain must be set when wantErr is true")
-				assert.ErrorContains(t, err, tc.wantErrContain)
+				if len(tc.wantErrContain) > 0 {
+					require.ErrorContains(t, err, tc.wantErrContain)
+				}
 				return
 			}
 			require.NoError(t, err)
 
-			if tc.existingNodePool == nil {
-				return
-			}
-			stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
-				NodePools(testClusterName).Get(ctx, testNodePoolName)
-			require.NoError(t, err)
-			if tc.wantCSIDCleared {
-				assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "expected ClusterServiceID to be cleared")
-			} else {
-				if tc.existingNodePool.ServiceProviderProperties.ClusterServiceID == nil {
-					assert.Nil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should remain nil")
-				} else {
-					require.NotNil(t, stored.ServiceProviderProperties.ClusterServiceID, "ClusterServiceID should not be nil")
-					assert.Equal(t,
-						tc.existingNodePool.ServiceProviderProperties.ClusterServiceID.String(),
-						stored.ServiceProviderProperties.ClusterServiceID.String(),
-						"ClusterServiceID should be unchanged")
-				}
+			if tc.verifyDB != nil {
+				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
 		})
 	}

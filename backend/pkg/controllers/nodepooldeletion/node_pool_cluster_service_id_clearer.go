@@ -35,9 +35,10 @@ import (
 
 // nodePoolClusterServiceIDClearer clears ClusterServiceID after the
 // cluster-service NodePool itself has been confirmed gone. This runs after the
-// deleter has already issued the delete request (ClusterServiceDeletionTimestamp
-// is set); we poll cluster-service for the NodePool and, on 404, zero out the
-// stored ClusterServiceID so downstream code knows the CS resource is fully gone.
+// delet dispatch controller has already issued the delete request
+// (ClusterServiceDeletionTimestamp is set). We poll cluster-service for the
+// NodePool and, on 404, zero out the stored ClusterServiceID so downstream
+// code knows the CS resource is fully gone.
 type nodePoolClusterServiceIDClearer struct {
 	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
@@ -86,7 +87,7 @@ func (c *nodePoolClusterServiceIDClearer) NeedsWork(nodePool *api.HCPOpenShiftCl
 
 // SyncOnce reads the NodePool from cluster-service. If cluster-service reports
 // 404, the deletion has finished and we zero out ClusterServiceID. Any other
-// state means cluster-service is still draining the NodePool; we retry on the
+// state means cluster-service is still draining the NodePool. We retry on the
 // next sync.
 func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -115,13 +116,14 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 	}
 
 	csID := nodePool.ServiceProviderProperties.ClusterServiceID
-	if _, err := c.clusterServiceClient.GetNodePool(ctx, *csID); err != nil {
+	_, err = c.clusterServiceClient.GetNodePool(ctx, *csID)
+	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
 			return utils.TrackError(fmt.Errorf("failed to get cluster-service NodePool: %w", err))
 		}
 		// 404 - cluster-service has finished deleting the NodePool, clear the CS ID.
-		logger.Info("cluster-service NodePool gone - clearing ClusterServiceID", "clusterServiceID", csID.String())
+		logger.Info("cluster-service NodePool gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
 		nodePool.ServiceProviderProperties.ClusterServiceID = nil
 		if _, err := nodePoolCRUD.Replace(ctx, nodePool, nil); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
@@ -129,6 +131,6 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 		return nil
 	}
 
-	// NodePool still exists in cluster-service; nothing to do yet.
+	// NodePool still exists in cluster-service. Nothing to do yet.
 	return nil
 }
