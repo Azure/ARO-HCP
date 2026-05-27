@@ -95,7 +95,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -518,37 +517,33 @@ func isNotFoundErr(err error) bool {
 
 func (c *clients) dumpPreflight(ctx context.Context) error {
 	logf("--- nodepools ---")
-	if err := runCmd(ctx, "az", "aks", "nodepool", "list",
-		"-g", c.cfg.resourceGroup, "--cluster-name", c.cfg.clusterName,
-		"--query", "[].{name:name,mode:mode,state:provisioningState,count:count,min:minCount,max:maxCount,k8s:currentOrchestratorVersion,vmSize:vmSize}",
-		"-o", "table"); err != nil {
+	if err := c.dumpNodePools(ctx); err != nil {
 		return err
 	}
 	logf("--- cluster ---")
-	if err := runCmd(ctx, "az", "aks", "show",
-		"-g", c.cfg.resourceGroup, "-n", c.cfg.clusterName,
-		"--query", "{prov:provisioningState,power:powerState.code,cpVer:currentKubernetesVersion,target:kubernetesVersion}",
-		"-o", "json"); err != nil {
+	if err := c.dumpCluster(ctx); err != nil {
 		return err
 	}
 	logf("--- k8s nodes (all) ---")
-	_ = runCmd(ctx, "kubectl", "get", "nodes", "-o", "wide")
+	c.dumpKubeNodes(ctx, "")
 	logf("--- k8s nodes (system) ---")
-	_ = runCmd(ctx, "kubectl", "get", "nodes", "-l", "agentpool="+systemPoolName, "-o", "wide")
+	c.dumpKubeNodes(ctx, systemPoolName)
 	return nil
 }
 
 func (c *clients) dumpPostflight(ctx context.Context) error {
 	logf("--- final nodepools ---")
-	_ = runCmd(ctx, "az", "aks", "nodepool", "list",
-		"-g", c.cfg.resourceGroup, "--cluster-name", c.cfg.clusterName,
-		"--query", "[].{name:name,mode:mode,state:provisioningState,count:count,min:minCount,max:maxCount,k8s:currentOrchestratorVersion}",
-		"-o", "table")
+	if err := c.dumpNodePools(ctx); err != nil {
+		logf("WARN: final nodepools dump failed: %v", err)
+	}
 	logf("--- final cluster ---")
-	_ = runCmd(ctx, "az", "aks", "show",
-		"-g", c.cfg.resourceGroup, "-n", c.cfg.clusterName,
-		"--query", "{prov:provisioningState,power:powerState.code,cpVer:currentKubernetesVersion}",
-		"-o", "json")
+	if err := c.dumpCluster(ctx); err != nil {
+		logf("WARN: final cluster dump failed: %v", err)
+	}
+	logf("--- final k8s nodes (all) ---")
+	c.dumpKubeNodes(ctx, "")
+	logf("--- final k8s nodes (system) ---")
+	c.dumpKubeNodes(ctx, systemPoolName)
 	logf("--- post-flight: residual NRP failures (informational) ---")
 	out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, "10m")
 	if err == nil {
@@ -568,8 +563,97 @@ func (c *clients) dumpPostflight(ctx context.Context) error {
 				logf("    %s", id)
 			}
 		}
+	} else {
+		logf("WARN: failed to query post-flight activity log: %v", err)
 	}
 	return nil
+}
+
+func (c *clients) dumpNodePools(ctx context.Context) error {
+	pager := c.pools.NewListPager(c.cfg.resourceGroup, c.cfg.clusterName, nil)
+	seen := 0
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("list nodepools: %w", err)
+		}
+		for _, p := range page.Value {
+			seen++
+			name := ""
+			if p != nil {
+				name = strDeref(p.Name)
+			}
+			if p == nil || p.Properties == nil {
+				logf("nodepool name=%s properties=<nil>", name)
+				continue
+			}
+			props := p.Properties
+			logf("nodepool name=%s mode=%s state=%s count=%s min=%s max=%s k8s=%s vmSize=%s",
+				name, ptrValue(props.Mode), strDeref(props.ProvisioningState), ptrValue(props.Count),
+				ptrValue(props.MinCount), ptrValue(props.MaxCount), strDeref(props.CurrentOrchestratorVersion), strDeref(props.VMSize))
+		}
+	}
+	if seen == 0 {
+		logf("nodepools: none returned")
+	}
+	return nil
+}
+
+func (c *clients) dumpCluster(ctx context.Context) error {
+	resp, err := c.cluster.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
+	if err != nil {
+		return fmt.Errorf("cluster get: %w", err)
+	}
+	if resp.Properties == nil {
+		logf("cluster properties=<nil>")
+		return nil
+	}
+	props := resp.Properties
+	power := ""
+	if props.PowerState != nil {
+		power = ptrValue(props.PowerState.Code)
+	}
+	logf("cluster prov=%s power=%s cpVer=%s target=%s nodeRG=%s",
+		strDeref(props.ProvisioningState), power, strDeref(props.CurrentKubernetesVersion),
+		strDeref(props.KubernetesVersion), strDeref(props.NodeResourceGroup))
+	return nil
+}
+
+func (c *clients) dumpKubeNodes(ctx context.Context, pool string) {
+	if c.kube == nil {
+		logf("WARN: kube client not bootstrapped; skipping k8s node dump")
+		return
+	}
+	selector := ""
+	if pool != "" {
+		selector = "agentpool=" + pool
+	}
+	nodes, err := c.kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		logf("WARN: list k8s nodes selector=%q: %v", selector, err)
+		return
+	}
+	if len(nodes.Items) == 0 {
+		logf("k8s nodes selector=%q: none returned", selector)
+		return
+	}
+	for _, n := range nodes.Items {
+		logf("node name=%s agentpool=%s ready=%t schedulableReady=%t unschedulable=%t deleting=%t kubelet=%s internalIP=%s",
+			n.Name, n.Labels["agentpool"], isNodeReady(&n), isNodeSchedulableReady(&n), n.Spec.Unschedulable,
+			n.DeletionTimestamp != nil, n.Status.NodeInfo.KubeletVersion, nodeInternalIP(&n))
+	}
+}
+
+func nodeInternalIP(n *corev1.Node) string {
+	if n == nil {
+		return ""
+	}
+	for _, a := range n.Status.Addresses {
+		if a.Type == corev1.NodeInternalIP {
+			return a.Address
+		}
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------------------
@@ -1430,18 +1514,6 @@ func parseActivityEvents(raw []byte) ([]activityEvent, error) {
 }
 
 // ---------------------------------------------------------------------------
-// shell helpers
-// ---------------------------------------------------------------------------
-
-func runCmd(ctx context.Context, name string, args ...string) error {
-	logf("$ %s %s", name, strings.Join(args, " "))
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-// ---------------------------------------------------------------------------
 // logging
 // ---------------------------------------------------------------------------
 
@@ -1504,4 +1576,11 @@ func strDeref(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+func ptrValue[T any](p *T) string {
+	if p == nil {
+		return ""
+	}
+	return fmt.Sprint(*p)
 }
