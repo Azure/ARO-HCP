@@ -69,12 +69,6 @@ func (m *Manager) Run(ctx context.Context) error {
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(healthzAdaptorTimeout)
 
 	var healthzServer, metricsServer *http.Server
-	defer func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpServerShutdownTime)
-		defer shutdownCancel()
-		_ = shutdownHTTPServer(shutdownCtx, metricsServer, "metrics server")
-		_ = shutdownHTTPServer(shutdownCtx, healthzServer, "healthz server")
-	}()
 
 	errCh := make(chan error, 3)
 	wg := sync.WaitGroup{}
@@ -86,7 +80,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 			if err := electionChecker.Check(r); err != nil {
-				logger.Error(err, "readiness probe failed")
+				logger.V(1).Info("readiness probe failed", "error", err)
 				http.Error(w, "lease not renewed", http.StatusServiceUnavailable)
 				healthGauge.Set(0)
 				return
@@ -135,6 +129,12 @@ func (m *Manager) Run(ctx context.Context) error {
 	}()
 
 	<-ctx.Done()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpServerShutdownTime)
+	defer shutdownCancel()
+	_ = shutdownHTTPServer(shutdownCtx, metricsServer, "metrics server")
+	_ = shutdownHTTPServer(shutdownCtx, healthzServer, "healthz server")
+
 	wg.Wait()
 	close(errCh)
 
