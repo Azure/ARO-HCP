@@ -124,7 +124,6 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 
 		// Some nodepool controllers require of the Cosmos document to do their cleanup work so we block
 		// the cluster cosmos deletion until the nodepools are gone.
-		// TODO this could be improved by doing a count instead of a list. We would need to add support for count
 		nodePoolIterator, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).NodePools(operation.ExternalID.Name).List(ctx, nil)
 		if err != nil {
 			return utils.TrackError(err)
