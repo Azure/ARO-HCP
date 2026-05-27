@@ -31,7 +31,7 @@ tests:
     alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
-        severity: info
+        severity: warning
         long_window: 1h
         short_window: 30m
         name: test-cluster
@@ -55,7 +55,7 @@ tests:
     alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
-        severity: info
+        severity: warning
         long_window: 1h
         short_window: 30m
         name: test-cluster
@@ -71,7 +71,7 @@ tests:
     alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
-        severity: info
+        severity: warning
         long_window: 1h
         short_window: 30m
         name: test-cluster
@@ -83,7 +83,7 @@ tests:
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
         correlationId: "hostedcluster-KubeAPIServer-ErrorBudgetBurn/mgmt-cluster/abc-123"
     - exp_labels:
-        severity: info
+        severity: warning
         long_window: 6h
         short_window: 30m
         name: test-cluster
@@ -107,7 +107,7 @@ tests:
     alertname: hostedcluster-KubeAPIServer-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
-        severity: info
+        severity: warning
         long_window: 1h
         short_window: 30m
         name: test-cluster
@@ -119,7 +119,7 @@ tests:
         description: "HostedCluster test-cluster (ID: abc-123) KubeAPIServer availability is below SLO (current value: 1)"
         correlationId: "hostedcluster-KubeAPIServer-ErrorBudgetBurn/mgmt-cluster/abc-123"
     - exp_labels:
-        severity: info
+        severity: warning
         long_window: 6h
         short_window: 30m
         name: test-cluster
