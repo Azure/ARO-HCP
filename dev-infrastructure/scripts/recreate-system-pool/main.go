@@ -205,15 +205,22 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	}
 
 	logBanner("DETECTION GUARDS")
+	if cfg.skipGuards {
+		logf("SKIP_GUARDS=true — bypassing detection guards")
+	}
 	act, reason, err := orch.detect(ctx)
 	if err != nil {
 		return fmt.Errorf("detection: %w", err)
 	}
-	if !act {
+	if !act && !cfg.skipGuards {
 		logf("guards did not fire: %s. Exiting no-op.", reason)
 		return nil
 	}
-	logf("ALL GUARDS PASSED — proceeding with recreate")
+	if act {
+		logf("ALL GUARDS PASSED — proceeding with recreate")
+	} else {
+		logf("guards did not fire (%s) but SKIP_GUARDS=true — forcing recreate", reason)
+	}
 
 	if cfg.dryRun {
 		logf("DRY_RUN=true — guards passed; would proceed with recreate. Exiting no-op.")
@@ -257,11 +264,15 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	if err != nil {
 		return fmt.Errorf("post-LRO detection: %w", err)
 	}
-	if !act {
+	if !act && !cfg.skipGuards {
 		logf("guards no longer fire after LRO handling: %s. Exiting no-op.", reason)
 		return nil
 	}
-	logf("guards still pass after LRO handling")
+	if act {
+		logf("guards still pass after LRO handling")
+	} else {
+		logf("guards no longer fire (%s) but SKIP_GUARDS=true — continuing", reason)
+	}
 	live, err := orch.snapshotSystem(ctx)
 	if err != nil {
 		return fmt.Errorf("post-LRO snapshot: %w", err)
@@ -320,6 +331,7 @@ type config struct {
 	threshold      int
 	windowMin      int
 	dryRun         bool
+	skipGuards     bool
 }
 
 // parseEnvConfig builds a config from environment variables only. It does
@@ -364,6 +376,9 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 	if v := strings.ToLower(strings.TrimSpace(env("DRY_RUN"))); v == "true" || v == "1" || v == "yes" {
 		c.dryRun = true
 	}
+	if v := strings.ToLower(strings.TrimSpace(env("SKIP_GUARDS"))); v == "true" || v == "1" || v == "yes" {
+		c.skipGuards = true
+	}
 	return c, nil
 }
 
@@ -378,6 +393,7 @@ func (c *config) logEnv() {
 	logf("NRP_FAIL_THRESHOLD=%d", c.threshold)
 	logf("NRP_FAIL_WINDOW_MIN=%d", c.windowMin)
 	logf("DRY_RUN=%t", c.dryRun)
+	logf("SKIP_GUARDS=%t", c.skipGuards)
 }
 
 // ---------------------------------------------------------------------------
