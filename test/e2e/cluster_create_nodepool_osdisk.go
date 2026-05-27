@@ -55,13 +55,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for nodepool osDisk test")
 
 			// creating cluster parameters
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities) for cluster")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -71,7 +71,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", customerClusterName)
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -80,12 +80,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q", customerClusterName)
 
 			By("creating the node pool with custom osDisk size")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OSDiskSizeGiB = customerNodeOsDiskSizeGiB
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -96,7 +96,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q with 128GiB osDisk", customerNodePoolName)
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -110,7 +110,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", customerClusterName)
 
 			By("verifying the node pool is created and has the correct osDisk size")
-			created, err := framework.GetNodePool(ctx,
+			created, err := framework.GetNodePool20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,

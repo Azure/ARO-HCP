@@ -69,13 +69,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for IDMS test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -96,7 +96,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			createErr := tc.CreateHCPCluster20251223FromParam(
+			createErr := tc.CreateHCPClusterFromParam20251223(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -122,7 +122,7 @@ var _ = Describe("Customer", func() {
 			Expect(ptr.Deref(actualCluster.Properties.ImageDigestMirrors[0].Mirrors[0], "")).To(Equal(idmsMirror), "first ImageDigestMirror mirror should be %s", idmsMirror)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,

@@ -58,13 +58,13 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for patch-name test")
 
 				By("creating cluster parameters")
-				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams := framework.NewDefaultClusterParams20240610()
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{},
@@ -74,7 +74,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for patch-name cluster")
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(
+				err = tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
@@ -84,7 +84,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-name test")
 
 				By("getting credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -102,7 +102,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
 					Name: &newName,
 				}
-				_, err = framework.UpdateHCPCluster(
+				_, err = framework.UpdateHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -134,13 +134,13 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for patch-tags test")
 
 				By("creating cluster parameters")
-				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams := framework.NewDefaultClusterParams20240610()
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{},
@@ -150,7 +150,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for patch-tags cluster")
 
 				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(
+				err = tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
@@ -160,7 +160,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for patch-tags test")
 
 				By("getting credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -181,7 +181,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 						"test": &val,
 					},
 				}
-				resp, err := framework.UpdateHCPCluster(
+				resp, err := framework.UpdateHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -197,7 +197,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(*resp.Tags["test"]).To(Equal(val), "update response Tags[\"test\"] should equal %q", val)
 
 				By("verifying the tag is present on the cluster")
-				respGet, err := framework.GetHCPCluster(
+				respGet, err := framework.GetHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,

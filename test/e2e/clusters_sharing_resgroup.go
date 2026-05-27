@@ -67,10 +67,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create shared customer resource group")
 
 			By("creating customer infrastructure and managed identities for first cluster")
-			clusterParams1 := framework.NewDefaultClusterParams()
+			clusterParams1 := framework.NewDefaultClusterParams20240610()
 			clusterParams1.ClusterName = customerClusterName
 			clusterParams1.ManagedResourceGroupName = framework.SuffixName(*customerResourceGroup.Name, "-managed", 64)
-			clusterParams1, err = tc.CreateClusterCustomerResources(ctx, customerResourceGroup, clusterParams1,
+			clusterParams1, err = tc.CreateClusterCustomerResources20240610(ctx, customerResourceGroup, clusterParams1,
 				map[string]interface{}{
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
@@ -82,10 +82,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for first cluster %q", customerClusterName)
 
 			By("creating customer infrastructure and managed identities for second cluster")
-			clusterParams2 := framework.NewDefaultClusterParams()
+			clusterParams2 := framework.NewDefaultClusterParams20240610()
 			clusterParams2.ClusterName = customerClusterName2
 			clusterParams2.ManagedResourceGroupName = framework.SuffixName(*customerResourceGroup.Name, "-managed-2", 64)
-			clusterParams2, err = tc.CreateClusterCustomerResources(ctx, customerResourceGroup, clusterParams2,
+			clusterParams2, err = tc.CreateClusterCustomerResources20240610(ctx, customerResourceGroup, clusterParams2,
 				map[string]interface{}{
 					"customerNsgName":        customerNetworkSecurityGroupName2,
 					"customerVnetName":       customerVnetName2,
@@ -100,7 +100,7 @@ var _ = Describe("Customer", func() {
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 			// Start first cluster creation
-			poller1, err := framework.BeginCreateHCPCluster(
+			poller1, err := framework.BeginCreateHCPCluster20240610(
 				ctx,
 				GinkgoLogr,
 				clusterClient,
@@ -112,7 +112,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to begin creation of first cluster %q", customerClusterName)
 
 			// Start second cluster creation
-			poller2, err := framework.BeginCreateHCPCluster(
+			poller2, err := framework.BeginCreateHCPCluster20240610(
 				ctx,
 				GinkgoLogr,
 				clusterClient,
@@ -140,10 +140,10 @@ var _ = Describe("Customer", func() {
 
 			// Third cluster (should fail)
 			By("creating customer infrastructure and managed identities for third cluster")
-			clusterParams3 := framework.NewDefaultClusterParams()
+			clusterParams3 := framework.NewDefaultClusterParams20240610()
 			clusterParams3.ClusterName = customerClusterName3
 			clusterParams3.ManagedResourceGroupName = clusterParams2.ManagedResourceGroupName // Reuse cluster2's managed RG
-			clusterParams3, err = tc.CreateClusterCustomerResources(ctx, customerResourceGroup, clusterParams3,
+			clusterParams3, err = tc.CreateClusterCustomerResources20240610(ctx, customerResourceGroup, clusterParams3,
 				map[string]interface{}{
 					"customerNsgName":        customerNetworkSecurityGroupName3,
 					"customerVnetName":       customerVnetName3,
@@ -155,8 +155,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for third cluster %q", customerClusterName3)
 
 			By("attempting to create a third cluster using the same managed resource group as the second cluster")
-
-			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, framework.ClusterCreationTimeout)
+			err = tc.CreateHCPClusterFromParam20240610(ctx, GinkgoLogr, *customerResourceGroup.Name, clusterParams3, framework.ClusterCreationTimeout)
 			Expect(err).To(HaveOccurred(), "expected error when creating third cluster %q with duplicate managed resource group", customerClusterName3)
 			Expect(err).To(MatchError(MatchRegexp("please provide a unique managed resource group name")), "error should indicate duplicate managed resource group name")
 

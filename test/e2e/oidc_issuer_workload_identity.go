@@ -191,13 +191,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for OIDC workload identity test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities) for cluster")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{},
@@ -207,7 +207,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -229,7 +229,7 @@ var _ = Describe("Customer", func() {
 			GinkgoWriter.Printf("Cluster OIDC issuer URL: %s\n", oidcIssuerURL)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
@@ -243,12 +243,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "cluster %s is not viable", customerClusterName)
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,

@@ -243,12 +243,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for shoebox test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -262,8 +262,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-
-			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, framework.ClusterCreationTimeout)
+			err = tc.CreateHCPClusterFromParam20240610(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, framework.ClusterCreationTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			subscriptionID, err := tc.SubscriptionID(ctx)

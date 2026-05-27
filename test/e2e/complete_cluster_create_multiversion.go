@@ -58,7 +58,7 @@ var _ = Describe("ARO-HCP", func() {
 			versionLabel := strings.ReplaceAll(version, ".", "-") // e.g. "4.20" -> "4-20"
 			suffix := rand.String(6)
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = version
 			openShiftControlPlaneVersion, err := framework.GetLatestInstallVersion(ctx, clusterParams.ChannelGroup, version)
@@ -85,7 +85,7 @@ var _ = Describe("ARO-HCP", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -104,11 +104,11 @@ var _ = Describe("ARO-HCP", func() {
 			// NIC resource request (https://redhat.atlassian.net/browse/ARO-27209).
 			if version == "4.23" || version == "5.0" {
 				By(fmt.Sprintf("creating a Swift cluster on version '%s' and channel group '%s'", clusterParams.OpenshiftVersionId, channelGroup))
-				clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
+				clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
 				Expect(err).NotTo(HaveOccurred(), "Swift cluster resource for %s should build from params", clusterName)
 				clientFactory, err := tc.Get20251223ClientFactory(ctx)
 				Expect(err).NotTo(HaveOccurred(), "Get20251223ClientFactory: client factory should be obtained for Swift cluster %s", clusterName)
-				_, err = framework.CreateHCPCluster20251223AndWait(
+				_, err = framework.CreateHCPClusterAndWait20251223(
 					ctx,
 					GinkgoLogr,
 					clientFactory.NewHcpOpenShiftClustersClient(),
@@ -120,18 +120,19 @@ var _ = Describe("ARO-HCP", func() {
 				Expect(err).NotTo(HaveOccurred(), "Swift cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 			} else {
 				By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, channelGroup))
-				err = tc.CreateHCPClusterFromParam(
+				err = tc.CreateHCPClusterFromParam20251223(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
+					nil,
 					framework.ClusterCreationTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 			}
 
 			By("verifying the cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -143,7 +144,7 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			nodePoolName := "np-" + suffix
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = clusterName
 			nodePoolParams.NodePoolName = nodePoolName
 			// Calculate the node pool version
@@ -172,7 +173,7 @@ var _ = Describe("ARO-HCP", func() {
 			nodePoolParams.OpenshiftVersionId = parseableVersions[0]
 
 			By(fmt.Sprintf("creating node pool %q with version '%s' on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, nodePoolChannelGroup))
-			err = tc.CreateNodePoolFromParam(
+			err = tc.CreateNodePoolFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -184,7 +185,7 @@ var _ = Describe("ARO-HCP", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
 
 			By("verifying nodepool DiskStorageAccountType matches framework default")
-			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
+			err = framework.ValidateNodePoolDiskStorageAccountType20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				clusterName,

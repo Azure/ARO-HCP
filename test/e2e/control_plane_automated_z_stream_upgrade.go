@@ -65,7 +65,7 @@ var _ = Describe("Service Provider", func() {
 			versionLabel := strings.ReplaceAll(minorVersion, ".", "-") // e.g. "4.20" -> "4-20"
 			suffix := rand.String(6)
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = installVersion
 
@@ -82,7 +82,7 @@ var _ = Describe("Service Provider", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -108,7 +108,7 @@ var _ = Describe("Service Provider", func() {
 				Steps:    25,
 				Cap:      45 * time.Second,
 			}, func(_ context.Context) (done bool, err error) {
-				createErr := tc.CreateHCPClusterFromParam(
+				createErr := tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
@@ -137,7 +137,7 @@ var _ = Describe("Service Provider", func() {
 			Expect(backoffErr).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on candidate channel", clusterName, installVersion)
 
 			By("verifying the cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,

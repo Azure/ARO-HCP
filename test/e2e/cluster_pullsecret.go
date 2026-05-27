@@ -87,13 +87,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for pull secret test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -103,7 +103,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for pull secret cluster")
 
 			By("Creating the cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -111,11 +111,11 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for pull secret test")
 			By("Creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.NodePoolName = "np-1"
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.Replicas = int32(2)
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -126,7 +126,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool np-1 for pull secret cluster")
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,

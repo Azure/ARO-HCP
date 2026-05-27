@@ -26,7 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -87,13 +86,13 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for ephemeral OS disk test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -103,7 +102,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -112,24 +111,21 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("creating nodepool with ephemeral OS disk and autoRepair enabled")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
-			nodePool := buildNodePoolWithDiskType(
+			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.DiskType = hcpsdk20251223preview.OsDiskTypeEphemeral
+			nodePoolParams.AutoRepair = true
+			err = tc.CreateNodePoolFromParam20251223(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams.ManagedResourceGroupName,
+				customerClusterName,
 				nodePoolParams,
-				tc.Location(),
-				hcpsdk20251223preview.OsDiskTypeEphemeral,
-				true,
-			)
+				framework.NodePoolCreationTimeout)
 
 			client20251223 := tc.Get20251223ClientFactoryOrDie(ctx)
-			created, err := framework.CreateNodePoolAndWait20251223(
-				ctx,
-				client20251223.NewNodePoolsClient(),
-				*resourceGroup.Name,
-				customerClusterName,
-				customerNodePoolName,
-				nodePool,
-				framework.NodePoolCreationTimeout,
-			)
 			if isAPINotDeployedError(err) {
 				if time.Now().Before(timeBombDeadline) {
 					Skip(fmt.Sprintf("v20251223preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
@@ -139,21 +135,15 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s with ephemeral OS disk", customerNodePoolName)
 
 			By("verifying nodepool ARM resource has diskType=Ephemeral from LRO result")
+			created, err := framework.GetNodePool20251223(ctx, client20251223.NewNodePoolsClient(), *resourceGroup.Name, customerClusterName, customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get nodepool %s", customerNodePoolName)
 			Expect(created.Properties).ToNot(BeNil(), "created nodepool response Properties was nil")
 			Expect(created.Properties.Platform).ToNot(BeNil(), "created nodepool response Properties.Platform was nil")
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "created nodepool response Properties.Platform.OSDisk was nil")
-
-			diskTypeNotPresent := created.Properties.Platform.OSDisk.DiskType == nil
-			if diskTypeNotPresent {
-				if time.Now().Before(timeBombDeadline) {
-					Skip("v20251223preview deployed but DiskType field not present in nodepool response; skipping until rollout completes")
-				}
-				Fail(fmt.Sprintf("DiskType field still not present in v20251223preview nodepool response as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
+			Expect(created.Properties.Platform.OSDisk.DiskType).ToNot(BeNil(), "created nodepool response Properties.Platform.OSDisk.DiskType was nil")
 			Expect(*created.Properties.Platform.OSDisk.DiskType).To(Equal(hcpsdk20251223preview.OsDiskTypeEphemeral), "expected created nodepool OSDisk.DiskType to be Ephemeral")
 			Expect(created.Properties.AutoRepair).ToNot(BeNil(), "created nodepool response Properties.AutoRepair was nil")
 			Expect(*created.Properties.AutoRepair).To(BeTrue(), "expected created nodepool AutoRepair to be true")
-
 			By("confirming diskType and autoRepair persist via separate GET (round-trip verification)")
 			fetched, err := framework.GetNodePool20251223(ctx,
 				client20251223.NewNodePoolsClient(),
@@ -171,7 +161,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			Expect(*fetched.Properties.AutoRepair).To(BeTrue(), "expected fetched nodepool AutoRepair to be true")
 
 			By("getting credentials to verify cluster health")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -203,35 +193,6 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 		})
 
 })
-
-// buildNodePoolWithDiskType builds a v20251223preview NodePool with specific diskType and autoRepair settings.
-func buildNodePoolWithDiskType(
-	params framework.NodePoolParams,
-	location string,
-	diskType hcpsdk20251223preview.OsDiskType,
-	autoRepair bool,
-) hcpsdk20251223preview.NodePool {
-	return hcpsdk20251223preview.NodePool{
-		Location: to.Ptr(location),
-		Properties: &hcpsdk20251223preview.NodePoolProperties{
-			Version: &hcpsdk20251223preview.NodePoolVersionProfile{
-				ID:           to.Ptr(params.OpenshiftVersionId),
-				ChannelGroup: to.Ptr(params.ChannelGroup),
-			},
-			NodeDrainTimeoutMinutes: params.NodeDrainTimeoutMinutes,
-			Replicas:                to.Ptr(params.Replicas),
-			Platform: &hcpsdk20251223preview.NodePoolPlatformProfile{
-				VMSize: to.Ptr(params.VMSize),
-				OSDisk: &hcpsdk20251223preview.OsDiskProfile{
-					SizeGiB:                to.Ptr(params.OSDiskSizeGiB),
-					DiskStorageAccountType: to.Ptr(hcpsdk20251223preview.DiskStorageAccountType(params.DiskStorageAccountType)),
-					DiskType:               to.Ptr(diskType),
-				},
-			},
-			AutoRepair: to.Ptr(autoRepair),
-		},
-	}
-}
 
 // filterNodePoolVMs filters VMs whose name contains the nodepool name.
 // CAPZ derives VM names from the NodePool name via the MachineDeployment.

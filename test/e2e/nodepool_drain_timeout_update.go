@@ -45,7 +45,7 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			suffix := rand.String(6)
 
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterName := "np-drain-timeout-and-upgrade-" + suffix
 			clusterParams.ClusterName = clusterName
 
@@ -78,7 +78,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -92,7 +92,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources")
 
 			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterParams.OpenshiftVersionId))
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -103,12 +103,12 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("creating nodepool with version %s and NodeDrainTimeoutMinutes=1", nodePoolInitialVersion))
 			customerNodePoolName := "np-" + suffix
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OpenshiftVersionId = nodePoolInitialVersion
 			nodePoolParams.ChannelGroup = channelGroup
 			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(1))
-			err = tc.CreateNodePoolFromParam(
+			err = tc.CreateNodePoolFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -122,7 +122,7 @@ var _ = Describe("Customer", func() {
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 
 			By("verifying NodeDrainTimeoutMinutes is 1 via GET")
-			npResp, err := framework.GetNodePool(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			npResp, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get nodepool %q", customerNodePoolName)
 			Expect(npResp.Properties).NotTo(BeNil(), "node pool GET response Properties was nil")
 			Expect(npResp.Properties.NodeDrainTimeoutMinutes).NotTo(BeNil(), "node pool GET response Properties.NodeDrainTimeoutMinutes was nil after creation")
@@ -134,18 +134,18 @@ var _ = Describe("Customer", func() {
 					NodeDrainTimeoutMinutes: to.Ptr(int32(0)),
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, drainUpdate, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, drainUpdate, 45*time.Minute)
 			Expect(err).NotTo(HaveOccurred(), "failed to update nodepool %q Properties.NodeDrainTimeoutMinutes to 0", customerNodePoolName)
 
 			By("verifying NodeDrainTimeoutMinutes is 0 via GET")
-			npResp, err = framework.GetNodePool(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			npResp, err = framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get nodepool %q", customerNodePoolName)
 			Expect(npResp.Properties).NotTo(BeNil(), "node pool GET response Properties was nil")
 			Expect(npResp.Properties.NodeDrainTimeoutMinutes).NotTo(BeNil(), "node pool GET response Properties.NodeDrainTimeoutMinutes was nil after update")
 			Expect(*npResp.Properties.NodeDrainTimeoutMinutes).To(Equal(int32(0)), "expected NodeDrainTimeoutMinutes to be 0 after update")
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -180,7 +180,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, versionUpdate, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, versionUpdate, 45*time.Minute)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade nodepool %s to version %s", customerNodePoolName, nodePoolDesiredVersion)
 
 			By("verifying nodes are ready, updated to expected version, and release images differ from pre-upgrade")
@@ -189,7 +189,7 @@ var _ = Describe("Customer", func() {
 			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET still reflects the new version")
-			npGetResponse, err := framework.GetNodePool(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get nodepool %q", customerNodePoolName)
 			Expect(npGetResponse.Properties).NotTo(BeNil(), "node pool GET response Properties was nil")
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "node pool GET response Properties.Version was nil")

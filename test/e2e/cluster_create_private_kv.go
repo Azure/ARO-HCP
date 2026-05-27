@@ -60,14 +60,14 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for private keyvault test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 			clusterParams.KeyVaultVisibility = "Private"
 
 			By("creating customer resources (infrastructure and managed identities)")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -79,7 +79,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources with private key vault")
 
 			By("creating the HCP cluster")
-			clusterResource, err := framework.BuildHCPCluster20251223FromParams(clusterParams, tc.Location(), nil)
+			clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster resource from params")
 
 			// Set KeyVault visibility
@@ -90,7 +90,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				clusterResource.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility = to.Ptr(hcpsdk20251223preview.KeyVaultVisibilityPrivate)
 			}
 
-			_, err = framework.CreateHCPCluster20251223AndWait(
+			_, err = framework.CreateHCPClusterAndWait20251223(
 				ctx,
 				GinkgoLogr,
 				tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -137,12 +137,12 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				"keyVaultVisibility", *cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility)
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = "np-1"
 			nodePoolParams.Replicas = int32(2)
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -157,7 +157,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				"nodePoolName", nodePoolParams.NodePoolName)
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,

@@ -61,13 +61,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group rg-np-labels-taints")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -81,7 +81,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -91,7 +91,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -101,7 +101,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("creating the node pool with initial labels and taints")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
@@ -110,7 +110,7 @@ var _ = Describe("Customer", func() {
 			// using a smaller VM size for faster provisioning
 			nodePoolParams.VMSize = "Standard_D4s_v3"
 
-			nodePool := framework.BuildNodePoolFromParams(nodePoolParams, tc.Location())
+			nodePool := framework.BuildNodePoolFromParams20240610(nodePoolParams, tc.Location())
 
 			nodePool.Properties.Labels = []*hcpsdk20240610preview.Label{
 				{
@@ -126,7 +126,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			_, err = framework.CreateNodePoolAndWait(
+			_, err = framework.CreateNodePoolAndWait20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
@@ -172,7 +172,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			_, err = framework.UpdateNodePoolAndWait(ctx,
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
@@ -214,7 +214,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			_, err = framework.UpdateNodePoolAndWait(ctx,
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,

@@ -57,13 +57,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group nodepool-update-nodes")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -73,7 +73,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -82,7 +82,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
@@ -95,19 +95,19 @@ var _ = Describe("Customer", func() {
 			mainNodeCount := 2
 			oneNodeCount := 1
 
-			mainNodePoolParams := framework.NewDefaultNodePoolParams()
+			mainNodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			mainNodePoolParams.NodePoolName = customerNodePoolName
 			mainNodePoolParams.Replicas = int32(mainNodeCount)
 
-			oneNodePoolParams := framework.NewDefaultNodePoolParams()
+			oneNodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			oneNodePoolParams.NodePoolName = oneNodePoolName
 			oneNodePoolParams.Replicas = int32(oneNodeCount)
 
 			errCh := make(chan error, 2)
 			group, groupCtx := errgroup.WithContext(ctx)
-			for _, nodePoolParams := range []framework.NodePoolParams{mainNodePoolParams, oneNodePoolParams} {
+			for _, nodePoolParams := range []framework.NodePoolParams20240610{mainNodePoolParams, oneNodePoolParams} {
 				group.Go(func() error {
-					createErr := tc.CreateNodePoolFromParam(
+					createErr := tc.CreateNodePoolFromParam20240610(
 						groupCtx,
 						GinkgoLogr,
 						*resourceGroup.Name,
@@ -142,7 +142,7 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(int32(mainNodeCount)),
 				},
 			}
-			scaleUpResp, err := framework.UpdateNodePoolAndWait(ctx,
+			scaleUpResp, err := framework.UpdateNodePoolAndWait20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(int32(mainNodeCount)),
 				},
 			}
-			scaleDownResp, err := framework.UpdateNodePoolAndWait(ctx,
+			scaleDownResp, err := framework.UpdateNodePoolAndWait20240610(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,
@@ -197,7 +197,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			autoscaleResp, err := framework.UpdateNodePoolAndWait(ctx,
+			autoscaleResp, err := framework.UpdateNodePoolAndWait20240610(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,

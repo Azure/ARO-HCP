@@ -59,13 +59,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for external auth list test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
@@ -75,7 +75,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for external auth list test")
 
 			By("creating HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
@@ -106,7 +106,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("create an external auth and confirm it's in a succeeded state")
-			_, err = framework.CreateOrUpdateExternalAuthAndWait(
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,
@@ -117,7 +117,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create external auth config on cluster %s", clusterName)
 
-			result, err := framework.GetExternalAuth(
+			result, err := framework.GetExternalAuth20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,
@@ -130,7 +130,7 @@ var _ = Describe("Customer", func() {
 			By("confirming we're only allowed to create a single external auth")
 			anotherExternalAuth := expectedExternalAuth
 			anotherExternalAuth.Name = to.Ptr(testingPrefix + "2")
-			_, err = framework.CreateOrUpdateExternalAuthAndWait(
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,
@@ -178,7 +178,7 @@ var _ = Describe("Customer", func() {
 
 			By("updating the external auth to a different prefix and confirming the update works")
 			expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix = to.Ptr(testingPrefix + "updated")
-			_, err = framework.CreateOrUpdateExternalAuthAndWait(
+			_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,
@@ -189,7 +189,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update external auth config prefix on cluster %s", clusterName)
 
-			updatedResult, err := framework.GetExternalAuth(
+			updatedResult, err := framework.GetExternalAuth20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(),
 				*resourceGroup.Name,

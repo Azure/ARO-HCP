@@ -126,14 +126,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for y-stream upgrade to %s", targetMinor)
 
 			By("creating cluster parameters at install (previous minor) version")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
 			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-cp-ystream-"+suffix, "-managed", 64)
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -148,7 +148,7 @@ var _ = Describe("Customer", func() {
 
 			By(fmt.Sprintf("creating the HCP cluster with install version %s (previous minor %s)", installVersion,
 				previousMinorLine))
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
@@ -159,7 +159,7 @@ var _ = Describe("Customer", func() {
 
 			By("getting admin credentials")
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
@@ -188,7 +188,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateHCPCluster(ctx, hcpClient, *resourceGroup.Name, clusterName, update, 45*time.Minute)
+			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, 45*time.Minute)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, targetMinor)
 
 			By("verifying control plane reached desired version and cluster remains viable")
