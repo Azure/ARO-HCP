@@ -884,48 +884,65 @@ func buildSystmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.Agent
 	}
 	mode := armcs.AgentPoolModeSystem
 	cnt := int32(1)
-	maxPods := int32(100)
-	tru := true
 	v := cpVersion
 	diskGB := *live.Properties.OSDiskSizeGB
+	labels := cloneStringPtrMap(live.Properties.NodeLabels)
+	labels["aro-hcp.azure.com/role"] = ptr("system")
+	tags := cloneStringPtrMapWithoutPrefix(live.Properties.Tags, "aks-managed-")
+	tags["purpose"] = ptr("temp-system-aroslsre-924")
 	body := &armcs.AgentPool{
 		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
-			Mode:                   &mode,
-			VMSize:                 ptr(*live.Properties.VMSize),
-			OrchestratorVersion:    &v,
-			MaxPods:                &maxPods,
-			Count:                  &cnt,
-			OSDiskSizeGB:           &diskGB,
-			EnableEncryptionAtHost: &tru,
-			EnableFIPS:             &tru,
-			NodeTaints:             []*string{ptr("CriticalAddonsOnly=true:NoSchedule")},
-			NodeLabels:             map[string]*string{"aro-hcp.azure.com/role": ptr("system")},
-			Tags:                   map[string]*string{"purpose": ptr("temp-system-aroslsre-924")},
+			Mode:                &mode,
+			VMSize:              ptr(*live.Properties.VMSize),
+			OrchestratorVersion: &v,
+			Count:               &cnt,
+			OSDiskSizeGB:        &diskGB,
+			NodeTaints:          []*string{ptr("CriticalAddonsOnly=true:NoSchedule")},
+			NodeLabels:          labels,
+			Tags:                tags,
 		},
 	}
-	// Inherit OS family + disk type from live where the snapshot supplied them.
-	if live.Properties.OSType != nil {
-		t := *live.Properties.OSType
-		body.Properties.OSType = &t
-	} else {
-		t := armcs.OSTypeLinux
-		body.Properties.OSType = &t
-	}
-	if live.Properties.OSSKU != nil {
-		sku := *live.Properties.OSSKU
-		body.Properties.OSSKU = &sku
-	}
-	if live.Properties.OSDiskType != nil {
-		dt := *live.Properties.OSDiskType
-		body.Properties.OSDiskType = &dt
-	}
-	if live.Properties.VnetSubnetID != nil {
-		body.Properties.VnetSubnetID = ptr(*live.Properties.VnetSubnetID)
-	}
-	if live.Properties.PodSubnetID != nil {
-		body.Properties.PodSubnetID = ptr(*live.Properties.PodSubnetID)
-	}
+	copyOptionalAgentPoolFields(body.Properties, live.Properties)
 	return body, nil
+}
+
+func copyOptionalAgentPoolFields(dst, src *armcs.ManagedClusterAgentPoolProfileProperties) {
+	if src.AvailabilityZones != nil {
+		dst.AvailabilityZones = cloneStringPtrSlice(src.AvailabilityZones)
+	}
+	if src.MaxPods != nil {
+		v := *src.MaxPods
+		dst.MaxPods = &v
+	}
+	if src.EnableEncryptionAtHost != nil {
+		v := *src.EnableEncryptionAtHost
+		dst.EnableEncryptionAtHost = &v
+	}
+	if src.EnableFIPS != nil {
+		v := *src.EnableFIPS
+		dst.EnableFIPS = &v
+	}
+	if src.OSType != nil {
+		v := *src.OSType
+		dst.OSType = &v
+	} else {
+		v := armcs.OSTypeLinux
+		dst.OSType = &v
+	}
+	if src.OSSKU != nil {
+		v := *src.OSSKU
+		dst.OSSKU = &v
+	}
+	if src.OSDiskType != nil {
+		v := *src.OSDiskType
+		dst.OSDiskType = &v
+	}
+	if src.VnetSubnetID != nil {
+		dst.VnetSubnetID = ptr(*src.VnetSubnetID)
+	}
+	if src.PodSubnetID != nil {
+		dst.PodSubnetID = ptr(*src.PodSubnetID)
+	}
 }
 
 func (c *clients) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
@@ -1354,6 +1371,45 @@ func logBanner(s string) {
 	slog.Info(strings.Repeat("=", 60), "phase", s)
 	slog.Info(">>> "+s, "phase", s)
 	slog.Info(strings.Repeat("=", 60), "phase", s)
+}
+
+func cloneStringPtrSlice(in []*string) []*string {
+	out := make([]*string, 0, len(in))
+	for _, v := range in {
+		if v == nil {
+			out = append(out, nil)
+			continue
+		}
+		out = append(out, ptr(*v))
+	}
+	return out
+}
+
+func cloneStringPtrMap(in map[string]*string) map[string]*string {
+	out := map[string]*string{}
+	for k, v := range in {
+		if v == nil {
+			out[k] = nil
+			continue
+		}
+		out[k] = ptr(*v)
+	}
+	return out
+}
+
+func cloneStringPtrMapWithoutPrefix(in map[string]*string, prefix string) map[string]*string {
+	out := map[string]*string{}
+	for k, v := range in {
+		if strings.HasPrefix(k, prefix) {
+			continue
+		}
+		if v == nil {
+			out[k] = nil
+			continue
+		}
+		out[k] = ptr(*v)
+	}
+	return out
 }
 
 func ptr[T any](v T) *T { return &v }

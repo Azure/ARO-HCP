@@ -468,10 +468,12 @@ func mkLiveSystemPool() *armcs.AgentPool {
 			EnableFIPS:                 &tru,
 			VnetSubnetID:               ptr("/subscriptions/x/.../subnets/system"),
 			PodSubnetID:                ptr("/subscriptions/x/.../subnets/pods"),
+			AvailabilityZones:          []*string{ptr("1"), ptr("2")},
 			NodeTaints:                 []*string{ptr("CriticalAddonsOnly=true:NoSchedule")},
-			NodeLabels:                 map[string]*string{"aro-hcp.azure.com/role": ptr("system")},
+			NodeLabels:                 map[string]*string{"aro-hcp.azure.com/role": ptr("system"), "existing-label": ptr("keep-label")},
 			Tags: map[string]*string{
-				"user-tag":                 ptr("keep-me"),
+				"user-tag": ptr("keep-me"),
+				"delegate-ip-allocation-for-nics-without-subnet": ptr("true"),
 				"aks-managed-foo":          ptr("drop-me"),
 				"aks-managed-orchestrator": ptr("drop-me-too"),
 			},
@@ -696,6 +698,24 @@ func TestBuildSystmpAgentPool_ValidInputs(t *testing.T) {
 	if p.VnetSubnetID == nil || *p.VnetSubnetID != "/subscriptions/x/.../subnets/system" {
 		t.Errorf("VnetSubnetID should be inherited")
 	}
+	if len(p.AvailabilityZones) != 2 || *p.AvailabilityZones[0] != "1" || *p.AvailabilityZones[1] != "2" {
+		t.Errorf("AvailabilityZones not inherited: %v", p.AvailabilityZones)
+	}
+	if p.MaxPods == nil || *p.MaxPods != 100 {
+		t.Errorf("MaxPods not inherited: %v", p.MaxPods)
+	}
+	if p.NodeLabels["existing-label"] == nil || *p.NodeLabels["existing-label"] != "keep-label" {
+		t.Errorf("existing label not inherited: %v", p.NodeLabels)
+	}
+	if p.Tags["delegate-ip-allocation-for-nics-without-subnet"] == nil || *p.Tags["delegate-ip-allocation-for-nics-without-subnet"] != "true" {
+		t.Errorf("Swift tag not inherited: %v", p.Tags)
+	}
+	if p.Tags["purpose"] == nil || *p.Tags["purpose"] != "temp-system-aroslsre-924" {
+		t.Errorf("temporary purpose tag missing: %v", p.Tags)
+	}
+	if _, ok := p.Tags["aks-managed-foo"]; ok {
+		t.Errorf("AKS-managed tag should not be copied to systmp: %v", p.Tags)
+	}
 }
 
 func TestBuildSystmpAgentPool_NilLive(t *testing.T) {
@@ -748,6 +768,26 @@ func TestBuildSystmpAgentPool_DoesNotShareTaintPointer(t *testing.T) {
 	*live.Properties.NodeTaints[0] = "hacked"
 	if *body.Properties.NodeTaints[0] != "CriticalAddonsOnly=true:NoSchedule" {
 		t.Errorf("systmp NodeTaints share state with live: %v", body.Properties.NodeTaints)
+	}
+}
+
+func TestBuildSystmpAgentPool_DoesNotShareInheritedMapsOrSlices(t *testing.T) {
+	live := mkLiveSystemPool()
+	body, err := buildSystmpAgentPool(live, "1.35.4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	*live.Properties.AvailabilityZones[0] = "9"
+	*live.Properties.NodeLabels["existing-label"] = "changed"
+	*live.Properties.Tags["delegate-ip-allocation-for-nics-without-subnet"] = "false"
+	if *body.Properties.AvailabilityZones[0] != "1" {
+		t.Errorf("AvailabilityZones share state with live: %v", body.Properties.AvailabilityZones)
+	}
+	if *body.Properties.NodeLabels["existing-label"] != "keep-label" {
+		t.Errorf("NodeLabels share state with live: %v", body.Properties.NodeLabels)
+	}
+	if *body.Properties.Tags["delegate-ip-allocation-for-nics-without-subnet"] != "true" {
+		t.Errorf("Tags share state with live: %v", body.Properties.Tags)
 	}
 }
 
