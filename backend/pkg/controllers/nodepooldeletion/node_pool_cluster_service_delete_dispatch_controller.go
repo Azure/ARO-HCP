@@ -48,7 +48,7 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // DeletionTimestamp for a node pool before calling Cluster Service to delete the node pool.
 const firstSeenDeletionGracePeriod = 2 * time.Minute
 
-// nodePoolDeletionClusterServiceDeleter issues a Cluster Service delete for any
+// nodePoolClusterServiceDeleteDispatchSyncer issues a Cluster Service delete for any
 // NodePool whose DeletionTimestamp has been set. The frontend records the
 // timestamp on the NodePool when DeleteNodePool is invoked, this controller
 // picks it up and calls Cluster Service out-of-band so the frontend never has
@@ -61,7 +61,7 @@ const firstSeenDeletionGracePeriod = 2 * time.Minute
 // is used to avoid immediately triggering deletion in scenarios where the
 // nodepool was marked for deletion but the controllers were not available for
 // some reason until some time afterwards.
-type nodePoolDeletionClusterServiceDeleter struct {
+type nodePoolClusterServiceDeleteDispatchSyncer struct {
 	clock                utilsclock.PassiveClock
 	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
@@ -74,9 +74,9 @@ type nodePoolDeletionClusterServiceDeleter struct {
 	firstSeenDeletionTimestampCache *lru.Cache
 }
 
-var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionClusterServiceDeleter)(nil)
+var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceDeleteDispatchSyncer)(nil)
 
-func NewNodePoolDeletionClusterServiceDeleterController(
+func NewNodePoolClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -84,7 +84,7 @@ func NewNodePoolDeletionClusterServiceDeleterController(
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
-	syncer := &nodePoolDeletionClusterServiceDeleter{
+	syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 		clock:                           clock,
 		cooldownChecker:                 controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:                  nodePoolLister,
@@ -94,7 +94,7 @@ func NewNodePoolDeletionClusterServiceDeleterController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolDeletionClusterServiceDeleter",
+		"NodePoolClusterServiceDeleteDispatch",
 		resourcesDBClient,
 		informers,
 		time.Minute,
@@ -102,14 +102,14 @@ func NewNodePoolDeletionClusterServiceDeleterController(
 	)
 }
 
-func (c *nodePoolDeletionClusterServiceDeleter) CooldownChecker() controllerutil.CooldownChecker {
+func (c *nodePoolClusterServiceDeleteDispatchSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given
 // NodePool: DeletionTimestamp must be set and ClusterServiceDeletionTimestamp
 // must not yet be set.
-func (c *nodePoolDeletionClusterServiceDeleter) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+func (c *nodePoolClusterServiceDeleteDispatchSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {
 	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
 		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp == nil
 }
@@ -122,7 +122,7 @@ func (c *nodePoolDeletionClusterServiceDeleter) NeedsWork(nodePool *api.HCPOpenS
 //
 // In either terminal case - CS delete issued or wait abandoned - we stamp
 // ClusterServiceDeletionTimestamp so the next sync short-circuits.
-func (c *nodePoolDeletionClusterServiceDeleter) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)

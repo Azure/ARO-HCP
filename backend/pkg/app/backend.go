@@ -608,7 +608,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	nodePoolDeletionClusterServiceDeleterController := nodepooldeletion.NewNodePoolDeletionClusterServiceDeleterController(
+	nodePoolDeletionClusterServiceDeleteDispatchController := nodepooldeletion.NewNodePoolClusterServiceDeleteDispatchController(
 		utilsclock.RealClock{},
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -686,7 +686,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go maestroReadAndPersistNodePoolScopedReadonlyBundlesContentController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
-				go nodePoolDeletionClusterServiceDeleterController.Run(ctx, 20)
+				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
 				go nodePoolChildResourcesCleanupController.Run(ctx, 20)
 				go nodePoolDeletionController.Run(ctx, 20)

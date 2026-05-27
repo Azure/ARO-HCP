@@ -59,7 +59,7 @@ func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
 	return true
 }
 
-func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
+func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 
 	testCases := []struct {
@@ -197,7 +197,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 				}
 			}
 
-			syncer := &nodePoolDeletionClusterServiceDeleter{
+			syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 				clock:                           clocktesting.NewFakePassiveClock(fixedNow),
 				cooldownChecker:                 &alwaysSyncCooldownChecker{},
 				nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
@@ -242,7 +242,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce(t *testing.T) {
 	}
 }
 
-func TestNodePoolDeletionClusterServiceDeleter_SyncOnce_firstSeenDeletionGracePeriod(t *testing.T) {
+func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionGracePeriod(t *testing.T) {
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 
 	newDeletingNodePool := func() *api.HCPOpenShiftClusterNodePool {
@@ -270,7 +270,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce_firstSeenDeletionGracePe
 		mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 		firstSeenDeletionTimestampCache := lru.New(10)
 
-		syncer := &nodePoolDeletionClusterServiceDeleter{
+		syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
 			cooldownChecker:                 &alwaysSyncCooldownChecker{},
 			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
@@ -304,7 +304,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce_firstSeenDeletionGracePe
 		firstSeenDeletionTimestampCache := lru.New(10)
 		firstSeenDeletionTimestampCache.Add(strings.ToLower(nodePool.ID.String()), fixedNow.Add(-90*time.Second))
 
-		syncer := &nodePoolDeletionClusterServiceDeleter{
+		syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
 			cooldownChecker:                 &alwaysSyncCooldownChecker{},
 			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
@@ -337,7 +337,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce_firstSeenDeletionGracePe
 		firstSeenDeletionTimestampCache := lru.New(10)
 		firstSeenDeletionTimestampCache.Add(strings.ToLower(nodePool.ID.String()), fixedNow.Add(-firstSeenDeletionGracePeriod))
 
-		syncer := &nodePoolDeletionClusterServiceDeleter{
+		syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
 			cooldownChecker:                 &alwaysSyncCooldownChecker{},
 			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
@@ -371,7 +371,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce_firstSeenDeletionGracePe
 
 		fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
 		firstSeenDeletionTimestampCache := lru.New(10)
-		syncer := &nodePoolDeletionClusterServiceDeleter{
+		syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 			clock:                           fakeClock,
 			cooldownChecker:                 &alwaysSyncCooldownChecker{},
 			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
@@ -414,7 +414,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce_firstSeenDeletionGracePe
 		firstSeenDeletionTimestampCache := lru.New(10)
 		firstSeenDeletionTimestampCache.Add(strings.ToLower(nodePool.ID.String()), fixedNow.Add(-90*time.Second))
 
-		syncer := &nodePoolDeletionClusterServiceDeleter{
+		syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
 			cooldownChecker:                 &alwaysSyncCooldownChecker{},
 			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
@@ -446,7 +446,7 @@ func TestNodePoolDeletionClusterServiceDeleter_SyncOnce_firstSeenDeletionGracePe
 		firstSeenDeletionTimestampCache := lru.New(10)
 		firstSeenDeletionTimestampCache.Add(strings.ToLower(nodePool.ID.String()), fixedNow.Add(-missingClusterServiceIDTimeout))
 
-		syncer := &nodePoolDeletionClusterServiceDeleter{
+		syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 			clock:                           clocktesting.NewFakePassiveClock(fixedNow),
 			cooldownChecker:                 &alwaysSyncCooldownChecker{},
 			nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
