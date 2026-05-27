@@ -310,17 +310,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		tenantID = *subscription.Properties.TenantId
 	}
 
-	initialClusterProperties := map[string]string{}
-	if len(f.clusterServiceProvisionShard) != 0 {
-		initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard
-	}
-	if f.clusterServiceNoopProvision {
-		initialClusterProperties[ocm.CSPropertyNoopProvision] = ocm.CSPropertyEnabled
-	}
-	if f.clusterServiceNoopDeprovision {
-		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
-	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, nil, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
