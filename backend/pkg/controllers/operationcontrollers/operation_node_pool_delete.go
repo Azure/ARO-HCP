@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/cache"
+	utilsclock "k8s.io/utils/clock"
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -34,6 +35,7 @@ import (
 )
 
 type operationNodePoolDelete struct {
+	clock                utilsclock.PassiveClock
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	notificationClient   *http.Client
@@ -54,12 +56,14 @@ type operationNodePoolDelete struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationNodePoolDeleteController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationNodePoolDelete{
+		clock:                clock,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 		notificationClient:   notificationClient,
@@ -109,7 +113,7 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	if err != nil && errors.As(err, &ocmGetNodePoolError) && ocmGetNodePoolError.Status() == http.StatusNotFound {
 		logger.Info("node pool was deleted")
 
-		err = SetDeleteOperationAsCompleted(ctx, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
+		err = SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -124,7 +128,7 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 		return utils.TrackError(err)
 	}
 
-	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}

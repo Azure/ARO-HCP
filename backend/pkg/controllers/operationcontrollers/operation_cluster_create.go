@@ -28,6 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/tools/cache"
+	utilsclock "k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -43,6 +44,7 @@ import (
 )
 
 type operationClusterCreate struct {
+	clock                                 utilsclock.PassiveClock
 	clusterLister                         listers.ClusterLister
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
 	resourcesDBClient                     database.ResourcesDBClient
@@ -65,6 +67,7 @@ type operationClusterCreate struct {
 // any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
 // a terminal value, there will be no further updates to the operation document.
 func NewOperationClusterCreateController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
@@ -74,6 +77,7 @@ func NewOperationClusterCreateController(
 	_, clusterLister := informers.Clusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
 	syncer := &operationClusterCreate{
+		clock:                                 clock,
 		clusterLister:                         clusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
 		resourcesDBClient:                     resourcesDBClient,
@@ -151,7 +155,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, c.resourcesDBClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
 	}
