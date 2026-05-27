@@ -72,90 +72,181 @@ func newTestNodePoolController(t *testing.T, name string) *api.Controller {
 
 func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	fixedNow := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
-	readyToDelete := func(np *api.HCPOpenShiftClusterNodePool) {
+	readyToDeleteNodePoolOptsFunc := func(np *api.HCPOpenShiftClusterNodePool) {
 		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 		np.ServiceProviderProperties.ClusterServiceID = nil
 	}
 
+	testKey := controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	}
+
 	testCases := []struct {
-		name               string
-		existingNodePool   *api.HCPOpenShiftClusterNodePool
-		childResources     []any
-		wantChildrenGone   bool
-		wantControllerKept bool
-		wantSPNPGone       bool
-		wantSPNPKept       bool
-		wantMCCAbsentNamed string
+		name             string
+		existingNodePool *api.HCPOpenShiftClusterNodePool
+		childResources   []any
+		wantErr          bool
+		verifyDB         func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name:             "no DeletionTimestamp -- no-op",
+			name:             "when no DeletionTimestamp, no ClusterServiceDeletionTimestamp are set and ClusterServiceID is set performs a no-op",
 			existingNodePool: newTestNodePool(t, nil),
+			childResources:   []any{newTestManagementClusterContent(t, "untouched-mcc")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).ManagementClusterContents(testNodePoolName)
+				_, err := mccCRUD.Get(ctx, "untouched-mcc")
+				require.NoError(t, err, "expected child resource to still exist")
+			},
 		},
 		{
-			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
+			name: "when no ClusterServiceDeletionTimestamp is set performs a no-op",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
+				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = nil
+				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
+			childResources: []any{newTestManagementClusterContent(t, "untouched-mcc")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).ManagementClusterContents(testNodePoolName)
+				_, err := mccCRUD.Get(ctx, "untouched-mcc")
+				require.NoError(t, err, "expected child resource to still exist")
+			},
 		},
 		{
-			name: "ClusterServiceID still set -- no-op",
+			name: "when ClusterServiceID is set performs a no-op",
 			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
+			childResources: []any{newTestManagementClusterContent(t, "untouched-mcc")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).ManagementClusterContents(testNodePoolName)
+				_, err := mccCRUD.Get(ctx, "untouched-mcc")
+				require.NoError(t, err, "expected child resource to still exist")
+			},
 		},
 		{
-			name:             "all conditions met, no children -- no-op",
-			existingNodePool: newTestNodePool(t, readyToDelete),
+			name:             "when all conditions met and there are no children performs a no-op",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 		},
 		{
-			name:             "all conditions met, MCC child exists -- deletes it",
-			existingNodePool: newTestNodePool(t, readyToDelete),
+			name:             "when there is a children resource it deletes it",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestManagementClusterContent(t, "test-mcc")},
-			wantChildrenGone: true,
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				nodePoolResourceID := testKey.GetResourceID()
+				untypedCRUD, err := db.UntypedCRUD(*nodePoolResourceID)
+				require.NoError(t, err)
+				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+				require.NoError(t, err)
+
+				var remainingCount int
+				for range childIterator.Items(ctx) {
+					remainingCount++
+				}
+				require.NoError(t, childIterator.GetError())
+				assert.Equal(t, 0, remainingCount, "expected no children to remain")
+			},
 		},
 		{
-			name:               "all conditions met, controller child exists -- skipped",
-			existingNodePool:   newTestNodePool(t, readyToDelete),
-			childResources:     []any{newTestNodePoolController(t, "test-controller")},
-			wantControllerKept: true,
+			name:             "deletion of node pool controllers is skipped",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			childResources:   []any{newTestNodePoolController(t, "test-controller")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				nodePoolResourceID := testKey.GetResourceID()
+				untypedCRUD, err := db.UntypedCRUD(*nodePoolResourceID)
+				require.NoError(t, err)
+				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+				require.NoError(t, err)
+
+				var controllerCount int
+				for _, child := range childIterator.Items(ctx) {
+					if strings.EqualFold(child.ResourceType, api.NodePoolControllerResourceType.String()) {
+						controllerCount++
+					}
+				}
+				require.NoError(t, childIterator.GetError())
+				assert.Equal(t, 1, controllerCount, "expected controller child to remain")
+			},
 		},
 		{
-			name:               "all conditions met, mixed children -- deletes only non-controller",
-			existingNodePool:   newTestNodePool(t, readyToDelete),
-			childResources:     []any{newTestManagementClusterContent(t, "test-mcc"), newTestNodePoolController(t, "test-controller")},
-			wantChildrenGone:   true,
-			wantControllerKept: true,
+			name:             "when there are nodepool controller and non nodepool controller children it deletes the non nodepool controller children",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			childResources:   []any{newTestManagementClusterContent(t, "test-mcc"), newTestNodePoolController(t, "test-controller")},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				nodePoolResourceID := testKey.GetResourceID()
+				untypedCRUD, err := db.UntypedCRUD(*nodePoolResourceID)
+				require.NoError(t, err)
+				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
+				require.NoError(t, err)
+
+				var remainingCount int
+				var controllerCount int
+				for _, child := range childIterator.Items(ctx) {
+					remainingCount++
+					if strings.EqualFold(child.ResourceType, api.NodePoolControllerResourceType.String()) {
+						controllerCount++
+					}
+				}
+				require.NoError(t, childIterator.GetError())
+				assert.Equal(t, 1, remainingCount, "expected only controller child to remain")
+				assert.Equal(t, 1, controllerCount, "expected the remaining child to be a controller")
+			},
 		},
 		{
-			name: "node pool not found -- no-op",
+			name: "when the node pool is not found performs a no-op",
 		},
 		{
-			name:             "all conditions met, SPNP Maestro bundles empty -- deletes ServiceProviderNodePool cosmos doc",
-			existingNodePool: newTestNodePool(t, readyToDelete),
-			childResources:   []any{newTestSPNP(t, api.MaestroBundleReferenceList{})},
-			wantSPNPGone:     true,
+			name:             "when there is a child ServiceProviderNodePool and it does not have Maestro bundle references it deletes it",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
+			childResources:   []any{newTestSPNP(t, nil)},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				spnpCRUD := db.ServiceProviderNodePools(
+					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.True(t, database.IsNotFoundError(err), "expected SPNP to be deleted")
+			},
 		},
 		{
-			name:             "all conditions met, SPNP has Maestro readonly bundles -- skips deleting ServiceProviderNodePool",
-			existingNodePool: newTestNodePool(t, readyToDelete),
+			name:             "when there is a child ServiceProviderNodePool and it has Maestro bundle references it does not delete it",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{newTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 			})},
-			wantSPNPKept: true,
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				spnpCRUD := db.ServiceProviderNodePools(
+					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err, "expected SPNP to still exist")
+			},
 		},
 		{
-			name:             "all conditions met, MCC plus SPNP with bundles -- deletes MCC only",
-			existingNodePool: newTestNodePool(t, readyToDelete),
+			name:             "when there are child resources including a ServiceProviderNodePool with Maestro bundle references it deletes them excluding it",
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{
 				newTestManagementClusterContent(t, "gate-mcc"),
 				newTestSPNP(t, api.MaestroBundleReferenceList{
 					{Name: "bundle-a", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 				}),
 			},
-			wantMCCAbsentNamed: "gate-mcc",
-			wantSPNPKept:       true,
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				mccCRUD := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).ManagementClusterContents(testNodePoolName)
+				_, err := mccCRUD.Get(ctx, "gate-mcc")
+				require.True(t, database.IsNotFoundError(err), "expected MCC gate-mcc to be deleted")
+
+				spnpCRUD := db.ServiceProviderNodePools(
+					testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+				_, err = spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err, "expected SPNP to still exist")
+			},
 		},
 	}
 
@@ -168,7 +259,6 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				resources = append(resources, tc.existingNodePool)
 			}
 			resources = append(resources, tc.childResources...)
-
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
@@ -183,60 +273,15 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				resourcesDBClient: mockResourcesDBClient,
 			}
 
-			key := controllerutils.HCPNodePoolKey{
-				SubscriptionID:    testSubscriptionID,
-				ResourceGroupName: testResourceGroupName,
-				HCPClusterName:    testClusterName,
-				HCPNodePoolName:   testNodePoolName,
+			err = syncer.SyncOnce(ctx, testKey)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
 			}
-
-			err = syncer.SyncOnce(ctx, key)
 			require.NoError(t, err)
 
-			if tc.wantChildrenGone || tc.wantControllerKept {
-				nodePoolResourceID := key.GetResourceID()
-				untypedCRUD, err := mockResourcesDBClient.UntypedCRUD(*nodePoolResourceID)
-				require.NoError(t, err)
-				childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
-				require.NoError(t, err)
-
-				var remainingCount int
-				var controllerCount int
-				for _, child := range childIterator.Items(ctx) {
-					remainingCount++
-					if strings.EqualFold(child.ResourceType, api.NodePoolControllerResourceType.String()) {
-						controllerCount++
-					}
-				}
-				require.NoError(t, childIterator.GetError())
-
-				if tc.wantChildrenGone && tc.wantControllerKept {
-					assert.Equal(t, 1, remainingCount, "expected only controller child to remain")
-					assert.Equal(t, 1, controllerCount, "expected the remaining child to be a controller")
-				} else if tc.wantChildrenGone {
-					assert.Equal(t, 0, remainingCount, "expected no children to remain")
-				} else if tc.wantControllerKept {
-					assert.Equal(t, 1, controllerCount, "expected controller child to remain")
-				}
-			}
-
-			if tc.wantSPNPGone {
-				spnpCRUD := mockResourcesDBClient.ServiceProviderNodePools(
-					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
-				require.True(t, database.IsNotFoundError(err))
-			}
-			if tc.wantSPNPKept {
-				spnpCRUD := mockResourcesDBClient.ServiceProviderNodePools(
-					key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-				_, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
-				require.NoError(t, err)
-			}
-			if tc.wantMCCAbsentNamed != "" {
-				mccCRUD := mockResourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
-					NodePools(key.HCPClusterName).ManagementClusterContents(key.HCPNodePoolName)
-				_, err := mccCRUD.Get(ctx, tc.wantMCCAbsentNamed)
-				require.True(t, database.IsNotFoundError(err))
+			if tc.verifyDB != nil {
+				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
 		})
 	}
