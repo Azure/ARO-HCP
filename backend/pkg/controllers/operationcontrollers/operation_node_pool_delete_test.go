@@ -49,7 +49,7 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:           "node pool still exists — no action",
+			name:           "node pool still exists - no action",
 			includeCluster: true,
 			includeNP:      true,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
