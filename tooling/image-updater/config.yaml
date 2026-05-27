@@ -23,7 +23,7 @@ images:
     group: hypershift-stack
     source:
       image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      tag: "latest"
+      tag: "cf2b91fbc02ebe5d3d66515cb2ea3e097290ac13" # pinned: latest includes be263214 which rejects Azure HostedClusters (AROSLSRE-919, unpin: AROSLSRE-921)
       multiArch: true # Use multi-arch manifest
       useAuth: true
       keyVault:
@@ -47,7 +47,7 @@ images:
     group: cs
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
-      tag: "latest"
+      tag: "dbb022a3dd3f0533ae1c8eebd4e6929ba1ca1ede" # pinned: latest includes swift-nic annotation without CPO override (AROSLSRE-944, unpin: AROSLSRE-946)
       versionLabel: "vcs-ref"
       useAuth: true
       keyVault:
