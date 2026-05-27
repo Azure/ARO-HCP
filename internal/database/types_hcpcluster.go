@@ -25,15 +25,11 @@ type HCPCluster struct {
 }
 
 type HCPClusterProperties struct {
-	// HCPOpenShiftCluster is where we're migrating to.  It is compatible with a GenericDocument[api.HCPOpenShiftCluster]
-	// which is where we want to end up.
-	// * to be compatible with prior versions, we must continue writing all previous fields and this new field
-	// * to be compatible with prior versions, we must continue reading only from previous fields
+	// HCPOpenShiftCluster is the inline serialization that mirrors GenericDocument[api.HCPOpenShiftCluster]
+	// (the destination shape for cluster documents). The reading path now uses these inline fields as the
+	// source of truth; the IntermediateResourceDoc/InternalState siblings are still written for compatibility
+	// with old readers, but will be removed once all readers have migrated.
 	api.HCPOpenShiftCluster `json:",inline"`
-
-	// when we switch to inlining the internalObj, this will be in the right spot.  We add it now so that we can switch our
-	// queries to select on cosmosMetadata.ResourceID instead of resourceId
-	CosmosMetadata api.CosmosMetadata `json:"cosmosMetadata"`
 
 	// IntermediateResourceDoc exists so that we can stop inlining the resource document so that we can directly
 	// embed the InternalAPIType which has colliding serialization fields.

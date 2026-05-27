@@ -91,7 +91,7 @@ Use `description` for dynamic detail with template variables. The `description` 
 
 ### CorrelationID behavior
 
-The generator automatically sets a `correlationId` annotation on every alert:
+The generator automatically sets a `correlationId` annotation on every alert unless the source rule already defines one:
 
 ```
 <AlertName>/{{ $labels.cluster }}
@@ -101,7 +101,22 @@ IcM uses the correlation ID to group alerts into incidents. Alerts with the same
 
 This means that all firings of the same alert on the same cluster are grouped together. For example, if `BackendControllerRetryHotLoop` fires for two different workqueues on the same cluster, they become one incident. The specific workqueue name is still visible in the alert `description`.
 
-This is intentional: fine-grained correlation IDs (per-pod, per-queue, etc.) were found to cause excessive incident fragmentation. If you need to distinguish between instances in the incident, include the relevant labels in the `description` annotation where they are visible to the responder.
+This default is intentional: fine-grained correlation IDs (per-pod, per-queue, etc.) were found to cause excessive incident fragmentation. If you need to distinguish between instances in the incident, include the relevant labels in the `description` annotation where they are visible to the responder.
+
+#### Overriding the correlationId
+
+If the default per-infra-cluster grouping is too coarse, you can set a custom `correlationId` annotation directly in the source `PrometheusRule` YAML. The generator will preserve it instead of applying the default.
+
+For example, to create a separate IcM incident per hosted cluster:
+
+```yaml
+annotations:
+  summary: "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}"
+  description: "..."
+  correlationId: "hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}"
+```
+
+Use this sparingly — only when distinct instances genuinely need independent incident tracking (e.g. different hosted clusters on the same management cluster).
 
 ## 2. Write tests
 

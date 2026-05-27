@@ -36,6 +36,7 @@ type BaseGatherOptions struct {
 	TimestampMin time.Time     // Timestamp minimum
 	TimestampMax time.Time     // Timestamp maximum
 	Limit        int           // Limit the number of results
+	SplitByPod   bool          // Split output files by pod name
 }
 
 // DefaultBaseGatherOptions returns BaseGatherOptions initialized with sensible defaults.
@@ -58,6 +59,7 @@ func BindBaseGatherOptions(opts *BaseGatherOptions, cmd *cobra.Command) error {
 	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
 	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
+	cmd.Flags().BoolVar(&opts.SplitByPod, "split-by-pod", opts.SplitByPod, "split output files by pod name")
 
 	requiredFlags := []string{"kusto", "region"}
 	for _, flag := range requiredFlags {

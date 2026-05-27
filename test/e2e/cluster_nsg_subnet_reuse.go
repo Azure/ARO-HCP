@@ -43,19 +43,19 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 2, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-nsg-subnet-reuse", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for NSG/subnet reuse test")
 
 			By("creating customer resources")
-			clusterParams1 := framework.NewDefaultClusterParams()
+			clusterParams1 := framework.NewDefaultClusterParams20240610()
 			clusterParams1.ClusterName = "basic-cluster"
 			clusterParams1.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed-1", 64)
 
-			clusterParams2 := framework.NewDefaultClusterParams()
+			clusterParams2 := framework.NewDefaultClusterParams20240610()
 			clusterParams2.ClusterName = "cluster-subnet-reuse"
 			clusterParams2.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed-2", 64)
 
@@ -66,7 +66,7 @@ var _ = Describe("Customer", func() {
 
 			go func() {
 				defer close(customerRes1DoneCh)
-				clusterParams1, err1 = tc.CreateClusterCustomerResources(ctx,
+				clusterParams1, err1 = tc.CreateClusterCustomerResources20240610(ctx,
 					resourceGroup,
 					clusterParams1,
 					map[string]any{
@@ -80,7 +80,7 @@ var _ = Describe("Customer", func() {
 			}()
 			go func() {
 				defer close(customerRes2DoneCh)
-				clusterParams2, err2 = tc.CreateClusterCustomerResources(ctx,
+				clusterParams2, err2 = tc.CreateClusterCustomerResources20240610(ctx,
 					resourceGroup,
 					clusterParams2,
 					map[string]any{
@@ -94,50 +94,50 @@ var _ = Describe("Customer", func() {
 			}()
 
 			<-customerRes1DoneCh
-			Expect(err1).NotTo(HaveOccurred())
+			Expect(err1).NotTo(HaveOccurred(), "failed to create customer resources for basic-cluster")
 
 			By("seeding HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams1,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create seed HCP cluster basic-cluster")
 
 			<-customerRes2DoneCh
-			Expect(err2).NotTo(HaveOccurred())
+			Expect(err2).NotTo(HaveOccurred(), "failed to create customer resources for cluster-subnet-reuse")
 
 			By("attempting to create HCP cluster with already used subnet resource")
 			originalSubnetResourceID := clusterParams2.SubnetResourceID
 			clusterParams2.SubnetResourceID = clusterParams1.SubnetResourceID
 
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams2,
 				5*time.Minute,
 			)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when creating cluster with already-used subnet")
 			GinkgoLogr.Error(err, "cluster deployment error")
-			Expect(err.Error()).To(MatchRegexp("Subnet .* is already in use by another cluster"))
+			Expect(err.Error()).To(MatchRegexp("Subnet .* is already in use by another cluster"), "error should indicate subnet is already in use")
 			clusterParams2.SubnetResourceID = originalSubnetResourceID
 
 			By("attempting to create HCP cluster with already used NSG resource")
 
 			clusterParams2.NsgResourceID = clusterParams1.NsgResourceID
 			clusterParams2.ClusterName = "cluster-nsg-reuse"
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams2,
 				5*time.Minute,
 			)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(HaveOccurred(), "expected error when creating cluster with already-used NSG")
 			GinkgoLogr.Error(err, "cluster deployment error")
-			Expect(err.Error()).To(MatchRegexp("Network Security Group .* is already in use by another cluster"))
+			Expect(err.Error()).To(MatchRegexp("Network Security Group .* is already in use by another cluster"), "error should indicate NSG is already in use")
 		})
 })

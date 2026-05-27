@@ -149,6 +149,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		adminMetricsListener,
 		storageIntegrationTestInfo.ResourcesDBClient(),
 		storageIntegrationTestInfo.BillingDBClient(),
+		storageIntegrationTestInfo.FleetDBClient(),
 		clusterServiceMockInfo.MockClusterServiceClient,
 		nil,
 		nil,

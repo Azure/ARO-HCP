@@ -55,21 +55,21 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-negative-tests", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group rg-negative-tests")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -80,7 +80,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResource,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			var errs []error
@@ -100,30 +100,30 @@ var _ = Describe("Customer", func() {
 			checkExpectedError(&errs, "node pool listing in non-existent resource group", err, "resource group not found")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "cluster %s is not viable", customerClusterName)
 
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = clusterParams.ClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 
@@ -135,7 +135,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParamsInvalidQuota.Replicas = int32(201)
 
 			By("attempting to create a node pool with invalid instance type")
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -146,7 +146,7 @@ var _ = Describe("Customer", func() {
 			checkExpectedError(&errs, "node pool creation with invalid instance type", err, "machine type not supported")
 
 			By("attempting to create a node pool with invalid quota")
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
@@ -157,15 +157,15 @@ var _ = Describe("Customer", func() {
 			checkExpectedError(&errs, "node pool creation with invalid quota", err, "invalid value must be less than or equal to")
 
 			By("creating a nodepool")
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
 				clusterParams.ClusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", customerNodePoolName)
 
 			// TEST CASE: ARO-23182
 			By("attempting to update nodepool version to higher than cluster version")
@@ -173,7 +173,7 @@ var _ = Describe("Customer", func() {
 			invalidNodePoolVersion := fmt.Sprintf("%d.%d.0", clusterVersion.Major, clusterVersion.Minor+1) // +1 y-stream, z set to 0
 
 			npForVersionUpdate, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), "failed to GET node pool %s for version update test", nodePoolParams.NodePoolName)
 
 			npForVersionUpdate.Properties.Version.ID = &invalidNodePoolVersion
 			_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, npForVersionUpdate.NodePool, nil)
@@ -230,7 +230,7 @@ var _ = Describe("Customer", func() {
 			// TEST CASE: https://issues.redhat.com/browse/ARO-22240 to be implemented here
 
 			if len(errs) > 0 {
-				Expect(errors.Join(errs...)).NotTo(HaveOccurred())
+				Expect(errors.Join(errs...)).NotTo(HaveOccurred(), "one or more negative test cases failed")
 			}
 		})
 

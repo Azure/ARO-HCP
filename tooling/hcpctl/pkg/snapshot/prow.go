@@ -15,6 +15,8 @@
 package snapshot
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -29,9 +31,12 @@ import (
 	"github.com/go-logr/logr"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"gopkg.in/yaml.v3"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
+
+	"github.com/Azure/ARO-HCP/tooling/utilitytypes/timing"
 )
 
 const (
@@ -48,7 +53,12 @@ type ProwJobInfo struct {
 	JobName   string
 	ProwID    string
 	GCSPrefix string
-	IsPR      bool
+}
+
+// IsPullRequest reports whether the job is a pull-ci (PR) job,
+// determined by the job name prefix.
+func (p *ProwJobInfo) IsPullRequest() bool {
+	return strings.HasPrefix(p.JobName, "pull-ci")
 }
 
 // ProwJobConfig holds the Kusto connection info extracted from a Prow job's config.yaml.
@@ -57,17 +67,27 @@ type ProwJobConfig struct {
 	KustoName       string
 	HCPDatabase     string
 	ServiceDatabase string
+
+	// ServiceClusterName and ManagementClusterName are the AKS cluster names
+	// used to filter Kusto queries to only relevant clusters. These are only
+	// populated for PR (pull-ci) jobs where the shared Kusto database contains
+	// data from multiple clusters.
+	ServiceClusterName    string
+	ManagementClusterName string
 }
 
 // TestResult represents a single test with its metadata.
 type TestResult struct {
-	Name          string
-	Output        string
-	Error         string
-	Failed        bool
-	StartTime     time.Time
-	EndTime       time.Time
-	ResourceGroup string // extracted from test output
+	Name             string
+	Output           string
+	Error            string
+	Failed           bool
+	StartTime        time.Time
+	EndTime          time.Time
+	ResourceGroup    string // extracted from test output
+	SetupFinishTime  time.Time
+	TestStartTime    time.Time
+	CleanupStartTime time.Time
 }
 
 // ParseProwURL extracts job name, Prow ID, GCS prefix, and PR status from a Prow job URL.
@@ -104,7 +124,6 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 				JobName:   segments[i+4],
 				ProwID:    prowID,
 				GCSPrefix: strings.Join(segments[i:i+6], "/"),
-				IsPR:      true,
 			}, nil
 		}
 		if seg == "logs" {
@@ -120,7 +139,6 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 				JobName:   segments[i+1],
 				ProwID:    prowID,
 				GCSPrefix: strings.Join(segments[i:i+3], "/"),
-				IsPR:      false,
 			}, nil
 		}
 	}
@@ -144,7 +162,7 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find artifact directory: %w", err)
 	}
-	logger.Info("Found artifact directory", "dir", artifactDir)
+	logger.V(1).Info("Found artifact directory", "dir", artifactDir)
 
 	artifactPrefix := fmt.Sprintf("%s/artifacts/%s", info.GCSPrefix, artifactDir)
 
@@ -155,11 +173,11 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 		return nil, nil, fmt.Errorf("failed to download config.yaml: %w", err)
 	}
 
-	jobConfig, err := parseConfig(configData, info.IsPR)
+	jobConfig, err := parseConfig(configData, info.JobName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse config.yaml: %w", err)
 	}
-	logger.Info("Parsed job config",
+	logger.V(1).Info("Parsed job config",
 		"region", jobConfig.Region,
 		"kusto", jobConfig.KustoName,
 		"serviceDB", jobConfig.ServiceDatabase,
@@ -168,7 +186,7 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 
 	// Download test results.
 	testStep := testStepPersistent
-	if info.IsPR {
+	if info.IsPullRequest() {
 		testStep = testStepLocal
 	}
 	testResultsPrefix := fmt.Sprintf("%s/%s/artifacts/extension_test_result_e2e_", artifactPrefix, testStep)
@@ -219,7 +237,139 @@ func FetchProwJobData(ctx context.Context, info *ProwJobInfo) (*ProwJobConfig, [
 	}
 
 	logger.Info("Found test results", "total", len(tests), "failed", numFailed)
+
+	// Enrich test results with timing boundaries from timing metadata.
+	testTimings := fetchTestTimings(ctx, gcsClient, artifactPrefix, logger)
+	for i := range tests {
+		if t, ok := testTimings[tests[i].Name]; ok {
+			tests[i].SetupFinishTime = t.SetupFinishTime
+			tests[i].TestStartTime = t.TestStartTime
+			tests[i].CleanupStartTime = t.CleanupStartTime
+		}
+	}
+
 	return jobConfig, tests, nil
+}
+
+const timingMetadataPath = "aro-hcp-gather-test-visualization/artifacts/test-timing/"
+
+// testTimingBoundaries holds the derived phase boundaries for a single test.
+type testTimingBoundaries struct {
+	SetupFinishTime  time.Time
+	TestStartTime    time.Time
+	CleanupStartTime time.Time
+}
+
+// identityContainerStep reports whether a step name refers to identity container setup.
+func identityContainerStep(name string) bool {
+	return strings.Contains(strings.ToLower(name), "identity container")
+}
+
+// deriveSetupTestBoundary inspects the steps in the timing metadata and returns:
+//   - setupFinishTime: the latest FinishedAt among steps whose name contains
+//     "identity container" (setup steps).
+//   - testStartTime: the earliest StartedAt among steps whose name does NOT
+//     contain "identity container" (test steps).
+//
+// Either or both may be zero when the relevant steps are not present or their
+// timestamps cannot be parsed.
+func deriveSetupTestBoundary(steps []timing.StepTimingMetadata) (setupFinishTime, testStartTime time.Time) {
+	for _, step := range steps {
+		if identityContainerStep(step.Name) {
+			if step.FinishedAt != "" {
+				if t, err := time.Parse(time.RFC3339, step.FinishedAt); err == nil {
+					if setupFinishTime.IsZero() || t.After(setupFinishTime) {
+						setupFinishTime = t
+					}
+				}
+			}
+		} else {
+			if step.StartedAt != "" {
+				if t, err := time.Parse(time.RFC3339, step.StartedAt); err == nil {
+					if testStartTime.IsZero() || t.Before(testStartTime) {
+						testStartTime = t
+					}
+				}
+			}
+		}
+	}
+	return setupFinishTime, testStartTime
+}
+
+// fetchTestTimings downloads timing metadata files from the GCS bucket and
+// returns a map from test name to the derived timing boundaries. The top-level
+// finishedAt marks when cleanup began. Steps whose name contains "identity
+// container" are treated as setup; the remaining steps are the test itself.
+func fetchTestTimings(ctx context.Context, gcsClient *storage.Client, artifactPrefix string, logger logr.Logger) map[string]testTimingBoundaries {
+	prefix := fmt.Sprintf("%s/%stiming-metadata-", artifactPrefix, timingMetadataPath)
+	logger.V(1).Info("Fetching timing metadata", "prefix", prefix)
+	files, err := listObjects(ctx, gcsClient, prefix)
+	if err != nil {
+		logger.V(1).Info("Could not list timing metadata files, skipping timing enrichment", "err", err)
+		return nil
+	}
+	if len(files) == 0 {
+		logger.V(1).Info("No timing metadata files found")
+		return nil
+	}
+
+	result := make(map[string]testTimingBoundaries)
+	for _, objPath := range files {
+		fileName := objPath[strings.LastIndex(objPath, "/")+1:]
+		if !strings.HasPrefix(fileName, "timing-metadata-") {
+			continue
+		}
+		if !strings.HasSuffix(fileName, ".yaml") && !strings.HasSuffix(fileName, ".yaml.gz") {
+			continue
+		}
+
+		data, err := downloadObject(ctx, gcsClient, objPath)
+		if err != nil {
+			logger.V(1).Info("Failed to download timing metadata file, skipping", "path", objPath, "err", err)
+			continue
+		}
+
+		var timingBytes []byte
+		if strings.HasSuffix(objPath, ".gz") {
+			gzipReader, err := gzip.NewReader(bytes.NewReader(data))
+			if err != nil {
+				logger.V(1).Info("Failed to create gzip reader for timing metadata, skipping", "path", objPath, "err", err)
+				continue
+			}
+			timingBytes, err = io.ReadAll(gzipReader)
+			gzipReader.Close()
+			if err != nil {
+				logger.V(1).Info("Failed to decompress timing metadata, skipping", "path", objPath, "err", err)
+				continue
+			}
+		} else {
+			timingBytes = data
+		}
+
+		var tm timing.SpecTimingMetadata
+		if err := yaml.Unmarshal(timingBytes, &tm); err != nil {
+			logger.V(1).Info("Failed to unmarshal timing metadata, skipping", "path", objPath, "err", err)
+			continue
+		}
+
+		testName := strings.Join(tm.Identifier, " ")
+		boundaries := testTimingBoundaries{}
+
+		if tm.FinishedAt != "" {
+			t, err := time.Parse(time.RFC3339, tm.FinishedAt)
+			if err == nil {
+				boundaries.CleanupStartTime = t
+			} else {
+				logger.Error(err, "Failed to parse finishedAt from timing metadata, skipping", "path", objPath)
+			}
+		}
+
+		boundaries.SetupFinishTime, boundaries.TestStartTime = deriveSetupTestBoundary(tm.Steps)
+		result[testName] = boundaries
+	}
+
+	logger.V(1).Info("Loaded test timing boundaries from timing metadata", "count", len(result))
+	return result
 }
 
 // resourceGroupRegex matches log lines like:
@@ -239,33 +389,51 @@ func ExtractResourceGroup(output string) string {
 
 // sourceConfig represents the fields we read from the Prow job's config.yaml.
 type sourceConfig struct {
-	Region string      `yaml:"region"`
-	Kusto  sourceKusto `yaml:"kusto"`
+	Region string      `json:"region"`
+	Kusto  sourceKusto `json:"kusto"`
+	Svc    sourceAKS   `json:"svc"`
+	Mgmt   sourceAKS   `json:"mgmt"`
 }
 
 type sourceKusto struct {
-	KustoName                      string `yaml:"kustoName"`
-	HostedControlPlaneLogsDatabase string `yaml:"hostedControlPlaneLogsDatabase"`
-	ServiceLogsDatabase            string `yaml:"serviceLogsDatabase"`
+	KustoName                      string `json:"kustoName"`
+	HostedControlPlaneLogsDatabase string `json:"hostedControlPlaneLogsDatabase"`
+	ServiceLogsDatabase            string `json:"serviceLogsDatabase"`
 }
 
-func parseConfig(data []byte, isPR bool) (*ProwJobConfig, error) {
+type sourceAKS struct {
+	AKS sourceAKSName `json:"aks"`
+}
+
+type sourceAKSName struct {
+	Name string `json:"name"`
+}
+
+func parseConfig(data []byte, jobName string) (*ProwJobConfig, error) {
 	var src sourceConfig
 	if err := yaml.Unmarshal(data, &src); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
 	region := src.Region
-	if isPR {
+	isPullRequest := strings.HasPrefix(jobName, "pull-ci")
+	if isPullRequest {
 		region = prKustoRegion
 	}
 
-	return &ProwJobConfig{
+	config := &ProwJobConfig{
 		Region:          region,
 		KustoName:       src.Kusto.KustoName,
 		HCPDatabase:     src.Kusto.HostedControlPlaneLogsDatabase,
 		ServiceDatabase: src.Kusto.ServiceLogsDatabase,
-	}, nil
+	}
+
+	if isPullRequest {
+		config.ServiceClusterName = src.Svc.AKS.Name
+		config.ManagementClusterName = src.Mgmt.AKS.Name
+	}
+
+	return config, nil
 }
 
 // findArtifactDir lists subdirectories under artifacts/ and returns the one

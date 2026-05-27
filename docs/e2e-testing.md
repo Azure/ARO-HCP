@@ -20,7 +20,7 @@ All E2E tests are triggered through Prow by commenting on a pull request in the 
 
 | Command | Environment | Runs Automatically | Notes |
 |---------|-------------|-------------------|-------|
-| `/test e2e-parallel` | Dev (westus3) | Yes (on every PR) | Optional, does not block merge |
+| `/test e2e-parallel` | Dev (centralus) | Yes (on every PR) | Optional, does not block merge. Deploys to dedicated subscription. |
 | `/test integration-e2e-parallel` | Int (uksouth) | No | Must be triggered manually |
 | `/test stage-e2e-parallel` | Stage (uksouth) | No | Must be triggered manually |
 | `/test prod-e2e-parallel` | Prod (uksouth) | No | Use with caution |

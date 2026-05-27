@@ -350,6 +350,9 @@ var _ database.ServiceProviderClusterCRUD = &errorInjectingSPCCRUD{}
 func TestMaestroReadonlyBundleHelpers_calculateManagementClusterContentFromMaestroBundle(t *testing.T) {
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
 	}
 	ref := &api.MaestroBundleReference{
@@ -439,6 +442,9 @@ func TestMaestroReadonlyBundleHelpers_readAndPersistMaestroReadonlyBundleContent
 	ctx := context.Background()
 	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{Resource: arm.Resource{ID: clusterResourceID}},
 	}
 	ref := &api.MaestroBundleReference{

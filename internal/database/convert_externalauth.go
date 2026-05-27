@@ -21,7 +21,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAuth) (*ExternalAuth, error) {
@@ -29,22 +28,26 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 		return nil, nil
 	}
 
+	// CosmosMetadata.ResourceID is the canonical identifier for cosmos-side
+	// concerns (partitioning, document UID, resource-type indexing). Use it
+	// instead of the ProxyResource.ID, which is an ARM-surface concern.
+	cosmosResourceID := internalObj.GetCosmosData().ResourceID
+	if cosmosResourceID == nil {
+		return nil, fmt.Errorf("internalObj is missing CosmosMetadata.ResourceID")
+	}
 	cosmosObj := &ExternalAuth{
 		TypedDocument: TypedDocument{
 			BaseDocument: BaseDocument{
 				ID: internalObj.GetCosmosData().GetCosmosUID(),
 			},
-			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
-			ResourceID:   internalObj.ID,
-			ResourceType: internalObj.ID.ResourceType.String(),
+			PartitionKey: strings.ToLower(cosmosResourceID.SubscriptionID),
+			ResourceID:   cosmosResourceID,
+			ResourceType: cosmosResourceID.ResourceType.String(),
 		},
 		ExternalAuthProperties: ExternalAuthProperties{
 			HCPOpenShiftClusterExternalAuth: *internalObj,
-			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: internalObj.ID,
-			},
 			IntermediateResourceDoc: &ResourceDocument{
-				ResourceID:        internalObj.ID,
+				ResourceID:        cosmosResourceID,
 				InternalID:        ptr.Deref(internalObj.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
 				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
@@ -59,6 +62,8 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 		},
 	}
 
+	cosmosObj.InternalState.InternalAPI.CosmosMetadata = api.CosmosMetadata{}
+
 	return cosmosObj, nil
 }
 
@@ -66,38 +71,17 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	if cosmosObj == nil {
 		return nil, nil
 	}
-	resourceDoc := cosmosObj.IntermediateResourceDoc
-	if resourceDoc == nil {
-		return nil, fmt.Errorf("resource document cannot be nil")
-	}
 
-	tempInternalAPI := cosmosObj.InternalState.InternalAPI
-	internalObj := &tempInternalAPI
-
-	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
-	internalObj.ProxyResource = arm.ProxyResource{
-		Resource: arm.Resource{
-			ID:         resourceDoc.ResourceID,
-			Name:       resourceDoc.ResourceID.Name,
-			Type:       resourceDoc.ResourceID.ResourceType.String(),
-			SystemData: resourceDoc.SystemData,
-		},
+	internalObj := cosmosObj.DeepCopy()
+	internalObj.ExistingCosmosUID = cosmosObj.ID
+	internalObj.SetEtag(cosmosObj.CosmosETag)
+	if internalObj.GetResourceID() == nil {
+		if cosmosObj.ResourceID != nil {
+			internalObj.SetResourceID(cosmosObj.ResourceID)
+		} else {
+			return nil, fmt.Errorf("internalObj is missing a resourceID: %T: %q", cosmosObj, cosmosObj.ID)
+		}
 	}
-	// we carry over the CosmosETag from the cosmos object to the internal object into a
-	// temporary field until we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftClusterExternalAuth.
-	internalObj.CosmosETag = cosmosObj.BaseDocument.CosmosETag
-	internalObj.Properties.ProvisioningState = resourceDoc.ProvisioningState
-	internalObj.SystemData = resourceDoc.SystemData
-	internalObj.ServiceProviderProperties.ExistingCosmosUID = cosmosObj.ID
-	if len(resourceDoc.InternalID.String()) == 0 {
-		// preserve the nil on read
-		internalObj.ServiceProviderProperties.ClusterServiceID = nil
-	} else {
-		internalObj.ServiceProviderProperties.ClusterServiceID = &resourceDoc.InternalID
-	}
-
-	internalObj.ServiceProviderProperties.ActiveOperationID = resourceDoc.ActiveOperationID
 
 	internalObj.EnsureDefaults()
 

@@ -517,6 +517,51 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "alert: 'AllowedAlert'")
 		assert.NotContains(t, generated, "alert: 'BlockedAlert'")
 	})
+
+	t.Run("preserves per-alert correlationId override", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "hcp-hostedcluster-monitor-rules",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "hostedcluster-KubeAPIServer-ErrorBudgetBurn",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "info",
+											},
+											Annotations: map[string]string{
+												"summary":       "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}",
+												"correlationId": "hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+
+		generated := string(content)
+		assert.Contains(t, generated, "correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'")
+		assert.NotContains(t, generated, "correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}'")
+	})
 }
 
 func TestWriteGroups(t *testing.T) {

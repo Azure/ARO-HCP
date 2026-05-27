@@ -116,6 +116,7 @@ func (o *RawQueryOptions) Validate(ctx context.Context) (*ValidatedQueryOptions,
 			TimestampMin:      o.TimestampMin,
 			TimestampMax:      o.TimestampMax,
 			Limit:             o.Limit,
+			SplitByPod:        o.SplitByPod,
 		},
 	}, nil
 }

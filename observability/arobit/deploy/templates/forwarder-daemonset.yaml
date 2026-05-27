@@ -109,9 +109,45 @@ spec:
         - name: mdsd-clusterlogs
           image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
           imagePullPolicy: '{{ .Values.forwarder.mdsd.image.pullPolicy }}'
+          # AROSLSRE-879: defensively wait for the Geneva auth cert before exec'ing
+          # mdsd. The AKS secrets-store CSI driver can lose the initial
+          # NodePublishVolume race, leaving /geneva/geneva_auth/ empty; mdsd then
+          # panics with "No certificate was found that matched SAN" on every
+          # restart. The mdsd-cert-watchdog sidecar below recovers stuck pods by
+          # deleting them; this wrapper keeps the normal startup race window quiet.
+          # Upstream bug: kubernetes-sigs/secrets-store-csi-driver#1051
+          # Upstream fix: kubernetes-sigs/secrets-store-csi-driver#2025 (in flight)
+          # Remove this wrapper once #2025 lands and AKS ships the fixed driver.
+          # Polls for a non-empty cert file (mdsd does its own X.509 + SAN
+          # validation), then exec's the real entrypoint. If the cert never
+          # appears we exit non-zero so the kubelet restart counter increments and
+          # existing container-restart alerts still fire. Uses /bin/sh and
+          # /bin/sleep, both present in the distroless mdsd image (the watchdog
+          # sidecar already uses /bin/sleep directly). Timeout and poll interval
+          # are sourced from the watchdog's chart values so the two recovery
+          # windows stay coordinated when tuned.
           command:
-              - /start_mdsd.sh
+            - /bin/sh
+            - -c
+            - |
+              CERT=/geneva/geneva_auth/gcscert.pem
+              WAITED=0
+              while [ "$WAITED" -lt "$TIMEOUT_SECONDS" ]; do
+                if [ -s "$CERT" ]; then
+                  echo "[mdsd-init] Geneva auth cert present after ${WAITED}s; exec'ing mdsd"
+                  exec /start_mdsd.sh
+                fi
+                echo "[mdsd-init] Geneva auth cert not yet mounted at ${CERT} (waited ${WAITED}s of ${TIMEOUT_SECONDS}s)"
+                sleep "$INTERVAL_SECONDS"
+                WAITED=$((WAITED + INTERVAL_SECONDS))
+              done
+              echo "[mdsd-init] Giving up after ${TIMEOUT_SECONDS}s; Geneva auth cert never appeared at ${CERT}. This usually means the CSI driver lost the initial mount race; see AROSLSRE-879. Exiting to trigger container restart."
+              exit 1
           env:
+            - name: TIMEOUT_SECONDS
+              value: '{{ .Values.forwarder.watchdog.timeoutSeconds }}'
+            - name: INTERVAL_SECONDS
+              value: '{{ .Values.forwarder.watchdog.intervalSeconds }}'
             - name: MONITORING_GCS_AUTH_ID
               value: '{{ .Values.forwarder.mdsd.geneva.clusterLogsSan }}'
             - name: MONITORING_GCS_AUTH_ID_TYPE
@@ -192,6 +228,71 @@ spec:
             - name: cacrt-host
               mountPath: /etc/ssl/certs/ca-certificates.crt
               readOnly: true
+            - mountPath: /geneva/geneva_auth/
+              name: geneva-certs-clusterlogs
+              readOnly: true
+        - name: mdsd-cert-watchdog
+          # AROSLSRE-879: the AKS secrets-store CSI driver can lose the initial
+          # NodePublishVolume mount race during DaemonSet rollouts, leaving
+          # /geneva/geneva_auth/ empty for the rest of the pod's lifetime.
+          # Pod-level CSI mounts are not retried on container restart, so the
+          # mdsd polling wrapper alone cannot recover; the pod has to be
+          # recreated to get another shot at NodePublishVolume.
+          #
+          # This watchdog waits for the cert to appear and, if it doesn't
+          # within the bounded window, asks the K8s API to delete this pod so
+          # the DaemonSet recreates it. The namespace-scoped Role grants only
+          # pods:delete (see forwarder-watchdog-rbac.yaml).
+          image: {{ .Values.forwarder.watchdog.image.registry }}/{{ .Values.forwarder.watchdog.image.repository }}@{{ .Values.forwarder.watchdog.image.digest }}
+          imagePullPolicy: '{{ .Values.forwarder.watchdog.image.pullPolicy }}'
+          command:
+            - /bin/sh
+            - -c
+            - |
+              CERT=/geneva/geneva_auth/gcscert.pem
+              WAITED=0
+              while [ "$WAITED" -lt "$TIMEOUT_SECONDS" ]; do
+                if [ -s "$CERT" ]; then
+                  echo "[cert-watchdog] Geneva auth cert present at ${CERT} after ${WAITED}s; sleeping idle until pod terminates"
+                  exec sleep infinity
+                fi
+                sleep "$INTERVAL_SECONDS"
+                WAITED=$((WAITED + INTERVAL_SECONDS))
+              done
+              echo "[cert-watchdog] Geneva auth cert never appeared at ${CERT} after ${TIMEOUT_SECONDS}s. The AKS secrets-store CSI driver likely lost the initial NodePublishVolume mount race (AROSLSRE-879). Requesting deletion of pod ${POD_NAMESPACE}/${POD_NAME} so the DaemonSet can recreate it with a fresh CSI mount."
+              if kubectl delete pod "$POD_NAME" --namespace "$POD_NAMESPACE" --grace-period=30 --wait=false; then
+                echo "[cert-watchdog] Pod delete requested; sleeping idle until kubelet terminates us"
+                exec sleep infinity
+              fi
+              echo "[cert-watchdog] kubectl delete pod failed; exiting non-zero so the kubelet retries us"
+              exit 1
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: TIMEOUT_SECONDS
+              value: '{{ .Values.forwarder.watchdog.timeoutSeconds }}'
+            - name: INTERVAL_SECONDS
+              value: '{{ .Values.forwarder.watchdog.intervalSeconds }}'
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              drop: ['ALL']
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
             - mountPath: /geneva/geneva_auth/
               name: geneva-certs-clusterlogs
               readOnly: true

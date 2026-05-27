@@ -55,17 +55,17 @@ var _ = Describe("Service Provider", func() {
 				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s (minor %s)", baseInstallVersion, minorVersion))
 				}
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get install version for z-stream upgrade of %s", minorVersion)
 			}
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			versionLabel := strings.ReplaceAll(minorVersion, ".", "-") // e.g. "4.20" -> "4-20"
 			suffix := rand.String(6)
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = installVersion
 
@@ -76,13 +76,13 @@ var _ = Describe("Service Provider", func() {
 
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-zstream-upgrade-"+versionLabel, tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for z-stream upgrade of %s", minorVersion)
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-zstream-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -93,7 +93,7 @@ var _ = Describe("Service Provider", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for z-stream cluster %q", clusterName)
 
 			By(fmt.Sprintf("creating the HCP cluster with version '%s' on candidate channel", installVersion))
 			// Cincinnati can advertise a z-stream build before Cluster Service has registered that version, so
@@ -108,12 +108,12 @@ var _ = Describe("Service Provider", func() {
 				Steps:    25,
 				Cap:      45 * time.Second,
 			}, func(_ context.Context) (done bool, err error) {
-				createErr := tc.CreateHCPClusterFromParam(
+				createErr := tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					45*time.Minute,
+					framework.ClusterCreationTimeout,
 				)
 				if createErr == nil {
 					return true, nil
@@ -134,19 +134,19 @@ var _ = Describe("Service Provider", func() {
 				}
 				return false, createErr
 			})
-			Expect(backoffErr).NotTo(HaveOccurred())
+			Expect(backoffErr).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on candidate channel", clusterName, installVersion)
 
 			By("verifying the cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			if !hasUpgradePath {
 				By("skipping z-stream upgrade verification: no upgrade path (cluster installed at latest)")

@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
+	stamphandlers "github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -49,6 +50,7 @@ import (
 type AdminAPI struct {
 	clustersServiceClient  ocm.ClusterServiceClientSpec
 	resourcesDBClient      database.ResourcesDBClient
+	fleetDBClient          database.FleetDBClient
 	kustoClient            *kusto.Client
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 
@@ -67,6 +69,7 @@ func NewAdminAPI(
 	metricsListener net.Listener,
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
+	fleetDBClient database.FleetDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	kustoClient *kusto.Client,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
@@ -122,6 +125,10 @@ func NewAdminAPI(
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
 
+	// Stamp management routes
+	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/approval",
+		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
+
 	// Top-level mux (healthz bypasses all middleware)
 	apiMux := http.NewServeMux()
 	apiMux.HandleFunc("GET /healthz/ready", healthzReadyHandler)
@@ -154,6 +161,7 @@ func NewAdminAPI(
 			Handler: metricsMux,
 		},
 		resourcesDBClient:      resourcesDBClient,
+		fleetDBClient:          fleetDBClient,
 		clustersServiceClient:  clustersServiceClient,
 		kustoClient:            kustoClient,
 		fpaCredentialRetriever: fpaCredentialRetriever,

@@ -200,6 +200,22 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	ginkgo.DeferCleanup(tc.commitTimingMetadata, AnnotatedLocation("dump timing info"), ginkgo.NodeTimeout(45*time.Minute))
 
 	ginkgo.DeferCleanup(tc.closeAzureLogFile, AnnotatedLocation("close azure log file"))
+
+	// Registered last so it runs first in the FILO cleanup order, marking the
+	// boundary between the test body and cleanup.
+	ginkgo.DeferCleanup(tc.logTestEndAndCleanupStart, AnnotatedLocation("log test end and cleanup start"))
+
+	ginkgo.GinkgoLogr.Info("===== TEST CASE BEGAN =====")
+}
+
+func (tc *perItOrDescribeTestContext) logTestEndAndCleanupStart() {
+	report := ginkgo.CurrentSpecReport()
+	result := "SUCCESS"
+	if report.Failed() {
+		result = "FAILURE"
+	}
+	ginkgo.GinkgoLogr.Info(fmt.Sprintf("===== TEST CASE ENDED: %s =====", result))
+	ginkgo.GinkgoLogr.Info("===== CLEANUP BEGAN =====")
 }
 
 func (tc *perItOrDescribeTestContext) closeAzureLogFile() {
@@ -403,7 +419,7 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 
 	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, StandardResourceGroupExpiration, 20*time.Minute)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create resource group: %w", err)
+		return nil, fmt.Errorf("failed to create resource group %q: %w", resourceGroupName, err)
 	}
 
 	return resourceGroup, nil
@@ -498,7 +514,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 
 	var nonConformantErr error
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
+	if err := DeleteAllHCPClusters20240610(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
 		if errors.Is(err, &NonConformingClustersError{}) {
 			nonConformantErr = err
 		} else if isResourceGroupNotFoundError(err) {

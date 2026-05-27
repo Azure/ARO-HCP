@@ -89,11 +89,19 @@ verify-json-format: $(JQ)
 	hack/verify-json-format.sh $(JQ)
 .PHONY: verify-json-format
 
+verify-kql:
+	hack/kql-verify.sh
+.PHONY: verify-kql
+
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions
 .PHONY: verify
+
+verify-gomega-assertions:
+	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/
+.PHONY: verify-gomega-assertions
 
 verify-yamlfmt: yamlfmt
 	./hack/verify.sh yamlfmt

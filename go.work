@@ -6,6 +6,7 @@ use (
 	./backend
 	./dev-infrastructure/scripts/cleanup-pko-resources
 	./frontend
+	./hack/verify-gomega-assertions
 	./internal
 	./kube-applier
 	./mgmt-agent
@@ -18,11 +19,13 @@ use (
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater
+	./tooling/kustoctl
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/tenant-quota
+	./tooling/utilitytypes
 	./tooling/yamlwrap
 )

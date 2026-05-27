@@ -6,6 +6,7 @@ HCPNamespacePrefix: ocm-arohcp
 Limit: 100
 NoTruncation: false
 ResourceGroupName: rg
+SplitByPod: false
 SubResourceGroupId: /subscriptions/sub/resourceGroups/rg
 Table: myTable
 TimestampMax: datetime(0001-01-01T00:00:00.0000000Z)

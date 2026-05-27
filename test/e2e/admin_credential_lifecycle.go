@@ -63,36 +63,36 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
 			By("creating resource group for admin credential lifecycle testing")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-credential-lifecycle-test", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for admin credential lifecycle test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for admin credential lifecycle cluster")
 
 			By("starting HCP cluster creation asynchronously")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-			timeout := 45 * time.Minute
+			timeout := framework.ClusterCreationTimeout
 			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during admin credential lifecycle test", timeout.Minutes()))
 			defer deploymentCancel()
 
-			_, err = framework.BeginCreateHCPCluster(
+			_, err = framework.BeginCreateHCPCluster20240610(
 				deploymentCtx,
 				GinkgoLogr,
 				clusterClient,
@@ -101,7 +101,7 @@ var _ = Describe("Customer", func() {
 				clusterParams,
 				tc.Location(),
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to begin creating HCP cluster %q", clusterName)
 
 			By("waiting for cluster to appear and testing admin credentials while in deploying state")
 			// Poll the cluster state and test admin credentials when we find it deploying
@@ -109,7 +109,7 @@ var _ = Describe("Customer", func() {
 			var previousState hcpsdk20240610preview.ProvisioningState
 			GinkgoLogr.Info("creating cluster, waiting for it to reach a terminal state")
 			Eventually(func() bool {
-				cluster, err := framework.GetHCPCluster(ctx, clusterClient, *resourceGroup.Name, clusterName)
+				cluster, err := framework.GetHCPCluster20240610(ctx, clusterClient, *resourceGroup.Name, clusterName)
 				if err != nil {
 					var respErr *azcore.ResponseError
 					if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
@@ -159,7 +159,7 @@ var _ = Describe("Customer", func() {
 
 				// Continue waiting
 				return false
-			}, 45*time.Minute, 30*time.Second).Should(BeTrue(), "Cluster should become ready within 45 minutes")
+			}, framework.ClusterCreationTimeout, 30*time.Second).Should(BeTrue(), fmt.Sprintf("Cluster should become ready within '%f' minutes", framework.ClusterCreationTimeout.Minutes()))
 
 			// Store all admin credentials for later validation
 			var credentials []*rest.Config
@@ -183,13 +183,13 @@ var _ = Describe("Customer", func() {
 					clusterName,
 					nil,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to request admin credential %d", i+1)
 
 				credResp, err := adminCredentialRequestPoller.PollUntilDone(validationCtx, &runtime.PollUntilDoneOptions{
 					Frequency: framework.StandardPollInterval,
 				})
-				Expect(err).NotTo(HaveOccurred())
-				Expect(credResp.Kubeconfig).NotTo(BeNil())
+				Expect(err).NotTo(HaveOccurred(), "failed to poll admin credential %d to completion", i+1)
+				Expect(credResp.Kubeconfig).NotTo(BeNil(), "admin credential response Kubeconfig was nil for credential %d", i+1)
 
 				By("validating kubeconfig returned by the API is valid")
 				kubeconfigData := []byte(*credResp.Kubeconfig)
@@ -198,7 +198,7 @@ var _ = Describe("Customer", func() {
 
 				By("validating exactly one cluster in kubeconfig")
 				Expect(config.Clusters).To(HaveLen(1), "kubeconfig must contain exactly one cluster")
-				Expect(config.Clusters["cluster"]).NotTo(BeNil())
+				Expect(config.Clusters["cluster"]).NotTo(BeNil(), "kubeconfig should contain a cluster entry named \"cluster\"")
 				cluster := config.Clusters["cluster"]
 
 				By("validating cluster has CertificateAuthorityData")
@@ -223,7 +223,7 @@ var _ = Describe("Customer", func() {
 
 				By("converting validated kubeconfig to rest.Config")
 				adminRESTConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfigData)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to convert kubeconfig to rest.Config for credential %d", i+1)
 				Expect(adminRESTConfig).NotTo(BeNil(), "adminRESTConfig was nil for credential %d", i+1)
 
 				credentials = append(credentials, adminRESTConfig)
@@ -245,11 +245,11 @@ var _ = Describe("Customer", func() {
 			skipSuite := os.Getenv("ARO_HCP_SUITE_NAME") == "integration/parallel" && time.Now().Before(time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC))
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
-			err = tc.RevokeCredentialsAndWait(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
+			err = tc.RevokeCredentialsAndWait20240610(ctx, clusterClient, *resourceGroup.Name, clusterName, 15*time.Minute)
 			if err != nil && skipSuite {
 				Skip("skipping revocation and remaining steps in integration/parallel suite")
 			}
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to revoke admin credentials for cluster %q", clusterName)
 
 			By("validating all admin credentials now fail after revocation")
 			for i, cred := range credentials {
@@ -287,14 +287,14 @@ var _ = Describe("Customer", func() {
 			By("verifying new admin credentials can still be requested after revocation")
 			// After revocation, new admin credential requests should still work
 			// This validates the revocation endpoint doesn't break the cluster
-			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				clusterClient,
 				*resourceGroup.Name,
 				clusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to request new admin credentials after revocation for cluster %q", clusterName)
 			Expect(newAdminRESTConfig).NotTo(BeNil(), "newAdminRESTConfig was nil after revocation")
 
 			By("verifying new admin credentials work after revocation")

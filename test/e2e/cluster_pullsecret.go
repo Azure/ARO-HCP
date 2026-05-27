@@ -79,69 +79,69 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "pullsecret-test", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for pull secret test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for pull secret cluster")
 
 			By("Creating the cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for pull secret test")
 			By("Creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.NodePoolName = "np-1"
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.Replicas = int32(2)
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool np-1 for pull secret cluster")
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for pull secret cluster")
 
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability")
 
 			By("creating kubernetes client")
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client")
 
 			By("creating test pull secret")
 			username := "test-user"
@@ -155,11 +155,11 @@ var _ = Describe("Customer", func() {
 				pullSecretName,
 				pullSecretNamespace,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create test docker config secret")
 
 			By("creating the test pull secret in the cluster")
 			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, testPullSecret, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create additional-pull-secret in kube-system namespace")
 
 			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
 			verifier := verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost)
@@ -179,7 +179,7 @@ var _ = Describe("Customer", func() {
 				auth,
 				testPullSecretEmail,
 			).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify pull secret auth data for host.example.com in global-pull-secret")
 
 			By("reading pull-secret file from aro-hcp-qe-pull-secret directory")
 			pullSecretFileData, err := os.ReadFile(pullSecretFilePath)
@@ -215,12 +215,12 @@ var _ = Describe("Customer", func() {
 
 			// Marshal back to JSON
 			updatedDockerConfigJSON, err := json.Marshal(currentConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to marshal updated docker config JSON with registry.redhat.io credentials")
 
 			// Update the secret
 			currentSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
 			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to update additional-pull-secret with registry.redhat.io credentials")
 
 			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")
 			verifier = verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost)
@@ -243,7 +243,7 @@ var _ = Describe("Customer", func() {
 				redhatRegistryAuthString,
 				redhatRegistryEmail,
 			).Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify registry.redhat.io auth data in global-pull-secret")
 
 			By("verifying redhat-operators catalog source is ready")
 			verifier = verifiers.VerifyCatalogSourceReady(catalogSourceNamespace, catalogSourceName)
@@ -252,7 +252,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating dynamic client for operator installation")
 			dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create dynamic kubernetes client")
 
 			By("creating namespace for NFD operator")
 			_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
@@ -260,7 +260,7 @@ var _ = Describe("Customer", func() {
 					Name: nfdNamespace,
 				},
 			}, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create namespace %s for NFD operator", nfdNamespace)
 
 			By("creating OperatorGroup for NFD operator")
 			operatorGroupGVR := schema.GroupVersionResource{
@@ -282,7 +282,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = dynamicClient.Resource(operatorGroupGVR).Namespace(nfdNamespace).Create(ctx, operatorGroup, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create OperatorGroup for NFD operator in %s", nfdNamespace)
 
 			By("creating Subscription for NFD operator from redhat-operators catalog")
 			subscriptionGVR := schema.GroupVersionResource{
@@ -308,7 +308,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = dynamicClient.Resource(subscriptionGVR).Namespace(nfdNamespace).Create(ctx, subscription, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create Subscription for NFD operator from redhat-operators catalog")
 
 			By("waiting for NFD operator to be installed")
 			verifier = verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd")
@@ -337,7 +337,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = dynamicClient.Resource(nfdGVR).Namespace(nfdNamespace).Create(ctx, nfdCR, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create NodeFeatureDiscovery CR in %s", nfdNamespace)
 
 			By("waiting for NFD worker DaemonSet to be created")
 			Eventually(func() error {

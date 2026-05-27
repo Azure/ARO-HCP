@@ -22,8 +22,6 @@ import (
 	"strings"
 	"text/template"
 	"time"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 //go:embed queries
@@ -68,9 +66,14 @@ const (
 	// resources/<type>/<name>/requests/<METHOD>-<client_request_id>/logs/<component>/<queryName>.md.
 	categoryTraceLogs queryCategory = "traceLogs"
 
-	// categoryEvents queries produce event logs scoped to a component. They run once
-	// per snapshot and are written to events/<component>/.
+	// categoryEvents queries produce event logs scoped to a service component. They run once
+	// per resource and are written to events/<component>/.
 	categoryEvents queryCategory = "events"
+
+	// categoryResourceEvents queries produce event logs specific to a single ARM resource
+	// (e.g. control plane events for a cluster). They are written to
+	// resources/<type>/<name>/events/<component>/<queryName>.md.
+	categoryResourceEvents queryCategory = "resourceEvents"
 )
 
 // querySpec describes a single KQL query in the dependency chain.
@@ -95,7 +98,7 @@ type querySpec struct {
 	// empty results are always acceptable (it will not appear in verification output).
 	requiredWhen func(queryData) bool
 	// storeResult is called with the full result rows from the query.
-	// It stores discovered values for downstream queries. If the results
+	// It stores discovered values for dependent queries. If the results
 	// are ambiguous (e.g. multiple distinct values for a single-valued field),
 	// storeResult should return an error.
 	storeResult func(*queryData, []resultRow) error
@@ -112,9 +115,27 @@ type queryData struct {
 	ClusterURI      string
 	ServiceDatabase string
 	HCPDatabase     string
-	StartTime       time.Time
-	EndTime         time.Time
 	ResourceGroup   string
+
+	// ServiceClusterName and ManagementClusterName are AKS cluster names
+	// used to filter queries for PR jobs. When both are non-empty, queries
+	// include a "| where cluster in (...)" filter.
+	ServiceClusterName    string
+	ManagementClusterName string
+
+	// FullStartTime and FullEndTime define the entire snapshot window. Use
+	// these for broad timestamp pre-filters (Kusto partition pruning) and
+	// for discovery queries that must see the complete time range.
+	FullStartTime time.Time
+	FullEndTime   time.Time
+
+	// PhaseStartTime and PhaseEndTime define the current phase (test or
+	// cleanup). Use these for queries that should be scoped to a single phase.
+	PhaseStartTime time.Time
+	PhaseEndTime   time.Time
+
+	// PhaseName is the human-readable name of the current phase ("test" or "cleanup").
+	PhaseName string
 
 	// Per-request context — set when tracing a specific request.
 	CorrelationID      string
@@ -210,40 +231,6 @@ var allQueries = []querySpec{
 	},
 	{
 		component:    "frontend",
-		queryName:    "resourceId",
-		templatePath: "queries/frontend/resourceId/query.kql",
-		database:     "service",
-		category:     categoryRequestDiscovery,
-		ready: func(d queryData) bool {
-			return d.ClientRequestID != ""
-		},
-		prerequisites: "ClientRequestID",
-		requiredWhen:  func(d queryData) bool { return (d.ClientRequestID != "" || d.CorrelationID != "") && !isClientError(d) },
-		storeResult: func(d *queryData, rows []resultRow) error {
-			if len(rows) > 1 {
-				return fmt.Errorf("query returned %d distinct resource IDs for client_request_id, expected 1", len(rows))
-			}
-			d.ResourceID = rows[0].values[0]
-			parsed, err := azcorearm.ParseResourceID(rows[0].values[0])
-			if err != nil {
-				return nil
-			}
-			d.ResourceGroup = parsed.ResourceGroupName
-			d.ResourceType = parsed.ResourceType.String()
-			d.ResourceName = parsed.Name
-			d.ServiceProviderResourceType = serviceProviderResourceType(d.ResourceType)
-			// Use the cluster resource ID from the frontend log to identify the parent cluster.
-			if len(rows[0].values) > 1 && rows[0].values[1] != "" {
-				d.ClusterResourceID = rows[0].values[1]
-				if clusterParsed, err := azcorearm.ParseResourceID(rows[0].values[1]); err == nil {
-					d.ClusterResourceName = clusterParsed.Name
-				}
-			}
-			return nil
-		},
-	},
-	{
-		component:    "frontend",
 		queryName:    "asyncOperationId",
 		templatePath: "queries/frontend/asyncOperationId/query.kql",
 		database:     "service",
@@ -319,7 +306,7 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryResourceDiscovery,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceID != ""
+			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceID != "" && d.ClusterResourceName != ""
 		},
 		prerequisites: "ResourceGroup, ResourceType, ResourceID",
 		requiredWhen:  isClusterOrNodePool,
@@ -410,14 +397,26 @@ var allQueries = []querySpec{
 	},
 	{
 		component:    "backend",
+		queryName:    "resourceControllerConditionTimeline",
+		templatePath: "queries/backend/resourceControllerConditionTimeline/query.kql",
+		database:     "service",
+		category:     categoryConditions,
+		ready: func(d queryData) bool {
+			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceName != "" && d.ClusterResourceName != ""
+		},
+		prerequisites: "ResourceGroup, ResourceType, ResourceName, ClusterResourceName",
+		requiredWhen:  isClusterOrNodePool,
+	},
+	{
+		component:    "backend",
 		queryName:    "resourceControllerConditions",
 		templatePath: "queries/backend/resourceControllerConditions/query.kql",
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceName != ""
+			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceName != "" && d.ClusterResourceName != ""
 		},
-		prerequisites: "ResourceGroup, ResourceType, ResourceName",
+		prerequisites: "ResourceGroup, ResourceType, ResourceName, ClusterResourceName",
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
@@ -427,9 +426,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryState,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ServiceProviderResourceType != "" && d.ResourceName != ""
+			return d.ResourceGroup != "" && d.ServiceProviderResourceType != "" && d.ResourceName != "" && d.ClusterResourceName != ""
 		},
-		prerequisites: "ResourceGroup, ServiceProviderResourceType, ResourceName",
+		prerequisites: "ResourceGroup, ServiceProviderResourceType, ResourceName, ClusterResourceName",
 		requiredWhen:  func(d queryData) bool { return d.ServiceProviderResourceType != "" },
 	},
 	{
@@ -456,7 +455,7 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryState,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+			return d.ResourceGroup != "" && d.ClusterResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
 		prerequisites: "ResourceGroup, ResourceType is cluster",
 		requiredWhen:  isClusterType,
@@ -476,15 +475,39 @@ var allQueries = []querySpec{
 
 	{
 		component:    "hypershift",
+		queryName:    "hostedClusterConditionTimeline",
+		templatePath: "queries/hypershift/hostedClusterConditionTimeline/query.kql",
+		database:     "service",
+		category:     categoryConditions,
+		ready: func(d queryData) bool {
+			return d.ResourceGroup != "" && d.ClusterResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ResourceGroup, ResourceName, ResourceType is cluster",
+		requiredWhen:  isClusterType,
+	},
+	{
+		component:    "hypershift",
 		queryName:    "hostedClusterConditions",
 		templatePath: "queries/hypershift/hostedClusterConditions/query.kql",
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+			return d.ResourceGroup != "" && d.ClusterResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
 		prerequisites: "ResourceGroup, ResourceName, ResourceType is cluster",
 		requiredWhen:  isClusterType,
+	},
+	{
+		component:    "hypershift",
+		queryName:    "nodePoolConditionTimeline",
+		templatePath: "queries/hypershift/nodePoolConditionTimeline/query.kql",
+		database:     "service",
+		category:     categoryConditions,
+		ready: func(d queryData) bool {
+			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools")
+		},
+		prerequisites: "ResourceGroup, ClusterResourceName, ResourceName, ResourceType is nodepool",
+		requiredWhen:  isNodePoolType,
 	},
 	{
 		component:    "hypershift",
@@ -597,29 +620,29 @@ var allQueries = []querySpec{
 		queryName:    "events",
 		templatePath: "queries/hypershift/events/query.kql",
 		database:     "service",
-		category:     categoryEvents,
+		category:     categoryResourceEvents,
 		ready: func(d queryData) bool {
-			return d.HostedControlPlaneNamespace != ""
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
-		prerequisites: "HostedControlPlaneNamespace",
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
 	},
 	{
 		component:    "hypershift",
 		queryName:    "controlPlaneEvents",
 		templatePath: "queries/hypershift/controlPlaneEvents/query.kql",
 		database:     "service",
-		category:     categoryEvents,
+		category:     categoryResourceEvents,
 		ready: func(d queryData) bool {
-			return d.HostedControlPlaneNamespace != ""
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
 		},
-		prerequisites: "HostedControlPlaneNamespace",
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
 	},
 	{
 		component:    "hypershift",
 		queryName:    "pkiOperatorEvents",
 		templatePath: "queries/hypershift/pkiOperatorEvents/query.kql",
 		database:     "service",
-		category:     categoryEvents,
+		category:     categoryResourceEvents,
 		ready: func(d queryData) bool {
 			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/requestadmincredential")
 		},
@@ -640,6 +663,28 @@ var allQueries = []querySpec{
 		component:    "hypershift",
 		queryName:    "controlPlaneOperatorLogs",
 		templatePath: "queries/hypershift/controlPlaneOperatorLogs/query.kql",
+		database:     "hcp",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
+	},
+	{
+		component:    "hypershift",
+		queryName:    "clusterAPILogs",
+		templatePath: "queries/hypershift/clusterAPILogs/query.kql",
+		database:     "hcp",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
+	},
+	{
+		component:    "hypershift",
+		queryName:    "clusterAPIProviderLogs",
+		templatePath: "queries/hypershift/clusterAPIProviderLogs/query.kql",
 		database:     "hcp",
 		category:     categoryLogs,
 		ready: func(d queryData) bool {

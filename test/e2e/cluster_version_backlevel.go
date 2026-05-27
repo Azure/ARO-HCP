@@ -63,12 +63,12 @@ var _ = Describe("Customer", func() {
 
 				if tc.UsePooledIdentities() {
 					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-back-version", tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for back-level version test")
 
 				clusterSuffix := strings.ReplaceAll(version.controlPlaneVersion, ".", "-")
 				clusterName := customerClusterName + clusterSuffix
@@ -88,14 +88,14 @@ var _ = Describe("Customer", func() {
 					}),
 					framework.WithTimeout(45*time.Minute),
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to deploy customer infrastructure for back-level version %s", version.controlPlaneVersion)
 
 				customerInfraOutputs, err := readCustomerInfraOutputs(customerInfraDeployment)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to read customer infrastructure outputs")
 
 				By("creating managed identities")
 				identityPool, usePooledIdentities, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve identities for managed identities template")
 				managedIdentitiesDeploymentName := fmt.Sprintf("mi-%s-%s", clusterName, rand.String(6))
 				managedIdentitiesDeployment, err := tc.CreateBicepTemplateAndWait(ctx,
 					framework.WithTemplateFromFS(TestArtifactsFS, version.bicepModulesDir+"/managed-identities.json"),
@@ -114,15 +114,15 @@ var _ = Describe("Customer", func() {
 					}),
 					framework.WithTimeout(45*time.Minute),
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to deploy managed identities for back-level version %s", version.controlPlaneVersion)
 				userAssignedIdentitiesValue, err := framework.GetOutputValue(managedIdentitiesDeployment, "userAssignedIdentitiesValue")
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get userAssignedIdentitiesValue output from managed identities deployment")
 				identityValue, err := framework.GetOutputValue(managedIdentitiesDeployment, "identityValue")
-				Expect(err).NotTo(HaveOccurred())
-				userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentitiesValue)
-				Expect(err).NotTo(HaveOccurred())
-				identityProfile, err := framework.ConvertToManagedServiceIdentity(identityValue)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get identityValue output from managed identities deployment")
+				userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile20240610(userAssignedIdentitiesValue)
+				Expect(err).NotTo(HaveOccurred(), "failed to convert userAssignedIdentitiesValue to profile")
+				identityProfile, err := framework.ConvertToManagedServiceIdentity20240610(identityValue)
+				Expect(err).NotTo(HaveOccurred(), "failed to convert identityValue to ManagedServiceIdentity")
 
 				By("creating HCP cluster version " + version.controlPlaneVersion)
 				cluster, err := buildHCPClusterRequest(
@@ -134,30 +134,30 @@ var _ = Describe("Customer", func() {
 					userAssignedIdentitiesProfile,
 					identityProfile,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to build HCP cluster request for version %s", version.controlPlaneVersion)
 				hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-				_, err = framework.CreateHCPClusterAndWait(
+				_, err = framework.CreateHCPClusterAndWait20240610(
 					ctx,
 					GinkgoLogr,
 					hcpClient,
 					*resourceGroup.Name,
 					clusterName,
 					cluster,
-					45*time.Minute,
+					framework.ClusterCreationTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster version %s", version.controlPlaneVersion)
 
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					10*time.Minute,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for back-level cluster version %s", version.controlPlaneVersion)
 
 				err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster viability for back-level version %s", version.controlPlaneVersion)
 
 				By("creating node pool with back-level version")
 				var matchingNodePoolVersion string
@@ -178,20 +178,20 @@ var _ = Describe("Customer", func() {
 						matchingNodePoolVersion,
 						defaultNodePoolDefaults,
 					)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to build node pool request for version %s", matchingNodePoolVersion)
 					nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-					_, err = framework.CreateNodePoolAndWait(ctx,
+					_, err = framework.CreateNodePoolAndWait20240610(ctx,
 						nodePoolClient,
 						*resourceGroup.Name,
 						clusterName,
 						nodePoolName,
 						nodePool,
-						45*time.Minute,
+						framework.NodePoolCreationTimeout,
 					)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to create node pool version %s for back-level cluster", matchingNodePoolVersion)
 
 					err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app on back-level cluster version %s", version.controlPlaneVersion)
 				}
 
 			})

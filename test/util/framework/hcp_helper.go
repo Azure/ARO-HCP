@@ -80,7 +80,7 @@ func checkOperationResult(expectModel, resultModel any) error {
 	return nil
 }
 
-func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
+func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -129,7 +129,7 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 	}
 }
 
-func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
+func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -168,8 +168,10 @@ func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait(
 	}
 }
 
-// DeleteHCPCluster deletes an hcp cluster and waits for the operation to complete
-func DeleteHCPCluster(
+// DeleteHCPCluster20240610 deletes an hcp cluster and waits for the operation to complete
+// Transient ConflictingConcurrentWriteNotAllowed (409) errors are retried automatically
+// with exponential backoff.
+func DeleteHCPCluster20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -179,6 +181,38 @@ func DeleteHCPCluster(
 	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
+	var attempt int
+	retryErr := wait.ExponentialBackoffWithContext(ctx, stateConflictBackoff, func(ctx context.Context) (bool, error) {
+		attempt++
+		err := deleteHCPClusterAttempt(ctx, hcpClient, resourceGroupName, hcpClusterName)
+		if err == nil {
+			return true, nil
+		}
+		if isTransientDeleteError(err) {
+			ginkgo.GinkgoLogr.Info("transient conflict during cluster delete, retrying",
+				"cluster", hcpClusterName, "resourceGroup", resourceGroupName,
+				"attempt", attempt, "error", err.Error())
+			return false, nil
+		}
+		return false, err
+	})
+
+	if retryErr != nil && attempt > 1 {
+		ginkgo.GinkgoLogr.Info("cluster delete failed after retries",
+			"cluster", hcpClusterName, "resourceGroup", resourceGroupName,
+			"attempts", attempt, "error", retryErr.Error())
+	}
+
+	return retryErr
+}
+
+// deleteHCPClusterAttempt performs a single delete attempt for an HCP cluster.
+func deleteHCPClusterAttempt(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+) error {
 	poller, err := hcpClient.BeginDelete(ctx, resourceGroupName, hcpClusterName, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
@@ -187,7 +221,7 @@ func DeleteHCPCluster(
 			if getErr == nil && resp.Properties != nil && resp.Properties.ProvisioningState != nil && *resp.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateDeleting {
 				ginkgo.GinkgoLogr.Info("cluster already deleting, waiting for completion",
 					"cluster", hcpClusterName, "resourceGroup", resourceGroupName)
-				return waitForHCPClusterDeletion(ctx, hcpClient, resourceGroupName, hcpClusterName)
+				return waitForHCPClusterDeletion20240610(ctx, hcpClient, resourceGroupName, hcpClusterName)
 			}
 		}
 		return err
@@ -213,8 +247,8 @@ func DeleteHCPCluster(
 	return nil
 }
 
-// waitForHCPClusterDeletion polls GET on the cluster until it returns 404 (deleted).
-func waitForHCPClusterDeletion(
+// waitForHCPClusterDeletion20240610 polls GET on the cluster until it returns 404 (deleted).
+func waitForHCPClusterDeletion20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -243,9 +277,9 @@ func waitForHCPClusterDeletion(
 	}
 }
 
-// UpdateHCPCluster updates an HCP cluster using the v20240610preview SDK and waits for the operation to complete.
+// UpdateHCPCluster20240610 updates an HCP cluster using the v20240610preview SDK and waits for the operation to complete.
 // Transient 500, 409, and CS state conflict 400 errors are retried automatically with exponential backoff.
-func UpdateHCPCluster(
+func UpdateHCPCluster20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -290,7 +324,7 @@ func UpdateHCPCluster(
 
 		switch m := any(operationResult).(type) {
 		case hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse:
-			expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
+			expect, err := GetHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName)
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return false, fmt.Errorf("failed getting hcpCluster=%q in resourcegroup=%q, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
@@ -329,6 +363,21 @@ var stateConflictBackoff = wait.Backoff{
 // csStateConflictPattern matches the cluster-service error message format:
 // "Cluster '<id>' is in state '<state>', can't update"
 var csStateConflictPattern = regexp.MustCompile(`is in state '[^']+', can't update`)
+
+// isTransientDeleteError detects transient write conflicts during cluster deletion.
+// Only matches ConflictingConcurrentWriteNotAllowed, which is caused by optimistic
+// concurrency control in the backend and resolves on retry.
+func isTransientDeleteError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var responseError *azcore.ResponseError
+	if !errors.As(err, &responseError) {
+		return false
+	}
+	return responseError.StatusCode == http.StatusConflict &&
+		responseError.ErrorCode == "ConflictingConcurrentWriteNotAllowed"
+}
 
 // isTransientUpdateError detects errors worth retrying during cluster updates:
 //   - HTTP 500: e.g. Cosmos DB ETag conflict after cluster-service commit
@@ -416,8 +465,8 @@ func UpdateHCPCluster20251223(
 	return hcpOpenShiftCluster, err
 }
 
-// GetHCPCluster fetches an HCP cluster
-func GetHCPCluster(
+// GetHCPCluster20240610 fetches an HCP cluster
+func GetHCPCluster20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -426,8 +475,8 @@ func GetHCPCluster(
 	return hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
 }
 
-// DeleteAllHCPClusters deletes all Clusters within a resource group and waits
-func DeleteAllHCPClusters(
+// DeleteAllHCPClusters20240610 deletes all Clusters within a resource group and waits
+func DeleteAllHCPClusters20240610(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -462,7 +511,7 @@ func DeleteAllHCPClusters(
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			defer utilruntime.HandleCrashWithContext(ctx)
 
-			return DeleteHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName, timeout)
+			return DeleteHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, timeout)
 		})
 	}
 	if err := waitGroup.Wait(); err != nil {
@@ -488,8 +537,8 @@ func (e *NonConformingClustersError) Error() string {
 	return fmt.Sprintf("the following clusters did not have tags[%s]=%s: %v; we require end-to-end tests to opt into this tag to ensure that the control planes we provision during automated test runs have minimal footprints on our production infrastructure", api.TagClusterSizeOverride, api.MinimalControlPlanePodSizing, e.clusters)
 }
 
-// DeleteNodePool deletes a nodepool and waits for the operation to complete
-func DeleteNodePool(
+// DeleteNodePool20240610 deletes a nodepool and waits for the operation to complete
+func DeleteNodePool20240610(
 	ctx context.Context,
 	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
 	resourceGroupName string,
@@ -508,7 +557,7 @@ func DeleteNodePool(
 			if getErr == nil && resp.Properties != nil && resp.Properties.ProvisioningState != nil && *resp.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateDeleting {
 				ginkgo.GinkgoLogr.Info("nodepool already deleting, waiting for completion",
 					"nodePool", nodePoolName, "cluster", hcpClusterName, "resourceGroup", resourceGroupName)
-				return waitForNodePoolDeletion(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+				return waitForNodePoolDeletion20240610(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
 			}
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -537,8 +586,8 @@ func DeleteNodePool(
 	return nil
 }
 
-// waitForNodePoolDeletion polls GET on the nodepool until it returns 404 (deleted).
-func waitForNodePoolDeletion(
+// waitForNodePoolDeletion20240610 polls GET on the nodepool until it returns 404 (deleted).
+func waitForNodePoolDeletion20240610(
 	ctx context.Context,
 	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
 	resourceGroupName string,
@@ -568,8 +617,8 @@ func waitForNodePoolDeletion(
 	}
 }
 
-// GetNodePool fetches a nodepool resource
-func GetNodePool(
+// GetNodePool20240610 fetches a nodepool resource
+func GetNodePool20240610(
 	ctx context.Context,
 	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
 	resourceGroupName string,
@@ -579,9 +628,9 @@ func GetNodePool(
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 }
 
-// UpdateNodePoolAndWait sends a PATCH (BeginUpdate) request for a nodepool and waits for completion
+// UpdateNodePoolAndWait20240610 sends a PATCH (BeginUpdate) request for a nodepool and waits for completion
 // within the provided timeout. It returns the final update response or an error.
-func UpdateNodePoolAndWait(
+func UpdateNodePoolAndWait20240610(
 	ctx context.Context,
 	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
 	resourceGroupName string,
@@ -595,7 +644,7 @@ func UpdateNodePoolAndWait(
 
 	poller, err := nodePoolsClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, update, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start nodepool %q update in cluster %q resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
 
 	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
@@ -610,7 +659,7 @@ func UpdateNodePoolAndWait(
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.NodePoolsClientUpdateResponse:
-		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		expect, err := GetNodePool20240610(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				return nil, fmt.Errorf("failed getting nodepool=%q in cluster=%q resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
@@ -627,8 +676,8 @@ func UpdateNodePoolAndWait(
 	}
 }
 
-// CreateOrUpdateExternalAuthAndWait creates or updates an external auth on an HCP cluster and waits
-func CreateOrUpdateExternalAuthAndWait(
+// CreateOrUpdateExternalAuthAndWait20240610 creates or updates an external auth on an HCP cluster and waits
+func CreateOrUpdateExternalAuthAndWait20240610(
 	ctx context.Context,
 	externalAuthClient *hcpsdk20240610preview.ExternalAuthsClient,
 	resourceGroupName string,
@@ -668,7 +717,7 @@ func CreateOrUpdateExternalAuthAndWait(
 		// endpoint for the operation is supposed to respond as though the operation
 		// were completed synchronously. In production, ARM would call this endpoint
 		// automatically. In this context, the poller calls it automatically.
-		expect, err := GetExternalAuth(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName)
+		expect, err := GetExternalAuth20240610(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				return nil, fmt.Errorf("failed getting external auth %q in resourcegroup=%q for cluster=%q, caused by: %w, error: %w", externalAuthName, resourceGroupName, hcpClusterName, context.Cause(ctx), err)
@@ -687,7 +736,7 @@ func CreateOrUpdateExternalAuthAndWait(
 }
 
 // CreateExternalAuthAndWait creates a an external auth on an HCP cluster and waits
-func GetExternalAuth(
+func GetExternalAuth20240610(
 	ctx context.Context,
 	externalAuthClient *hcpsdk20240610preview.ExternalAuthsClient,
 	resourceGroupName string,
@@ -703,8 +752,8 @@ func GetExternalAuth(
 	)
 }
 
-// DeleteExternalAuthAndWait deletes a an external auth on an HCP cluster and waits
-func DeleteExternalAuthAndWait(
+// DeleteExternalAuthAndWait20240610 deletes a an external auth on an HCP cluster and waits
+func DeleteExternalAuthAndWait20240610(
 	ctx context.Context,
 	externalAuthClient *hcpsdk20240610preview.ExternalAuthsClient,
 	resourceGroupName string,
@@ -805,16 +854,16 @@ func CreateTestDockerConfigSecret(host, username, password, email, secretName, n
 	}, nil
 }
 
-func BeginCreateHCPCluster(
+func BeginCreateHCPCluster20240610(
 	ctx context.Context,
 	logger logr.Logger,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	clusterParams ClusterParams,
+	clusterParams ClusterParams20240610,
 	location string,
 ) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
-	cluster := BuildHCPClusterFromParams(clusterParams, location)
+	cluster := BuildHCPClusterFromParams20240610(clusterParams, location)
 	logger.Info("Starting HCP cluster creation", "clusterName", hcpClusterName, "resourceGroup", resourceGroupName)
 	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
 	if err != nil {
@@ -823,9 +872,9 @@ func BeginCreateHCPCluster(
 	return poller, nil
 }
 
-// CreateHCPClusterAndWait Note that the timeout parameter will only take effect if its value is greater than 0. Otherwise,
+// CreateHCPClusterAndWait20240610 Note that the timeout parameter will only take effect if its value is greater than 0. Otherwise,
 // the function won't wait for the deployment to be ready.
-func CreateHCPClusterAndWait(
+func CreateHCPClusterAndWait20240610(
 	ctx context.Context,
 	logger logr.Logger,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
@@ -863,7 +912,7 @@ func CreateHCPClusterAndWait(
 			// endpoint for the operation is supposed to respond as though the operation
 			// were completed synchronously. In production, ARM would call this endpoint
 			// automatically. In this context, the poller calls it automatically.
-			expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
+			expect, err := GetHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName)
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fmt.Errorf("failed getting cluster=%q in resourcegroup=%q, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
@@ -892,8 +941,8 @@ func CreateHCPClusterAndWait(
 
 }
 
-func BuildHCPClusterFromParams(
-	parameters ClusterParams,
+func BuildHCPClusterFromParams20240610(
+	parameters ClusterParams20240610,
 	location string,
 ) hcpsdk20240610preview.HcpOpenShiftCluster {
 
@@ -947,7 +996,7 @@ func BuildHCPClusterFromParams(
 	}
 }
 
-func CreateNodePoolAndWait(
+func CreateNodePoolAndWait20240610(
 	ctx context.Context,
 	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
 	resourceGroupName string,
@@ -976,12 +1025,12 @@ func CreateNodePoolAndWait(
 		// endpoint for the operation is supposed to respond as though the operation
 		// were completed synchronously. In production, ARM would call this endpoint
 		// automatically. In this context, the poller calls it automatically.
-		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		expect, err := GetNodePool20240610(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				return nil, fmt.Errorf("failed to get nodepool, caused by: %w, error: %w", context.Cause(ctx), err)
 			}
-			return nil, err
+			return nil, fmt.Errorf("failed to get nodepool %q in cluster %q resourcegroup=%q after creation: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 		}
 		err = checkOperationResult(&expect.NodePool, &m.NodePool)
 		if err != nil {
@@ -994,8 +1043,8 @@ func CreateNodePoolAndWait(
 	}
 }
 
-func BuildNodePoolFromParams(
-	parameters NodePoolParams,
+func BuildNodePoolFromParams20240610(
+	parameters NodePoolParams20240610,
 	location string,
 ) hcpsdk20240610preview.NodePool {
 
@@ -1020,6 +1069,44 @@ func BuildNodePoolFromParams(
 
 	if parameters.AutoScaling != nil {
 		nodePool.Properties.AutoScaling = &hcpsdk20240610preview.NodePoolAutoScaling{
+			Min: to.Ptr(parameters.AutoScaling.Min),
+			Max: to.Ptr(parameters.AutoScaling.Max),
+		}
+	} else {
+		nodePool.Properties.Replicas = to.Ptr(parameters.Replicas)
+	}
+
+	return nodePool
+}
+
+func BuildNodePoolFromParams20251223(
+	parameters NodePoolParams20251223,
+	location string,
+) hcpsdk20251223preview.NodePool {
+
+	nodePool := hcpsdk20251223preview.NodePool{
+		Location: to.Ptr(location),
+		Properties: &hcpsdk20251223preview.NodePoolProperties{
+			Version: &hcpsdk20251223preview.NodePoolVersionProfile{
+				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ChannelGroup: to.Ptr(parameters.ChannelGroup),
+			},
+			NodeDrainTimeoutMinutes: parameters.NodeDrainTimeoutMinutes,
+			Platform: &hcpsdk20251223preview.NodePoolPlatformProfile{
+				VMSize: to.Ptr(parameters.VMSize),
+				OSDisk: &hcpsdk20251223preview.OsDiskProfile{
+					SizeGiB:                to.Ptr(parameters.OSDiskSizeGiB),
+					DiskStorageAccountType: to.Ptr(hcpsdk20251223preview.DiskStorageAccountType(parameters.DiskStorageAccountType)),
+					DiskType:               to.Ptr(parameters.DiskType),
+				},
+				AvailabilityZone: to.Ptr(parameters.AvailabilityZone),
+			},
+			AutoRepair: to.Ptr(parameters.AutoRepair),
+		},
+	}
+
+	if parameters.AutoScaling != nil {
+		nodePool.Properties.AutoScaling = &hcpsdk20251223preview.NodePoolAutoScaling{
 			Min: to.Ptr(parameters.AutoScaling.Min),
 			Max: to.Ptr(parameters.AutoScaling.Max),
 		}
@@ -1122,8 +1209,8 @@ func convertViaJSON[T any](src any) (*T, error) {
 	return &dst, nil
 }
 
-func BuildHCPCluster20251223FromParams(
-	parameters ClusterParams,
+func BuildHCPClusterFromParams20251223(
+	parameters ClusterParams20251223,
 	location string,
 	imageDigestMirrors []*hcpsdk20251223preview.ImageDigestMirror,
 ) (hcpsdk20251223preview.HcpOpenShiftCluster, error) {
@@ -1199,8 +1286,8 @@ func BuildHCPCluster20251223FromParams(
 	}, nil
 }
 
-// CreateHCPCluster20251223AndWait creates an HCP cluster using the v20251223preview API and waits for completion.
-func CreateHCPCluster20251223AndWait(
+// CreateHCPClusterAndWait20251223 creates an HCP cluster using the v20251223preview API and waits for completion.
+func CreateHCPClusterAndWait20251223(
 	ctx context.Context,
 	logger logr.Logger,
 	hcpClient *hcpsdk20251223preview.HcpOpenShiftClustersClient,
@@ -1251,14 +1338,14 @@ func CreateHCPCluster20251223AndWait(
 }
 
 // Verifies that a nodepool created using framework has DiskStorageAccountType set to the framework default "StandardSSD_LRS"
-func ValidateNodePoolDiskStorageAccountType(
+func ValidateNodePoolDiskStorageAccountType20240610(
 	ctx context.Context,
 	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
 ) error {
-	nodePoolResp, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+	nodePoolResp, err := GetNodePool20240610(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
 	if err != nil {
 		return fmt.Errorf("failed to get nodepool %s: %w", nodePoolName, err)
 	}
@@ -1381,4 +1468,4 @@ func GetNodePool20251223(
 	return &resp.NodePool, nil
 }
 
-// BuildHCPClusterFromParamsV20251223 builds a v20251223preview HCP cluster from ClusterParamsV20251223
+// BuildHCPClusterFromParams20251223 builds a v20251223preview HCP cluster from ClusterParams20251223

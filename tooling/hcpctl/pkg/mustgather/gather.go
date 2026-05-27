@@ -58,27 +58,30 @@ type RowOutputFunc func(ctx context.Context, logLineChan chan *NormalizedLogLine
 // This structure is passed to RowOutputFunc implementations for processing.
 //
 // Fields available for custom output functions:
-//   - Log: The actual log message content as bytes
+//   - Log: Structured map of log fields
 //   - Cluster: The cluster ID where this log originated
 //   - Namespace: The Kubernetes namespace (for HCP logs) or service name
 //   - ContainerName: The container that generated this log
+//   - PodName: The pod that generated this log (only populated when SplitByPod is enabled)
 //   - Timestamp: When the log entry was created
 //
 // Example usage in a custom output function:
 //
 //	for logLine := range logLineChan {
+//		jsonBytes, _ := json.Marshal(logLine.Log)
 //		fmt.Printf("[%s] %s/%s/%s: %s\n",
 //			logLine.Timestamp.Format(time.RFC3339),
 //			logLine.Cluster,
 //			logLine.Namespace,
 //			logLine.ContainerName,
-//			string(logLine.Log))
+//			string(jsonBytes))
 //	}
 type NormalizedLogLine struct {
 	// Log           []byte          `kusto:"log"`
 	Cluster       string    `kusto:"cluster"`
 	Namespace     string    `kusto:"namespace_name"`
 	ContainerName string    `kusto:"container_name"`
+	PodName       string    `kusto:"pod_name"`
 	Timestamp     time.Time `kusto:"timestamp"`
 
 	Log       map[string]any  `kusto:"-"` // Log content, set by the gatherer pipeline
@@ -247,6 +250,7 @@ func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDir
 		string(kusto.QueryTypeServices):           serviceLogsDirectory,
 		string(kusto.QueryTypeHostedControlPlane): hostedControlPlaneLogsDirectory,
 		string(kusto.QueryTypeCustomLogs):         customLogsDirectory,
+		"splitByPod":                              opts.QueryOptions.SplitByPod,
 	}
 
 	return &Gatherer{
@@ -260,6 +264,7 @@ func NewCliGatherer(queryClient QueryClientInterface, outputPath, serviceLogsDir
 
 func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, options RowOutputOptions) error {
 	outputPath := options["outputPath"].(string)
+	splitByPod, _ := options["splitByPod"].(bool)
 
 	openedFiles := make(map[string]*os.File)
 
@@ -288,22 +293,26 @@ func cliOutputFunc(ctx context.Context, logLineChan chan *NormalizedLogLine, opt
 			var fileName string
 			switch logLine.QueryType {
 			case kusto.QueryTypeKubernetesEvents, kusto.QueryTypeSystemdLogs:
-				fileName = fmt.Sprintf("%s-%s.jsonl", logLine.Cluster, logLine.QueryType)
+				fileName = fmt.Sprintf("%s_%s.jsonl", logLine.Cluster, logLine.QueryType)
 			case kusto.QueryTypeCustomLogs:
-				fileName = fmt.Sprintf("custom-query-%s.jsonl", logLine.QueryName)
+				fileName = fmt.Sprintf("custom-query_%s.jsonl", logLine.QueryName)
 			default:
-				fileName = fmt.Sprintf("%s-%s-%s.jsonl", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
+				if splitByPod && logLine.PodName != "" {
+					fileName = fmt.Sprintf("%s_%s_%s_%s.jsonl", logLine.Cluster, logLine.Namespace, logLine.ContainerName, logLine.PodName)
+				} else {
+					fileName = fmt.Sprintf("%s_%s_%s.jsonl", logLine.Cluster, logLine.Namespace, logLine.ContainerName)
+				}
 			}
 
-			file, ok := openedFiles[fileName]
+			filePath := path.Join(outputPath, directory, fileName)
+			file, ok := openedFiles[filePath]
 			if !ok {
-				filePath := path.Join(outputPath, directory, fileName)
 				newFile, err := os.Create(filePath)
 				if err != nil {
 					allErrors = errors.Join(allErrors, fmt.Errorf("failed to create output file %s: %w", filePath, err))
 					continue
 				}
-				openedFiles[fileName] = newFile
+				openedFiles[filePath] = newFile
 				file = newFile
 			}
 			thisLog, err := json.Marshal(logLine.Log)

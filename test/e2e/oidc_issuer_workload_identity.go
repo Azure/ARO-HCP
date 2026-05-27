@@ -183,44 +183,44 @@ var _ = Describe("Customer", func() {
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "oidc-wi", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for OIDC workload identity test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities) for cluster")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("getting the cluster's OIDC issuer URL")
 			hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			clusterResp, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(clusterResp.Properties).NotTo(BeNil())
-			Expect(clusterResp.Properties.Platform).NotTo(BeNil())
+			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster %s", customerClusterName)
+			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster GET response Properties was nil")
+			Expect(clusterResp.Properties.Platform).NotTo(BeNil(), "cluster GET response Properties.Platform was nil")
 
 			Expect(clusterResp.Properties.Platform.IssuerURL).NotTo(BeNil(), "OIDC issuer URL should be populated on the cluster response")
 			Expect(*clusterResp.Properties.Platform.IssuerURL).NotTo(BeEmpty(), "OIDC issuer URL should not be empty")
@@ -229,61 +229,61 @@ var _ = Describe("Customer", func() {
 			GinkgoWriter.Printf("Cluster OIDC issuer URL: %s\n", oidcIssuerURL)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
 				10*time.Minute,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "cluster %s is not viable", customerClusterName)
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", customerNodePoolName)
 
 			By("verifying nodes count and ready status")
-			Expect(verifiers.VerifyNodeCount(customerClusterName, int(nodePoolParams.Replicas)).Verify(ctx, adminRESTConfig)).To(Succeed())
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed())
+			Expect(verifiers.VerifyNodeCount(customerClusterName, int(nodePoolParams.Replicas)).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count matches expected replicas %d", nodePoolParams.Replicas)
+			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready")
 
 			By("creating a user-assigned managed identity for the test")
 			subscriptionID, err := tc.SubscriptionID(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
 
 			cred, err := tc.AzureCredential()
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
 
 			msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create user-assigned identities client")
 
 			msiResp, err := msiClient.CreateOrUpdate(ctx, *resourceGroup.Name, testManagedIdentity, armmsi.Identity{
 				Location: resourceGroup.Location,
 			}, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(msiResp.Properties).NotTo(BeNil())
-			Expect(msiResp.Properties.ClientID).NotTo(BeNil())
+			Expect(err).NotTo(HaveOccurred(), "failed to create managed identity %s", testManagedIdentity)
+			Expect(msiResp.Properties).NotTo(BeNil(), "managed identity response Properties was nil")
+			Expect(msiResp.Properties.ClientID).NotTo(BeNil(), "managed identity response Properties.ClientID was nil")
 			clientID := *msiResp.Properties.ClientID
 			GinkgoWriter.Printf("Created managed identity with client ID: %s\n", clientID)
 
 			By("creating a federated identity credential for the service account")
 			ficClient, err := armmsi.NewFederatedIdentityCredentialsClient(subscriptionID, cred, nil)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create federated identity credentials client")
 
 			subject := fmt.Sprintf("system:serviceaccount:%s:%s", testNamespace, testServiceAccount)
 			_, err = ficClient.CreateOrUpdate(ctx, *resourceGroup.Name, testManagedIdentity, "e2e-wi-fic", armmsi.FederatedIdentityCredential{
@@ -293,12 +293,12 @@ var _ = Describe("Customer", func() {
 					Audiences: []*string{to.Ptr("api://AzureADTokenExchange")},
 				},
 			}, nil)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create federated identity credential for service account %s", subject)
 			GinkgoWriter.Printf("Created federated identity credential with issuer: %s, subject: %s\n", oidcIssuerURL, subject)
 
 			By("creating the test namespace and service account in the cluster")
 			adminClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client from admin REST config")
 
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -306,7 +306,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = adminClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create test namespace %s", testNamespace)
 
 			sa := &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
@@ -318,7 +318,7 @@ var _ = Describe("Customer", func() {
 				},
 			}
 			_, err = adminClient.CoreV1().ServiceAccounts(testNamespace).Create(ctx, sa, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create service account %s in namespace %s", testServiceAccount, testNamespace)
 
 			By("waiting for namespace UID range annotation to be set by the cluster-policy-controller")
 			Eventually(func() bool {
@@ -347,7 +347,7 @@ var _ = Describe("Customer", func() {
 				pod = newWITestPodWithManualInjection(testNamespace, clientID, tc.TenantID())
 			}
 			_, err = adminClient.CoreV1().Pods(testNamespace).Create(ctx, pod, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create workload identity test pod in namespace %s", testNamespace)
 
 			By("waiting for the pod to complete successfully")
 			var prevPodState corev1.PodPhase

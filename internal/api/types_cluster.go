@@ -15,7 +15,6 @@
 package api
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -24,29 +23,16 @@ import (
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftCluster struct {
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.TrackedResource
 
 	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
-	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
-	// populated on DB read via the CosmosToInternalCluster() conversion function.
-	// We carry it across the API boundary between HCPCluster (the direct cosmos db type) and HCPOpenShiftCluster (this)
-	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
-	// This can be removed once we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftCluster.
-	CosmosETag azcore.ETag `json:"-"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
-
-func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		CosmosETag:        o.CosmosETag,
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
-	}
-}
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterCustomerProperties struct {
@@ -64,7 +50,6 @@ type HCPOpenShiftClusterCustomerProperties struct {
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
-	ExistingCosmosUID            string                         `json:"-"`
 	ProvisioningState            arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	ClusterServiceID             *InternalID                    `json:"clusterServiceID,omitempty"`
 	ActiveOperationID            string                         `json:"activeOperationId,omitempty"`

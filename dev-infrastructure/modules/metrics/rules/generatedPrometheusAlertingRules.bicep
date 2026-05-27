@@ -462,6 +462,33 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         for: 'PT5M'
         severity: 4
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendHttpRequestPanics'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FrontendHttpRequestPanics/{{ $labels.cluster }}'
+          description: 'Frontend HTTP request handler has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          info: 'Frontend HTTP request handler has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+          summary: 'Frontend is panicking during HTTP request handling'
+          title: 'Frontend is panicking during HTTP request handling'
+        }
+        expression: 'sum by (cluster) ( increase(frontend_http_request_panics_total[5m]) ) > 0'
+        for: 'PT1M'
+        severity: 3
+      }
     ]
     scopes: [
       azureMonitoring

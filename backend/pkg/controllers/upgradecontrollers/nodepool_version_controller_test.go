@@ -34,6 +34,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	configv1 "github.com/openshift/api/config/v1"
+	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -101,6 +102,9 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 	require.NoError(t, err)
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceID,
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -408,12 +412,19 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		{
-			name:                 "skip minor version (+2) - fail",
+			name:                 "y-stream upgrade (+2) - pass",
 			desiredVersion:       "4.20.5",
 			activeVersions:       []string{"4.18.10"},
 			controlPlaneVersions: []string{"4.20.5"},
+			expectError:          false,
+		},
+		{
+			name:                 "y-stream upgrade (+3) - fail",
+			desiredVersion:       "4.21.5",
+			activeVersions:       []string{"4.18.10"},
+			controlPlaneVersions: []string{"4.21.5"},
 			expectError:          true,
-			errorContains:        "skipping minor versions is not allowed",
+			errorContains:        "skipping more than 2 minor versions",
 		},
 		{
 			name:                 "major version change - fail by default",
@@ -649,53 +660,6 @@ func newCSNodePoolWithVersion(t *testing.T, version string) *arohcpv1alpha1.Node
 	return csNodePool
 }
 
-func TestNodePoolVersionSyncer_SyncOnce_SkipMinorVersionFails(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
-
-	// Create node pool with desired version 4.20.0 (skips from 4.18.x)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// Create ServiceProviderCluster with control plane at 4.20.0 (allowing the desired version)
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// Create ServiceProviderNodePool with active version 4.18.10 (to create skew)
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.18.10")
-
-	// CS returns node pool with current version 4.18.10
-	csNodePool := newCSNodePoolWithVersion(t, "4.18.10")
-	mockCS.EXPECT().
-		GetNodePool(gomock.Any(), gomock.Any()).
-		Return(csNodePool, nil).
-		Times(1)
-
-	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       &alwaysSyncCooldownChecker{},
-		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-		resourcesDBClient:                     mockResourcesDBClient,
-		clusterServiceClient:                  mockCS,
-		cincinnatiClientCache:                 mockClientCache,
-	}
-
-	testKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
-	}
-
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "skipping minor versions is not allowed")
-}
-
 func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
@@ -743,7 +707,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	assert.Contains(t, err.Error(), "cannot exceed control plane version")
 }
 
-func TestNodePoolVersionSyncer_SyncOnce_NoUpgradePathInCincinnatiFails(t *testing.T) {
+func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
@@ -757,6 +721,9 @@ func TestNodePoolVersionSyncer_SyncOnce_NoUpgradePathInCincinnatiFails(t *testin
 	// Create ServiceProviderCluster with control plane at 4.20.0 (allows the desired version)
 	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
 
+	// Create ServiceProviderNodePool with active version 4.19.7
+	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.7")
+
 	// CS returns node pool with current version 4.19.7
 	csNodePool := newCSNodePoolWithVersion(t, "4.19.7")
 	mockCS.EXPECT().
@@ -764,12 +731,12 @@ func TestNodePoolVersionSyncer_SyncOnce_NoUpgradePathInCincinnatiFails(t *testin
 		Return(csNodePool, nil).
 		Times(1)
 
-	// Setup Cincinnati mock to return NO upgrade path (empty candidates)
+	// Cincinnati: version exists, no candidates
 	mockCincinnati.EXPECT().
-		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.10"))).
 		Return(
-			configv1.Release{Version: "4.19.7"},
-			[]configv1.Release{}, // Empty - no upgrade path available
+			configv1.Release{Version: "4.19.10"},
+			[]configv1.Release{},
 			nil,
 			nil,
 		).
@@ -796,8 +763,76 @@ func TestNodePoolVersionSyncer_SyncOnce_NoUpgradePathInCincinnatiFails(t *testin
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
 	err := syncer.SyncOnce(ctx, testKey)
 
+	require.NoError(t, err)
+
+	// Verify the ServiceProviderNodePool DesiredVersion was updated
+	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
+		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
+	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err)
+	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion)
+	expectedDesiredVersion := semver.MustParse("4.19.10")
+	require.True(t, expectedDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion))
+}
+
+func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+	mockCincinnati := cincinnati.NewMockClient(ctrl)
+
+	// Create node pool with desired version 4.19.99 (does not exist in Cincinnati)
+	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.99")
+
+	// Create ServiceProviderCluster with control plane at 4.20.0
+	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
+
+	// Create ServiceProviderNodePool with active version 4.19.7
+	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.7")
+
+	// CS returns node pool with current version 4.19.7
+	csNodePool := newCSNodePoolWithVersion(t, "4.19.7")
+	mockCS.EXPECT().
+		GetNodePool(gomock.Any(), gomock.Any()).
+		Return(csNodePool, nil).
+		Times(1)
+
+	// Cincinnati returns VersionNotFound for the desired version
+	mockCincinnati.EXPECT().
+		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.99"))).
+		Return(
+			configv1.Release{},
+			nil,
+			nil,
+			&cvocincinnati.Error{Reason: "VersionNotFound", Message: "version 4.19.99 not found"},
+		).
+		Times(1)
+
+	mockClientCache := cincinnati.NewMockClientCache(ctrl)
+	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
+
+	syncer := &nodePoolVersionSyncer{
+		cooldownChecker:                       &alwaysSyncCooldownChecker{},
+		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
+		resourcesDBClient:                     mockResourcesDBClient,
+		clusterServiceClient:                  mockCS,
+		cincinnatiClientCache:                 mockClientCache,
+	}
+
+	testKey := controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	}
+
+	ctx = utils.ContextWithLogger(ctx, logr.Discard())
+	err := syncer.SyncOnce(ctx, testKey)
+
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no upgrade path available")
+	assert.Contains(t, err.Error(), "not found in Cincinnati")
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
@@ -847,7 +882,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot downgrade")
 }
 
-func TestNodePoolVersionSyncer_SyncOnce_UpgradePathExistsSucceeds(t *testing.T) {
+func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
@@ -868,16 +903,12 @@ func TestNodePoolVersionSyncer_SyncOnce_UpgradePathExistsSucceeds(t *testing.T) 
 		Return(csNodePool, nil).
 		Times(1)
 
-	// Setup Cincinnati mock to return valid upgrade path including desired version
+	// Cincinnati returns success for the desired version (version exists in the graph)
 	mockCincinnati.EXPECT().
 		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			configv1.Release{Version: "4.19.10"},
-			[]configv1.Release{
-				{Version: "4.19.12"},
-				{Version: "4.19.15"}, // Desired version is in candidates
-				{Version: "4.19.18"},
-			},
+			configv1.Release{Version: "4.19.15"},
+			[]configv1.Release{},
 			nil,
 			nil,
 		).
@@ -934,13 +965,13 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 		Return(csNodePool, nil).
 		Times(1)
 
-	// Phase 1: Cincinnati mock returns valid upgrade path
+	// Phase 1: Cincinnati confirms the desired version exists
 	mockCincinnati := cincinnati.NewMockClient(ctrl)
 	mockCincinnati.EXPECT().
 		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			configv1.Release{Version: "4.19.10"},
-			[]configv1.Release{{Version: "4.19.15"}},
+			configv1.Release{Version: "4.19.15"},
+			[]configv1.Release{},
 			nil,
 			nil,
 		).
@@ -989,13 +1020,13 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	require.True(t, expectedDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion),
 		"DesiredVersion should match customer version %s, got %s", "4.19.15", spnp.Spec.NodePoolVersion.DesiredVersion)
 
-	// --- Phase 2: Change version, Cincinnati fails, desired should NOT change ---
+	// --- Phase 2: Change to non-existent version, Cincinnati fails, desired should NOT change ---
 
-	// Update the HCPNodePool with a new desired version
+	// Update the HCPNodePool with a version that doesn't exist in Cincinnati
 	nodePool, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
 		NodePools(testClusterName).Get(ctx, testNodePoolName)
 	require.NoError(t, err)
-	nodePool.Properties.Version.ID = "4.19.20"
+	nodePool.Properties.Version.ID = "4.19.99"
 	_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
 		NodePools(testClusterName).Replace(ctx, nodePool, nil)
 	require.NoError(t, err)
@@ -1006,22 +1037,23 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 		Return(csNodePool, nil).
 		Times(1)
 
+	// Cincinnati returns VersionNotFound — version doesn't exist
 	mockCincinnatiFailing := cincinnati.NewMockClient(ctrl)
 	mockCincinnatiFailing.EXPECT().
 		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			configv1.Release{Version: "4.19.10"},
-			[]configv1.Release{}, // Empty - no upgrade path available
+			configv1.Release{},
 			nil,
 			nil,
+			&cvocincinnati.Error{Reason: "VersionNotFound", Message: "version 4.19.99 not found"},
 		).
 		AnyTimes()
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnatiFailing).Times(1)
 
-	// SyncOnce should fail because Cincinnati doesn't have upgrade path
+	// SyncOnce should fail because the version doesn't exist in Cincinnati
 	err = syncer.SyncOnce(ctx, testKey)
-	require.Error(t, err, "SyncOnce should fail when Cincinnati has no upgrade path")
-	assert.Contains(t, err.Error(), "no upgrade path available")
+	require.Error(t, err, "SyncOnce should fail when version doesn't exist in Cincinnati")
+	assert.Contains(t, err.Error(), "not found in Cincinnati")
 
 	// Verify that DesiredVersion was NOT changed (still 4.19.15)
 	spnp, err = mockResourcesDBClient.ServiceProviderNodePools(
@@ -1034,7 +1066,16 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 		"DesiredVersion should NOT have changed after failed validation, expected %s, got %s",
 		"4.19.15", spnp.Spec.NodePoolVersion.DesiredVersion)
 
-	// --- Phase 3: Cincinnati succeeds, desired should change ---
+	// --- Phase 3: Change to existing version, should succeed ---
+
+	// Update the HCPNodePool with a version that exists in Cincinnati
+	nodePool, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+		NodePools(testClusterName).Get(ctx, testNodePoolName)
+	require.NoError(t, err)
+	nodePool.Properties.Version.ID = "4.19.20"
+	_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
+		NodePools(testClusterName).Replace(ctx, nodePool, nil)
+	require.NoError(t, err)
 
 	// Setup CS mocks for third sync
 	mockCS.EXPECT().
@@ -1042,12 +1083,13 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 		Return(csNodePool, nil).
 		Times(1)
 
+	// Cincinnati confirms the version exists
 	mockCincinnatiSucceeding := cincinnati.NewMockClient(ctrl)
 	mockCincinnatiSucceeding.EXPECT().
 		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(
-			configv1.Release{Version: "4.19.10"},
-			[]configv1.Release{{Version: "4.19.20"}}, // Valid upgrade path
+			configv1.Release{Version: "4.19.20"},
+			[]configv1.Release{},
 			nil,
 			nil,
 		).
@@ -1056,7 +1098,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 
 	// SyncOnce should succeed now
 	err = syncer.SyncOnce(ctx, testKey)
-	require.NoError(t, err, "SyncOnce should succeed when Cincinnati has valid upgrade path")
+	require.NoError(t, err, "SyncOnce should succeed when version exists in Cincinnati")
 
 	// Verify that DesiredVersion HAS changed to 4.19.20
 	spnp, err = mockResourcesDBClient.ServiceProviderNodePools(

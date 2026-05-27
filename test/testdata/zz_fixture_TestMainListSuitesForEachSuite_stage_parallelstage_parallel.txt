@@ -61,11 +61,14 @@ MISE Routing routes to the correct frontend based on version header MISE v2 when
 MISE Routing routes to the correct frontend based on version header default route returns no version header
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits
 Customer should respect cluster-wide node limits with nodepool autoscaling
+Customer should update NodeDrainTimeoutMinutes and upgrade a nodepool
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled
 Customer should be able to update node pool labels and taints
 Customer should upgrade and update a nodepool from 4.20.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.21.z to 4.21.zLatest
 Customer should upgrade and update a nodepool from 4.20.z to 4.20.zLatest
+Customer should upgrade a nodepool to a version without Cincinnati upgrade edge z-stream upgrade without Cincinnati edge in 4.20
+Customer should upgrade a nodepool skipping one minor version (+2) from 4.20.z to 4.22.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should be able to forward control plane logs to a storage account and Event Hub via shoebox diagnostic settings
 Customer should not be able to perform various invalid operations on cluster resources

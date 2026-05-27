@@ -9,6 +9,20 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -o errexit
+    set -o nounset
+    set -o pipefail
+    tmp="$(mktemp ./scripts/cleanup-pko-resources/cleanup-pko-resources.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/cleanup-pko-resources
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/cleanup-pko-resources/cleanup-pko-resources
+    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -412,6 +426,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -461,6 +477,34 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: image-registry-policy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: image-registry-policy
+    releaseNamespace: image-registry-policy
+    chartDir: ./../image-registry-policy/deploy
+    valuesFile: ./../image-registry-policy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -477,6 +521,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -505,6 +551,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -531,6 +579,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -545,7 +595,7 @@ resourceGroups:
   - name: cleanup-pko
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
-    command: go run ./scripts/cleanup-pko-resources || echo "[WARNING] cleanup-pko exited non-zero, continuing (best-effort)"
+    command: ./scripts/cleanup-pko-resources/cleanup-pko-resources
     workingDir: .
     shellIdentity:
       input:
@@ -597,6 +647,7 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-mgmt.yaml
+    timeout: 10m
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -627,6 +678,7 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      - "arobit-forwarder not ready. status: InProgress"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -645,6 +697,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
