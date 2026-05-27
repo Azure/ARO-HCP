@@ -335,12 +335,11 @@ var _ = Describe("SRE", func() {
 			By(fmt.Sprintf("retrieving serial console logs for VM %s", vmName))
 			logs, err := tc.GetSerialConsoleLogs(ctx, hcpResourceID, vmName, currentIdentity)
 			Expect(err).NotTo(HaveOccurred(), "failed to retrieve serial console logs for VM %q", vmName)
-			Expect(logs).NotTo(BeEmpty(), "serial console logs for VM %q should not be empty", vmName)
 
 			By("verifying serial console logs contain boot information")
 			// Serial console logs typically contain boot messages, kernel output, or systemd logs
 			// We just verify that we got some content back
-			Expect(len(logs)).To(BeNumerically(">", 0), "serial console logs length should be greater than 0")
+			Expect(len(logs)).To(BeNumerically(">", 0), "serial console logs for VM %q should have length greater than 0", vmName)
 
 			By("testing error case: non-existent VM name")
 			_, err = tc.GetSerialConsoleLogs(ctx, hcpResourceID, "non-existent-vm-12345", currentIdentity)
