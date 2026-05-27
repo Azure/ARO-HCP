@@ -65,23 +65,6 @@ images:
     targets:
     - jsonPath: defaults.customExporter.image.digest
       filePath: ../../config/config.yaml
-  # Frontend and Backend images
-  arohcpfrontend:
-    group: aro-rp
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpfrontend
-      useAuth: true
-    targets:
-    - jsonPath: defaults.frontend.image.digest
-      filePath: ../../config/config.yaml
-  arohcpbackend:
-    group: aro-rp
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpbackend
-      useAuth: true
-    targets:
-    - jsonPath: defaults.backend.image.digest
-      filePath: ../../config/config.yaml
   # Kube Events image
   kubeEvents:
     group: obs-agents
@@ -170,26 +153,6 @@ images:
     targets:
     - jsonPath: defaults.secretSyncController.providerImage.digest
       filePath: ../../config/config.yaml
-  # Mgmt Agent image
-  mgmt-agent:
-    group: mgmt-agent
-    source:
-      image: arohcpsvcdev.azurecr.io/mgmt-agent
-      tagPattern: "^[a-f0-9]{7}$"
-      useAuth: true
-    targets:
-    - jsonPath: defaults.mgmtAgent.image.digest
-      filePath: ../../config/config.yaml
-  # Kube Applier image
-  kube-applier:
-    group: kube-applier
-    source:
-      image: arohcpsvcdev.azurecr.io/kube-applier
-      tagPattern: "^[a-f0-9]{7}$"
-      useAuth: true
-    targets:
-    - jsonPath: defaults.kubeApplier.image.digest
-      filePath: ../../config/config.yaml
   # Image Sync
   imageSync:
     group: aro-deps
@@ -244,22 +207,6 @@ images:
     - jsonPath: defaults.svc.prometheus.kubeStateMetrics.image.digest
       filePath: ../../config/config.yaml
     - jsonPath: defaults.mgmt.prometheus.kubeStateMetrics.image.digest
-      filePath: ../../config/config.yaml
-  admin-api:
-    group: aro-rp
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpadminapi
-      useAuth: true
-    targets:
-    - jsonPath: defaults.adminApi.image.digest
-      filePath: ../../config/config.yaml
-  sessiongate:
-    group: aro-rp
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpsessiongate
-      useAuth: true
-    targets:
-    - jsonPath: defaults.sessiongate.image.digest
       filePath: ../../config/config.yaml
   # Velero images
   velero-server:
