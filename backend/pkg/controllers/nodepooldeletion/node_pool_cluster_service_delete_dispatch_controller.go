@@ -44,10 +44,6 @@ import (
 // no work to do (or before treating a 404 from Cluster Service as definitive).
 const missingClusterServiceIDTimeout = 120 * time.Second
 
-// firstSeenDeletionGracePeriod is how long we wait after first observing
-// DeletionTimestamp for a node pool before calling Cluster Service to delete the node pool.
-const firstSeenDeletionGracePeriod = 2 * time.Minute
-
 // nodePoolClusterServiceDeleteDispatchSyncer issues a Cluster Service delete for any
 // NodePool whose DeletionTimestamp has been set. The frontend records the
 // timestamp on the NodePool when DeleteNodePool is invoked, this controller
@@ -160,14 +156,13 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 	// and restarting at the same time.
 	nodePoolDeletionTimestamp := nodePool.ServiceProviderProperties.DeletionTimestamp.Time
 	cacheKey := strings.ToLower(nodePool.ID.String())
+	var firstSeenNodePoolDeletionTimestamp time.Time
 	firstSeenEntry, ok := c.firstSeenDeletionTimestampCache.Get(cacheKey)
-	if !ok {
-		c.firstSeenDeletionTimestampCache.Add(cacheKey, c.clock.Now().UTC())
-		return nil
-	}
-	firstSeenNodePoolDeletionTimestamp := firstSeenEntry.(time.Time)
-	if c.clock.Since(firstSeenNodePoolDeletionTimestamp) < firstSeenDeletionGracePeriod {
-		return nil
+	if ok {
+		firstSeenNodePoolDeletionTimestamp = firstSeenEntry.(time.Time)
+	} else {
+		firstSeenNodePoolDeletionTimestamp = c.clock.Now().UTC()
+		c.firstSeenDeletionTimestampCache.Add(cacheKey, firstSeenNodePoolDeletionTimestamp)
 	}
 
 	csID := nodePool.ServiceProviderProperties.ClusterServiceID
