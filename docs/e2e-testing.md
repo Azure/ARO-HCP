@@ -22,8 +22,17 @@ All E2E tests are triggered through Prow by commenting on a pull request in the 
 |---------|-------------|-------------------|-------|
 | `/test e2e-parallel` | Dev (centralus) | Yes (on every PR) | Optional, does not block merge. Deploys to dedicated subscription. |
 | `/test integration-e2e-parallel` | Int (uksouth) | No | Must be triggered manually |
+| `/test integration-e2e-parallel-ocp-fast` | Int (uksouth) | No | Must be triggered manually |
+| `/test integration-e2e-parallel-ocp-stable` | Int (uksouth) | No | Must be triggered manually |
+| `/test integration-e2e-parallel-ocp-nightly` | Int (uksouth) | No | Must be triggered manually |
 | `/test stage-e2e-parallel` | Stage (uksouth) | No | Must be triggered manually |
+| `/test stage-e2e-parallel-ocp-fast` | Stage (uksouth) | No | Must be triggered manually |
+| `/test stage-e2e-parallel-ocp-stable` | Stage (uksouth) | No | Must be triggered manually |
+| `/test stage-e2e-parallel-ocp-nightly` | Stage (uksouth) | No | Must be triggered manually |
 | `/test prod-e2e-parallel` | Prod (uksouth) | No | Use with caution |
+| `/test prod-e2e-parallel-ocp-fast` | Prod (uksouth) | No | Use with caution |
+| `/test prod-e2e-parallel-ocp-stable` | Prod (uksouth) | No | Use with caution |
+| `/test prod-e2e-parallel-ocp-nightly` | Prod (uksouth) | No | Use with caution |
 
 To re-run all failed jobs:
 ```
@@ -106,8 +115,8 @@ Tests are organized into suites with label-based filtering. The available labels
 In addition to PR-triggered tests, periodic Prow jobs run E2E tests on a schedule:
 
 - **Integration**: After each EV2 promotion (gates promotion to Stage)
-- **Stage**: Daily at 2:00 AM UTC
-- **Production**: Daily at 2:00 AM UTC
+- **Stage**: Daily at 2:00 AM UTC; at 11:00 PM UTC for OCP nightly
+- **Production**: Daily at 2:00 AM UTC; at 11:00 PM UTC for OCP nightly
 
 These are documented in detail in [Prow Jobs](prow.md#periodic-e2e-tests).
 

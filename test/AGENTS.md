@@ -16,6 +16,9 @@
 * **API version suffix convention:** Framework helpers that call the ARM SDK must use explicit API version suffixes in their names. Prefer `...20240610` helpers for the stable test path (for example `GetHCPCluster20240610`, `UpdateHCPCluster20240610`, `CreateNodePoolAndWait20240610`) and `...20251223` or any future versions helpers only when testing preview-specific behavior (for example `BuildHCPClusterFromParams20251223`, `CreateHCPClusterAndWait20251223`).
 * **Timeout of deployment:** Timeouts should be defined as named constants in `test/util/framework/constants.go` to ensure reusability and consistency across the test suite. Use the appropriate constant (e.g. `framework.ClusterCreationTimeout`, `framework.NodePoolCreationTimeout`, `framework.ExternalAuthCreationTimeout`) rather than hardcoding duration values. When a new timeout category is needed, add a constant to that file first.
 
+> [!NOTE]
+All cluster and node pool operations are tied to a specific API version. This means that the actual method names have the form `CreateHCPClusterFromParamYYYYMMDD`, `CreateNodePoolFromParamYYYYMMDD`, etc. New methods for new API versions should be added as needed.
+
 ## Resource naming \- Independence and Isolation
 
 * **Self-Contained:** Every test case must be self-contained, ensuring no dependencies on the state or results of other test cases.
