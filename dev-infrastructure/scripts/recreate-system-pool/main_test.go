@@ -1265,6 +1265,30 @@ func TestIsNotFoundErr_AzcoreResponseOther(t *testing.T) {
 	}
 }
 
+func TestIsActivityLogAuthorizationError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"plain_error", errors.New("boom"), false},
+		{"authorization_failed", &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "AuthorizationFailed"}, true},
+		{"linked_authorization_failed", &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "LinkedAuthorizationFailed"}, true},
+		{"wrapped_authorization_failed", fmt.Errorf("activity log: %w", &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "AuthorizationFailed"}), true},
+		{"forbidden_policy", &azcore.ResponseError{StatusCode: http.StatusForbidden, ErrorCode: "RequestDisallowedByPolicy"}, false},
+		{"unauthorized", &azcore.ResponseError{StatusCode: http.StatusUnauthorized, ErrorCode: "AuthorizationFailed"}, false},
+		{"too_many_requests", &azcore.ResponseError{StatusCode: http.StatusTooManyRequests, ErrorCode: "AuthorizationFailed"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isActivityLogAuthorizationError(tc.err); got != tc.want {
+				t.Errorf("got %t want %t", got, tc.want)
+			}
+		})
+	}
+}
+
 // =============================================================================
 // evalGuard4  (system pool provisioningState == "Failed")
 // =============================================================================

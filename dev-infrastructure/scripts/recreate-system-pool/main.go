@@ -129,6 +129,10 @@ const (
 	// Guard 1 requires this code so other failure modes cannot trip the threshold.
 	nrpKVSErrorCode    = "NetworkingInternalOperationError"
 	vmssWriteOperation = "Microsoft.Compute/virtualMachineScaleSets/write"
+
+	activityLogAuthRetryTimeoutMin = 5
+	activityLogAuthRetryInitialSec = 10
+	activityLogAuthRetryMaxSec     = 60
 )
 
 func main() {
@@ -1165,6 +1169,47 @@ func (c *clients) activityLogJSON(ctx context.Context, resourceGroup string, off
 	filter := fmt.Sprintf("eventTimestamp ge '%s' and eventTimestamp le '%s' and resourceGroupName eq '%s'",
 		start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339), resourceGroup)
 	logf("querying activity logs: %s", filter)
+	return c.activityLogJSONForFilter(ctx, filter)
+}
+
+func (c *clients) activityLogJSONForFilter(ctx context.Context, filter string) ([]byte, error) {
+	timeout := time.Duration(activityLogAuthRetryTimeoutMin) * time.Minute
+	deadline := time.Now().Add(timeout)
+	delay := time.Duration(activityLogAuthRetryInitialSec) * time.Second
+	maxDelay := time.Duration(activityLogAuthRetryMaxSec) * time.Second
+
+	for attempt := 1; ; attempt++ {
+		events, err := c.activityLogJSONOnce(ctx, filter)
+		if err == nil {
+			return json.Marshal(events)
+		}
+		if !isActivityLogAuthorizationError(err) {
+			return nil, err
+		}
+		if !time.Now().Before(deadline) {
+			return nil, fmt.Errorf("activity-log authorization failed after retrying for %s: %w", timeout, err)
+		}
+
+		sleep := delay
+		if remaining := time.Until(deadline); remaining < sleep {
+			sleep = remaining
+		}
+		logf("WARN: activity-log authorization failed; retrying in %s (attempt=%d): %v", sleep, attempt, err)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(sleep):
+		}
+		if delay < maxDelay {
+			delay *= 2
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+		}
+	}
+}
+
+func (c *clients) activityLogJSONOnce(ctx context.Context, filter string) ([]activityEvent, error) {
 	pager := c.activityLogs.NewListPager(filter, nil)
 	var events []activityEvent
 	for pager.More() {
@@ -1179,7 +1224,19 @@ func (c *clients) activityLogJSON(ctx context.Context, resourceGroup string, off
 			events = append(events, activityEventFromSDK(e))
 		}
 	}
-	return json.Marshal(events)
+	return events, nil
+}
+
+func isActivityLogAuthorizationError(err error) bool {
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	if respErr.StatusCode != http.StatusForbidden {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(respErr.ErrorCode), "AuthorizationFailed") ||
+		strings.EqualFold(strings.TrimSpace(respErr.ErrorCode), "LinkedAuthorizationFailed")
 }
 
 func activityLogWindow(offset string) (time.Time, time.Time, error) {
