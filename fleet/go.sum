@@ -1,7 +1,5 @@
 dario.cat/mergo v1.0.1 h1:Ra4+bf83h2ztPIQYNP99R6m+Y7KfnARDfID+a+vLl4s=
 dario.cat/mergo v1.0.1/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
-github.com/Azure/ARO-HCP/internal v0.0.0-20260518115228-fabd9b6692ac h1:KeaGaXx4aYZ2J+C1qbQC68pzW7Ag/+ApB8haS9w3uE0=
-github.com/Azure/ARO-HCP/internal v0.0.0-20260518115228-fabd9b6692ac/go.mod h1:7nM0kYpW54tmYBIkec2mVIz7pFWAeoW6KVIbcO3ho6E=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 h1:jHb/wfvRikGdxMXYV3QG/SzUOPYN9KEUUuC0Yd0/vC0=
