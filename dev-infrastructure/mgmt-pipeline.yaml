@@ -19,7 +19,7 @@ buildStep:
     set -o pipefail
     tmp="$(mktemp ./scripts/cleanup-pko-resources/cleanup-pko-resources.XXXXXX)"
     trap 'rm -f "${tmp}"' EXIT
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "${tmp}" ./scripts/cleanup-pko-resources
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/cleanup-pko-resources
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/cleanup-pko-resources/cleanup-pko-resources
     trap - EXIT
