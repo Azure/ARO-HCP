@@ -218,8 +218,7 @@ func run() error {
 	}
 
 	logBanner("STEP 1 :: snapshot system pool")
-	live, err := clients.snapshotSystem(ctx)
-	if err != nil {
+	if _, err := clients.snapshotSystem(ctx); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
 
@@ -231,6 +230,21 @@ func run() error {
 	if !proceed {
 		logf("active LRO is younger than %dm; refusing to fight an in-progress op. Exiting no-op.", lroAbortAgeMin)
 		return nil
+	}
+
+	logBanner("STEP 2b :: re-check detection guards after LRO handling")
+	act, reason, err = clients.detect(ctx)
+	if err != nil {
+		return fmt.Errorf("post-LRO detection: %w", err)
+	}
+	if !act {
+		logf("guards no longer fire after LRO handling: %s. Exiting no-op.", reason)
+		return nil
+	}
+	logf("guards still pass after LRO handling")
+	live, err := clients.snapshotSystem(ctx)
+	if err != nil {
+		return fmt.Errorf("post-LRO snapshot: %w", err)
 	}
 
 	logBanner("STEP 3 :: add throwaway 'systmp' System pool")
