@@ -776,6 +776,100 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   }
 }
 
+resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'fleet'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FleetControllerRetryHotLoop'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FleetControllerRetryHotLoop/{{ $labels.cluster }}'
+          description: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+          info: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+          runbook_url: 'TBD'
+          summary: 'Fleet controller workqueue retry hot loop'
+          title: 'Fleet controller workqueue retry hot loop'
+        }
+        expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="fleet"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="fleet"}[10m]) ) ) ) > 0.5'
+        for: 'PT10M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FleetControllerQueueDepthHigh'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FleetControllerQueueDepthHigh/{{ $labels.cluster }}'
+          description: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          info: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          runbook_url: 'TBD'
+          summary: 'Fleet controller workqueue depth is high'
+          title: 'Fleet controller workqueue depth is high'
+        }
+        expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="fleet"} ) ) > 10'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FleetControllerPanic'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FleetControllerPanic/{{ $labels.cluster }}'
+          description: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          info: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          runbook_url: 'TBD'
+          summary: 'Fleet controller is panicking'
+          title: 'Fleet controller is panicking'
+        }
+        expression: 'sum by (controller, cluster) ( increase(panic_total{namespace="fleet"}[5m]) ) > 0'
+        for: 'PT1M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'admin-api'
   location: location

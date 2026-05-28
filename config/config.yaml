@@ -703,10 +703,21 @@ defaults:
       roleSetName: "public"
   # Fleet
   fleet:
+    managedIdentityName: fleet
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: fleet
       digest: ""
+    k8s:
+      replicas: 2
+      namespace: fleet
+      serviceAccountName: fleet
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
   # Admin API
   adminApi:
     audit:

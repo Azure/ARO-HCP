@@ -1,0 +1,16 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-fleet-controller
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - to:
+    - operation:
+        paths: ["/metrics"]
+        methods: ["GET"]
+        ports: ["8081"]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "fleet-controller"

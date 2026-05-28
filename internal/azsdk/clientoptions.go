@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -29,6 +30,7 @@ const (
 	ComponentFrontend        Component = "frontend"
 	ComponentBackend         Component = "backend"
 	ComponentAdmin           Component = "admin"
+	ComponentFleet           Component = "fleet"
 	ComponentResourceCleaner Component = "resource-cleaner"
 	ComponentMgmtAgent       Component = "mgmt-agent"
 	ComponentE2E             Component = "e2e"
@@ -47,6 +49,20 @@ func NewClientOptions(component Component) azcore.ClientOptions {
 		Telemetry: policy.TelemetryOptions{
 			ApplicationID: ApplicationID(component),
 		},
+	}
+}
+
+// CloudConfigurationFromName maps a cloud environment name to a cloud.Configuration.
+func CloudConfigurationFromName(name string) (cloud.Configuration, error) {
+	switch name {
+	case "AzurePublicCloud":
+		return cloud.AzurePublic, nil
+	case "AzureChinaCloud":
+		return cloud.AzureChina, nil
+	case "AzureUSGovernmentCloud":
+		return cloud.AzureGovernment, nil
+	default:
+		return cloud.Configuration{}, fmt.Errorf("unknown cloud environment %q", name)
 	}
 }
 

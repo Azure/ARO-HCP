@@ -109,6 +109,10 @@ param adminApiServiceAccountName = '{{ .adminApi.k8s.serviceAccountName }}'
 param adminApiIngressCertName = '{{ .adminApi.cert.name }}'
 param adminApiIngressCertIssuer = '{{ .adminApi.cert.issuer }}'
 
+param fleetMIName = '{{ .fleet.managedIdentityName }}'
+param fleetNamespace = '{{ .fleet.k8s.namespace }}'
+param fleetServiceAccountName = '{{ .fleet.k8s.serviceAccountName }}'
+
 // ACR Resource IDs
 param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'

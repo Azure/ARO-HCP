@@ -414,6 +414,15 @@ param adminApiIngressCertName string
 @description('The issuer of the Admin API certificate')
 param adminApiIngressCertIssuer string
 
+@description('The name of the Fleet managed identity')
+param fleetMIName string
+
+@description('The namespace of the Fleet managed identity')
+param fleetNamespace string
+
+@description('The service account name of the Fleet managed identity')
+param fleetServiceAccountName string
+
 @description('The cluster tag value for the owning team')
 param owningTeamTagValue string
 
@@ -517,6 +526,11 @@ var workloadIdentities = items({
     uamiName: exporterMIName
     namespace: exporterNamespace
     serviceAccountName: exporterServiceAccountName
+  }
+  fleet_wi: {
+    uamiName: fleetMIName
+    namespace: fleetNamespace
+    serviceAccountName: fleetServiceAccountName
   }
 })
 
@@ -746,6 +760,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
 var frontendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, frontendMIName)
 var backendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, backendMIName)
 var adminApiMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, adminApiMIName)
+var fleetMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, fleetMIName)
 
 // Validate that managed identity principals are available in AAD before attempting Cosmos DB role assignments
 // This prevents race conditions where principals haven't replicated to all AAD endpoints yet
@@ -763,7 +778,7 @@ resource validateMIPropagation 'Microsoft.Resources/deploymentScripts@2023-08-01
     azCliVersion: '2.53.1'
     timeout: 'PT10M'
     retentionInterval: 'PT1H'
-    arguments: '${frontendMI.uamiPrincipalID} ${backendMI.uamiPrincipalID} ${adminApiMI.uamiPrincipalID}'
+    arguments: '${frontendMI.uamiPrincipalID} ${backendMI.uamiPrincipalID} ${adminApiMI.uamiPrincipalID} ${fleetMI.uamiPrincipalID}'
     scriptContent: loadTextContent('../scripts/validate-mi-aad-propagation.sh')
     cleanupPreference: 'OnSuccess'
   }
@@ -777,7 +792,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') 
   scope: resourceGroup(regionalResourceGroup)
   params: {
     cosmosDBAccountName: rpCosmosDbName
-    userAssignedMIs: [frontendMI, backendMI, adminApiMI]
+    userAssignedMIs: [frontendMI, backendMI, adminApiMI, fleetMI]
     resourceContainerMaxScale: resourceContainerMaxScale
     billingContainerMaxScale: billingContainerMaxScale
     locksContainerMaxScale: locksContainerMaxScale

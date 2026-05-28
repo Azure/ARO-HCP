@@ -257,6 +257,17 @@ fleet:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
     repository: fleet
+  k8s:
+    namespace: fleet
+    replicas: 2
+    resources:
+      limits:
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 512Mi
+    serviceAccountName: fleet
+  managedIdentityName: fleet
 frontend:
   audit:
     connectSocket: false

@@ -53,6 +53,56 @@ panels:
     unit: /s
     workspace: svc
     step: "60s"
+- title: "Fleet Controller Metrics"
+  queries:
+  - title: "Controller Workqueue Retry Ratio"
+    description: "Ratio of items re-queued for retry vs items initially added, per fleet controller workqueue. High ratios indicate controllers are repeatedly failing to reconcile."
+    query: |
+      (
+        sum by (name, cluster) (
+          max without(prometheus_replica) (
+            rate(workqueue_retries_total{namespace="fleet"}[10m])
+          )
+        )
+        /
+        sum by (name, cluster) (
+          max without(prometheus_replica) (
+            rate(workqueue_adds_total{namespace="fleet"}[10m])
+          )
+        )
+      )
+    unit: ratio
+    workspace: svc
+    step: "60s"
+  - title: "Controller Workqueue Depth"
+    description: "Number of items waiting to be processed in each fleet controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
+    query: |
+      max by (name, cluster) (
+        max without(prometheus_replica) (
+          workqueue_depth{namespace="fleet"}
+        )
+      )
+    unit: items
+    workspace: svc
+    step: "60s"
+  - title: "Controller Reconcile Rate"
+    description: "Rate of reconciliations per fleet controller. Shows how much work each controller is processing."
+    query: |
+      sum by (controller, cluster) (
+        rate(fleet_controller_reconcile_total{namespace="fleet"}[5m])
+      )
+    unit: /s
+    workspace: svc
+    step: "60s"
+  - title: "Controller Panic Rate"
+    description: "Rate of panics caught by the runtime panic handler, per fleet controller. Any non-zero rate indicates a controller is actively crashing and recovering via the panic handler."
+    query: |
+      sum by (controller, cluster) (
+        rate(panic_total{namespace="fleet"}[5m])
+      )
+    unit: /s
+    workspace: svc
+    step: "60s"
 - title: "Maestro Metrics"
   queries:
   - title: "REST API Request Rate by Status"

@@ -13,6 +13,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
         - Microsoft.Azure.ARO.HCP.RP.Frontend ([ref](https://github.com/Azure/ARO-HCP/tree/main/frontend/pipeline.yaml)): Deploy the RP Frontend.
         - Microsoft.Azure.ARO.HCP.SessionGate ([ref](https://github.com/Azure/ARO-HCP/tree/main/sessiongate/pipeline.yaml)): Deploy the Session Gate.
         - Microsoft.Azure.ARO.HCP.AdminAPI ([ref](https://github.com/Azure/ARO-HCP/tree/main/admin/pipeline.yaml)): Deploy the Admin API.
+        - Microsoft.Azure.ARO.HCP.Fleet ([ref](https://github.com/Azure/ARO-HCP/tree/main/fleet/pipeline.yaml)): Deploy the Fleet controller.
       - Microsoft.Azure.ARO.HCP.Management.Infra ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-pipeline.yaml)): Deploy a management cluster and backing infrastructure.
         - Microsoft.Azure.ARO.HCP.Velero ([ref](https://github.com/Azure/ARO-HCP/tree/main/velero/pipeline.yaml)): Deploy Velero for HostedCluster backup and restore.
         - Microsoft.Azure.ARO.HCP.SecretSyncController ([ref](https://github.com/Azure/ARO-HCP/tree/main/secret-sync-controller/pipeline.yaml)): Deploy the Secret Sync Controller.

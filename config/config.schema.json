@@ -1422,11 +1422,20 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI used by fleet to access CosmosDB"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
         }
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "managedIdentityName",
+        "k8s"
       ]
     },
     "adminApi": {
