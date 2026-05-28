@@ -6,7 +6,7 @@ This SOP describes how to renew the `prow-token` used by EV2 pipelines to trigge
 
 The `prow-token` is a Kubernetes ServiceAccount token for the `periodic-job-bot` SA in the `aro-hcp-prow-ci` namespace on the OpenShift CI cluster. EV2 pipelines use it during the `regionalGating` step (defined in [`test/e2e-pipeline.yaml`](../../test/e2e-pipeline.yaml)) to authenticate against the [Gangway API](https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions) and trigger postsubmit E2E jobs.
 
-For more on how secrets are stored and deployed, see [Secret Synchronization](../secret-sync.md). For details on the Prow jobs themselves, see [Prow Jobs / EV2 Gating E2E Tests](../prow.md#ev2-gating-e2e-tests).
+For more on how secrets are stored and deployed, see [Secret Synchronization](../secret-sync.md). For the full EV2-to-Prow wiring and commit-pinning model, see [CI EV2 Integration](../ci/ev2-integration.md). For mapping a Prow run back to a rollout, see [CI EV2 Integration](../ci/ev2-integration.md#identifying-rollouts-from-prow-metadata).
 
 ### Symptoms of an expired or invalid token
 

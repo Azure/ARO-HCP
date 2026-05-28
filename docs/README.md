@@ -68,14 +68,33 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 
 ### Testing and CI
 
-- [Prow](prow.md)
-  - Overview of Prow-based CI infrastructure
-  - Presubmit and periodic jobs
-  - How to trigger and monitor tests
-  - EV2 pipeline integration
-- [Cleanup](cleanup.md)
+- [CI Overview](ci/README.md)
+  - Entry point for the CI documentation set
+  - Explains which CI modes exist and where to go next
+- [CI Execution](ci/execution.md)
+  - How PR validation, EV2 gating, and periodic jobs actually work
+  - Cross-tenant Azure flow for DEV, INT, STG, and PROD
+- [CI Image Lifecycle](ci/image-lifecycle.md)
+  - Shared CI build root, job-local image graph, and local E2E image injection
+  - CI promotion inside OpenShift CI vs service-image mirroring to ACR
+- [CI Identity Leasing](ci/identity-leasing.md)
+  - Managed identity container pool and MSI mock SP pool deep dive
+  - Release-side lease contract, pool sizing, and troubleshooting
+- [CI Quota Monitoring](ci/quota-monitoring.md)
+  - How Azure quotas that constrain CI are monitored via `tenant-quota`
+  - Azure dashboard for real-time quota usage
+- [CI EV2 Integration](ci/ev2-integration.md)
+  - How EV2 selects Prow jobs and authenticates through Gangway
+  - Commit pinning, rollout metadata, and promotion gating
+- [CI Cleanup](ci/cleanup.md)
   - Cleanup modes: strict per-test, targeted teardown, background hygiene
   - Design rationale and behavioral differences across environments
+- [E2E Testing in CI](ci/e2e-testing.md)
+  - How to trigger E2E jobs from PRs
+  - How to narrow test selection safely
+- [CI Operations](ci/operations.md)
+  - How to trigger, inspect, troubleshoot, and change CI
+  - Tiny source-of-truth appendix for job families
 
 ### Observability
 
@@ -103,5 +122,6 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - How to access the Postgres database
 - [Tenant Quota Collector](../tooling/tenant-quota/README.md)
   - Tool-local deployment, configuration, and troubleshooting reference for `tenant-quota`
+  - For CI relevance, see [CI Quota Monitoring](ci/quota-monitoring.md)
 
 ### [Terminology](terminology.md)
