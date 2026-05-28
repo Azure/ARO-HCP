@@ -40,7 +40,7 @@ type schemaNode struct {
 }
 
 func (n schemaNode) isObject() bool {
-	if len(n.Properties) > 0 || len(n.PatternProperties) > 0 || n.AdditionalProperties != nil {
+	if n.Properties != nil || n.PatternProperties != nil || n.AdditionalProperties != nil {
 		return true
 	}
 	if n.Type == nil {
@@ -75,20 +75,20 @@ func walkSchema(node schemaNode, path string, missing *[]string) {
 	for name, child := range node.Properties {
 		walkSchema(child, joinPath(path, name), missing)
 	}
-	for _, child := range node.PatternProperties {
-		walkSchema(child, joinPath(path, "(patternProperty)"), missing)
+	for pattern, child := range node.PatternProperties {
+		walkSchema(child, joinPath(path, fmt.Sprintf("(patternProperty:%s)", pattern)), missing)
 	}
 	if node.Items != nil {
 		walkSchema(*node.Items, joinPath(path, "(items)"), missing)
 	}
-	for _, child := range node.AllOf {
-		walkSchema(child, path, missing)
+	for i, child := range node.AllOf {
+		walkSchema(child, joinPath(path, fmt.Sprintf("(allOf[%d])", i)), missing)
 	}
-	for _, child := range node.OneOf {
-		walkSchema(child, path, missing)
+	for i, child := range node.OneOf {
+		walkSchema(child, joinPath(path, fmt.Sprintf("(oneOf[%d])", i)), missing)
 	}
-	for _, child := range node.AnyOf {
-		walkSchema(child, path, missing)
+	for i, child := range node.AnyOf {
+		walkSchema(child, joinPath(path, fmt.Sprintf("(anyOf[%d])", i)), missing)
 	}
 	if node.Not != nil {
 		walkSchema(*node.Not, joinPath(path, "(not)"), missing)
