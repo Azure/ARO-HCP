@@ -22,7 +22,8 @@ model HcpOperatorIdentityRoleSet
     NamePattern = "^[a-zA-Z0-9-\\.]{3,24}$"
   >;
 }
-@@doc(HcpOperatorIdentityRoleSet.name,
+@@doc(
+  HcpOperatorIdentityRoleSet.name,
   "The OpenShift minor version these identities are required for."
 );
 

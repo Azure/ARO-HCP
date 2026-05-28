@@ -16,8 +16,8 @@
     "node": ">=20.12.0"
   },
   "scripts": {
-    "format": "tsp format \"**/*.tsp\"",
-    "format-check": "tsp format --check \"**/*.tsp\"",
+    "format": "prettier --write --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\"",
+    "format-check": "prettier --check --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\"",
     "compile": "tsp compile redhatopenshift/HcpCluster.Management --warn-as-error",
     "models": "autorest readme.md --verbose --tag=${VERSION}",
     "testsdk": "autorest testsdk.md --verbose --tag=${VERSION}"
