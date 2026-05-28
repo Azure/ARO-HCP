@@ -240,7 +240,7 @@ resourceGroups:
     - name: NRP_FAIL_THRESHOLD
       value: '10'
     - name: NRP_FAIL_WINDOW_MIN
-      value: '15'
+      value: '1440'
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
