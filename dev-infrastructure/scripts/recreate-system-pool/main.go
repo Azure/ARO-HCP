@@ -42,15 +42,14 @@
 //   NRP_FAIL_WINDOW_MIN       Activity-log lookback window in min (default 15)
 //   DRY_RUN                   "true" to print intended actions but make no writes
 //
-// Detection guards (ALL must pass; otherwise exit 0 no-op)
+// Detection guards (2-4 must pass; otherwise exit 0 no-op)
 // --------------------------------------------------------
-//   1. >= NRP_FAIL_THRESHOLD Failed VMSS-write events on an
-//      `aks-system-*` VMSS in the last NRP_FAIL_WINDOW_MIN whose inner
-//      error code is NetworkingInternalOperationError (the NRP-KVS
-//      signature). Other failure modes — quota/capacity/policy/image
-//      pull / etc — never satisfy this guard, so they cannot trigger
-//      a destructive pool recreation that would not address their
-//      actual root cause.
+//   1. (diagnostic, non-blocking) Activity-log check for NRP-KVS
+//      failures on aks-system-* VMSS. Logged for confirmation but
+//      does not block remediation. The NRP-KVS corruption persists
+//      silently between LROs — the activity log only shows failures
+//      while a VMSS write is actively retrying, so the window can be
+//      empty for hours or days even though the corruption is present.
 //   2. Cluster provisioningState is recoverable: Succeeded, Canceled,
 //      Failed (settled) OR Updating, Upgrading (mid-LRO — the NRP-KVS
 //      wedge signature itself; step 2 decides whether to abort).
@@ -812,22 +811,32 @@ func (c *clients) detect(ctx context.Context) (bool, string, error) {
 	}
 	logf("guard 4 PASS (system pool provisioningState=%q)", systemProvState)
 
-	// Guard 1: NRP retry loop on aks-system-* VMSS
-	logf("guard 1 :: checking activity log on %s for last %d min", c.cfg.nodeRG, c.cfg.windowMin)
+	// Guard 1 (diagnostic, non-blocking): NRP retry loop on aks-system-* VMSS.
+	// This was originally a hard gate, but the NRP-KVS corruption persists
+	// silently between LROs — the activity log only shows failures while a
+	// VMSS write is actively retrying. If the cluster settles (LRO times
+	// out or is aborted), the window can be empty for hours or days even
+	// though the corruption is still present. Guards 2-4 already confirm
+	// the pool is genuinely unhealthy, so we log NRP hits as confirmation
+	// but do not block on them.
+	logf("guard 1 (diagnostic) :: checking activity log on %s for last %d min", c.cfg.nodeRG, c.cfg.windowMin)
 	out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", c.cfg.windowMin))
 	if err != nil {
-		return false, "", fmt.Errorf("guard 1 activity-log query failed: %w", err)
+		logf("guard 1 (diagnostic) :: activity-log query failed: %v (proceeding — guards 2-4 passed)", err)
+	} else {
+		hits, err := countNRPFailures(out, "aks-system-")
+		if err != nil {
+			logf("guard 1 (diagnostic) :: activity-log parse failed: %v (proceeding — guards 2-4 passed)", err)
+		} else {
+			logf("guard 1 (diagnostic) :: NRP-KVS (%s) Failed events on aks-system-* in window: %d (threshold %d)",
+				nrpKVSErrorCode, hits, c.cfg.threshold)
+			if hits >= c.cfg.threshold {
+				logf("guard 1 (diagnostic) :: NRP-KVS failures confirm root cause")
+			} else {
+				logf("guard 1 (diagnostic) :: no active NRP-KVS storm; corruption may be latent (proceeding — guards 2-4 passed)")
+			}
+		}
 	}
-	hits, err := countNRPFailures(out, "aks-system-")
-	if err != nil {
-		return false, "", fmt.Errorf("guard 1 activity-log parse failed: %w", err)
-	}
-	logf("guard 1 :: NRP-KVS (%s) Failed events on aks-system-* in window: %d (threshold %d)",
-		nrpKVSErrorCode, hits, c.cfg.threshold)
-	if pass, reason := evalGuard1(hits, c.cfg.threshold); !pass {
-		return false, reason, nil
-	}
-	logf("guard 1 PASS")
 
 	return true, "", nil
 }
