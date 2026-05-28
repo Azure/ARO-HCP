@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-config
+  namespace: '{{ .Release.Namespace }}'
+data:
+  toolsets.yaml: |
+{{ .Files.Get "holmes-config.yaml" | indent 4 }}
+  config.yaml: |
+    model: "{{ .Values.model }}"
+    api_base: "{{ .Values.azureOpenAI.apiBase }}"
+    api_version: "{{ .Values.azureOpenAI.apiVersion }}"
+    custom_toolsets:
+      - "/etc/holmes/toolsets.yaml"

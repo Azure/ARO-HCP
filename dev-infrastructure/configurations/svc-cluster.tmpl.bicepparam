@@ -139,6 +139,9 @@ param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZo
 
 param regionalResourceGroup = '{{ .regionRG }}'
 
+// Holmes (Azure OpenAI)
+param holmesAoaiResourceId = '__holmesAoaiResourceId__'
+
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
 param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'

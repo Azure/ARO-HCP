@@ -86,6 +86,11 @@ func (h *HCPInvestigateHandler) ServeHTTP(writer http.ResponseWriter, request *h
 	}
 	defer h.limiter.Release()
 
+	// Serviceplane investigates the service cluster itself — no HCP lookup needed.
+	if req.Scope == "serviceplane" {
+		return holmes.AskHolmes(ctx, h.holmesConfig.ServiceClusterEndpoint, req.Question, h.holmesConfig.Model, writer)
+	}
+
 	hcp, err := h.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get HCP from database: %w", err)
@@ -98,7 +103,7 @@ func (h *HCPInvestigateHandler) ServeHTTP(writer http.ResponseWriter, request *h
 	switch req.Scope {
 	case "dataplane":
 		return h.handleDataplane(writer, request, hcp, req.Question)
-	case "controlplane", "serviceplane":
+	case "controlplane":
 		return arm.NewCloudError(http.StatusNotImplemented, "NotImplemented", "", "scope %q is not yet supported", req.Scope)
 	default:
 		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "invalid scope: %s", req.Scope)

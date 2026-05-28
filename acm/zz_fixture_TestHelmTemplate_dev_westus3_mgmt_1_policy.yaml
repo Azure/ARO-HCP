@@ -219,7 +219,7 @@ spec:
               name: system:aro-diagnostics
             - apiGroup: rbac.authorization.k8s.io
               kind: User
-              name: system:aro-diagnostics
+              name: system:sre-break-glass:aro-diagnostics
 ---
 # Source: AcmPolicies/templates/default-ingress-cert.policy.yaml
 apiVersion: policy.open-cluster-management.io/v1

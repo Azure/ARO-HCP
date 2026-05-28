@@ -22,6 +22,9 @@ const (
 	envModel                       = "HOLMES_MODEL"
 	envDefaultTimeout              = "HOLMES_DEFAULT_TIMEOUT"
 	envMaxConcurrentInvestigations = "HOLMES_MAX_CONCURRENT_INVESTIGATIONS"
+	envServiceClusterEndpoint      = "HOLMES_SERVICE_CLUSTER_ENDPOINT"
+
+	defaultServiceClusterEndpoint = "http://holmesgpt-svc.aro-holmesgpt.svc.cluster.local:80"
 
 	HolmesNamespace      = "aro-holmesgpt"
 	HolmesServiceAccount = "holmesgpt"
@@ -44,6 +47,7 @@ type HolmesConfig struct {
 	Model                       string
 	DefaultTimeout              int
 	MaxConcurrentInvestigations int
+	ServiceClusterEndpoint      string
 }
 
 func HolmesImage(acrDomain string) string {
@@ -87,6 +91,7 @@ func newHolmesConfigBase(acrDomain string) *HolmesConfig {
 		Model:                       envWithDefault(envModel, DefaultModel),
 		DefaultTimeout:              envIntWithDefault(envDefaultTimeout, DefaultTimeoutSeconds),
 		MaxConcurrentInvestigations: envIntWithDefault(envMaxConcurrentInvestigations, DefaultMaxConcurrentInvestigations),
+		ServiceClusterEndpoint:      envWithDefault(envServiceClusterEndpoint, defaultServiceClusterEndpoint),
 	}
 }
 

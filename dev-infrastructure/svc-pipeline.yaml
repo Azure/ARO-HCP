@@ -194,6 +194,11 @@ resourceGroups:
         resourceGroup: svcKV
         step: output
         name: subscriptionId
+    - name: holmesAoaiResourceId
+      input:
+        resourceGroup: regional
+        step: output
+        name: holmesAoaiResourceId
     dependsOn:
     - resourceGroup: service
       step: oncert-private-kv-issuer
