@@ -29,6 +29,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// BackupScheduleState represents the desired state of backup scheduling for a cluster.
+type BackupScheduleState string
+
+const (
+	BackupScheduleStateActive BackupScheduleState = "Active"
+	BackupScheduleStatePaused BackupScheduleState = "Paused"
+)
+
 const (
 	// ServiceProviderClusterResourceName is the name of the ServiceProviderCluster resource.
 	// ServiceProviderCluster is a singleton resource and ARM convention is to
@@ -125,6 +133,16 @@ type ServiceProviderClusterStatus struct {
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
 	// and the Maestro Bundle Name and ID at the Maestro API level.
 	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
+	// BackupScheduleManifestWorkName is the name of the ManifestWork created in Maestro
+	// for the Velero backup schedule. Set once the ManifestWork has been successfully created.
+	BackupScheduleManifestWorkName string `json:"backupScheduleManifestWorkName,omitempty"`
+	// BackupState is the desired backup scheduling state: Active or Paused.
+	// Default is Active. Set to Paused via Admin API to stop scheduled backups.
+	BackupState BackupScheduleState `json:"backupState,omitempty"`
+	// LastBackupTime is the timestamp of the most recent backup, populated from Velero Schedule feedback.
+	LastBackupTime *metav1.Time `json:"lastBackupTime,omitempty"`
+	// LastBackupStatus is the phase of the most recent backup (e.g. "Completed", "Failed").
+	LastBackupStatus string `json:"lastBackupStatus,omitempty"`
 	// ManagementClusterResourceID is the resource ID of the management cluster
 	// this HCP is placed on. Nil means placement has not been resolved yet.
 	// Once set, this field is immutable.

@@ -9,6 +9,19 @@ configMap:
   databaseUrl: "__cosmosDBDocumentEndpoint__"
   databaseName: "{{ .frontend.cosmosDB.name }}"
   kubeApplierCosmosContainerName: "{{ .kubeApplier.cosmosContainerName }}"
+backupSchedules:
+  hourly:
+    schedule: "{{ .backend.backupSchedules.hourly.schedule }}"
+    ttl: "{{ .backend.backupSchedules.hourly.ttl }}"
+    paused: {{ .backend.backupSchedules.hourly.paused }}
+  daily:
+    schedule: "{{ .backend.backupSchedules.daily.schedule }}"
+    ttl: "{{ .backend.backupSchedules.daily.ttl }}"
+    paused: {{ .backend.backupSchedules.daily.paused }}
+  weekly:
+    schedule: "{{ .backend.backupSchedules.weekly.schedule }}"
+    ttl: "{{ .backend.backupSchedules.weekly.ttl }}"
+    paused: {{ .backend.backupSchedules.weekly.paused }}
 deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"

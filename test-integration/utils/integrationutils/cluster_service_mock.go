@@ -260,6 +260,16 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		return ret, nil
 	}).AnyTimes()
 
+	s.MockClusterServiceClient.EXPECT().GetClusterStatus(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*arohcpv1alpha1.ClusterStatus, error) {
+		status, err := arohcpv1alpha1.NewClusterStatus().
+			State(arohcpv1alpha1.ClusterStateInstalling).
+			Build()
+		if err != nil {
+			return nil, err
+		}
+		return status, nil
+	}).AnyTimes()
+
 	s.MockClusterServiceClient.EXPECT().GetClusterProvisionShard(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*csarhcpv1alpha1.ProvisionShard, error) {
 		ret, err := mergeClusterServiceInstance[csarhcpv1alpha1.ProvisionShard](internalIDToProvisionShard[id.String()])
 		if err != nil {

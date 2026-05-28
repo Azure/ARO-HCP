@@ -98,6 +98,19 @@ azureRegionAvailabilityZoneCount: 4
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  backupSchedules:
+    daily:
+      paused: false
+      schedule: 0 2 * * *
+      ttl: 336h
+    hourly:
+      paused: false
+      schedule: 0 */1 * * *
+      ttl: 48h
+    weekly:
+      paused: false
+      schedule: 0 3 * * 0
+      ttl: 2160h
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   exitOnPanic: true

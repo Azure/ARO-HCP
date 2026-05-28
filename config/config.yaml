@@ -690,6 +690,19 @@ defaults:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
+    backupSchedules:
+      hourly:
+        schedule: "0 */1 * * *"
+        ttl: "48h"
+        paused: false
+      daily:
+        schedule: "0 2 * * *"
+        ttl: "336h"
+        paused: false
+      weekly:
+        schedule: "0 3 * * 0"
+        ttl: "2160h"
+        paused: false
     exitOnPanic: true
     logVerbosity: 4
     clusterScopedIdentitiesConfig:
@@ -1576,6 +1589,11 @@ clouds:
                 exporter: "otlp"
           # Backend
           backend:
+            backupSchedules:
+              hourly:
+                schedule: "*/5 * * * *"
+                ttl: "1h"
+                paused: false
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
