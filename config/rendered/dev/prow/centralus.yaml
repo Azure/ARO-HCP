@@ -609,7 +609,7 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
-      maxCount: 14
+      maxCount: 15
       minCount: 3
       name: userswft
       osDiskSizeGB: 100
