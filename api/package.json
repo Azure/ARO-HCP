@@ -13,7 +13,7 @@
     "oav": "^4.0.4"
   },
   "engines": {
-    "node": ">=20.12.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "format": "prettier --write --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\"",
