@@ -47,7 +47,7 @@ images:
     group: cs
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
-      tag: "dbb022a3dd3f0533ae1c8eebd4e6929ba1ca1ede" # pinned: latest includes swift-nic annotation without CPO override (AROSLSRE-944, unpin: AROSLSRE-946)
+      tag: "latest"
       versionLabel: "vcs-ref"
       useAuth: true
       keyVault:
