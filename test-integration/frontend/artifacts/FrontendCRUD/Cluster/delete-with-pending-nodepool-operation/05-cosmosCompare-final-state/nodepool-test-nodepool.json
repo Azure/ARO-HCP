@@ -55,7 +55,8 @@
 					}
 				},
 				"serviceProviderProperties": {
-					"clusterServiceID": ""
+					"clusterServiceID": "",
+					"usesNewNodePoolDeletionApproach": false
 				},
 				"systemData": {
 					"createdBy": "Unknown-ARO-HCP-frontend",
@@ -101,7 +102,9 @@
 				"id": "4.20.8"
 			}
 		},
-		"serviceProviderProperties": {},
+		"serviceProviderProperties": {
+			"usesNewNodePoolDeletionApproach": false
+		},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",
