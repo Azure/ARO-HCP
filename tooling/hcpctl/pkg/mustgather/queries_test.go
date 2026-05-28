@@ -26,10 +26,9 @@ import (
 func TestGetServicesQueries(t *testing.T) {
 	factory, err := kusto.NewQueryFactory()
 	require.NoError(t, err)
-	opts := kusto.QueryOptions{
-		SubscriptionId:    "test-sub",
-		ResourceGroupName: "test-rg",
-	}
+	opts := kusto.NewQueryOptions()
+	opts.SubscriptionId = "test-sub"
+	opts.ResourceGroupName = "test-rg"
 
 	queries, err := serviceLogs(factory, "serviceLogs", opts, []string{"cluster1"})
 	require.NoError(t, err)
@@ -39,7 +38,7 @@ func TestGetServicesQueries(t *testing.T) {
 func TestGetHostedControlPlaneLogsQuery(t *testing.T) {
 	factory, err := kusto.NewQueryFactory()
 	require.NoError(t, err)
-	opts := kusto.QueryOptions{}
+	opts := kusto.NewQueryOptions()
 
 	// With cluster IDs
 	queries, err := hostedControlPlaneLogs(factory, opts, []string{"cluster1", "cluster2"})
@@ -55,10 +54,9 @@ func TestGetHostedControlPlaneLogsQuery(t *testing.T) {
 func TestGetClusterIdQuery(t *testing.T) {
 	factory, err := kusto.NewQueryFactory()
 	require.NoError(t, err)
-	opts := kusto.QueryOptions{
-		SubscriptionId:    "test-sub",
-		ResourceGroupName: "test-rg",
-	}
+	opts := kusto.NewQueryOptions()
+	opts.SubscriptionId = "test-sub"
+	opts.ResourceGroupName = "test-rg"
 
 	clusterIdDef, err := factory.GetBuiltinQueryDefinition("clusterId")
 	require.NoError(t, err)

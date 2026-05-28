@@ -14,7 +14,7 @@
 {{- else}}
 | project timestamp, log, cluster, namespace_name, container_name
 {{- end}}
+| order by timestamp {{.OrderBy}}
 {{- if gt .Limit 0}}
 | limit {{.Limit}}
 {{- end}}
-| order by timestamp asc
