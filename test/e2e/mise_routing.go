@@ -66,7 +66,7 @@ func (p *miseVersionValidator) Do(req *policy.Request) (*http.Response, error) {
 
 // Tests the VirtualService routes to the correct frontend instance based on request headers
 // by creating and deleting a full HCP cluster, validating every response header.
-// In INT and above, this exercises MISE-backed routing. In dev/prow environments, the same
+// In INT and above, this exercises MISE-backed routing. In dev/CI environments, the same
 // VirtualService is deployed but fronts non-MISE frontend instances. PR checks connect
 // through the Istio ingress gateway (not port-forwarded), so the VirtualService routing
 // rules are always evaluated.

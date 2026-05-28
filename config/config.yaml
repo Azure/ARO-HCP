@@ -1536,7 +1536,7 @@ clouds:
           westus3:
             monitoring:
               alertsEnabled: true
-      prow:
+      ci00:
         defaults:
           kusto:
             manageInstance: false
