@@ -8,13 +8,19 @@ environments:
     - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
       region: centralus
       resource_type: aro-hcp-dev-shard0-centralus-slot
+      slot_count: 15
+      identity_container_prefix: aro-hcp-msi-container-dev
+      identity_container_count: 20
+    - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
+      region: canadacentral
+      resource_type: aro-hcp-dev-shard1-canadacentral-slot
       slot_count: 1
       identity_container_prefix: aro-hcp-msi-container-dev
       identity_container_count: 20
     - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
       region: centralus
       resource_type: aro-hcp-dev-shard1-centralus-slot
-      slot_count: 7
+      slot_count: 6
       identity_container_prefix: aro-hcp-msi-container-dev
       identity_container_count: 20
 

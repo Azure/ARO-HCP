@@ -250,8 +250,6 @@ func TestDefaultAcquireOptionsLeaseWaitDefaults(t *testing.T) {
 }
 
 func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
-	t.Parallel()
-
 	t.Setenv("ALLOWED_SUBSCRIPTIONS", "dev-sub-a, dev-sub-b, dev-sub-a")
 	t.Setenv("ALLOWED_LOCATIONS", "centralus, eastus2")
 
@@ -269,8 +267,6 @@ func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
 }
 
 func TestDefaultAcquireOptionsDoesNotUseLegacyLocationForSelection(t *testing.T) {
-	t.Parallel()
-
 	t.Setenv("LOCATION", "westus3")
 
 	opts := DefaultAcquireOptions()
@@ -281,8 +277,6 @@ func TestDefaultAcquireOptionsDoesNotUseLegacyLocationForSelection(t *testing.T)
 }
 
 func TestDefaultAcquireOptionsOverrideSuppressesAllowedLocationDefault(t *testing.T) {
-	t.Parallel()
-
 	t.Setenv("ALLOWED_LOCATIONS", "centralus, eastus2")
 	t.Setenv("MULTISTAGE_PARAM_OVERRIDE_LOCATION", "westus3")
 
