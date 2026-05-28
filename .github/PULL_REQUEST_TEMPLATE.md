@@ -10,7 +10,7 @@
 
 ### Testing
 
-Testing is required for feature completion and tests should part of the pull
+Testing is required for feature completion and tests should be part of the pull
 request along with the feature changes.
 
 Describe the testing provided. If you did not add tests, provide a clear
