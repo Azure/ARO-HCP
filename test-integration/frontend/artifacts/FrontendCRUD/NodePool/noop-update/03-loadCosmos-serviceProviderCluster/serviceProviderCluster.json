@@ -19,5 +19,6 @@
 		}
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-update/serviceProviderClusters/default",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
+	"_etag": "\"d6b5e821-8605-46cb-ae46-5059efb4ea28\""
 }

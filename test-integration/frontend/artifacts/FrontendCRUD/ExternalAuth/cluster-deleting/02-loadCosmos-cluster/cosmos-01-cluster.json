@@ -3,7 +3,9 @@
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
 		"cosmosMetadata": {
-			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting"
+			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
+			"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
+			"instanceVersion": 1
 		},
 		"customerDesiredState": null,
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
@@ -15,5 +17,6 @@
 		"serviceProviderState": null
 	},
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters"
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters",
+	"_etag": "\"6a532913-2569-4f5c-a517-d3fc1fb1f012\""
 }

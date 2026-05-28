@@ -9,8 +9,9 @@
 	"properties": {
 		"cosmosMetadata": {
 			"etag": "\"f100af4d-0000-1100-0000-69f87b380000\"",
-			"instanceVersion": 1,
-			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2"
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
+			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+			"instanceVersion": 1
 		},
 		"properties": {
 			"registeredFeatures": [

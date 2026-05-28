@@ -30,5 +30,6 @@
 		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
 	},
 	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic",
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+	"_etag": "\"9d256061-9a7a-45b0-890d-e3a14159a5ac\""
 }

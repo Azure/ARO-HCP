@@ -4,8 +4,9 @@
 	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
 	"properties": {
 		"cosmosMetadata": {
-			"instanceVersion": 1,
-			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness"
+			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
+			"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
+			"instanceVersion": 1
 		},
 		"customerProperties": {
 			"api": {
@@ -82,5 +83,6 @@
 		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 	},
 	"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+	"_etag": "\"c6d187b2-d8fd-4fdc-8128-abc4d857301f\""
 }

@@ -8,8 +8,9 @@
 	"partitionKey": "subscriptionid",
 	"properties": {
 		"cosmosMetadata": {
-			"instanceVersion": 1,
-			"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller"
+			"resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
+			"partitionKey": "subscriptionid",
+			"instanceVersion": 1
 		},
 		"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
 		"status": {

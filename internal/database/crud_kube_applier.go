@@ -77,9 +77,6 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceID
 func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(
 	ctx context.Context, cosmosID string,
 ) (*InternalAPIType, error) {
-	if strings.ToLower(cosmosID) != cosmosID {
-		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
-	}
 	return getByItemID[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.partitionKey, cosmosID)
 }
 
@@ -105,19 +102,31 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) List(
 	)
 }
 
+// Create writes a new *Desire. The caller is responsible for setting both
+// Spec.ManagementCluster (so the management cluster identity is on the
+// document) and CosmosMetadata.PartitionKey (so the document lands in the
+// right partition). SerializeItem refuses to write a document with an empty
+// PartitionKey.
 func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Create(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
-	return createKubeApplier[InternalAPIType, CosmosAPIType](
-		ctx, d.containerClient, d.partitionKey, newObj, options,
+	return create[InternalAPIType, CosmosAPIType](
+		ctx, d.containerClient, newObj, options,
 	)
 }
 
+// Replace updates an existing *Desire. The caller must hand in an object
+// whose CosmosMetadata is a fresh copy (not aliased with a cached/fetched
+// object) — PrepareForReplace mutates InstanceVersion on the metadata and
+// would otherwise leak that into the caller's reference. The desire
+// controllers achieve this via desirestatuswriter, which DeepCopy()'s the
+// fetched object (and therefore its embedded CosmosMetadata) before passing
+// it back in here.
 func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
-	return replaceKubeApplier[InternalAPIType, CosmosAPIType](
-		ctx, d.containerClient, d.partitionKey, newObj, options,
+	return replace[InternalAPIType, CosmosAPIType](
+		ctx, d.containerClient, newObj, options,
 	)
 }
 
@@ -137,7 +146,7 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTra
 	newObj *InternalAPIType,
 	opts *azcosmos.TransactionalBatchItemOptions,
 ) (string, error) {
-	return addKubeApplierCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
+	return addCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
 }
 
 func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(
@@ -146,7 +155,7 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTr
 	newObj *InternalAPIType,
 	opts *azcosmos.TransactionalBatchItemOptions,
 ) (string, error) {
-	return addKubeApplierReplaceToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
+	return addReplaceToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
 }
 
 // Compile-time assertion that *kubeApplierResourceCRUD implements ResourceCRUD.

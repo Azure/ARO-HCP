@@ -3,8 +3,9 @@
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"cosmosMetadata": {
-			"instanceVersion": 2,
-			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster",
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"instanceVersion": 2
 		},
 		"customerProperties": {
 			"api": {

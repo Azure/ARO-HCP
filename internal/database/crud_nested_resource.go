@@ -147,21 +147,52 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx cont
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	if err := ensureSubscriptionPartitionKey(newObj); err != nil {
+		return "", err
+	}
 	return addCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	if err := ensureSubscriptionPartitionKey(newObj); err != nil {
+		return "", err
+	}
 	return addReplaceToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
 }
 
+// ensureSubscriptionPartitionKey populates CosmosMetadata.PartitionKey with
+// the subscriptionID from the object's resource ID. SetPartitionKey lowercases
+// internally; the conversion layer rejects empty / non-normalized values at
+// serialize time.
+func ensureSubscriptionPartitionKey[InternalAPIType any](newObj *InternalAPIType) error {
+	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
+	if !ok {
+		return fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
+	}
+	cosmosData := cosmosPersistable.GetCosmosData()
+	rid := cosmosData.GetResourceID()
+	if rid == nil {
+		return fmt.Errorf("type %T has no ResourceID — cannot derive subscription partition key", newObj)
+	}
+	if len(rid.SubscriptionID) == 0 {
+		return fmt.Errorf("type %T has an empty SubscriptionID in its resource ID", newObj)
+	}
+	cosmosData.SetPartitionKey(rid.SubscriptionID)
+	return nil
+}
+
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	partitionKey := strings.ToLower(any(newObj).(arm.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
-	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
+	if err := ensureSubscriptionPartitionKey(newObj); err != nil {
+		return nil, err
+	}
+	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
-	partitionKey := strings.ToLower(any(newObj).(arm.CosmosPersistable).GetCosmosData().GetResourceID().SubscriptionID)
-	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
+	if err := ensureSubscriptionPartitionKey(newObj); err != nil {
+		return nil, err
+	}
+	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
 }
 
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(ctx context.Context, resourceName string) error {

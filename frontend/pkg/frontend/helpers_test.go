@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -124,7 +125,8 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
 					parentCluster := &api.HCPOpenShiftCluster{
 						CosmosMetadata: arm.CosmosMetadata{
-							ResourceID: parentResourceID,
+							ResourceID:   parentResourceID,
+							PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
 						},
 						TrackedResource: arm.TrackedResource{
 							Resource: arm.Resource{
@@ -174,7 +176,8 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
 						parentCluster := &api.HCPOpenShiftCluster{
 							CosmosMetadata: arm.CosmosMetadata{
-								ResourceID: parentResourceID,
+								ResourceID:   parentResourceID,
+								PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
 							},
 							TrackedResource: arm.TrackedResource{
 								Resource: arm.Resource{

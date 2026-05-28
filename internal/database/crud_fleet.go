@@ -21,8 +21,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // fleetResourceCRUD is a ResourceCRUD for Cosmos containers
@@ -54,20 +52,6 @@ func topLevelResourceName(rid *azcorearm.ResourceID) string {
 	return strings.ToLower(curr.Name)
 }
 
-// partitionKeyFromObject extracts the partition key from an object's
-// CosmosMetadata resource ID by walking to the top-level ancestor.
-func partitionKeyFromObject[InternalAPIType any](obj *InternalAPIType) (string, error) {
-	persistable, ok := any(obj).(arm.CosmosPersistable)
-	if !ok {
-		return "", fmt.Errorf("type %T does not implement CosmosPersistable", obj)
-	}
-	partitionKey := topLevelResourceName(persistable.GetCosmosData().GetResourceID())
-	if len(partitionKey) == 0 {
-		return "", fmt.Errorf("cannot derive partition key from type %T: no top-level resource name", obj)
-	}
-	return partitionKey, nil
-}
-
 // partitionKeyFromParentOrName derives the partition key for read/delete
 // operations. For child resources the top-level ancestor is in the parent
 // resource ID; for top-level resources the resource name IS the partition key.
@@ -96,9 +80,6 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(
 func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(
 	ctx context.Context, cosmosID string,
 ) (*InternalAPIType, error) {
-	if strings.ToLower(cosmosID) != cosmosID {
-		return nil, fmt.Errorf("cosmosID must be lowercase, not: %q", cosmosID)
-	}
 	partitionKey := topLevelResourceName(d.parentResourceID)
 	if len(partitionKey) == 0 {
 		return nil, fmt.Errorf("GetByID requires a parent-scoped CRUD with a known partition key")
@@ -133,24 +114,22 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) List(
 	)
 }
 
+// Create writes a new fleet document. The caller is responsible for setting
+// CosmosMetadata.PartitionKey on the object before calling — the conversion
+// layer that builds these objects (e.g. ocm.ConvertCSManagementClusterToInternal,
+// the stamp ensure path in managementclustercontrollers) owns the rule for
+// what the value should be. serializeItem refuses to write a document with an
+// empty PartitionKey.
 func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Create(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
-	partitionKey, err := partitionKeyFromObject(newObj)
-	if err != nil {
-		return nil, err
-	}
-	return createFleetItem[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
+	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
 }
 
 func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
-	partitionKey, err := partitionKeyFromObject(newObj)
-	if err != nil {
-		return nil, err
-	}
-	return replaceFleetItem[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, newObj, options)
+	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
 }
 
 func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(

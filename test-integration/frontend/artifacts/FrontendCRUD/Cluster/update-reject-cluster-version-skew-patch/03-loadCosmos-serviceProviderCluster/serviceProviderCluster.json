@@ -22,5 +22,6 @@
 		}
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/update-reject-cluster-version-skew/serviceProviderClusters/default",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
+	"_etag": "\"7a39b2a0-7936-4313-9c1c-a6188312a058\""
 }

@@ -90,3 +90,14 @@ func TestPrepareForReplace_RequiresEtag(t *testing.T) {
 		t.Errorf("InstanceVersion was mutated on the failure path: got %d, want 7", obj.InstanceVersion)
 	}
 }
+
+func TestSetPartitionKeyLowercases(t *testing.T) {
+	md := &arm.CosmosMetadata{}
+	md.SetPartitionKey("MIXED-Case")
+	if got, want := md.PartitionKey, "mixed-case"; got != want {
+		t.Errorf("stored PartitionKey = %q, want %q", got, want)
+	}
+	if got, want := md.GetPartitionKey(), "mixed-case"; got != want {
+		t.Errorf("GetPartitionKey() = %q, want %q", got, want)
+	}
+}

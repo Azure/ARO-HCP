@@ -30,6 +30,10 @@ type ReadDesire struct {
 	// optionally a NodePool) so that listing the partition by parent prefix
 	// naturally returns the desires associated with that resource — and so
 	// that cluster/nodepool deletion can sweep them.
+	// PartitionKey holds the lowercased Spec.ManagementCluster resource ID
+	// (e.g. "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
+	// so that all desires for one management cluster live together in one Cosmos
+	// partition (and one container, in the per-MC container model).
 	api.CosmosMetadata `json:"cosmosMetadata"`
 
 	Spec ReadDesireSpec `json:"spec"`
