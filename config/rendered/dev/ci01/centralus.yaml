@@ -654,7 +654,6 @@ mgmt:
       replicas: 2
       resources:
         limits:
-          cpu: NONE
           memory: NONE
         requests:
           cpu: NONE
@@ -982,7 +981,6 @@ svc:
       replicas: 2
       resources:
         limits:
-          cpu: NONE
           memory: NONE
         requests:
           cpu: NONE

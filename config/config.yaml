@@ -522,7 +522,6 @@ defaults:
             cpu: NONE
             memory: NONE
           limits:
-            cpu: NONE
             memory: NONE
         replicas: 2
         shards: 2
@@ -649,7 +648,6 @@ defaults:
             cpu: NONE
             memory: NONE
           limits:
-            cpu: NONE
             memory: NONE
         replicas: 2
         shards: 2

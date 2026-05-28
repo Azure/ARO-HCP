@@ -1,6 +1,6 @@
 {{- $none := "NONE" -}}
 {{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
-{{- $setLimits := or (ne (.Values.prometheusSpec.resources.limits.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.limits.memory | toString) $none) -}}
+{{- $setLimits := ne (.Values.prometheusSpec.resources.limits.memory | toString) $none -}}
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: PrometheusAgent
 metadata:
@@ -22,9 +22,6 @@ spec:
     {{- end }}
     {{- if $setLimits }}
     limits:
-      {{- if ne (.Values.prometheusSpec.resources.limits.cpu | toString) $none }}
-      cpu: '{{ .Values.prometheusSpec.resources.limits.cpu }}'
-      {{- end }}
       {{- if ne (.Values.prometheusSpec.resources.limits.memory | toString) $none }}
       memory: '{{ .Values.prometheusSpec.resources.limits.memory }}'
       {{- end }}
@@ -109,10 +106,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
-      maxShards: 500
+      capacity: 50000
+      maxShards: 50
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s
@@ -130,10 +127,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
-      maxShards: 500
+      capacity: 50000
+      maxShards: 50
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s
