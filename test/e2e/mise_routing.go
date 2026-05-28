@@ -133,7 +133,7 @@ var _ = Describe("MISE Routing", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
 
 			By("Deleting HCP cluster")
-			delCtx, delCancel := context.WithTimeout(ctx, 45*time.Minute)
+			delCtx, delCancel := context.WithTimeout(ctx, framework.HCPClusterDeletionTimeout)
 			defer delCancel()
 			delPoller, err := hcpClient.BeginDelete(delCtx, *rg.Name, clusterParams.ClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to begin HCP cluster deletion")

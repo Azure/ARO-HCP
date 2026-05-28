@@ -25,6 +25,11 @@ const (
 	GetAdminRESTConfigTimeout   = 10 * time.Minute
 )
 
+// Deletion timeouts
+const (
+	HCPClusterDeletionTimeout = 45 * time.Minute
+)
+
 // Resource Update timeouts
 const (
 	HCPClusterVersionUpgradeTimeout = 45 * time.Minute
