@@ -4,12 +4,6 @@ param imagePullerMsiName string
 @description('The name of the Kube Applier MSI')
 param kubeApplierMsiName string
 
-@description('The resourcegroup for regional infrastructure')
-param regionalResourceGroup string
-
-@description('The name of the CosmosDB account')
-param rpCosmosDbName string
-
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
@@ -33,14 +27,3 @@ resource kubeApplierIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2
 
 output kubeApplierMsiClientId string = kubeApplierIdentity.properties.clientId
 output kubeApplierMsiTenantId string = kubeApplierIdentity.properties.tenantId
-
-//
-//   C O S M O S D B   L O O K U P
-//
-
-resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
-  scope: resourceGroup(regionalResourceGroup)
-  name: rpCosmosDbName
-}
-
-output cosmosDBDocumentEndpoint string = cosmosDbAccount.properties.documentEndpoint

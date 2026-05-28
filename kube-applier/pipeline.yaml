@@ -48,6 +48,16 @@ resourceGroups:
     parameters: ../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: region
+  resourceGroup: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ./../dev-infrastructure/templates/output-region.bicep
+    parameters: ./../dev-infrastructure/configurations/output-region.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -91,7 +101,7 @@ resourceGroups:
         step: output
         name: kubeApplierMsiTenantId
       cosmosDBDocumentEndpoint:
-        resourceGroup: management
+        resourceGroup: region
         step: output
         name: cosmosDBDocumentEndpoint
     dependsOn:
