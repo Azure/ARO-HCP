@@ -163,6 +163,15 @@ const (
 	triggerEvidenceTimeoutMin      = 60 // wait at most this long for evidence
 	triggerEvidencePollIntervalSec = 60 // re-query activity log every poll
 	triggerEvidenceWindowMin       = 60 // activity-log lookback for the wait loop
+
+	// abortTriggerTimeoutMin caps the wait for cleanup of the LRO that
+	// forcedEvidencePath itself triggered. The abort runs with a fresh
+	// context derived from context.Background so it executes even when
+	// the parent run context has already expired (overall script timeout
+	// or pollForNRPEvidence consuming the full triggerEvidenceTimeoutMin
+	// budget). Without this, a cancelled parent context would silently
+	// skip the abort and leave the AKS RP retrying the wedged write.
+	abortTriggerTimeoutMin = 5
 )
 
 func main() {
@@ -397,8 +406,14 @@ func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, ini
 	)
 
 	// Always best-effort abort the LRO we started so the cluster doesn't
-	// keep retrying the wedged write after we're done observing.
-	if abortErr := orch.abortSystemReconcile(ctx); abortErr != nil {
+	// keep retrying the wedged write after we're done observing. Use a
+	// fresh context.Background-rooted context so the abort still runs
+	// when the parent ctx is already cancelled (overall script timeout
+	// or pollForNRPEvidence consuming its full budget) — the LRO we
+	// triggered here is our responsibility to tear down.
+	abortCtx, abortCancel := context.WithTimeout(context.Background(), abortTriggerTimeoutMin*time.Minute)
+	defer abortCancel()
+	if abortErr := orch.abortSystemReconcile(abortCtx); abortErr != nil {
 		logf("WARN: abortSystemReconcile failed: %v", abortErr)
 	}
 
