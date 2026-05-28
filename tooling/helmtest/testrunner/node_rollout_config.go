@@ -52,9 +52,10 @@ const (
 )
 
 // flagCategories is the single source of truth for classifying HyperShift
-// operator install flags. Every flag passed to `hypershift install` must
-// appear here. Flags NOT listed will surface in AdditionalInstallArgs in the
-// golden fixture, forcing an explicit classification decision during review.
+// operator install flags that are known to be safe or node-affecting. Every
+// flag passed to `hypershift install` should either be classified here or be
+// intentionally left unclassified so it surfaces in AdditionalInstallArgs in
+// the golden fixture for explicit review.
 //
 // To determine whether a flag is safe or node-affecting, review the HyperShift
 // install command source code and verify:
