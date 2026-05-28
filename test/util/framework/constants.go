@@ -23,3 +23,11 @@ const (
 	NodePoolCreationTimeout     = 20 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 )
+
+// Resource Update timeouts
+const (
+	HCPClusterVersionUpgradeTimeout = 45 * time.Minute
+	NodePoolVersionUpgradeTimeout   = 45 * time.Minute
+	NodePoolScalingTimeout          = 20 * time.Minute
+	UpdateHCPClusterTimeout         = 10 * time.Minute
+)

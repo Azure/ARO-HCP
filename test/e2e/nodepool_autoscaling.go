@@ -176,7 +176,7 @@ var _ = Describe("Customer", func() {
 							},
 						},
 					},
-					25*time.Minute,
+					framework.NodePoolScalingTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to update AZ nodepool %s max replicas to 4", azNodePoolName)
 

@@ -139,7 +139,7 @@ var _ = Describe("Customer", func() {
 						},
 					},
 				},
-				10*time.Minute,
+				framework.UpdateHCPClusterTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to patch cluster %q to set maxNodesTotal", customerClusterName)
 

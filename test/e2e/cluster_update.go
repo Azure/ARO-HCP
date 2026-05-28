@@ -108,7 +108,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					*resourceGroup.Name,
 					clusterName,
 					update,
-					10*time.Minute,
+					framework.UpdateHCPClusterTimeout,
 				)
 				Expect(err).To(HaveOccurred(), "expected error when attempting to rename cluster via PATCH")
 				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"), "error should indicate mismatching resource name")
@@ -187,7 +187,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					*resourceGroup.Name,
 					clusterName,
 					update,
-					10*time.Minute,
+					framework.UpdateHCPClusterTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to update HCP cluster tags via PATCH")
 

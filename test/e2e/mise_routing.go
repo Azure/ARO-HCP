@@ -128,7 +128,7 @@ var _ = Describe("MISE Routing", func() {
 			_, err = framework.CreateHCPClusterAndWait20251223(
 				ctx, GinkgoLogr, hcpClient,
 				*rg.Name, clusterParams.ClusterName, cluster,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
 
