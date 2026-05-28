@@ -754,6 +754,20 @@
         {
           "id": "merge",
           "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "P99 Fsync (ms)",
+              "cluster": "Cluster"
+            }
+          }
         }
       ],
       "type": "table"
@@ -841,6 +855,20 @@
         {
           "id": "merge",
           "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "P99 Commit (ms)",
+              "cluster": "Cluster"
+            }
+          }
         }
       ],
       "type": "table"
@@ -928,6 +956,20 @@
         {
           "id": "merge",
           "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "P99 RTT (ms)",
+              "cluster": "Cluster"
+            }
+          }
         }
       ],
       "type": "table"
@@ -1020,6 +1062,20 @@
         {
           "id": "merge",
           "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "Changes/Hour",
+              "cluster": "Cluster"
+            }
+          }
         }
       ],
       "type": "table"
@@ -1120,6 +1176,20 @@
         {
           "id": "merge",
           "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "Leader Changes (24h)",
+              "cluster": "Cluster Name"
+            }
+          }
         }
       ],
       "type": "table"
@@ -1220,6 +1290,20 @@
         {
           "id": "merge",
           "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "Leader Changes (24h)",
+              "cluster": "Cluster Name"
+            }
+          }
         }
       ],
       "type": "table"
@@ -1380,6 +1464,20 @@
         {
           "id": "merge",
           "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Value #A": "Stable (\u22645 changes/24h)",
+              "Value #B": "High Churn (>10 changes/24h)",
+              "Value #C": "Unstable (>5 changes/24h)"
+            }
+          }
         }
       ],
       "type": "table"
@@ -1688,6 +1786,20 @@
         {
           "id": "merge",
           "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "DB Size (bytes)",
+              "cluster": "Cluster Name"
+            }
+          }
         }
       ],
       "type": "table"
