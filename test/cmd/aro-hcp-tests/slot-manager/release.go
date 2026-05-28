@@ -30,8 +30,8 @@ import (
 
 func DefaultReleaseOptions() *RawReleaseOptions {
 	return &RawReleaseOptions{
-		SharedDir:           os.Getenv("SHARED_DIR"),
-		LeaseProxyServerURL: os.Getenv("LEASE_PROXY_SERVER_URL"),
+		SharedDir:           strings.TrimSpace(os.Getenv("SHARED_DIR")),
+		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
 	}
 }
@@ -98,9 +98,9 @@ func Release(ctx context.Context, opts *RawReleaseOptions) error {
 
 func (o *RawReleaseOptions) Validate() (*ValidatedReleaseOptions, error) {
 	switch {
-	case strings.TrimSpace(o.SharedDir) == "":
+	case o.SharedDir == "":
 		return nil, fmt.Errorf("--shared-dir must not be empty")
-	case strings.TrimSpace(o.LeaseProxyServerURL) == "":
+	case o.LeaseProxyServerURL == "":
 		return nil, fmt.Errorf("--lease-proxy-server-url must not be empty")
 	case o.LeaseProxyTimeout <= 0:
 		return nil, fmt.Errorf("--lease-proxy-timeout must be greater than zero")

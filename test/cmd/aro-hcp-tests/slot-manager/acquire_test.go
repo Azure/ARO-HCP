@@ -89,52 +89,103 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 
 	type testCase struct {
 		regionMode         string
-		location           string
+		allowedLocations   string
 		override           string
 		wantRuntimeRegion  string
+		wantPoolRegion     string
 		wantErrorSubstring string
 	}
 
-	var cases []testCase
-	for _, regionMode := range []string{slots.RegionModeFixed, slots.RegionModeRuntimeSelected} {
-		for _, location := range []string{"", fixedRegion, alternateRegion} {
-			for _, override := range []string{"", fixedRegion, alternateRegion} {
-				effectiveRegion := override
-				if effectiveRegion == "" {
-					effectiveRegion = location
-				}
-
-				tc := testCase{
-					regionMode: regionMode,
-					location:   location,
-					override:   override,
-				}
-
-				switch regionMode {
-				case slots.RegionModeFixed:
-					if effectiveRegion == "" || effectiveRegion == fixedRegion {
-						tc.wantRuntimeRegion = fixedRegion
-					} else {
-						tc.wantErrorSubstring = "no pool found"
-					}
-				case slots.RegionModeRuntimeSelected:
-					if effectiveRegion == "" {
-						tc.wantRuntimeRegion = fixedRegion
-					} else {
-						tc.wantRuntimeRegion = effectiveRegion
-					}
-				}
-
-				cases = append(cases, tc)
-			}
-		}
+	cases := []testCase{
+		{
+			regionMode:        slots.RegionModeFixed,
+			allowedLocations:  "",
+			override:          "",
+			wantRuntimeRegion: fixedRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:        slots.RegionModeFixed,
+			allowedLocations:  fixedRegion,
+			override:          "",
+			wantRuntimeRegion: fixedRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:        slots.RegionModeFixed,
+			allowedLocations:  strings.Join([]string{fixedRegion, alternateRegion}, ","),
+			override:          "",
+			wantRuntimeRegion: fixedRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:         slots.RegionModeFixed,
+			allowedLocations:   alternateRegion,
+			override:           "",
+			wantErrorSubstring: "no pool found",
+		},
+		{
+			regionMode:        slots.RegionModeFixed,
+			allowedLocations:  fixedRegion,
+			override:          fixedRegion,
+			wantRuntimeRegion: fixedRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:         slots.RegionModeFixed,
+			allowedLocations:   fixedRegion,
+			override:           alternateRegion,
+			wantErrorSubstring: "no pool found",
+		},
+		{
+			regionMode:        slots.RegionModeRuntimeSelected,
+			allowedLocations:  "",
+			override:          "",
+			wantRuntimeRegion: fixedRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:        slots.RegionModeRuntimeSelected,
+			allowedLocations:  fixedRegion,
+			override:          "",
+			wantRuntimeRegion: fixedRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:        slots.RegionModeRuntimeSelected,
+			allowedLocations:  alternateRegion,
+			override:          "",
+			wantRuntimeRegion: fixedRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:        slots.RegionModeRuntimeSelected,
+			allowedLocations:  strings.Join([]string{fixedRegion, alternateRegion}, ","),
+			override:          "",
+			wantRuntimeRegion: fixedRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:        slots.RegionModeRuntimeSelected,
+			allowedLocations:  "",
+			override:          alternateRegion,
+			wantRuntimeRegion: alternateRegion,
+			wantPoolRegion:    fixedRegion,
+		},
+		{
+			regionMode:        slots.RegionModeRuntimeSelected,
+			allowedLocations:  fixedRegion,
+			override:          alternateRegion,
+			wantRuntimeRegion: alternateRegion,
+			wantPoolRegion:    fixedRegion,
+		},
 	}
 
 	for _, tc := range cases {
 		testName := fmt.Sprintf(
-			"regionMode=%s/location=%q/override=%q",
+			"regionMode=%s/allowedLocations=%q/override=%q",
 			tc.regionMode,
-			tc.location,
+			tc.allowedLocations,
 			tc.override,
 		)
 		t.Run(testName, func(t *testing.T) {
@@ -145,7 +196,7 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 			t.Setenv("ARO_HCP_DEPLOY_ENV", "ci01")
 			t.Setenv("SHARED_DIR", t.TempDir())
 			t.Setenv("LEASE_PROXY_SERVER_URL", "http://lease-proxy.example.com")
-			t.Setenv("LOCATION", tc.location)
+			t.Setenv("ALLOWED_LOCATIONS", tc.allowedLocations)
 			t.Setenv("MULTISTAGE_PARAM_OVERRIDE_LOCATION", tc.override)
 
 			opts := DefaultAcquireOptions()
@@ -176,8 +227,8 @@ func TestAcquireCompleteRegionModeMatrix(t *testing.T) {
 			if got := completed.runtimeRegionForPool(completed.CandidatePools[0]); got != tc.wantRuntimeRegion {
 				t.Fatalf("expected runtime region %q, got %q", tc.wantRuntimeRegion, got)
 			}
-			if completed.CandidatePools[0].Region != fixedRegion {
-				t.Fatalf("expected selected pool region %q, got %q", fixedRegion, completed.CandidatePools[0].Region)
+			if completed.CandidatePools[0].Region != tc.wantPoolRegion {
+				t.Fatalf("expected selected pool region %q, got %q", tc.wantPoolRegion, completed.CandidatePools[0].Region)
 			}
 		})
 	}
@@ -195,6 +246,53 @@ func TestDefaultAcquireOptionsLeaseWaitDefaults(t *testing.T) {
 	}
 	if opts.MaxWaitForLease != DefaultMaxWaitForLease {
 		t.Fatalf("expected default max wait for lease %s, got %s", DefaultMaxWaitForLease, opts.MaxWaitForLease)
+	}
+}
+
+func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
+	t.Parallel()
+
+	t.Setenv("ALLOWED_SUBSCRIPTIONS", "dev-sub-a, dev-sub-b, dev-sub-a")
+	t.Setenv("ALLOWED_LOCATIONS", "centralus, eastus2")
+
+	opts := DefaultAcquireOptions()
+
+	if got, want := opts.AllowedSubscriptions, []string{"dev-sub-a", "dev-sub-b"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected allowed subscriptions: got %v want %v", got, want)
+	}
+	if got, want := opts.AllowedLocations, []string{"centralus", "eastus2"}; !equalStrings(got, want) {
+		t.Fatalf("unexpected allowed locations: got %v want %v", got, want)
+	}
+	if opts.SelectedLocation != "" {
+		t.Fatalf("expected empty selected location by default, got %q", opts.SelectedLocation)
+	}
+}
+
+func TestDefaultAcquireOptionsDoesNotUseLegacyLocationForSelection(t *testing.T) {
+	t.Parallel()
+
+	t.Setenv("LOCATION", "westus3")
+
+	opts := DefaultAcquireOptions()
+
+	if got := len(opts.AllowedLocations); got != 0 {
+		t.Fatalf("expected legacy LOCATION to be ignored for acquire-side selection, got %v", opts.AllowedLocations)
+	}
+}
+
+func TestDefaultAcquireOptionsOverrideSuppressesAllowedLocationDefault(t *testing.T) {
+	t.Parallel()
+
+	t.Setenv("ALLOWED_LOCATIONS", "centralus, eastus2")
+	t.Setenv("MULTISTAGE_PARAM_OVERRIDE_LOCATION", "westus3")
+
+	opts := DefaultAcquireOptions()
+
+	if opts.SelectedLocation != "westus3" {
+		t.Fatalf("expected selected location %q, got %q", "westus3", opts.SelectedLocation)
+	}
+	if got := len(opts.AllowedLocations); got != 0 {
+		t.Fatalf("expected allowed locations to be ignored when override is set, got %v", opts.AllowedLocations)
 	}
 }
 
@@ -244,7 +342,7 @@ environments:
 	err := Acquire(context.Background(), &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           sharedDir,
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -326,7 +424,7 @@ environments:
 	err := Acquire(context.Background(), &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           sharedDir,
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -393,7 +491,7 @@ environments:
 	err := Acquire(context.Background(), &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "prod",
-		Region:              "eastus2",
+		SelectedLocation:    "eastus2",
 		SharedDir:           sharedDir,
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -463,7 +561,7 @@ environments:
 	err := Acquire(context.Background(), &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           sharedDir,
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -519,7 +617,7 @@ environments:
 	completed := completeAcquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           t.TempDir(),
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -576,7 +674,7 @@ environments:
 	completed := completeAcquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           t.TempDir(),
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -628,7 +726,7 @@ environments:
 	completed := completeAcquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           t.TempDir(),
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -688,7 +786,7 @@ environments:
 	completed := completeAcquireForTest(t, &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           t.TempDir(),
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -747,7 +845,7 @@ environments:
 	err := Acquire(context.Background(), &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           sharedDir,
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
@@ -811,7 +909,7 @@ environments:
 	err = Acquire(context.Background(), &RawAcquireOptions{
 		ClusterProfileDir:   clusterProfileDir,
 		DeployEnv:           "ci01",
-		Region:              "centralus",
+		AllowedLocations:    []string{"centralus"},
 		SharedDir:           sharedDir,
 		CatalogPath:         catalogPath,
 		LeaseProxyServerURL: server.URL,
