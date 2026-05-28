@@ -56,6 +56,7 @@ var dummyScript = '.create-or-alter function with (docstring = \'dummy function 
 var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
   containerlogs: loadTextContent('tables/containerLogs.kql')
+  fleetLogs: loadTextContent('tables/fleetLogs.kql')
   frontendLogs: loadTextContent('tables/frontendLogs.kql')
   clustersServiceLogs: loadTextContent('tables/clustersServiceLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')

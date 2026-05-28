@@ -72,7 +72,7 @@ resourceGroups:
       step: kusto-lookup
       name: kustoUri
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
-    kustoTable: 'containerLogs'
+    kustoTable: 'fleetLogs'
     inputVariables:
       cosmosUrl:
         resourceGroup: service
