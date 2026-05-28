@@ -132,6 +132,16 @@ const (
 	activityLogAuthRetryTimeoutMin = 5
 	activityLogAuthRetryInitialSec = 10
 	activityLogAuthRetryMaxSec     = 60
+
+	// triggerEvidence forces an AKS RP reconcile of the system pool when
+	// guards 2/3/4 PASS but guard 1 has no recent NRP-KVS events in the
+	// configured lookback window. The trigger gives the wedge a chance
+	// to produce fresh evidence (or to prove the wedge is not NRP-KVS).
+	// Times are short relative to the AKS RP retry cadence (~3 min) so
+	// threshold-many retries can accumulate during the wait window.
+	triggerEvidenceTimeoutMin      = 60 // wait at most this long for evidence
+	triggerEvidencePollIntervalSec = 60 // re-query activity log every poll
+	triggerEvidenceWindowMin       = 60 // activity-log lookback for the wait loop
 )
 
 func main() {
@@ -170,6 +180,9 @@ type orchestrator interface {
 	deletePool(ctx context.Context, pool string) error
 	recreateSystem(ctx context.Context, live *armcs.AgentPool) error
 	reconcileTagPut(ctx context.Context) error
+	triggerSystemReconcile(ctx context.Context, live *armcs.AgentPool) error
+	pollForNRPEvidence(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
+	abortSystemReconcile(ctx context.Context) error
 }
 
 func run() error {
@@ -215,6 +228,12 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	act, reason, err := orch.detect(ctx)
 	if err != nil {
 		return fmt.Errorf("detection: %w", err)
+	}
+	if !act && !cfg.skipGuards && !cfg.dryRun && reasonIsGuard1Only(reason) {
+		act, reason, err = forcedEvidencePath(ctx, cfg, orch, reason)
+		if err != nil {
+			return err
+		}
 	}
 	if !act && !cfg.skipGuards {
 		logf("guards did not fire: %s. Exiting no-op.", reason)
@@ -320,6 +339,58 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		logf("WARN: post-flight dump partial: %v", err)
 	}
 	return nil
+}
+
+// forcedEvidencePath triggers a no-op reconcile on the live system
+// pool so the AKS RP attempts a fresh VMSS write. It then polls the
+// activity log for NRP-KVS Failed events and aborts the LRO it started
+// once threshold-many hits are observed or the timeout elapses.
+//
+// Returns (act, reason, error). act=true means evidence reached the
+// threshold and the caller should proceed with the recreate flow.
+// act=false with no error means the trigger was inconclusive (the
+// cluster is wedged for a different reason) and the caller should
+// exit no-op.
+func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, initialReason string) (bool, string, error) {
+	logBanner("FORCED EVIDENCE :: triggering reconcile to verify NRP-KVS signature")
+	logf("initial guard 1 saw no NRP-KVS evidence in last %dm: %s", cfg.windowMin, initialReason)
+
+	live, err := orch.snapshotSystem(ctx)
+	if err != nil {
+		return false, initialReason, fmt.Errorf("forced evidence snapshot: %w", err)
+	}
+
+	if err := orch.triggerSystemReconcile(ctx, live); err != nil {
+		logf("WARN: triggerSystemReconcile failed: %v; treating as no-op", err)
+		return false, initialReason, nil
+	}
+
+	logf("triggered system pool reconcile; polling activity log every %ds for up to %dm",
+		triggerEvidencePollIntervalSec, triggerEvidenceTimeoutMin)
+	hits, pollErr := orch.pollForNRPEvidence(
+		ctx,
+		triggerEvidenceTimeoutMin*time.Minute,
+		triggerEvidencePollIntervalSec*time.Second,
+		triggerEvidenceWindowMin,
+		cfg.threshold,
+	)
+
+	// Always best-effort abort the LRO we started so the cluster doesn't
+	// keep retrying the wedged write after we're done observing.
+	if abortErr := orch.abortSystemReconcile(ctx); abortErr != nil {
+		logf("WARN: abortSystemReconcile failed: %v", abortErr)
+	}
+
+	if pollErr != nil {
+		return false, initialReason, fmt.Errorf("poll for NRP evidence: %w", pollErr)
+	}
+	if hits < cfg.threshold {
+		reason := fmt.Sprintf("forced evidence inconclusive: only %d NRP failures < %d after %dm", hits, cfg.threshold, triggerEvidenceTimeoutMin)
+		logf("%s. Exiting no-op.", reason)
+		return false, reason, nil
+	}
+	logf("forced evidence confirmed NRP-KVS (%d hits >= threshold %d) — proceeding with recreate", hits, cfg.threshold)
+	return true, "", nil
 }
 
 // ---------------------------------------------------------------------------
@@ -1180,6 +1251,82 @@ func (c *clients) reconcileTagPut(ctx context.Context) error {
 }
 
 // ---------------------------------------------------------------------------
+// forced-evidence trigger (used only when guards 2/3/4 PASS and guard 1 FAILs
+// because the activity log has no recent NRP-KVS events)
+// ---------------------------------------------------------------------------
+
+// triggerSystemReconcile starts an AKS RP reconcile of the live system
+// pool by issuing a sanitized CreateOrUpdate with the snapshot spec.
+// It does not wait for the LRO to finish — the caller polls the activity
+// log for NRP-KVS evidence in parallel and aborts the LRO when done.
+func (c *clients) triggerSystemReconcile(ctx context.Context, live *armcs.AgentPool) error {
+	body, err := agentPoolForCreate(live, c.cfg.cpVersion)
+	if err != nil {
+		return fmt.Errorf("triggerSystemReconcile: %w", err)
+	}
+	logf("triggering AgentPool CreateOrUpdate on %q (no-op reconcile with live spec)", systemPoolName)
+	if _, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, systemPoolName, *body, nil); err != nil {
+		return fmt.Errorf("begin trigger system reconcile: %w", err)
+	}
+	return nil
+}
+
+// pollForNRPEvidence re-queries the activity log on a fixed interval
+// until the NRP-KVS Failed-event count reaches threshold or the timeout
+// elapses. windowMin controls how far back each poll looks (a window
+// equal to the timeout makes every poll see all events since the
+// trigger).
+func (c *clients) pollForNRPEvidence(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
+	if pollInterval <= 0 {
+		pollInterval = 60 * time.Second
+	}
+	deadline := time.Now().Add(timeout)
+	last := 0
+	for {
+		out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", windowMin))
+		if err != nil {
+			return last, fmt.Errorf("forced-evidence activity-log query: %w", err)
+		}
+		hits, parseErr := countNRPFailures(out, "aks-system-")
+		if parseErr != nil {
+			return last, fmt.Errorf("forced-evidence activity-log parse: %w", parseErr)
+		}
+		last = hits
+		logf("forced evidence poll: NRP-KVS hits=%d threshold=%d (window=%dm)", hits, threshold, windowMin)
+		if hits >= threshold {
+			return hits, nil
+		}
+		if !time.Now().Before(deadline) {
+			return hits, nil
+		}
+		sleep := pollInterval
+		if remaining := time.Until(deadline); remaining < sleep {
+			sleep = remaining
+		}
+		select {
+		case <-ctx.Done():
+			return last, ctx.Err()
+		case <-time.After(sleep):
+		}
+	}
+}
+
+// abortSystemReconcile aborts the latest LRO on the system pool, which
+// (when the forced-evidence trigger started one) cancels the in-flight
+// CreateOrUpdate. Best-effort: failures here are logged by the caller
+// but not propagated.
+func (c *clients) abortSystemReconcile(ctx context.Context) error {
+	poller, err := c.pools.BeginAbortLatestOperation(ctx, c.cfg.resourceGroup, c.cfg.clusterName, systemPoolName, nil)
+	if err != nil {
+		return fmt.Errorf("begin abort system reconcile: %w", err)
+	}
+	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
+		return fmt.Errorf("poll abort system reconcile: %w", err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 
@@ -1240,6 +1387,17 @@ func isNodeSchedulableReady(n *corev1.Node) bool {
 		return false
 	}
 	return n.DeletionTimestamp == nil
+}
+
+// reasonIsGuard1Only reports whether a detect() reason string indicates
+// that guards 2/3/4 PASSed and only guard 1 (NRP-KVS storm) FAILed.
+// Used to gate the forced-evidence trigger path: the cluster is in a
+// wedge-compatible state, but the activity log has no recent NRP-KVS
+// events in the configured lookback window. The forced-evidence path
+// triggers a no-op reconcile on the live system pool to give AKS a
+// chance to re-attempt the failing VMSS write before deciding to act.
+func reasonIsGuard1Only(reason string) bool {
+	return strings.HasPrefix(strings.TrimSpace(reason), "guard 1 FAIL")
 }
 
 // activityLogJSON returns Activity Log events in the compact JSON shape used

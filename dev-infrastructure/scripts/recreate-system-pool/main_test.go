@@ -1335,17 +1335,20 @@ type mockOrchestrator struct {
 	calls       []string
 	detectCount int
 
-	ensureClusterFn   func(ctx context.Context) (armcs.ManagedCluster, bool, error)
-	bootstrapKubeFn   func(ctx context.Context, mc armcs.ManagedCluster) error
-	detectFn          func(ctx context.Context, n int) (bool, string, error)
-	preflightChecksFn func(ctx context.Context) error
-	snapshotSystemFn  func(ctx context.Context) (*armcs.AgentPool, error)
-	maybeAbortLROFn   func(ctx context.Context) (bool, error)
-	addSystmpFn       func(ctx context.Context, live *armcs.AgentPool) error
-	drainPoolFn       func(ctx context.Context, pool string, timeout time.Duration) error
-	deletePoolFn      func(ctx context.Context, pool string) error
-	recreateSystemFn  func(ctx context.Context, live *armcs.AgentPool) error
-	reconcileTagPutFn func(ctx context.Context) error
+	ensureClusterFn          func(ctx context.Context) (armcs.ManagedCluster, bool, error)
+	bootstrapKubeFn          func(ctx context.Context, mc armcs.ManagedCluster) error
+	detectFn                 func(ctx context.Context, n int) (bool, string, error)
+	preflightChecksFn        func(ctx context.Context) error
+	snapshotSystemFn         func(ctx context.Context) (*armcs.AgentPool, error)
+	maybeAbortLROFn          func(ctx context.Context) (bool, error)
+	addSystmpFn              func(ctx context.Context, live *armcs.AgentPool) error
+	drainPoolFn              func(ctx context.Context, pool string, timeout time.Duration) error
+	deletePoolFn             func(ctx context.Context, pool string) error
+	recreateSystemFn         func(ctx context.Context, live *armcs.AgentPool) error
+	reconcileTagPutFn        func(ctx context.Context) error
+	triggerSystemReconcileFn func(ctx context.Context, live *armcs.AgentPool) error
+	pollForNRPEvidenceFn     func(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
+	abortSystemReconcileFn   func(ctx context.Context) error
 }
 
 func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
@@ -1449,6 +1452,30 @@ func (m *mockOrchestrator) reconcileTagPut(ctx context.Context) error {
 	return nil
 }
 
+func (m *mockOrchestrator) triggerSystemReconcile(ctx context.Context, live *armcs.AgentPool) error {
+	m.record("triggerSystemReconcile")
+	if m.triggerSystemReconcileFn != nil {
+		return m.triggerSystemReconcileFn(ctx, live)
+	}
+	return nil
+}
+
+func (m *mockOrchestrator) pollForNRPEvidence(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
+	m.record("pollForNRPEvidence")
+	if m.pollForNRPEvidenceFn != nil {
+		return m.pollForNRPEvidenceFn(ctx, timeout, pollInterval, windowMin, threshold)
+	}
+	return threshold, nil
+}
+
+func (m *mockOrchestrator) abortSystemReconcile(ctx context.Context) error {
+	m.record("abortSystemReconcile")
+	if m.abortSystemReconcileFn != nil {
+		return m.abortSystemReconcileFn(ctx)
+	}
+	return nil
+}
+
 func TestRunWith(t *testing.T) {
 	dummyErr := errors.New("boom")
 
@@ -1492,14 +1519,82 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{"ensureCluster"},
 		},
 		{
-			name: "guards_do_not_fire",
+			name: "guards_do_not_fire_non_guard1",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
 				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "guard 1 FAIL", nil
+					return false, "guard 2 FAIL: not recoverable", nil
 				}
 			},
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+		},
+		{
+			name: "guard1_fail_dry_run_skips_forced_evidence",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "guard 1 FAIL: only 0 NRP failures < 10", nil
+				}
+			},
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+		},
+		{
+			name: "guard1_fail_forced_evidence_inconclusive",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "guard 1 FAIL: only 0 NRP failures < 10", nil
+				}
+				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
+					return 3, nil
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile",
+			},
+		},
+		{
+			name: "guard1_fail_forced_evidence_confirms_nrp",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
+					if n == 1 {
+						return false, "guard 1 FAIL: only 0 NRP failures < 10", nil
+					}
+					return true, "", nil
+				}
+				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
+					return 12, nil
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile",
+				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"addSystmp",
+				"drainPool:system", "deletePool:system",
+				"recreateSystem",
+				"drainPool:systmp", "deletePool:systmp",
+				"reconcileTagPut", "dumpPostflight",
+			},
+		},
+		{
+			name: "guard1_fail_trigger_failure_exits_noop",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "guard 1 FAIL: only 0 NRP failures < 10", nil
+				}
+				m.triggerSystemReconcileFn = func(context.Context, *armcs.AgentPool) error {
+					return errors.New("conflict")
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"snapshotSystem", "triggerSystemReconcile",
+			},
 		},
 		{
 			name: "detect_error",
