@@ -9,5 +9,6 @@
 		"state": "Registered"
 	},
 	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2",
-	"resourceType": "microsoft.resources/subscriptions"
+	"resourceType": "microsoft.resources/subscriptions",
+	"_etag": "\"308d51e9-ffd2-438c-888d-1bb1fd9626dc\""
 }

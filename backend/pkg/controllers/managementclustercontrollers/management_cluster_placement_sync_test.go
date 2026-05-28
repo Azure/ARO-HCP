@@ -17,6 +17,7 @@ package managementclustercontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,7 +91,8 @@ func newTestSPC(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderC
 
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: spcResourceID,
+			ResourceID:   spcResourceID,
+			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
 		},
 	}
 	for _, opt := range opts {
@@ -103,7 +105,8 @@ func newTestManagementCluster() *fleet.ManagementCluster {
 	resourceID := testMgmtClusterResourceID()
 	return &fleet.ManagementCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ResourceID: resourceID,
 		Status: fleet.ManagementClusterStatus{

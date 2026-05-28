@@ -264,7 +264,7 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	if err != nil {
 		return nil, err
 	}
-	resourceName := cosmosMetadata.ResourceID.Name
+	resourceName := cosmosMetadata.GetResourceID().Name
 	expectedETag := cosmosMetadata.CosmosETag
 
 	oldObj, err := m.Get(ctx, resourceName)

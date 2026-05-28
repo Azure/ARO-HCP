@@ -111,7 +111,9 @@ var ValidManagementClusterSchedulingPolicies = sets.New(
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ManagementCluster struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
-	// it will be the ManagementClusterResourceTypeName
+	// it will be the ManagementClusterResourceTypeName.
+	// PartitionKey holds the lowercased stamp identifier of the parent Stamp;
+	// every fleet document for one stamp shares this partition key.
 	api.CosmosMetadata `json:"cosmosMetadata"`
 
 	// ResourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,

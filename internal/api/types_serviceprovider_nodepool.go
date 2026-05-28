@@ -31,7 +31,8 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderNodePool struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
-	// it will be the ServiceProviderNodePool type and the name default
+	// it will be the ServiceProviderNodePool type and the name default.
+	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	// Spec contains the desired state of the nodepool

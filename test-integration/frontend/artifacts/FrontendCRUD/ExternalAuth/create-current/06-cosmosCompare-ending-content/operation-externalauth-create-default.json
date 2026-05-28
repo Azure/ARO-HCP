@@ -8,8 +8,9 @@
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"cosmosMetadata": {
-			"instanceVersion": 1,
-			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/ea807c13-7e15-43d4-b760-69ef7e31d273"
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/ea807c13-7e15-43d4-b760-69ef7e31d273",
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"instanceVersion": 1
 		},
 		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/externalAuths/default",
 		"internalId": "/api/clusters_mgmt/v1/clusters/swzpxg6nxn/external_auth_config/external_auths/5fghjjqxvd",

@@ -96,7 +96,8 @@ func TestDegradedControllerPanicHandler(t *testing.T) {
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 		return &api.Controller{
 			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: resourceID,
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 			},
 			ExternalID: clusterResourceID,
 			Status: api.ControllerStatus{

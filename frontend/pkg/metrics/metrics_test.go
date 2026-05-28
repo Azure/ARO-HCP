@@ -17,6 +17,7 @@ package metrics
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +40,8 @@ func TestSubscriptionCollector(t *testing.T) {
 	resourceID := api.Must(arm.ToSubscriptionResourceID(subID))
 	testSub := &arm.Subscription{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(subID),
 		},
 		ResourceID:       resourceID,
 		State:            arm.SubscriptionStateRegistered,

@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,7 +62,8 @@ func newTestSubscription(subscriptionID string, state arm.SubscriptionState, pro
 	resourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	return &arm.Subscription{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ResourceID:       resourceID,
 		State:            state,
@@ -604,7 +606,8 @@ func TestRequestAdminCredential(t *testing.T) {
 
 			cluster := &api.HCPOpenShiftCluster{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: clusterResourceID,
+					ResourceID:   clusterResourceID,
+					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
@@ -626,7 +629,8 @@ func TestRequestAdminCredential(t *testing.T) {
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				revokeOp := &api.Operation{
 					CosmosMetadata: api.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
 					Request:     database.OperationRequestRevokeCredentials,
@@ -717,7 +721,8 @@ func TestRevokeCredentials(t *testing.T) {
 
 			cluster := &api.HCPOpenShiftCluster{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: clusterResourceID,
+					ResourceID:   clusterResourceID,
+					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
@@ -739,7 +744,8 @@ func TestRevokeCredentials(t *testing.T) {
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				revokeOp := &api.Operation{
 					CosmosMetadata: api.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
 					Request:     database.OperationRequestRevokeCredentials,
@@ -757,7 +763,8 @@ func TestRevokeCredentials(t *testing.T) {
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				requestOp := &api.Operation{
 					CosmosMetadata: api.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
 					Request:     database.OperationRequestRequestCredential,

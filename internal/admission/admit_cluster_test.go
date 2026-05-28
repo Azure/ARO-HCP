@@ -17,6 +17,7 @@ package admission
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -265,7 +266,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			clusterResourceID.String() + "/nodePools/" + name))
 		return &api.HCPOpenShiftClusterNodePool{
 			CosmosMetadata: arm.CosmosMetadata{
-				ResourceID: nodePoolResourceID,
+				ResourceID:   nodePoolResourceID,
+				PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
 			},
 			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
 			Properties: api.HCPOpenShiftClusterNodePoolProperties{
@@ -283,7 +285,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			active = append(active, api.HCPNodePoolActiveVersion{Version: ptr.To(api.Must(semver.ParseTolerant(v)))})
 		}
 		return &api.ServiceProviderNodePool{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID},
+			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID, PartitionKey: strings.ToLower(spResourceID.SubscriptionID)},
 			Status: api.ServiceProviderNodePoolStatus{
 				NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{ActiveVersions: active},
 			},
@@ -543,7 +545,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			t.Parallel()
 
 			serviceProviderCluster := &api.ServiceProviderCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID},
+				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
 				Status:         tt.serviceProviderClusterStatus,
 			}
 

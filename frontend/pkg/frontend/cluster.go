@@ -231,6 +231,7 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	// TrackedResource info doesn't appear to come from the external resource information
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 	newInternalCluster.SetResourceID(resourceID)
+	newInternalCluster.SetPartitionKey(resourceID.SubscriptionID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.

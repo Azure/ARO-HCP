@@ -3,7 +3,9 @@
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
 		"cosmosMetadata": {
-			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating"
+			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
+			"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
+			"instanceVersion": 1
 		},
 		"customerDesiredState": null,
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
@@ -15,5 +17,6 @@
 		"serviceProviderState": null
 	},
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters"
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters",
+	"_etag": "\"92fcec8d-c0e5-4ec9-9d89-d2459a8af4cc\""
 }

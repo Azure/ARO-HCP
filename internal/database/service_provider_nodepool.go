@@ -17,6 +17,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -33,7 +34,8 @@ func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.
 	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", npResourceID.String(), api.ServiceProviderNodePoolResourceTypeName, api.ServiceProviderNodePoolResourceName)))
 	return &api.ServiceProviderNodePool{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }

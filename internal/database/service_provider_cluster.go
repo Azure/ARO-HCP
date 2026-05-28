@@ -17,6 +17,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -33,7 +34,8 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s", clusterResourceID.String(), api.ServiceProviderClusterResourceTypeName, api.ServiceProviderClusterResourceName)))
 	return &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
