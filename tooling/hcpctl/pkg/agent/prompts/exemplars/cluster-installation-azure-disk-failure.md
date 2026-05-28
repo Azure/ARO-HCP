@@ -30,7 +30,7 @@ The test error is caused by a context deadline being exceeded:
 
 ```
 fail [github.com/Azure/ARO-HCP/test/e2e/clusters_sharing_resgroup.go:132]: Unexpected error:
-    <context.deadlineExceededError>: 
+    <context.deadlineExceededError>:
     context deadline exceeded
     ...
 occurred
@@ -42,7 +42,7 @@ In the test log, we can see the step that failed was waiting on a cluster to bec
 
 ```
   STEP: waiting for first cluster to complete creation @ 05/19/26 20:58:52.976
-  [FAILED] in [It] - /opt/app-root/src/github.com/Azure/ARO-HCP/test/e2e/clusters_sharing_resgroup.go:132 @ 05/19/26 21:43:52.979 
+  [FAILED] in [It] - /opt/app-root/src/github.com/Azure/ARO-HCP/test/e2e/clusters_sharing_resgroup.go:132 @ 05/19/26 21:43:52.979
 ```
 
 #### Proof 3: Code Snippet: ARO-HCP/test/e2e/clusters_sharing_resgroup.go (lines 102-132)
@@ -223,11 +223,11 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 | where log.controller_name == 'datadump'
 | where log.resource_group == 'customer-rg-crkv7p'
 | where log.resource_name == 'basic-hcp-cluster'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/managementclustercontents'
+| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
 | summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
 | sort by tolong(content._ts) asc
 | extend content = parse_json(content)
-| mv-expand manifest = content.properties.status.kubeContent.items
+| extend manifest = content.properties.status.kubeContent
 | where manifest.kind == 'HostedCluster'
 | mv-expand condition = manifest.status.conditions
 | project observedTime, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message), lastTransitionTime=todatetime(condition.lastTransitionTime)
@@ -237,7 +237,7 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 ```
 
 | type      | status | reason                       | message                                                   | lastTransitionTime    | observedTime              |
-|-----------|--------|------------------------------|-----------------------------------------------------------|-----------------------|---------------------------| 
+|-----------|--------|------------------------------|-----------------------------------------------------------|-----------------------|---------------------------|
 | Available | False  | WaitingOnInfrastructureReady | Cluster infrastructure is still provisioning              | 5/19/2026, 9:00:45 PM | 5/19/2026, 9:01:42.891 PM |
 | Available | False  | KubeconfigWaitingForCreate   | Waiting for hosted control plane kubeconfig to be created | 5/19/2026, 9:00:45 PM | 5/19/2026, 9:02:06.346 PM |
 
@@ -258,20 +258,20 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 | where log.controller_name == 'datadump'
 | where log.resource_group == 'customer-rg-crkv7p'
 | where log.resource_name == 'basic-hcp-cluster'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/managementclustercontents'
+| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
 | summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
 | top 1 by tolong(content._ts) desc
 | extend content = parse_json(content)
-| mv-expand manifest = content.properties.status.kubeContent.items
+| extend manifest = content.properties.status.kubeContent
 | where manifest.kind == 'HostedCluster'
 | mv-expand condition = manifest.status.conditions
 | project observedTime, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message), lastTransitionTime=todatetime(condition.lastTransitionTime)
 | where type in ('KubeAPIServerAvailable', 'Available')
 ```
 
-| observedTime              | type                   | status | reason                     | message                                                   | lastTransitionTime    | 
+| observedTime              | type                   | status | reason                     | message                                                   | lastTransitionTime    |
 |---------------------------|------------------------|--------|----------------------------|-----------------------------------------------------------|-----------------------|
-| 5/19/2026, 9:43:08.978 PM | KubeAPIServerAvailable | False  | NotFound                   | Kube APIServer deployment not found                       | 5/19/2026, 9:01:01 PM | 
+| 5/19/2026, 9:43:08.978 PM | KubeAPIServerAvailable | False  | NotFound                   | Kube APIServer deployment not found                       | 5/19/2026, 9:01:01 PM |
 | 5/19/2026, 9:43:08.978 PM | Available              | False  | KubeconfigWaitingForCreate | Waiting for hosted control plane kubeconfig to be created | 5/19/2026, 9:00:45 PM |
 
 #### Proof 2: Log Snippet
@@ -318,21 +318,21 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 | order by firstSeen asc
 ```
 
-| objectKind            | objectName  | reason                 | message                                                                                                                                                                                                                                    | firstSeen             | lastSeen              | count | 
+| objectKind            | objectName  | reason                 | message                                                                                                                                                                                                                                    | firstSeen             | lastSeen              | count |
 |-----------------------|-------------|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|-----------------------|-------|
-| PersistentVolumeClaim | data-etcd-0 | Provisioning           | External provisioner is provisioning volume for claim "ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/data-etcd-0"                                                                                                         | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:13 PM | 1     | 
-| PersistentVolumeClaim | data-etcd-2 | Provisioning           | External provisioner is provisioning volume for claim "ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/data-etcd-2"                                                                                                         | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:13 PM | 1     | 
-| PersistentVolumeClaim | data-etcd-1 | Provisioning           | External provisioner is provisioning volume for claim "ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/data-etcd-1"                                                                                                         | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:13 PM | 1     | 
-| PersistentVolumeClaim | data-etcd-1 | ExternalProvisioning   | Waiting for a volume to be created either by the external provisioner 'disk.csi.azure.com' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered. | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:16 PM | 2     | 
-| PersistentVolumeClaim | data-etcd-0 | ExternalProvisioning   | Waiting for a volume to be created either by the external provisioner 'disk.csi.azure.com' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered. | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:16 PM | 3     | 
-| PersistentVolumeClaim | data-etcd-2 | ExternalProvisioning   | Waiting for a volume to be created either by the external provisioner 'disk.csi.azure.com' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered. | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:16 PM | 3     | 
-| PersistentVolumeClaim | data-etcd-0 | ProvisioningSucceeded  | Successfully provisioned volume pvc-40f955d8-0d40-4d5f-a635-91ce592f6a2a                                                                                                                                                                   | 5/19/2026, 9:01:23 PM | 5/19/2026, 9:01:23 PM | 1     | 
-| PersistentVolumeClaim | data-etcd-1 | ProvisioningSucceeded  | Successfully provisioned volume pvc-4aef6076-7215-4e95-baf7-d39e98c719d5                                                                                                                                                                   | 5/19/2026, 9:01:23 PM | 5/19/2026, 9:01:23 PM | 1     | 
-| PersistentVolumeClaim | data-etcd-2 | ProvisioningSucceeded  | Successfully provisioned volume pvc-2f8b86e8-b48b-468d-a132-9263d78b774d                                                                                                                                                                   | 5/19/2026, 9:01:23 PM | 5/19/2026, 9:01:23 PM | 1     | 
-| Pod                   | etcd-2      | SuccessfulAttachVolume | AttachVolume.Attach succeeded for volume "pvc-2f8b86e8-b48b-468d-a132-9263d78b774d"                                                                                                                                                        | 5/19/2026, 9:01:31 PM | 5/19/2026, 9:01:31 PM | 1     | 
-| Pod                   | etcd-1      | SuccessfulAttachVolume | AttachVolume.Attach succeeded for volume "pvc-4aef6076-7215-4e95-baf7-d39e98c719d5"                                                                                                                                                        | 5/19/2026, 9:01:31 PM | 5/19/2026, 9:01:31 PM | 1     | 
-| Pod                   | etcd-0      | FailedMount            | MountVolume.MountDevice failed for volume "pvc-40f955d8-0d40-4d5f-a635-91ce592f6a2a" : rpc error: code = Internal desc = failed to find disk on lun 3. azureDisk - findDiskByLun(3) failed with error(failed to find disk by lun 3)        | 5/19/2026, 9:01:33 PM | 5/19/2026, 9:22:32 PM | 18    | 
-| Pod                   | etcd-0      | SuccessfulAttachVolume | AttachVolume.Attach succeeded for volume "pvc-40f955d8-0d40-4d5f-a635-91ce592f6a2a"                                                                                                                                                        | 5/19/2026, 9:46:04 PM | 5/19/2026, 9:46:04 PM | 1     | 
+| PersistentVolumeClaim | data-etcd-0 | Provisioning           | External provisioner is provisioning volume for claim "ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/data-etcd-0"                                                                                                         | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:13 PM | 1     |
+| PersistentVolumeClaim | data-etcd-2 | Provisioning           | External provisioner is provisioning volume for claim "ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/data-etcd-2"                                                                                                         | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:13 PM | 1     |
+| PersistentVolumeClaim | data-etcd-1 | Provisioning           | External provisioner is provisioning volume for claim "ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/data-etcd-1"                                                                                                         | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:13 PM | 1     |
+| PersistentVolumeClaim | data-etcd-1 | ExternalProvisioning   | Waiting for a volume to be created either by the external provisioner 'disk.csi.azure.com' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered. | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:16 PM | 2     |
+| PersistentVolumeClaim | data-etcd-0 | ExternalProvisioning   | Waiting for a volume to be created either by the external provisioner 'disk.csi.azure.com' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered. | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:16 PM | 3     |
+| PersistentVolumeClaim | data-etcd-2 | ExternalProvisioning   | Waiting for a volume to be created either by the external provisioner 'disk.csi.azure.com' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered. | 5/19/2026, 9:01:13 PM | 5/19/2026, 9:01:16 PM | 3     |
+| PersistentVolumeClaim | data-etcd-0 | ProvisioningSucceeded  | Successfully provisioned volume pvc-40f955d8-0d40-4d5f-a635-91ce592f6a2a                                                                                                                                                                   | 5/19/2026, 9:01:23 PM | 5/19/2026, 9:01:23 PM | 1     |
+| PersistentVolumeClaim | data-etcd-1 | ProvisioningSucceeded  | Successfully provisioned volume pvc-4aef6076-7215-4e95-baf7-d39e98c719d5                                                                                                                                                                   | 5/19/2026, 9:01:23 PM | 5/19/2026, 9:01:23 PM | 1     |
+| PersistentVolumeClaim | data-etcd-2 | ProvisioningSucceeded  | Successfully provisioned volume pvc-2f8b86e8-b48b-468d-a132-9263d78b774d                                                                                                                                                                   | 5/19/2026, 9:01:23 PM | 5/19/2026, 9:01:23 PM | 1     |
+| Pod                   | etcd-2      | SuccessfulAttachVolume | AttachVolume.Attach succeeded for volume "pvc-2f8b86e8-b48b-468d-a132-9263d78b774d"                                                                                                                                                        | 5/19/2026, 9:01:31 PM | 5/19/2026, 9:01:31 PM | 1     |
+| Pod                   | etcd-1      | SuccessfulAttachVolume | AttachVolume.Attach succeeded for volume "pvc-4aef6076-7215-4e95-baf7-d39e98c719d5"                                                                                                                                                        | 5/19/2026, 9:01:31 PM | 5/19/2026, 9:01:31 PM | 1     |
+| Pod                   | etcd-0      | FailedMount            | MountVolume.MountDevice failed for volume "pvc-40f955d8-0d40-4d5f-a635-91ce592f6a2a" : rpc error: code = Internal desc = failed to find disk on lun 3. azureDisk - findDiskByLun(3) failed with error(failed to find disk by lun 3)        | 5/19/2026, 9:01:33 PM | 5/19/2026, 9:22:32 PM | 18    |
+| Pod                   | etcd-0      | SuccessfulAttachVolume | AttachVolume.Attach succeeded for volume "pvc-40f955d8-0d40-4d5f-a635-91ce592f6a2a"                                                                                                                                                        | 5/19/2026, 9:46:04 PM | 5/19/2026, 9:46:04 PM | 1     |
 
 ### Why did the persistent volume fail to mount for the `etcd-0` replica in the first 45 minutes, but then succeed?
 
@@ -355,27 +355,27 @@ cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').
 | order by firstSeen asc
 ```
 
-| objectKind | objectName | reason                 | message                                                                                           | firstSeen                                                                                                                                           | lastSeen                     | count                        | 
+| objectKind | objectName | reason                 | message                                                                                           | firstSeen                                                                                                                                           | lastSeen                     | count                        |
 |------------|------------|------------------------|---------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|------------------------------|
-| Pod        | etcd-0     | Scheduled              | Successfully assigned ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/etcd-0 to    | aks-userswft3-15776247-vmss00000h                                                                                                                   | 5/19/2026, 9:01:24.073141 PM | 5/19/2026, 9:01:24.073141 PM 
+| Pod        | etcd-0     | Scheduled              | Successfully assigned ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/etcd-0 to    | aks-userswft3-15776247-vmss00000h                                                                                                                   | 5/19/2026, 9:01:24.073141 PM | 5/19/2026, 9:01:24.073141 PM
 | Pod        | etcd-0     | FailedMount            | MountVolume.MountDevice failed for volume "pvc-40f955d8-0d40-4d5f-a635-91ce592f6a2a" : rpc error: | code = Internal desc = failed to find disk on lun 3. azureDisk - findDiskByLun(3) failed with error(failed to find disk by lun 3)                   | 5/19/2026, 9:01:33 PM        | 5/19/2026, 9:22:32 PM        | 18
 | Pod        | etcd-0     | TaintManagerEviction   | Marking for deletion Pod                                                                          | ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/etcd-0                                                                               | 5/19/2026, 9:29:52 PM        | 5/19/2026, 9:29:52 PM        | 1
-| Pod        | etcd-0     | Scheduled              | Successfully assigned ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/etcd-0 to    | aks-userswft3-15776247-vmss00000f                                                                                                                   | 5/19/2026, 9:45:57.993747 PM | 5/19/2026, 9:45:57.993747 PM 
+| Pod        | etcd-0     | Scheduled              | Successfully assigned ocm-arohcpint-2qd822p7guniitr7ibsb7qjeccri0gdl-x0c2h7b6o1c1w1a/etcd-0 to    | aks-userswft3-15776247-vmss00000f                                                                                                                   | 5/19/2026, 9:45:57.993747 PM | 5/19/2026, 9:45:57.993747 PM
 | Pod        | etcd-0     | SuccessfulAttachVolume | AttachVolume.Attach succeeded for volume "pvc-40f955d8-0d40-4d5f-a635-91ce592f6a2a"               |                                                                                                                                                     | 5/19/2026, 9:46:04 PM        | 5/19/2026, 9:46:04 PM        | 1
 | Pod        | etcd-0     | Pulling                | Pulling image "arohcpocpint.azurecr.io/openshift-release-dev/ocp-v4.                              | 0-art-dev@sha256:d8c2b75f4be30014e9d04f7edba6d9adbb4744d57b2938731860a66d66ac8c75"                                                                  | 5/19/2026, 9:46:12 PM        | 5/19/2026, 9:46:12 PM        | 1
 | Pod        | etcd-0     | Pulled                 | Successfully pulled image "arohcpocpint.azurecr.io/openshift-release-dev/ocp-v4.                  | 0-art-dev@sha256:d8c2b75f4be30014e9d04f7edba6d9adbb4744d57b2938731860a66d66ac8c75" in 101ms (101ms including waiting). Image size: 193214387 bytes. | 5/19/2026, 9:46:12 PM        | 5/19/2026, 9:46:12 PM        | 1
-| Pod        | etcd-0     | Created                | Container created                                                                                 | 5/19/2026, 9:46:12 PM                                                                                                                               | 5/19/2026, 9:46:12 PM        | 1                            | 
-| Pod        | etcd-0     | Started                | Container started                                                                                 | 5/19/2026, 9:46:12 PM                                                                                                                               | 5/19/2026, 9:46:12 PM        | 1                            | 
+| Pod        | etcd-0     | Created                | Container created                                                                                 | 5/19/2026, 9:46:12 PM                                                                                                                               | 5/19/2026, 9:46:12 PM        | 1                            |
+| Pod        | etcd-0     | Started                | Container started                                                                                 | 5/19/2026, 9:46:12 PM                                                                                                                               | 5/19/2026, 9:46:12 PM        | 1                            |
 | Pod        | etcd-0     | Pulling                | Pulling image "arohcpocpint.azurecr.io/openshift-release-dev/ocp-v4.                              | 0-art-dev@sha256:bab348336022bc9038541b0d2e902394ac4238864f3eff7d025810f40140e9d4"                                                                  | 5/19/2026, 9:46:23 PM        | 5/19/2026, 9:46:23 PM        | 1
 | Pod        | etcd-0     | Pulled                 | Successfully pulled image "arohcpocpint.azurecr.io/openshift-release-dev/ocp-v4.                  | 0-art-dev@sha256:bab348336022bc9038541b0d2e902394ac4238864f3eff7d025810f40140e9d4" in 68ms (68ms including waiting). Image size: 135157226 bytes.   | 5/19/2026, 9:46:23 PM        | 5/19/2026, 9:46:23 PM        | 1
 | Pod        | etcd-0     | Pulled                 | Container image "arohcpocpint.azurecr.io/openshift-release-dev/ocp-v4.                            | 0-art-dev@sha256:bab348336022bc9038541b0d2e902394ac4238864f3eff7d025810f40140e9d4" already present on machine and can be accessed by the pod        | 5/19/2026, 9:46:24 PM        | 5/19/2026, 9:46:24 PM        | 1
 | Pod        | etcd-0     | Pulling                | Pulling image "arohcpocpint.azurecr.io/openshift-release-dev/ocp-v4.                              | 0-art-dev@sha256:440ded05fd114f9d115896f8522886683953358f4c78a6a17d2ad0de77a93398"                                                                  | 5/19/2026, 9:46:24 PM        | 5/19/2026, 9:46:24 PM        | 1
 | Pod        | etcd-0     | Pulled                 | Successfully pulled image "arohcpocpint.azurecr.io/openshift-release-dev/ocp-v4.                  | 0-art-dev@sha256:440ded05fd114f9d115896f8522886683953358f4c78a6a17d2ad0de77a93398" in 92ms (92ms including waiting). Image size: 182879933 bytes.   | 5/19/2026, 9:46:24 PM        | 5/19/2026, 9:46:24 PM        | 1
 | Pod        | etcd-0     | Pulled                 | Container image "arohcpocpint.azurecr.io/openshift-release-dev/ocp-v4.                            | 0-art-dev@sha256:d8c2b75f4be30014e9d04f7edba6d9adbb4744d57b2938731860a66d66ac8c75" already present on machine and can be accessed by the pod        | 5/19/2026, 9:46:24 PM        | 5/19/2026, 9:46:24 PM        | 1
-| Pod        | etcd-0     | Killing                | Stopping container etcd                                                                           | 5/19/2026, 9:56:17 PM                                                                                                                               | 5/19/2026, 9:56:17 PM        | 1                            | 
-| Pod        | etcd-0     | Killing                | Stopping container etcd-metrics                                                                   | 5/19/2026, 9:56:17 PM                                                                                                                               | 5/19/2026, 9:56:17 PM        | 1                            | 
-| Pod        | etcd-0     | Killing                | Stopping container etcd-defrag                                                                    | 5/19/2026, 9:56:17 PM                                                                                                                               | 5/19/2026, 9:56:17 PM        | 1                            | 
-| Pod        | etcd-0     | Killing                | Stopping container healthz                                                                        | 5/19/2026, 9:56:17 PM                                                                                                                               | 5/19/2026, 9:56:17 PM        | 1                            | 
+| Pod        | etcd-0     | Killing                | Stopping container etcd                                                                           | 5/19/2026, 9:56:17 PM                                                                                                                               | 5/19/2026, 9:56:17 PM        | 1                            |
+| Pod        | etcd-0     | Killing                | Stopping container etcd-metrics                                                                   | 5/19/2026, 9:56:17 PM                                                                                                                               | 5/19/2026, 9:56:17 PM        | 1                            |
+| Pod        | etcd-0     | Killing                | Stopping container etcd-defrag                                                                    | 5/19/2026, 9:56:17 PM                                                                                                                               | 5/19/2026, 9:56:17 PM        | 1                            |
+| Pod        | etcd-0     | Killing                | Stopping container healthz                                                                        | 5/19/2026, 9:56:17 PM                                                                                                                               | 5/19/2026, 9:56:17 PM        | 1                            |
 
 #### Proof 2: Log Snippet
 
