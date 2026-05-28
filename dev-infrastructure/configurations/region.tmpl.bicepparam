@@ -20,6 +20,10 @@ param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
 // MI for resource access during pipeline runs
 param globalMSIId = '__globalMSIId__'
 
+// Holmes (Azure OpenAI)
+param holmesEnabled = {{ .adminApi.holmes.enabled }}
+param holmesAoaiName = '{{ .adminApi.holmes.aoaiName }}'
+
 // Monitoring
 param svcMonitorName = '{{ .monitoring.svcWorkspaceName }}'
 param hcpMonitorName = '{{ .monitoring.hcpWorkspaceName }}'

@@ -68,6 +68,18 @@ spec:
           value: "{{ .Values.sessiongate.maxSessionTTL }}"
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
+{{- if and .Values.holmes .Values.holmes.enabled }}
+        - name: HOLMES_AZURE_OPENAI_API_BASE
+          value: "{{ .Values.holmes.azureOpenAIAPIBase }}"
+        - name: HOLMES_MODEL
+          value: "{{ .Values.holmes.model }}"
+        - name: HOLMES_AZURE_OPENAI_API_VERSION
+          value: "{{ .Values.holmes.azureOpenAIAPIVersion }}"
+        - name: HOLMES_DEFAULT_TIMEOUT
+          value: "{{ .Values.holmes.defaultTimeout }}"
+        - name: HOLMES_MAX_CONCURRENT
+          value: "{{ .Values.holmes.maxConcurrent }}"
+{{- end }}
         ports:
         - containerPort: 8443
           name: http

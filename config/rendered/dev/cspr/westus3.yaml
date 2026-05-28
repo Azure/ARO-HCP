@@ -34,6 +34,14 @@ adminApi:
   cert:
     issuer: Self
     name: admin-api-cert-cspr-usw3
+  holmes:
+    aoaiName: arohcp-cspr-aoai-usw3
+    azureOpenAIAPIBase: ""
+    azureOpenAIAPIVersion: 2025-04-01-preview
+    defaultTimeout: 600
+    enabled: true
+    maxConcurrent: 20
+    model: azure/gpt-5.2
   image:
     digest: sha256:6f7cd7e77ae5ca7cf9231b9479211a0430a071c763d9540d769a2f40d9d78c57
     registry: arohcpsvcdev.azurecr.io

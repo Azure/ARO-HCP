@@ -1,0 +1,62 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.HolmesGPT
+rolloutName: HolmesGPT Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: ../dev-infrastructure/templates/kusto-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: management
+  resourceGroup: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../dev-infrastructure/templates/holmesgpt-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/holmesgpt-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'holmesgpt'
+    releaseNamespace: 'aro-holmesgpt'
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    inputVariables:
+      holmesgptMsiClientId:
+        resourceGroup: management
+        step: output
+        name: holmesgptMsiClientId
+      tenantId:
+        resourceGroup: management
+        step: output
+        name: tenantId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

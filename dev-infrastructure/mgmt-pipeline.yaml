@@ -340,6 +340,11 @@ resourceGroups:
         resourceGroup: auditLogs
         step: output
         name: auditLogsEventHubAuthRuleId
+    - name: holmesAoaiResourceId
+      input:
+        resourceGroup: regional
+        step: output
+        name: holmesAoaiResourceId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
@@ -371,6 +376,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: sessiongate
+    - name: adminApiMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: adminApi
     dependsOn:
     - resourceGroup: management
       step: cluster

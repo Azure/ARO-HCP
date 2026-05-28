@@ -69,6 +69,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet.Registration
           pipelinePath: fleet/registration/pipeline.yaml
           purpose: Register the stamp and management cluster in CosmosDB.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.HolmesGPT
+          pipelinePath: holmesgpt/pipeline.yaml
+          purpose: Deploy the HolmesGPT namespace and ServiceAccount for cluster investigation.
         pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
         purpose: Deploy a management cluster and backing infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring

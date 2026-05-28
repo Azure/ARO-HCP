@@ -49,3 +49,20 @@ resource rpCosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' ex
 
 output rpCosmosDbAccountId string = rpCosmosDbAccount.id
 output cosmosDBDocumentEndpoint string = rpCosmosDbAccount.properties.documentEndpoint
+
+//
+//  A Z U R E   O P E N A I   ( H O L M E S )
+//
+
+@description('Whether Holmes Azure OpenAI is enabled')
+param holmesEnabled bool = false
+
+@description('The name of the Azure OpenAI account for Holmes')
+param holmesAoaiName string = ''
+
+resource holmesAoaiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = if (holmesEnabled && holmesAoaiName != '') {
+  name: holmesAoaiName
+}
+
+output holmesAoaiEndpoint string = holmesEnabled && holmesAoaiName != '' ? holmesAoaiAccount.properties.endpoint : ''
+output holmesAoaiResourceId string = holmesEnabled && holmesAoaiName != '' ? holmesAoaiAccount.id : ''

@@ -48,6 +48,21 @@ spec:
   - key: cluster.open-cluster-management.io/unreachable
     operator: Exists
 ---
+# Source: AcmPolicies/templates/aro-diagnostics-rbac.policy.yaml
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: aro-diagnostics-rbac
+  namespace: 'open-cluster-management-policies'
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: all-hosted-clusters
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: aro-diagnostics-rbac
+---
 # Source: AcmPolicies/templates/default-ingress-cert.policy.yaml
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
@@ -92,6 +107,119 @@ subjects:
 - apiGroup: policy.open-cluster-management.io
   kind: Policy
   name: namespace-resourceid-mapping
+---
+# Source: AcmPolicies/templates/aro-diagnostics-rbac.policy.yaml
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+  name: aro-diagnostics-rbac
+  namespace: 'open-cluster-management-policies'
+spec:
+  disabled: false
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: aro-diagnostics-clusterrole
+      spec:
+        pruneObjectBehavior: DeleteIfCreated
+        remediationAction: enforce
+        severity: low
+        evaluationInterval:
+          compliant: 10m
+          noncompliant: 30s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: system:aro-diagnostics
+            rules:
+            - apiGroups: [""]
+              resources:
+              - configmaps
+              - endpoints
+              - events
+              - namespaces
+              - nodes
+              - persistentvolumeclaims
+              - persistentvolumes
+              - pods
+              - pods/log
+              - services
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["apps"]
+              resources:
+              - daemonsets
+              - deployments
+              - replicasets
+              - statefulsets
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["batch"]
+              resources:
+              - cronjobs
+              - jobs
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["networking.k8s.io"]
+              resources:
+              - ingresses
+              - networkpolicies
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["storage.k8s.io"]
+              resources:
+              - storageclasses
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["machine.openshift.io"]
+              resources:
+              - machines
+              - machinesets
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["config.openshift.io"]
+              resources:
+              - clusterversions
+              - clusteroperators
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["metrics.k8s.io"]
+              resources:
+              - nodes
+              - pods
+              verbs: ["get", "list"]
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: aro-diagnostics-clusterrolebinding
+      spec:
+        pruneObjectBehavior: DeleteIfCreated
+        remediationAction: enforce
+        severity: low
+        evaluationInterval:
+          compliant: 10m
+          noncompliant: 30s
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: system:aro-diagnostics
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: system:aro-diagnostics
+            subjects:
+            - apiGroup: rbac.authorization.k8s.io
+              kind: Group
+              name: system:aro-diagnostics
+            - apiGroup: rbac.authorization.k8s.io
+              kind: User
+              name: system:aro-diagnostics
 ---
 # Source: AcmPolicies/templates/default-ingress-cert.policy.yaml
 apiVersion: policy.open-cluster-management.io/v1

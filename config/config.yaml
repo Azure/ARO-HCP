@@ -745,6 +745,14 @@ defaults:
           memory: unlimited
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+    holmes:
+      enabled: false
+      aoaiName: "arohcp-{{ .ctx.environment }}-aoai-{{ .ctx.regionShort }}"
+      azureOpenAIAPIBase: ""
+      model: "azure/gpt-5.2"
+      azureOpenAIAPIVersion: "2025-04-01-preview"
+      defaultTimeout: 600
+      maxConcurrent: 20
   # Session Gate
   sessiongate:
     image:
@@ -1189,6 +1197,8 @@ clouds:
       adminApi:
         cert:
           issuer: Self
+        holmes:
+          enabled: true
       # Sessiongate
       sessiongate:
         cert:

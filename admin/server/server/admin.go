@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
 	stamphandlers "github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
+	"github.com/Azure/ARO-HCP/admin/server/holmes"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -80,6 +81,7 @@ func NewAdminAPI(
 	maxSessionTTL time.Duration,
 	allowedBreakglassGroups set.Set[string],
 	gatherer prometheus.Gatherer,
+	holmesConfig *holmes.HolmesConfig,
 ) *AdminAPI {
 	// Pre-mux middleware (runs on all admin routes before pattern matching)
 	middlewareMux := middleware.NewMiddlewareMux(
@@ -121,6 +123,22 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("GET", "/serialconsole"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPSerialConsoleHandler(resourcesDBClient, fpaCredentialRetriever).ServeHTTP)),
 	)
+
+	if holmesConfig != nil {
+		limiter := holmes.NewConcurrencyLimiter(holmesConfig.MaxConcurrentInvestigations)
+		kubeconfigBuilder := holmes.NewKubeconfigBuilder()
+		podManager := holmes.NewPodManager(holmesConfig)
+		middlewareMux.Handle(
+			middleware.V1HCPResourcePattern("POST", "/investigate"),
+			hcpMiddleware.HandlerFunc(errorutils.ReportError(
+				hcp.NewHCPInvestigateHandler(
+					resourcesDBClient, clustersServiceClient,
+					fpaCredentialRetriever, holmesConfig,
+					limiter, kubeconfigBuilder, podManager,
+				).ServeHTTP,
+			)),
+		)
+	}
 
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
