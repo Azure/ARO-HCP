@@ -691,18 +691,19 @@ defaults:
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
     backupSchedules:
+      # Pause schedules by default so that enablement of schedules in INT, STG, and PROD regions can be controlled via sdp-pipelines config.
       hourly:
         schedule: "0 */1 * * *"
         ttl: "48h"
-        paused: false
+        paused: true
       daily:
         schedule: "0 2 * * *"
         ttl: "336h"
-        paused: false
+        paused: true
       weekly:
         schedule: "0 3 * * 0"
         ttl: "2160h"
-        paused: false
+        paused: true
     exitOnPanic: true
     logVerbosity: 4
     clusterScopedIdentitiesConfig:
@@ -1204,6 +1205,19 @@ clouds:
           tlsCertificatesIssuer: Self
         clusterScopedIdentitiesConfig:
           roleSetName: dev
+        backupSchedules:
+          hourly:
+            schedule: "0 */1 * * *"
+            ttl: "48h"
+            paused: false
+          daily:
+            schedule: "0 2 * * *"
+            ttl: "336h"
+            paused: false
+          weekly:
+            schedule: "0 3 * * 0"
+            ttl: "2160h"
+            paused: false
       # Image Sync
       imageSync:
         ocMirror:
@@ -1590,6 +1604,8 @@ clouds:
           # Backend
           backend:
             backupSchedules:
+              # A frequent backup schedule for PROW CI testing to guarantee backups are executed during all tests to
+              # help confirm backups do not impact normal cluster operations.
               hourly:
                 schedule: "*/5 * * * *"
                 ttl: "1h"
