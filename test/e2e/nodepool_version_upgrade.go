@@ -156,7 +156,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
 			configClient, err := configv1client.NewForConfig(adminRESTConfig)
@@ -335,7 +335,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
 

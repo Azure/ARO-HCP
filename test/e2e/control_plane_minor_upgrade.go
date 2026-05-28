@@ -164,7 +164,7 @@ var _ = Describe("Customer", func() {
 				hcpClient,
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 

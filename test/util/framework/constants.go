@@ -22,6 +22,7 @@ const (
 	ClusterCreationTimeout      = 20 * time.Minute
 	NodePoolCreationTimeout     = 20 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
+	GetAdminRESTConfigTimeout   = 10 * time.Minute
 )
 
 // Resource Update timeouts
