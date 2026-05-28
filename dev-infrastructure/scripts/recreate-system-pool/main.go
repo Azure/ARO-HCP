@@ -129,6 +129,14 @@ const (
 	nrpKVSErrorCode    = "NetworkingInternalOperationError"
 	vmssWriteOperation = "Microsoft.Compute/virtualMachineScaleSets/write"
 
+	// systemVMSSPrefix is the activity-log filter for VMSS-write events
+	// scoped to the system pool's VMSS. AKS names node-pool VMSS using
+	// the convention "aks-<poolName>-<random>-vmss"; this constant is
+	// derived from systemPoolName so the two stay in sync if the system
+	// pool is ever renamed. Stable across all AKS API versions we run
+	// today (2024-10-01, 2025-07-02-preview).
+	systemVMSSPrefix = "aks-" + systemPoolName + "-"
+
 	activityLogAuthRetryTimeoutMin = 5
 	activityLogAuthRetryInitialSec = 10
 	activityLogAuthRetryMaxSec     = 60
@@ -889,7 +897,7 @@ func (c *clients) detect(ctx context.Context) (bool, string, error) {
 	if err != nil {
 		return false, "", fmt.Errorf("guard 1 activity-log query failed: %w", err)
 	}
-	hits, err := countNRPFailures(out, "aks-system-")
+	hits, err := countNRPFailures(out, systemVMSSPrefix)
 	if err != nil {
 		return false, "", fmt.Errorf("guard 1 activity-log parse failed: %w", err)
 	}
@@ -1287,7 +1295,7 @@ func (c *clients) pollForNRPEvidence(ctx context.Context, timeout time.Duration,
 		if err != nil {
 			return last, fmt.Errorf("forced-evidence activity-log query: %w", err)
 		}
-		hits, parseErr := countNRPFailures(out, "aks-system-")
+		hits, parseErr := countNRPFailures(out, systemVMSSPrefix)
 		if parseErr != nil {
 			return last, fmt.Errorf("forced-evidence activity-log parse: %w", parseErr)
 		}
