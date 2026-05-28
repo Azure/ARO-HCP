@@ -42,29 +42,40 @@
 //   NRP_FAIL_WINDOW_MIN       Activity-log lookback window in min (default 15)
 //   DRY_RUN                   "true" to print intended actions but make no writes
 //
-// Detection guards (ALL must pass; otherwise exit 0 no-op)
+// Detection checks (ALL must pass; otherwise exit 0 no-op)
 // --------------------------------------------------------
-//   1. >= NRP_FAIL_THRESHOLD Failed VMSS-write events on an
-//      `aks-system-*` VMSS in the last NRP_FAIL_WINDOW_MIN whose inner
-//      error code is NetworkingInternalOperationError (the NRP-KVS
-//      signature). Other failure modes — quota/capacity/policy/image
-//      pull / etc — never satisfy this guard, so they cannot trigger
-//      a destructive pool recreation that would not address their
-//      actual root cause.
-//   2. Cluster provisioningState is recoverable: Succeeded, Canceled,
-//      Failed (settled) OR Updating, Upgrading (mid-LRO — the NRP-KVS
-//      wedge signature itself; step 2 decides whether to abort).
-//      Creating and Deleting are rejected; unknown states are
-//      rejected conservatively.
-//   3. Every non-system pool has count > 0.
-//   4. `system` pool's own provisioningState is NOT Succeeded —
-//      positive confirmation that this specific pool is wedged.
-//      Accepts Failed, Canceled, Updating, Upgrading: an NRP-KVS wedge
-//      typically leaves the pool in Updating while its parent cluster
-//      LRO retries forever (AROSLSRE-880), or in Failed/Canceled once
-//      that LRO finally times out or is aborted by an operator.
-//      Rejects Succeeded (no wedge) and Creating/Deleting/unknown
-//      (don't act on transitional / unrecognized states).
+// Names below are the check labels used in log lines and reason
+// strings throughout this binary. Checks run in the order listed
+// (cluster state -> non-system pools -> system wedge -> NRP-KVS storm)
+// so the cheap ARM checks short-circuit before we query Activity Log.
+//
+//   [cluster state]      cluster provisioningState is recoverable:
+//                        Succeeded, Canceled, Failed (settled) OR
+//                        Updating, Upgrading (mid-LRO — the NRP-KVS
+//                        wedge signature itself; step 2 decides
+//                        whether to abort the LRO). Creating and
+//                        Deleting are rejected; unknown states are
+//                        rejected conservatively.
+//   [non-system pools]   every non-system pool has count > 0.
+//   [system wedge]       system pool provisioningState is NOT
+//                        Succeeded — positive confirmation that this
+//                        specific pool is wedged. Accepts Failed,
+//                        Canceled, Updating, Upgrading (an NRP-KVS
+//                        wedge typically leaves the pool in Updating
+//                        while its parent cluster LRO retries forever
+//                        — AROSLSRE-880 — or in Failed/Canceled once
+//                        that LRO finally times out or is aborted).
+//                        Rejects Succeeded (no wedge) and
+//                        Creating/Deleting/unknown.
+//   [NRP-KVS storm]      >= NRP_FAIL_THRESHOLD Failed VMSS-write
+//                        events on the system pool's VMSS in the
+//                        last NRP_FAIL_WINDOW_MIN whose inner error
+//                        code is NetworkingInternalOperationError.
+//                        Other failure modes — quota/capacity/policy
+//                        / image pull / etc — never satisfy this
+//                        check, so they cannot trigger a destructive
+//                        pool recreation that would not address their
+//                        actual root cause.
 //
 // Action (only when all guards pass)
 // ----------------------------------
@@ -125,13 +136,42 @@ const (
 	pollIntervalSec   = 30
 	overallTimeoutMin = 60
 
-	// Guard 1 requires this code so other failure modes cannot trip the threshold.
+	// The NRP-KVS storm check requires this error code so other failure
+	// modes (quota / capacity / policy / etc) cannot trip the threshold.
 	nrpKVSErrorCode    = "NetworkingInternalOperationError"
 	vmssWriteOperation = "Microsoft.Compute/virtualMachineScaleSets/write"
+
+	// systemVMSSPrefix is the activity-log filter for VMSS-write events
+	// scoped to the system pool's VMSS. AKS names node-pool VMSS using
+	// the convention "aks-<poolName>-<random>-vmss"; this constant is
+	// derived from systemPoolName so the two stay in sync if the system
+	// pool is ever renamed. Stable across all AKS API versions we run
+	// today (2024-10-01, 2025-07-02-preview).
+	systemVMSSPrefix = "aks-" + systemPoolName + "-"
 
 	activityLogAuthRetryTimeoutMin = 5
 	activityLogAuthRetryInitialSec = 10
 	activityLogAuthRetryMaxSec     = 60
+
+	// triggerEvidence forces an AKS RP reconcile of the system pool when
+	// the cluster-state / non-system-pools / system-wedge checks PASS
+	// but the NRP-KVS-storm check has no recent NRP-KVS events in the
+	// configured lookback window. The trigger gives the wedge a chance
+	// to produce fresh evidence (or to prove the wedge is not NRP-KVS).
+	// Times are short relative to the AKS RP retry cadence (~3 min) so
+	// threshold-many retries can accumulate during the wait window.
+	triggerEvidenceTimeoutMin      = 60 // wait at most this long for evidence
+	triggerEvidencePollIntervalSec = 60 // re-query activity log every poll
+	triggerEvidenceWindowMin       = 60 // activity-log lookback for the wait loop
+
+	// abortTriggerTimeoutMin caps the wait for cleanup of the LRO that
+	// forcedEvidencePath itself triggered. The abort runs with a fresh
+	// context derived from context.Background so it executes even when
+	// the parent run context has already expired (overall script timeout
+	// or pollForNRPEvidence consuming the full triggerEvidenceTimeoutMin
+	// budget). Without this, a cancelled parent context would silently
+	// skip the abort and leave the AKS RP retrying the wedged write.
+	abortTriggerTimeoutMin = 5
 )
 
 func main() {
@@ -170,6 +210,9 @@ type orchestrator interface {
 	deletePool(ctx context.Context, pool string) error
 	recreateSystem(ctx context.Context, live *armcs.AgentPool) error
 	reconcileTagPut(ctx context.Context) error
+	triggerSystemReconcile(ctx context.Context, live *armcs.AgentPool) error
+	pollForNRPEvidence(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
+	abortSystemReconcile(ctx context.Context) error
 }
 
 func run() error {
@@ -215,6 +258,12 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	act, reason, err := orch.detect(ctx)
 	if err != nil {
 		return fmt.Errorf("detection: %w", err)
+	}
+	if !act && !cfg.skipGuards && !cfg.dryRun && reasonIsNRPStormFail(reason) {
+		act, reason, err = forcedEvidencePath(ctx, cfg, orch, reason)
+		if err != nil {
+			return err
+		}
 	}
 	if !act && !cfg.skipGuards {
 		logf("guards did not fire: %s. Exiting no-op.", reason)
@@ -320,6 +369,64 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		logf("WARN: post-flight dump partial: %v", err)
 	}
 	return nil
+}
+
+// forcedEvidencePath triggers a no-op reconcile on the live system
+// pool so the AKS RP attempts a fresh VMSS write. It then polls the
+// activity log for NRP-KVS Failed events and aborts the LRO it started
+// once threshold-many hits are observed or the timeout elapses.
+//
+// Returns (act, reason, error). act=true means evidence reached the
+// threshold and the caller should proceed with the recreate flow.
+// act=false with no error means the trigger was inconclusive (the
+// cluster is wedged for a different reason) and the caller should
+// exit no-op.
+func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, initialReason string) (bool, string, error) {
+	logBanner("FORCED EVIDENCE :: triggering reconcile to verify NRP-KVS signature")
+	logf("initial NRP-KVS storm check saw no evidence in last %dm: %s", cfg.windowMin, initialReason)
+
+	live, err := orch.snapshotSystem(ctx)
+	if err != nil {
+		return false, initialReason, fmt.Errorf("forced evidence snapshot: %w", err)
+	}
+
+	if err := orch.triggerSystemReconcile(ctx, live); err != nil {
+		logf("WARN: triggerSystemReconcile failed: %v; treating as no-op", err)
+		return false, initialReason, nil
+	}
+
+	logf("triggered system pool reconcile; polling activity log every %ds for up to %dm",
+		triggerEvidencePollIntervalSec, triggerEvidenceTimeoutMin)
+	hits, pollErr := orch.pollForNRPEvidence(
+		ctx,
+		triggerEvidenceTimeoutMin*time.Minute,
+		triggerEvidencePollIntervalSec*time.Second,
+		triggerEvidenceWindowMin,
+		cfg.threshold,
+	)
+
+	// Always best-effort abort the LRO we started so the cluster doesn't
+	// keep retrying the wedged write after we're done observing. Use a
+	// fresh context.Background-rooted context so the abort still runs
+	// when the parent ctx is already cancelled (overall script timeout
+	// or pollForNRPEvidence consuming its full budget) — the LRO we
+	// triggered here is our responsibility to tear down.
+	abortCtx, abortCancel := context.WithTimeout(context.Background(), abortTriggerTimeoutMin*time.Minute)
+	defer abortCancel()
+	if abortErr := orch.abortSystemReconcile(abortCtx); abortErr != nil {
+		logf("WARN: abortSystemReconcile failed: %v", abortErr)
+	}
+
+	if pollErr != nil {
+		return false, initialReason, fmt.Errorf("poll for NRP evidence: %w", pollErr)
+	}
+	if hits < cfg.threshold {
+		reason := fmt.Sprintf("forced evidence inconclusive: only %d NRP failures < %d after %dm", hits, cfg.threshold, triggerEvidenceTimeoutMin)
+		logf("%s. Exiting no-op.", reason)
+		return false, reason, nil
+	}
+	logf("forced evidence confirmed NRP-KVS (%d hits >= threshold %d) — proceeding with recreate", hits, cfg.threshold)
+	return true, "", nil
 }
 
 // ---------------------------------------------------------------------------
@@ -455,7 +562,7 @@ func newAzureClients(cfg *config) (*clients, error) {
 // can no-op exit cleanly. On any other error returns (zero, false, error).
 // On success, it records nodeRG and cpVersion when ARM has populated them,
 // but deliberately does not require them yet: partially-created clusters can
-// be returned without these fields, and evalGuard2 should reject Creating as
+// be returned without these fields, and evalClusterState should reject Creating as
 // a no-op guard failure instead of failing the Shell step.
 func (c *clients) ensureCluster(ctx context.Context) (armcs.ManagedCluster, bool, error) {
 	resp, err := c.cluster.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
@@ -660,18 +767,18 @@ func nodeInternalIP(n *corev1.Node) string {
 // detection
 // ---------------------------------------------------------------------------
 
-// evalGuard1 reports whether NRP failure count exceeds the threshold.
-func evalGuard1(failures, threshold int) (bool, string) {
+// evalNRPStorm reports whether NRP-KVS failure count exceeds the threshold.
+func evalNRPStorm(failures, threshold int) (bool, string) {
 	if threshold <= 0 {
-		return false, fmt.Sprintf("guard 1 FAIL: threshold=%d (invalid)", threshold)
+		return false, fmt.Sprintf("NRP-KVS storm FAIL: threshold=%d (invalid)", threshold)
 	}
 	if failures < threshold {
-		return false, fmt.Sprintf("guard 1 FAIL: only %d NRP failures < %d", failures, threshold)
+		return false, fmt.Sprintf("NRP-KVS storm FAIL: only %d NRP failures < %d", failures, threshold)
 	}
 	return true, ""
 }
 
-// evalGuard2 reports whether the cluster is in a state where we can act.
+// evalClusterState reports whether the cluster is in a state where we can act.
 //
 // Acceptable:
 //   - Succeeded / Canceled / Failed: settled, no LRO to fight, free to PUT.
@@ -687,27 +794,27 @@ func evalGuard1(failures, threshold int) (bool, string) {
 //     pool we'd want to recreate doesn't exist in a stable form.
 //   - Deleting: someone is tearing the cluster down; do not interfere.
 //   - empty / unknown future states: be conservative.
-func evalGuard2(provisioningState string) (bool, string) {
+func evalClusterState(provisioningState string) (bool, string) {
 	switch provisioningState {
 	case "Succeeded", "Canceled", "Failed", "Updating", "Upgrading":
 		return true, ""
 	case "Creating":
-		return false, "guard 2 FAIL: cluster provisioningState=\"Creating\" (cluster not fully provisioned)"
+		return false, "cluster state FAIL: provisioningState=\"Creating\" (cluster not fully provisioned)"
 	case "Deleting":
-		return false, "guard 2 FAIL: cluster provisioningState=\"Deleting\" (cluster is being torn down)"
+		return false, "cluster state FAIL: provisioningState=\"Deleting\" (cluster is being torn down)"
 	case "":
-		return false, "guard 2 FAIL: cluster provisioningState is empty"
+		return false, "cluster state FAIL: provisioningState is empty"
 	}
-	return false, fmt.Sprintf("guard 2 FAIL: cluster provisioningState=%q is not a recognized recoverable state", provisioningState)
+	return false, fmt.Sprintf("cluster state FAIL: provisioningState=%q is not a recognized recoverable state", provisioningState)
 }
 
-// evalGuard3 reports whether all non-system pools have count > 0 and a
-// system pool exists. Also reports the system pool's minCount and
-// provisioningState back to the caller so the latter can be fed into
-// evalGuard4 without a second list-pools API call.
+// evalNonSystemPools reports whether all non-system pools have count > 0
+// and a system pool exists. Also reports the system pool's minCount
+// and provisioningState back to the caller so the latter can be fed
+// into evalSystemWedge without a second list-pools API call.
 //
 // Returns (pass, systemMin, systemProvState, reason).
-func evalGuard3(pools []*armcs.AgentPool) (bool, int32, string, string) {
+func evalNonSystemPools(pools []*armcs.AgentPool) (bool, int32, string, string) {
 	var systemMin int32
 	var systemProvState string
 	systemFound := false
@@ -731,18 +838,18 @@ func evalGuard3(pools []*armcs.AgentPool) (bool, int32, string, string) {
 			cnt = *p.Properties.Count
 		}
 		if cnt == 0 {
-			return false, 0, "", fmt.Sprintf("guard 3 FAIL: non-system pool %q has count=0", name)
+			return false, 0, "", fmt.Sprintf("non-system pools FAIL: pool %q has count=0", name)
 		}
 	}
 	if !systemFound {
-		return false, 0, "", "guard 3 FAIL: no system pool found"
+		return false, 0, "", "non-system pools FAIL: no system pool found"
 	}
 	return true, systemMin, systemProvState, ""
 }
 
-// evalGuard4 reports whether the system pool itself is in a wedge-
-// compatible state. Refines guard 1 (NRP failure storm) with a positive
-// signal scoped to this exact agent-pool resource.
+// evalSystemWedge reports whether the system pool itself is in a
+// wedge-compatible state. Refines the NRP-KVS storm check with a
+// positive signal scoped to this exact agent-pool resource.
 //
 // Accepts:
 //   - Failed   — RP gave up retrying the VMSS write chain.
@@ -758,76 +865,76 @@ func evalGuard3(pools []*armcs.AgentPool) (bool, int32, string, string) {
 //   - Creating  — pool not fully created yet; do not interfere.
 //   - Deleting  — pool being torn down; do not interfere.
 //   - empty / unknown — fail conservatively.
-func evalGuard4(systemProvState string) (bool, string) {
+func evalSystemWedge(systemProvState string) (bool, string) {
 	switch systemProvState {
 	case "Failed", "Canceled", "Updating", "Upgrading":
 		return true, ""
 	case "Succeeded":
-		return false, "guard 4 FAIL: system pool provisioningState=\"Succeeded\" (no wedge)"
+		return false, "system wedge FAIL: provisioningState=\"Succeeded\" (no wedge)"
 	case "Creating":
-		return false, "guard 4 FAIL: system pool provisioningState=\"Creating\" (not fully created)"
+		return false, "system wedge FAIL: provisioningState=\"Creating\" (not fully created)"
 	case "Deleting":
-		return false, "guard 4 FAIL: system pool provisioningState=\"Deleting\" (being torn down)"
+		return false, "system wedge FAIL: provisioningState=\"Deleting\" (being torn down)"
 	case "":
-		return false, "guard 4 FAIL: system pool provisioningState is empty"
+		return false, "system wedge FAIL: provisioningState is empty"
 	}
-	return false, fmt.Sprintf("guard 4 FAIL: system pool provisioningState=%q is not a recognized wedge-compatible state", systemProvState)
+	return false, fmt.Sprintf("system wedge FAIL: provisioningState=%q is not a recognized wedge-compatible state", systemProvState)
 }
 
 func (c *clients) detect(ctx context.Context) (bool, string, error) {
-	// Guard 2: cluster provisioning state
+	// Cluster state check
 	mc, err := c.cluster.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
 	if err != nil {
-		return false, "", fmt.Errorf("guard 2 cluster get: %w", err)
+		return false, "", fmt.Errorf("cluster state get: %w", err)
 	}
 	cs := ""
 	if mc.Properties != nil && mc.Properties.ProvisioningState != nil {
 		cs = *mc.Properties.ProvisioningState
 	}
-	logf("guard 2 :: cluster provisioningState=%s (accept: Succeeded/Canceled/Failed/Updating/Upgrading; reject: Creating/Deleting/unknown)", cs)
-	if pass, reason := evalGuard2(cs); !pass {
+	logf("cluster state :: provisioningState=%s (accept: Succeeded/Canceled/Failed/Updating/Upgrading; reject: Creating/Deleting/unknown)", cs)
+	if pass, reason := evalClusterState(cs); !pass {
 		return false, reason, nil
 	}
-	logf("guard 2 PASS")
+	logf("cluster state PASS")
 
-	// Guard 3: non-system pools healthy, plus discover system minCount.
+	// Non-system pools check (also discovers system minCount and state).
 	pager := c.pools.NewListPager(c.cfg.resourceGroup, c.cfg.clusterName, nil)
 	var allPools []*armcs.AgentPool
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return false, "", fmt.Errorf("guard 3 list pools: %w", err)
+			return false, "", fmt.Errorf("non-system pools list: %w", err)
 		}
 		allPools = append(allPools, page.Value...)
 	}
-	pass, systemMin, systemProvState, reason := evalGuard3(allPools)
+	pass, systemMin, systemProvState, reason := evalNonSystemPools(allPools)
 	if !pass {
 		return false, reason, nil
 	}
-	logf("guard 3 PASS (system minCount=%d systemProvState=%q)", systemMin, systemProvState)
+	logf("non-system pools PASS (system minCount=%d systemProvState=%q)", systemMin, systemProvState)
 
-	// Guard 4: system pool itself is in a wedge-compatible state.
-	if pass, reason := evalGuard4(systemProvState); !pass {
+	// System wedge check (system pool itself is in a wedge-compatible state).
+	if pass, reason := evalSystemWedge(systemProvState); !pass {
 		return false, reason, nil
 	}
-	logf("guard 4 PASS (system pool provisioningState=%q)", systemProvState)
+	logf("system wedge PASS (system pool provisioningState=%q)", systemProvState)
 
-	// Guard 1: NRP retry loop on aks-system-* VMSS
-	logf("guard 1 :: checking activity log on %s for last %d min", c.cfg.nodeRG, c.cfg.windowMin)
+	// NRP-KVS storm check (activity log on aks-system-* VMSS)
+	logf("NRP-KVS storm :: checking activity log on %s for last %d min", c.cfg.nodeRG, c.cfg.windowMin)
 	out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", c.cfg.windowMin))
 	if err != nil {
-		return false, "", fmt.Errorf("guard 1 activity-log query failed: %w", err)
+		return false, "", fmt.Errorf("NRP-KVS storm activity-log query failed: %w", err)
 	}
-	hits, err := countNRPFailures(out, "aks-system-")
+	hits, err := countNRPFailures(out, systemVMSSPrefix)
 	if err != nil {
-		return false, "", fmt.Errorf("guard 1 activity-log parse failed: %w", err)
+		return false, "", fmt.Errorf("NRP-KVS storm activity-log parse failed: %w", err)
 	}
-	logf("guard 1 :: NRP-KVS (%s) Failed events on aks-system-* in window: %d (threshold %d)",
+	logf("NRP-KVS storm :: NRP-KVS (%s) Failed events on aks-system-* in window: %d (threshold %d)",
 		nrpKVSErrorCode, hits, c.cfg.threshold)
-	if pass, reason := evalGuard1(hits, c.cfg.threshold); !pass {
+	if pass, reason := evalNRPStorm(hits, c.cfg.threshold); !pass {
 		return false, reason, nil
 	}
-	logf("guard 1 PASS")
+	logf("NRP-KVS storm PASS")
 
 	return true, "", nil
 }
@@ -1180,6 +1287,83 @@ func (c *clients) reconcileTagPut(ctx context.Context) error {
 }
 
 // ---------------------------------------------------------------------------
+// forced-evidence trigger (used only when cluster-state, non-system-pools,
+// and system-wedge checks PASS and the NRP-KVS-storm check FAILs
+// because the activity log has no recent NRP-KVS events)
+// ---------------------------------------------------------------------------
+
+// triggerSystemReconcile starts an AKS RP reconcile of the live system
+// pool by issuing a sanitized CreateOrUpdate with the snapshot spec.
+// It does not wait for the LRO to finish — the caller polls the activity
+// log for NRP-KVS evidence in parallel and aborts the LRO when done.
+func (c *clients) triggerSystemReconcile(ctx context.Context, live *armcs.AgentPool) error {
+	body, err := agentPoolForCreate(live, c.cfg.cpVersion)
+	if err != nil {
+		return fmt.Errorf("triggerSystemReconcile: %w", err)
+	}
+	logf("triggering AgentPool CreateOrUpdate on %q (no-op reconcile with live spec)", systemPoolName)
+	if _, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, systemPoolName, *body, nil); err != nil {
+		return fmt.Errorf("begin trigger system reconcile: %w", err)
+	}
+	return nil
+}
+
+// pollForNRPEvidence re-queries the activity log on a fixed interval
+// until the NRP-KVS Failed-event count reaches threshold or the timeout
+// elapses. windowMin controls how far back each poll looks (a window
+// equal to the timeout makes every poll see all events since the
+// trigger).
+func (c *clients) pollForNRPEvidence(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
+	if pollInterval <= 0 {
+		pollInterval = 60 * time.Second
+	}
+	deadline := time.Now().Add(timeout)
+	last := 0
+	for {
+		out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", windowMin))
+		if err != nil {
+			return last, fmt.Errorf("forced-evidence activity-log query: %w", err)
+		}
+		hits, parseErr := countNRPFailures(out, systemVMSSPrefix)
+		if parseErr != nil {
+			return last, fmt.Errorf("forced-evidence activity-log parse: %w", parseErr)
+		}
+		last = hits
+		logf("forced evidence poll: NRP-KVS hits=%d threshold=%d (window=%dm)", hits, threshold, windowMin)
+		if hits >= threshold {
+			return hits, nil
+		}
+		if !time.Now().Before(deadline) {
+			return hits, nil
+		}
+		sleep := pollInterval
+		if remaining := time.Until(deadline); remaining < sleep {
+			sleep = remaining
+		}
+		select {
+		case <-ctx.Done():
+			return last, ctx.Err()
+		case <-time.After(sleep):
+		}
+	}
+}
+
+// abortSystemReconcile aborts the latest LRO on the system pool, which
+// (when the forced-evidence trigger started one) cancels the in-flight
+// CreateOrUpdate. Best-effort: failures here are logged by the caller
+// but not propagated.
+func (c *clients) abortSystemReconcile(ctx context.Context) error {
+	poller, err := c.pools.BeginAbortLatestOperation(ctx, c.cfg.resourceGroup, c.cfg.clusterName, systemPoolName, nil)
+	if err != nil {
+		return fmt.Errorf("begin abort system reconcile: %w", err)
+	}
+	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
+		return fmt.Errorf("poll abort system reconcile: %w", err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 
@@ -1240,6 +1424,18 @@ func isNodeSchedulableReady(n *corev1.Node) bool {
 		return false
 	}
 	return n.DeletionTimestamp == nil
+}
+
+// reasonIsNRPStormFail reports whether a detect() reason string
+// indicates that the cluster-state, non-system-pools, and system-wedge
+// checks all PASSed and only the NRP-KVS-storm check FAILed.
+// Used to gate the forced-evidence trigger path: the cluster is in a
+// wedge-compatible state, but the activity log has no recent NRP-KVS
+// events in the configured lookback window. The forced-evidence path
+// triggers a no-op reconcile on the live system pool to give AKS a
+// chance to re-attempt the failing VMSS write before deciding to act.
+func reasonIsNRPStormFail(reason string) bool {
+	return strings.HasPrefix(strings.TrimSpace(reason), "NRP-KVS storm FAIL")
 }
 
 // activityLogJSON returns Activity Log events in the compact JSON shape used
@@ -1394,8 +1590,8 @@ type activityEvent struct {
 
 // hasNRPKVSSignature reports whether an activity-log event's inner ARM
 // error body carries the NetworkingInternalOperationError code. Returns
-// false on any parse error or missing field — guard 1 must fail closed
-// rather than over-count.
+// false on any parse error or missing field — the NRP-KVS-storm
+// check must fail closed rather than over-count.
 func hasNRPKVSSignature(e activityEvent) bool {
 	msg := strings.TrimSpace(e.Properties.StatusMessage)
 	if msg == "" {
