@@ -147,12 +147,8 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 		return nil
 	}
 
-	// We check if we have seen the deletion marker being set for this node pool
-	// for at least the duration specified in firstSeenDeletionGracePeriod. If we
-	// don't we don't proceed with the deletion. This is to avoid immediately
-	// triggering deletion in scenarios where the nodepool was marked for deletion
-	// but the controllers were not available until some time afterwards for some reason. For
-	// example, both create and delete controllers not being available and restarting at the same time.
+	// We check if we have seen the deletion marker being set for this node pool.
+	// If we don't we start tracking it in the cache.
 	nodePoolDeletionTimestamp := nodePool.ServiceProviderProperties.DeletionTimestamp.Time
 	cacheKey := strings.ToLower(nodePool.ID.String())
 	var firstSeenNodePoolDeletionTimestamp time.Time
