@@ -107,13 +107,9 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			readDesireLister, err := newSeededReadDesireLister(ctx, tc.readDesire)
 			require.NoError(t, err)
 
-			clusterLister := &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{tc.existingCluster},
-			}
-
 			syncer := &clusterPropertiesSyncer{
 				cooldownChecker:   &alwaysSyncCooldownChecker{},
-				clusterLister:     clusterLister,
+				clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
 				resourcesDBClient: mockResourcesDB,
 				readDesireLister:  readDesireLister,
 			}

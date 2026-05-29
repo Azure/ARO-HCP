@@ -1,5 +1,6 @@
 {
 	"cosmosMetadata": {
+		"instanceVersion": 1,
 		"resourceId": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/first-node-pool/hcpOpenShiftControllers/first-controller"
 	},
 	"externalId": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/first-node-pool",

@@ -234,24 +234,11 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Create(ctx context.Co
 	if err := database.PrepareForCreate(newObj); err != nil {
 		return nil, err
 	}
-	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	cosmosMetadata, data, err := database.SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
+		return nil, err
 	}
-
-	data, err := json.Marshal(cosmosObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal cosmos object: %w", err)
-	}
-
-	// Get cosmos ID from the object
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
-	if !ok {
-		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
-	}
-
-	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.GetCosmosUID()
+	cosmosID := cosmosMetadata.GetCosmosUID()
 
 	// Check for existing
 	if _, exists := m.client.GetDocument(cosmosID); exists {
@@ -273,31 +260,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	if err := database.PrepareForReplace(newObj); err != nil {
 		return nil, err
 	}
-	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	cosmosMetadata, data, err := database.SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert to cosmos type: %w", err)
+		return nil, err
 	}
-
-	data, err := json.Marshal(cosmosObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal cosmos object: %w", err)
-	}
-
-	// Get cosmos ID and resource info from the converted cosmos object
-	typedDocAccessor, ok := any(cosmosObj).(database.TypedDocumentAccessor)
-	if !ok {
-		return nil, fmt.Errorf("type %T does not implement TypedDocumentAccessor", cosmosObj)
-	}
-	typedDoc := typedDocAccessor.GetTypedDocument()
-	newCosmosID := typedDoc.ID
-	resourceName := typedDoc.ResourceID.Name
-
-	// PrepareForReplace guarantees a non-empty etag on newObj.
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
-	if !ok {
-		return nil, fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
-	}
-	expectedETag := cosmosPersistable.GetCosmosData().CosmosETag
+	resourceName := cosmosMetadata.ResourceID.Name
+	expectedETag := cosmosMetadata.CosmosETag
 
 	oldObj, err := m.Get(ctx, resourceName)
 	if err != nil {
@@ -319,8 +287,6 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(ctx context.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to inject ID: %w", err)
 	}
-	// Use the existing cosmosID to maintain consistency
-	_ = newCosmosID // newCosmosID should match existingCosmosID
 	m.client.StoreDocument(existingCosmosID, dataWithETag)
 
 	// Read back the stored object
@@ -345,23 +311,11 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransactio
 	if err := database.PrepareForCreate(newObj); err != nil {
 		return "", err
 	}
-	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	cosmosMetadata, data, err := database.SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
+		return "", err
 	}
-
-	data, err := json.Marshal(cosmosObj)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
-	}
-
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
-	if !ok {
-		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
-	}
-
-	cosmosData := cosmosPersistable.GetCosmosData()
-	cosmosID := cosmosData.GetCosmosUID()
+	cosmosID := cosmosMetadata.GetCosmosUID()
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
@@ -394,29 +348,12 @@ func (m *mockResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransacti
 	if err := database.PrepareForReplace(newObj); err != nil {
 		return "", err
 	}
-	cosmosObj, err := database.InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	cosmosMetadata, data, err := database.SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert to cosmos type: %w", err)
+		return "", err
 	}
-
-	data, err := json.Marshal(cosmosObj)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal cosmos object: %w", err)
-	}
-
-	// Get cosmos ID from the converted cosmos object
-	typedDocAccessor, ok := any(cosmosObj).(database.TypedDocumentAccessor)
-	if !ok {
-		return "", fmt.Errorf("type %T does not implement TypedDocumentAccessor", cosmosObj)
-	}
-	cosmosID := typedDocAccessor.GetTypedDocument().ID
-
-	// PrepareForReplace guarantees a non-empty etag on newObj.
-	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
-	if !ok {
-		return "", fmt.Errorf("type %T does not implement CosmosPersistable", newObj)
-	}
-	expectedETag := cosmosPersistable.GetCosmosData().CosmosETag
+	cosmosID := cosmosMetadata.GetCosmosUID()
+	expectedETag := cosmosMetadata.CosmosETag
 
 	mockTx, ok := transaction.(*mockTransaction)
 	if !ok {
