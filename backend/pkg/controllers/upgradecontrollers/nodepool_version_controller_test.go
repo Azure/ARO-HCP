@@ -38,12 +38,14 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -168,21 +170,21 @@ func newCSNodePool(t *testing.T, version string) *arohcpv1alpha1.NodePool {
 	return csNodePool
 }
 
-// hostedClusterContentResourceID returns the resource ID for the readonly HostedCluster ManagementClusterContent
-// associated with the test cluster. The slice lister matches on this ID to satisfy GetForCluster.
-func hostedClusterContentResourceID(t *testing.T) *azcorearm.ResourceID {
+// hostedClusterReadDesireResourceID returns the resource ID for the readonly
+// HostedCluster ReadDesire associated with the test cluster. The slice lister
+// matches on this ID to satisfy GetForCluster.
+func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + testSubscriptionID +
-			"/resourceGroups/" + testResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-			"/" + api.ManagementClusterContentResourceTypeName + "/" + string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)))
+		kubeapplier.ToClusterScopedReadDesireResourceIDString(
+			testSubscriptionID, testResourceGroupName, testClusterName, maestrohelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 
-// newHostedClusterContent builds a ManagementClusterContent whose KubeContent contains a single HostedCluster
-// with the given Spec.ClusterID. The controller parses spec.clusterID out of this raw payload via
-// unstructured.Unstructured, which requires apiVersion/kind to be present.
-func newHostedClusterContent(t *testing.T, clusterID string) *api.ManagementClusterContent {
+// newHostedClusterReadDesire builds a ReadDesire whose Status.KubeContent.Raw is
+// the serialized HostedCluster carrying the given Spec.ClusterID. The
+// consumer maestrohelpers.GetCachedHostedClusterForCluster unmarshals it as
+// the raw HostedCluster directly.
+func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.ReadDesire {
 	t.Helper()
 	hostedCluster := &v1beta1.HostedCluster{
 		TypeMeta: metav1.TypeMeta{
@@ -195,22 +197,21 @@ func newHostedClusterContent(t *testing.T, clusterID string) *api.ManagementClus
 	}
 	raw, err := json.Marshal(hostedCluster)
 	require.NoError(t, err)
-	return &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: hostedClusterContentResourceID(t)},
-		Status: api.ManagementClusterContentStatus{
-			KubeContent: &metav1.List{
-				Items: []kruntime.RawExtension{{Raw: raw}},
-			},
+	return &kubeapplier.ReadDesire{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: hostedClusterReadDesireResourceID(t)},
+		Status: kubeapplier.ReadDesireStatus{
+			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
 	}
 }
 
-// newValidHostedClusterContentLister returns a lister with a HostedCluster carrying the canonical test UUID.
-// Tests that don't care about the new error paths get a working lister this way.
-func newValidHostedClusterContentLister(t *testing.T) listers.ManagementClusterContentLister {
+// newValidHostedClusterReadDesireLister returns a lister with a HostedCluster
+// ReadDesire carrying the canonical test UUID. Tests that don't care about
+// the new error paths get a working lister this way.
+func newValidHostedClusterReadDesireLister(t *testing.T) dblisters.ReadDesireLister {
 	t.Helper()
-	return &listertesting.SliceManagementClusterContentLister{
-		Contents: []*api.ManagementClusterContent{newHostedClusterContent(t, testClusterExternalID)},
+	return &internallistertesting.SliceReadDesireLister{
+		Desires: []*kubeapplier.ReadDesire{newHostedClusterReadDesire(t, testClusterExternalID)},
 	}
 }
 
@@ -226,7 +227,7 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 		name                  string
 		seedDB                func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
 		mockCS                func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec)
-		contentLister         func(t *testing.T) listers.ManagementClusterContentLister
+		readDesireLister      func(t *testing.T) dblisters.ReadDesireLister
 		expectedError         bool
 		expectedErrorContains string
 	}{
@@ -322,17 +323,17 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			tt.seedDB(t, ctx, mockResourcesDBClient)
 			tt.mockCS(t, mockCS)
 
-			contentLister := newValidHostedClusterContentLister(t)
-			if tt.contentLister != nil {
-				contentLister = tt.contentLister(t)
+			contentLister := newValidHostedClusterReadDesireLister(t)
+			if tt.readDesireLister != nil {
+				contentLister = tt.readDesireLister(t)
 			}
 
 			syncer := &nodePoolVersionSyncer{
-				cooldownChecker:                       &alwaysSyncCooldownChecker{},
-				clusterManagementClusterContentLister: contentLister,
-				resourcesDBClient:                     mockResourcesDBClient,
-				clusterServiceClient:                  mockCS,
-				cincinnatiClientCache:                 mockClientCache,
+				cooldownChecker:       &alwaysSyncCooldownChecker{},
+				readDesireLister:      contentLister,
+				resourcesDBClient:     mockResourcesDBClient,
+				clusterServiceClient:  mockCS,
+				cincinnatiClientCache: mockClientCache,
 			}
 
 			ctx = utils.ContextWithLogger(ctx, logr.Discard())
@@ -686,11 +687,11 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 		Times(1)
 
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       &alwaysSyncCooldownChecker{},
-		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-		resourcesDBClient:                     mockResourcesDBClient,
-		clusterServiceClient:                  mockCS,
-		cincinnatiClientCache:                 mockClientCache,
+		cooldownChecker:       &alwaysSyncCooldownChecker{},
+		readDesireLister:      newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:     mockResourcesDBClient,
+		clusterServiceClient:  mockCS,
+		cincinnatiClientCache: mockClientCache,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -746,11 +747,11 @@ func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       &alwaysSyncCooldownChecker{},
-		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-		resourcesDBClient:                     mockResourcesDBClient,
-		clusterServiceClient:                  mockCS,
-		cincinnatiClientCache:                 mockClientCache,
+		cooldownChecker:       &alwaysSyncCooldownChecker{},
+		readDesireLister:      newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:     mockResourcesDBClient,
+		clusterServiceClient:  mockCS,
+		cincinnatiClientCache: mockClientCache,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -814,11 +815,11 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       &alwaysSyncCooldownChecker{},
-		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-		resourcesDBClient:                     mockResourcesDBClient,
-		clusterServiceClient:                  mockCS,
-		cincinnatiClientCache:                 mockClientCache,
+		cooldownChecker:       &alwaysSyncCooldownChecker{},
+		readDesireLister:      newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:     mockResourcesDBClient,
+		clusterServiceClient:  mockCS,
+		cincinnatiClientCache: mockClientCache,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -861,11 +862,11 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
 		Times(1)
 
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       &alwaysSyncCooldownChecker{},
-		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-		resourcesDBClient:                     mockResourcesDBClient,
-		clusterServiceClient:                  mockCS,
-		cincinnatiClientCache:                 mockClientCache,
+		cooldownChecker:       &alwaysSyncCooldownChecker{},
+		readDesireLister:      newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:     mockResourcesDBClient,
+		clusterServiceClient:  mockCS,
+		cincinnatiClientCache: mockClientCache,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -918,11 +919,11 @@ func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       &alwaysSyncCooldownChecker{},
-		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-		resourcesDBClient:                     mockResourcesDBClient,
-		clusterServiceClient:                  mockCS,
-		cincinnatiClientCache:                 mockClientCache,
+		cooldownChecker:       &alwaysSyncCooldownChecker{},
+		readDesireLister:      newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:     mockResourcesDBClient,
+		clusterServiceClient:  mockCS,
+		cincinnatiClientCache: mockClientCache,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -981,11 +982,11 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).Times(1)
 
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       &alwaysSyncCooldownChecker{},
-		clusterManagementClusterContentLister: newValidHostedClusterContentLister(t),
-		resourcesDBClient:                     mockResourcesDBClient,
-		clusterServiceClient:                  mockCS,
-		cincinnatiClientCache:                 mockClientCache,
+		cooldownChecker:       &alwaysSyncCooldownChecker{},
+		readDesireLister:      newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:     mockResourcesDBClient,
+		clusterServiceClient:  mockCS,
+		cincinnatiClientCache: mockClientCache,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{

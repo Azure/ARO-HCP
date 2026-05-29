@@ -36,9 +36,12 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -47,6 +50,7 @@ type operationClusterCreate struct {
 	clock                                 utilsclock.PassiveClock
 	clusterLister                         listers.ClusterLister
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
+	readDesireLister                      dblisters.ReadDesireLister
 	resourcesDBClient                     database.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	notificationClient                    *http.Client
@@ -73,6 +77,7 @@ func NewOperationClusterCreateController(
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 	informers informers.BackendInformers,
+	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
@@ -80,6 +85,7 @@ func NewOperationClusterCreateController(
 		clock:                                 clock,
 		clusterLister:                         clusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
+		readDesireLister:                      readDesireLister,
 		resourcesDBClient:                     resourcesDBClient,
 		clusterServiceClient:                  clusterServiceClient,
 		notificationClient:                    notificationClient,
@@ -228,34 +234,31 @@ var minVersionsWithValidSuccessCondition = map[string]semver.Version{
 func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	hostedClusterContent, err := c.clusterManagementClusterContentLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+	// Pull the HostedCluster directly from the per-cluster ReadDesire via
+	// the union lister. The union lister hides per-MC routing so callers
+	// don't need to know which management cluster the HostedCluster is on.
+	readDesire, err := c.readDesireLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, maestrohelpers.ReadDesireNameReadonlyHostedCluster)
 	if database.IsNotFoundError(err) {
 		return newOperationState(arm.ProvisioningStateProvisioning, ""), nil
 	}
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	if !meta.IsStatusConditionFalse(hostedClusterContent.Status.Conditions, "Degraded") {
-		message := "maestro bundle is degraded, degraded condition missing"
-		if degradedCondition := meta.FindStatusCondition(hostedClusterContent.Status.Conditions, "Degraded"); degradedCondition != nil {
-			message = fmt.Sprintf("maestro bundle is degraded: %s: %s", degradedCondition.Reason, degradedCondition.Message)
+	if !meta.IsStatusConditionTrue(readDesire.Status.Conditions, kubeapplier.ConditionTypeSuccessful) {
+		message := "ReadDesire has not yet successfully observed the target"
+		if successfulCondition := meta.FindStatusCondition(readDesire.Status.Conditions, kubeapplier.ConditionTypeSuccessful); successfulCondition != nil {
+			message = fmt.Sprintf("ReadDesire is not successful: %s: %s", successfulCondition.Reason, successfulCondition.Message)
 		}
-		logger.Info("maestro bundle is degraded", "hostedClusterContent.Status.Conditions", hostedClusterContent.Status.Conditions)
+		logger.Info("ReadDesire is not successful", "readDesire.Status.Conditions", readDesire.Status.Conditions)
 		return newOperationState(arm.ProvisioningStateProvisioning, message), nil
 	}
 
-	if hostedClusterContent.Status.KubeContent == nil {
-		return newOperationState(arm.ProvisioningStateProvisioning, "maestro bundle has no kube content"), nil
-	}
-	if len(hostedClusterContent.Status.KubeContent.Items) == 0 {
-		return newOperationState(arm.ProvisioningStateProvisioning, "maestro bundle has no items in kube content"), nil
-	}
-	if len(hostedClusterContent.Status.KubeContent.Items) > 1 {
-		return nil, utils.TrackError(fmt.Errorf("unexpected number of kube content items: %d", len(hostedClusterContent.Status.KubeContent.Items)))
+	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ReadDesire has no kube content"), nil
 	}
 
 	hostedCluster := &v1beta1.HostedCluster{}
-	if err := json.Unmarshal(hostedClusterContent.Status.KubeContent.Items[0].Raw, hostedCluster); err != nil {
+	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, hostedCluster); err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to decode HostedCluster: %w", err))
 	}
 

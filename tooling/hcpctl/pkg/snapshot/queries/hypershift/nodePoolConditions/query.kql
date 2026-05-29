@@ -7,12 +7,12 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | where log.controller_name == 'datadump'
 | where log.resource_group == '{{ .ResourceGroup }}'
 | where log.resource_name == '{{ .ClusterResourceName }}'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/managementclustercontents'
+| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/readdesires'
 | where log.content.resourceID has '{{ .ResourceName }}'
 | summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
 | top 1 by tolong(content._ts) desc
 | extend content = parse_json(content)
-| mv-expand manifest = content.properties.status.kubeContent.items
+| extend manifest = content.properties.status.kubeContent
 | where manifest.kind == 'NodePool'
 | mv-expand condition = manifest.status.conditions
 | project observedTime, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message), lastTransitionTime=todatetime(condition.lastTransitionTime)

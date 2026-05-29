@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
@@ -44,10 +45,10 @@ import (
 // from CS and internal and helps selecting a valid desiredVersion within the user's
 // desired
 type nodePoolVersionSyncer struct {
-	cooldownChecker                       controllerutil.CooldownChecker
-	clusterManagementClusterContentLister listers.ManagementClusterContentLister
-	resourcesDBClient                     database.ResourcesDBClient
-	clusterServiceClient                  ocm.ClusterServiceClientSpec
+	cooldownChecker      controllerutil.CooldownChecker
+	readDesireLister     dblisters.ReadDesireLister
+	resourcesDBClient    database.ResourcesDBClient
+	clusterServiceClient ocm.ClusterServiceClientSpec
 
 	cincinnatiClientCache cincinnati.ClientCache
 }
@@ -62,14 +63,14 @@ func NewNodePoolVersionController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
-	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
-		resourcesDBClient:                     resourcesDBClient,
-		clusterServiceClient:                  clusterServiceClient,
-		cincinnatiClientCache:                 cincinnati.NewClientCache(),
+		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		readDesireLister:      readDesireLister,
+		resourcesDBClient:     resourcesDBClient,
+		clusterServiceClient:  clusterServiceClient,
+		cincinnatiClientCache: cincinnati.NewClientCache(),
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -151,7 +152,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
 	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
-	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.clusterManagementClusterContentLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}

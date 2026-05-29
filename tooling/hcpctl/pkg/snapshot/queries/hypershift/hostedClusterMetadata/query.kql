@@ -7,11 +7,11 @@ cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLo
 | where log.controller_name == 'datadump'
 | where log.resource_group == '{{ .ResourceGroup }}'
 | where log.resource_name == '{{ .ClusterResourceName }}'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/managementclustercontents'
+| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
 | summarize content=take_any(log.content) by etag=tostring(log.content._etag)
 | sort by tolong(content._ts) asc
 | extend content = parse_json(content)
-| mv-expand manifest = content.properties.status.kubeContent.items
+| extend manifest = content.properties.status.kubeContent
 | where manifest.kind == 'HostedCluster'
 | extend hostedClusterNamespace = tostring(manifest.metadata.namespace), hostedClusterName = tostring(manifest.metadata.name)
 | distinct hostedClusterNamespace, hostedClusterName

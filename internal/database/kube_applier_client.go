@@ -77,12 +77,18 @@ func (l *dbBackedManagementClusterLister) List(ctx context.Context) ([]*fleet.Ma
 // Callers that span multiple management clusters (the backend) hold a
 // KubeApplierDBClients (plural) and obtain a per-MC client via For().
 type KubeApplierDBClient interface {
-	// ApplyDesires returns a CRUD scoped to the (cluster, [nodepool]) parent.
-	ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error)
-	// DeleteDesires returns a CRUD scoped to the (cluster, [nodepool]) parent.
-	DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error)
-	// ReadDesires returns a CRUD scoped to the (cluster, [nodepool]) parent.
-	ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error)
+	// ApplyDesiresForCluster returns a CRUD scoped to a cluster parent.
+	ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire], error)
+	// ApplyDesiresForNodePool returns a CRUD scoped to a nodepool parent.
+	ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ApplyDesire], error)
+	// DeleteDesiresForCluster returns a CRUD scoped to a cluster parent.
+	DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.DeleteDesire], error)
+	// DeleteDesiresForNodePool returns a CRUD scoped to a nodepool parent.
+	DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.DeleteDesire], error)
+	// ReadDesiresForCluster returns a CRUD scoped to a cluster parent.
+	ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ReadDesire], error)
+	// ReadDesiresForNodePool returns a CRUD scoped to a nodepool parent.
+	ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ReadDesire], error)
 
 	// Listers lists every *Desire of each kind in this container — i.e. across the
 	// one management cluster's worth of data. Replaces the old GlobalListers /
@@ -109,53 +115,54 @@ type KubeApplierListers interface {
 // apply_desire controller takes as its database dependency. KubeApplierDBClient
 // satisfies it; tests can also provide a one-method fake.
 type KubeApplierApplyDesireCRUD interface {
-	ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error)
+	ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire], error)
+	ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ApplyDesire], error)
 }
 
 // KubeApplierDeleteDesireCRUD is the DeleteDesire peer of KubeApplierApplyDesireCRUD.
 type KubeApplierDeleteDesireCRUD interface {
-	DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error)
+	DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.DeleteDesire], error)
+	DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.DeleteDesire], error)
 }
 
 // KubeApplierReadDesireCRUD is the ReadDesire peer of KubeApplierApplyDesireCRUD.
 type KubeApplierReadDesireCRUD interface {
-	ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error)
+	ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ReadDesire], error)
+	ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ReadDesire], error)
 }
 
-// ResourceParent identifies what a *Desire is nested under in the resource ID
-// hierarchy. NodePoolName is optional: leave it empty for cluster-scoped desires.
-type ResourceParent struct {
-	SubscriptionID    string
-	ResourceGroupName string
-	ClusterName       string
-	NodePoolName      string
-}
-
-// IsNodePoolScoped reports whether the parent identifies a node pool (not just a cluster).
-func (p ResourceParent) IsNodePoolScoped() bool {
-	return len(p.NodePoolName) != 0
-}
-
-// resourceID returns the parent resource ID used as the prefix for nested *Desires.
-func (p ResourceParent) resourceID() (*azcorearm.ResourceID, error) {
-	if len(p.SubscriptionID) == 0 {
+// clusterParentResourceID returns the parent resource ID for a cluster-scoped
+// *Desire (everything under /providers/.../hcpOpenShiftClusters/<clusterName>).
+func clusterParentResourceID(subscriptionID, resourceGroupName, clusterName string) (*azcorearm.ResourceID, error) {
+	if len(subscriptionID) == 0 {
 		return nil, fmt.Errorf("subscriptionID is required")
 	}
-	if len(p.ResourceGroupName) == 0 {
+	if len(resourceGroupName) == 0 {
 		return nil, fmt.Errorf("resourceGroupName is required")
 	}
-	if len(p.ClusterName) == 0 {
+	if len(clusterName) == 0 {
 		return nil, fmt.Errorf("clusterName is required")
 	}
-	parts := []string{
-		"/subscriptions", strings.ToLower(p.SubscriptionID),
-		"resourceGroups", p.ResourceGroupName,
-		"providers", api.ClusterResourceType.String(), p.ClusterName,
+	return azcorearm.ParseResourceID(strings.ToLower(path.Join(
+		"/subscriptions", strings.ToLower(subscriptionID),
+		"resourceGroups", resourceGroupName,
+		"providers", api.ClusterResourceType.String(), clusterName,
+	)))
+}
+
+// nodePoolParentResourceID returns the parent resource ID for a nodepool-scoped
+// *Desire (under .../hcpOpenShiftClusters/<clusterName>/nodePools/<nodePoolName>).
+func nodePoolParentResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*azcorearm.ResourceID, error) {
+	if len(nodePoolName) == 0 {
+		return nil, fmt.Errorf("nodePoolName is required")
 	}
-	if p.IsNodePoolScoped() {
-		parts = append(parts, api.NodePoolResourceTypeName, p.NodePoolName)
+	clusterID, err := clusterParentResourceID(subscriptionID, resourceGroupName, clusterName)
+	if err != nil {
+		return nil, err
 	}
-	return azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...)))
+	return azcorearm.ParseResourceID(strings.ToLower(path.Join(
+		clusterID.String(), api.NodePoolResourceTypeName, nodePoolName,
+	)))
 }
 
 // kubeApplierCosmosDBClient implements KubeApplierDBClient against a Cosmos
@@ -192,45 +199,63 @@ func NewKubeApplierDBClientFromDatabase(database *azcosmos.DatabaseClient, conta
 	return NewKubeApplierDBClient(container, managementClusterPartitionKey), nil
 }
 
-func (c *kubeApplierCosmosDBClient) ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error) {
-	parentID, err := parent.resourceID()
+func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire], error) {
+	parentID, err := clusterParentResourceID(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return nil, err
-	}
-	resourceType := kubeapplier.ClusterScopedApplyDesireResourceType
-	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedApplyDesireResourceType
 	}
 	return newKubeApplierResourceCRUD[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, resourceType,
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.ClusterScopedApplyDesireResourceType,
 	), nil
 }
 
-func (c *kubeApplierCosmosDBClient) DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error) {
-	parentID, err := parent.resourceID()
+func (c *kubeApplierCosmosDBClient) ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ApplyDesire], error) {
+	parentID, err := nodePoolParentResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
-	resourceType := kubeapplier.ClusterScopedDeleteDesireResourceType
-	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedDeleteDesireResourceType
+	return newKubeApplierResourceCRUD[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.NodePoolScopedApplyDesireResourceType,
+	), nil
+}
+
+func (c *kubeApplierCosmosDBClient) DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.DeleteDesire], error) {
+	parentID, err := clusterParentResourceID(subscriptionID, resourceGroupName, clusterName)
+	if err != nil {
+		return nil, err
 	}
 	return newKubeApplierResourceCRUD[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, resourceType,
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.ClusterScopedDeleteDesireResourceType,
 	), nil
 }
 
-func (c *kubeApplierCosmosDBClient) ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error) {
-	parentID, err := parent.resourceID()
+func (c *kubeApplierCosmosDBClient) DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.DeleteDesire], error) {
+	parentID, err := nodePoolParentResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
-	resourceType := kubeapplier.ClusterScopedReadDesireResourceType
-	if parent.IsNodePoolScoped() {
-		resourceType = kubeapplier.NodePoolScopedReadDesireResourceType
+	return newKubeApplierResourceCRUD[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.NodePoolScopedDeleteDesireResourceType,
+	), nil
+}
+
+func (c *kubeApplierCosmosDBClient) ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ReadDesire], error) {
+	parentID, err := clusterParentResourceID(subscriptionID, resourceGroupName, clusterName)
+	if err != nil {
+		return nil, err
 	}
 	return newKubeApplierResourceCRUD[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, resourceType,
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.ClusterScopedReadDesireResourceType,
+	), nil
+}
+
+func (c *kubeApplierCosmosDBClient) ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ReadDesire], error) {
+	parentID, err := nodePoolParentResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	if err != nil {
+		return nil, err
+	}
+	return newKubeApplierResourceCRUD[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
+		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.NodePoolScopedReadDesireResourceType,
 	), nil
 }
 
