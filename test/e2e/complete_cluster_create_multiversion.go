@@ -43,22 +43,19 @@ import (
 var TestArtifactsFS embed.FS
 
 var _ = Describe("ARO-HCP", func() {
-	// Use channel group from environment variable, or default to stable
-	var channelGroup = framework.DefaultOpenshiftChannelGroup()
-	var nodePoolChannelGroup = framework.DefaultOpenshiftNodePoolChannelGroup()
 
 	DescribeTable("should be able to perform a control plane and node pool install with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
 		func(ctx context.Context, version string) {
+			clusterParams := framework.NewDefaultClusterParams20251223()
 
-			customerNetworkSecurityGroupName := "customer-nsg-" + channelGroup + "-"
-			customerVnetName := "customer-vnet-" + channelGroup + "-"
-			customerVnetSubnetName := "customer-vnet-subnet-" + channelGroup + "-"
-			customerClusterNamePrefix := "cluster-" + channelGroup + "-"
+			customerNetworkSecurityGroupName := "customer-nsg-" + clusterParams.ChannelGroup + "-"
+			customerVnetName := "customer-vnet-" + clusterParams.ChannelGroup + "-"
+			customerVnetSubnetName := "customer-vnet-subnet-" + clusterParams.ChannelGroup + "-"
+			customerClusterNamePrefix := "cluster-" + clusterParams.ChannelGroup + "-"
 
 			versionLabel := strings.ReplaceAll(version, ".", "-") // e.g. "4.20" -> "4-20"
 			suffix := rand.String(6)
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
-			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = version
 			openShiftControlPlaneVersion, err := framework.GetLatestInstallVersion(ctx, clusterParams.ChannelGroup, version)
@@ -78,10 +75,10 @@ var _ = Describe("ARO-HCP", func() {
 			}
 
 			By("creating resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-"+channelGroup+"-"+versionLabel, tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-"+clusterParams.ChannelGroup+"-"+versionLabel, tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for version %s", version)
 
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-"+channelGroup+"-"+suffix, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-"+clusterParams.ChannelGroup+"-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
@@ -98,7 +95,7 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", clusterName)
 
-			By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, channelGroup))
+			By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, clusterParams.ChannelGroup))
 			err = tc.CreateHCPClusterFromParam20251223(
 				ctx,
 				GinkgoLogr,
@@ -146,11 +143,11 @@ var _ = Describe("ARO-HCP", func() {
 				return vi.LT(vj)
 			})
 			if len(parseableVersions) == 0 {
-				Skip(fmt.Sprintf("No node pool install version found for %s in %s channel", version, nodePoolChannelGroup))
+				Skip(fmt.Sprintf("No node pool install version found for %s in %s channel", version, nodePoolParams.ChannelGroup))
 			}
 			nodePoolParams.OpenshiftVersionId = parseableVersions[0]
 
-			By(fmt.Sprintf("creating node pool %q with version '%s' on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, nodePoolChannelGroup))
+			By(fmt.Sprintf("creating node pool %q with version '%s' on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, nodePoolParams.ChannelGroup))
 			err = tc.CreateNodePoolFromParam20240610(
 				ctx,
 				GinkgoLogr,
