@@ -276,6 +276,23 @@ func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTCon
 			return scheduled >= 2, nil
 		})
 		if waitErr != nil {
+			events, eventsErr := kubeClient.CoreV1().Events(namespaceName).List(ctx, metav1.ListOptions{})
+			if eventsErr != nil {
+				logger.Error(eventsErr, "failed to list events for debugging", "namespace", namespaceName)
+			} else {
+				logger.Info("listing events for debugging echo scheduling failure", "namespace", namespaceName, "eventCount", len(events.Items))
+				for _, event := range events.Items {
+					logger.Info("event",
+						"type", event.Type,
+						"reason", event.Reason,
+						"message", event.Message,
+						"object", fmt.Sprintf("%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Name),
+						"count", event.Count,
+						"firstTimestamp", event.FirstTimestamp,
+						"lastTimestamp", event.LastTimestamp,
+					)
+				}
+			}
 			return fmt.Errorf("echo-a/echo-b pods were not scheduled in time: %w", waitErr)
 		}
 		logger.Info("echo-a and echo-b pods are scheduled, deploying remaining resources")
