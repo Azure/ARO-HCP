@@ -162,7 +162,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			cachedSPC:   newTestSPC(),
 			existingSPC: newTestSPC(),
 			cachedCluster: newTestHCPCluster(func(c *api.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = &api.InternalID{}
+				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			expectCSCall:                        false,
 			expectError:                         false,

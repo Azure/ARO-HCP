@@ -21,6 +21,7 @@ import (
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -45,18 +47,27 @@ const (
 	readonlyBundleManagedByK8sLabelValueNodePoolScoped = "create-nodepool-scoped-maestro-readonly-bundles-controller"
 )
 
-// createNodePoolScopedMaestroReadonlyBundlesSyncer is a controller that creates Maestro readonly bundles for the node pools.
-// It is responsible for creating the Maestro readonly bundles and storing a reference to them in Cosmos. It does
-// not persist the content of the Maestro bundles themselves. That is the responsibility of the
-// readAndPersistMaestroReadonlyBundlesContentSyncer controller.
-// As of now we support the creation of a Maestro readonly bundle for the Hypershift's NodePool CRs associated to
-// the Cluster.
+// createNodePoolScopedMaestroReadonlyBundlesSyncer reconciles Maestro readonly bundles scoped to a node pool.
+//
+// While the node pool is not being deleted, it is responsible for creating the Maestro readonly bundles and storing a reference to them in Cosmos.
+// It does not persist the content of the Maestro bundles themselves. That is handled by readAndPersistMaestroReadonlyBundlesContentSyncer.
+//
+// During node pool deletion, when the "serviceProviderProperties.clusterServiceID" property of the node pool is cleared, it deletes Maestro bundles and
+// clears references from the ServiceProviderNodePool document when possible.
+//
+// TODO the name of this controller is no longer accurate, at some point we should rename it to reflect the fact that now it has
+// both create and delete reconciliation paths. When doing that, we should make sure it does not impact functionality and
+// references to the old name in Cosmos are cleaned up.
 type createNodePoolScopedMaestroReadonlyBundlesSyncer struct {
 	cooldownChecker controllerutil.CooldownChecker
 
 	activeOperationLister listers.ActiveOperationLister
 
 	resourcesDBClient database.ResourcesDBClient
+	fleetDBClient     database.FleetDBClient
+
+	nodePoolLister                listers.NodePoolLister
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	clusterServiceClient ocm.ClusterServiceClientSpec
 
@@ -69,18 +80,28 @@ type createNodePoolScopedMaestroReadonlyBundlesSyncer struct {
 
 var _ controllerutils.NodePoolSyncer = (*createNodePoolScopedMaestroReadonlyBundlesSyncer)(nil)
 
+// NewCreateNodePoolScopedMaestroReadonlyBundlesController returns a node pool watching controller that reconciles Maestro
+// readonly bundles scoped to a node pool. This includes both create and delete reconciliation paths.
 func NewCreateNodePoolScopedMaestroReadonlyBundlesController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
+	fleetDBClient database.FleetDBClient,
+
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers informers.BackendInformers,
 	maestroSourceEnvironmentIdentifier string,
 	maestroClientBuilder maestro.MaestroClientBuilder,
 ) controllerutils.Controller {
 
+	_, nodePoolLister := informers.NodePools()
+	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
+
 	syncer := &createNodePoolScopedMaestroReadonlyBundlesSyncer{
 		cooldownChecker:                      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:                    resourcesDBClient,
+		fleetDBClient:                        fleetDBClient,
+		nodePoolLister:                       nodePoolLister,
+		serviceProviderNodePoolLister:        serviceProviderNodePoolLister,
 		clusterServiceClient:                 clusterServiceClient,
 		activeOperationLister:                activeOperationLister,
 		maestroSourceEnvironmentIdentifier:   maestroSourceEnvironmentIdentifier,
@@ -99,7 +120,69 @@ func NewCreateNodePoolScopedMaestroReadonlyBundlesController(
 	return controller
 }
 
+// cachedShouldReconcileCreateOrDelete is a cache-only coarse gate used before reading Cosmos. It returns whether create or
+// delete reconciliation may be worth attempting. syncCreate and syncDelete can still no-op after the authoritative read.
+func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) cachedShouldReconcileCreateOrDelete(ctx context.Context, cachedNodePool *api.HCPOpenShiftClusterNodePool) (bool, error) {
+	if cachedNodePool.ServiceProviderProperties.DeletionTimestamp == nil {
+		return c.shouldReconcileCreate(cachedNodePool), nil
+	}
+
+	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, cachedNodePool.ID.SubscriptionID, cachedNodePool.ID.ResourceGroupName, cachedNodePool.ID.Parent.Name, cachedNodePool.ID.Name)
+	if database.IsNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
+	}
+	if c.shouldReconcileDelete(cachedNodePool, cachedServiceProviderNodePool) {
+		return true, nil
+	}
+	return false, nil
+}
+
+// shouldReconcileCreate returns whether the create reconciliation path may run: the node pool is not deleting and has a
+// ClusterServiceID. It does not check whether bundles still need to be created. syncCreate decides that from
+// ServiceProviderNodePool status.
+func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) shouldReconcileCreate(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil &&
+		(nodePool.ServiceProviderProperties.ClusterServiceID != nil && len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) > 0)
+}
+
+// shouldReconcileDelete returns whether the delete reconciliation path may run: the node pool is deleting, The node pool
+// is considered as fully deleted from Cluster's Service perspective (ClusterServiceDeletionTimestamp set, ClusterServiceID cleared), and
+// and the ServiceProviderNodePool still lists Maestro readonly bundle references to remove.
+func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) shouldReconcileDelete(nodePool *api.HCPOpenShiftClusterNodePool, serviceProviderNodePool *api.ServiceProviderNodePool) bool {
+	// TODO temporary check to skip the new deletion approach for NodePools that were created before the new approach was implemented.
+	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
+	// fully deleted in all ARO-HCP permanent environments, for all regions.
+	if !nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach {
+		return false
+	}
+
+	return nodePool.ServiceProviderProperties.DeletionTimestamp != nil &&
+		nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
+		nodePool.ServiceProviderProperties.ClusterServiceID == nil &&
+		len(serviceProviderNodePool.Status.MaestroReadonlyBundles) > 0
+}
+
 func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+	// First we do a quick check to see if there's some work needed. If not, we return early. If the cache is outdated
+	// a next reconcile cycle should deal with it.
+	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+	}
+	cachedWorkNeeded, err := c.cachedShouldReconcileCreateOrDelete(ctx, cachedNodePool)
+	if err != nil {
+		return err
+	}
+	if !cachedWorkNeeded {
+		return nil
+	}
+
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
 		return nil // nodepool doesn't exist, no work to do
@@ -107,11 +190,31 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
-	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+
+	err = c.syncCreateOrDelete(ctx, existingNodePool)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to sync create or deletion: %w", err))
+	}
+
+	return nil
+}
+
+// syncCreateOrDelete runs the create or delete path for Maestro readonly bundles on a node pool, depending on its deletion state.
+func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncCreateOrDelete(ctx context.Context, existingNodePool *api.HCPOpenShiftClusterNodePool) error {
+	if existingNodePool.ServiceProviderProperties.DeletionTimestamp == nil {
+		return c.syncCreate(ctx, existingNodePool)
+	}
+
+	return c.syncDelete(ctx, existingNodePool)
+}
+
+// syncCreate ensures that each recognized readonly bundle internal name is created in Maestro and a reference to it is stored in Cosmos.
+func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncCreate(ctx context.Context, existingNodePool *api.HCPOpenShiftClusterNodePool) error {
+	if !c.shouldReconcileCreate(existingNodePool) {
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
+	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, existingNodePool.ID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}
@@ -149,10 +252,10 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.
 	}
 
 	serviceProviderNodePoolsDBClient := c.resourcesDBClient.ServiceProviderNodePools(
-		key.SubscriptionID,
-		key.ResourceGroupName,
-		key.HCPClusterName,
-		key.HCPNodePoolName,
+		existingNodePool.ID.SubscriptionID,
+		existingNodePool.ID.ResourceGroupName,
+		existingNodePool.ID.Parent.Name,
+		existingNodePool.Name,
 	)
 
 	// We get the provision shard (management cluster) the CS cluster is allocated to.
@@ -173,7 +276,7 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.
 	// This is important to avoid leaking resources when the sync is done.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	maestroClient, err := createMaestroClientFromCSProvisionShard(ctx, c.maestroSourceEnvironmentIdentifier, c.maestroClientBuilder, clusterProvisionShard)
+	maestroClient, err := CreateMaestroClientFromCSProvisionShard(ctx, c.maestroSourceEnvironmentIdentifier, c.maestroClientBuilder, clusterProvisionShard)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create Maestro client: %w", err))
 	}
@@ -204,9 +307,107 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) SyncOnce(ctx context.
 	return utils.TrackError(errors.Join(syncErrors...))
 }
 
+// syncDelete ensures, when possible, that the Maestro readonly bundles referenced by the node pool's ServiceProviderNodePool are deleted in Maestro
+// and from Cosmos. It runs after the node pool's serviceProviderProperties.clusterServiceID attribute has been cleared and
+// removes each bundle from the Maestro API, then clears the corresponding reference from the ServiceProviderNodePool in Cosmos.
+func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncDelete(ctx context.Context, existingNodePool *api.HCPOpenShiftClusterNodePool) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	spnpCRUD := c.resourcesDBClient.ServiceProviderNodePools(existingNodePool.ID.SubscriptionID, existingNodePool.ID.ResourceGroupName, existingNodePool.ID.Parent.Name, existingNodePool.Name)
+	existingSPNP, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
+	}
+	if !c.shouldReconcileDelete(existingNodePool, existingSPNP) {
+		return nil
+	}
+
+	clearBundleRefs := func(reason string) error {
+		logger.Info(reason + ", deferring maestro bundle cleanup to orphaned bundles controller")
+		existingSPNP.Status.MaestroReadonlyBundles = nil
+		_, err := spnpCRUD.Replace(ctx, existingSPNP, nil)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to persist ServiceProviderNodePool: %w", err))
+		}
+		return nil
+	}
+
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(existingNodePool.ID.SubscriptionID, existingNodePool.ID.ResourceGroupName, existingNodePool.ID.Parent.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	if err != nil && !database.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	if database.IsNotFoundError(err) {
+		return clearBundleRefs("ServiceProviderCluster not found")
+	}
+	if spc.Status.ManagementClusterResourceID == nil {
+		return clearBundleRefs("ServiceProviderCluster has no management cluster resource ID")
+	}
+
+	managementCluster, err := c.fleetDBClient.Stamps().ManagementClusters(spc.Status.ManagementClusterResourceID.Parent.Name).Get(ctx, spc.Status.ManagementClusterResourceID.Name)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get management cluster: %w", err))
+	}
+	// We create a new context with a cancel function so we can cancel the Maestro client when the sync is done.
+	// This is important to avoid leaking resources when the sync is done.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	maestroClient, err := c.createMaestroClientFromManagementCluster(ctx, managementCluster, c.maestroClientBuilder, c.maestroSourceEnvironmentIdentifier)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create Maestro client: %w", err))
+	}
+
+	var syncErrors []error
+	var bundlesToRemove []api.MaestroBundleInternalName
+	for _, ref := range existingSPNP.Status.MaestroReadonlyBundles {
+		if len(ref.MaestroAPIMaestroBundleName) == 0 {
+			logger.Info("adding bundle reference with empty Maestro API name to removal list", "bundleInternalName", ref.Name)
+			bundlesToRemove = append(bundlesToRemove, ref.Name)
+			continue
+		}
+
+		logger.Info("sending Maestro readonly bundle delete", "bundleInternalName", ref.Name, "maestroAPIMaestroBundleName", ref.MaestroAPIMaestroBundleName)
+		err := maestroClient.Delete(ctx, ref.MaestroAPIMaestroBundleName, metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to delete Maestro Bundle %q: %w", ref.MaestroAPIMaestroBundleName, err)))
+			continue
+		}
+
+		_, err = maestroClient.Get(ctx, ref.MaestroAPIMaestroBundleName, metav1.GetOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to verify deletion of Maestro Bundle %q: %w", ref.MaestroAPIMaestroBundleName, err)))
+			continue
+		}
+		if err == nil {
+			logger.Info("Maestro readonly bundle still exists after delete, will retry", "bundleInternalName", ref.Name, "maestroAPIMaestroBundleName", ref.MaestroAPIMaestroBundleName)
+			continue
+		}
+
+		logger.Info("deleted Maestro readonly bundle. Adding to removal list", "bundleInternalName", ref.Name, "maestroAPIMaestroBundleName", ref.MaestroAPIMaestroBundleName)
+		bundlesToRemove = append(bundlesToRemove, ref.Name)
+	}
+
+	if len(bundlesToRemove) > 0 {
+		logger.Info("removing bundle references from ServiceProviderNodePool", "bundlesToRemove", bundlesToRemove)
+		for _, name := range bundlesToRemove {
+			if err := existingSPNP.Status.MaestroReadonlyBundles.Remove(name); err != nil {
+				syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to remove bundle reference %q: %w", name, err)))
+			}
+		}
+		_, err = spnpCRUD.Replace(ctx, existingSPNP, nil)
+		if err != nil {
+			syncErrors = append(syncErrors, utils.TrackError(fmt.Errorf("failed to persist ServiceProviderNodePool after deleting bundles: %w", err)))
+		}
+	}
+
+	return utils.TrackError(errors.Join(syncErrors...))
+}
+
 // syncMaestroBundle ensures the given Maestro bundle exists in Maestro, as well as a reference to it in ServiceProviderNodePool.
 // It returns the updated ServiceProviderNodePool (after any Replace calls) so the caller can pass it into the next sync.
-// On error, the first return value is always the lastest persisted ServiceProviderNodePool, so the
+// On error, the first return value is always the latest persisted ServiceProviderNodePool, so the
 // caller can keep in-memory state in sync and subsequent bundle syncs in the same run never see stale data.
 func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) syncMaestroBundle(
 	ctx context.Context,
@@ -370,4 +571,19 @@ func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) getNodePoolName(csClu
 
 func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
+}
+
+// createMaestroClientFromManagementCluster creates a Maestro client for the given management cluster.
+// the client is scoped to the Consumer Name associated to the management cluster, and to
+// the source ID associated to the management cluster and the environment specified
+// in maestroSourceEnvironmentIdentifier, which is a configuration parameter at
+// deployment time.
+func (c *createNodePoolScopedMaestroReadonlyBundlesSyncer) createMaestroClientFromManagementCluster(ctx context.Context, managementCluster *fleet.ManagementCluster, maestroClientBuilder maestro.MaestroClientBuilder, maestroSourceEnvironmentIdentifier string) (maestro.Client, error) {
+	maestroRESTAPIEndpoint := managementCluster.Status.MaestroRESTAPIURL
+	maestroGRPCAPIEndpoint := managementCluster.Status.MaestroGRPCTarget
+	maestroConsumerName := managementCluster.Status.MaestroConsumerName
+	maestroSourceID := maestro.GenerateMaestroSourceID(maestroSourceEnvironmentIdentifier, managementCluster.Status.ClusterServiceProvisionShardID.ID())
+
+	maestroClient, err := maestroClientBuilder.NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+	return maestroClient, err
 }

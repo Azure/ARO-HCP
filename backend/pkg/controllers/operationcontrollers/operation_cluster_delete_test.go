@@ -29,6 +29,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -42,6 +43,7 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		nodePools   []*api.HCPOpenShiftClusterNodePool
 		setupMock   func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
 		expectError bool
 		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
@@ -66,6 +68,30 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				// Verify cluster document was deleted
 				_, err = db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				assert.Error(t, err, "cluster should have been deleted")
+			},
+		},
+		{
+			name: "cluster not found does not remove cluster while nodepools exist",
+			nodePools: []*api.HCPOpenShiftClusterNodePool{
+				newNodePoolTestFixture().newNodePool(),
+			},
+			setupMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				notFoundErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(nil, notFoundErr)
+				return mockCSClient
+			},
+			expectError: false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.NotNil(t, cluster)
 			},
 		},
 		{
@@ -163,11 +189,16 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			billingDoc.CreationTime = createdAt
 			billingDoc.Location = testAzureLocation
 			billingDoc.TenantID = testTenantID
-
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
-			require.NoError(t, err)
 			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
-			err = mockBillingDBClient.BillingDocs(fixture.clusterResourceID.SubscriptionID).Create(ctx, billingDoc)
+			err := mockBillingDBClient.BillingDocs(fixture.clusterResourceID.SubscriptionID).Create(ctx, billingDoc)
+			require.NoError(t, err)
+
+			// Mock resources DB client with cluster, operation, and node pools
+			resources := []any{cluster, operation}
+			for _, nodePool := range tt.nodePools {
+				resources = append(resources, nodePool)
+			}
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
 			mockCSClient := tt.setupMock(ctrl, fixture)
@@ -181,7 +212,6 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			}
 
 			err = controller.SynchronizeOperation(ctx, fixture.operationKey())
-
 			if tt.expectError {
 				require.Error(t, err)
 			} else {
