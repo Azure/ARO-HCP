@@ -554,13 +554,6 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
 	}
 
-	if fpaCredentials.IsConfigured() {
-		ginkgo.GinkgoLogr.Info("deleting any remaining RedHatOpenShift service association links in resource group", "resourceGroup", resourceGroupName)
-		if err := tc.deleteRedHatOpenShiftServiceAssociationLinks(ctx, resourceGroupName, fpaCredentials); err != nil {
-			return fmt.Errorf("failed to delete RedHatOpenShift service association links in %q: %w", resourceGroupName, err)
-		}
-	}
-
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
 	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
