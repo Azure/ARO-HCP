@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/managementclustercontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metricscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepooldeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
@@ -629,6 +630,30 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
+	nodePoolDeletionClusterServiceDeleteDispatchController := nodepooldeletion.NewNodePoolClusterServiceDeleteDispatchController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+	nodePoolClusterServiceIDClearerController := nodepooldeletion.NewNodePoolClusterServiceIDClearerController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+	nodePoolChildResourcesCleanupController := nodepooldeletion.NewNodePoolChildResourcesCleanupController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: leaderElectionLeaseDuration,
@@ -688,6 +713,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 				go cleanupLegacyMaestroReadonlyBundlesController.Run(ctx, 1)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
+				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
+				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
+				go nodePoolChildResourcesCleanupController.Run(ctx, 20)
+				go nodePoolDeletionController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)

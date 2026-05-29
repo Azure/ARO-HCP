@@ -385,7 +385,6 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 	}
 }
 
-// PostAsyncNotification submits an POST request with status payload to the given URL.
 func postAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificationFunc {
 	return func(ctx context.Context, operation *api.Operation) error {
 		return PostAsyncNotification(ctx, notificationClient, operation)
