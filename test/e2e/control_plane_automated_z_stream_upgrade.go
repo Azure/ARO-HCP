@@ -142,7 +142,7 @@ var _ = Describe("Service Provider", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.AdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)

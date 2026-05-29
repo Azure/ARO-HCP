@@ -152,7 +152,7 @@ var _ = Describe("Customer", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					framework.AdminRESTConfigTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for back-level cluster version %s", version.controlPlaneVersion)
 

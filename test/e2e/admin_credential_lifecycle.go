@@ -292,7 +292,7 @@ var _ = Describe("Customer", func() {
 				clusterClient,
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.AdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to request new admin credentials after revocation for cluster %q", clusterName)
 			Expect(newAdminRESTConfig).NotTo(BeNil(), "newAdminRESTConfig was nil after revocation")

@@ -89,7 +89,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					framework.AdminRESTConfigTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for patch-name cluster")
 
@@ -165,7 +165,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					framework.AdminRESTConfigTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for patch-tags cluster")
 

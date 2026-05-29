@@ -162,7 +162,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				framework.AdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for private keyvault cluster %q", customerClusterName)
 
