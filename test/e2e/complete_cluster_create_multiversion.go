@@ -98,38 +98,16 @@ var _ = Describe("ARO-HCP", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", clusterName)
 
-			// OCP 4.23 and 5.0 use v20251223preview to create Swift-based clusters so we can validate
-			// Swift NIC scheduling end-to-end: Hypershift sets aro.openshift.io/swift-nic limits overrides
-			// (https://github.com/openshift/hypershift/pull/8552), and Cluster Service applies the matching
-			// NIC resource request (https://redhat.atlassian.net/browse/ARO-27209).
-			if version == "4.23" || version == "5.0" {
-				By(fmt.Sprintf("creating a Swift cluster on version '%s' and channel group '%s'", clusterParams.OpenshiftVersionId, channelGroup))
-				clusterResource, err := framework.BuildHCPClusterFromParams20251223(clusterParams, tc.Location(), nil)
-				Expect(err).NotTo(HaveOccurred(), "Swift cluster resource for %s should build from params", clusterName)
-				clientFactory, err := tc.Get20251223ClientFactory(ctx)
-				Expect(err).NotTo(HaveOccurred(), "Get20251223ClientFactory: client factory should be obtained for Swift cluster %s", clusterName)
-				_, err = framework.CreateHCPClusterAndWait20251223(
-					ctx,
-					GinkgoLogr,
-					clientFactory.NewHcpOpenShiftClustersClient(),
-					*resourceGroup.Name,
-					clusterName,
-					clusterResource,
-					framework.ClusterCreationTimeout,
-				)
-				Expect(err).NotTo(HaveOccurred(), "Swift cluster %s/%s should provision", *resourceGroup.Name, clusterName)
-			} else {
-				By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, channelGroup))
-				err = tc.CreateHCPClusterFromParam20251223(
-					ctx,
-					GinkgoLogr,
-					*resourceGroup.Name,
-					clusterParams,
-					nil,
-					framework.ClusterCreationTimeout,
-				)
-				Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
-			}
+			By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, channelGroup))
+			err = tc.CreateHCPClusterFromParam20251223(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				nil,
+				framework.ClusterCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 
 			By("verifying the cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
