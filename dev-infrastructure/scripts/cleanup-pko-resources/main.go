@@ -254,6 +254,10 @@ func countCRs(ctx context.Context, client dynamic.Interface, c crdInfo) int {
 		list, err = client.Resource(gvr(c)).List(listCtx, metav1.ListOptions{})
 	}
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			fmt.Printf("  CRD %s.%s no longer exists, skipping.\n", c.Plural, c.Group)
+			return 0
+		}
 		fmt.Fprintf(os.Stderr, "[ERROR] failed to list %s.%s: %v\n", c.Plural, c.Group, err)
 		return -1
 	}
@@ -323,6 +327,10 @@ func stripFinalizersForCRD(ctx context.Context, client dynamic.Interface, c crdI
 		list, err = client.Resource(gvr(c)).List(ctx, metav1.ListOptions{})
 	}
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			fmt.Printf("  CRD %s no longer exists, skipping finalizer removal.\n", resource)
+			return 0
+		}
 		fmt.Fprintf(os.Stderr, "[ERROR] failed to list %s for finalizer removal: %v\n", resource, err)
 		return 1
 	}
