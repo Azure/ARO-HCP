@@ -618,3 +618,71 @@ func TestAdmitNodePool_IncludesChannelGroupCheck(t *testing.T) {
 
 	utils.VerifyErrorsMatch(t, expectedErrors, errs)
 }
+
+func TestAdmitNodePoolOnDelete(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+
+	makeTestNodePool := func(name string) *api.HCPOpenShiftClusterNodePool {
+		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + name))
+		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: nodePoolResourceID,
+			},
+			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
+		}
+	}
+
+	makeDeletingNodePool := func(name string) *api.HCPOpenShiftClusterNodePool {
+		nodePool := makeTestNodePool(name)
+		nodePool.Properties.ProvisioningState = arm.ProvisioningStateDeleting
+		return nodePool
+	}
+
+	tests := []struct {
+		name                 string
+		existingNodePools    []*api.HCPOpenShiftClusterNodePool
+		nodePoolBeingDeleted *api.HCPOpenShiftClusterNodePool
+		expectErrors         []utils.ExpectedError
+	}{
+		{
+			name:                 "allows delete when another node pool exists",
+			existingNodePools:    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers"), makeTestNodePool("infra")},
+			nodePoolBeingDeleted: makeTestNodePool("workers"),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			name: "allows delete when the only other remaining node pool is being deleted",
+			existingNodePools: []*api.HCPOpenShiftClusterNodePool{
+				makeDeletingNodePool("workers"),
+				makeTestNodePool("infra"),
+			},
+			nodePoolBeingDeleted: makeTestNodePool("infra"),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			name:                 "rejects delete of last node pool",
+			existingNodePools:    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers")},
+			nodePoolBeingDeleted: makeTestNodePool("workers"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "name", Message: "The last node pool can not be deleted from a cluster."},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &NodePoolDeleteAdmissionContext{
+				ClusterNodePools: tt.existingNodePools,
+			}
+
+			errs := AdmitNodePoolOnDelete(ctx, admissionContext, tt.nodePoolBeingDeleted)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
