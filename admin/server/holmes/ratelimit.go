@@ -24,7 +24,15 @@ func (l *ConcurrencyLimiter) Acquire() bool {
 }
 
 func (l *ConcurrencyLimiter) Release() {
-	l.current.Add(-1)
+	for {
+		cur := l.current.Load()
+		if cur <= 0 {
+			return
+		}
+		if l.current.CompareAndSwap(cur, cur-1) {
+			return
+		}
+	}
 }
 
 func (l *ConcurrencyLimiter) Current() int {

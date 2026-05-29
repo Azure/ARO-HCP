@@ -4,7 +4,12 @@
 
 The Holmes investigation feature adds a `POST /admin/v1/hcp{resourceId}/investigate` endpoint to the admin API. Design and implementation details are in `docs/design-holmes-investigation.md` and `docs/implementation-plan-holmes-investigation.md`.
 
-This test plan covers Phase 1 (dataplane scope — ephemeral pods on management cluster). It follows the testing patterns already established in the ARO-HCP codebase and references what ARO classic tests in [PR #4754](https://github.com/Azure/ARO-RP/pull/4754).
+This test plan covers all three phases:
+- **Phase 1** (dataplane) — ephemeral pods on management cluster, CSR-signed kubeconfig
+- **Phase 2** (serviceplane) — persistent Holmes server on service cluster, in-cluster HTTP call
+- **Phase 3** (controlplane) — persistent Holmes server on management cluster, kube API proxy
+
+It follows the testing patterns already established in the ARO-HCP codebase and references what ARO classic tests in [PR #4754](https://github.com/Azure/ARO-RP/pull/4754).
 
 ## Testing Layers
 
@@ -14,26 +19,24 @@ Following ARO classic's `pkg/util/holmes/config_test.go` pattern:
 
 **`TestNewHolmesConfigFromEnv`** (table-driven, `t.Setenv` for env vars):
 - Valid config with all required env vars → success
-- Missing `HOLMES_AZURE_OPENAI_API_KEY` → error
 - Missing `HOLMES_AZURE_OPENAI_API_BASE` → error
-- Custom values override defaults (`HOLMES_IMAGE`, `HOLMES_MODEL`, `HOLMES_DEFAULT_TIMEOUT`, `HOLMES_MAX_CONCURRENT`, `HOLMES_AZURE_OPENAI_API_VERSION`)
-- Invalid integer for `HOLMES_DEFAULT_TIMEOUT` → error
+- Custom values override defaults (`HOLMES_IMAGE`, `HOLMES_MODEL`, `HOLMES_DEFAULT_TIMEOUT`, `HOLMES_MAX_CONCURRENT`, `HOLMES_AZURE_OPENAI_API_VERSION`, `HOLMES_SERVICE_CLUSTER_ENDPOINT`)
+- Invalid integer for `HOLMES_DEFAULT_TIMEOUT` → falls back to default
 - Invalid model name (special chars) → validation error
 - Zero timeout → validation error
 - Zero max concurrent → validation error
 
-**`TestNewHolmesConfig`** (table-driven, mocked Key Vault via `gomock`):
-- Reads both secrets from Key Vault → success
-- API key not found in Key Vault → error
+**`TestNewHolmesConfig`** (table-driven, mocked Key Vault via mock `KeyVaultSecretClient` interface):
+- Reads API base from Key Vault → success
 - API base not found in Key Vault → error
 - Key Vault returns nil value → error
 
 **`TestHolmesConfigValidate`**:
 - All fields valid → no error
-- Empty API key → error
 - Empty API base → error
-- Empty image → error
 - Model with injection chars → error
+
+> **Note**: No API key tests — authentication is via Workload Identity (no keys stored anywhere).
 
 ### 2. Unit Tests — Shared CSR Packages
 
@@ -73,8 +76,8 @@ Following ARO classic's `admin_openshiftcluster_investigate_test.go` and ARO-HCP
 | Cluster not found | valid body, bad resourceID | 404 | "not found" |
 | No ClusterServiceID | valid body | 500 | "no ClusterServiceID" |
 | Rate limit exceeded | valid body | 429 | "too many requests" |
-| Serviceplane scope | `{"scope":"serviceplane"}` | 501 | "not implemented" |
-| Controlplane scope | `{"scope":"controlplane"}` | 501 | "not implemented" |
+| Serviceplane scope | `{"scope":"serviceplane"}` | 200 | Proxied response from persistent Holmes service |
+| Controlplane scope | `{"scope":"controlplane"}` | 501 (Phase 3: 200) | "not implemented" (Phase 3: proxied response via mgmt cluster kube API proxy) |
 | Valid dataplane request | `{"question":"why pods crash?"}` | 200 | streamed text |
 
 **Mocking approach:**
@@ -89,19 +92,23 @@ Following ARO classic's `admin_openshiftcluster_investigate_test.go` and ARO-HCP
 
 Using `k8s.io/client-go/kubernetes/fake`:
 
-- Creates Secret with correct data keys (`config`, `azure-api-key`, `azure-api-base`, `azure-api-version`)
+- Creates Secret with correct data keys (`config` — kubeconfig YAML only, no Azure credentials)
 - Creates ConfigMap with Holmes toolset config
 - Creates Pod with correct:
   - Command: `python holmes_cli.py`
   - Args: `ask <question> -n --model=<model> --config=/etc/holmes/config.yaml`
-  - Env vars from Secret refs (`AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION`, `KUBECONFIG`)
+  - Env vars as plain values (`AZURE_AD_TOKEN_AUTH=true`, `AZURE_API_BASE`, `AZURE_API_VERSION`, `KUBECONFIG=/etc/kubeconfig/config`)
+  - Pod label: `azure.workload.identity/use: "true"` (triggers WI mutating webhook)
   - Volume mounts (kubeconfig, holmes-config, tmp, holmes-cache)
   - Security context (UID 1000, non-root, no privilege escalation, capabilities dropped)
   - Resource limits (1 CPU / 2Gi memory)
   - `RestartPolicy: Never`, `ActiveDeadlineSeconds`
-  - `AutomountServiceAccountToken: false`
+  - `AutomountServiceAccountToken: true` (required for Workload Identity — projected SA token)
+  - `ServiceAccountName: "holmesgpt"`
 - Cleanup deletes Pod, Secret, ConfigMap even on error
 - Pod failure returns error with reason and message
+
+> **Note**: No Azure credentials in Secret — authentication is via Workload Identity. The pod's projected SA token is exchanged for an Entra ID access token by the Azure SDK.
 
 ### 6. Unit Tests — Kubeconfig Builder (`admin/server/holmes/kubeconfig_test.go`)
 
@@ -151,10 +158,12 @@ It("should investigate a cluster via Holmes", labels.High, labels.DevelopmentOnl
 ```
 
 **Prerequisites for E2E:**
-- Azure OpenAI resource provisioned in dev environment
-- Key Vault secrets populated (`holmes-azure-api-key`, `holmes-azure-api-base`)
-- HolmesGPT image available in dev ACR
-- `system:aro-diagnostics` RBAC deployed to test HCP cluster
+- Azure OpenAI resource provisioned in dev environment (`disableLocalAuth=true`, DataZoneStandard SKU)
+- Key Vault secret populated (`holmes-azure-api-base`)
+- `holmesgpt` MSI with federated credential on mgmt + svc clusters
+- `Cognitive Services OpenAI User` role assigned to holmesgpt MSIs
+- HolmesGPT image available (dev: `quay.io/haoran/holmesgpt:latest`, prod: ACR)
+- `system:aro-diagnostics` RBAC deployed to test HCP cluster (via ACM policy)
 - Test HCP cluster in Running state
 
 **Labels:** `labels.DevelopmentOnly` (requires dev environment with AOAI), `labels.High` priority
@@ -194,18 +203,80 @@ curl -sk -X POST \
 
 Run with: `go test -race -cover ./admin/server/holmes/... ./admin/server/handlers/hcp/... ./internal/certs/... ./internal/csrminting/...`
 
-## Verification Checklist
+## Phase 2: Serviceplane Tests
 
-Before marking Phase 1 complete:
+### Unit Tests — Holmes Client (`admin/server/holmes/client_test.go`)
 
-- [ ] All unit tests pass with `-race` flag
-- [ ] Coverage meets targets per package
-- [ ] Integration tests pass in CI (test-integration/admin)
-- [ ] E2E test passes in personal dev environment
-- [ ] Manual test script works against local RP
-- [ ] Holmes pod cleaned up after investigation completes
-- [ ] Holmes pod cleaned up after investigation fails/times out
-- [ ] Rate limiter correctly rejects at capacity
-- [ ] Graceful degradation when Holmes not configured (endpoint not registered)
-- [ ] Audit logs capture investigation requests
-- [ ] No secrets leaked in pod logs or HTTP response
+- `AskHolmes()` with mock HTTP server returning 200 → response streamed to writer
+- `AskHolmes()` with mock HTTP server returning 500 → error with status code and body
+- `AskHolmes()` with unreachable endpoint → connection error
+- URL construction: trailing slash handling, `/api/chat` appended correctly
+
+### E2E Tests — Serviceplane
+
+```bash
+SCOPE=serviceplane demo/test-holmes-investigate.sh "check pod health in aro-hcp namespace"
+```
+
+Verify:
+- HTTP 200 response
+- Response contains analysis of service cluster pods
+- Holmes correctly identifies pods in `aro-hcp` and `clusters-service` namespaces
+- No HCP database lookup performed (serviceplane doesn't need it)
+
+### Phase 2 Verification Checklist ✅
+
+- [x] Holmes server pod running on service cluster (`kubectl get pods -n aro-holmesgpt`)
+- [x] Holmes server responding to health checks (`/healthz`, `/readyz`)
+- [x] Serviceplane investigation returns HTTP 200 with meaningful analysis
+- [x] Holmes can access pods/logs across service cluster namespaces
+- [x] WI auth to Azure OpenAI working (no API key errors)
+- [x] ConfigMap mounts correct (main config at `/.holmes/config.yaml`, toolsets at `/etc/holmes/toolsets.yaml`)
+
+---
+
+## Phase 3: Controlplane Tests
+
+### Unit Tests — Controlplane Handler
+
+- `handleControlplane()` constructs correct kube API proxy URL
+- `handleControlplane()` uses mgmt REST config TLS transport
+- `handleControlplane()` routes to correct management cluster (via provision shard)
+- Error when mgmt cluster unreachable → 500 with clear message
+- Error when Holmes service not deployed on mgmt cluster → 502/503
+
+### E2E Tests — Controlplane
+
+```bash
+SCOPE=controlplane demo/test-holmes-investigate.sh "check HCP control plane health for haowang-e2e"
+```
+
+Verify:
+- HTTP 200 response
+- Response contains HyperShift-specific analysis (HostedCluster, HostedControlPlane, NodePool status)
+- Holmes can access HCP namespace resources on management cluster
+- Correct management cluster routing (HCP → provision shard → mgmt cluster)
+
+### Phase 3 Verification Checklist ✅
+
+- [x] Holmes server pod running on management cluster (`kubectl get pods -n aro-holmesgpt` on mgmt cluster)
+- [x] Holmes server responding to health checks (`/healthz`, `/readyz`)
+- [x] Controlplane investigation returns HTTP 200 with meaningful analysis
+- [x] Holmes can access HyperShift CRDs (hostedclusters, hostedcontrolplanes, nodepools)
+- [x] Holmes can access HCP namespace pods/logs
+- [x] Routing works for correct management cluster (via provision shard)
+- [x] WI auth to Azure OpenAI working on mgmt cluster
+- [x] No SA in deploy-mgmt chart (uses SA from deploy/ chart to avoid Helm ownership conflict)
+
+---
+
+## Verification Checklist — Phase 1 ✅
+
+- [x] All unit tests pass with `-race` flag
+- [x] E2E test passes in personal dev environment
+- [x] Manual test script works against local RP
+- [x] Holmes pod cleaned up after investigation completes
+- [x] Holmes pod cleaned up after investigation fails/times out
+- [x] Rate limiter correctly rejects at capacity
+- [x] Graceful degradation when Holmes not configured (endpoint not registered)
+- [x] No secrets leaked in pod logs or HTTP response

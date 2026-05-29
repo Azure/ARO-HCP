@@ -60,3 +60,29 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+  - name: deploy-server
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'holmesgpt-server'
+    releaseNamespace: 'aro-holmesgpt'
+    chartDir: ./deploy-mgmt
+    valuesFile: ./mgmt-values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    inputVariables:
+      holmesgptMsiClientId:
+        resourceGroup: management
+        step: output
+        name: holmesgptMsiClientId
+      tenantId:
+        resourceGroup: management
+        step: output
+        name: tenantId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

@@ -104,10 +104,46 @@ func (h *HCPInvestigateHandler) ServeHTTP(writer http.ResponseWriter, request *h
 	case "dataplane":
 		return h.handleDataplane(writer, request, hcp, req.Question)
 	case "controlplane":
-		return arm.NewCloudError(http.StatusNotImplemented, "NotImplemented", "", "scope %q is not yet supported", req.Scope)
+		return h.handleControlplane(writer, request, hcp, req.Question)
 	default:
 		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "invalid scope: %s", req.Scope)
 	}
+}
+
+func (h *HCPInvestigateHandler) handleControlplane(writer http.ResponseWriter, request *http.Request, hcp *api.HCPOpenShiftCluster, question string) error {
+	ctx := request.Context()
+	csID := *hcp.ServiceProviderProperties.ClusterServiceID
+
+	provisionShard, err := h.clustersServiceClient.GetClusterProvisionShard(ctx, csID)
+	if err != nil {
+		return ClusterServiceError(err, "provision shard")
+	}
+
+	mgmtClusterResourceID := provisionShard.AzureShard().AksManagementClusterResourceId()
+
+	subscription, err := h.resourcesDBClient.Subscriptions().Get(ctx, hcp.ID.SubscriptionID)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	credential, err := h.fpaCredentialRetriever.RetrieveCredential(*subscription.Properties.TenantId)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve FPA credential: %w", err)
+	}
+
+	mgmtRESTConfig, err := mc.GetAKSRESTConfig(ctx, mgmtClusterResourceID, credential)
+	if err != nil {
+		return fmt.Errorf("failed to get management cluster REST config: %w", err)
+	}
+
+	proxyURL := holmes.ServiceProxyURL(mgmtRESTConfig, holmes.HolmesNamespace, "holmesgpt-svc")
+
+	httpClient, err := holmes.HTTPClientForRESTConfig(mgmtRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP client for management cluster: %w", err)
+	}
+
+	return holmes.AskHolmesWithClient(ctx, httpClient, proxyURL, question, h.holmesConfig.Model, writer)
 }
 
 func (h *HCPInvestigateHandler) handleDataplane(writer http.ResponseWriter, request *http.Request, hcp *api.HCPOpenShiftCluster, question string) error {

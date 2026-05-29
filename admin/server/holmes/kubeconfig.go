@@ -96,7 +96,8 @@ func (kb *KubeconfigBuilder) BuildDataplaneKubeconfig(
 	}
 
 	cleanup := func() {
-		cleanupCtx := context.Background()
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		_ = csrManager.CleanupCSR(cleanupCtx, csrName)
 		_ = csrManager.CleanupCSRApproval(cleanupCtx, csrName, hcpNamespace)
 	}

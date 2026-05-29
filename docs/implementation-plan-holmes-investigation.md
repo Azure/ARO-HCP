@@ -509,98 +509,153 @@ After changes: `cd config && make materialize` and commit rendered output.
 
 ---
 
-## Phase 2: Serviceplane Investigation (Persistent Holmes)
+## Phase 2: Serviceplane Investigation (Persistent Holmes) — COMPLETE
 
 Phase 2 adds investigation of the service cluster itself. Simpler than Phase 1 — calls an already-deployed persistent Holmes service.
 
-### Step 1: Holmes Helm Chart for Service Cluster
+### Step 1: Holmes Helm Chart for Service Cluster ✅
 
-**Files to create:**
+**Files created:**
 
 | File | Contents |
 |------|----------|
-| `holmes/deploy/Chart.yaml` | Chart metadata for `robusta/holmes` deployment |
-| `holmes/deploy/values.yaml` | Default values (image, replicas, resources, Azure OpenAI config) |
-| `holmes/deploy/templates/deployment.yaml` | Holmes Deployment |
-| `holmes/deploy/templates/service.yaml` | ClusterIP Service exposing port 80 → Holmes HTTP API |
-| `holmes/deploy/templates/serviceaccount.yaml` | ServiceAccount for Holmes |
-| `holmes/deploy/templates/clusterrole.yaml` | Read-only ClusterRole for service cluster resources |
-| `holmes/deploy/templates/clusterrolebinding.yaml` | Bind ClusterRole to ServiceAccount |
-| `holmes/deploy/templates/secretproviderclass.yaml` | Azure OpenAI key from Key Vault |
+| `holmesgpt/deploy-svc/Chart.yaml` | Chart metadata (`holmesgpt-svc`) |
+| `holmesgpt/deploy-svc/templates/deployment.yaml` | Holmes Deployment — persistent server (`python server.py`) on port 5050, WI auth, ConfigMap volumes |
+| `holmesgpt/deploy-svc/templates/service.yaml` | ClusterIP Service (`holmesgpt-svc`) port 80 → 5050 |
+| `holmesgpt/deploy-svc/templates/serviceaccount.yaml` | ServiceAccount (`holmesgpt`) with WI annotations |
+| `holmesgpt/deploy-svc/templates/clusterrole.yaml` | Read-only ClusterRole for standard Kubernetes + metrics resources |
+| `holmesgpt/deploy-svc/templates/clusterrolebinding.yaml` | Bind ClusterRole to ServiceAccount |
+| `holmesgpt/deploy-svc/templates/configmap.yaml` | Two config files: `config.yaml` (model/api_base/api_version + custom_toolsets) and `toolsets.yaml` (toolset config) |
+| `holmesgpt/svc-values.yaml` | Values with WI MSI client ID, image, AOAI config |
 
-**Alternatively**: Use the upstream `robusta/holmes` Helm chart directly with custom values, if it supports Azure OpenAI configuration.
+**Key learning — HolmesGPT server mode config**: The server needs a main config at `~/.holmes/config.yaml` with `model`, `api_base`, `api_version`, and `custom_toolsets` reference. Without this file, the server only loads the `ROBUSTA_AI` model (which fails without Robusta credentials). The ConfigMap mounts:
+- `/.holmes/config.yaml` — main config for model registration
+- `/etc/holmes/toolsets.yaml` — toolset allow/deny config
 
-### Step 2: Service Cluster Pipeline Integration
+**No SecretProviderClass needed** — Workload Identity handles Azure OpenAI auth.
 
-**Files to modify:**
+### Step 2: Service Cluster Infrastructure ✅
 
-| File | Change |
-|------|--------|
-| `Makefile` | Add `holmes` to `services_svc_pipelines` list |
-| `dev-infrastructure/svc-pipeline.yaml` | Add Holmes deployment step |
-
-### Step 3: Serviceplane Handler Logic
-
-**Files to create/modify:**
+**Files modified:**
 
 | File | Change |
 |------|--------|
-| `admin/server/holmes/client.go` (new) | HTTP client for persistent Holmes `/api/chat` endpoint |
-| `admin/server/handlers/hcp/investigate.go` | Add `"serviceplane"` case: POST to in-cluster Holmes service |
+| `dev-infrastructure/templates/svc-cluster.bicep` | Added `holmesgpt` workload identity + AOAI role assignment |
 
-**`serviceplane` flow:**
+### Step 3: Serviceplane Handler Logic ✅
+
+**Files created:**
+
+| File | Contents |
+|------|----------|
+| `admin/server/holmes/client.go` | `AskHolmes()` function — HTTP POST to `/api/chat`, streams response to `http.ResponseWriter` |
+
+**Files modified:**
+
+| File | Change |
+|------|--------|
+| `admin/server/handlers/hcp/investigate.go` | `serviceplane` case calls `AskHolmes()` with in-cluster DNS URL. Skips HCP database lookup — serviceplane scope investigates the service cluster itself. |
+| `admin/server/holmes/config.go` | Added `ServiceClusterEndpoint` field (default: `http://holmesgpt-svc.aro-holmesgpt.svc.cluster.local:80`) |
+
+**`serviceplane` handler flow:**
 ```go
-case "serviceplane":
-    resp, err := holmesClient.Ask(ctx, config.ServiceClusterEndpoint, question, config.Model)
-    // stream resp.Body to http.ResponseWriter
+if req.Scope == "serviceplane" {
+    return holmes.AskHolmes(ctx, h.holmesConfig.ServiceClusterEndpoint, req.Question, h.holmesConfig.Model, writer)
+}
 ```
 
 ---
 
-## Phase 3: Controlplane Investigation (Management Cluster Proxy)
+## Phase 3: Controlplane Investigation (Management Cluster Proxy) — COMPLETE
 
-Phase 3 adds investigation of HCP control planes on management clusters.
+Phase 3 adds investigation of HCP control planes on management clusters. Based on Phase 2 learnings, this is simpler than originally planned — the Helm chart is nearly identical to Phase 2, and the handler reuses `AskHolmes()` with a proxied URL.
 
-### Step 1: Holmes Helm Chart for Management Cluster
+### Step 1: Holmes Helm Chart for Management Cluster ✅
 
-**Files to create:**
+Copied `holmesgpt/deploy-svc/` to `holmesgpt/deploy-mgmt/` with extended RBAC.
+
+**Note:** No `serviceaccount.yaml` in `deploy-mgmt/` — the ServiceAccount is already created by the existing `holmesgpt/deploy/` chart (Phase 1) and owned by the `holmesgpt` Helm release. Adding a duplicate SA causes Helm ownership conflicts.
+
+**Files created:**
 
 | File | Contents |
 |------|----------|
-| `holmes/deploy-mgmt/Chart.yaml` | Chart metadata for management cluster Holmes |
-| `holmes/deploy-mgmt/values.yaml` | Values (same as svc, but different RBAC scope) |
-| `holmes/deploy-mgmt/templates/` | Similar templates, but with HCP-namespace-aware RBAC + HyperShift CRDs |
+| `holmesgpt/deploy-mgmt/Chart.yaml` | Chart metadata (`holmesgpt-mgmt`) |
+| `holmesgpt/deploy-mgmt/templates/deployment.yaml` | Same as `deploy-svc` (persistent server on port 5050, WI, ConfigMap volumes) |
+| `holmesgpt/deploy-mgmt/templates/service.yaml` | Same as `deploy-svc` (`holmesgpt-svc`, port 80 → 5050) |
+| `holmesgpt/deploy-mgmt/templates/clusterrole.yaml` | **Extended** — adds HyperShift CRDs, Cluster API, and `certificates.k8s.io` |
+| `holmesgpt/deploy-mgmt/templates/clusterrolebinding.yaml` | Same as `deploy-svc` |
+| `holmesgpt/deploy-mgmt/templates/configmap.yaml` | Same as `deploy-svc` (main config + toolsets) |
+| `holmesgpt/deploy-mgmt/holmes-config.yaml` | Same toolset config as `deploy-svc` |
+| `holmesgpt/mgmt-values.yaml` | Values with mgmt cluster WI MSI client ID, image, AOAI config |
 
-### Step 2: Management Cluster Pipeline Integration
-
-**Files to modify:**
-
-| File | Change |
-|------|--------|
-| `Makefile` | Add `holmes` to `services_mgmt_pipelines` list |
-| `dev-infrastructure/mgmt-pipeline.yaml` | Add Holmes deployment step |
-
-### Step 3: Controlplane Handler Logic
-
-**Files to create/modify:**
-
-| File | Change |
-|------|--------|
-| `admin/server/holmes/proxy.go` (new) | Kubernetes API server proxy client for reaching Holmes on management cluster |
-| `admin/server/handlers/hcp/investigate.go` | Add `"controlplane"` case: proxy through management cluster kube API |
-
-**`controlplane` flow:**
-1. Get management cluster REST config via `mc.GetAKSRESTConfig()`
-2. Proxy request through kube-apiserver service proxy:
-```go
-path := fmt.Sprintf("/api/v1/namespaces/%s/services/holmes-svc:80/proxy/api/chat",
-    holmesNamespace)
-req := mgmtKubeClient.CoreV1().RESTClient().Post().AbsPath(path).Body(requestBody)
-result := req.Do(ctx)
-// stream result to http.ResponseWriter
+**ClusterRole additions** (beyond what `deploy-svc` has):
+```yaml
+# HyperShift CRDs
+- apiGroups: ["hypershift.openshift.io"]
+  resources:
+  - hostedclusters
+  - hostedcontrolplanes
+  - nodepools
+  verbs: ["get", "list", "watch"]
+# Cluster API
+- apiGroups: ["cluster.x-k8s.io"]
+  resources:
+  - machines
+  - machinesets
+  - machinedeployments
+  verbs: ["get", "list", "watch"]
+# CSRs (for diagnostics visibility)
+- apiGroups: ["certificates.k8s.io"]
+  resources:
+  - certificatesigningrequests
+  verbs: ["get", "list", "watch"]
 ```
 
-**Convention**: Holmes namespace on management clusters is `aro-holmes`.
+### Step 2: Management Cluster Pipeline Integration ✅
+
+The mgmt cluster already has a Holmes pipeline step in `holmesgpt/pipeline.yaml` (Phase 1 — deploys SA + namespace). Phase 3 adds the persistent server deployment.
+
+**Files modified:**
+
+| File | Change |
+|------|--------|
+| `holmesgpt/pipeline.yaml` | Added `deploy-server` Helm step deploying `deploy-mgmt/` chart with release name `holmesgpt-server` |
+
+**Note**: The existing pipeline step deploys `holmesgpt/deploy/` (SA only for ephemeral pods). The new step deploys `holmesgpt/deploy-mgmt/` (persistent server). Both deploy to `aro-holmesgpt` namespace. Separate Helm release names (`holmesgpt` vs `holmesgpt-server`) avoid resource ownership conflicts.
+
+### Step 3: Controlplane Handler Logic ✅
+
+**No separate `proxy.go` needed** — extended `client.go` with `AskHolmesWithClient()`, `ServiceProxyURL()`, and `HTTPClientForRESTConfig()` helper functions.
+
+**Files modified:**
+
+| File | Change |
+|------|--------|
+| `admin/server/handlers/hcp/investigate.go` | Replaced `controlplane` 501 stub with `handleControlplane()` method |
+| `admin/server/holmes/client.go` | Added `AskHolmesWithClient()` (accepts custom `*http.Client`), `ServiceProxyURL()`, `HTTPClientForRESTConfig()` |
+
+**`controlplane` handler flow:**
+```go
+case "controlplane":
+    return h.handleControlplane(writer, request, hcp, req.Question)
+```
+
+**`handleControlplane()` implementation:**
+1. Get management cluster ARM resource ID via `csClient.GetClusterProvisionShard()` (same as dataplane)
+2. Get FPA credential via `fpaCredentialRetriever.RetrieveCredential(tenantId)`
+3. Get management cluster REST config via `mc.GetAKSRESTConfig(ctx, mgmtClusterResourceID, credential)`
+4. Construct proxied Holmes URL:
+   ```go
+   proxyURL := fmt.Sprintf("%s/api/v1/namespaces/%s/services/%s:80/proxy",
+       mgmtRESTConfig.Host, holmes.HolmesNamespace, "holmesgpt-svc")
+   ```
+5. Create HTTP client with mgmt REST config's TLS transport (`rest.TransportFor(mgmtRESTConfig)`)
+6. Call `AskHolmes()` with the proxied URL and custom HTTP client
+
+**Key insight from Phase 2**: The same `AskHolmes()` function works for both in-cluster (serviceplane) and cross-cluster (controlplane) calls. The only difference is the URL and HTTP transport.
+
+**Convention**: Holmes namespace on management clusters is `aro-holmesgpt` (same as service cluster and dataplane ephemeral pods).
 
 ---
 
@@ -608,48 +663,46 @@ result := req.Do(ctx)
 
 ### New Files
 
-| File | Phase | Purpose |
-|------|-------|---------|
-| `internal/certs/generator.go` | 1 | Shared CSR certificate generation |
-| `internal/certs/generator_test.go` | 1 | Tests |
-| `internal/certs/diagnostics.go` | 1 | `BuildDiagnosticsSubject()` |
-| `internal/certs/diagnostics_test.go` | 1 | Tests |
-| `internal/csrminting/minting.go` | 1 | Shared CSR lifecycle management |
-| `internal/csrminting/minting_test.go` | 1 | Tests |
-| `admin/server/holmes/config.go` | 1 | Configuration loading + validation |
-| `admin/server/holmes/config_test.go` | 1 | Tests |
-| `admin/server/holmes/staticresources/holmes-config.yaml` | 1 | Holmes toolset config (bash allowlist/denylist) |
-| `admin/server/holmes/kubeconfig.go` | 1 | Kubeconfig builder for dataplane |
-| `admin/server/holmes/kubeconfig_test.go` | 1 | Tests |
-| `admin/server/holmes/pod.go` | 1 | Ephemeral pod creation + log streaming (on mgmt cluster) |
-| `admin/server/holmes/pod_test.go` | 1 | Tests |
-| `admin/server/holmes/ratelimit.go` | 1 | Concurrency limiter |
-| `admin/server/holmes/ratelimit_test.go` | 1 | Tests |
-| `admin/server/holmes/staticresources/clusterrole-diagnostics.yaml` | 1 | RBAC for customer clusters |
-| `admin/server/holmes/staticresources/clusterrolebinding-diagnostics.yaml` | 1 | RBAC binding |
-| `admin/server/handlers/hcp/investigate.go` | 1 | HTTP handler |
-| `admin/server/handlers/hcp/investigate_test.go` | 1 | Tests |
-| `admin/server/holmes/client.go` | 2 | HTTP client for persistent Holmes |
-| `holmes/deploy/` (entire chart) | 2 | Helm chart for service cluster |
-| `admin/server/holmes/proxy.go` | 3 | Kube API server proxy client |
-| `holmes/deploy-mgmt/` (entire chart) | 3 | Helm chart for management cluster |
+| File | Phase | Status | Purpose |
+|------|-------|--------|---------|
+| `internal/certs/generator.go` | 1 | ✅ | Shared CSR certificate generation |
+| `internal/certs/generator_test.go` | 1 | ✅ | Tests |
+| `internal/certs/diagnostics.go` | 1 | ✅ | `BuildDiagnosticsSubject()` (CN=`system:sre-break-glass:aro-diagnostics`) |
+| `internal/certs/diagnostics_test.go` | 1 | ✅ | Tests |
+| `internal/csrminting/minting.go` | 1 | ✅ | Shared CSR lifecycle management |
+| `admin/server/holmes/config.go` | 1 | ✅ | Configuration loading + validation |
+| `admin/server/holmes/config_test.go` | 1 | ✅ | Tests |
+| `admin/server/holmes/staticresources/holmes-config.yaml` | 1 | ✅ | Holmes toolset config (bash allowlist/denylist) |
+| `admin/server/holmes/kubeconfig.go` | 1 | ✅ | Kubeconfig builder for dataplane |
+| `admin/server/holmes/pod.go` | 1 | ✅ | Ephemeral pod creation + log streaming (on mgmt cluster) |
+| `admin/server/holmes/ratelimit.go` | 1 | ✅ | Concurrency limiter |
+| `admin/server/holmes/ratelimit_test.go` | 1 | ✅ | Tests |
+| `admin/server/holmes/staticresources/clusterrole-diagnostics.yaml` | 1 | ✅ | RBAC for customer clusters |
+| `admin/server/holmes/staticresources/clusterrolebinding-diagnostics.yaml` | 1 | ✅ | RBAC binding |
+| `admin/server/handlers/hcp/investigate.go` | 1 | ✅ | HTTP handler |
+| `acm/deploy/helm/policies/templates/aro-diagnostics-rbac.policy.yaml` | 1 | ✅ | ACM policy deploying RBAC to HCP clusters |
+| `admin/server/holmes/client.go` | 2 | ✅ | `AskHolmes()` HTTP client for persistent Holmes |
+| `holmesgpt/deploy-svc/` (entire chart) | 2 | ✅ | Helm chart for service cluster |
+| `holmesgpt/svc-values.yaml` | 2 | ✅ | Values for service cluster deployment |
+| `holmesgpt/deploy-mgmt/` (entire chart, no SA) | 3 | ✅ | Helm chart for management cluster (copy of deploy-svc with extended RBAC, no SA — owned by deploy/ chart) |
+| `holmesgpt/mgmt-values.yaml` | 3 | ✅ | Values for management cluster deployment |
 
 ### Modified Files
 
-| File | Phase | Change |
-|------|-------|--------|
-| `tooling/hcpctl/pkg/breakglass/certs/generator.go` | 1 | Re-export from `internal/certs` |
-| `tooling/hcpctl/pkg/breakglass/minting/minting.go` | 1 | Re-export from `internal/csrminting` |
-| `tooling/hcpctl/pkg/breakglass/execute.go` | 1 | Update imports |
-| `admin/server/server/admin.go` | 1 | Register `/investigate` endpoint |
-| `admin/server/cmd/server/options.go` | 1 | Load Holmes config (non-secret values from KV or env) |
-| `admin/deploy/templates/admin.deployment.yaml` | 1 | Add Holmes env vars |
-| `dev-infrastructure/templates/mgmt-cluster.bicep` | 1 | Add `holmesgpt` workload identity entry + AOAI role assignment |
-| `config/config.yaml` | 1 | Add `adminApi.holmes` section (no API key references) |
-| `config/config.schema.json` | 1 | Add Holmes schema |
-| `Makefile` | 2, 3 | Add Holmes to pipeline lists |
-| `dev-infrastructure/svc-pipeline.yaml` | 2 | Add Holmes deployment step |
-| `dev-infrastructure/mgmt-pipeline.yaml` | 3 | Add Holmes deployment step |
+| File | Phase | Status | Change |
+|------|-------|--------|--------|
+| `tooling/hcpctl/pkg/breakglass/certs/generator.go` | 1 | ✅ | Re-export from `internal/certs` |
+| `tooling/hcpctl/pkg/breakglass/minting/minting.go` | 1 | ✅ | Re-export from `internal/csrminting` |
+| `admin/server/server/admin.go` | 1 | ✅ | Register `/investigate` endpoint |
+| `admin/server/cmd/server/options.go` | 1 | ✅ | Load Holmes config (non-secret values from KV or env) |
+| `admin/deploy/templates/admin.deployment.yaml` | 1 | ✅ | Add Holmes env vars |
+| `dev-infrastructure/templates/mgmt-cluster.bicep` | 1 | ✅ | Add `holmesgpt` workload identity entry + AOAI role assignment |
+| `dev-infrastructure/templates/svc-cluster.bicep` | 2 | ✅ | Add `holmesgpt` workload identity + AOAI role assignment |
+| `config/config.yaml` | 1 | ✅ | Add `adminApi.holmes` section (no API key references) |
+| `config/config.schema.json` | 1 | ✅ | Add Holmes schema |
+| `holmesgpt/pipeline.yaml` | 3 | ✅ | Added `deploy-server` step for persistent Holmes on mgmt cluster |
+| `admin/server/handlers/hcp/investigate.go` | 3 | ✅ | Added `handleControlplane()` — routes via kube API proxy |
+| `admin/server/holmes/client.go` | 3 | ✅ | Added `AskHolmesWithClient()`, `ServiceProxyURL()`, `HTTPClientForRESTConfig()` |
 
 ---
 

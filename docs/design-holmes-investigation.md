@@ -122,43 +122,50 @@ Registered in the admin API service (service cluster), following existing patter
 
 ```
 Admin API ──POST──► Holmes Service (same cluster)
-                    http://holmes-svc.{ns}:80/api/chat
+                    http://holmesgpt-svc.aro-holmesgpt.svc.cluster.local:80/api/chat
                     {"ask": "<question>", "model": "<model>"}
 ```
 
-**Holmes deployment**: Helm chart (`robusta/holmes`) deployed as part of the service cluster pipeline.
+**Holmes deployment**: Custom Helm chart (`holmesgpt/deploy-svc/`) deployed to the `aro-holmesgpt` namespace on the service cluster. Runs as a persistent server (`python server.py`) on port 5050 behind a ClusterIP Service (port 80 → 5050).
 
-**Access**: In-cluster ServiceAccount with Helm-managed read-only ClusterRole.
+**Server configuration**: HolmesGPT server mode requires a main config file at `~/.holmes/config.yaml` containing `model`, `api_base`, `api_version`, and `custom_toolsets` reference. Without this file, the server only loads the `ROBUSTA_AI` model (which fails without Robusta credentials). The config is mounted from a ConfigMap with two files:
+- `/.holmes/config.yaml` — main config (model, API base, API version, custom_toolsets path)
+- `/etc/holmes/toolsets.yaml` — toolset allow/deny config (same as dataplane)
+
+**Access**: In-cluster ServiceAccount (`holmesgpt`) with Workload Identity for Azure OpenAI auth. Helm-managed read-only ClusterRole covering core resources, apps, batch, networking, and metrics.
 
 **What it investigates**: RP frontend/backend pods, Cluster Service, Maestro server, sessiongate, networking between services, pod logs, events.
 
-**Admin API call**: Simple HTTP POST to the in-cluster Service DNS name. Response proxied back to caller.
+**Admin API call**: Simple HTTP POST to the in-cluster Service DNS name (`http://holmesgpt-svc.aro-holmesgpt.svc.cluster.local:80/api/chat`). Response streamed back to caller via chunked transfer. No HCP database lookup needed — serviceplane scope investigates the service cluster itself.
 
 ### 5.4 Scope: Management Cluster Investigation (`controlplane`)
 
 ```
 Admin API ──kube API proxy──► Holmes Service (management cluster)
-            via mgmt cluster REST config
-            /api/v1/namespaces/{ns}/services/holmes-svc:80/proxy/api/chat
+            via FPA + AKS REST config
+            /api/v1/namespaces/aro-holmesgpt/services/holmesgpt-svc:80/proxy/api/chat
 ```
 
-**Holmes deployment**: Helm chart deployed to each management cluster as part of the management cluster pipeline.
+**Holmes deployment**: Custom Helm chart (`holmesgpt/deploy-mgmt/`) deployed to the `aro-holmesgpt` namespace on each management cluster. Same persistent server pattern as the service cluster deployment (Phase 2). Reuses the same ConfigMap structure: main config at `/.holmes/config.yaml` + toolsets at `/etc/holmes/toolsets.yaml`.
 
-**Access**: ServiceAccount with read-only access to HCP namespaces. The same instance serves diagnostics for all HCPs on that management cluster.
+**Access**: ServiceAccount (`holmesgpt`) with Workload Identity for Azure OpenAI auth. Read-only access to all namespaces including HCP namespaces. The same instance serves diagnostics for all HCPs on that management cluster.
 
 **RBAC**: ClusterRole granting `get/list/watch` on:
-- Core resources (pods, pods/log, events, configmaps, services) across HCP namespaces
-- HyperShift CRDs (hostedclusters, hostedcontrolplanes, nodepools)
-- CertificateSigningRequests
-- Standard workload resources (deployments, statefulsets)
+- Core resources (pods, pods/log, events, configmaps, services, nodes, PVCs, PVs, namespaces) across all namespaces including HCP namespaces
+- HyperShift CRDs (`hostedclusters`, `hostedcontrolplanes`, `nodepools`, `machinesets`, `machines`) in `hypershift.openshift.io` and `cluster.x-k8s.io` API groups
+- CertificateSigningRequests (`certificates.k8s.io`)
+- Standard workload resources (deployments, statefulsets, daemonsets, replicasets, jobs, cronjobs)
+- Metrics (`metrics.k8s.io`)
 
-**Admin API call**: The admin API already has management cluster access via FPA + AKS API (`mc.GetAKSRESTConfig()`). It reaches Holmes via the Kubernetes API server proxy:
+**Admin API call**: The admin API already has management cluster access via FPA + AKS API (`mc.GetAKSRESTConfig()`). It reaches Holmes via the Kubernetes API server proxy, reusing the same `AskHolmes()` HTTP client function from Phase 2 with a proxied URL constructed from the mgmt REST config:
 ```
-GET /api/v1/namespaces/{holmes-ns}/services/holmes-svc:80/proxy/api/chat
+POST /api/v1/namespaces/aro-holmesgpt/services/holmesgpt-svc:80/proxy/api/chat
 ```
-This requires no additional ingress — the kube-apiserver proxies the request to the Holmes service.
+This requires no additional ingress — the kube-apiserver proxies the request to the Holmes service. The admin API constructs the proxy URL and uses a custom `http.Client` with the mgmt REST config's TLS transport.
 
-**Per-request routing**: The admin API determines which management cluster hosts the HCP by calling `csClient.GetClusterProvisionShard()`, which returns the management cluster ARM resource ID.
+**Per-request routing**: The admin API determines which management cluster hosts the HCP by calling `csClient.GetClusterProvisionShard()`, which returns the management cluster ARM resource ID. This is the same routing logic already used by the dataplane handler.
+
+**Key difference from serviceplane**: The serviceplane Holmes is co-located with the admin API (same cluster), so a simple in-cluster DNS URL suffices. The controlplane Holmes requires the FPA + AKS REST config to reach the mgmt cluster, plus kube API proxy to reach the Holmes service within it.
 
 ### 5.5 Scope: Customer Cluster Investigation (`dataplane`)
 
@@ -315,11 +322,11 @@ New addition: `BuildDiagnosticsSubject()` returning CN=`system:sre-break-glass:a
 
 ## 8. Phasing
 
-| Phase | Scope | Description |
-|-------|-------|-------------|
-| **Phase 1** | `dataplane` | Admin API endpoint + ephemeral pods on management cluster + CSR kubeconfig + `system:aro-diagnostics` RBAC. Highest value, most complex. |
-| **Phase 2** | `serviceplane` | Deploy Holmes Helm chart to service cluster pipeline. Wire admin API to call `/api/chat`. |
-| **Phase 3** | `controlplane` | Deploy Holmes Helm chart to management cluster pipeline. Wire admin API kube API proxy. |
+| Phase | Scope | Status | Description |
+|-------|-------|--------|-------------|
+| **Phase 1** | `dataplane` | **Complete** | Admin API endpoint + ephemeral pods on management cluster + CSR kubeconfig + `system:aro-diagnostics` RBAC via ACM policy. E2E tested. |
+| **Phase 2** | `serviceplane` | **Complete** | Persistent Holmes server on service cluster (`holmesgpt/deploy-svc/`). Admin API calls in-cluster Holmes via `AskHolmes()`. E2E tested. |
+| **Phase 3** | `controlplane` | **Complete** | Persistent Holmes server on management cluster (`holmesgpt/deploy-mgmt/`). Admin API reaches Holmes via FPA + AKS REST config + kube API proxy. Reuses `AskHolmesWithClient()` with proxied URL. |
 
 Note: Private HCP clusters are supported out of the box by running the ephemeral pod on the management cluster (where the kube-apiserver is co-located). No separate phase is needed.
 
@@ -355,15 +362,19 @@ Run the dataplane investigation pod on the service cluster instead of the manage
 ## 10. Open Questions
 
 1. **Holmes on management cluster routing**: How does the admin API know the Holmes service namespace on the management cluster? Should it be a convention (e.g., `aro-holmes`) or configurable per management cluster?
-   - **Resolved**: `aro-holmesgpt` is used as a fixed convention on management clusters. This namespace hosts the ephemeral investigation pods and the `holmesgpt` ServiceAccount bound to Workload Identity.
+   - **Resolved**: `aro-holmesgpt` is used as a fixed convention on all clusters (management and service). This namespace hosts the ephemeral investigation pods (dataplane), the persistent Holmes server (serviceplane/controlplane), and the `holmesgpt` ServiceAccount bound to Workload Identity.
 
 2. **HCP RBAC deployment**: How should the `system:aro-diagnostics` ClusterRole/ClusterRoleBinding be deployed to HCP clusters? Options: HyperShift operator, Cluster Service provisioning step, or a dedicated operator.
    - **Resolved**: Deployed via ACM policy (`aro-diagnostics-rbac.policy.yaml`) targeting all HCP clusters via the `all-hosted-clusters` Placement. This ensures the RBAC is consistently applied to every HCP cluster without requiring changes to the HyperShift operator or Cluster Service.
 
 3. **Management cluster Holmes RBAC**: The persistent Holmes on the management cluster needs access to all HCP namespaces. A ClusterRole works, but should access be scoped per-namespace (more secure) or cluster-wide (simpler)?
+   - **Resolved**: Cluster-wide ClusterRole. Per-namespace scoping would require dynamic RoleBinding creation for each new HCP, adding operational complexity for minimal security benefit — Holmes is already restricted to read-only operations via RBAC and bash allowlist/denylist. The ClusterRole includes HyperShift CRDs (`hostedclusters`, `hostedcontrolplanes`, `nodepools`) in addition to standard Kubernetes resources.
 
 4. **Streaming from persistent Holmes**: The `/api/chat` endpoint may not support streaming yet (docs say "Streaming APIs are forthcoming"). If responses take minutes, the admin API HTTP connection must stay open. Timeout and long-polling considerations?
+   - **Resolved (Phase 2 E2E testing)**: The `/api/chat` endpoint returns a complete JSON response (not streamed). The `AskHolmes()` client streams the response body to the HTTP writer with chunked flushing, which works well for responses that take 30-120 seconds. The admin API's HTTP timeout (600s default) is sufficient. No special long-polling needed.
 
 5. **Which management cluster?**: When `scope=controlplane`, the admin API needs to route to the correct management cluster's Holmes. The provision shard gives the management cluster ARM resource ID. Is one Holmes per management cluster sufficient, or do we need per-HCP routing?
+   - **Resolved**: One Holmes per management cluster is sufficient. The admin API uses `csClient.GetClusterProvisionShard()` to get the management cluster ARM resource ID (same pattern as the dataplane handler), then reaches the Holmes service via kube API proxy on that specific management cluster.
 
 6. **Azure OpenAI API version strategy**: Azure now offers a v1 API (`/openai/v1/`) that removes the need for `api-version` parameter. Should we adopt v1 or stay with the versioned preview API (`2025-04-01-preview`)?
+   - Deferred — using `2025-04-01-preview` for now, matches ARO classic.

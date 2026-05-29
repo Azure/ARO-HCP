@@ -63,7 +63,8 @@ func (pm *PodManager) RunInvestigation(
 	pod := buildPodSpec(podName, namespace, secretName, configMapName, pm.config, question)
 
 	defer func() {
-		cleanupCtx := context.Background()
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		_ = kubeClient.CoreV1().Pods(namespace).Delete(cleanupCtx, podName, metav1.DeleteOptions{})
 		_ = kubeClient.CoreV1().Secrets(namespace).Delete(cleanupCtx, secretName, metav1.DeleteOptions{})
 		_ = kubeClient.CoreV1().ConfigMaps(namespace).Delete(cleanupCtx, configMapName, metav1.DeleteOptions{})
@@ -191,6 +192,11 @@ func streamPodLogs(ctx context.Context, kubeClient kubernetes.Interface, namespa
 
 	buf := make([]byte, 4096)
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		n, readErr := stream.Read(buf)
 		if n > 0 {
 			if _, writeErr := w.Write(buf[:n]); writeErr != nil {

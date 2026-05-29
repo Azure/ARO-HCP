@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"k8s.io/client-go/rest"
 )
 
 type chatRequest struct {
@@ -15,6 +17,10 @@ type chatRequest struct {
 }
 
 func AskHolmes(ctx context.Context, endpoint, question, model string, w http.ResponseWriter) error {
+	return AskHolmesWithClient(ctx, http.DefaultClient, endpoint, question, model, w)
+}
+
+func AskHolmesWithClient(ctx context.Context, httpClient *http.Client, endpoint, question, model string, w http.ResponseWriter) error {
 	reqBody, err := json.Marshal(chatRequest{Ask: question, Model: model})
 	if err != nil {
 		return fmt.Errorf("failed to marshal chat request: %w", err)
@@ -27,14 +33,14 @@ func AskHolmes(ctx context.Context, endpoint, question, model string, w http.Res
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to call Holmes service: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("Holmes service returned HTTP %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -43,6 +49,11 @@ func AskHolmes(ctx context.Context, endpoint, question, model string, w http.Res
 
 	buf := make([]byte, 4096)
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
 			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
@@ -61,4 +72,17 @@ func AskHolmes(ctx context.Context, endpoint, question, model string, w http.Res
 	}
 
 	return nil
+}
+
+func ServiceProxyURL(restConfig *rest.Config, namespace, serviceName string) string {
+	host := strings.TrimRight(restConfig.Host, "/")
+	return fmt.Sprintf("%s/api/v1/namespaces/%s/services/%s:80/proxy", host, namespace, serviceName)
+}
+
+func HTTPClientForRESTConfig(restConfig *rest.Config) (*http.Client, error) {
+	transport, err := rest.TransportFor(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transport from REST config: %w", err)
+	}
+	return &http.Client{Transport: transport}, nil
 }

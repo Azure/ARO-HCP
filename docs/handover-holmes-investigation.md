@@ -18,47 +18,43 @@ All in `docs/`:
 |----------|-----------|
 | Dataplane ephemeral pod runs on **management cluster**, not service cluster | kube-apiserver is co-located there; solves private cluster connectivity; eliminates need for separate "private clusters" phase |
 | **Authentication via native Workload Identity** (not API keys) | HolmesGPT natively supports `DefaultAzureCredential` via `AZURE_AD_TOKEN_AUTH=true`. Both HCP clusters have full WI support. The pod authenticates to Azure OpenAI directly — no API keys stored anywhere. ARO classic (PR #4852) uses a workaround (pre-acquired token as API key); HCP does it properly. |
-| Holmes pod runs in **`aro-holmesgpt` namespace** on mgmt cluster | WI federated credentials need a fixed `system:serviceaccount:{ns}:{name}` subject. HCP namespaces are dynamic per-cluster. The pod accesses the HCP cluster via CSR-signed kubeconfig, so its namespace doesn't affect cluster access. |
-| AOAI resource has **`disableLocalAuth=true`** + **custom subdomain** | Required for Entra ID token auth. No API keys can be created or used. |
+| Holmes pod/server runs in **`aro-holmesgpt` namespace** on all clusters | WI federated credentials need a fixed `system:serviceaccount:{ns}:{name}` subject. HCP namespaces are dynamic per-cluster. Consistent convention across mgmt and svc clusters. |
+| AOAI resource has **`disableLocalAuth=true`** + **custom subdomain** + **DataZoneStandard SKU** | Required for Entra ID token auth. No API keys can be created or used. DataZoneStandard for data residency compliance. |
 | Config has **two loading modes**: Key Vault (prod) vs env vars (dev) | Only non-secret config (API base URL, model, timeout). No secrets needed — auth is via WI. |
 | `HOLMES_IMAGE` is a **local dev override only** | Production image comes from ACR domain + config.yaml digest: `acrDomain + "/holmesgpt:latest"` |
 | Model default: `azure/gpt-5.2`, API version: `2025-04-01-preview` | Matches ARO classic; user confirmed |
-| **RBAC deployed via ACM policy** | `aro-diagnostics-rbac.policy.yaml` targets all HCP clusters via `all-hosted-clusters` Placement. Auto-remediated. |
+| **RBAC deployed via ACM policy** | `aro-diagnostics-rbac.policy.yaml` targets all HCP clusters via `all-hosted-clusters` Placement. Auto-remediated with `remediationAction: enforce`. |
+| CSR subject CN: `system:sre-break-glass:aro-diagnostics` | HyperShift CSR approver enforces `system:sre-break-glass:` prefix for the breakglass signer. Original `system:aro-diagnostics` was rejected. |
+| KAS root CA: `root-ca` secret, `ca.crt` key | Not `kas-server-crt`/`tls.crt` (which is the server cert, not the CA). |
+| **HolmesGPT server mode needs `~/.holmes/config.yaml`** | Without this file, server only loads `ROBUSTA_AI` model. Must contain `model`, `api_base`, `api_version`, `custom_toolsets`. |
 | No `HostAliases` needed | Unlike ARO classic, HCP kube-apiserver is reachable from the management cluster without DNS workarounds |
 | Three phases, no Phase 4 | Phase 1: dataplane, Phase 2: serviceplane, Phase 3: controlplane. Private clusters work automatically via Phase 1. |
+| **Phase 3 reuses `AskHolmes()` via kube API proxy** | No separate `proxy.go` needed. Same HTTP client function works for both in-cluster (svc) and cross-cluster (mgmt via proxy) calls. |
 
 ## What's Done
 
 - Design document — reviewed and approved
 - Implementation plan — reviewed and approved
 - Test plan — reviewed and approved
-- **Phase 1 code implemented** (all 10 steps) — builds and tests pass
+- **Phase 1 (dataplane) — COMPLETE** — all 10 steps implemented, E2E tested in personal dev environment
+- **Phase 2 (serviceplane) — COMPLETE** — persistent Holmes server on service cluster, E2E tested
+- **Phase 3 (controlplane) — COMPLETE** — persistent Holmes server on management cluster via kube API proxy, E2E tested
 - **Config materialization** — schema, rendered configs, Helm fixture tests pass
 - **RBAC deployment** — ACM policy created (`acm/deploy/helm/policies/templates/aro-diagnostics-rbac.policy.yaml`)
-- **Auth migration to Workload Identity** — in progress (replacing API key auth)
+- **Workload Identity auth** — fully implemented (no API keys anywhere in the system)
+- **Infrastructure** — Azure OpenAI (DataZoneStandard SKU, `disableLocalAuth=true`), holmesgpt MSI + federated credentials on both mgmt and svc clusters, AOAI role assignments
 
-## What Needs to Be Built (Phase 1)
+## All Phases Complete
 
-Phase 1 (dataplane) has 10 implementation steps. Follow the implementation plan exactly. Here's the dependency order:
+All three investigation scopes are implemented and E2E tested:
 
-```
-Step 1: Extract shared CSR packages (internal/certs/, internal/csrminting/)
-    ↓
-Step 2: Holmes configuration (admin/server/holmes/config.go)
-Step 3: Holmes toolset config (admin/server/holmes/staticresources/holmes-config.yaml)
-    ↓
-Step 4: Kubeconfig builder (admin/server/holmes/kubeconfig.go) — depends on Step 1
-Step 5: Ephemeral pod manager (admin/server/holmes/pod.go) — depends on Steps 2, 3
-Step 6: Rate limiter (admin/server/holmes/ratelimit.go)
-    ↓
-Step 7: Investigation handler (admin/server/handlers/hcp/investigate.go) — depends on Steps 4, 5, 6
-    ↓
-Step 8: Wire into admin API (admin/server/server/admin.go, cmd/server/options.go)
-Step 9: RBAC for customer clusters (staticresources/)
-Step 10: Helm chart & config.yaml updates
-```
+| Scope | How it works |
+|-------|-------------|
+| **dataplane** | Ephemeral pod on mgmt cluster with CSR-signed kubeconfig |
+| **serviceplane** | In-cluster HTTP call to persistent Holmes on svc cluster |
+| **controlplane** | FPA + kube API proxy to persistent Holmes on mgmt cluster |
 
-Steps 1-3 can be done in parallel. Steps 4-6 can be done in parallel. Steps 9-10 can be done in parallel with Step 8.
+**Key Phase 3 implementation note**: The `deploy-mgmt/` chart does not include a `serviceaccount.yaml` — the SA is already owned by the `holmesgpt` Helm release (Phase 1's `deploy/` chart). A duplicate SA causes Helm ownership conflicts. The `deploy-mgmt/` chart uses release name `holmesgpt-server` to avoid conflicts with the existing `holmesgpt` release.
 
 ## Codebase Patterns to Follow
 
@@ -105,12 +101,14 @@ Holmes uses **Entra ID token auth via Workload Identity** — no API keys are st
 **Config still needed** (non-secret, via config.yaml or env var):
 - `HOLMES_AZURE_OPENAI_API_BASE` — AOAI endpoint URL (e.g. `https://arohcp-dev-aoai.openai.azure.com`)
 
-## Config Changes Needed
+## Config Changes — DONE
 
-**`config/config.yaml`** — add under `adminApi:`:
+**`config/config.yaml`** — added under `adminApi:`:
 ```yaml
 holmes:
   enabled: false
+  aoaiName: ""
+  azureOpenAIAPIBase: ""
   model: "azure/gpt-5.2"
   azureOpenAIAPIVersion: "2025-04-01-preview"
   defaultTimeout: 600
@@ -121,17 +119,22 @@ holmes:
 ```yaml
 holmes:
   enabled: true
+  aoaiName: "arohcp-dev-aoai"
+  azureOpenAIAPIBase: "https://arohcp-dev-aoai.openai.azure.com"
 ```
 
-After config changes: `cd config && make materialize` and commit rendered output.
-Also update `config/config.schema.json` with the new Holmes schema.
+Config schema updated in `config/config.schema.json`.
+Rendered configs materialized via `cd config && make materialize`.
 
 ## Resolved Questions
 
 1. **RBAC deployment**: ✅ Deployed via ACM policy (`aro-diagnostics-rbac.policy.yaml`) targeting all HCP clusters via the `all-hosted-clusters` Placement. Auto-remediated with `remediationAction: enforce`.
-2. **Holmes namespace convention on mgmt cluster**: ✅ `aro-holmesgpt` as hardcoded convention.
-3. **Management cluster Holmes RBAC**: ✅ Not needed for Holmes pods — they use CSR-signed kubeconfigs for HCP access and WI for AOAI access.
-4. **Azure OpenAI v1 API**: Deferred — using `2025-04-01-preview` for now, matches ARO classic.
+2. **Holmes namespace convention**: ✅ `aro-holmesgpt` as hardcoded convention on all clusters (mgmt + svc).
+3. **Management cluster Holmes RBAC (ephemeral pods)**: ✅ Not needed — ephemeral pods use CSR-signed kubeconfigs for HCP access and WI for AOAI access.
+4. **Management cluster Holmes RBAC (persistent server, Phase 3)**: ✅ Cluster-wide ClusterRole with HyperShift CRD access. Per-namespace scoping rejected (operational complexity for minimal benefit).
+5. **Controlplane routing (which mgmt cluster?)**: ✅ One Holmes per management cluster. Admin API uses `csClient.GetClusterProvisionShard()` (same pattern as dataplane).
+6. **Streaming from persistent Holmes**: ✅ `/api/chat` returns complete JSON response. `AskHolmes()` streams with chunked flushing. 600s timeout sufficient.
+7. **Azure OpenAI v1 API**: Deferred — using `2025-04-01-preview` for now, matches ARO classic.
 
 ## Production Deployment
 
@@ -145,11 +148,12 @@ See `docs/ev2-deployment.md` and [aka.ms/arohcp-pipelines](https://aka.ms/arohcp
 
 ## Risks to Watch
 
-| Risk | Mitigation |
-|------|-----------|
-| HolmesGPT image may not be in ACR yet | Check with user; may need to push manually for dev. Test image available at `quay.io/haoran/holmesgpt:latest`. |
-| Management cluster may not have ACR pull access for Holmes image | Verify ImagePullSecrets are configured |
-| CSR signing timeout in prod (>60s) | Make timeout configurable; implement retry |
-| Holmes toolset config may need HCP-specific adjustments | Start with ARO classic's config, iterate |
-| WI federated credential not provisioned | Holmes config gracefully degrades — endpoint not registered if AOAI unreachable |
-| AOAI resource lacks custom subdomain | Entra ID token auth requires custom subdomain; `deploy-holmes-aoai.sh` enforces this |
+| Risk | Status | Mitigation |
+|------|--------|-----------|
+| HolmesGPT image may not be in ACR yet | **Active** | Test image at `quay.io/haoran/holmesgpt:latest` (must be `--platform linux/amd64`). Production needs image pushed to ACR. |
+| Management cluster may not have ACR pull access for Holmes image | **Active** | Verify ImagePullSecrets are configured |
+| CSR signing timeout in prod (>60s) | **Low risk** — E2E tested, signing takes ~10-30s | Make timeout configurable; implement retry |
+| Holmes toolset config may need HCP-specific adjustments | **Resolved** — same config works for all scopes | All unwanted toolsets explicitly disabled (including `crossplane/core`) |
+| WI federated credential not provisioned | **Resolved** — provisioned in bicep | Holmes config gracefully degrades — endpoint not registered if AOAI unreachable |
+| AOAI resource lacks custom subdomain | **Resolved** — enforced in bicep | `disableLocalAuth=true` + custom subdomain required for Entra ID token auth |
+| HolmesGPT server requires `~/.holmes/config.yaml` | **Resolved** — mounted via ConfigMap | Without this file, server only loads ROBUSTA_AI model. Discovered during Phase 2 E2E. |

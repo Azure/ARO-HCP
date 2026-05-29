@@ -99,6 +99,9 @@ func (c *HolmesConfig) Validate() error {
 	if c.AzureOpenAIAPIBase == "" {
 		return fmt.Errorf("AzureOpenAIAPIBase is required")
 	}
+	if c.Image == "" || c.Image[0] == '/' {
+		return fmt.Errorf("Image %q is invalid (set HOLMES_IMAGE or provide acrDomain)", c.Image)
+	}
 	if !modelRegex.MatchString(c.Model) {
 		return fmt.Errorf("Model %q does not match required pattern %s", c.Model, modelRegex.String())
 	}

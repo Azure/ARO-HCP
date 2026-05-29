@@ -77,7 +77,7 @@ spec:
           value: "{{ .Values.holmes.azureOpenAIAPIVersion }}"
         - name: HOLMES_DEFAULT_TIMEOUT
           value: "{{ .Values.holmes.defaultTimeout }}"
-        - name: HOLMES_MAX_CONCURRENT
+        - name: HOLMES_MAX_CONCURRENT_INVESTIGATIONS
           value: "{{ .Values.holmes.maxConcurrent }}"
 {{- end }}
         ports:
