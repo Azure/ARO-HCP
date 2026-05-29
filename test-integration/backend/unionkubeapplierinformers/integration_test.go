@@ -322,39 +322,24 @@ func createManagementCluster(ctx context.Context, fleetClient database.FleetDBCl
 // createApplyDesire writes a new ApplyDesire to a per-MC kube-applier mock
 // using the desire's parent resource hierarchy.
 func createApplyDesire(ctx context.Context, mockClient *databasetesting.MockKubeApplierDBClient, desire *kubeapplier.ApplyDesire) error {
-	parent, err := parentForDesire(desire.GetResourceID())
-	if err != nil {
-		return err
+	id := desire.GetResourceID()
+	if id == nil || id.Parent == nil {
+		return fmt.Errorf("desire %v has no parent in its resource ID", id)
 	}
-	applyDesireCRUD, err := mockClient.ApplyDesires(parent)
+	parentType := id.Parent.ResourceType
+	var applyDesireCRUD database.ResourceCRUD[kubeapplier.ApplyDesire]
+	var err error
+	switch {
+	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):
+		applyDesireCRUD, err = mockClient.ApplyDesiresForCluster(id.SubscriptionID, id.ResourceGroupName, id.Parent.Name)
+	case armhelpers.ResourceTypeEqual(parentType, api.NodePoolResourceType):
+		applyDesireCRUD, err = mockClient.ApplyDesiresForNodePool(id.SubscriptionID, id.ResourceGroupName, id.Parent.Parent.Name, id.Parent.Name)
+	default:
+		return fmt.Errorf("unsupported *Desire parent resource type: %s", parentType)
+	}
 	if err != nil {
 		return err
 	}
 	_, err = applyDesireCRUD.Create(ctx, desire, nil)
 	return err
-}
-
-// parentForDesire derives the cluster/nodepool ResourceParent for a *Desire
-// resourceID. Both cluster-scoped and nodepool-scoped *Desires are supported.
-func parentForDesire(desireResourceID *azcorearm.ResourceID) (database.ResourceParent, error) {
-	if desireResourceID == nil || desireResourceID.Parent == nil {
-		return database.ResourceParent{}, fmt.Errorf("desire %v has no parent in its resource ID", desireResourceID)
-	}
-	parentType := desireResourceID.Parent.ResourceType
-	switch {
-	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):
-		return database.ResourceParent{
-			SubscriptionID:    desireResourceID.SubscriptionID,
-			ResourceGroupName: desireResourceID.ResourceGroupName,
-			ClusterName:       desireResourceID.Parent.Name,
-		}, nil
-	case armhelpers.ResourceTypeEqual(parentType, api.NodePoolResourceType):
-		return database.ResourceParent{
-			SubscriptionID:    desireResourceID.SubscriptionID,
-			ResourceGroupName: desireResourceID.ResourceGroupName,
-			ClusterName:       desireResourceID.Parent.Parent.Name,
-			NodePoolName:      desireResourceID.Parent.Name,
-		}, nil
-	}
-	return database.ResourceParent{}, fmt.Errorf("unsupported *Desire parent resource type: %s", parentType)
 }

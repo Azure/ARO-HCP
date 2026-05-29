@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -37,8 +36,7 @@ import (
 // HCPNodePool pointing at the nodepool's Hypershift NodePool object in the
 // management cluster. The kube-applier sidecar on the management cluster
 // observes the NodePool via that ReadDesire and writes the observed state
-// into ReadDesire.Status.KubeContent. The "read+persist" controller mirrors
-// that into ManagementClusterContent.
+// into ReadDesire.Status.KubeContent; consumers read it directly from there.
 //
 // Replaces createNodePoolScopedMaestroReadonlyBundlesSyncer.
 type createNodePoolScopedReadDesiresSyncer struct {
@@ -49,8 +47,6 @@ type createNodePoolScopedReadDesiresSyncer struct {
 	resourcesDBClient    database.ResourcesDBClient
 	kubeApplierDBClients database.KubeApplierDBClients
 
-	clusterServiceClient ocm.ClusterServiceClientSpec
-
 	hostedClusterNamespaceEnvIdentifier string
 }
 
@@ -60,7 +56,6 @@ func NewCreateNodePoolScopedReadDesiresController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
 	informers informers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -69,7 +64,6 @@ func NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister:               activeOperationLister,
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
-		clusterServiceClient:                clusterServiceClient,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
@@ -90,13 +84,10 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
-	if len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil ||
+		len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return nil
 	}
-
-	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
-	csClusterHREF := ocm.GenerateAROHCPClusterHREF(csClusterID)
-	csClusterInternalID := api.Must(api.NewInternalID(csClusterHREF))
 
 	// Resolve the management cluster via the parent cluster's
 	// ServiceProviderCluster. Skip if the placement-sync controller hasn't
@@ -115,11 +106,22 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 		return nil
 	}
 
-	csCluster, err := c.clusterServiceClient.GetCluster(ctx, csClusterInternalID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster from Cluster Service: %w", err))
+	// Pull the parent cluster's domain prefix from cosmos rather than Cluster
+	// Service: the cluster_properties_sync controller already mirrors CS
+	// DomainPrefix into CustomerProperties.DNS.BaseDomainPrefix on the parent
+	// HCPCluster. Skip until that sync has happened; we'll retrigger on relist.
+	parentCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		return nil
 	}
-	csClusterDomainPrefix := csCluster.DomainPrefix()
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get parent Cluster: %w", err))
+	}
+	csClusterDomainPrefix := parentCluster.CustomerProperties.DNS.BaseDomainPrefix
+	if len(csClusterDomainPrefix) == 0 {
+		return nil
+	}
+	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
 
 	target := nodePoolTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix, existingNodePool.ID.Name)
 	desired := buildReadDesire(
@@ -135,17 +137,18 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if kaClient == nil {
 		return nil
 	}
-	parent := database.ResourceParent{
-		SubscriptionID:    key.SubscriptionID,
-		ResourceGroupName: key.ResourceGroupName,
-		ClusterName:       key.HCPClusterName,
-		NodePoolName:      key.HCPNodePoolName,
-	}
-	crud, err := kaClient.ReadDesires(parent)
+	crud, err := kaClient.ReadDesiresForNodePool(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
-	return ensureReadDesire(ctx, crud, desired)
+	existing, err := getExistingReadDesire(ctx, crud, readDesireNameReadonlyNodePool)
+	if err != nil {
+		return err
+	}
+	if !readDesireNeedsWork(existing, desired) {
+		return nil
+	}
+	return writeReadDesire(ctx, crud, existing, desired)
 }
 
 func (c *createNodePoolScopedReadDesiresSyncer) CooldownChecker() controllerutil.CooldownChecker {
@@ -169,7 +172,7 @@ func nodePoolTarget(envIdentifier, csClusterID, csClusterDomainPrefix, csNodePoo
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "nodepools",
-		Namespace: fmt.Sprintf("ocm-%s-%s", envIdentifier, csClusterID),
+		Namespace: hostedClusterNamespace(envIdentifier, csClusterID),
 		Name:      fmt.Sprintf("%s-%s", csClusterDomainPrefix, csNodePoolID),
 	}
 }

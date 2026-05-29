@@ -563,12 +563,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	createClusterScopedReadDesiresController := controllers.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
-		b.options.ClustersServiceClient, backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
+		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	createNodePoolScopedReadDesiresController := controllers.NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
-		b.options.ClustersServiceClient, backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
+		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	maestroDeleteOrphanedReadonlyBundlesController := controllers.NewDeleteOrphanedMaestroReadonlyBundlesController(
@@ -582,7 +582,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	// still has the field populated.
 	cleanupLegacyMaestroReadonlyBundlesController := controllers.NewCleanupLegacyMaestroReadonlyBundlesController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
+		managementClusterLister,
 		maestroClientBuilder,
 		b.options.MaestroSourceEnvironmentIdentifier,
 	)

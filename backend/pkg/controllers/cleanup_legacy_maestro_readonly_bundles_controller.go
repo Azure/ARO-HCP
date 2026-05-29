@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,11 +27,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -54,9 +58,9 @@ import (
 type cleanupLegacyMaestroReadonlyBundles struct {
 	name string
 
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient       database.ResourcesDBClient
+	managementClusterLister dblisters.ManagementClusterLister
 
-	clusterServiceClient ocm.ClusterServiceClientSpec
 	maestroClientBuilder maestro.MaestroClientBuilder
 
 	maestroSourceEnvironmentIdentifier string
@@ -69,14 +73,14 @@ type cleanupLegacyMaestroReadonlyBundles struct {
 // delete-orphaned controller; both can run concurrently.
 func NewCleanupLegacyMaestroReadonlyBundlesController(
 	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
+	managementClusterLister dblisters.ManagementClusterLister,
 	maestroClientBuilder maestro.MaestroClientBuilder,
 	maestroSourceEnvironmentIdentifier string,
 ) controllerutils.Controller {
 	return &cleanupLegacyMaestroReadonlyBundles{
 		name:                               "CleanupLegacyMaestroReadonlyBundles",
 		resourcesDBClient:                  resourcesDBClient,
-		clusterServiceClient:               clusterServiceClient,
+		managementClusterLister:            managementClusterLister,
 		maestroClientBuilder:               maestroClientBuilder,
 		maestroSourceEnvironmentIdentifier: maestroSourceEnvironmentIdentifier,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -96,13 +100,14 @@ func (c *cleanupLegacyMaestroReadonlyBundles) SyncOnce(ctx context.Context, _ an
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Cleaning up legacy Maestro Readonly Bundles")
 
-	// Reuse the same maestro-client-per-shard pattern the orphan controller
-	// uses so we open one connection per shard regardless of how many
-	// ServiceProvider* docs reference it.
-	maestroClientsByShard, err := c.buildMaestroClientsByProvisionShard(ctx)
-	defer cancelMaestroClientsByProvisionShard(maestroClientsByShard)
+	// Build one maestro client per ManagementCluster cosmos doc. Keying by
+	// MC resourceID lets us look the client up directly from
+	// ServiceProviderCluster.Status.ManagementClusterResourceID without ever
+	// calling Cluster Service.
+	maestroClientsByMC, err := c.buildMaestroClientsByManagementCluster(ctx)
+	defer cancelMaestroClientsByManagementCluster(maestroClientsByMC)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to build Maestro clients by provision shard: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to build Maestro clients by management cluster: %w", err))
 	}
 
 	var syncErrors []error
@@ -115,7 +120,7 @@ func (c *cleanupLegacyMaestroReadonlyBundles) SyncOnce(ctx context.Context, _ an
 		if len(spc.Status.MaestroReadonlyBundles) == 0 {
 			continue
 		}
-		if err := c.cleanupServiceProviderCluster(ctx, spc, maestroClientsByShard); err != nil {
+		if err := c.cleanupServiceProviderCluster(ctx, spc, maestroClientsByMC); err != nil {
 			syncErrors = append(syncErrors, utils.TrackError(
 				fmt.Errorf("cleanup ServiceProviderCluster %s: %w", spc.ResourceID.String(), err),
 			))
@@ -130,7 +135,7 @@ func (c *cleanupLegacyMaestroReadonlyBundles) SyncOnce(ctx context.Context, _ an
 		if len(spnp.Status.MaestroReadonlyBundles) == 0 {
 			continue
 		}
-		if err := c.cleanupServiceProviderNodePool(ctx, spnp, maestroClientsByShard); err != nil {
+		if err := c.cleanupServiceProviderNodePool(ctx, spnp, maestroClientsByMC); err != nil {
 			syncErrors = append(syncErrors, utils.TrackError(
 				fmt.Errorf("cleanup ServiceProviderNodePool %s: %w", spnp.ResourceID.String(), err),
 			))
@@ -143,15 +148,15 @@ func (c *cleanupLegacyMaestroReadonlyBundles) SyncOnce(ctx context.Context, _ an
 func (c *cleanupLegacyMaestroReadonlyBundles) cleanupServiceProviderCluster(
 	ctx context.Context,
 	spc *api.ServiceProviderCluster,
-	maestroClientsByShard map[string]*shardMaestroClient,
+	maestroClientsByMC map[string]*shardMaestroClient,
 ) error {
-	maestroClient, skip, err := c.maestroClientForServiceProviderCluster(ctx, spc, maestroClientsByShard)
+	maestroClient, skip, err := c.maestroClientForServiceProviderCluster(spc, maestroClientsByMC)
 	if err != nil {
 		return err
 	}
-	// If the parent cluster is gone we still want to clear the field so the
-	// ServiceProviderCluster is consistent. The orphan-cleanup safety net
-	// will remove the dangling Maestro bundles on its own pass.
+	// If the SPC has no management cluster wired up we still want to clear
+	// the field so it is consistent. The orphan-cleanup safety net will
+	// remove any dangling Maestro bundles on its own pass.
 	if !skip {
 		if err := c.deleteAllBundles(ctx, maestroClient, spc.Status.MaestroReadonlyBundles); err != nil {
 			return err
@@ -176,9 +181,9 @@ func (c *cleanupLegacyMaestroReadonlyBundles) cleanupServiceProviderCluster(
 func (c *cleanupLegacyMaestroReadonlyBundles) cleanupServiceProviderNodePool(
 	ctx context.Context,
 	spnp *api.ServiceProviderNodePool,
-	maestroClientsByShard map[string]*shardMaestroClient,
+	maestroClientsByMC map[string]*shardMaestroClient,
 ) error {
-	maestroClient, skip, err := c.maestroClientForServiceProviderNodePool(ctx, spnp, maestroClientsByShard)
+	maestroClient, skip, err := c.maestroClientForServiceProviderNodePool(ctx, spnp, maestroClientsByMC)
 	if err != nil {
 		return err
 	}
@@ -230,33 +235,25 @@ func (c *cleanupLegacyMaestroReadonlyBundles) deleteAllBundles(
 	return errors.Join(errs...)
 }
 
-// maestroClientForServiceProviderCluster resolves the Maestro client for
-// the provision shard the SPC's parent cluster runs on. skip==true means
-// the parent cluster is gone or unregistered with CS; the caller should
-// only clear the cosmos field in that case.
+// maestroClientForServiceProviderCluster resolves the Maestro client for the
+// management cluster that hosts the SPC's HostedCluster. skip==true means
+// the SPC has not yet been wired to a management cluster (or the MC is
+// no longer registered); the caller should only clear the cosmos field
+// in that case.
 func (c *cleanupLegacyMaestroReadonlyBundles) maestroClientForServiceProviderCluster(
-	ctx context.Context,
 	spc *api.ServiceProviderCluster,
-	maestroClientsByShard map[string]*shardMaestroClient,
+	maestroClientsByMC map[string]*shardMaestroClient,
 ) (maestro.Client, bool, error) {
-	clusterParent := spc.ResourceID.Parent
-	if clusterParent == nil {
-		return nil, false, utils.TrackError(fmt.Errorf("ServiceProviderCluster %s has no parent resource ID", spc.ResourceID.String()))
-	}
-	cluster, err := c.resourcesDBClient.HCPClusters(clusterParent.SubscriptionID, clusterParent.ResourceGroupName).Get(ctx, clusterParent.Name)
-	if database.IsNotFoundError(err) {
-		return nil, true, nil
-	}
-	if err != nil {
-		return nil, false, utils.TrackError(fmt.Errorf("failed to get parent Cluster: %w", err))
-	}
-	return c.maestroClientForCluster(cluster, maestroClientsByShard)
+	return maestroClientForMC(spc.Status.ManagementClusterResourceID, maestroClientsByMC)
 }
 
+// maestroClientForServiceProviderNodePool looks up the parent cluster's SPC
+// (its ManagementClusterResourceID is the source of truth) and returns the
+// maestro client for that MC. skip handling matches the cluster-scoped path.
 func (c *cleanupLegacyMaestroReadonlyBundles) maestroClientForServiceProviderNodePool(
 	ctx context.Context,
 	spnp *api.ServiceProviderNodePool,
-	maestroClientsByShard map[string]*shardMaestroClient,
+	maestroClientsByMC map[string]*shardMaestroClient,
 ) (maestro.Client, bool, error) {
 	nodePoolParent := spnp.ResourceID.Parent
 	if nodePoolParent == nil {
@@ -266,56 +263,90 @@ func (c *cleanupLegacyMaestroReadonlyBundles) maestroClientForServiceProviderNod
 	if clusterParent == nil {
 		return nil, false, utils.TrackError(fmt.Errorf("ServiceProviderNodePool %s has no grandparent cluster resource ID", spnp.ResourceID.String()))
 	}
-	cluster, err := c.resourcesDBClient.HCPClusters(clusterParent.SubscriptionID, clusterParent.ResourceGroupName).Get(ctx, clusterParent.Name)
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(
+		clusterParent.SubscriptionID, clusterParent.ResourceGroupName, clusterParent.Name,
+	).Get(ctx, api.ServiceProviderClusterResourceName)
 	if database.IsNotFoundError(err) {
 		return nil, true, nil
 	}
 	if err != nil {
-		return nil, false, utils.TrackError(fmt.Errorf("failed to get parent Cluster: %w", err))
+		return nil, false, utils.TrackError(fmt.Errorf("failed to get parent ServiceProviderCluster: %w", err))
 	}
-	return c.maestroClientForCluster(cluster, maestroClientsByShard)
+	return maestroClientForMC(spc.Status.ManagementClusterResourceID, maestroClientsByMC)
 }
 
-func (c *cleanupLegacyMaestroReadonlyBundles) maestroClientForCluster(
-	cluster *api.HCPOpenShiftCluster,
-	maestroClientsByShard map[string]*shardMaestroClient,
+// maestroClientForMC looks the maestro client up in the per-MC map. A nil
+// resourceID means the placement-sync controller has not assigned the
+// management cluster yet (skip=true); a non-nil resourceID without a map
+// entry means the MC has been unregistered between map build and lookup —
+// surface that as an error so we retry rather than silently swallow data.
+func maestroClientForMC(
+	mcResourceID *azcorearm.ResourceID,
+	maestroClientsByMC map[string]*shardMaestroClient,
 ) (maestro.Client, bool, error) {
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+	if mcResourceID == nil {
 		return nil, true, nil
 	}
-	shard, err := c.clusterServiceClient.GetClusterProvisionShard(context.Background(), *cluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return nil, false, utils.TrackError(fmt.Errorf("failed to get Cluster Provision Shard: %w", err))
-	}
-	entry, ok := maestroClientsByShard[shard.ID()]
+	key := strings.ToLower(mcResourceID.String())
+	entry, ok := maestroClientsByMC[key]
 	if !ok {
-		return nil, false, utils.TrackError(fmt.Errorf("provision shard %s for cluster %s is not present in maestro client map", shard.ID(), cluster.ID.String()))
+		return nil, false, utils.TrackError(fmt.Errorf("management cluster %s is not present in maestro client map", mcResourceID.String()))
 	}
 	return entry.maestroClient, false, nil
 }
 
-// buildMaestroClientsByProvisionShard mirrors the orphan-cleanup
-// controller's helper of the same name. Defined here so the cleanup
-// controller is self-contained; the orphan controller has its own copy
-// because the two will be removed on different timelines (this one
-// retires when MaestroReadonlyBundles is empty everywhere; the orphan
-// controller stays as long as any bundles can drift orphaned).
-func (c *cleanupLegacyMaestroReadonlyBundles) buildMaestroClientsByProvisionShard(ctx context.Context) (map[string]*shardMaestroClient, error) {
+// buildMaestroClientsByManagementCluster lists ManagementCluster cosmos docs
+// and builds a maestro client per MC straight from the doc's status fields
+// (MaestroRESTAPIURL, MaestroGRPCTarget, MaestroConsumerName,
+// ClusterServiceProvisionShardID for the source ID). The returned map is
+// keyed by lowercased MC resourceID so callers can look up by
+// ServiceProviderCluster.Status.ManagementClusterResourceID. On error the
+// returned map may be partial (clients created before the error); the caller
+// must defer cancelMaestroClientsByManagementCluster unconditionally.
+func (c *cleanupLegacyMaestroReadonlyBundles) buildMaestroClientsByManagementCluster(ctx context.Context) (map[string]*shardMaestroClient, error) {
 	out := map[string]*shardMaestroClient{}
-	iter := c.clusterServiceClient.ListProvisionShards()
-	for shard := range iter.Items(ctx) {
+	mcs, err := c.managementClusterLister.List(ctx)
+	if err != nil {
+		return out, utils.TrackError(fmt.Errorf("failed to list ManagementClusters: %w", err))
+	}
+	for _, mc := range mcs {
+		if mc.ResourceID == nil {
+			continue
+		}
 		maestroClientCtx, cancel := context.WithCancel(ctx)
-		maestroClient, err := createMaestroClientFromCSProvisionShard(maestroClientCtx, c.maestroSourceEnvironmentIdentifier, c.maestroClientBuilder, shard)
+		maestroClient, err := createMaestroClientFromManagementCluster(maestroClientCtx, c.maestroSourceEnvironmentIdentifier, c.maestroClientBuilder, mc)
 		if err != nil {
 			cancel()
-			return out, utils.TrackError(fmt.Errorf("failed to create Maestro client: %w", err))
+			return out, utils.TrackError(fmt.Errorf("failed to create Maestro client for management cluster %s: %w", mc.ResourceID.String(), err))
 		}
-		out[shard.ID()] = &shardMaestroClient{maestroClient: maestroClient, maestroClientCancelFunc: cancel}
-	}
-	if err := iter.GetError(); err != nil {
-		return out, utils.TrackError(fmt.Errorf("failed to list Cluster Service provision shards: %w", err))
+		out[strings.ToLower(mc.ResourceID.String())] = &shardMaestroClient{maestroClient: maestroClient, maestroClientCancelFunc: cancel}
 	}
 	return out, nil
+}
+
+// cancelMaestroClientsByManagementCluster runs the cancel function for each
+// maestro client built by buildMaestroClientsByManagementCluster.
+func cancelMaestroClientsByManagementCluster(maestroClientsByMC map[string]*shardMaestroClient) {
+	for _, entry := range maestroClientsByMC {
+		entry.maestroClientCancelFunc()
+	}
+}
+
+// createMaestroClientFromManagementCluster builds a maestro client from a
+// ManagementCluster cosmos doc's status fields. The source ID is derived
+// from envIdentifier + the MC's recorded CS provision shard so that
+// bundles owned by the same shard remain visible across the cleanup runs.
+func createMaestroClientFromManagementCluster(
+	ctx context.Context,
+	envIdentifier string,
+	builder maestro.MaestroClientBuilder,
+	mc *fleet.ManagementCluster,
+) (maestro.Client, error) {
+	if mc.Status.ClusterServiceProvisionShardID == nil {
+		return nil, fmt.Errorf("management cluster %s has no ClusterServiceProvisionShardID", mc.ResourceID.String())
+	}
+	sourceID := maestro.GenerateMaestroSourceID(envIdentifier, mc.Status.ClusterServiceProvisionShardID.ID())
+	return builder.NewClient(ctx, mc.Status.MaestroRESTAPIURL, mc.Status.MaestroGRPCTarget, mc.Status.MaestroConsumerName, sourceID)
 }
 
 func (c *cleanupLegacyMaestroReadonlyBundles) Run(ctx context.Context, threadiness int) {

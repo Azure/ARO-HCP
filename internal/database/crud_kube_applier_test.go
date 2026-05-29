@@ -21,55 +21,47 @@ import "testing"
 // accessor, so a direct unit test isn't worth the contortion.
 var _ = NewKubeApplierPartitionKey
 
-func TestResourceParentResourceID(t *testing.T) {
+func TestClusterParentResourceID(t *testing.T) {
 	tests := []struct {
-		name    string
-		parent  ResourceParent
-		want    string
-		wantErr bool
+		name              string
+		subscriptionID    string
+		resourceGroupName string
+		clusterName       string
+		want              string
+		wantErr           bool
 	}{
 		{
-			name: "cluster-scoped",
-			parent: ResourceParent{
-				SubscriptionID:    "00000000-0000-0000-0000-000000000001",
-				ResourceGroupName: "myRG",
-				ClusterName:       "myCluster",
-			},
+			name:              "cluster-scoped",
+			subscriptionID:    "00000000-0000-0000-0000-000000000001",
+			resourceGroupName: "myRG",
+			clusterName:       "myCluster",
 			// azcorearm.ParseResourceID re-canonicalises some segment names
 			// (e.g. "resourceGroups") while leaving user-supplied names alone.
 			want: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/myrg/" +
 				"providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster",
 		},
 		{
-			name: "nodepool-scoped",
-			parent: ResourceParent{
-				SubscriptionID:    "00000000-0000-0000-0000-000000000001",
-				ResourceGroupName: "myRG",
-				ClusterName:       "myCluster",
-				NodePoolName:      "myNodePool",
-			},
-			want: "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/myrg/" +
-				"providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster/nodepools/mynodepool",
+			name:              "missing subscription is rejected",
+			resourceGroupName: "rg",
+			clusterName:       "c",
+			wantErr:           true,
 		},
 		{
-			name:    "missing subscription is rejected",
-			parent:  ResourceParent{ResourceGroupName: "rg", ClusterName: "c"},
-			wantErr: true,
+			name:           "missing resource group is rejected",
+			subscriptionID: "sub",
+			clusterName:    "c",
+			wantErr:        true,
 		},
 		{
-			name:    "missing resource group is rejected",
-			parent:  ResourceParent{SubscriptionID: "sub", ClusterName: "c"},
-			wantErr: true,
-		},
-		{
-			name:    "missing cluster is rejected",
-			parent:  ResourceParent{SubscriptionID: "sub", ResourceGroupName: "rg"},
-			wantErr: true,
+			name:              "missing cluster is rejected",
+			subscriptionID:    "sub",
+			resourceGroupName: "rg",
+			wantErr:           true,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			id, err := tc.parent.resourceID()
+			id, err := clusterParentResourceID(tc.subscriptionID, tc.resourceGroupName, tc.clusterName)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil")
@@ -83,5 +75,23 @@ func TestResourceParentResourceID(t *testing.T) {
 				t.Errorf("resourceID = %q\n         want %q", id.String(), tc.want)
 			}
 		})
+	}
+}
+
+func TestNodePoolParentResourceID(t *testing.T) {
+	id, err := nodePoolParentResourceID(
+		"00000000-0000-0000-0000-000000000001", "myRG", "myCluster", "myNodePool",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/myrg/" +
+		"providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster/nodepools/mynodepool"
+	if id.String() != want {
+		t.Errorf("resourceID = %q\n         want %q", id.String(), want)
+	}
+
+	if _, err := nodePoolParentResourceID("sub", "rg", "c", ""); err == nil {
+		t.Errorf("expected error for empty nodePoolName, got nil")
 	}
 }
