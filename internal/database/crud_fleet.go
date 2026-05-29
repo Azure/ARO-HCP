@@ -133,6 +133,20 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) List(
 	)
 }
 
+// Count returns the number of resources of this type under the parent using a
+// server-side COUNT query, without transferring document bodies.
+func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Count(ctx context.Context) (int, error) {
+	partitionKey := topLevelResourceName(d.parentResourceID)
+	if len(partitionKey) == 0 {
+		return 0, fmt.Errorf("Count requires a parent-scoped CRUD with a known partition key")
+	}
+	prefix, err := d.makeResourceIDPath("")
+	if err != nil {
+		return 0, fmt.Errorf("failed to make ResourceID prefix: %w", err)
+	}
+	return count(ctx, d.containerClient, partitionKey, &d.resourceType, prefix, false)
+}
+
 func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Create(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {

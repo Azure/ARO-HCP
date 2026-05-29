@@ -105,6 +105,16 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) List(
 	)
 }
 
+// Count returns the number of resources of this type under the parent using a
+// server-side COUNT query, without transferring document bodies.
+func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Count(ctx context.Context) (int, error) {
+	prefix, err := d.makeResourceIDPath("")
+	if err != nil {
+		return 0, fmt.Errorf("failed to make ResourceID prefix: %w", err)
+	}
+	return count(ctx, d.containerClient, d.partitionKey, &d.resourceType, prefix, false)
+}
+
 func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Create(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
