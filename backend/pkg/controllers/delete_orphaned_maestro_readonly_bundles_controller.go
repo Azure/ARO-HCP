@@ -198,7 +198,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) buildMaestroClientsByProvisionSha
 		// We create a new context with a cancel function so we can cancel the Maestro client when the sync is done.
 		// This is important to avoid leaking resources when the sync is done.
 		maestroClientCtx, cancel := context.WithCancel(ctx)
-		maestroClient, err := createMaestroClientFromCSProvisionShard(maestroClientCtx, c.maestroSourceEnvironmentIdentifier, c.maestroClientBuilder, provisionShard)
+		maestroClient, err := CreateMaestroClientFromCSProvisionShard(maestroClientCtx, c.maestroSourceEnvironmentIdentifier, c.maestroClientBuilder, provisionShard)
 		if err != nil {
 			cancel() // on error creating the Maestro client we ensure we cancel the context that we just created too
 			return maestroClientsByProvisionShard, utils.TrackError(fmt.Errorf("failed to create Maestro client: %w", err))

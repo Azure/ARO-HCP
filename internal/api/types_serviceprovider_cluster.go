@@ -229,6 +229,26 @@ func (l *MaestroBundleReferenceList) Set(maestroBundleReference *MaestroBundleRe
 	return nil
 }
 
+// Remove removes the Maestro Bundle reference for a given Maestro Bundle internal name.
+// If the Maestro Bundle reference identified by name does not exist, it is a no-op.
+// If multiple Maestro Bundle references are found for the same internal name, it returns an error.
+func (l *MaestroBundleReferenceList) Remove(name MaestroBundleInternalName) error {
+	filtered := make(MaestroBundleReferenceList, 0, len(*l))
+	matched := 0
+	for _, bundle := range *l {
+		if bundle.Name == name {
+			matched++
+		} else {
+			filtered = append(filtered, bundle)
+		}
+	}
+	if matched > 1 {
+		return utils.TrackError(fmt.Errorf("multiple Maestro Bundle references found for the same internal name: %s", name))
+	}
+	*l = filtered
+	return nil
+}
+
 // MaestroBundleInternalName is a type that represents the internal name of a Maestro Bundle.
 // It is used to identify the Maestro Bundle internally and to retrieve it from the MaestroBundleReferenceList.
 type MaestroBundleInternalName string
