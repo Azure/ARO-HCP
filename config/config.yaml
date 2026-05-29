@@ -316,8 +316,8 @@ defaults:
   hypershift:
     image:
       registry: quay.io
-      repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:5c7266d54b555bd82d62734e973213b859f45a217c639f10b9d8bc82eaf6e2d6 # 4a5cb5130f17a9c3d5314842907fd01570ec0c6a (2026-05-28 22:59)
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/hypershift-operator/hypershift-operator-main
+      digest: sha256:f76939681f82d7c24af78f5f08976c17eabc75cc223eb01c4afd71d0ca9d8362 # on-pr-60d9fe4daf3c84a168f445baabb171c1ea72752a (2026-05-27 20:36)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -951,9 +951,9 @@ defaults:
   # Cluster Service
   clustersService:
     image:
-      registry: quay.io
-      repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:0c972e54d66ec3f79cc69c93226cddfb173b9bed2cfe561261a4889d4f95ffbb # fe7c6403e06869bd235170e7acbc65d673062fbe (2026-05-27 08:05)
+      registry: arohcpsvcdev.azurecr.io
+      repository: mchitimb/cs
+      digest: sha256:d859ffca381897291ffe0b339ba12a0ebb0c0e98c2b42f6c22eff5eb99295685 # mchitimb/cs latest (2026-05-29 11:30)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active

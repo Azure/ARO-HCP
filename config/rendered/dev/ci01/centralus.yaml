@@ -163,9 +163,9 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci01
   image:
-    digest: sha256:0c972e54d66ec3f79cc69c93226cddfb173b9bed2cfe561261a4889d4f95ffbb
-    registry: quay.io
-    repository: app-sre/aro-hcp-clusters-service
+    digest: sha256:d859ffca381897291ffe0b339ba12a0ebb0c0e98c2b42f6c22eff5eb99295685
+    registry: arohcpsvcdev.azurecr.io
+    repository: mchitimb/cs
   k8s:
     deploymentStrategy:
       rollingUpdate:
@@ -422,9 +422,9 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:5c7266d54b555bd82d62734e973213b859f45a217c639f10b9d8bc82eaf6e2d6
+    digest: sha256:f76939681f82d7c24af78f5f08976c17eabc75cc223eb01c4afd71d0ca9d8362
     registry: quay.io
-    repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+    repository: redhat-user-workloads/crt-redhat-acm-tenant/hypershift-operator/hypershift-operator-main
   limitClusterSizes: true
   namespace: hypershift
   sharedIngressIPTag: ""
