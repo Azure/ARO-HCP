@@ -350,7 +350,7 @@ func assertSyncResult(t *testing.T, err error, expectedError bool, expectedError
 	t.Helper()
 	if expectedError {
 		assert.Error(t, err)
-		assert.NotEmpty(t, err, expectedErrorContains)
+		assert.ErrorContains(t, err, expectedErrorContains)
 	} else {
 		assert.NoError(t, err)
 	}
@@ -494,20 +494,204 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			expectError:          false,
 		},
 		{
-			name:                 "desired less than highest active (partial downgrade) - fail",
+			name:                 "z-stream downgrade within skew succeeds",
 			desiredVersion:       "4.19.8",
 			activeVersions:       []string{"4.19.10"},
 			controlPlaneVersions: []string{"4.19.10"},
-			expectError:          true,
-			errorContains:        "cannot downgrade",
+			expectError:          false,
 		},
 		{
-			name:                 "desired lower minor than highest active - fail",
+			name:                 "y-stream downgrade succeeds",
 			desiredVersion:       "4.18.15",
 			activeVersions:       []string{"4.19.10"},
 			controlPlaneVersions: []string{"4.19.10"},
+			expectError:          false,
+		},
+		{
+			name:                 "multi-minor downgrade within N-2 succeeds",
+			desiredVersion:       "4.19.3",
+			activeVersions:       []string{"4.21.5"},
+			controlPlaneVersions: []string{"4.21.5"},
+			expectError:          false,
+		},
+		{
+			name:                 "downgrade at N-2 boundary succeeds",
+			desiredVersion:       "4.19.0",
+			activeVersions:       []string{"4.21.5"},
+			controlPlaneVersions: []string{"4.21.5"},
+			expectError:          false,
+		},
+		{
+			name:                 "downgrade beyond N-2 skew fails",
+			desiredVersion:       "4.18.0",
+			activeVersions:       []string{"4.21.5"},
+			controlPlaneVersions: []string{"4.21.5"},
 			expectError:          true,
-			errorContains:        "cannot downgrade",
+			errorContains:        "must be within 2 minor versions of control plane",
+		},
+		{
+			name:                 "major version downgrade - fail by default",
+			desiredVersion:       "4.22.0",
+			activeVersions:       []string{"5.0.1"},
+			controlPlaneVersions: []string{"5.0.1"},
+			expectError:          true,
+			errorContains:        "major version changes are not supported",
+		},
+		{
+			name:                 "valid major downgrade 5.0 to 4.22",
+			desiredVersion:       "4.22.0",
+			activeVersions:       []string{"5.0.1"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          false,
+		},
+		{
+			name:                 "major downgrade to unsupported minor - fail",
+			desiredVersion:       "4.20.0",
+			activeVersions:       []string{"5.0.1"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "not allowed to coexist with a different-major control plane",
+		},
+		{
+			name:                 "major downgrade to incompatible CP minor - fail",
+			desiredVersion:       "4.23.0",
+			activeVersions:       []string{"5.0.1"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "cannot coexist with control plane version",
+		},
+		// Multi-element activeVersions tests
+		{
+			name:                 "multi-active: upgrade skip uses lowest - fail",
+			desiredVersion:       "4.21.0",
+			activeVersions:       []string{"4.18.0", "4.20.0"},
+			controlPlaneVersions: []string{"4.21.0"},
+			expectError:          true,
+			errorContains:        "skipping more than 2 minor versions",
+		},
+		{
+			name:                 "multi-active: upgrade within +2 of lowest - pass",
+			desiredVersion:       "4.20.5",
+			activeVersions:       []string{"4.18.0", "4.20.0"},
+			controlPlaneVersions: []string{"4.20.5"},
+			expectError:          false,
+		},
+		{
+			name:                 "multi-active: mid-upgrade downgrade beyond N-2 - fail",
+			desiredVersion:       "4.17.0",
+			activeVersions:       []string{"4.18.0", "4.20.0"},
+			controlPlaneVersions: []string{"4.20.0"},
+			expectError:          true,
+			errorContains:        "must be within 2 minor versions of control plane",
+		},
+		{
+			name:                 "multi-active: mid-upgrade downgrade within N-2 - pass",
+			desiredVersion:       "4.18.5",
+			activeVersions:       []string{"4.18.0", "4.20.0"},
+			controlPlaneVersions: []string{"4.20.0"},
+			expectError:          false,
+		},
+		{
+			name:                 "multi-active: desired already in active versions - pass",
+			desiredVersion:       "4.18.0",
+			activeVersions:       []string{"4.18.0", "4.20.0"},
+			controlPlaneVersions: []string{"4.20.0"},
+			expectError:          false,
+		},
+		// Cross-major downgrade: additional skew map entries
+		{
+			name:                 "valid major downgrade 5.0 to 4.21",
+			desiredVersion:       "4.21.0",
+			activeVersions:       []string{"5.0.1"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          false,
+		},
+		{
+			name:                 "valid major downgrade 5.1 to 4.22",
+			desiredVersion:       "4.22.0",
+			activeVersions:       []string{"5.1.0"},
+			controlPlaneVersions: []string{"5.1.0"},
+			allowMajorUpgrades:   true,
+			expectError:          false,
+		},
+		{
+			name:                 "valid major downgrade 5.1 to 4.23",
+			desiredVersion:       "4.23.0",
+			activeVersions:       []string{"5.1.0"},
+			controlPlaneVersions: []string{"5.1.0"},
+			allowMajorUpgrades:   true,
+			expectError:          false,
+		},
+		{
+			name:                 "valid major downgrade 5.2 to 4.23",
+			desiredVersion:       "4.23.0",
+			activeVersions:       []string{"5.2.0"},
+			controlPlaneVersions: []string{"5.2.0"},
+			allowMajorUpgrades:   true,
+			expectError:          false,
+		},
+		// Empty activeVersions edge cases
+		{
+			name:                 "empty active versions with desired below CP - pass",
+			desiredVersion:       "4.17.0",
+			activeVersions:       []string{},
+			controlPlaneVersions: []string{"4.18.0"},
+			expectError:          false,
+		},
+		// Cross-major skew: same-major NP change when CP is different major
+		{
+			name:                 "same-major NP change with cross-major CP - valid skew",
+			desiredVersion:       "4.21.0",
+			activeVersions:       []string{"4.22.0"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          false,
+		},
+		{
+			name:                 "same-major NP change with cross-major CP - invalid skew",
+			desiredVersion:       "4.15.0",
+			activeVersions:       []string{"4.22.0"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "not allowed to coexist with a different-major control plane",
+		},
+		{
+			name:                 "same-major NP change with cross-major CP - unsupported minor",
+			desiredVersion:       "4.20.0",
+			activeVersions:       []string{"4.22.0"},
+			controlPlaneVersions: []string{"5.0.1"},
+			allowMajorUpgrades:   true,
+			expectError:          true,
+			errorContains:        "not allowed to coexist with a different-major control plane",
+		},
+		{
+			name:                 "same-major NP change with cross-major CP - rejected without AFEC",
+			desiredVersion:       "4.21.0",
+			activeVersions:       []string{"4.22.0"},
+			controlPlaneVersions: []string{"5.0.1"},
+			expectError:          true,
+			errorContains:        "major version changes are not supported",
+		},
+		// Multi-version CP: N-2 skew uses highest CP version
+		{
+			name:                 "multi-CP: N-2 skew checked against highest CP version",
+			desiredVersion:       "4.18.0",
+			activeVersions:       []string{"4.21.0"},
+			controlPlaneVersions: []string{"4.20.0", "4.21.0"},
+			expectError:          true,
+			errorContains:        "must be within 2 minor versions",
+		},
+		{
+			name:                 "multi-CP: N-2 boundary passes against highest CP version",
+			desiredVersion:       "4.19.0",
+			activeVersions:       []string{"4.21.0"},
+			controlPlaneVersions: []string{"4.20.0", "4.21.0"},
+			expectError:          false,
 		},
 	}
 
@@ -836,30 +1020,43 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	assert.Contains(t, err.Error(), "not found in Cincinnati")
 }
 
-func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
+func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 
 	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
+	mockCincinnati := cincinnati.NewMockClient(ctrl)
 
-	// Create node pool with desired version 4.19.5 (downgrade from 4.19.10)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.5")
+	// Create node pool with desired version 4.19.99 (does not exist in Cincinnati)
+	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.99")
 
 	// Create ServiceProviderCluster with control plane at 4.20.0
 	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
 
-	// Create ServiceProviderNodePool with active version 4.19.10 (higher than desired)
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
+	// Create ServiceProviderNodePool with active version 4.19.7
+	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.7")
 
-	// CS returns node pool with current version 4.19.10
-	csNodePool := newCSNodePoolWithVersion(t, "4.19.10")
+	// CS returns node pool with current version 4.19.7
+	csNodePool := newCSNodePoolWithVersion(t, "4.19.7")
 	mockCS.EXPECT().
 		GetNodePool(gomock.Any(), gomock.Any()).
 		Return(csNodePool, nil).
 		Times(1)
+
+	// Cincinnati returns VersionNotFound for the desired version
+	mockCincinnati.EXPECT().
+		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.99"))).
+		Return(
+			configv1.Release{},
+			nil,
+			nil,
+			&cvocincinnati.Error{Reason: "VersionNotFound", Message: "version 4.19.99 not found"},
+		).
+		Times(1)
+
+	mockClientCache := cincinnati.NewMockClientCache(ctrl)
+	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 	syncer := &nodePoolVersionSyncer{
 		cooldownChecker:       &alwaysSyncCooldownChecker{},
@@ -880,7 +1077,72 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeFails(t *testing.T) {
 	err := syncer.SyncOnce(ctx, testKey)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot downgrade")
+	assert.Contains(t, err.Error(), "not found in Cincinnati")
+}
+
+func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+	mockCincinnati := cincinnati.NewMockClient(ctrl)
+
+	// Create node pool with desired version 4.19.5 (z-stream downgrade from 4.19.10)
+	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.5")
+
+	// Create ServiceProviderCluster with control plane at 4.20.0
+	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
+
+	// CS returns node pool with current version 4.19.10
+	csNodePool := newCSNodePoolWithVersion(t, "4.19.10")
+	mockCS.EXPECT().
+		GetNodePool(gomock.Any(), gomock.Any()).
+		Return(csNodePool, nil).
+		Times(1)
+
+	// Cincinnati: version exists
+	mockCincinnati.EXPECT().
+		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.5"))).
+		Return(
+			configv1.Release{Version: "4.19.5"},
+			[]configv1.Release{},
+			nil,
+			nil,
+		).
+		Times(1)
+
+	mockClientCache := cincinnati.NewMockClientCache(ctrl)
+	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
+
+	syncer := &nodePoolVersionSyncer{
+		cooldownChecker:       &alwaysSyncCooldownChecker{},
+		readDesireLister:      newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:     mockResourcesDBClient,
+		clusterServiceClient:  mockCS,
+		cincinnatiClientCache: mockClientCache,
+	}
+
+	testKey := controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	}
+
+	ctx = utils.ContextWithLogger(ctx, logr.Discard())
+	err := syncer.SyncOnce(ctx, testKey)
+
+	require.NoError(t, err)
+
+	// Verify the ServiceProviderNodePool DesiredVersion was updated to the downgrade target
+	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
+		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
+	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err)
+	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion)
+	expectedDesiredVersion := semver.MustParse("4.19.5")
+	require.True(t, expectedDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion))
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
@@ -958,6 +1220,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 
 	// Seed the database with a node pool
 	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
+	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.99")
 
 	// Setup CS mock to return a node pool with version
 	csNodePool := newCSNodePool(t, "4.19.10")

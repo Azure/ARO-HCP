@@ -92,16 +92,17 @@ func NewNodePoolVersionController(
 // 1. Active Version Tracking:
 //   - Reads the current running version from Cluster Service (csNodePool.Version)
 //   - Stores it in ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-//   - Maintains up to 2 versions during upgrades (newest first, then previous)
+//   - Maintains up to 2 versions during version changes (newest first, then previous)
 //
 // 2. Desired Version Validation and Storage:
 //   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID
-//   - Validates it against upgrade constraints (see below)
+//   - Validates it against version change constraints (see validateDesiredNodePoolVersion)
 //   - The desired version must satisfy:
-//   - Not less than the highest active version (no downgrades)
-//   - Not greater than the lowest control plane version (node pools cannot exceed CP)
-//   - Minor version upgrades limited to +2 (N-2 skew policy)
 //   - Exist as a known version in Cincinnati
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
+//   - Downgrade: at most -2 minor versions from the highest control plane version
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - NP version must be in the allowed skew map when CP and NP are on different majors
 //   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
 //
 // If the desired version is already among the active versions, validation is skipped
@@ -252,13 +253,13 @@ func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersio
 	return newVersions
 }
 
-// validateDesiredNodePoolVersion checks that the desired node pool version is a valid upgrade.
+// validateDesiredNodePoolVersion checks that the desired node pool version is a valid change.
 // It validates:
-//   - The desired version is not less than the highest active node pool version (no downgrades)
-//   - The desired version is not greater than the lowest control plane version
-//   - Minor version upgrades limited to +2 (N-2 skew policy)
-//   - No major version changes (unless FeatureExperimentalReleaseFeatures is registered)
 //   - The desired version exists in Cincinnati
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
+//   - Downgrade: at most -2 minor versions from the highest control plane version
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - NP version must be in the allowed skew map when CP and NP are on different majors
 //
 // Cincinnati upgrade-edge validation is intentionally skipped — HCP nodepools use the Replace
 // strategy (destroy + recreate), so only version existence matters.
@@ -283,7 +284,7 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 
 	// Get all active versions from ServiceProviderNodePool
 	nodePoolActiveVersions := spNodePool.Status.NodePoolVersion.ActiveVersions
-	lowestCPVersion, _ := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
 
 	// This operation is added to normalize the use for the validations so they are shared
 	// between the frontend and the backend
@@ -291,7 +292,7 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
 
-	if err := validation.ValidateNodePoolUpgrade(*desiredVersion, nodePoolActiveVersions, lowestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
+	if err := validation.ValidateNodePoolVersionChange(*desiredVersion, nodePoolActiveVersions, lowestCPVersion, highestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
 		return err
 	}
 

@@ -869,6 +869,24 @@ func MaximumIfNoAZ[T constraints.Integer](ctx context.Context, op operation.Oper
 	return Maximum(ctx, op, fldPath, value, oldValue, max)
 }
 
+// ValidateCrossMajorNodePoolSkew checks that a node pool at a different major version
+// than the control plane is within the supported version skew (e.g., NP 4.22 with CP 5.0).
+func ValidateCrossMajorNodePoolSkew(nodePoolVersion, controlPlaneVersion semver.Version) error {
+	npKey := fmt.Sprintf("%d.%d", nodePoolVersion.Major, nodePoolVersion.Minor)
+	cpKey := fmt.Sprintf("%d.%d", controlPlaneVersion.Major, controlPlaneVersion.Minor)
+
+	allowedCPs, exists := api.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
+	if !exists {
+		return fmt.Errorf("node pool version %s is not allowed to coexist with a different-major control plane",
+			nodePoolVersion.String())
+	}
+	if !slices.Contains(allowedCPs, cpKey) {
+		return fmt.Errorf("node pool version %s cannot coexist with control plane version %s",
+			nodePoolVersion.String(), controlPlaneVersion.String())
+	}
+	return nil
+}
+
 // ValidateMajorUpgrade validates that a cross-major version upgrade follows the allowed upgrade paths.
 // Returns an error if the upgrade path is not allowed, nil otherwise.
 // Use the n-1 skew
@@ -890,12 +908,14 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 	return nil
 }
 
-// ValidateNodePoolUpgrade performs common node pool version upgrade validation:
-// - No downgrades from highest active version
-// - Cannot exceed lowest control plane version
-// - No major version changes without AFEC (uses existing ValidateMajorUpgrade)
-// - Minor version upgrades limited to +2 (N-2 skew policy)
-func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion *semver.Version, allowMajorUpgrade bool) error {
+// ValidateNodePoolVersionChange validates a node pool version change (upgrade or downgrade).
+// HCP nodepools use Replace strategy (nodes are destroyed and recreated), so downgrades
+// are operationally identical to upgrades. Constraints:
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
+//   - Downgrade: at most -2 minor versions from the highest control plane version
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - NP version must be in the allowed skew map when CP and NP are on different majors
+func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
 	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
 		return av.Version != nil && av.Version.EQ(desiredVersion)
@@ -905,29 +925,45 @@ func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 
-	// No partial downgrades: desiredVersion >= highest active version
-	if highest != nil && desiredVersion.LT(*highest) {
-		return fmt.Errorf(
-			"invalid node pool version %s: cannot downgrade from current version %s",
-			desiredVersion.String(), highest.String(),
-		)
-	}
-
-	// Check if the desiredVersion <= control plane versions
-	// TODO: We may relax this constraint in the future
-	if lowestCPVersion != nil && desiredVersion.GT(*lowestCPVersion) {
+	if desiredVersion.GT(*lowestCPVersion) {
 		return fmt.Errorf(
 			"invalid node pool version %s: cannot exceed control plane version %s",
 			desiredVersion.String(), lowestCPVersion.String(),
 		)
 	}
 
-	// No major version change unless FeatureExperimentalReleaseFeatures is registered
-	if lowest != nil && desiredVersion.Major > lowest.Major {
+	// N-2 skew: NP must be within 2 minor versions of the highest CP version
+	if desiredVersion.Major == highestCPVersion.Major && highestCPVersion.Minor-desiredVersion.Minor > 2 {
+		return fmt.Errorf(
+			"invalid node pool version %s: must be within 2 minor versions of control plane version %s",
+			desiredVersion.String(), highestCPVersion.String(),
+		)
+	}
+
+	// When CP and NP are already on different majors (e.g., CP 5.0 with NP 4.x),
+	// validate that the desired NP version can coexist with the CP version.
+	// This applies to both upgrades (4.21→4.22) and downgrades (4.22→4.21) within
+	// the same major. NP changes that cross majors (e.g., 5.0→4.22) skip this and
+	// go through the AFEC gate below.
+	isSameMajorNPChange := highest == nil || desiredVersion.Major == highest.Major
+	if desiredVersion.Major != highestCPVersion.Major && isSameMajorNPChange {
 		if !allowMajorUpgrade {
 			return fmt.Errorf("major version changes are not supported")
 		}
-		return ValidateMajorUpgrade(*lowest, desiredVersion)
+		return ValidateCrossMajorNodePoolSkew(desiredVersion, *highestCPVersion)
+	}
+
+	// Cross-major change (upgrade or downgrade): gated behind FeatureExperimentalReleaseFeatures.
+	isCrossMajorUpgrade := lowest != nil && desiredVersion.Major > lowest.Major
+	isCrossMajorDowngrade := highest != nil && desiredVersion.Major < highest.Major
+	if isCrossMajorUpgrade || isCrossMajorDowngrade {
+		if !allowMajorUpgrade {
+			return fmt.Errorf("major version changes are not supported")
+		}
+		if isCrossMajorUpgrade {
+			return ValidateMajorUpgrade(*lowest, desiredVersion)
+		}
+		return ValidateCrossMajorNodePoolSkew(desiredVersion, *highestCPVersion)
 	}
 
 	// Minor skip validation (N-2 skew policy)
