@@ -509,7 +509,7 @@ func DeleteAllHCPClusters20240610(
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			defer utilruntime.HandleCrashWithContext(ctx)
 
-			return DeleteHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, timeout)
+			return DeleteHCPCluster20240610(ctx, hcpClient, resourceGroupName, hcpClusterName, HCPClusterDeletionTimeout)
 		})
 	}
 	if err := waitGroup.Wait(); err != nil {

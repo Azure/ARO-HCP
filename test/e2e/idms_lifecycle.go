@@ -127,7 +127,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			updateAddResp, err := framework.UpdateHCPCluster20251223(
-				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, 10*time.Minute,
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, framework.UpdateHCPClusterTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update cluster with second ImageDigestMirror set")
 
@@ -218,7 +218,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			updateRemoveResp, err := framework.UpdateHCPCluster20251223(
-				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, 10*time.Minute,
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, framework.UpdateHCPClusterTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update cluster to remove second ImageDigestMirror set")
 

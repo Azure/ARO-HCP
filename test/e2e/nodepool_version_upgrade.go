@@ -156,7 +156,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
 			configClient, err := configv1client.NewForConfig(adminRESTConfig)
@@ -206,7 +206,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade node pool %s to version %s", customerNodePoolName, nodePoolDesiredVersion)
 
 			By("verifying nodes are ready, updated to expected version, and release images differ from pre-upgrade")
@@ -217,7 +217,7 @@ var _ = Describe("Customer", func() {
 			// - Fire controllers sooner when Cosmos documents change: https://github.com/Azure/ARO-HCP/pull/4485 , https://github.com/Azure/ARO-HCP/pull/3913
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(nodePoolDesiredVersion, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
+			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET still reflects the new version")
 			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
@@ -307,7 +307,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", clusterName)
 
@@ -325,7 +325,7 @@ var _ = Describe("Customer", func() {
 				clusterParams.ManagedResourceGroupName,
 				clusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s at version %s", customerNodePoolName, fromVersion)
 
@@ -335,7 +335,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
 
@@ -354,13 +354,13 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade nodepool %s from %s to %s", customerNodePoolName, fromVersion, toVersion)
 
 			By("verifying nodes are recreated at the target version")
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(toVersion.String(), customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
+			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET reflects the target version")
 			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)

@@ -142,7 +142,7 @@ var _ = Describe("Service Provider", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
@@ -156,7 +156,7 @@ var _ = Describe("Service Provider", func() {
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion))
-			}, 40*time.Minute, 2*time.Minute).Should(Succeed())
+			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 

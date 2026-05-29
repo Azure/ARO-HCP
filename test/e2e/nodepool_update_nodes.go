@@ -87,7 +87,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
@@ -148,7 +148,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				update,
-				20*time.Minute,
+				framework.NodePoolScalingTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to scale up node pool %s from 2 to 3 replicas", customerNodePoolName)
 			Expect(scaleUpResp.Properties).NotTo(BeNil(), "scale up response Properties was nil")
@@ -175,7 +175,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				update,
-				20*time.Minute,
+				framework.NodePoolScalingTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to scale down node pool %s from 3 to 2 replicas", customerNodePoolName)
 			Expect(scaleDownResp.Properties).NotTo(BeNil(), "scale down response Properties was nil")
@@ -203,7 +203,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				oneNodePoolName,
 				update,
-				20*time.Minute,
+				framework.NodePoolScalingTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to enable autoscaling on node pool %s", oneNodePoolName)
 			Expect(autoscaleResp.Properties).NotTo(BeNil(), "autoscale response Properties was nil")

@@ -128,12 +128,12 @@ var _ = Describe("MISE Routing", func() {
 			_, err = framework.CreateHCPClusterAndWait20251223(
 				ctx, GinkgoLogr, hcpClient,
 				*rg.Name, clusterParams.ClusterName, cluster,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
 
 			By("Deleting HCP cluster")
-			delCtx, delCancel := context.WithTimeout(ctx, 45*time.Minute)
+			delCtx, delCancel := context.WithTimeout(ctx, framework.HCPClusterDeletionTimeout)
 			defer delCancel()
 			delPoller, err := hcpClient.BeginDelete(delCtx, *rg.Name, clusterParams.ClusterName, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to begin HCP cluster deletion")

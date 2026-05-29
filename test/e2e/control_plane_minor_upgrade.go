@@ -164,7 +164,7 @@ var _ = Describe("Customer", func() {
 				hcpClient,
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 
@@ -188,7 +188,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, 45*time.Minute)
+			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, targetMinor)
 
 			By("verifying control plane reached desired version and cluster remains viable")
@@ -198,7 +198,7 @@ var _ = Describe("Customer", func() {
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
 						previousMinorLine,
 						targetMinorLine))
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
+			}, framework.HCPClusterVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 		},
 		Entry("from 4.20 minor to 4.21 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),
 		Entry("from 4.21 minor to 4.22 minor", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22"),

@@ -199,8 +199,31 @@ For instructions and best practices on creating ARO HCP E2E test cases, refer to
 
 Be sure to review these guidelines before creating or updating ARO HCP E2E test cases.
 
-## Updating Provisioning Timeouts
-Timeout constants are defined in [`test/util/framework/constants.go`](../util/framework/constants.go) and should be set to the **99th percentile** of observed provisioning durations. The decision should be based on results from all environments. To determine the appropriate values, run the following Kusto query which returns results grouped by `resource_type`. You can also adjust the `resourceType` or `controller_name` filter to narrow down to a specific resource type:
+## Updating E2E Timeouts
+
+Shared timeout constants live in [`test/util/framework/constants.go`](../util/framework/constants.go).
+
+**When to add a constant:** Use a named constant when the same duration applies to **multiple test cases** (same ARM operation, framework helper, or verifier pattern). **When a literal is fine:** A timeout that is specific to one test and only used once (for example, polling for a CR inside a single `Eventually` block) can stay inline in that test.
+
+Set each shared constant to the **99th percentile** of observed operation duration across environments (int, stage, prod as applicable). When tuning, change only the constant in `constants.go`—do not copy the value into individual tests.
+
+Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
+
+| Category | Constant | Typical use |
+|----------|----------|-------------|
+| Provisioning | `ClusterCreationTimeout` | `CreateHCPClusterFromParam20240610`, `CreateHCPClusterAndWait20240610`; preview: `CreateHCPClusterFromParam20251223`, `CreateHCPClusterAndWait20251223` |
+| Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20240610`, `CreateNodePoolAndWait20240610`; preview: `CreateNodePoolFromParam20251223`, `CreateNodePoolAndWait20251223` |
+| Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
+| Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
+| Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
+| Update | `UpdateHCPClusterTimeout` | `UpdateHCPCluster20240610` (tags, IDMS, autoscaling PATCH); preview: `UpdateHCPCluster20251223` |
+| Update | `HCPClusterVersionUpgradeTimeout` | Control plane version upgrades (`UpdateHCPCluster20240610`, `Eventually` verifiers) |
+| Update | `NodePoolVersionUpgradeTimeout` | Node pool version upgrades (`UpdateNodePoolAndWait20240610`, `Eventually` verifiers) |
+| Update | `NodePoolScalingTimeout` | Replica scale up/down, taints/labels with scaling (`UpdateNodePoolAndWait20240610`) |
+
+### Provisioning durations (Kusto)
+
+For **create** timeouts, run the following query (grouped by `resource_type`). Adjust `resourceType` or `controller_name` filters to narrow to clusters vs. node pools, etc.:
 
 ```kql
 database('ServiceLogs').table('backendLogs')
@@ -227,6 +250,10 @@ database('ServiceLogs').table('backendLogs')
     p9999  = percentile(duration, 99.99)
     by resource_type
 ```
+
+### Update durations
+
+For **update** shared constants, use the same percentile approach but filter backend logs for the relevant controller (for example, `controller_name endswith 'update'`).
 
 ## General guidance to write E2E test with ginkgo
 

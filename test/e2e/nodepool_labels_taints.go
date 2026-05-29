@@ -96,7 +96,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
@@ -178,7 +178,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				updateTaints,
-				20*time.Minute,
+				framework.NodePoolScalingTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update node pool %s with new taints and scale up", customerNodePoolName)
 
@@ -220,7 +220,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName,
 				customerNodePoolName,
 				update,
-				45*time.Minute,
+				framework.NodePoolScalingTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update node pool %s with new label and scale up", customerNodePoolName)
 
