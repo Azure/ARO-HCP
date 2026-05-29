@@ -77,9 +77,4 @@ spec:
       tolerations:
       - effect: NoSchedule
         operator: Exists
-  updateStrategy:
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
-    type: RollingUpdate
 {{ end }}

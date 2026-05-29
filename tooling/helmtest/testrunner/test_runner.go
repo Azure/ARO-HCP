@@ -15,8 +15,10 @@
 package testrunner
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -30,6 +32,8 @@ import (
 	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
+
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"sigs.k8s.io/yaml"
 
@@ -113,6 +117,46 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 	return fmt.Sprintf("%s\n%s", manifest, allHooks), nil
 }
 
+func validateDaemonSetUpdateStrategies(t *testing.T, manifest string) {
+	t.Helper()
+
+	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(manifest)), 4096)
+	for {
+		var obj struct {
+			Kind     string `json:"kind"`
+			Metadata struct {
+				Name      string `json:"name"`
+				Namespace string `json:"namespace"`
+			} `json:"metadata"`
+			Spec struct {
+				UpdateStrategy struct {
+					Type          string `json:"type"`
+					RollingUpdate struct {
+						MaxUnavailable any `json:"maxUnavailable"`
+					} `json:"rollingUpdate"`
+				} `json:"updateStrategy"`
+			} `json:"spec"`
+		}
+
+		err := decoder.Decode(&obj)
+		if err == io.EOF {
+			break
+		}
+		if !assert.NoError(t, err) {
+			continue
+		}
+
+		if obj.Kind != "DaemonSet" {
+			continue
+		}
+
+		if obj.Spec.UpdateStrategy.Type != "RollingUpdate" ||
+			fmt.Sprint(obj.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable) != "100%" {
+			t.Errorf("DaemonSet %s/%s must set spec.updateStrategy.type=RollingUpdate and spec.updateStrategy.rollingUpdate.maxUnavailable=100%%", obj.Metadata.Namespace, obj.Metadata.Name)
+		}
+	}
+}
+
 func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 	testCaseFiles, err := internal.FindHelmTestFiles(filepath.Join(chartDir, internal.TestDataFromChartDir))
 	if err != nil {
@@ -175,6 +219,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 			t.Run(testCase.Name, func(t *testing.T) {
 				manifest, err := runTest(t.Context(), settings, testCase)
 				assert.NoError(t, err)
+				validateDaemonSetUpdateStrategies(t, manifest)
 				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
 				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
 				// exactly as the output directory - an exercise left for the future
