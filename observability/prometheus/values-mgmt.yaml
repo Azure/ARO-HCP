@@ -83,6 +83,9 @@ kube-prometheus-stack:
       - apiGroups: ["hypershift.openshift.io"]
         resources: ["hostedclusters"]
         verbs: ["list", "watch"]
+      - apiGroups: ["velero.io"]
+        resources: ["backups"]
+        verbs: ["list", "watch"]
     customResourceState:
       enabled: true
       create: true
@@ -126,6 +129,24 @@ kube-prometheus-stack:
                   path: [status, conditions, "[type=Progressing]", status]
                   labelName: status
                   list: ["True", "False", "Unknown"]
+          - groupVersionKind:
+              group: velero.io
+              kind: "Backup"
+              version: "v1"
+            metricNamePrefix: veleroBackup
+            labelsFromPath:
+              name: [metadata, name]
+              namespace: [metadata, namespace]
+              schedule: [metadata, labels, "velero.io/schedule-name"]
+            metrics:
+            - name: "phase"
+              help: "Backup phase"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, phase]
+                  labelName: phase
+                  list: ["New", "InProgress", "WaitingForPluginOperations", "WaitingForPluginOperationsPartiallyFailed", "Finalizing", "FinalizingPartiallyFailed", "Completed", "PartiallyFailed", "Failed", "Deleting"]
 # this is our own config for the files in templates/
 prometheusSpec:
   image:
