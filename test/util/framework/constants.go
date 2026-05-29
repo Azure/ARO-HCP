@@ -16,7 +16,8 @@ package framework
 
 import "time"
 
-// When updating timeouts, please refer to test/e2e/README.md for instructions.
+// When updating timeouts, see test/e2e/README.md#updating-e2e-timeouts.
+
 // Provisioning timeouts
 const (
 	ClusterCreationTimeout      = 20 * time.Minute
