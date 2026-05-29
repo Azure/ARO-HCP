@@ -239,45 +239,56 @@ func extractEnvVar(script, envVarName string) string {
 }
 
 func collectUnknownFlags(script string) []string {
-	lines := strings.Split(script, "\n")
-	var unknown []string
+	// Remove line continuations so flags are found regardless of line breaks.
+	normalized := strings.ReplaceAll(script, "\\\n", " ")
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		line = strings.TrimSuffix(line, `\`)
-		line = strings.TrimSpace(line)
-		if line == "" || line == "hypershift install" {
-			continue
+	flagRe := regexp.MustCompile(`--[a-zA-Z][\w-]*`)
+	locs := flagRe.FindAllStringIndex(normalized, -1)
+	names := flagRe.FindAllString(normalized, -1)
+
+	var unknown []string
+	for i, flagName := range names {
+		// Text between the end of this flag name and the start of the next
+		// flag (or end of string) contains this flag's value, if any.
+		valueStart := locs[i][1]
+		var valueEnd int
+		if i+1 < len(locs) {
+			valueEnd = locs[i+1][0]
+		} else {
+			valueEnd = len(normalized)
+		}
+		afterFlag := strings.TrimSpace(normalized[valueStart:valueEnd])
+
+		var value string
+		hasEquals := strings.HasPrefix(afterFlag, "=")
+		if hasEquals {
+			value = strings.TrimSpace(afterFlag[1:])
+		} else {
+			value = afterFlag
 		}
 
-		if strings.HasPrefix(line, "--additional-operator-env-vars") {
-			parts := strings.SplitN(line, " ", 2)
-			if len(parts) < 2 {
-				continue
-			}
-			envAssignment := strings.TrimSpace(parts[1])
-			envName := strings.SplitN(envAssignment, "=", 2)[0]
+		if flagName == "--additional-operator-env-vars" && value != "" {
+			envName := strings.SplitN(value, "=", 2)[0]
 			if _, classified := envVarCategories[envName]; classified {
 				continue
 			}
-			unknown = append(unknown, line)
+			unknown = append(unknown, flagName+" "+value)
 			continue
-		}
-
-		if !strings.HasPrefix(line, "--") {
-			continue
-		}
-
-		flagName := line
-		if idx := strings.IndexAny(line, "= "); idx > 0 {
-			flagName = line[:idx]
 		}
 
 		if _, classified := flagCategories[flagName]; classified {
 			continue
 		}
 
-		unknown = append(unknown, line)
+		if value != "" {
+			if hasEquals {
+				unknown = append(unknown, flagName+"="+value)
+			} else {
+				unknown = append(unknown, flagName+" "+value)
+			}
+		} else {
+			unknown = append(unknown, flagName)
+		}
 	}
 
 	return unknown
