@@ -22,12 +22,12 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 )
 
-// createMaestroClientFromCSProvisionShard creates a Maestro client for the given cluster provision shard.
+// CreateMaestroClientFromCSProvisionShard creates a Maestro client for the given cluster provision shard.
 // the client is scoped to the Consumer Name associated to the provision shard, and to
 // the source ID associated to the provision shard and the environment specified
 // in c.maestroSourceEnvironmentIdentifier, which is a configuration parameter at
 // deployment time.
-func createMaestroClientFromCSProvisionShard(
+func CreateMaestroClientFromCSProvisionShard(
 	ctx context.Context, maestroSourceEnvironmentIdentifier string, maestroClientBuilder maestro.MaestroClientBuilder, clusterProvisionShard *arohcpv1alpha1.ProvisionShard,
 ) (maestro.Client, error) {
 	provisionShardMaestroConsumerName := clusterProvisionShard.MaestroConfig().ConsumerName()

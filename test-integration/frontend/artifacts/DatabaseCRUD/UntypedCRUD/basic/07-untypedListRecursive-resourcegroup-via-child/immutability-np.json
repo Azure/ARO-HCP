@@ -21,8 +21,7 @@
 					}
 				},
 				"serviceProviderProperties": {
-					"clusterServiceID": "",
-					"usesNewNodePoolDeletionApproach": false
+					"clusterServiceID": ""
 				}
 			}
 		},

@@ -79,8 +79,6 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ActiveOperationID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = nil
-			// UsesNewNodePoolDeletionApproach does not roundtrip through the external type because it is purely an internal detail
-			j.UsesNewNodePoolDeletionApproach = false
 		},
 		func(j *api.OSDiskProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
