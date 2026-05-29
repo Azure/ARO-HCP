@@ -24,15 +24,32 @@ import (
 )
 
 func TestPrepareForCreate_SetsInstanceVersionToOne(t *testing.T) {
-	for _, start := range []int64{0, 1, 7, 999} {
+	obj := &arm.Subscription{
+		CosmosMetadata: arm.CosmosMetadata{InstanceVersion: 0},
+	}
+	if err := PrepareForCreate(obj); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if obj.InstanceVersion != 1 {
+		t.Errorf("got InstanceVersion=%d, want 1", obj.InstanceVersion)
+	}
+}
+
+func TestPrepareForCreate_RejectsNonZeroInstanceVersion(t *testing.T) {
+	for _, start := range []int64{1, 7, 999} {
 		obj := &arm.Subscription{
 			CosmosMetadata: arm.CosmosMetadata{InstanceVersion: start},
 		}
-		if err := PrepareForCreate(obj); err != nil {
-			t.Fatalf("unexpected error for starting InstanceVersion=%d: %v", start, err)
+		err := PrepareForCreate(obj)
+		if err == nil {
+			t.Errorf("starting InstanceVersion=%d: expected error, got nil", start)
+			continue
 		}
-		if obj.InstanceVersion != 1 {
-			t.Errorf("starting InstanceVersion=%d: got %d, want 1", start, obj.InstanceVersion)
+		if !strings.Contains(err.Error(), "InstanceVersion to be 0") {
+			t.Errorf("starting InstanceVersion=%d: error should mention the InstanceVersion requirement; got: %v", start, err)
+		}
+		if obj.InstanceVersion != start {
+			t.Errorf("starting InstanceVersion=%d: object was mutated on the failure path: got %d", start, obj.InstanceVersion)
 		}
 	}
 }

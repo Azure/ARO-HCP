@@ -173,6 +173,9 @@ func PrepareForCreate[InternalAPIType any](newObj *InternalAPIType) error {
 	if !ok {
 		return fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
 	}
+	if cosmosPersistable.GetCosmosData().InstanceVersion != 0 {
+		return fmt.Errorf("create of %T requires InstanceVersion to be 0; refusing to overwrite existing value", newObj)
+	}
 	cosmosPersistable.GetCosmosData().InstanceVersion = 1
 	return nil
 }
@@ -190,13 +193,19 @@ func PrepareForReplace[InternalAPIType any](newObj *InternalAPIType) error {
 	if len(md.CosmosETag) == 0 {
 		return fmt.Errorf("replace of %T requires a non-empty CosmosETag; refusing to perform an unconditional update", newObj)
 	}
+	if md.InstanceVersion == 0 {
+		return fmt.Errorf("replace of %T requires a non-zero InstanceVersion; refusing to perform update; DeepCopy the existing content to avoid overwrite", newObj)
+	}
 	md.InstanceVersion++
 	return nil
 }
 
-// serializeItem will create a CosmosUID if it doesn't exist, otherwise uses what exists.  This makes it compatible with
-// create, replace, and create
-func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*arm.CosmosMetadata, []byte, error) {
+// SerializeItem produces the on-disk JSON representation of newObj. It validates
+// the cosmos UID and partition key, converts the internal type to its cosmos form,
+// and returns the marshaled bytes alongside the resolved CosmosMetadata. Mocks and
+// production callers share this so a Create/Replace from either path produces
+// byte-identical output.
+func SerializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*arm.CosmosMetadata, []byte, error) {
 	cosmosPersistable, ok := any(newObj).(arm.CosmosPersistable)
 	if !ok {
 		return nil, nil, fmt.Errorf("type %T does not implement CosmosPersistable interface", newObj)
@@ -233,7 +242,7 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 	if err := PrepareForCreate(newObj); err != nil {
 		return "", err
 	}
-	cosmosMetadata, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	cosmosMetadata, data, err := SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", err
 	}
@@ -266,7 +275,7 @@ func addReplaceToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Con
 	if err := PrepareForReplace(newObj); err != nil {
 		return "", err
 	}
-	cosmosMetadata, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	cosmosMetadata, data, err := SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return "", err
 	}
@@ -304,7 +313,7 @@ func create[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 	if err := PrepareForCreate(newObj); err != nil {
 		return nil, err
 	}
-	cosmosMetadata, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	cosmosMetadata, data, err := SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +341,7 @@ func replace[InternalAPIType, CosmosAPIType any](ctx context.Context, containerC
 	if err := PrepareForReplace(newObj); err != nil {
 		return nil, err
 	}
-	cosmosMetadata, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	cosmosMetadata, data, err := SerializeItem[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
 		return nil, err
 	}

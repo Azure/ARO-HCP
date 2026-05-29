@@ -72,7 +72,30 @@ func (l *replaceStep[InternalAPIType]) StepID() StepID {
 func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 
+	// Fetch the live document once so we can carry forward fields that the
+	// storage layer requires every Replace caller to start from the existing
+	// record: CosmosETag (for the conditional write) and InstanceVersion (so
+	// PrepareForReplace can auto-increment it). Tests that exercise the
+	// negative path supply their own etag/instanceVersion in the fixture and
+	// we leave those values untouched.
+	currentResource, err := resourceCRUDClient.Get(ctx, l.key.ResourceID.Name)
+	if err != nil && !strings.Contains(err.Error(), "ERROR CODE: 404") {
+		require.NoError(t, err, "failed to read existing resource before replace")
+	}
+	currentMD := cosmosDataFor(currentResource)
+
 	for _, resource := range l.resources {
+		if currentMD != nil {
+			if md := cosmosDataFor(resource); md != nil {
+				if len(md.CosmosETag) == 0 {
+					md.CosmosETag = currentMD.CosmosETag
+				}
+				if md.InstanceVersion == 0 {
+					md.InstanceVersion = currentMD.InstanceVersion
+				}
+			}
+		}
+
 		_, err := resourceCRUDClient.Replace(ctx, resource, nil)
 		if len(l.expectedError) > 0 {
 			require.ErrorContains(t, err, l.expectedError, "expected error during replace")

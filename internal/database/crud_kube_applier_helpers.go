@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
-// serializeKubeApplierItem mirrors serializeItem but validates the partition key
+// serializeKubeApplierItem mirrors SerializeItem but validates the partition key
 // against the *Desire's spec.managementCluster instead of the resourceID's
 // subscriptionID. The two never match for kube-applier objects.
 func serializeKubeApplierItem[InternalAPIType, CosmosAPIType any](
