@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:c7de0474c9289527f7b3b2d6f448334cd0f6fc0d5ebd766576d1450b7a08653b
+      digest: sha256:755170daf12bb074ae9beaa5438d3ef52cc07d6c26ea5b2c7fac58d1a35dd08f
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:e409b1af79a73d00057293f4080bdc54d79c60588350f218320887508fe62037
+      digest: sha256:e72acc979a91ad828af1906a81fa2c15997df6ce53cd1fd88bcbf2a43956990e
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-pers-usw3test
   image:
-    digest: sha256:dea976b57b70b2277a76139084aca39ab734488ce8851cda254288dd0ef2b497
+    digest: sha256:52fb501bd6fe2a8f895dc24e4283642f56458187147d7b647ec892554c5557c0
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -55,7 +55,7 @@ administration:
   sreServiceTag: CorpNetSaw
 aksCommandRuntime:
   image:
-    digest: sha256:a249d179ee44de7951020ebf0f141e689dadd7207c228b355734b35b772c3333
+    digest: sha256:11e61c511dde7b07da3911503685a8345ab41774ced139fe7c60efdc34a25184
     registry: mcr.microsoft.com
     repository: aks/command/runtime
 armHelperCertName: armHelperCert2
@@ -81,7 +81,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:c23dc0b207d9b9509b545f6884bf5496ae70d585295c985a1a4ba505dedea154
+      digest: sha256:38057998fe47a5f9f51e41af2f399a8a978df4ffe7083fac598c97eca9a89380
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -102,7 +102,7 @@ backend:
     roleSetName: dev
   exitOnPanic: true
   image:
-    digest: sha256:28f0952d5f0bdadc2bc3c1cd1d988009e600218e1f391a935d4e9972abd48e96
+    digest: sha256:0521fb4624a88c93006f7169537602955c3f2a0aa749e255f7a44eb13667268a
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -163,7 +163,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:449827838d1e8d19a442ca470c86acfc206628345b1a4dea47c57cbd4865b7c9
+    digest: sha256:0c972e54d66ec3f79cc69c93226cddfb173b9bed2cfe561261a4889d4f95ffbb
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -206,7 +206,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:358656bcd896a26e3716d9634063fcd5143ea156c12df82a2dfc37f0c41f791f
+    digest: sha256:4de55c1a45971b02914fb6476f713ceadb8f4f947b9b46dd47f0a120a94b76a1
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -285,7 +285,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:786854b6c3606d9842a18e91ba3258e87a0d2fd85bd0f912898be0b5658f9ce9
+    digest: sha256:9dc7fa55cbae58b24fc413e46c5425e8b6ef43aa0422fa19a4bbd2e1330bf67b
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -422,7 +422,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:869a1648eb6d9317fc3bb8ba8cd609588fe3113aa9638c3aa739d031cca95a79
+    digest: sha256:5c7266d54b555bd82d62734e973213b859f45a217c639f10b9d8bc82eaf6e2d6
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -440,7 +440,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:97d9a067a07646a9c831b26bf2f55728aa570916ee47be83f23e9ff2fa523cd3
+      digest: sha256:e2c6e079c050814c5f1d082aaa09b518a95caaec526917ddf39ea1dc873dcc6d
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -454,7 +454,7 @@ kubeApplier:
   cosmosContainerMaxScale: 4000
   cosmosContainerName: Manifests-MC-1
   image:
-    digest: sha256:2196fb10cf4f06f89444e361e5764cf98d5e3f583c63db4b36a2a1d39582c803
+    digest: sha256:29b06bf7c98abb4268aab07097952b400e831afc1c31dcd5bffdc659d2f58c87
     registry: arohcpsvcdev.azurecr.io
     repository: kube-applier
   k8s:
@@ -641,7 +641,7 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:e672537f9989023dea1bbcf9e617078b99faae6a7dfeb1317521b190284dc5f4
+        digest: sha256:da37cee409f36646723cb140c107247155bb5d8258a6b45b44639992461dc688
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -708,7 +708,7 @@ mgmt:
     usePlannedQuota: true
 mgmtAgent:
   image:
-    digest: sha256:8f8b4a80e9cb739eda200eb32b52e74cbad7c029f650c50a88f89063dac3a220
+    digest: sha256:4eca678792e1ebbe241c719987ee0a1489933749b88097949b9a5fdcd00d1e43
     registry: arohcpsvcdev.azurecr.io
     repository: mgmt-agent
   k8s:
@@ -892,7 +892,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-pers-usw3test
   image:
-    digest: sha256:294827d34f6da965defd819469db4233a6079e81a9109107f63ecebba05e2f94
+    digest: sha256:0636592fe8b9b4efaf58027671257da5130b5cd012fdb222ecec83fe28987b61
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
@@ -968,7 +968,7 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:e672537f9989023dea1bbcf9e617078b99faae6a7dfeb1317521b190284dc5f4
+        digest: sha256:da37cee409f36646723cb140c107247155bb5d8258a6b45b44639992461dc688
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
