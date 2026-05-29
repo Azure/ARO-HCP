@@ -12,6 +12,32 @@ resourceGroups:
     parameters: ../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: fleet.image.registry
+    repository:
+      configRef: fleet.image.repository
+    digest:
+      configRef: fleet.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unexpected EOF"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -86,6 +112,9 @@ resourceGroups:
         resourceGroup: management
         step: output
         name: azureKeyvaultSecretsProviderIdentityClientId
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
     externalDependsOn:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
       resourceGroup: service
