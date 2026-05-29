@@ -27,3 +27,7 @@ func TestHelmTemplate(t *testing.T) {
 func TestACRValues(t *testing.T) {
 	testrunner.RunTestACRValues(t, "settings.yaml")
 }
+
+func TestHelmOwnership(t *testing.T) {
+	testrunner.RunTestHelmOwnership(t, "settings.yaml")
+}
