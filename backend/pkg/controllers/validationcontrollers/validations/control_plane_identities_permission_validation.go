@@ -69,7 +69,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) Validate(ctx context.Contex
 	}
 
 	// Fetch the subnet details to validate attached subnet devices permissions.
-	subnetResourceId := cluster.CustomerProperties.Platform.VnetIntegrationSubnetID
+	subnetResourceId := cluster.CustomerProperties.Platform.SubnetID
 	subnet, err := subnetClient.Get(ctx, subnetResourceId.ResourceGroupName, subnetResourceId.Parent.Name,
 		subnetResourceId.Name, nil)
 	if err != nil {
