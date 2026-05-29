@@ -182,6 +182,7 @@ func DeleteHCPCluster20240610(
 	defer cancel()
 
 	var attempt int
+	var lastTransientErr error
 	retryErr := wait.ExponentialBackoffWithContext(ctx, stateConflictBackoff, func(ctx context.Context) (bool, error) {
 		attempt++
 		err := deleteHCPClusterAttempt(ctx, hcpClient, resourceGroupName, hcpClusterName)
@@ -189,6 +190,7 @@ func DeleteHCPCluster20240610(
 			return true, nil
 		}
 		if isTransientDeleteError(err) {
+			lastTransientErr = err
 			ginkgo.GinkgoLogr.Info("transient conflict during cluster delete, retrying",
 				"cluster", hcpClusterName, "resourceGroup", resourceGroupName,
 				"attempt", attempt, "error", err.Error())
@@ -197,10 +199,8 @@ func DeleteHCPCluster20240610(
 		return false, err
 	})
 
-	if retryErr != nil && attempt > 1 {
-		ginkgo.GinkgoLogr.Info("cluster delete failed after retries",
-			"cluster", hcpClusterName, "resourceGroup", resourceGroupName,
-			"attempts", attempt, "error", retryErr.Error())
+	if wait.Interrupted(retryErr) && lastTransientErr != nil {
+		return fmt.Errorf("delete interrupted for hcpCluster=%q in resourcegroup=%q after %d attempts, last transient error: %w, interrupt cause: %w", hcpClusterName, resourceGroupName, attempt, lastTransientErr, retryErr)
 	}
 
 	return retryErr
@@ -291,6 +291,7 @@ func UpdateHCPCluster20240610(
 	defer cancel()
 
 	var hcpOpenShiftCluster *hcpsdk20240610preview.HcpOpenShiftCluster
+	var lastTransientErr error
 	attempt := 0
 
 	err := wait.ExponentialBackoffWithContext(ctx, stateConflictBackoff, func(ctx context.Context) (bool, error) {
@@ -304,6 +305,7 @@ func UpdateHCPCluster20240610(
 		poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
 		if err != nil {
 			if isTransientUpdateError(err) {
+				lastTransientErr = err
 				return false, nil
 			}
 			return false, err
@@ -314,6 +316,7 @@ func UpdateHCPCluster20240610(
 		})
 		if err != nil {
 			if isTransientUpdateError(err) {
+				lastTransientErr = err
 				return false, nil
 			}
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -341,12 +344,8 @@ func UpdateHCPCluster20240610(
 		}
 	})
 
-	if err != nil && attempt > 1 {
-		ginkgo.GinkgoLogr.Info("Cluster update failed after retries",
-			"cluster", hcpClusterName,
-			"resourceGroup", resourceGroupName,
-			"attempts", attempt,
-			"error", err.Error())
+	if wait.Interrupted(err) && lastTransientErr != nil {
+		return hcpOpenShiftCluster, fmt.Errorf("update interrupted for hcpCluster=%q in resourcegroup=%q after %d attempts, last transient error: %w, interrupt cause: %w", hcpClusterName, resourceGroupName, attempt, lastTransientErr, err)
 	}
 
 	return hcpOpenShiftCluster, err
@@ -416,6 +415,7 @@ func UpdateHCPCluster20251223(
 	defer cancel()
 
 	var hcpOpenShiftCluster *hcpsdk20251223preview.HcpOpenShiftCluster
+	var lastTransientErr error
 	attempt := 0
 
 	err := wait.ExponentialBackoffWithContext(ctx, stateConflictBackoff, func(ctx context.Context) (bool, error) {
@@ -429,6 +429,7 @@ func UpdateHCPCluster20251223(
 		poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
 		if err != nil {
 			if isTransientUpdateError(err) {
+				lastTransientErr = err
 				return false, nil
 			}
 			return false, err
@@ -439,6 +440,7 @@ func UpdateHCPCluster20251223(
 		})
 		if err != nil {
 			if isTransientUpdateError(err) {
+				lastTransientErr = err
 				return false, nil
 			}
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -454,12 +456,8 @@ func UpdateHCPCluster20251223(
 		return true, nil
 	})
 
-	if err != nil && attempt > 1 {
-		ginkgo.GinkgoLogr.Info("Cluster update failed after retries",
-			"cluster", hcpClusterName,
-			"resourceGroup", resourceGroupName,
-			"attempts", attempt,
-			"error", err.Error())
+	if wait.Interrupted(err) && lastTransientErr != nil {
+		return hcpOpenShiftCluster, fmt.Errorf("update interrupted for hcpCluster=%q in resourcegroup=%q after %d attempts, last transient error: %w, interrupt cause: %w", hcpClusterName, resourceGroupName, attempt, lastTransientErr, err)
 	}
 
 	return hcpOpenShiftCluster, err
