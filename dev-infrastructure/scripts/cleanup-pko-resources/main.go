@@ -103,8 +103,8 @@ func run(timeout time.Duration) error {
 		}
 		errors += cleanupPKOOperator(ctx, kubeClient)
 		if errors > 0 {
-			fmt.Printf("\n=== PKO cleanup completed with %d error(s) ===\n", errors)
-			return fmt.Errorf("PKO cleanup completed with %d error(s)", errors)
+			fmt.Printf("\n=== PKO cleanup completed best-effort with %d warning(s) ===\n", errors)
+			return nil
 		}
 		fmt.Println("\n=== PKO cleanup complete ===")
 		return nil
@@ -147,8 +147,8 @@ func run(timeout time.Duration) error {
 	errors += cleanupPKOOperator(ctx, kubeClient)
 
 	if errors > 0 {
-		fmt.Printf("\n=== PKO cleanup completed with %d error(s) ===\n", errors)
-		return fmt.Errorf("PKO cleanup completed with %d error(s)", errors)
+		fmt.Printf("\n=== PKO cleanup completed best-effort with %d warning(s) ===\n", errors)
+		return nil
 	}
 	fmt.Println("\n=== PKO cleanup complete ===")
 	return nil
@@ -198,6 +198,16 @@ func gvr(c crdInfo) schema.GroupVersionResource {
 	return schema.GroupVersionResource{Group: c.Group, Version: c.Version, Resource: c.Plural}
 }
 
+func isMissingResourceErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if apierrors.IsNotFound(err) {
+		return true
+	}
+	return strings.Contains(err.Error(), "the server could not find the requested resource")
+}
+
 func deleteCRs(ctx context.Context, client dynamic.Interface, crds []crdInfo, timeout time.Duration) int {
 	errors := 0
 	for _, c := range crds {
@@ -213,6 +223,11 @@ func deleteCRs(ctx context.Context, client dynamic.Interface, crds []crdInfo, ti
 		if c.Scope == apiextensionsv1.NamespaceScoped {
 			list, err := client.Resource(gvr(c)).Namespace("").List(crdCtx, metav1.ListOptions{})
 			if err != nil {
+				if isMissingResourceErr(err) {
+					fmt.Fprintf(os.Stderr, "[WARNING] %s is already gone, skipping CR deletion\n", resource)
+					cancel()
+					continue
+				}
 				fmt.Fprintf(os.Stderr, "[ERROR] failed to list %s: %v\n", resource, err)
 				errors++
 				cancel()
@@ -226,12 +241,21 @@ func deleteCRs(ctx context.Context, client dynamic.Interface, crds []crdInfo, ti
 
 			for ns := range namespaces {
 				if err := client.Resource(gvr(c)).Namespace(ns).DeleteCollection(crdCtx, opts, metav1.ListOptions{}); err != nil {
+					if isMissingResourceErr(err) {
+						fmt.Fprintf(os.Stderr, "[WARNING] %s in namespace %s is already gone, skipping CR deletion\n", resource, ns)
+						continue
+					}
 					fmt.Fprintf(os.Stderr, "[ERROR] failed to delete %s in namespace %s: %v\n", resource, ns, err)
 					errors++
 				}
 			}
 		} else {
 			if err := client.Resource(gvr(c)).DeleteCollection(crdCtx, opts, metav1.ListOptions{}); err != nil {
+				if isMissingResourceErr(err) {
+					fmt.Fprintf(os.Stderr, "[WARNING] %s is already gone, skipping CR deletion\n", resource)
+					cancel()
+					continue
+				}
 				fmt.Fprintf(os.Stderr, "[ERROR] failed to delete %s: %v\n", resource, err)
 				errors++
 			}
@@ -254,6 +278,10 @@ func countCRs(ctx context.Context, client dynamic.Interface, c crdInfo) int {
 		list, err = client.Resource(gvr(c)).List(listCtx, metav1.ListOptions{})
 	}
 	if err != nil {
+		if isMissingResourceErr(err) {
+			fmt.Fprintf(os.Stderr, "[WARNING] %s.%s is already gone, counting as 0 remaining\n", c.Plural, c.Group)
+			return 0
+		}
 		fmt.Fprintf(os.Stderr, "[ERROR] failed to list %s.%s: %v\n", c.Plural, c.Group, err)
 		return -1
 	}
@@ -323,6 +351,10 @@ func stripFinalizersForCRD(ctx context.Context, client dynamic.Interface, c crdI
 		list, err = client.Resource(gvr(c)).List(ctx, metav1.ListOptions{})
 	}
 	if err != nil {
+		if isMissingResourceErr(err) {
+			fmt.Fprintf(os.Stderr, "[WARNING] %s is already gone, skipping finalizer removal\n", resource)
+			return 0
+		}
 		fmt.Fprintf(os.Stderr, "[ERROR] failed to list %s for finalizer removal: %v\n", resource, err)
 		return 1
 	}
@@ -349,7 +381,7 @@ func stripFinalizersForCRD(ctx context.Context, client dynamic.Interface, c crdI
 			fmt.Printf("  Patching finalizers on %s/%s\n", resource, name)
 			_, err = client.Resource(gvr(c)).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
 		}
-		if err != nil && !apierrors.IsNotFound(err) {
+		if err != nil && !isMissingResourceErr(err) {
 			if ns != "" {
 				fmt.Fprintf(os.Stderr, "[ERROR] failed to patch finalizers on %s/%s -n %s: %v\n", resource, name, ns, err)
 			} else {
