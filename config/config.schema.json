@@ -1429,13 +1429,29 @@
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
+        },
+        "registration": {
+          "type": "object",
+          "properties": {
+            "stampIdentifier": {
+              "type": "string",
+              "description": "The identifier of the stamp to register"
+            },
+            "autoApproveStamps": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "autoApproveStamps"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "managedIdentityName",
-        "k8s"
+        "k8s",
+        "registration"
       ]
     },
     "adminApi": {
