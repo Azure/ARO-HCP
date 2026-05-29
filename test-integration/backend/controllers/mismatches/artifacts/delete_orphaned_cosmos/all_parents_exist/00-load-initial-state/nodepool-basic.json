@@ -32,8 +32,7 @@
 				},
 				"serviceProviderProperties": {
 					"activeOperationId": "a7b69c90-242b-4a85-8187-0b3bd4979155",
-					"clusterServiceID": "",
-					"usesNewNodePoolDeletionApproach": false
+					"clusterServiceID": ""
 				},
 				"systemData": {
 					"createdBy": "Unknown-ARO-HCP-frontend",
@@ -58,8 +57,7 @@
 		},
 		"serviceProviderProperties": {
 			"activeOperationId": "a7b69c90-242b-4a85-8187-0b3bd4979155",
-			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/w9xhwccbjp/node_pools/k9xp9ghzh2",
-			"usesNewNodePoolDeletionApproach": false
+			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/w9xhwccbjp/node_pools/k9xp9ghzh2"
 		},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",

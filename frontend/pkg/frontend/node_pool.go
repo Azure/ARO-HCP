@@ -744,9 +744,6 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		"",
 		"",
 		correlationData)
-	// TODO remove this once migration of the new node pool deletion from frontend to backend approach is fully completed in all ARO-HCP
-	// permanent environments, for all regions.
-	operationDoc.UsesNewNodePoolDeletionApproach = true
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -768,7 +765,6 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 	if nodePool.ServiceProviderProperties.DeletionTimestamp == nil {
 		nodePool.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
 	}
-	nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach = true
 	_, err = f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
 	if err != nil {

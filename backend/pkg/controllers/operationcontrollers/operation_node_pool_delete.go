@@ -102,54 +102,6 @@ func (c *operationNodePoolDelete) ShouldProcess(ctx context.Context, operation *
 	return true
 }
 
-func (c *operationNodePoolDelete) legacyShouldProcess(ctx context.Context, operation *api.Operation) bool {
-	if operation.Status.IsTerminal() {
-		return false
-	}
-	if operation.Request != database.OperationRequestDelete {
-		return false
-	}
-	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
-		return false
-	}
-	return true
-}
-
-func (c *operationNodePoolDelete) legacySynchronizeOperation(ctx context.Context, operation *api.Operation) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	if !c.legacyShouldProcess(ctx, operation) {
-		return nil // no work to do
-	}
-
-	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
-	var ocmGetNodePoolError *ocmerrors.Error
-	if err != nil && errors.As(err, &ocmGetNodePoolError) && ocmGetNodePoolError.Status() == http.StatusNotFound {
-		logger.Info("node pool was deleted")
-
-		err = SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
 func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
@@ -161,13 +113,6 @@ func (c *operationNodePoolDelete) SynchronizeOperation(ctx context.Context, key 
 	if err != nil {
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
-
-	// TODO remove this once migration of node pool deletion from frontend to backend is fully completed.
-	if !operation.UsesNewNodePoolDeletionApproach {
-		return c.legacySynchronizeOperation(ctx, operation)
-	}
-
-	// From here, we know it uses the new deletion approach.
 
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do

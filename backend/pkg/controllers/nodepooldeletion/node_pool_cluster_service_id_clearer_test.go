@@ -64,19 +64,19 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:             "no DeletionTimestamp -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, nil),
+			existingNodePool: newTestNodePool(t, nil),
 			verifyDB:         verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not yet -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "ClusterServiceID already cleared -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -90,7 +90,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS NodePool still present -- wait",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -102,7 +102,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS returns 404 -- clear ClusterServiceID",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -120,7 +120,7 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 		},
 		{
 			name: "CS returns one of the not handled errors -- propagated, no clear",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				withDeletionStampsNodePoolOptsFunc(np)
 			}),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -130,13 +130,6 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			},
 			wantErr:        true,
 			wantErrContain: "failed to get cluster-service NodePool",
-		},
-		{
-			name: "UsesNewNodePoolDeletionApproach false -- no-op even when all clear conditions met",
-			existingNodePool: newTestNodePoolWithOldDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				withDeletionStampsNodePoolOptsFunc(np)
-			}),
-			verifyDB: verifyClusterServiceIDUnchanged,
 		},
 		{
 			name: "node pool not found",

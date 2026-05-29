@@ -18,8 +18,7 @@
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",
 		"startTime": "2026-01-05T18:29:58.181047849Z",
 		"status": "Accepted",
-		"tenantId": "00000000-0000-0000-0000-000000000000",
-		"usesNewNodePoolDeletionApproach": false
+		"tenantId": "00000000-0000-0000-0000-000000000000"
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/90b2322c-2c26-47ca-b6f9-d9b1a8385cbc",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",

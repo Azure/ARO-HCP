@@ -64,19 +64,19 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 	}{
 		{
 			name:             "no DeletionTimestamp -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, nil),
+			existingNodePool: newTestNodePool(t, nil),
 			verifyDB:         verifyNodePoolStillExists,
 		},
 		{
 			name: "DeletionTimestamp set but ClusterServiceDeletionTimestamp not -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 			}),
 			verifyDB: verifyNodePoolStillExists,
 		},
 		{
 			name: "ClusterServiceID still set -- no-op",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			existingNodePool: newTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-time.Hour)}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow.Add(-30 * time.Minute)}
 			}),
@@ -84,12 +84,12 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "all conditions met, no children -- deletes nodepool from Cosmos",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			verifyDB:         verifyNodePoolDeleted,
 		},
 		{
 			name:             "all conditions met, SPNP has remaining bundles -- backs off",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources: []any{newTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "readonly-bundle-1"},
 			})},
@@ -97,27 +97,21 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 		},
 		{
 			name:             "all conditions met, SPNP with no bundles -- backs off until SPNP removed",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestSPNP(t, nil)},
 			verifyDB:         verifyNodePoolStillExists,
 		},
 		{
 			name:             "all conditions met, a non node pool controller cosmos child exists -- backs off",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestManagementClusterContent(t, "test-mcc")},
 			verifyDB:         verifyNodePoolStillExists,
 		},
 		{
 			name:             "all conditions met, only controller children -- deletes nodepool",
-			existingNodePool: newTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			childResources:   []any{newTestNodePoolController(t, "test-controller")},
 			verifyDB:         verifyNodePoolDeleted,
-		},
-		{
-			name:             "UsesNewNodePoolDeletionApproach false -- no-op even when all delete conditions met",
-			existingNodePool: newTestNodePoolWithOldDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
-			childResources:   []any{newTestNodePoolController(t, "test-controller")},
-			verifyDB:         verifyNodePoolStillExists,
 		},
 		{
 			name: "node pool not found -- no-op",

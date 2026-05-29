@@ -1005,7 +1005,7 @@ func newNodePoolMaestroDeleteTestSPNP(t *testing.T, bundles api.MaestroBundleRef
 	}
 }
 
-func newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
+func newNodePoolMaestroTestNodePool(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
 	t.Helper()
 	resourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + nodePoolMaestroDeleteTestSubscriptionID +
@@ -1041,13 +1041,6 @@ func newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t *testing.T, opts fu
 	return np
 }
 
-func newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t *testing.T, opts func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
-	t.Helper()
-	np := newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t, opts)
-	np.ServiceProviderProperties.UsesNewNodePoolDeletionApproach = true
-	return np
-}
-
 func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileCreate(t *testing.T) {
 	fixedNow := time.Now().UTC().Truncate(time.Second)
 	syncer := &createNodePoolScopedMaestroReadonlyBundlesSyncer{}
@@ -1059,26 +1052,26 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileCreate(
 	}{
 		{
 			name:     "no DeletionTimestamp and ClusterServiceID set -- true",
-			nodePool: newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t, nil),
+			nodePool: newNodePoolMaestroTestNodePool(t, nil),
 			want:     true,
 		},
 		{
 			name: "DeletionTimestamp set -- false",
-			nodePool: newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 			}),
 			want: false,
 		},
 		{
 			name: "no ClusterServiceID -- false",
-			nodePool: newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			want: false,
 		},
 		{
 			name: "DeletionTimestamp set and no ClusterServiceID -- false",
-			nodePool: newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
@@ -1109,13 +1102,13 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(
 	}{
 		{
 			name:     "all nil: false",
-			nodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, nil),
+			nodePool: newNodePoolMaestroTestNodePool(t, nil),
 			spnp:     newNodePoolMaestroDeleteTestSPNP(t, bundles),
 			want:     false,
 		},
 		{
 			name: "DeletionTimestamp set only: false",
-			nodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 			}),
 			spnp: newNodePoolMaestroDeleteTestSPNP(t, bundles),
@@ -1123,7 +1116,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(
 		},
 		{
 			name: "DeletionTimestamp + CSDeletionTimestamp but CSID set: false",
-			nodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow}
 			}),
@@ -1132,7 +1125,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(
 		},
 		{
 			name: "all node pool conditions met but no bundles: false",
-			nodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceID = nil
@@ -1142,23 +1135,13 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_shouldReconcileDelete(
 		},
 		{
 			name: "all conditions met: true",
-			nodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
+			nodePool: newNodePoolMaestroTestNodePool(t, func(np *api.HCPOpenShiftClusterNodePool) {
 				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow}
 				np.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			spnp: newNodePoolMaestroDeleteTestSPNP(t, bundles),
 			want: true,
-		},
-		{
-			name: "nodepool with old deletion approach set: false",
-			nodePool: newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t, func(np *api.HCPOpenShiftClusterNodePool) {
-				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: fixedNow}
-				np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: fixedNow}
-				np.ServiceProviderProperties.ClusterServiceID = nil
-			}),
-			spnp: newNodePoolMaestroDeleteTestSPNP(t, bundles),
-			want: false,
 		},
 	}
 
@@ -1214,11 +1197,11 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "no SPNP -- no-op",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 		},
 		{
 			name:             "SPNP with no bundle list -- no-op",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPNP:     newNodePoolMaestroDeleteTestSPNP(t, nil),
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				assert.Empty(t, getSPNPBundles(t, ctx, db), "expected bundle list to remain empty")
@@ -1226,7 +1209,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "ServiceProviderCluster not found -- clears bundle refs",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
 			}),
@@ -1234,7 +1217,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "SPC without management cluster -- clears bundle refs",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, nil),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1243,7 +1226,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "single bundle -- successful delete and confirmed gone",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1260,7 +1243,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "single bundle -- delete ok but still exists in maestro, reference kept",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1279,7 +1262,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "single bundle -- delete ok but Get returns error, reference kept",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1300,7 +1283,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "single bundle -- maestro delete 404 then Get 404 treated as success",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1318,7 +1301,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "single bundle -- maestro error",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1338,7 +1321,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "multiple bundles -- all succeed",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1359,7 +1342,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "multiple bundles -- second delete fails",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1386,7 +1369,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "multiple bundles -- first still exists after delete",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1412,7 +1395,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "bundle with empty maestro name -- removed without maestro call",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "", MaestroAPIMaestroBundleID: ""},
@@ -1426,7 +1409,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "management cluster not in fleet DB",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1441,7 +1424,7 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 		},
 		{
 			name:             "maestro client creation fails",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithNewDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
+			existingNodePool: newNodePoolMaestroTestNodePool(t, readyToDeleteNodePoolOptsFunc),
 			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
 			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
 				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
@@ -1456,19 +1439,6 @@ func TestCreateNodePoolScopedMaestroReadonlyBundlesSyncer_SyncOnce_Delete(t *tes
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				bundles := getSPNPBundles(t, ctx, db)
 				assert.Len(t, bundles, 1)
-			},
-		},
-		{
-			name:             "nodepool with old deletion approach -- no-op",
-			existingNodePool: newNodePoolMaestroTestNodePoolWithOldDeletionApproach(t, readyToDeleteNodePoolOptsFunc),
-			existingSPC:      newNodePoolMaestroDeleteTestServiceProviderCluster(t, mcResourceID),
-			existingSPNP: newNodePoolMaestroDeleteTestSPNP(t, api.MaestroBundleReferenceList{
-				{Name: "bundleA", MaestroAPIMaestroBundleName: "name-a", MaestroAPIMaestroBundleID: "id-a"},
-			}),
-			fleetResources: []any{newNodePoolMaestroDeleteTestManagementCluster(t)},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
-				bundles := getSPNPBundles(t, ctx, db)
-				assert.Len(t, bundles, 1, "expected bundle references to remain unchanged")
 			},
 		},
 	}

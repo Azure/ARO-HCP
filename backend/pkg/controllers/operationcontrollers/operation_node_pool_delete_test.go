@@ -16,7 +16,6 @@ package operationcontrollers
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
@@ -29,7 +28,6 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -51,12 +49,11 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name                    string
-		existingNodePool        *api.HCPOpenShiftClusterNodePool
-		wantErr                 bool
-		verifyDB                func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
-		usesNewDeletionApproach bool
-		setupCSMock             func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec
+		name             string
+		existingNodePool *api.HCPOpenShiftClusterNodePool
+		wantErr          bool
+		verifyDB         func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		setupCSMock      func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec
 	}{
 		{
 			name: "node pool document gone completes operation",
@@ -65,7 +62,6 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
 			},
-			usesNewDeletionApproach: true,
 		},
 		{
 			name: "shouldReconcile gate not passed skips cluster service",
@@ -79,7 +75,6 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
 			},
-			usesNewDeletionApproach: true,
 		},
 		{
 			name:             "extra reconcilegate passed and CS Ready waits without updating operation",
@@ -100,7 +95,6 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
 			},
-			usesNewDeletionApproach: true,
 		},
 		{
 			name:             "extra reconcile gate passed and CS uninstalling updates operation to deleting",
@@ -121,44 +115,6 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
 			},
-			usesNewDeletionApproach: true,
-		},
-		{
-			name: "legacy approach: node pool gone in cluster service marks operation succeeded",
-			setupCSMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				notFoundErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
-				mockCSClient.EXPECT().
-					GetNodePoolStatus(gomock.Any(), fixture.nodePoolInternalID).
-					Return(nil, notFoundErr)
-				return mockCSClient
-			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
-				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
-				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
-			},
-			usesNewDeletionApproach: false,
-		},
-		{
-			name: "legacy approach: node pool still exists in cluster service keeps operation accepted",
-			setupCSMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				nodePoolStatus, err := arohcpv1alpha1.NewNodePoolStatus().
-					State(arohcpv1alpha1.NewNodePoolState().NodePoolStateValue(string(NodePoolStateReady))).
-					Build()
-				require.NoError(t, err)
-				mockCSClient.EXPECT().
-					GetNodePoolStatus(gomock.Any(), fixture.nodePoolInternalID).
-					Return(nodePoolStatus, nil)
-				return mockCSClient
-			},
-			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
-				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
-				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
-			},
-			usesNewDeletionApproach: false,
 		},
 	}
 
@@ -169,9 +125,6 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			defer ctrl.Finish()
 
 			operation := fixture.newOperation(database.OperationRequestDelete)
-			// TODO remove this once the new deletion approach is fully rolled out in all ARO-HCP permanent environments, for all regions.
-			operation.UsesNewNodePoolDeletionApproach = tc.usesNewDeletionApproach
-
 			resources := []any{operation}
 			if tc.existingNodePool != nil {
 				resources = append(resources, tc.existingNodePool)
