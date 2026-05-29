@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-errors/errors"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -69,7 +67,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) Validate(ctx context.Contex
 	}
 
 	// Fetch the subnet details to validate attached subnet devices permissions.
-	subnetResourceId := cluster.CustomerProperties.Platform.VnetIntegrationSubnetID
+	subnetResourceId := cluster.CustomerProperties.Platform.SubnetID
 	subnet, err := subnetClient.Get(ctx, subnetResourceId.ResourceGroupName, subnetResourceId.Parent.Name,
 		subnetResourceId.Name, nil)
 	if err != nil {
@@ -248,7 +246,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedAct
 	}
 
 	if len(actions) != len(authDecisionResponse.Value) {
-		logger.Error(errors.Errorf("mismatch in authorization decision response for '%s': "+
+		logger.Error(fmt.Errorf("mismatch in authorization decision response for '%s': "+
 			"expected '%d' actions, got '%d' actions",
 			resourceID.String(), len(actions), len(authDecisionResponse.Value)), "mismatch in authorization decision response")
 	}
