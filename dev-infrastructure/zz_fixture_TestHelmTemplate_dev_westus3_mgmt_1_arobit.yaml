@@ -153,6 +153,7 @@ data:
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
+        Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
@@ -161,7 +162,7 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -236,6 +237,31 @@ data:
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key backendLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match fleet-controller.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name fleetLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key fleetLogs
         buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
@@ -451,7 +477,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: daa48c40fc3f117b2650ffc65f9606a93231c8ba30f24e21bb4f8b598167c84b
+        checksum/configmap: 17967358ee186f2e0492f99e6bfa4911f9a5d64121fb14d58af9dd529e2a75e3
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

@@ -33,7 +33,7 @@ func TestGetServicesQueries(t *testing.T) {
 
 	queries, err := serviceLogs(factory, "serviceLogs", opts, []string{"cluster1"})
 	require.NoError(t, err)
-	assert.Len(t, queries, 4)
+	assert.Len(t, queries, 5)
 }
 
 func TestGetHostedControlPlaneLogsQuery(t *testing.T) {

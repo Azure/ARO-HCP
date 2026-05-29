@@ -18,6 +18,7 @@
 - `frontendLogs` — ARM API request/response logs: HTTP method, path, status code, duration, request/correlation IDs, subscription/resource identifiers
 - `backendLogs` — backend service logs: async operations, controller state dumps, cluster lifecycle, error codes, correlation IDs
 - `clustersServiceLogs` — Cluster Service logs: cluster provisioning phases, operation IDs, cluster correlation IDs
+- `fleetLogs` — fleet controller logs: fleet reconciliation events, fleet data dumps
 - `aksEvents` / `kubeAudit` — AKS management cluster events and extracted K8s API audit logs: API verbs, request URIs, user agents, response status
 - `systemdLogs` — node-level systemd unit logs: hostname, systemd unit, message
 
@@ -30,4 +31,3 @@
 - `backendLogs` links to `frontendLogs` via `correlation_request_id` and contains state dumps from controllers.
 - `containerLogs` is filtered by `namespace_name` and `container_name` to isolate maestro/hypershift logs.
 - Maestro bundle tracking joins `containerLogs` + `backendLogs`/`clustersServiceLogs` via bundle ID extraction.
-
