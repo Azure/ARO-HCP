@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -55,6 +56,7 @@ func NewClusterPropertiesSyncController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &clusterPropertiesSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -66,6 +68,7 @@ func NewClusterPropertiesSyncController(
 		"ClusterPropertiesSync",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute, // Check every 5 minutes
 		syncer,
 	)

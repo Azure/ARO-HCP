@@ -26,6 +26,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -52,6 +53,7 @@ func NewManagementClusterPlacementSyncController(
 	activeOperationLister listers.ActiveOperationLister,
 	managementClusterLister dblisters.ManagementClusterLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
@@ -69,6 +71,7 @@ func NewManagementClusterPlacementSyncController(
 		"ManagementClusterPlacementSync",
 		cosmosClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute, // Check every 5 minutes
 		syncer,
 	)

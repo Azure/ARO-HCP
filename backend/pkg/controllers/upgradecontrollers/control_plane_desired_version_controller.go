@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -71,6 +72,7 @@ func NewControlPlaneDesiredVersionController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	subscriptionLister listers.SubscriptionLister,
 ) controllerutils.Controller {
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
@@ -87,6 +89,7 @@ func NewControlPlaneDesiredVersionController(
 		controlPlaneDesiredVersionControllerName,
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute, // Check for upgrades every 5 minutes
 		syncer,
 	)
