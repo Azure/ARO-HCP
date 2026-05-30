@@ -39,7 +39,7 @@ var (
 
 	aroHcpV1Alpha1Pattern               = "/api/aro_hcp/v1alpha1"
 	aroHcpV1Alpha1ClusterPattern        = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
-	aroHcpV1Alpha1ProvisionShardPattern = path.Join(aroHcpV1Alpha1ClusterPattern, provisionShardKey, "*")
+	aroHcpV1Alpha1ProvisionShardPattern = path.Join(aroHcpV1Alpha1Pattern, provisionShardKey, "*")
 )
 
 func GenerateOCMCommercialClusterHREF(clusterName string) string {

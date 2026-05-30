@@ -1102,8 +1102,8 @@ func validProvisionShardBuilder(t *testing.T) *arohcpv1alpha1.ProvisionShardBuil
 	return arohcpv1alpha1.NewProvisionShard().
 		ID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").
 		HREF("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").
-		Status(csProvisioningShardStatusActive).
-		Topology("shared").
+		Status(CSProvisionShardStatusActive).
+		Topology(CSProvisionShardTopologyShared).
 		AzureShard(arohcpv1alpha1.NewAzureShard().
 			AksManagementClusterResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/test-westus3-mgmt-1").
 			PublicDnsZoneResourceId("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/test.example.com").
