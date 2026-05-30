@@ -89,7 +89,7 @@ func (h *StampListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) err
 	}
 
 	_, err = arm.WriteJSONResponse(w, http.StatusOK, stamps)
-	return err
+	return utils.TrackError(err)
 }
 
 // StampGetHandler handles GET /admin/v1/stamps/{stampIdentifier}.
@@ -125,5 +125,5 @@ func (h *StampGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	_, err = arm.WriteJSONResponse(w, http.StatusOK, resp)
-	return err
+	return utils.TrackError(err)
 }

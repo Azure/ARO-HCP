@@ -125,5 +125,5 @@ func (h *ManagementClusterGetHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 	}
 
 	_, err = arm.WriteJSONResponse(w, http.StatusOK, resp)
-	return err
+	return utils.TrackError(err)
 }
