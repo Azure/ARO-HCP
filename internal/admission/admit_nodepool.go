@@ -71,6 +71,28 @@ func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmis
 	return errs
 }
 
+// NodePoolDeleteAdmissionContext carries dependencies that node pool deletion admission needs.
+type NodePoolDeleteAdmissionContext struct {
+	// ClusterNodePools is a list of all node pools for the cluster, including the one being deleted.
+	ClusterNodePools []*api.HCPOpenShiftClusterNodePool
+}
+
+// AdmitNodePoolOnDelete performs non-static checks before deleting a node pool.
+func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, _ *api.HCPOpenShiftClusterNodePool) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// We do a *best-effort* to check to see if we are the last node pool on the cluster and prevent deletion
+	// if we are. This is because as of now (2026-05-29) it is not possible to delete the last node pool from the cluster
+	// OCPBUGS-86702. This check won't fully prevent the last node pool deletion in all cases as there are edge cases
+	// where race conditions can occur, but it should be good enough to prevent the last node pool deletion in most cases.
+	// TODO once OCPBUGS-86702 is fixed, we should remove this check.
+	if len(admissionContext.ClusterNodePools) <= 1 {
+		errs = append(errs, field.Forbidden(field.NewPath("name"), "The last node pool can not be deleted from a cluster."))
+	}
+
+	return errs
+}
+
 // AdmitNodePool performs non-static checks of nodepool. Checks that require more information than is contained inside of
 // the nodepool instance itself. For update operations with version changes, include ServiceProviderNodePool and
 // ServiceProviderCluster in the admissionContext to enable version upgrade validation.
