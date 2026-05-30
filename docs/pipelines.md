@@ -23,6 +23,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
         - Microsoft.Azure.ARO.HCP.KubeApplier ([ref](https://github.com/Azure/ARO-HCP/tree/main/kube-applier/pipeline.yaml)): Deploy the Kube Applier.
         - Microsoft.Azure.ARO.HCP.RouteMonitorOperator ([ref](https://github.com/Azure/ARO-HCP/tree/main/route-monitor-operator/pipeline.yaml)): Deploy the Route Monitor Operator.
         - Microsoft.Azure.ARO.HCP.MgmtAgent ([ref](https://github.com/Azure/ARO-HCP/tree/main/mgmt-agent/pipeline.yaml)): Deploy the Management Agent.
+        - Microsoft.Azure.ARO.HCP.Fleet.Registration ([ref](https://github.com/Azure/ARO-HCP/tree/main/fleet/registration/pipeline.yaml)): Register the stamp and management cluster in CosmosDB.
       - Microsoft.Azure.ARO.HCP.Monitoring ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/monitoring-pipeline.yaml)): Deploy the Monitoring resources
       - Microsoft.Azure.ARO.HCP.E2E ([ref](https://github.com/Azure/ARO-HCP/tree/main/test/e2e-pipeline.yaml)): Run the E2E tests towards a region and gate SDP progression.
 - Microsoft.Azure.ARO.HCP.Management.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml)): Delete the management resources and management resource group

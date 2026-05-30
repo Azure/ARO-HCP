@@ -62,12 +62,8 @@ func (h *StampApprovalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		return err
 	}
 
-	if _, err := fleet.ToStampResourceID(stampIdentifier); err != nil {
-		return arm.NewCloudError(
-			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent, "stampIdentifier",
-			"Invalid stamp identifier: %q", stampIdentifier,
-		)
+	if err := validateStampIdentifier(stampIdentifier); err != nil {
+		return err
 	}
 
 	stampsCRUD := h.fleetDBClient.Stamps()
