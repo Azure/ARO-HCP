@@ -323,6 +323,8 @@ driver: disk.csi.azure.com
 deletionPolicy: Retain
 parameters:
   incremental: "true"
+  # instantAccessDurationMinutes documented here https://github.com/kubernetes-sigs/azuredisk-csi-driver/blob/36e24171a3ed6ffa4a5c515e194e00e08c059da5/docs/driver-parameters.md?plain=1#L101
+  instantAccessDurationMinutes: "60" # 60 minutes is the minimum duration for instant access snapshots
 
 ---
 # Source: velero-hcp-cli/templates/kustomize-patch.yaml
