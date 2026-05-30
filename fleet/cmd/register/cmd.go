@@ -70,7 +70,7 @@ func (o *RegisterOptions) Run(ctx context.Context) error {
 }
 
 func (o *RegisterOptions) registerStamp(ctx context.Context) error {
-	logger := utils.LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx).WithValues("stampIdentifier", o.stampIdentifier)
 	stampsCRUD := o.fleetDBClient.Stamps()
 
 	existing, err := stampsCRUD.Get(ctx, o.stampIdentifier)
@@ -85,22 +85,22 @@ func (o *RegisterOptions) registerStamp(ctx context.Context) error {
 		}
 		o.applyAutoApprove(newStamp)
 
-		logger.Info("Creating stamp", "stampIdentifier", o.stampIdentifier, "autoApprove", o.autoApprove)
+		logger.Info("Creating stamp", "autoApprove", o.autoApprove)
 		if _, err := stampsCRUD.Create(ctx, newStamp, nil); err != nil {
 			return fmt.Errorf("failed to create stamp %q: %w", o.stampIdentifier, err)
 		}
-		logger.Info("Stamp created", "stampIdentifier", o.stampIdentifier)
+		logger.Info("Stamp created")
 		return nil
 	}
 
 	updated := existing.DeepCopy()
 	o.applyAutoApprove(updated)
 
-	logger.Info("Updating existing stamp", "stampIdentifier", o.stampIdentifier, "autoApprove", o.autoApprove)
+	logger.Info("Updating existing stamp", "autoApprove", o.autoApprove)
 	if _, err := stampsCRUD.Replace(ctx, updated, existing, nil); err != nil {
 		return fmt.Errorf("failed to update stamp %q: %w", o.stampIdentifier, err)
 	}
-	logger.Info("Stamp updated", "stampIdentifier", o.stampIdentifier)
+	logger.Info("Stamp updated")
 	return nil
 }
 
@@ -118,7 +118,7 @@ func (o *RegisterOptions) applyAutoApprove(stamp *fleet.Stamp) {
 }
 
 func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
-	logger := utils.LoggerFromContext(ctx)
+	logger := utils.LoggerFromContext(ctx).WithValues("stampIdentifier", o.stampIdentifier)
 	stampsCRUD := o.fleetDBClient.Stamps()
 
 	if _, err := stampsCRUD.Get(ctx, o.stampIdentifier); err != nil {
@@ -142,22 +142,22 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 		}
 		o.applyToManagementCluster(managementCluster)
 
-		logger.Info("Creating management cluster", "stampIdentifier", o.stampIdentifier)
+		logger.Info("Creating management cluster")
 		if _, err := managementClusterCRUD.Create(ctx, managementCluster, nil); err != nil {
 			return fmt.Errorf("failed to create management cluster for stamp %q: %w", o.stampIdentifier, err)
 		}
-		logger.Info("Management cluster created", "stampIdentifier", o.stampIdentifier)
+		logger.Info("Management cluster created")
 		return nil
 	}
 
 	updated := existing.DeepCopy()
 	o.applyToManagementCluster(updated)
 
-	logger.Info("Updating existing management cluster", "stampIdentifier", o.stampIdentifier)
+	logger.Info("Updating existing management cluster")
 	if _, err := managementClusterCRUD.Replace(ctx, updated, existing, nil); err != nil {
 		return fmt.Errorf("failed to update management cluster for stamp %q: %w", o.stampIdentifier, err)
 	}
-	logger.Info("Management cluster updated", "stampIdentifier", o.stampIdentifier)
+	logger.Info("Management cluster updated")
 	return nil
 }
 
