@@ -142,6 +142,9 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 		return nil, fmt.Errorf("invalid public-dns-zone-resource-id: %w", err)
 	}
 
+	// Deterministic UUID v5 matching cluster-service/Makefile's PROVISION_SHARD_ID
+	// generation. Both use the AKS cluster name as input — case-sensitive, so
+	// casing must stay consistent across config sources.
 	shardUUID := uuid.NewSHA1(provisionShardNamespaceUUID, []byte(aksID.Name))
 	shardID, err := api.NewInternalID(fmt.Sprintf("/api/aro_hcp/v1alpha1/provision_shards/%s", shardUUID.String()))
 	if err != nil {
