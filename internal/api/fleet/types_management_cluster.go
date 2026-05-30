@@ -67,6 +67,10 @@ const (
 	// shard has an unknown status.
 	ManagementClusterConditionReasonProvisionShardStatusUnknown ManagementClusterConditionReason = "ProvisionShardStatusUnknown"
 
+	// ManagementClusterConditionReasonStampNotApproved indicates the parent stamp
+	// has not been approved, so downstream registration is skipped.
+	ManagementClusterConditionReasonStampNotApproved ManagementClusterConditionReason = "StampNotApproved"
+
 	// ManagementClusterConditionReasonRegistered indicates the downstream system
 	// (ClustersService or Maestro) is configured correctly.
 	ManagementClusterConditionReasonRegistered ManagementClusterConditionReason = "Registered"
