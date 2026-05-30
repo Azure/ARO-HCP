@@ -1,0 +1,220 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: nodepool-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Node Pool SLO Recording Rules
+  # ========================================
+  # These rules track the Errors SLO for Node Pool operations.
+  # SLO: 95% of node pool operations should succeed (not reach "failed" terminal phase)
+  # Error Budget: 5% (1 - 0.95)
+  #
+  # Metrics are gauge-based (backend_resource_operation_phase_info) from Cosmos DB,
+  # so we use count() aggregations rather than rate() on counters.
+  #
+  # Scope: covers node pool update and delete operations.
+  # Node pool creation has its own SLI/SLO work tracked in ARO-26179 (owner: Rael).
+  - name: arohcp_nodepool_slo_recording_rules
+    interval: 1m
+    rules:
+    # Instantaneous count of succeeded node pool operations
+    - record: errors:backend_nodepool_operation:succeeded_total
+      expr: |
+        count(backend_resource_operation_phase_info{
+          resource_type=~".*nodepools",
+          phase="succeeded"
+        }) or vector(0)
+    # Instantaneous count of all terminal node pool operations (succeeded + failed)
+    - record: errors:backend_nodepool_operation:terminal_total
+      expr: |
+        count(backend_resource_operation_phase_info{
+          resource_type=~".*nodepools",
+          phase=~"succeeded|failed"
+        }) or vector(0)
+    # Instantaneous error rate: fraction of terminal operations that failed
+    - record: errors:backend_nodepool_operation:error_rate
+      expr: |
+        (
+          count(backend_resource_operation_phase_info{
+            resource_type=~".*nodepools",
+            phase="failed"
+          }) or vector(0)
+        )
+        /
+        (
+          count(backend_resource_operation_phase_info{
+            resource_type=~".*nodepools",
+            phase=~"succeeded|failed"
+          }) or vector(0)
+        )
+    # Node pool provisioning state distribution (for dashboards)
+    - record: nodepool:provision_state:count_by_phase
+      expr: |
+        count by (phase) (backend_nodepool_provision_state)
+  # ========================================
+  # Node Pool SLO Alerts — Errors
+  # ========================================
+  # Multi-window burn-rate-style alerting adapted for gauge metrics.
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR.
+  #
+  # Burn rate thresholds calculated from 95% SLO (5% error budget):
+  #   Fast (14.4x):  14.4 * 0.05 = 0.72 → 72% error rate
+  #   Medium (6x):   6   * 0.05 = 0.30 → 30% error rate
+  #   Slow (1x):     1   * 0.05 = 0.05 →  5% error rate
+  #
+  # The 'for' duration enforces sustained observation, approximating the
+  # short window of multi-window burn rate alerting. For gauge metrics
+  # (point-in-time state rather than event rates), this provides equivalent
+  # protection against transient spikes.
+  - name: arohcp_nodepool_slo_error_alerts
+    rules:
+    # ----------------------------------------
+    # Fast Burn Alert (Severity 3)
+    # ----------------------------------------
+    # 14.4x burn rate → >72% failure rate sustained for 5 minutes
+    # Would exhaust 7-day error budget in ~12 hours
+    - alert: UJNodePoolErrors5m1h
+      expr: |
+        (
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
+          /
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"})
+        ) > 0.72
+      for: 5m
+      labels:
+        severity: "3"
+        slo: nodepool-errors
+      annotations:
+        summary: "Node Pool operation error rate critically high (>72%)"
+        description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+    # ----------------------------------------
+    # Medium Burn Alert (Severity 3)
+    # ----------------------------------------
+    # 6x burn rate → >30% failure rate sustained for 30 minutes
+    # Would exhaust 7-day error budget in ~28 hours
+    - alert: UJNodePoolErrors30m6h
+      expr: |
+        (
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
+          /
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"})
+        ) > 0.30
+      for: 30m
+      labels:
+        severity: "3"
+        slo: nodepool-errors
+      annotations:
+        summary: "Node Pool operation error rate elevated (>30%) for 30+ minutes"
+        description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+    # ----------------------------------------
+    # Slow Burn Alerts (Severity 4)
+    # ----------------------------------------
+    # Per ADR: slow burn alerts generate IcM Sev 4 / Jira ticket.
+    # 1x burn rate → >5% failure rate sustained for 6 hours
+    # Would exhaust 7-day error budget in ~7 days
+    - alert: UJNodePoolErrors6h3d
+      expr: |
+        (
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
+          /
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"})
+        ) > 0.05
+      for: 6h
+      labels:
+        severity: "4"
+        slo: nodepool-errors
+      annotations:
+        summary: "Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours"
+        description: "More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+    # ----------------------------------------
+    # Degradation Alert (Severity 3)
+    # ----------------------------------------
+    # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
+    # This provides early warning at 15% failure rate before burn-rate alerts fire.
+    - alert: UJNodePoolErrorsDegradation
+      expr: |
+        (
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
+          /
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"})
+        ) > 0.15
+      for: 30m
+      labels:
+        severity: "3"
+      annotations:
+        summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
+        description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+    # ----------------------------------------
+    # Stuck Operations Alert (Severity 3)
+    # ----------------------------------------
+    # Operations stuck in non-terminal phases are invisible to success/failure SLIs.
+    - alert: UJNodePoolStuckOperation
+      expr: |
+        (
+          time() - backend_resource_operation_start_time_seconds{
+            resource_type=~".*nodepools",
+            phase=~"updating|deleting"
+          }
+        ) > 3600
+      labels:
+        severity: "3"
+      annotations:
+        summary: "Node Pool operation stuck in {{ $labels.phase }} for over 1 hour"
+        description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+  # ========================================
+  # Node Pool Component Alerts — Saturation
+  # ========================================
+  # Threshold-based alerting for component-level metrics per ADR.
+  - name: arohcp_nodepool_component_alerts
+    rules:
+    # Queue depth: node pool controller workqueue accumulating work
+    - alert: CNodePoolQueueDepth
+      expr: |
+        max by (name, cluster) (
+          max without(prometheus_replica) (
+            workqueue_depth{namespace="aro-hcp", name=~".*nodepool.*"}
+          )
+        ) > 10
+      for: 5m
+      labels:
+        severity: "3"
+      annotations:
+        summary: "Node Pool controller workqueue {{ $labels.name }} depth is high"
+        description: "Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+    # Retry hot loop: high retry ratio on node pool workqueue
+    - alert: CNodePoolRetryHotLoop
+      expr: |
+        (
+          sum by (name, cluster) (
+            max without(prometheus_replica) (
+              rate(workqueue_retries_total{namespace="aro-hcp", name=~".*nodepool.*"}[10m])
+            )
+          )
+          /
+          sum by (name, cluster) (
+            max without(prometheus_replica) (
+              rate(workqueue_adds_total{namespace="aro-hcp", name=~".*nodepool.*"}[10m])
+            )
+          )
+        ) > 0.5
+      for: 10m
+      labels:
+        severity: "3"
+      annotations:
+        summary: "Node Pool controller workqueue {{ $labels.name }} retry hot loop"
+        description: "Node pool controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"

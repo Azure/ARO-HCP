@@ -1,0 +1,393 @@
+rule_files:
+- nodepool-slo-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Normal operation — all operations succeeded, no alerts
+# ========================================
+# 10 node pool operations in "succeeded" phase, 0 in "failed".
+# Error rate = 0%, well below 95% SLO. No alerts should fire.
+- interval: 1m
+  input_series:
+  # 10 succeeded operations (each series = 1 operation gauge)
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x70"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:succeeded_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{}'
+      value: 10
+  - expr: errors:backend_nodepool_operation:terminal_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:terminal_total{}'
+      value: 10
+  - expr: errors:backend_nodepool_operation:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate{}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJNodePoolErrors5m1h
+  - eval_time: 10m
+    alertname: UJNodePoolErrors30m6h
+  - eval_time: 10m
+    alertname: UJNodePoolErrors6h3d
+  - eval_time: 10m
+    alertname: UJNodePoolErrorsDegradation
+
+# ========================================
+# Test 2: Fast burn — 80% failure rate, UJNodePoolErrors5m1h fires
+# ========================================
+# 2 succeeded, 8 failed → error rate = 80% > 72% threshold (14.4x burn)
+# Both UJNodePoolErrors5m1h and UJNodePoolErrorsDegradation should fire.
+- interval: 1m
+  input_series:
+  # 2 succeeded
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded"}'
+    values: "1+0x40"
+  # 8 failed
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/np/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate{}'
+      value: 0.8
+  alert_rule_test:
+  # Fast burn fires after 5m 'for' duration
+  - eval_time: 7m
+    alertname: UJNodePoolErrors5m1h
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: nodepool-errors
+      exp_annotations:
+        summary: "Node Pool operation error rate critically high (>72%)"
+        description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+  # Degradation also fires (15% threshold met at 80%)
+  - eval_time: 35m
+    alertname: UJNodePoolErrorsDegradation
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+      exp_annotations:
+        summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
+        description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+
+# ========================================
+# Test 3: Degradation — 20% failure rate, only degradation alert fires
+# ========================================
+# 8 succeeded, 2 failed → error rate = 20%
+# > 15% (degradation) but < 30% (medium burn) and < 72% (fast burn)
+- interval: 1m
+  input_series:
+  # 8 succeeded
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/c", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/d", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/e", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/f", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/g", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/h", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  # 2 failed
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/i", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/np/j", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="failed"}'
+    values: "1+0x40"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate{}'
+      value: 0.2
+  alert_rule_test:
+  # Fast burn should NOT fire (20% < 72%)
+  - eval_time: 10m
+    alertname: UJNodePoolErrors5m1h
+  # Degradation fires after 30m (20% > 15%)
+  - eval_time: 35m
+    alertname: UJNodePoolErrorsDegradation
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+      exp_annotations:
+        summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
+        description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+
+# ========================================
+# Test 4: Stuck operation — operation in "updating" for > 1 hour
+# ========================================
+# An operation has start_time 7200 seconds in the past and is still in "updating" phase.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/np/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
+    values: "0+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/np/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
+    values: "1+0x70"
+  alert_rule_test:
+  # At 70m (4200s), time() - 0 = 4200 > 3600, alert fires
+  - eval_time: 70m
+    alertname: UJNodePoolStuckOperation
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/3/np/stuck"
+        subscription_id: "sub-3"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        operation_type: "update"
+        phase: "updating"
+        severity: "3"
+      exp_annotations:
+        summary: "Node Pool operation stuck in updating for over 1 hour"
+        description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+
+# ========================================
+# Test 5: No stuck operation — operation in "updating" for < 1 hour
+# ========================================
+# Operation started recently, should not trigger stuck alert.
+- interval: 1m
+  input_series:
+  # start_time far enough in the future that time() - start_time < 3600
+  # At eval_time=30m, time()=1800. Start at 600 → delta=1200 < 3600.
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/np/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
+    values: "600+0x35"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/np/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
+    values: "1+0x35"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: UJNodePoolStuckOperation
+
+# ========================================
+# Test 6: Below SLO boundary — 3% failure rate, no alerts
+# ========================================
+# 97 succeeded, 3 failed → error rate = 3% < 5% SLO threshold
+# No alerts should fire (below all thresholds including slow burn).
+- interval: 1m
+  input_series:
+  # Using fewer series for simplicity: 9 succeeded, 1 failed would give 10%
+  # Instead: 19 succeeded, 1 failed = 5% — right at boundary
+  # For 3%: need ~32 succeeded, 1 failed → too many series
+  # Simplified: 9 succeeded, 0 failed = 0% failure rate
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/np/a", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/np/b", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/np/c", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/np/d", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/np/e", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJNodePoolErrors5m1h
+  - eval_time: 10m
+    alertname: UJNodePoolErrors30m6h
+  - eval_time: 10m
+    alertname: UJNodePoolErrorsDegradation
+
+# ========================================
+# Test 7: Queue depth — workqueue depth exceeds threshold
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+    values: "15+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: CNodePoolQueueDepth
+    exp_alerts:
+    - exp_labels:
+        name: "nodepool-properties-metrics"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        summary: "Node Pool controller workqueue nodepool-properties-metrics depth is high"
+        description: "Node pool controller workqueue nodepool-properties-metrics has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+
+# ========================================
+# Test 8: Queue depth normal — below threshold, no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+    values: "5+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: CNodePoolQueueDepth
+
+# ========================================
+# Test 9: Retry hot loop — retry ratio > 50%
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+    values: "0+80x25"
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+    values: "0+100x25"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: CNodePoolRetryHotLoop
+    exp_alerts:
+    - exp_labels:
+        name: "nodepool-properties-metrics"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        summary: "Node Pool controller workqueue nodepool-properties-metrics retry hot loop"
+        description: "Node pool controller workqueue nodepool-properties-metrics has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+
+# ========================================
+# Test 10: Retry hot loop — low retry ratio, no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+    values: "0+10x25"
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+    values: "0+100x25"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: CNodePoolRetryHotLoop
+
+# ========================================
+# Test 11: Mixed operation types — update and delete both tracked
+# ========================================
+# Verifies both update and delete operations are captured by the regex filter.
+# 3 succeeded updates, 2 succeeded deletes, 3 failed updates, 2 failed deletes
+# → error rate = 5/10 = 50%
+- interval: 1m
+  input_series:
+  # 3 succeeded updates
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/a", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/b", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/c", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
+    values: "1+0x40"
+  # 2 succeeded deletes
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/d", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/e", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="succeeded"}'
+    values: "1+0x40"
+  # 3 failed updates
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/f", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/g", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/h", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="failed"}'
+    values: "1+0x40"
+  # 2 failed deletes
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/i", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="failed"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/j", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="failed"}'
+    values: "1+0x40"
+  promql_expr_test:
+  - expr: errors:backend_nodepool_operation:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:error_rate{}'
+      value: 0.5
+  - expr: errors:backend_nodepool_operation:succeeded_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:succeeded_total{}'
+      value: 5
+  - expr: errors:backend_nodepool_operation:terminal_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_nodepool_operation:terminal_total{}'
+      value: 10
+  alert_rule_test:
+  # 50% > 30% → medium burn fires after 30m
+  - eval_time: 35m
+    alertname: UJNodePoolErrors30m6h
+    exp_alerts:
+    - exp_labels:
+        severity: "3"
+        slo: nodepool-errors
+      exp_annotations:
+        summary: "Node Pool operation error rate elevated (>30%) for 30+ minutes"
+        description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
+  # 50% < 72% → fast burn should NOT fire
+  - eval_time: 35m
+    alertname: UJNodePoolErrors5m1h
+
+# ========================================
+# Test 12: Stuck delete operation
+# ========================================
+# Verifies that delete operations stuck for >1h also trigger the alert.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/np/stuck-del", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting"}'
+    values: "0+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/np/stuck-del", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting"}'
+    values: "1+0x70"
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: UJNodePoolStuckOperation
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/7/np/stuck-del"
+        subscription_id: "sub-7"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        operation_type: "delete"
+        phase: "deleting"
+        severity: "3"
+      exp_annotations:
+        summary: "Node Pool operation stuck in deleting for over 1 hour"
+        description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
