@@ -26,13 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// Stamp is the API response for a stamp, without CosmosMetadata.
-type Stamp struct {
-	ResourceID string            `json:"resourceId"`
-	Spec       fleet.StampSpec   `json:"spec"`
-	Status     fleet.StampStatus `json:"status"`
-}
-
 // ManagementClusterStatus mirrors fleet.ManagementClusterStatus but
 // serializes *azcorearm.ResourceID and *api.InternalID fields as strings.
 type ManagementClusterStatus struct {
@@ -55,28 +48,6 @@ type ManagementCluster struct {
 	ResourceID string                      `json:"resourceId"`
 	Spec       fleet.ManagementClusterSpec `json:"spec"`
 	Status     ManagementClusterStatus     `json:"status"`
-}
-
-func validateStampIdentifier(stampIdentifier string) error {
-	if _, err := fleet.ToStampResourceID(stampIdentifier); err != nil {
-		return arm.NewCloudError(
-			http.StatusBadRequest,
-			arm.CloudErrorCodeInvalidRequestContent, "stampIdentifier",
-			"Invalid stamp identifier: %q", stampIdentifier,
-		)
-	}
-	return nil
-}
-
-func toStamp(s *fleet.Stamp) (Stamp, error) {
-	if s.ResourceID == nil {
-		return Stamp{}, fmt.Errorf("stamp has nil resourceId")
-	}
-	return Stamp{
-		ResourceID: s.ResourceID.String(),
-		Spec:       s.Spec,
-		Status:     s.Status,
-	}, nil
 }
 
 func toManagementCluster(managementCluster *fleet.ManagementCluster) (ManagementCluster, error) {
@@ -117,81 +88,6 @@ func toManagementClusterStatus(status fleet.ManagementClusterStatus) (Management
 		ClusterServiceProvisionShardID:                       status.ClusterServiceProvisionShardID.String(),
 		KubeApplierCosmosContainerName:                       status.KubeApplierCosmosContainerName,
 	}, nil
-}
-
-// StampListHandler handles GET /admin/v1/stamps.
-type StampListHandler struct {
-	fleetDBClient database.FleetDBClient
-}
-
-func NewStampListHandler(fleetDBClient database.FleetDBClient) *StampListHandler {
-	return &StampListHandler{
-		fleetDBClient: fleetDBClient,
-	}
-}
-
-func (h *StampListHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-
-	iter, err := h.fleetDBClient.GlobalListers().Stamps().List(ctx, nil)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list stamps: %w", err))
-	}
-
-	var stamps []Stamp
-	for _, s := range iter.Items(ctx) {
-		resp, err := toStamp(s)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to convert stamp: %w", err))
-		}
-		stamps = append(stamps, resp)
-	}
-	if err := iter.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to iterate stamps: %w", err))
-	}
-
-	if stamps == nil {
-		stamps = []Stamp{}
-	}
-
-	_, err = arm.WriteJSONResponse(w, http.StatusOK, stamps)
-	return err
-}
-
-// StampGetHandler handles GET /admin/v1/stamps/{stampIdentifier}.
-type StampGetHandler struct {
-	fleetDBClient database.FleetDBClient
-}
-
-func NewStampGetHandler(fleetDBClient database.FleetDBClient) *StampGetHandler {
-	return &StampGetHandler{
-		fleetDBClient: fleetDBClient,
-	}
-}
-
-func (h *StampGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-	stampIdentifier := r.PathValue("stampIdentifier")
-
-	if err := validateStampIdentifier(stampIdentifier); err != nil {
-		return err
-	}
-
-	stamp, err := h.fleetDBClient.Stamps().Get(ctx, stampIdentifier)
-	if err != nil {
-		if database.IsNotFoundError(err) {
-			return arm.NewCloudError(http.StatusNotFound, arm.CloudErrorCodeNotFound, "", "Stamp %q not found", stampIdentifier)
-		}
-		return utils.TrackError(fmt.Errorf("failed to get stamp: %w", err))
-	}
-
-	resp, err := toStamp(stamp)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to convert stamp: %w", err))
-	}
-
-	_, err = arm.WriteJSONResponse(w, http.StatusOK, resp)
-	return err
 }
 
 // ManagementClusterGetHandler handles GET /admin/v1/stamps/{stampIdentifier}/managementClusters/{managementClusterName}.
