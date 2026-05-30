@@ -127,6 +127,7 @@ func NewBackupScheduleController(
 		"BackupSchedule",
 		cosmosClient,
 		informers,
+		nil,
 		5*time.Minute,
 		syncer,
 	)

@@ -29,7 +29,7 @@ var backupIncludedResources = []string{
 	"rolebinding",
 	"pod",
 	"pvc", // Not required if using HcpEtcdBackup
-	"pv", // Not required if using HcpEtcdBackup
+	"pv",  // Not required if using HcpEtcdBackup
 	"configmap",
 	"priorityclasses",
 	"pdb",
