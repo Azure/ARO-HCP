@@ -1442,6 +1442,7 @@
             }
           },
           "required": [
+            "stampIdentifier",
             "autoApproveStamps"
           ]
         }
