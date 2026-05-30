@@ -446,6 +446,27 @@ spec:
     matchLabels:
       app: "maestro"
 ---
+# Source: maestro-server/templates/allow-fleet-controller.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-fleet-controller
+  namespace: 'maestro'
+spec:
+  action: "ALLOW"
+  rules:
+    - to:
+      - operation:
+          ports:
+            - "8000"
+      from:
+      - source:
+          principals:
+            - "cluster.local/ns/fleet/sa/fleet"
+  selector:
+    matchLabels:
+      app: "maestro"
+---
 # Source: maestro-server/templates/allow-maestro-to-db.authorizationpolicy.yaml
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
@@ -491,26 +512,6 @@ metadata:
   name: allow-nothing
   namespace: 'maestro'
 spec: {}
----
-# Source: maestro-server/templates/allow-registration-job-to-maestro.authorizationpolicy.yaml
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: allow-registration-job-to-maestro
-  namespace: 'maestro'
-spec:
-  action: "ALLOW"
-  rules:
-  - from:
-    - source:
-        principals: ["cluster.local/ns/maestro/sa/default"]
-    to:
-    - operation:
-        ports:
-        - "8000"
-  selector:
-    matchLabels:
-      app: "maestro"
 ---
 # Source: maestro-server/templates/maestro.peerauthentication.yaml
 apiVersion: security.istio.io/v1beta1
