@@ -114,7 +114,7 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	// pointer addresses, which previously caused a Replace on every reconciliation cycle even
 	// when the active versions were semantically identical.
 	oldActiveVersions := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
-	if !controllerutils.NeedsUpdate(oldActiveVersions, newActiveVersions) {
+	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) {
 		return nil
 	}
 	logger := utils.LoggerFromContext(ctx)

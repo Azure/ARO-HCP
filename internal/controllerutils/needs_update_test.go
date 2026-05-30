@@ -60,7 +60,6 @@ func TestNeedsUpdate_CosmosMetadata_IgnoresExistingCosmosUID(t *testing.T) {
 	}
 	b := arm.CosmosMetadata{
 		ResourceID: mustParseRID(t, ridStr),
-		// freshly built desired - no UID yet
 	}
 	assert.False(t, NeedsUpdate(a, b), "ExistingCosmosUID is internal-only and must not trigger an update")
 }
@@ -76,8 +75,6 @@ func TestNeedsUpdate_CosmosMetadata_DetectsResourceIDDifference(t *testing.T) {
 }
 
 func TestNeedsUpdate_ResourceID_ComparedByString(t *testing.T) {
-	// Two independently-parsed ResourceIDs share string form but have different parent pointer
-	// chains. equality.Semantic would report them as different; NeedsUpdate must not.
 	ridStr := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c"
 	a := mustParseRID(t, ridStr)
 	b := mustParseRID(t, ridStr)
@@ -86,8 +83,6 @@ func TestNeedsUpdate_ResourceID_ComparedByString(t *testing.T) {
 }
 
 func TestNeedsUpdate_RawExtension_NormalizesRawAndObject(t *testing.T) {
-	// runtime.RawExtension can carry data either in Raw bytes or as a typed Object. Both forms
-	// produce identical persisted JSON, so they must compare equal for our purposes.
 	hc := map[string]any{
 		"apiVersion": "hypershift.openshift.io/v1beta1",
 		"kind":       "HostedCluster",
@@ -103,8 +98,6 @@ func TestNeedsUpdate_RawExtension_NormalizesRawAndObject(t *testing.T) {
 }
 
 func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
-	// End-to-end check: a ManagementClusterContent built fresh and then marshalled+unmarshalled
-	// (the path through cosmos read) must compare as not needing an update.
 	rid := mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c/managementClusterContents/readonlyHypershiftHostedCluster")
 	desired := &api.ManagementClusterContent{
 		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid},
@@ -129,8 +122,6 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 		},
 	}
 
-	// Round-trip through JSON to mimic the read path which fills RawExtension.Raw and assigns a
-	// new etag/UID.
 	bytes, err := json.Marshal(desired)
 	require.NoError(t, err)
 	roundTripped := &api.ManagementClusterContent{}
@@ -139,4 +130,28 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	roundTripped.ExistingCosmosUID = "server-assigned-uid"
 
 	assert.False(t, NeedsUpdate(roundTripped, desired), "round-tripped existing should compare equal to a freshly-built desired")
+}
+
+func TestNeedsUpdate_InternalID_ComparedByPath(t *testing.T) {
+	a, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
+	require.NoError(t, err)
+	b, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
+	require.NoError(t, err)
+	assert.False(t, NeedsUpdate(a, b), "InternalIDs with the same path should not trigger an update")
+}
+
+func TestNeedsUpdate_InternalID_DetectsDifference(t *testing.T) {
+	a, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
+	require.NoError(t, err)
+	b, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/def")
+	require.NoError(t, err)
+	assert.True(t, NeedsUpdate(a, b), "InternalIDs with different paths must trigger an update")
+}
+
+func TestNeedsUpdate_InternalID_PointerNilHandling(t *testing.T) {
+	a, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
+	require.NoError(t, err)
+	assert.True(t, NeedsUpdate(&a, (*api.InternalID)(nil)), "non-nil vs nil InternalID must trigger an update")
+	assert.True(t, NeedsUpdate((*api.InternalID)(nil), &a), "nil vs non-nil InternalID must trigger an update")
+	assert.False(t, NeedsUpdate((*api.InternalID)(nil), (*api.InternalID)(nil)), "nil vs nil InternalID should not trigger an update")
 }

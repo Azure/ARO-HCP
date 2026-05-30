@@ -23,6 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -42,23 +43,27 @@ import (
 var needsUpdateEqualities = func() conversion.Equalities {
 	e := equality.Semantic.Copy()
 	if err := e.AddFuncs(
-		// arm.CosmosMetadata: only compare ResourceID. CosmosETag is server-assigned and
-		// ExistingCosmosUID is an in-memory bridge.
 		func(a, b arm.CosmosMetadata) bool {
 			return ResourceIDsEqual(a.ResourceID, b.ResourceID)
 		},
-		// *azcorearm.ResourceID: compare by string so unrelated parent pointer chains don't
-		// cause spurious inequality.
 		func(a, b *azcorearm.ResourceID) bool {
 			return ResourceIDsEqual(a, b)
 		},
-		// azcorearm.ResourceID (value): same reason as the pointer form.
 		func(a, b azcorearm.ResourceID) bool {
 			return a.String() == b.String()
 		},
-		// runtime.RawExtension: compare via canonical JSON. RawExtension can carry data either as
-		// Raw bytes or as a typed Object; both forms need to round-trip to the same JSON for our
-		// purposes.
+		func(a, b api.InternalID) bool {
+			return a.Path() == b.Path()
+		},
+		func(a, b *api.InternalID) bool {
+			if a == nil && b == nil {
+				return true
+			}
+			if a == nil || b == nil {
+				return false
+			}
+			return a.Path() == b.Path()
+		},
 		func(a, b runtime.RawExtension) bool {
 			aBytes, err := a.MarshalJSON()
 			if err != nil {
