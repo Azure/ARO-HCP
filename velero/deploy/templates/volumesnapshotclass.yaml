@@ -8,3 +8,4 @@ driver: disk.csi.azure.com
 deletionPolicy: Retain
 parameters:
   incremental: "true"
+  instantaccessdurationminutes: "60" # 60 minutes is the minimum duration for instant access snapshots
