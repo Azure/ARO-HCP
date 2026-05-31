@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
@@ -38,24 +39,31 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+type ProvisionShardClient interface {
+	GetProvisionShard(ctx context.Context, internalID api.InternalID) (*arohcpv1alpha1.ProvisionShard, error)
+	ListProvisionShards() ocm.ProvisionShardListIterator
+	PostProvisionShard(ctx context.Context, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error)
+	UpdateProvisionShard(ctx context.Context, internalID api.InternalID, builder *arohcpv1alpha1.ProvisionShardBuilder) (*arohcpv1alpha1.ProvisionShard, error)
+}
+
 var errStampNotApproved = errors.New("parent stamp is not approved")
 
 const defaultInformerResyncPeriod = 5 * time.Minute
 
 type clustersServiceRegistrationSyncer struct {
 	fleetDBClient         database.FleetDBClient
-	clustersServiceClient ocm.ClusterServiceClientSpec
+	clustersServiceClient ProvisionShardClient
 	stampLister           listers.StampLister
 	region                string
 }
 
-// NewClustersServiceRegistrationController creates a ManagementClusterWatchingController
+// NewClustersServiceRegistrationController creates a StampWatchingController
 // that reconciles ClustersService provision shards from ManagementCluster documents.
 func NewClustersServiceRegistrationController(
 	managementClusterInformer cache.SharedIndexInformer,
 	stampInformer cache.SharedIndexInformer,
 	fleetDBClient database.FleetDBClient,
-	clustersServiceClient ocm.ClusterServiceClientSpec,
+	clustersServiceClient ProvisionShardClient,
 	stampLister listers.StampLister,
 	region string,
 	cfg fleetcontrollers.StampWatchingControllerConfig,

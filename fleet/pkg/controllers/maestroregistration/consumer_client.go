@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
@@ -45,6 +47,11 @@ func NewMaestroConsumerClient(apiClient *maestroopenapi.APIClient) MaestroConsum
 }
 
 func (c *maestroConsumerClient) GetConsumer(ctx context.Context, consumerName string) (*maestroopenapi.Consumer, error) {
+	// Maestro validates consumer names as DNS-1123 labels. We validate here
+	// to prevent injection into the search query string interpolated below.
+	if errs := validation.IsDNS1123Label(consumerName); len(errs) > 0 {
+		return nil, fmt.Errorf("invalid consumer name %q: %s", consumerName, errs[0])
+	}
 	search := fmt.Sprintf("name='%s'", consumerName)
 	list, _, err := c.api.ApiMaestroV1ConsumersGet(ctx).Search(search).Execute()
 	if err != nil {

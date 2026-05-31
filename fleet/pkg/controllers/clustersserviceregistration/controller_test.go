@@ -40,10 +40,10 @@ import (
 const testAKSResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"
 
 func testStamp(identifier string, approved bool) *fleet.Stamp {
-	rid, _ := fleet.ToStampResourceID(identifier)
+	resourceID := api.Must(fleet.ToStampResourceID(identifier))
 	stamp := &fleet.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
-		ResourceID:     rid,
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		ResourceID:     resourceID,
 	}
 	if approved {
 		apimeta.SetStatusCondition(&stamp.Status.Conditions, metav1.Condition{
@@ -56,19 +56,19 @@ func testStamp(identifier string, approved bool) *fleet.Stamp {
 }
 
 func testManagementCluster(stampIdentifier string) *fleet.ManagementCluster {
-	rid, _ := fleet.ToManagementClusterResourceID(stampIdentifier)
-	aksRID := api.Must(azcorearm.ParseResourceID(testAKSResourceID))
-	dnsRID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
+	resourceID := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
+	aksResourceID := api.Must(azcorearm.ParseResourceID(testAKSResourceID))
+	dnsZoneResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
 	placeholderShardID, _ := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder")
 	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
-		ResourceID:     rid,
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		ResourceID:     resourceID,
 		Spec: fleet.ManagementClusterSpec{
 			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
 		},
 		Status: fleet.ManagementClusterStatus{
-			AKSResourceID:                                        aksRID,
-			PublicDNSZoneResourceID:                              dnsRID,
+			AKSResourceID:                                        aksResourceID,
+			PublicDNSZoneResourceID:                              dnsZoneResourceID,
 			HostedClustersSecretsKeyVaultURL:                     "https://kv-secrets.vault.azure.net",
 			HostedClustersManagedIdentitiesKeyVaultURL:           "https://kv-mi.vault.azure.net",
 			HostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
@@ -106,14 +106,14 @@ func TestReconcileProvisionShard(t *testing.T) {
 	tests := []struct {
 		name              string
 		managementCluster *fleet.ManagementCluster
-		setupCS           func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
+		setupCS           func(ctrl *gomock.Controller) ProvisionShardClient
 		wantHREF          string
 		wantErrContains   string
 	}{
 		{
 			name:              "stored ID exists, Get OK, Update OK",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(storedHREF).Build()), nil)
 				mock.EXPECT().UpdateProvisionShard(gomock.Any(), storedID, gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(storedHREF).Build()), nil)
@@ -124,7 +124,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get OK, Update fails",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(storedHREF).Build()), nil)
 				mock.EXPECT().UpdateProvisionShard(gomock.Any(), storedID, gomock.Any()).Return(nil, fmt.Errorf("cs unavailable"))
@@ -135,7 +135,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get returns non-OCM error",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, fmt.Errorf("network error"))
 				return mock
@@ -145,7 +145,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get returns OCM 500",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, serverError)
 				return mock
@@ -155,7 +155,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get 404, list finds match, Update OK",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
 				mock.EXPECT().ListProvisionShards().Return(
@@ -171,7 +171,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get 404, list finds match, Update fails",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
 				mock.EXPECT().ListProvisionShards().Return(
@@ -187,7 +187,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get 404, list error",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
 				mock.EXPECT().ListProvisionShards().Return(
@@ -200,7 +200,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get 404, no match, Post OK followed by status update",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				newID, _ := api.NewInternalID(newHREF)
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
@@ -216,7 +216,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get 404, no match, Post fails",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
 				mock.EXPECT().ListProvisionShards().Return(
@@ -234,7 +234,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				return managementCluster
 			}(),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{
@@ -249,7 +249,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 		{
 			name:              "stored ID exists, Get 404, no match, Post OK, status Update fails",
 			managementCluster: testManagementCluster("s1"),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				newID, _ := api.NewInternalID(newHREF)
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
@@ -269,7 +269,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 				managementCluster.Status.ClusterServiceProvisionShardID = nil
 				return managementCluster
 			}(),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				newID, _ := api.NewInternalID(newHREF)
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().ListProvisionShards().Return(
@@ -323,28 +323,39 @@ func TestSyncOnce(t *testing.T) {
 	storedID, _ := api.NewInternalID(storedHREF)
 
 	tests := []struct {
-		name              string
-		stamp             *fleet.Stamp
-		managementCluster *fleet.ManagementCluster
-		setupCS           func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
-		wantErr           bool
-		wantCondition     string
-		wantCondStatus    metav1.ConditionStatus
-		wantCondReason    string
+		name                   string
+		stamp                  *fleet.Stamp
+		managementCluster      *fleet.ManagementCluster
+		excludeStampFromLister bool
+		setupCS                func(ctrl *gomock.Controller) ProvisionShardClient
+		wantErr                bool
+		wantCondition          string
+		wantCondStatus         metav1.ConditionStatus
+		wantCondReason         string
 	}{
 		{
 			name:              "MC not found in DB: no-op",
 			stamp:             testStamp(stampID, true),
 			managementCluster: nil,
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
+		},
+		{
+			name:                   "stamp lister error: returns error",
+			stamp:                  testStamp(stampID, true),
+			managementCluster:      testManagementCluster(stampID),
+			excludeStampFromLister: true,
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			wantErr: true,
 		},
 		{
 			name:              "stamp not approved: sets condition false",
 			stamp:             testStamp(stampID, false),
 			managementCluster: testManagementCluster(stampID),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
@@ -355,7 +366,7 @@ func TestSyncOnce(t *testing.T) {
 			name:              "first reconcile error: sets failure condition",
 			stamp:             testStamp(stampID, true),
 			managementCluster: testManagementCluster(stampID),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, fmt.Errorf("cs unavailable"))
 				return mock
@@ -377,7 +388,7 @@ func TestSyncOnce(t *testing.T) {
 				})
 				return managementCluster
 			}(),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, fmt.Errorf("cs unavailable"))
 				return mock
@@ -391,7 +402,7 @@ func TestSyncOnce(t *testing.T) {
 			name:              "happy path: sets success condition with active reason",
 			stamp:             testStamp(stampID, true),
 			managementCluster: testManagementCluster(stampID),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(storedHREF).Build()), nil)
 				mock.EXPECT().UpdateProvisionShard(gomock.Any(), storedID, gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(storedHREF).Build()), nil)
@@ -405,7 +416,7 @@ func TestSyncOnce(t *testing.T) {
 			name:              "stored ID 404, recreate: sets condition, keeps original shard ID",
 			stamp:             testStamp(stampID, true),
 			managementCluster: testManagementCluster(stampID),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				notFound, _ := ocmerrors.NewError().Status(404).Build()
 				newHREF := "/api/aro_hcp/v1alpha1/provision_shards/new"
 				newID, _ := api.NewInternalID(newHREF)
@@ -426,7 +437,7 @@ func TestSyncOnce(t *testing.T) {
 			name:              "create OK but status update fails: condition false",
 			stamp:             testStamp(stampID, true),
 			managementCluster: testManagementCluster(stampID),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				notFound, _ := ocmerrors.NewError().Status(404).Build()
 				newHREF := "/api/aro_hcp/v1alpha1/provision_shards/new"
 				newID, _ := api.NewInternalID(newHREF)
@@ -452,7 +463,7 @@ func TestSyncOnce(t *testing.T) {
 				managementCluster.Spec.SchedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
 				return managementCluster
 			}(),
-			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(storedHREF).Build()), nil)
 				mock.EXPECT().UpdateProvisionShard(gomock.Any(), storedID, gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(storedHREF).Build()), nil)
@@ -478,9 +489,11 @@ func TestSyncOnce(t *testing.T) {
 				t.Fatalf("failed to create mock DB: %v", err)
 			}
 
-			stampLister := &fakeStampLister{stamps: map[string]*fleet.Stamp{
-				tt.stamp.GetStampIdentifier(): tt.stamp,
-			}}
+			stamps := map[string]*fleet.Stamp{}
+			if !tt.excludeStampFromLister {
+				stamps[tt.stamp.GetStampIdentifier()] = tt.stamp
+			}
+			stampLister := &fakeStampLister{stamps: stamps}
 
 			syncer := &clustersServiceRegistrationSyncer{
 				fleetDBClient:         mockDB,

@@ -122,7 +122,7 @@ func (s *maestroRegistrationSyncer) reconcile(ctx context.Context, managementClu
 func (s *maestroRegistrationSyncer) ensureConsumer(ctx context.Context, client MaestroConsumerClient, consumerName string) error {
 	consumer, err := client.GetConsumer(ctx, consumerName)
 	if err != nil {
-		return err
+		return fmt.Errorf("getting consumer %q: %w", consumerName, err)
 	}
 	if consumer != nil {
 		return nil
@@ -130,8 +130,10 @@ func (s *maestroRegistrationSyncer) ensureConsumer(ctx context.Context, client M
 
 	newConsumer := maestroopenapi.NewConsumer()
 	newConsumer.SetName(consumerName)
-	_, err = client.CreateConsumer(ctx, *newConsumer)
-	return err
+	if _, err := client.CreateConsumer(ctx, *newConsumer); err != nil {
+		return fmt.Errorf("creating consumer %q: %w", consumerName, err)
+	}
+	return nil
 }
 
 func setMaestroRegisteredCondition(conditions *[]metav1.Condition, syncErr error, consumerName string, existingConditions []metav1.Condition) {
