@@ -17,6 +17,7 @@ package maestroregistration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -90,7 +91,7 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 	existing := managementCluster.DeepCopy()
 
 	syncErr := s.reconcile(ctx, managementCluster, stamp)
-	setMaestroRegisteredCondition(&managementCluster.Status.Conditions, syncErr)
+	setMaestroRegisteredCondition(&managementCluster.Status.Conditions, syncErr, managementCluster.Status.MaestroConsumerName)
 
 	if controllerutils.NeedsUpdate(existing, managementCluster) {
 		if _, writeErr := managementClusterCRUD.Replace(ctx, managementCluster, existing, nil); writeErr != nil {
@@ -111,11 +112,14 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 
 func (s *maestroRegistrationSyncer) reconcile(ctx context.Context, managementCluster *fleet.ManagementCluster, stamp *fleet.Stamp) error {
 	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleet.StampConditionApproved)) {
-		return utils.TrackError(errStampNotApproved)
+		return errStampNotApproved
 	}
 	return s.ensureConsumer(ctx, managementCluster.Status.MaestroConsumerName)
 }
 
+// ensureConsumer creates the Maestro consumer if it does not already exist.
+// There is a TOCTOU window between the Get and Create calls, but this is
+// acceptable because only the leader reconciles at any given time.
 func (s *maestroRegistrationSyncer) ensureConsumer(ctx context.Context, consumerName string) error {
 	consumer, err := s.maestroConsumerClient.GetConsumer(ctx, consumerName)
 	if err != nil {
@@ -131,13 +135,13 @@ func (s *maestroRegistrationSyncer) ensureConsumer(ctx context.Context, consumer
 	return err
 }
 
-func setMaestroRegisteredCondition(conditions *[]metav1.Condition, syncErr error) {
+func setMaestroRegisteredCondition(conditions *[]metav1.Condition, syncErr error, consumerName string) {
 	if syncErr == nil {
 		apimeta.SetStatusCondition(conditions, metav1.Condition{
 			Type:               string(fleet.ManagementClusterConditionMaestroRegistered),
 			Status:             metav1.ConditionTrue,
 			Reason:             string(fleet.ManagementClusterConditionReasonRegistered),
-			Message:            "Maestro consumer registered",
+			Message:            fmt.Sprintf("Consumer %q registered", consumerName),
 			LastTransitionTime: metav1.Now(),
 		})
 		return

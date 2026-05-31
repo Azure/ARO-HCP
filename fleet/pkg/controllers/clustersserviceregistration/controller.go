@@ -125,7 +125,7 @@ func (s *clustersServiceRegistrationSyncer) SyncOnce(ctx context.Context, key fl
 
 func (s *clustersServiceRegistrationSyncer) reconcile(ctx context.Context, managementCluster *fleet.ManagementCluster, stamp *fleet.Stamp) (*api.InternalID, error) {
 	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleet.StampConditionApproved)) {
-		return nil, utils.TrackError(errStampNotApproved)
+		return nil, errStampNotApproved
 	}
 	return s.reconcileProvisionShard(ctx, managementCluster)
 }
@@ -189,6 +189,8 @@ func (s *clustersServiceRegistrationSyncer) reconcileProvisionShard(
 		return nil, fmt.Errorf("parsing created provision shard HREF: %w", err)
 	}
 
+	// CS API ignores the status field on create (defaults to maintenance).
+	// A separate update is needed to set the desired status.
 	desiredStatus := schedulingPolicyToShardStatus(managementCluster.Spec.SchedulingPolicy)
 	if desiredStatus != ocm.CSProvisionShardStatusMaintenance {
 		updateBuilder := buildProvisionShardForUpdate(managementCluster)

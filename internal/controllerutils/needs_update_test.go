@@ -166,6 +166,49 @@ func TestNeedsUpdate_InternalID(t *testing.T) {
 	}
 }
 
+func TestNeedsUpdate_NestedInternalIDPointer(t *testing.T) {
+	idA, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
+	require.NoError(t, err)
+	idB, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/def")
+	require.NoError(t, err)
+
+	type wrapper struct {
+		ShardID *api.InternalID
+	}
+
+	tests := []struct {
+		name       string
+		existing   wrapper
+		desired    wrapper
+		wantUpdate bool
+	}{
+		{
+			name:       "same nested pointer should not trigger an update",
+			existing:   wrapper{ShardID: &idA},
+			desired:    wrapper{ShardID: &idA},
+			wantUpdate: false,
+		},
+		{
+			name:       "different nested pointers must trigger an update",
+			existing:   wrapper{ShardID: &idA},
+			desired:    wrapper{ShardID: &idB},
+			wantUpdate: true,
+		},
+		{
+			name:       "nil vs non-nil nested pointer must trigger an update",
+			existing:   wrapper{ShardID: nil},
+			desired:    wrapper{ShardID: &idA},
+			wantUpdate: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantUpdate, NeedsUpdate(tt.existing, tt.desired))
+		})
+	}
+}
+
 func TestNeedsUpdate_RawExtension_NormalizesRawAndObject(t *testing.T) {
 	hc := map[string]any{
 		"apiVersion": "hypershift.openshift.io/v1beta1",
