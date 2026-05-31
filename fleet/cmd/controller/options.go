@@ -231,7 +231,7 @@ func newMaestroConsumerClient(maestroURL string) maestroregistration.MaestroCons
 func newClustersServiceClient(url string, tlsInsecure bool) (ocm.ClusterServiceClientSpec, error) {
 	conn, err := ocmsdk.NewUnauthenticatedConnectionBuilder().
 		TransportWrapper(func(r http.RoundTripper) http.RoundTripper {
-			return otelhttp.NewTransport(http.DefaultTransport)
+			return otelhttp.NewTransport(r)
 		}).
 		URL(url).
 		Insecure(tlsInsecure).

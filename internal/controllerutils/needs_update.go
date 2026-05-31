@@ -43,18 +43,25 @@ import (
 var needsUpdateEqualities = func() conversion.Equalities {
 	e := equality.Semantic.Copy()
 	if err := e.AddFuncs(
+		// arm.CosmosMetadata: only compare ResourceID. CosmosETag is server-assigned and
+		// ExistingCosmosUID is an in-memory bridge.
 		func(a, b arm.CosmosMetadata) bool {
 			return ResourceIDsEqual(a.ResourceID, b.ResourceID)
 		},
+		// *azcorearm.ResourceID: compare by string so unrelated parent pointer chains don't
+		// cause spurious inequality.
 		func(a, b *azcorearm.ResourceID) bool {
 			return ResourceIDsEqual(a, b)
 		},
+		// azcorearm.ResourceID (value): same reason as the pointer form.
 		func(a, b azcorearm.ResourceID) bool {
 			return a.String() == b.String()
 		},
+		// api.InternalID (value): compare by canonical path.
 		func(a, b api.InternalID) bool {
 			return a.Path() == b.Path()
 		},
+		// *api.InternalID (pointer): nil-safe path comparison.
 		func(a, b *api.InternalID) bool {
 			if a == nil && b == nil {
 				return true
@@ -64,6 +71,9 @@ var needsUpdateEqualities = func() conversion.Equalities {
 			}
 			return a.Path() == b.Path()
 		},
+		// runtime.RawExtension: compare via canonical JSON. RawExtension can carry data either as
+		// Raw bytes or as a typed Object; both forms need to round-trip to the same JSON for our
+		// purposes.
 		func(a, b runtime.RawExtension) bool {
 			aBytes, err := a.MarshalJSON()
 			if err != nil {

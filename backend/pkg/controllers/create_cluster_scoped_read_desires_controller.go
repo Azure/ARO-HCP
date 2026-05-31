@@ -215,7 +215,7 @@ func readDesireNeedsWork(existing, desired *kubeapplier.ReadDesire) bool {
 	if existing == nil {
 		return true
 	}
-	if !controllerutils.ResourceIDsEqual(existing.Spec.ManagementCluster, desired.Spec.ManagementCluster) {
+	if !controllerutil.ResourceIDsEqual(existing.Spec.ManagementCluster, desired.Spec.ManagementCluster) {
 		return true
 	}
 	return existing.Spec.TargetItem != desired.Spec.TargetItem

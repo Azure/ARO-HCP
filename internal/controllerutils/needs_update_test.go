@@ -39,47 +39,131 @@ func mustParseRID(t *testing.T, s string) *azcorearm.ResourceID {
 	return rid
 }
 
-func TestNeedsUpdate_CosmosMetadata_IgnoresEtag(t *testing.T) {
+func TestNeedsUpdate_CosmosMetadata(t *testing.T) {
 	ridStr := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c"
-	a := arm.CosmosMetadata{
-		ResourceID: mustParseRID(t, ridStr),
-		CosmosETag: azcore.ETag("etag-1"),
+
+	tests := []struct {
+		name       string
+		existing   arm.CosmosMetadata
+		desired    arm.CosmosMetadata
+		wantUpdate bool
+	}{
+		{
+			name: "differing etags should not trigger an update",
+			existing: arm.CosmosMetadata{
+				ResourceID: mustParseRID(t, ridStr),
+				CosmosETag: azcore.ETag("etag-1"),
+			},
+			desired: arm.CosmosMetadata{
+				ResourceID: mustParseRID(t, ridStr),
+				CosmosETag: azcore.ETag("etag-2"),
+			},
+			wantUpdate: false,
+		},
+		{
+			name: "ExistingCosmosUID is internal-only and must not trigger an update",
+			existing: arm.CosmosMetadata{
+				ResourceID:        mustParseRID(t, ridStr),
+				ExistingCosmosUID: "uid-from-cosmos",
+			},
+			desired: arm.CosmosMetadata{
+				ResourceID: mustParseRID(t, ridStr),
+			},
+			wantUpdate: false,
+		},
+		{
+			name: "different ResourceIDs must trigger an update",
+			existing: arm.CosmosMetadata{
+				ResourceID: mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/a"),
+			},
+			desired: arm.CosmosMetadata{
+				ResourceID: mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/b"),
+			},
+			wantUpdate: true,
+		},
 	}
-	b := arm.CosmosMetadata{
-		ResourceID: mustParseRID(t, ridStr),
-		CosmosETag: azcore.ETag("etag-2"),
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantUpdate, NeedsUpdate(tt.existing, tt.desired))
+		})
 	}
-	assert.False(t, NeedsUpdate(a, b), "differing etags should not trigger an update")
 }
 
-func TestNeedsUpdate_CosmosMetadata_IgnoresExistingCosmosUID(t *testing.T) {
+func TestNeedsUpdate_ResourceID(t *testing.T) {
 	ridStr := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c"
-	a := arm.CosmosMetadata{
-		ResourceID:        mustParseRID(t, ridStr),
-		ExistingCosmosUID: "uid-from-cosmos",
+
+	tests := []struct {
+		name       string
+		existing   *azcorearm.ResourceID
+		desired    *azcorearm.ResourceID
+		wantUpdate bool
+	}{
+		{
+			name:       "same string form, distinct pointers, should not trigger an update",
+			existing:   mustParseRID(t, ridStr),
+			desired:    mustParseRID(t, ridStr),
+			wantUpdate: false,
+		},
 	}
-	b := arm.CosmosMetadata{
-		ResourceID: mustParseRID(t, ridStr),
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotSame(t, tt.existing, tt.desired, "test fixture: instances should be distinct pointers")
+			assert.Equal(t, tt.wantUpdate, NeedsUpdate(tt.existing, tt.desired))
+		})
 	}
-	assert.False(t, NeedsUpdate(a, b), "ExistingCosmosUID is internal-only and must not trigger an update")
 }
 
-func TestNeedsUpdate_CosmosMetadata_DetectsResourceIDDifference(t *testing.T) {
-	a := arm.CosmosMetadata{
-		ResourceID: mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/a"),
-	}
-	b := arm.CosmosMetadata{
-		ResourceID: mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/b"),
-	}
-	assert.True(t, NeedsUpdate(a, b), "different ResourceIDs must trigger an update")
-}
+func TestNeedsUpdate_InternalID(t *testing.T) {
+	idA, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
+	require.NoError(t, err)
+	idB, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/def")
+	require.NoError(t, err)
 
-func TestNeedsUpdate_ResourceID_ComparedByString(t *testing.T) {
-	ridStr := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c"
-	a := mustParseRID(t, ridStr)
-	b := mustParseRID(t, ridStr)
-	assert.NotSame(t, a, b, "test fixture: instances should be distinct pointers")
-	assert.False(t, NeedsUpdate(a, b), "ResourceIDs with the same string form should not trigger an update")
+	tests := []struct {
+		name       string
+		existing   any
+		desired    any
+		wantUpdate bool
+	}{
+		{
+			name:       "value: same path should not trigger an update",
+			existing:   idA,
+			desired:    idA,
+			wantUpdate: false,
+		},
+		{
+			name:       "value: different paths must trigger an update",
+			existing:   idA,
+			desired:    idB,
+			wantUpdate: true,
+		},
+		{
+			name:       "pointer: non-nil vs nil must trigger an update",
+			existing:   &idA,
+			desired:    (*api.InternalID)(nil),
+			wantUpdate: true,
+		},
+		{
+			name:       "pointer: nil vs non-nil must trigger an update",
+			existing:   (*api.InternalID)(nil),
+			desired:    &idA,
+			wantUpdate: true,
+		},
+		{
+			name:       "pointer: nil vs nil should not trigger an update",
+			existing:   (*api.InternalID)(nil),
+			desired:    (*api.InternalID)(nil),
+			wantUpdate: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantUpdate, NeedsUpdate(tt.existing, tt.desired))
+		})
+	}
 }
 
 func TestNeedsUpdate_RawExtension_NormalizesRawAndObject(t *testing.T) {
@@ -130,28 +214,4 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	roundTripped.ExistingCosmosUID = "server-assigned-uid"
 
 	assert.False(t, NeedsUpdate(roundTripped, desired), "round-tripped existing should compare equal to a freshly-built desired")
-}
-
-func TestNeedsUpdate_InternalID_ComparedByPath(t *testing.T) {
-	a, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
-	require.NoError(t, err)
-	b, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
-	require.NoError(t, err)
-	assert.False(t, NeedsUpdate(a, b), "InternalIDs with the same path should not trigger an update")
-}
-
-func TestNeedsUpdate_InternalID_DetectsDifference(t *testing.T) {
-	a, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
-	require.NoError(t, err)
-	b, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/def")
-	require.NoError(t, err)
-	assert.True(t, NeedsUpdate(a, b), "InternalIDs with different paths must trigger an update")
-}
-
-func TestNeedsUpdate_InternalID_PointerNilHandling(t *testing.T) {
-	a, err := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/abc")
-	require.NoError(t, err)
-	assert.True(t, NeedsUpdate(&a, (*api.InternalID)(nil)), "non-nil vs nil InternalID must trigger an update")
-	assert.True(t, NeedsUpdate((*api.InternalID)(nil), &a), "nil vs non-nil InternalID must trigger an update")
-	assert.False(t, NeedsUpdate((*api.InternalID)(nil), (*api.InternalID)(nil)), "nil vs nil InternalID should not trigger an update")
 }
