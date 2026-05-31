@@ -80,6 +80,14 @@ type fakeMaestroConsumerClient struct {
 	createConsumerFunc func(ctx context.Context, consumer maestroopenapi.Consumer) (*maestroopenapi.Consumer, error)
 }
 
+type fakeMaestroConsumerClientFactory struct {
+	client MaestroConsumerClient
+}
+
+func (f *fakeMaestroConsumerClientFactory) NewMaestroConsumerClient(maestroURL string) MaestroConsumerClient {
+	return f.client
+}
+
 func (f *fakeMaestroConsumerClient) GetConsumer(ctx context.Context, consumerName string) (*maestroopenapi.Consumer, error) {
 	return f.getConsumerFunc(ctx, consumerName)
 }
@@ -177,11 +185,9 @@ func TestEnsureConsumer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			syncer := &maestroRegistrationSyncer{
-				maestroConsumerClient: tt.setupClient(),
-			}
+			syncer := &maestroRegistrationSyncer{}
 
-			err := syncer.ensureConsumer(ctx, tt.consumerName)
+			err := syncer.ensureConsumer(ctx, tt.setupClient(), tt.consumerName)
 
 			if len(tt.wantErrContains) > 0 {
 				if err == nil {
@@ -232,7 +238,7 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleet.ManagementClusterConditionReasonStampNotApproved),
 		},
 		{
-			name:              "ensure consumer error: sets failure condition and returns error",
+			name:              "first ensure consumer error: sets failure condition",
 			stamp:             testStamp(stampID, true),
 			managementCluster: testManagementCluster(stampID),
 			setupClient: func() MaestroConsumerClient {
@@ -246,6 +252,30 @@ func TestSyncOnce(t *testing.T) {
 			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
 			wantCondStatus: metav1.ConditionFalse,
 			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
+		},
+		{
+			name:  "transient error with existing True condition: condition preserved",
+			stamp: testStamp(stampID, true),
+			managementCluster: func() *fleet.ManagementCluster {
+				managementCluster := testManagementCluster(stampID)
+				apimeta.SetStatusCondition(&managementCluster.Status.Conditions, metav1.Condition{
+					Type:   string(fleet.ManagementClusterConditionMaestroRegistered),
+					Status: metav1.ConditionTrue,
+					Reason: string(fleet.ManagementClusterConditionReasonRegistered),
+				})
+				return managementCluster
+			}(),
+			setupClient: func() MaestroConsumerClient {
+				return &fakeMaestroConsumerClient{
+					getConsumerFunc: func(ctx context.Context, consumerName string) (*maestroopenapi.Consumer, error) {
+						return nil, fmt.Errorf("maestro unavailable")
+					},
+				}
+			},
+			wantErr:        true,
+			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
+			wantCondStatus: metav1.ConditionTrue,
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
 		},
 		{
 			name:              "happy path: consumer exists, sets success condition",
@@ -304,9 +334,9 @@ func TestSyncOnce(t *testing.T) {
 			}}
 
 			syncer := &maestroRegistrationSyncer{
-				fleetDBClient:         mockDB,
-				maestroConsumerClient: tt.setupClient(),
-				stampLister:           stampLister,
+				fleetDBClient:                mockDB,
+				maestroConsumerClientFactory: &fakeMaestroConsumerClientFactory{client: tt.setupClient()},
+				stampLister:                  stampLister,
 			}
 
 			key := fleetcontrollers.StampKey{StampIdentifier: stampID}

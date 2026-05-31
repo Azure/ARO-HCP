@@ -54,13 +54,13 @@ const (
 // Manager is the fleet controller manager. It runs informers, leader election,
 // and the fleet controllers.
 type Manager struct {
-	FleetDBClient         database.FleetDBClient
-	ClustersServiceClient ocm.ClusterServiceClientSpec
-	MaestroConsumerClient maestroregistration.MaestroConsumerClient
-	LeaderElectionLock    resourcelock.Interface
-	Region                string
-	HealthzListenAddr     string
-	MetricsListenAddr     string
+	FleetDBClient                database.FleetDBClient
+	ClustersServiceClient        ocm.ClusterServiceClientSpec
+	MaestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
+	LeaderElectionLock           resourcelock.Interface
+	Region                       string
+	HealthzListenAddr            string
+	MetricsListenAddr            string
 }
 
 // Run starts the fleet controller manager. It serves /healthz and /metrics,
@@ -178,7 +178,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 		managementClusterInformer,
 		stampInformer,
 		m.FleetDBClient,
-		m.MaestroConsumerClient,
+		m.MaestroConsumerClientFactory,
 		stampLister,
 		base.StampWatchingControllerConfig{},
 	)

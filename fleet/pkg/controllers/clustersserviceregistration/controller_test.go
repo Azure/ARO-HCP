@@ -104,14 +104,14 @@ func TestReconcileProvisionShard(t *testing.T) {
 	serverError, _ := ocmerrors.NewError().Status(500).Build()
 
 	tests := []struct {
-		name            string
+		name              string
 		managementCluster *fleet.ManagementCluster
-		setupCS         func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
-		wantHREF        string
-		wantErrContains string
+		setupCS           func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec
+		wantHREF          string
+		wantErrContains   string
 	}{
 		{
-			name: "stored ID exists, Get OK, Update OK",
+			name:              "stored ID exists, Get OK, Update OK",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -122,7 +122,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantHREF: storedHREF,
 		},
 		{
-			name: "stored ID exists, Get OK, Update fails",
+			name:              "stored ID exists, Get OK, Update fails",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -133,7 +133,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantErrContains: "updating provision shard: cs unavailable",
 		},
 		{
-			name: "stored ID exists, Get returns non-OCM error",
+			name:              "stored ID exists, Get returns non-OCM error",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -143,7 +143,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantErrContains: "getting provision shard: network error",
 		},
 		{
-			name: "stored ID exists, Get returns OCM 500",
+			name:              "stored ID exists, Get returns OCM 500",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -153,7 +153,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantErrContains: "getting provision shard: status is 500",
 		},
 		{
-			name: "stored ID exists, Get 404, list finds match, Update OK",
+			name:              "stored ID exists, Get 404, list finds match, Update OK",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -169,7 +169,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantHREF: foundHREF,
 		},
 		{
-			name: "stored ID exists, Get 404, list finds match, Update fails",
+			name:              "stored ID exists, Get 404, list finds match, Update fails",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -185,7 +185,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantErrContains: "updating provision shard: update failed",
 		},
 		{
-			name: "stored ID exists, Get 404, list error",
+			name:              "stored ID exists, Get 404, list error",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -198,7 +198,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantErrContains: "searching for provision shard by AKS resource ID: list failed",
 		},
 		{
-			name: "stored ID exists, Get 404, no match, Post OK followed by status update",
+			name:              "stored ID exists, Get 404, no match, Post OK followed by status update",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				newID, _ := api.NewInternalID(newHREF)
@@ -214,7 +214,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 			wantHREF: newHREF,
 		},
 		{
-			name: "stored ID exists, Get 404, no match, Post fails",
+			name:              "stored ID exists, Get 404, no match, Post fails",
 			managementCluster: testManagementCluster("s1"),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -245,6 +245,22 @@ func TestReconcileProvisionShard(t *testing.T) {
 				return mock
 			},
 			wantHREF: foundHREF,
+		},
+		{
+			name:              "stored ID exists, Get 404, no match, Post OK, status Update fails",
+			managementCluster: testManagementCluster("s1"),
+			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				newID, _ := api.NewInternalID(newHREF)
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
+				mock.EXPECT().ListProvisionShards().Return(
+					ocm.NewSimpleProvisionShardListIterator(nil, nil),
+				)
+				mock.EXPECT().PostProvisionShard(gomock.Any(), gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Build()), nil)
+				mock.EXPECT().UpdateProvisionShard(gomock.Any(), newID, gomock.Any()).Return(nil, fmt.Errorf("status update failed"))
+				return mock
+			},
+			wantErrContains: "setting provision shard status after create: status update failed",
 		},
 		{
 			name: "no stored ID, no match, Post OK followed by status update",
@@ -325,8 +341,8 @@ func TestSyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:  "stamp not approved: sets condition false",
-			stamp: testStamp(stampID, false),
+			name:              "stamp not approved: sets condition false",
+			stamp:             testStamp(stampID, false),
 			managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -336,8 +352,8 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleet.ManagementClusterConditionReasonStampNotApproved),
 		},
 		{
-			name:  "reconcile error: sets failure condition and returns error",
-			stamp: testStamp(stampID, true),
+			name:              "first reconcile error: sets failure condition",
+			stamp:             testStamp(stampID, true),
 			managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -350,8 +366,30 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
-			name:  "happy path: sets success condition with active reason",
+			name:  "transient error with existing True condition: condition preserved",
 			stamp: testStamp(stampID, true),
+			managementCluster: func() *fleet.ManagementCluster {
+				managementCluster := testManagementCluster(stampID)
+				apimeta.SetStatusCondition(&managementCluster.Status.Conditions, metav1.Condition{
+					Type:   string(fleet.ManagementClusterConditionClustersServiceRegistered),
+					Status: metav1.ConditionTrue,
+					Reason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+				})
+				return managementCluster
+			}(),
+			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, fmt.Errorf("cs unavailable"))
+				return mock
+			},
+			wantErr:        true,
+			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondStatus: metav1.ConditionTrue,
+			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+		},
+		{
+			name:              "happy path: sets success condition with active reason",
+			stamp:             testStamp(stampID, true),
 			managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -362,6 +400,49 @@ func TestSyncOnce(t *testing.T) {
 			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionTrue,
 			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+		},
+		{
+			name:              "stored ID 404, recreate: sets condition, keeps original shard ID",
+			stamp:             testStamp(stampID, true),
+			managementCluster: testManagementCluster(stampID),
+			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				notFound, _ := ocmerrors.NewError().Status(404).Build()
+				newHREF := "/api/aro_hcp/v1alpha1/provision_shards/new"
+				newID, _ := api.NewInternalID(newHREF)
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
+				mock.EXPECT().ListProvisionShards().Return(
+					ocm.NewSimpleProvisionShardListIterator(nil, nil),
+				)
+				mock.EXPECT().PostProvisionShard(gomock.Any(), gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Build()), nil)
+				mock.EXPECT().UpdateProvisionShard(gomock.Any(), newID, gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Build()), nil)
+				return mock
+			},
+			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondStatus: metav1.ConditionTrue,
+			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+		},
+		{
+			name:              "create OK but status update fails: condition false",
+			stamp:             testStamp(stampID, true),
+			managementCluster: testManagementCluster(stampID),
+			setupCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
+				notFound, _ := ocmerrors.NewError().Status(404).Build()
+				newHREF := "/api/aro_hcp/v1alpha1/provision_shards/new"
+				newID, _ := api.NewInternalID(newHREF)
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, notFound)
+				mock.EXPECT().ListProvisionShards().Return(
+					ocm.NewSimpleProvisionShardListIterator(nil, nil),
+				)
+				mock.EXPECT().PostProvisionShard(gomock.Any(), gomock.Any()).Return(api.Must(arohcpv1alpha1.NewProvisionShard().HREF(newHREF).Build()), nil)
+				mock.EXPECT().UpdateProvisionShard(gomock.Any(), newID, gomock.Any()).Return(nil, fmt.Errorf("status update failed"))
+				return mock
+			},
+			wantErr:        true,
+			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			wantCondStatus: metav1.ConditionFalse,
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
 			name:  "unschedulable MC: sets maintenance condition reason",

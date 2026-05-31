@@ -16,9 +16,11 @@ package controller
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -51,7 +53,7 @@ type RawControllerOptions struct {
 	ClustersServiceURL         string
 	ClustersServiceTLSInsecure bool
 
-	MaestroURL string
+	MaestroTLSInsecure bool
 
 	CloudEnvironment string
 	Region           string
@@ -77,7 +79,7 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure region")
 	cmd.Flags().StringVar(&opts.ClustersServiceURL, "clusters-service-url", opts.ClustersServiceURL, "URL of the ClustersService API")
 	cmd.Flags().BoolVar(&opts.ClustersServiceTLSInsecure, "clusters-service-tls-insecure", opts.ClustersServiceTLSInsecure, "skip TLS verification for ClustersService")
-	cmd.Flags().StringVar(&opts.MaestroURL, "maestro-url", opts.MaestroURL, "URL of the Maestro REST API")
+	cmd.Flags().BoolVar(&opts.MaestroTLSInsecure, "maestro-tls-insecure", opts.MaestroTLSInsecure, "skip TLS verification for Maestro")
 	cmd.Flags().StringVar(&opts.KubeNamespace, "kube-namespace", opts.KubeNamespace, "Kubernetes namespace for leader election lease")
 	cmd.Flags().StringVar(&opts.LeaderElectionID, "leader-election-id", opts.LeaderElectionID, "name of the leader election lease")
 	cmd.Flags().StringVar(&opts.HealthzListenAddress, "healthz-listen-address", opts.HealthzListenAddress, "listen address for healthz server")
@@ -89,7 +91,6 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 		"cosmos-url",
 		"cosmos-name",
 		"clusters-service-url",
-		"maestro-url",
 		"kube-namespace",
 	} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
@@ -122,11 +123,11 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	if len(o.ClustersServiceURL) == 0 {
 		return nil, fmt.Errorf("--clusters-service-url is required")
 	}
-	if len(o.MaestroURL) == 0 {
-		return nil, fmt.Errorf("--maestro-url is required")
-	}
 	if len(o.KubeNamespace) == 0 {
 		return nil, fmt.Errorf("--kube-namespace is required")
+	}
+	if len(o.LeaderElectionID) == 0 {
+		return nil, fmt.Errorf("--leader-election-id is required")
 	}
 	cloudConfig, err := azsdk.CloudConfigurationFromName(o.CloudEnvironment)
 	if err != nil {
@@ -142,13 +143,13 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 }
 
 type controllerOptions struct {
-	fleetDBClient         database.FleetDBClient
-	clustersServiceClient ocm.ClusterServiceClientSpec
-	maestroConsumerClient maestroregistration.MaestroConsumerClient
-	leaderElectionLock    resourcelock.Interface
-	region                string
-	healthzListenAddr     string
-	metricsListenAddr     string
+	fleetDBClient                database.FleetDBClient
+	clustersServiceClient        ocm.ClusterServiceClientSpec
+	maestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
+	leaderElectionLock           resourcelock.Interface
+	region                       string
+	healthzListenAddr            string
+	metricsListenAddr            string
 }
 
 type ControllerOptions struct {
@@ -174,7 +175,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, err
 	}
 
-	maestroConsumerClient := newMaestroConsumerClient(o.MaestroURL)
+	maestroConsumerClientFactory := newMaestroConsumerClientFactory(o.MaestroTLSInsecure)
 
 	kubeconfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -193,36 +194,53 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		controllerOptions: &controllerOptions{
-			fleetDBClient:         fleetDBClient,
-			clustersServiceClient: clustersServiceClient,
-			maestroConsumerClient: maestroConsumerClient,
-			leaderElectionLock:    leaderElectionLock,
-			region:                o.Region,
-			healthzListenAddr:     o.HealthzListenAddress,
-			metricsListenAddr:     o.MetricsListenAddress,
+			fleetDBClient:                fleetDBClient,
+			clustersServiceClient:        clustersServiceClient,
+			maestroConsumerClientFactory: maestroConsumerClientFactory,
+			leaderElectionLock:           leaderElectionLock,
+			region:                       o.Region,
+			healthzListenAddr:            o.HealthzListenAddress,
+			metricsListenAddr:            o.MetricsListenAddress,
 		},
 	}, nil
 }
 
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	mgr := &manager.Manager{
-		FleetDBClient:         o.fleetDBClient,
-		ClustersServiceClient: o.clustersServiceClient,
-		MaestroConsumerClient: o.maestroConsumerClient,
-		LeaderElectionLock:    o.leaderElectionLock,
-		Region:                o.region,
-		HealthzListenAddr:     o.healthzListenAddr,
-		MetricsListenAddr:     o.metricsListenAddr,
+		FleetDBClient:                o.fleetDBClient,
+		ClustersServiceClient:        o.clustersServiceClient,
+		MaestroConsumerClientFactory: o.maestroConsumerClientFactory,
+		LeaderElectionLock:           o.leaderElectionLock,
+		Region:                       o.region,
+		HealthzListenAddr:            o.healthzListenAddr,
+		MetricsListenAddr:            o.metricsListenAddr,
 	}
 	return mgr.Run(ctx)
 }
 
-func newMaestroConsumerClient(maestroURL string) maestroregistration.MaestroConsumerClient {
+type maestroConsumerClientFactory struct {
+	httpClient *http.Client
+}
+
+func newMaestroConsumerClientFactory(tlsInsecure bool) maestroregistration.MaestroConsumerClientFactory {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: tlsInsecure,
+	}
+	return &maestroConsumerClientFactory{
+		httpClient: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: otelhttp.NewTransport(transport),
+		},
+	}
+}
+
+func (f *maestroConsumerClientFactory) NewMaestroConsumerClient(maestroURL string) maestroregistration.MaestroConsumerClient {
 	maestroConfig := &maestroopenapi.Configuration{
 		Servers: maestroopenapi.ServerConfigurations{{
 			URL: maestroURL,
 		}},
-		HTTPClient: &http.Client{},
+		HTTPClient: f.httpClient,
 	}
 	apiClient := maestroopenapi.NewAPIClient(maestroConfig)
 	return maestroregistration.NewMaestroConsumerClient(apiClient)

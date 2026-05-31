@@ -119,8 +119,6 @@ spec:
         - 'arohcpdev-rp-usw3'
         - --clusters-service-url
         - 'http://clusters-service.clusters-service.svc.cluster.local:8000'
-        - --maestro-url
-        - 'http://maestro.maestro.svc.cluster.local:8000'
         - --kube-namespace
         - 'fleet'
         ports:

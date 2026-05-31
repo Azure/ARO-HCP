@@ -100,11 +100,12 @@ func (s *clustersServiceRegistrationSyncer) SyncOnce(ctx context.Context, key fl
 	existing := managementCluster.DeepCopy()
 
 	shardID, syncErr := s.reconcile(ctx, managementCluster, stamp)
-	setClustersServiceRegisteredCondition(&managementCluster.Status.Conditions, syncErr, managementCluster.Spec.SchedulingPolicy)
 
-	if shardID != nil {
+	if shardID != nil && managementCluster.Status.ClusterServiceProvisionShardID == nil {
 		managementCluster.Status.ClusterServiceProvisionShardID = shardID
 	}
+
+	setClustersServiceRegisteredCondition(&managementCluster.Status.Conditions, syncErr, managementCluster.Spec.SchedulingPolicy, existing.Status.Conditions)
 
 	if controllerutils.NeedsUpdate(existing, managementCluster) {
 		if _, writeErr := managementClusterCRUD.Replace(ctx, managementCluster, existing, nil); writeErr != nil {
@@ -130,7 +131,7 @@ func (s *clustersServiceRegistrationSyncer) reconcile(ctx context.Context, manag
 	return s.reconcileProvisionShard(ctx, managementCluster)
 }
 
-func setClustersServiceRegisteredCondition(conditions *[]metav1.Condition, syncErr error, policy fleet.ManagementClusterSchedulingPolicy) {
+func setClustersServiceRegisteredCondition(conditions *[]metav1.Condition, syncErr error, policy fleet.ManagementClusterSchedulingPolicy, existingConditions []metav1.Condition) {
 	if syncErr == nil {
 		reason, message := shardConditionForPolicy(policy)
 		apimeta.SetStatusCondition(conditions, metav1.Condition{
@@ -143,15 +144,29 @@ func setClustersServiceRegisteredCondition(conditions *[]metav1.Condition, syncE
 		return
 	}
 
-	reason := fleet.ManagementClusterConditionReasonRegistrationFailed
 	if errors.Is(syncErr, errStampNotApproved) {
-		reason = fleet.ManagementClusterConditionReasonStampNotApproved
+		apimeta.SetStatusCondition(conditions, metav1.Condition{
+			Type:               string(fleet.ManagementClusterConditionClustersServiceRegistered),
+			Status:             metav1.ConditionFalse,
+			Reason:             string(fleet.ManagementClusterConditionReasonStampNotApproved),
+			Message:            syncErr.Error(),
+			LastTransitionTime: metav1.Now(),
+		})
+		return
+	}
+
+	// Transient errors (CS unreachable, network issues) must not regress the
+	// condition. If the condition was previously True, keep it — the shard is
+	// still registered in CS, we just can't confirm it right now.
+	existing := apimeta.FindStatusCondition(existingConditions, string(fleet.ManagementClusterConditionClustersServiceRegistered))
+	if existing != nil {
+		return
 	}
 
 	apimeta.SetStatusCondition(conditions, metav1.Condition{
 		Type:               string(fleet.ManagementClusterConditionClustersServiceRegistered),
 		Status:             metav1.ConditionFalse,
-		Reason:             string(reason),
+		Reason:             string(fleet.ManagementClusterConditionReasonRegistrationFailed),
 		Message:            syncErr.Error(),
 		LastTransitionTime: metav1.Now(),
 	})
@@ -190,13 +205,10 @@ func (s *clustersServiceRegistrationSyncer) reconcileProvisionShard(
 	}
 
 	// CS API ignores the status field on create (defaults to maintenance).
-	// A separate update is needed to set the desired status.
-	desiredStatus := schedulingPolicyToShardStatus(managementCluster.Spec.SchedulingPolicy)
-	if desiredStatus != ocm.CSProvisionShardStatusMaintenance {
-		updateBuilder := buildProvisionShardForUpdate(managementCluster)
-		if _, err := s.clustersServiceClient.UpdateProvisionShard(ctx, createdID, updateBuilder); err != nil {
-			return nil, fmt.Errorf("setting provision shard status after create: %w", err)
-		}
+	// A separate update is always needed to set the desired status.
+	updateBuilder := buildProvisionShardForUpdate(managementCluster)
+	if _, err := s.clustersServiceClient.UpdateProvisionShard(ctx, createdID, updateBuilder); err != nil {
+		return nil, fmt.Errorf("setting provision shard status after create: %w", err)
 	}
 
 	return &createdID, nil

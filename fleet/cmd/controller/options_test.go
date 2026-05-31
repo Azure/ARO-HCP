@@ -27,7 +27,6 @@ func TestValidate(t *testing.T) {
 			CosmosURL:            "https://cosmos.example.com",
 			CosmosName:           "fleet-db",
 			ClustersServiceURL:   "https://cs.example.com",
-			MaestroURL:           "http://maestro:8000",
 			KubeNamespace:        "fleet-system",
 			HealthzListenAddress: ":8080",
 			MetricsListenAddress: ":8081",
@@ -62,11 +61,6 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "missing clusters-service-url",
 			modify:  func(opts *RawControllerOptions) { opts.ClustersServiceURL = "" },
-			wantErr: true,
-		},
-		{
-			name:    "missing maestro-url",
-			modify:  func(opts *RawControllerOptions) { opts.MaestroURL = "" },
 			wantErr: true,
 		},
 		{

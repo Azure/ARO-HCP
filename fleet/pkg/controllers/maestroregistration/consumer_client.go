@@ -26,6 +26,14 @@ type MaestroConsumerClient interface {
 	CreateConsumer(ctx context.Context, consumer maestroopenapi.Consumer) (*maestroopenapi.Consumer, error)
 }
 
+// MaestroConsumerClientFactory creates a MaestroConsumerClient for a given
+// Maestro REST API URL. Each management cluster may point to a different
+// Maestro instance, so the controller creates a client per reconcile using
+// the URL from ManagementCluster.Status.MaestroRESTAPIURL.
+type MaestroConsumerClientFactory interface {
+	NewMaestroConsumerClient(maestroURL string) MaestroConsumerClient
+}
+
 type maestroConsumerClient struct {
 	api *maestroopenapi.DefaultAPIService
 }

@@ -54,11 +54,7 @@ func schedulingPolicyToShardStatus(policy fleet.ManagementClusterSchedulingPolic
 }
 
 func buildProvisionShardForCreate(managementCluster *fleet.ManagementCluster, region string) *arohcpv1alpha1.ProvisionShardBuilder {
-	builder := baseProvisionShardBuilder(managementCluster, region)
-	if managementCluster.Spec.SchedulingPolicy == fleet.ManagementClusterSchedulingPolicyUnschedulable {
-		builder.Status(ocm.CSProvisionShardStatusMaintenance)
-	}
-	return builder
+	return baseProvisionShardBuilder(managementCluster, region)
 }
 
 func buildProvisionShardForUpdate(managementCluster *fleet.ManagementCluster) *arohcpv1alpha1.ProvisionShardBuilder {

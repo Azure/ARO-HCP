@@ -53,8 +53,6 @@ spec:
         - '{{ .Values.cosmos.name }}'
         - --clusters-service-url
         - 'http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000'
-        - --maestro-url
-        - 'http://maestro.{{ .Values.maestro.namespace }}.svc.cluster.local:8000'
         - --kube-namespace
         - '{{ .Values.controller.namespace }}'
         ports:

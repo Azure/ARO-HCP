@@ -26,7 +26,5 @@ cosmos:
   name: '{{ .frontend.cosmosDB.name }}'
 clustersService:
   namespace: "{{ .clustersService.k8s.namespace }}"
-maestro:
-  namespace: "{{ .maestro.server.k8s.namespace }}"
 controller:
   namespace: '{{ .fleet.k8s.namespace }}'
