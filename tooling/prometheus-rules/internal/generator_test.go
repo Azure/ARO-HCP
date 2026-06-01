@@ -353,7 +353,7 @@ spec:
 			}
 
 			opts := NewOptions()
-			err := opts.Complete(configPath, false, "promtool")
+			err := opts.Complete(configPath, "promtool")
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -647,27 +647,20 @@ func TestParseToAzureDurationString(t *testing.T) {
 
 func TestSeverityFor(t *testing.T) {
 	tests := []struct {
-		labels            map[string]*string
-		forceInfoSeverity bool
-		expected          *int32
+		labels   map[string]*string
+		expected *int32
 	}{
-		{map[string]*string{"severity": ptr.To("critical")}, false, ptr.To(int32(2))},
-		{map[string]*string{"severity": ptr.To("warning")}, false, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("info")}, false, ptr.To(int32(4))},
-		{map[string]*string{"severity": ptr.To("unknown")}, false, ptr.To(int32(4))},
-		{map[string]*string{}, false, nil},
-		{map[string]*string{"other": ptr.To("value")}, false, nil},
-		{map[string]*string{"severity": ptr.To("critical")}, true, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("warning")}, true, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("info")}, true, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("unknown")}, true, ptr.To(int32(3))},
-		{map[string]*string{}, true, ptr.To(int32(3))},
-		{map[string]*string{"other": ptr.To("value")}, true, ptr.To(int32(3))},
+		{map[string]*string{"severity": ptr.To("critical")}, ptr.To(int32(2))},
+		{map[string]*string{"severity": ptr.To("warning")}, ptr.To(int32(3))},
+		{map[string]*string{"severity": ptr.To("info")}, ptr.To(int32(4))},
+		{map[string]*string{"severity": ptr.To("unknown")}, ptr.To(int32(4))},
+		{map[string]*string{}, nil},
+		{map[string]*string{"other": ptr.To("value")}, nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("labels_%v", tt.labels), func(t *testing.T) {
-			result := severityFor(tt.labels, tt.forceInfoSeverity)
+			result := severityFor(tt.labels)
 			if tt.expected == nil {
 				assert.Nil(t, result)
 			} else {
