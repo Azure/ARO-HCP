@@ -90,15 +90,15 @@ tests:<br>
 - always_run: false<br>
   as: e2e-aro-hcp<br>
   optional: true<br>
+  timeout: 10h0m0s<br>
   steps:<br>
-    cluster_profile: aro-hcp-dev<br>
     env:<br>
       ARO_HCP_DEPLOY_ENV: prow<br>
       ARO_HCP_CLOUD: dev<br>
       VAULT_SECRET_PROFILE: dev<br>
     workflow: aro-hcp-hypershift-e2e
         </div>
-        <p class="mt-2 small text-muted">This test uses the <code>aro-hcp-dev</code> cluster profile (providing credentials), sets <code>always_run: false</code> (triggered via <code>/test e2e-aro-hcp</code>), and invokes the <code>aro-hcp-hypershift-e2e</code> workflow.</p>
+        <p class="mt-2 small text-muted">This test sets <code>always_run: false</code> (triggered via <code>/test e2e-aro-hcp</code>) with a 10-hour timeout to accommodate full environment provisioning. Credentials are mounted via step-level <code>credentials</code> blocks in each ref.yaml.</p>
       </div>
     </div>
   </div>
