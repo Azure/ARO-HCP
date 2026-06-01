@@ -352,7 +352,7 @@ func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context,
 
 			switch opts.CleanupWorkflow {
 			case CleanupWorkflowStandard:
-				if err := tc.cleanupResourceGroup(ctx, currResourceGroupName, opts.Timeout, opts.FPACredentials); err != nil {
+				if err := tc.cleanupResourceGroup(ctx, currResourceGroupName, opts.Timeout); err != nil {
 					errCh <- err
 				}
 			case CleanupWorkflowNoRP:
@@ -500,7 +500,7 @@ func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx c
 // 1. delete all HCP clusters via the RP and wait for success
 // 2. wait for any managed resource groups to be deleted
 // 3. delete the resource group
-func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration, fpaCredentials FPACredentials) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
