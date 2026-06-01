@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -656,6 +657,9 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
+	if externalAuth.ServiceProviderProperties.DeletionTimestamp == nil {
+		externalAuth.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+	}
 	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	externalAuth.Properties.ProvisioningState = operationDoc.Status
 	_, err = f.resourcesDBClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).

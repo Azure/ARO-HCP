@@ -121,6 +121,26 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	if err != nil && errors.As(err, &ocmGetClusterError) && ocmGetClusterError.Status() == http.StatusNotFound {
 		logger.Info("cluster was deleted")
 
+		// Some externalauths controllers require of the Cosmos document to do their cleanup work so we block
+		// the cluster cosmos deletion until the externalauths are gone.
+		externalAuthIterator, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).ExternalAuth(operation.ExternalID.Name).List(ctx, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		foundAtLeastOneExternalAuth := false
+		for range externalAuthIterator.Items(ctx) {
+			foundAtLeastOneExternalAuth = true
+			break
+		}
+		err = externalAuthIterator.GetError()
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		if foundAtLeastOneExternalAuth {
+			logger.Info("cluster still has cosmos externalauths")
+			return nil
+		}
+
 		// Update the Cosmos DB billing document with a deletion timestamp.
 		// Do this before calling setDeleteOperationAsCompleted so that in
 		// case of error the backend will retry by virtue of the operation

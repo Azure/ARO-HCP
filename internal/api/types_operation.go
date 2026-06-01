@@ -77,6 +77,13 @@ type Operation struct {
 	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
+
+	// TODO Temporary field to track whether the external auth operation is using the new deletion approach.
+	// We are migrating from the external auth CS deletion synchronous in frontend to the backend, to be fully asynchronous.
+	// This boolean is true for ExternalAuth delete operations that are created with new deletion approach.
+	// This will be removed once all external auths whose deletion was triggered before the new approach is fully rolled out have been
+	// fully deleted in all ARO-HCP permanent environments, for all regions.
+	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
 }
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {

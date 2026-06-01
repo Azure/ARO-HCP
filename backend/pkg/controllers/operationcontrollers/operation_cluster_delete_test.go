@@ -26,9 +26,12 @@ import (
 
 	clocktesting "k8s.io/utils/clock/testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -41,10 +44,11 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 	createdAt := mustParseTime("2025-01-15T10:30:00Z")
 
 	tests := []struct {
-		name        string
-		setupMock   func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
-		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
+		name               string
+		setupMock          func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
+		extraResources     func(fixture *clusterTestFixture) []any
+		expectError        bool
+		verify             func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name: "cluster not found marks billing as deleted and removes cluster",
@@ -66,6 +70,51 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				// Verify cluster document was deleted
 				_, err = db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				assert.Error(t, err, "cluster should have been deleted")
+			},
+		},
+		{
+			name: "cluster not found but external auths still exist blocks deletion",
+			setupMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				notFoundErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(nil, notFoundErr)
+				return mockCSClient
+			},
+			extraResources: func(fixture *clusterTestFixture) []any {
+				externalAuthResourceID := api.Must(azcorearm.ParseResourceID(
+					"/subscriptions/" + testSubscriptionID +
+						"/resourceGroups/" + testResourceGroupName +
+						"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+						"/externalAuths/" + testExternalAuthName,
+				))
+				externalAuth := &api.HCPOpenShiftClusterExternalAuth{
+					CosmosMetadata: arm.CosmosMetadata{ResourceID: externalAuthResourceID},
+					ProxyResource: arm.ProxyResource{
+						Resource: arm.Resource{
+							ID:   externalAuthResourceID,
+							Name: testExternalAuthName,
+							Type: externalAuthResourceID.ResourceType.String(),
+						},
+					},
+					Properties: api.HCPOpenShiftClusterExternalAuthProperties{
+						ProvisioningState: arm.ProvisioningStateDeleting,
+					},
+				}
+				return []any{externalAuth}
+			},
+			expectError: false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				// Operation should remain non-terminal since external auths still exist
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+
+				// Cluster should still exist
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.NotNil(t, cluster)
 			},
 		},
 		{
@@ -164,7 +213,11 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			billingDoc.Location = testAzureLocation
 			billingDoc.TenantID = testTenantID
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
+			resources := []any{cluster, operation}
+			if tt.extraResources != nil {
+				resources = append(resources, tt.extraResources(fixture)...)
+			}
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
 			err = mockBillingDBClient.BillingDocs(fixture.clusterResourceID.SubscriptionID).Create(ctx, billingDoc)

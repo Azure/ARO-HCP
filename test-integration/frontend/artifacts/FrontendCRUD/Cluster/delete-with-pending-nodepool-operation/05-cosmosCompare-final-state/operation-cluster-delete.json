@@ -5,7 +5,8 @@
 		"request": "Delete",
 		"status": "Deleting",
 		"tenantId": "00000000-0000-0000-0000-000000000000",
-		"usesNewNodePoolDeletionApproach": false
+		"usesNewNodePoolDeletionApproach": false,
+		"usesNewExternalAuthDeletionApproach": false
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
 	"ttl": 604800

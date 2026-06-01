@@ -55,7 +55,8 @@
 					"provisioningState": ""
 				},
 				"serviceProviderProperties": {
-					"clusterServiceID": ""
+					"clusterServiceID": "",
+					"usesNewExternalAuthDeletionApproach": false
 				}
 			}
 		},
