@@ -16,12 +16,9 @@ package maestroregistration
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
 	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
@@ -33,10 +30,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
-
-var errStampNotApproved = errors.New("parent stamp is not approved")
-
-const defaultInformerResyncPeriod = 5 * time.Minute
 
 type maestroRegistrationSyncer struct {
 	fleetDBClient                database.FleetDBClient
@@ -64,7 +57,7 @@ func NewMaestroRegistrationController(
 		cfg,
 	)
 
-	if err := controller.QueueForInformers(defaultInformerResyncPeriod, managementClusterInformer, stampInformer); err != nil {
+	if err := controller.QueueForInformers(fleetcontrollers.DefaultInformerResyncPeriod, managementClusterInformer, stampInformer); err != nil {
 		panic(err) // coding error
 	}
 
@@ -72,8 +65,6 @@ func NewMaestroRegistrationController(
 }
 
 func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontrollers.StampKey) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	managementClusterCRUD := s.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier)
 	managementCluster, err := managementClusterCRUD.Get(ctx, fleet.ManagementClusterResourceName)
 	if err != nil {
@@ -88,43 +79,43 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 		return utils.TrackError(err)
 	}
 
-	existing := managementCluster.DeepCopy()
+	updated := managementCluster.DeepCopy()
 
-	syncErr := s.reconcile(ctx, managementCluster, stamp)
-	setMaestroRegisteredCondition(&managementCluster.Status.Conditions, syncErr, managementCluster.Status.MaestroConsumerName, existing.Status.Conditions)
+	var syncErr error
+	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleet.StampConditionApproved)) {
+		// an unapproved stamp is not a sync error
+		// the controller will wake up when the stamp is approved and try again
+		// we update the condition though to reflect the fact
+		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleet.ManagementClusterConditionMaestroRegistered), fleetcontrollers.ErrStampNotApproved)
+	} else {
+		client := s.maestroConsumerClientFactory.NewMaestroConsumerClient(updated.Status.MaestroRESTAPIURL)
+		syncErr = s.ensureConsumer(ctx, client, updated.Status.MaestroConsumerName)
+		fleetcontrollers.SetRegistrationCondition(&updated.Status.Conditions, string(fleet.ManagementClusterConditionMaestroRegistered), syncErr)
+	}
 
-	if controllerutils.NeedsUpdate(existing, managementCluster) {
-		if _, writeErr := managementClusterCRUD.Replace(ctx, managementCluster, existing, nil); writeErr != nil {
+	if controllerutils.NeedsUpdate(managementCluster, updated) {
+		if _, writeErr := managementClusterCRUD.Replace(ctx, updated, managementCluster, nil); writeErr != nil {
 			return utils.TrackError(writeErr)
 		}
 	}
 
 	if syncErr != nil {
-		if errors.Is(syncErr, errStampNotApproved) {
-			return nil
-		}
 		return utils.TrackError(syncErr)
 	}
 
-	logger.Info("Maestro registration synced", "consumerName", managementCluster.Status.MaestroConsumerName)
 	return nil
-}
-
-func (s *maestroRegistrationSyncer) reconcile(ctx context.Context, managementCluster *fleet.ManagementCluster, stamp *fleet.Stamp) error {
-	if !apimeta.IsStatusConditionTrue(stamp.Status.Conditions, string(fleet.StampConditionApproved)) {
-		return errStampNotApproved
-	}
-	client := s.maestroConsumerClientFactory.NewMaestroConsumerClient(managementCluster.Status.MaestroRESTAPIURL)
-	return s.ensureConsumer(ctx, client, managementCluster.Status.MaestroConsumerName)
 }
 
 // ensureConsumer creates the Maestro consumer if it does not already exist.
 func (s *maestroRegistrationSyncer) ensureConsumer(ctx context.Context, client MaestroConsumerClient, consumerName string) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	consumer, err := client.GetConsumer(ctx, consumerName)
 	if err != nil {
 		return fmt.Errorf("getting consumer %q: %w", consumerName, err)
 	}
 	if consumer != nil {
+		logger.Info("Maestro consumer already exists", "consumerName", consumerName)
 		return nil
 	}
 
@@ -133,45 +124,6 @@ func (s *maestroRegistrationSyncer) ensureConsumer(ctx context.Context, client M
 	if _, err := client.CreateConsumer(ctx, *newConsumer); err != nil {
 		return fmt.Errorf("creating consumer %q: %w", consumerName, err)
 	}
+	logger.Info("Maestro consumer created", "consumerName", consumerName)
 	return nil
-}
-
-func setMaestroRegisteredCondition(conditions *[]metav1.Condition, syncErr error, consumerName string, existingConditions []metav1.Condition) {
-	if syncErr == nil {
-		apimeta.SetStatusCondition(conditions, metav1.Condition{
-			Type:               string(fleet.ManagementClusterConditionMaestroRegistered),
-			Status:             metav1.ConditionTrue,
-			Reason:             string(fleet.ManagementClusterConditionReasonRegistered),
-			Message:            fmt.Sprintf("Consumer %q registered", consumerName),
-			LastTransitionTime: metav1.Now(),
-		})
-		return
-	}
-
-	if errors.Is(syncErr, errStampNotApproved) {
-		apimeta.SetStatusCondition(conditions, metav1.Condition{
-			Type:               string(fleet.ManagementClusterConditionMaestroRegistered),
-			Status:             metav1.ConditionFalse,
-			Reason:             string(fleet.ManagementClusterConditionReasonStampNotApproved),
-			Message:            syncErr.Error(),
-			LastTransitionTime: metav1.Now(),
-		})
-		return
-	}
-
-	// Transient errors (Maestro unreachable, network issues) must not regress
-	// the condition. If the condition was previously True, keep it — the
-	// consumer is still registered in Maestro, we just can't confirm it now.
-	existing := apimeta.FindStatusCondition(existingConditions, string(fleet.ManagementClusterConditionMaestroRegistered))
-	if existing != nil {
-		return
-	}
-
-	apimeta.SetStatusCondition(conditions, metav1.Condition{
-		Type:               string(fleet.ManagementClusterConditionMaestroRegistered),
-		Status:             metav1.ConditionFalse,
-		Reason:             string(fleet.ManagementClusterConditionReasonRegistrationFailed),
-		Message:            syncErr.Error(),
-		LastTransitionTime: metav1.Now(),
-	})
 }

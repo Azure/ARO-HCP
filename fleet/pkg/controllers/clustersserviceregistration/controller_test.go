@@ -290,6 +290,7 @@ func TestReconcileProvisionShard(t *testing.T) {
 
 			syncer := &clustersServiceRegistrationSyncer{
 				clustersServiceClient: tt.setupCS(ctrl),
+				region:                "westus3",
 			}
 
 			shardID, err := syncer.reconcileProvisionShard(ctx, tt.managementCluster)
@@ -360,7 +361,7 @@ func TestSyncOnce(t *testing.T) {
 			},
 			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionFalse,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonStampNotApproved),
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
 			name:              "first reconcile error: sets failure condition",
@@ -377,14 +378,14 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
-			name:  "transient error with existing True condition: condition preserved",
+			name:  "transient error with existing True condition: stays True with CheckFailed",
 			stamp: testStamp(stampID, true),
 			managementCluster: func() *fleet.ManagementCluster {
 				managementCluster := testManagementCluster(stampID)
 				apimeta.SetStatusCondition(&managementCluster.Status.Conditions, metav1.Condition{
 					Type:   string(fleet.ManagementClusterConditionClustersServiceRegistered),
 					Status: metav1.ConditionTrue,
-					Reason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+					Reason: string(fleet.ManagementClusterConditionReasonRegistered),
 				})
 				return managementCluster
 			}(),
@@ -396,7 +397,7 @@ func TestSyncOnce(t *testing.T) {
 			wantErr:        true,
 			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationCheckFailed),
 		},
 		{
 			name:              "happy path: sets success condition with active reason",
@@ -410,7 +411,7 @@ func TestSyncOnce(t *testing.T) {
 			},
 			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
 		},
 		{
 			name:              "stored ID 404, recreate: sets condition, keeps original shard ID",
@@ -431,7 +432,7 @@ func TestSyncOnce(t *testing.T) {
 			},
 			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
 		},
 		{
 			name:              "create OK but status update fails: condition false",
@@ -456,7 +457,7 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
-			name:  "unschedulable MC: sets maintenance condition reason",
+			name:  "unschedulable MC: still sets Registered condition",
 			stamp: testStamp(stampID, true),
 			managementCluster: func() *fleet.ManagementCluster {
 				managementCluster := testManagementCluster(stampID)
@@ -471,7 +472,7 @@ func TestSyncOnce(t *testing.T) {
 			},
 			wantCondition:  string(fleet.ManagementClusterConditionClustersServiceRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonProvisionShardMaintenance),
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
 		},
 	}
 
@@ -499,6 +500,7 @@ func TestSyncOnce(t *testing.T) {
 				fleetDBClient:         mockDB,
 				clustersServiceClient: tt.setupCS(ctrl),
 				stampLister:           stampLister,
+				region:                "westus3",
 			}
 
 			key := fleetcontrollers.StampKey{StampIdentifier: stampID}

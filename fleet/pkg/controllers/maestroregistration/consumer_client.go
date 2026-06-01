@@ -57,7 +57,7 @@ func (c *maestroConsumerClient) GetConsumer(ctx context.Context, consumerName st
 	if err != nil {
 		return nil, fmt.Errorf("searching for consumer %q: %w", consumerName, err)
 	}
-	if list.Total == 0 {
+	if len(list.Items) == 0 {
 		return nil, nil
 	}
 	return &list.Items[0], nil

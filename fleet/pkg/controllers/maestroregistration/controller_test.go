@@ -34,7 +34,7 @@ import (
 )
 
 func testStamp(identifier string, approved bool) *fleet.Stamp {
-	resourceID, _ := fleet.ToStampResourceID(identifier)
+	resourceID := api.Must(fleet.ToStampResourceID(identifier))
 	stamp := &fleet.Stamp{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
 		ResourceID:     resourceID,
@@ -50,10 +50,10 @@ func testStamp(identifier string, approved bool) *fleet.Stamp {
 }
 
 func testManagementCluster(stampIdentifier string) *fleet.ManagementCluster {
-	resourceID, _ := fleet.ToManagementClusterResourceID(stampIdentifier)
+	resourceID := api.Must(fleet.ToManagementClusterResourceID(stampIdentifier))
 	aksResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/mc"))
 	dnsResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
-	placeholderShardID, _ := api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder")
+	placeholderShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
 	return &fleet.ManagementCluster{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
 		ResourceID:     resourceID,
@@ -235,7 +235,7 @@ func TestSyncOnce(t *testing.T) {
 			},
 			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
 			wantCondStatus: metav1.ConditionFalse,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonStampNotApproved),
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
 			name:              "first ensure consumer error: sets failure condition",
@@ -254,7 +254,7 @@ func TestSyncOnce(t *testing.T) {
 			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationFailed),
 		},
 		{
-			name:  "transient error with existing True condition: condition preserved",
+			name:  "transient error with existing True condition: stays True with CheckFailed",
 			stamp: testStamp(stampID, true),
 			managementCluster: func() *fleet.ManagementCluster {
 				managementCluster := testManagementCluster(stampID)
@@ -275,7 +275,7 @@ func TestSyncOnce(t *testing.T) {
 			wantErr:        true,
 			wantCondition:  string(fleet.ManagementClusterConditionMaestroRegistered),
 			wantCondStatus: metav1.ConditionTrue,
-			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistered),
+			wantCondReason: string(fleet.ManagementClusterConditionReasonRegistrationCheckFailed),
 		},
 		{
 			name:              "happy path: consumer exists, sets success condition",
