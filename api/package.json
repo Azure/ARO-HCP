@@ -1,15 +1,15 @@
 {
   "dependencies": {
-    "@azure-tools/typespec-autorest": "^0.67.0",
-    "@azure-tools/typespec-azure-core": "^0.67.1",
-    "@azure-tools/typespec-azure-resource-manager": "^0.67.1",
-    "@azure-tools/typespec-azure-rulesets": "0.67.0",
-    "@azure-tools/typespec-client-generator-core": "^0.67.4",
-    "@typespec/http": "~1.11.0",
-    "@typespec/openapi": "~1.11.0",
-    "@typespec/openapi3": "~1.11.0",
-    "@typespec/rest": "~0.81.0",
-    "@typespec/versioning": "~0.81.0",
+    "@azure-tools/typespec-autorest": "^0.68.0",
+    "@azure-tools/typespec-azure-core": "^0.68.0",
+    "@azure-tools/typespec-azure-resource-manager": "^0.68.0",
+    "@azure-tools/typespec-azure-rulesets": "0.68.0",
+    "@azure-tools/typespec-client-generator-core": "^0.68.3",
+    "@typespec/http": "~1.12.0",
+    "@typespec/openapi": "~1.12.0",
+    "@typespec/openapi3": "~1.12.0",
+    "@typespec/rest": "~0.82.0",
+    "@typespec/versioning": "~0.82.0",
     "oav": "^4.0.4"
   },
   "engines": {
@@ -25,7 +25,7 @@
   "devDependencies": {
     "@microsoft.azure/openapi-validator": "2.2.4",
     "@microsoft.azure/openapi-validator-rulesets": "2.2.6",
-    "@typespec/compiler": "~1.11.0",
+    "@typespec/compiler": "~1.12.0",
     "autorest": "^3.7.2"
   },
   "overrides": {
