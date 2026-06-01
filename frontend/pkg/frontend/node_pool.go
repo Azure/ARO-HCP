@@ -541,8 +541,6 @@ func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Reque
 }
 
 func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalNodePool, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, oldInternalNodePool.ID.SubscriptionID)
 	if err != nil {
 		return err
