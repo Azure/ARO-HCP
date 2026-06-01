@@ -463,7 +463,7 @@ spec:
         summary: Different semantic versions of Kubernetes components running.
       expr: |
         count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"},"git_version","$1","git_version","(v[0-9]*.[0-9]*).*"))) > 1
-      for: 15m
+      for: 90m
       labels:
         severity: warning
     - alert: KubeClientErrors
