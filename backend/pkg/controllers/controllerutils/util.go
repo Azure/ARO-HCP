@@ -225,7 +225,7 @@ func ReportSyncError(syncErr error) controllerMutationFunc {
 // (for example HCPClusterKey.InitialController).
 type InitialControllerFunc func(controllerName string) *api.Controller
 
-func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn InitialControllerFunc) func(interface{}) {
+func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller, *api.Controller], controllerName string, initialControllerFn InitialControllerFunc) func(interface{}) {
 	return func(panicVal interface{}) {
 		stack := debug.Stack()
 		err := WriteController(ctx, controllerCRUD, controllerName, initialControllerFn, ReportSyncError(fmt.Errorf("panic caught:\n%v\n\n%s", panicVal, stack)))
@@ -236,7 +236,7 @@ func DegradedControllerPanicHandler(ctx context.Context, controllerCRUD database
 	}
 }
 
-func controllerCRUDForParent(resourcesDBClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID) (database.ResourceCRUD[api.Controller], error) {
+func controllerCRUDForParent(resourcesDBClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID) (database.ResourceCRUD[api.Controller, *api.Controller], error) {
 	subscriptionID := parentResourceID.SubscriptionID
 	resourceGroupName := parentResourceID.ResourceGroupName
 	hcp := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
@@ -266,7 +266,7 @@ func controllerCRUDForParent(resourcesDBClient database.ResourcesDBClient, paren
 // existing document (same pattern as database.GetOrCreateServiceProviderCluster).
 func getOrCreateControllerDocument(
 	ctx context.Context,
-	controllerCRUD database.ResourceCRUD[api.Controller],
+	controllerCRUD database.ResourceCRUD[api.Controller, *api.Controller],
 	controllerName string,
 	initialControllerFn InitialControllerFunc,
 ) (*api.Controller, error) {
@@ -333,7 +333,7 @@ func GetOrCreateController(
 // If it fails, then the an error is returned.  This detail is important, it doesn't even retry conflicts.  This is so that
 // if a failure happens the control-loop will re-run and restablish the information it was trying to write as valid.
 // This prevents accidental recreation of controller instances in cosmos during a delete.
-func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller], controllerName string, initialControllerFn InitialControllerFunc, mutationFns ...controllerMutationFunc) error {
+func WriteController(ctx context.Context, controllerCRUD database.ResourceCRUD[api.Controller, *api.Controller], controllerName string, initialControllerFn InitialControllerFunc, mutationFns ...controllerMutationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	existingController, err := getOrCreateControllerDocument(ctx, controllerCRUD, controllerName, initialControllerFn)

@@ -21,6 +21,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // fleetResourceCRUD is a ResourceCRUD for Cosmos containers
@@ -32,7 +34,7 @@ import (
 // lands, which generalizes partition key handling in CosmosMetadata. At that
 // point partition key derivation moves into the shared infrastructure and
 // this type can be merged with nestedCosmosResourceCRUD.
-type fleetResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
+type fleetResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
 	containerClient  *azcosmos.ContainerClient
 	parentResourceID *azcorearm.ResourceID
 	resourceType     azcorearm.ResourceType
@@ -55,14 +57,14 @@ func topLevelResourceName(rid *azcorearm.ResourceID) string {
 // partitionKeyFromParentOrName derives the partition key for read/delete
 // operations. For child resources the top-level ancestor is in the parent
 // resource ID; for top-level resources the resource name IS the partition key.
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) partitionKeyFromParentOrName(resourceName string) string {
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) partitionKeyFromParentOrName(resourceName string) string {
 	if partitionKey := topLevelResourceName(d.parentResourceID); len(partitionKey) > 0 {
 		return partitionKey
 	}
 	return strings.ToLower(resourceName)
 }
 
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) makeResourceIDPath(
 	resourceName string,
 ) (*azcorearm.ResourceID, error) {
 	var base string
@@ -77,7 +79,7 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(
 	return azcorearm.ParseResourceID(strings.ToLower(base))
 }
 
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) GetByID(
 	ctx context.Context, cosmosID string,
 ) (*InternalAPIType, error) {
 	partitionKey := topLevelResourceName(d.parentResourceID)
@@ -87,7 +89,7 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(
 	return getByItemID[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, cosmosID)
 }
 
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Get(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Get(
 	ctx context.Context, resourceName string,
 ) (*InternalAPIType, error) {
 	partitionKey := d.partitionKeyFromParentOrName(resourceName)
@@ -98,7 +100,7 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Get(
 	return get[InternalAPIType, CosmosAPIType](ctx, d.containerClient, partitionKey, resourceID)
 }
 
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) List(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) List(
 	ctx context.Context, options *DBClientListResourceDocsOptions,
 ) (DBClientIterator[InternalAPIType], error) {
 	partitionKey := topLevelResourceName(d.parentResourceID)
@@ -120,19 +122,19 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) List(
 // the stamp ensure path in managementclustercontrollers) owns the rule for
 // what the value should be. serializeItem refuses to write a document with an
 // empty PartitionKey.
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Create(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Create(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
-	return create[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
+	return create[InternalAPIType, CosmosAPIType, InternalAPITypePointer](ctx, d.containerClient, newObj, options)
 }
 
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Replace(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
-	return replace[InternalAPIType, CosmosAPIType](ctx, d.containerClient, newObj, options)
+	return replace[InternalAPIType, CosmosAPIType, InternalAPITypePointer](ctx, d.containerClient, newObj, options)
 }
 
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Delete(
 	ctx context.Context, resourceName string,
 ) error {
 	partitionKey := d.partitionKeyFromParentOrName(resourceName)
@@ -143,7 +145,7 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(
 	return deleteResource(ctx, d.containerClient, partitionKey, resourceID)
 }
 
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) AddCreateToTransaction(
 	_ context.Context,
 	_ DBTransaction,
 	_ *InternalAPIType,
@@ -152,7 +154,7 @@ func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransacti
 	return "", fmt.Errorf("AddCreateToTransaction is not implemented for fleet resources")
 }
 
-func (d *fleetResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(
+func (d *fleetResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) AddReplaceToTransaction(
 	_ context.Context,
 	_ DBTransaction,
 	_ *InternalAPIType,

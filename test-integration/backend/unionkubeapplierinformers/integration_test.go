@@ -328,7 +328,7 @@ func createApplyDesire(ctx context.Context, mockClient *databasetesting.MockKube
 		return fmt.Errorf("desire %v has no parent in its resource ID", id)
 	}
 	parentType := id.Parent.ResourceType
-	var applyDesireCRUD database.ResourceCRUD[kubeapplier.ApplyDesire]
+	var applyDesireCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire]
 	var err error
 	switch {
 	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):

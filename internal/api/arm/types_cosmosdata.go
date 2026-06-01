@@ -122,6 +122,7 @@ func (o *CosmosMetadata) GetCosmosData() *CosmosMetadata {
 }
 
 type CosmosMetadataAccessor interface {
+	CosmosPersistable
 	GetCosmosUID() string
 	GetResourceID() *azcorearm.ResourceID
 	SetResourceID(*azcorearm.ResourceID)
@@ -131,6 +132,15 @@ type CosmosMetadataAccessor interface {
 	SetPartitionKey(string)
 	GetInstanceVersion() int64
 	SetInstanceVersion(int64)
+}
+
+// CosmosMetadataAccessorPtr constrains a type parameter to be a pointer to T
+// that also implements CosmosMetadataAccessor. Generic CRUD code uses this so
+// that a `*T` newObj argument is guaranteed to expose the metadata accessors
+// at compile time, without runtime type assertions.
+type CosmosMetadataAccessorPtr[T any] interface {
+	*T
+	CosmosMetadataAccessor
 }
 
 func ResourceIDToCosmosID(resourceID *azcorearm.ResourceID) (string, error) {

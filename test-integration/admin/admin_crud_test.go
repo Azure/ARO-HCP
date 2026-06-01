@@ -48,7 +48,7 @@ func testAdminCRUD(t *testing.T, withMock bool) {
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
 		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-			testAdminCRUDSuite[any](
+			testAdminCRUDSuite(
 				ctx,
 				t,
 				crudSuiteDir,
@@ -58,12 +58,12 @@ func testAdminCRUD(t *testing.T, withMock bool) {
 	}
 }
 
-func testAdminCRUDSuite[InternalAPIType any](ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
+func testAdminCRUDSuite(ctx context.Context, t *testing.T, crudSuiteDir fs.FS, withMock bool) {
 	testDirs := api.Must(fs.ReadDir(crudSuiteDir, "."))
 	for _, testDirEntry := range testDirs {
 		testDir := api.Must(fs.Sub(crudSuiteDir, testDirEntry.Name()))
 
-		currTest, err := databasemutationhelpers.NewResourceMutationTest[InternalAPIType](
+		currTest, err := databasemutationhelpers.NewUntypedResourceMutationTest(
 			ctx,
 			testDirEntry.Name(),
 			testDir,
