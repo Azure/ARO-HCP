@@ -10,7 +10,6 @@ set -o pipefail
 : "${ARO_HCP_DEPLOY_ENV:?ARO_HCP_DEPLOY_ENV must be set}"
 : "${SHARED_DIR:?SHARED_DIR must be set}"
 : "${ARTIFACT_DIR:?ARTIFACT_DIR must be set}"
-: "${LEASED_MSI_MOCK_SP:?LEASED_MSI_MOCK_SP must be set}"
 : "${LOCATION:?LOCATION must be set}"
 
 export AZURE_CLIENT_ID; AZURE_CLIENT_ID=$(cat "${CLUSTER_PROFILE_DIR}/client-id")
@@ -21,9 +20,7 @@ export INFRA_SUBSCRIPTION_ID
 export DEPLOY_ENV="${ARO_HCP_DEPLOY_ENV}"
 export AZURE_TOKEN_CREDENTIALS=prod
 
-set +o xtrace
 az login --service-principal -u "${AZURE_CLIENT_ID}" -p "${AZURE_CLIENT_SECRET}" --tenant "${AZURE_TENANT_ID}" --output none
-set -o xtrace
 az account set --subscription "${INFRA_SUBSCRIPTION_ID}"
 oc version
 kubelogin --version
@@ -43,13 +40,14 @@ declare -A IMAGE_MAP=(
     [ADMIN_API]=adminApi
     [SESSIONGATE]=sessiongate
     [HCP_RECOVERY]=hcpRecovery
+    [FLEET]=fleet
     [MGMT_AGENT]=mgmtAgent
     [KUBE_APPLIER]=kubeApplier
 )
 
 CI_IMAGE_NAMES=()
 
-for prefix in BACKEND FRONTEND ADMIN_API SESSIONGATE HCP_RECOVERY MGMT_AGENT KUBE_APPLIER; do
+for prefix in BACKEND FRONTEND ADMIN_API SESSIONGATE HCP_RECOVERY FLEET MGMT_AGENT KUBE_APPLIER; do
     var="${prefix}_IMAGE"
     if [[ -n "${!var:-}" ]]; then
         image="${!var}"
@@ -84,35 +82,47 @@ fi
 
 OVERRIDE_CONFIG_FILE="${SHARED_DIR}/config-override.yaml"
 
-MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
-MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
-MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
-echo "MSI mock SP override: ${LEASED_MSI_MOCK_SP} -> clientId=${MSI_MOCK_CLIENT_ID}"
-
-YQ_EXPR="
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockClientId = \"${MSI_MOCK_CLIENT_ID}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockPrincipalId = \"${MSI_MOCK_PRINCIPAL_ID}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockCertName = \"${MSI_MOCK_CERT_NAME}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.svc.aks.systemAgentPool.vmSize = \"Standard_D4ds_v6\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.svc.aks.userAgentPool.vmSize = \"Standard_D8ds_v6\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.svc.aks.infraAgentPool.vmSize = \"Standard_D4ds_v6\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.mgmt.aks.systemAgentPool.vmSize = \"Standard_D4ds_v6\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.mgmt.aks.userAgentPool.vmSize = \"Standard_D16ds_v6\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.mgmt.aks.infraAgentPool.vmSize = \"Standard_D4ds_v6\"
-"
-
-# Append CI image overrides if present
+# Image overrides
+YQ_EXPR=""
 if [[ ${#CI_IMAGE_NAMES[@]} -gt 0 ]]; then
     for prefix in "${CI_IMAGE_NAMES[@]}"; do
         config_key="${IMAGE_MAP[${prefix}]}"
-        YQ_EXPR="${YQ_EXPR} |
+        if [[ -n "${YQ_EXPR}" ]]; then
+            YQ_EXPR="${YQ_EXPR} |"
+        fi
+        YQ_EXPR="${YQ_EXPR}
   .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.registry = \"${IMAGE_REGISTRY[${prefix}]}\" |
   .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.repository = \"${IMAGE_REPO[${prefix}]}\" |
   .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.digest = \"${IMAGE_DIGEST[${prefix}]}\""
     done
 fi
 
-yq eval -n "${YQ_EXPR}" > "${OVERRIDE_CONFIG_FILE}"
+if [[ -n "${YQ_EXPR}" ]]; then
+    yq eval -n "${YQ_EXPR}" > "${OVERRIDE_CONFIG_FILE}"
+else
+    echo "{}" > "${OVERRIDE_CONFIG_FILE}"
+fi
+
+# MSI mock SP overrides (if provided)
+if [[ -n "${LEASED_MSI_MOCK_SP:-}" ]]; then
+  MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
+  MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
+  MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
+  if [[ -z "${MSI_MOCK_CLIENT_ID}" || "${MSI_MOCK_CLIENT_ID}" == "null" || \
+        -z "${MSI_MOCK_PRINCIPAL_ID}" || "${MSI_MOCK_PRINCIPAL_ID}" == "null" || \
+        -z "${MSI_MOCK_CERT_NAME}" || "${MSI_MOCK_CERT_NAME}" == "null" ]]; then
+    echo "ERROR: LEASED_MSI_MOCK_SP='${LEASED_MSI_MOCK_SP}' not found in dev-infrastructure/openshift-ci/msi-mock-pool.yaml"
+    exit 1
+  fi
+  echo "MSI mock SP override: ${LEASED_MSI_MOCK_SP} -> clientId=${MSI_MOCK_CLIENT_ID}"
+  yq -i "
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockClientId = \"${MSI_MOCK_CLIENT_ID}\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockPrincipalId = \"${MSI_MOCK_PRINCIPAL_ID}\" |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockCertName = \"${MSI_MOCK_CERT_NAME}\"
+  " "${OVERRIDE_CONFIG_FILE}"
+else
+  echo "No MSI mock SP lease provided, skipping mock SP overrides"
+fi
 
 # Merge hypershift image overrides if present (written by aro-hcp-hypershift-images-push)
 HYPERSHIFT_OVERRIDES="${SHARED_DIR}/hypershift-image-overrides.yaml"
@@ -124,13 +134,19 @@ if [[ -f "${HYPERSHIFT_OVERRIDES}" ]]; then
     mv "${OVERRIDE_CONFIG_FILE}.tmp" "${OVERRIDE_CONFIG_FILE}"
 fi
 
-echo "Final override config:"
+echo "Created override config at: ${OVERRIDE_CONFIG_FILE}"
 cat "${OVERRIDE_CONFIG_FILE}"
 
 # --- Provision ---
 
 CONFIG_PROV="${SHARED_DIR}/config-prov.yaml"
 
+# There's a $SHARED_DIR/config.yaml already from the write-config step
+# but it is of limited accuracy. It's fine for int/stg/prod, but this prov
+# step will generate temporary names for a bunch of things, so if we want
+# following steps to know what those are, we need to override the older
+# less accurate config.yaml.
+# And let's do it in a way that works even if provisioning ends up failing.
 finalize() {
     if [[ -s "${CONFIG_PROV}" ]]; then
         mv "${CONFIG_PROV}" "${SHARED_DIR}/config.yaml"

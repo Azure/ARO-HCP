@@ -42,6 +42,12 @@ environments:
       slot_count: 3
       identity_container_prefix: aro-hcp-msi-container-dev-shard3
       identity_container_count: 50
+    - subscription_name: "Hypershift Managed Azure"
+      region: westus3
+      resource_type: aro-hcp-dev-hypershift-westus3-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-dev
+      identity_container_count: 20
   int:
     deploy_envs:
     - int
