@@ -37,7 +37,7 @@ images:
     group: hypershift-stack
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main
-      tagPattern: "^[a-f0-9]{40}$"
+      tag: "0903f6b78a608541892ecbe8005899a91bda9ad5"
       multiArch: true
     targets:
     - jsonPath: defaults.hypershift.sharedIngressImage.digest

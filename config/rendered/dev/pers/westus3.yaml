@@ -432,7 +432,7 @@ hypershift:
   namespace: hypershift
   sharedIngressIPTag: ""
   sharedIngressImage:
-    digest: sha256:4eea8f361b3fcb99722b1bf436fc78b999a3ad762bd3162d9566fd6ad156d2f6
+    digest: sha256:5e22710fe440869655329ecc0ef57b4ae15f4ef96e74a8904b1e6fafc0d87678
     registry: quay.io
     repository: redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main
 imageRegistryPolicy:
