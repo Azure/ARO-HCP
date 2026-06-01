@@ -87,15 +87,18 @@
         <p class="mt-2 mb-1">ci-operator reads the test configuration for the hypershift repository and finds the new <code>e2e-aro-hcp</code> test entry:</p>
         <div class="data-flow">
 tests:<br>
-- as: e2e-aro-hcp<br>
+- always_run: false<br>
+  as: e2e-aro-hcp<br>
   optional: true<br>
-  cluster_claim:<br>
-    product: aro-hcp<br>
-    profile: aro-hcp-dev<br>
   steps:<br>
+    cluster_profile: aro-hcp-dev<br>
+    env:<br>
+      ARO_HCP_DEPLOY_ENV: prow<br>
+      ARO_HCP_CLOUD: dev<br>
+      VAULT_SECRET_PROFILE: dev<br>
     workflow: aro-hcp-hypershift-e2e
         </div>
-        <p class="mt-2 small text-muted">This test uses the <code>aro-hcp-dev</code> cluster profile (providing credentials) and invokes the <code>aro-hcp-hypershift-e2e</code> workflow.</p>
+        <p class="mt-2 small text-muted">This test uses the <code>aro-hcp-dev</code> cluster profile (providing credentials), sets <code>always_run: false</code> (triggered via <code>/test e2e-aro-hcp</code>), and invokes the <code>aro-hcp-hypershift-e2e</code> workflow.</p>
       </div>
     </div>
   </div>
@@ -595,14 +598,14 @@ Mount path: <strong>/var/run/aro-hcp-dev/</strong>
           </tr>
           <tr>
             <td>2</td>
-            <td>OCP release payload</td>
-            <td>Image from the release the HostedCluster is running</td>
+            <td>CPO overrides</td>
+            <td><code>--enable-cpo-overrides</code> flag (version-specific static mappings)</td>
             <td>No</td>
           </tr>
           <tr>
             <td>3</td>
-            <td>CPO overrides</td>
-            <td><code>--enable-cpo-overrides</code> flag (version-specific static mappings)</td>
+            <td>OCP release payload</td>
+            <td>Image from the release the HostedCluster is running</td>
             <td>No</td>
           </tr>
           <tr>

@@ -2385,10 +2385,12 @@
           "$ref": "#/definitions/containerImage"
         },
         "hoImageOverride": {
-          "type": "string"
+          "type": "string",
+          "description": "Full image reference to override the HyperShift Operator image. When empty, uses the default image from the image field."
         },
         "cpoImageOverride": {
-          "type": "string"
+          "type": "string",
+          "description": "Full image reference to override the Control Plane Operator image. When empty, no override is applied. Passed to the frontend as --cpo-image-override."
         },
         "additionalInstallArg": {
           "type": "string"
