@@ -422,6 +422,8 @@ hcpRecovery:
     serviceAccountName: hcp-recovery
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
+  cpoImageOverride: ""
+  hoImageOverride: ""
   image:
     digest: sha256:c8b031e426ae224d5bebca597d0deaab1fb62060d20d1dc150cd581cc6381f4c
     registry: quay.io
