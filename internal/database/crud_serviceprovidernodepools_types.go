@@ -24,7 +24,7 @@ import (
 )
 
 type ServiceProviderNodePoolCRUD interface {
-	ResourceCRUD[api.ServiceProviderNodePool]
+	ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool]
 }
 
 func NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName string) *azcorearm.ResourceID {

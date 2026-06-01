@@ -196,7 +196,7 @@ func buildReadDesire(resourceIDString string, managementCluster *azcorearm.Resou
 // getExistingReadDesire returns the named ReadDesire from cosmos, or nil
 // when the document doesn't exist. Non-NotFound errors are propagated.
 func getExistingReadDesire(
-	ctx context.Context, crud database.ResourceCRUD[kubeapplier.ReadDesire], name string,
+	ctx context.Context, crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], name string,
 ) (*kubeapplier.ReadDesire, error) {
 	existing, err := crud.Get(ctx, name)
 	if database.IsNotFoundError(err) {
@@ -225,7 +225,7 @@ func readDesireNeedsWork(existing, desired *kubeapplier.ReadDesire) bool {
 // that readDesireNeedsWork has determined is necessary.
 func writeReadDesire(
 	ctx context.Context,
-	crud database.ResourceCRUD[kubeapplier.ReadDesire],
+	crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire],
 	existing, desired *kubeapplier.ReadDesire,
 ) error {
 	if existing == nil {

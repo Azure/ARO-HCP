@@ -23,6 +23,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
@@ -37,7 +38,7 @@ func NewKubeApplierPartitionKey(managementCluster string) azcosmos.PartitionKey 
 // kubeApplierResourceCRUD is the kube-applier counterpart to nestedCosmosResourceCRUD.
 // The single behavioral difference is that the partition key is the lowercased
 // management cluster name rather than the resource ID's subscription ID.
-type kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
+type kubeApplierResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
 	containerClient  *azcosmos.ContainerClient
 	parentResourceID *azcorearm.ResourceID
 	resourceType     azcorearm.ResourceType
@@ -46,13 +47,13 @@ type kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 	partitionKey string
 }
 
-func newKubeApplierResourceCRUD[InternalAPIType, CosmosAPIType any](
+func newKubeApplierResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	containerClient *azcosmos.ContainerClient,
 	managementCluster string,
 	parentResourceID *azcorearm.ResourceID,
 	resourceType azcorearm.ResourceType,
-) *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType] {
-	return &kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]{
+) *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	return &kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		containerClient:  containerClient,
 		parentResourceID: parentResourceID,
 		resourceType:     resourceType,
@@ -60,7 +61,7 @@ func newKubeApplierResourceCRUD[InternalAPIType, CosmosAPIType any](
 	}
 }
 
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) makeResourceIDPath(
 	resourceName string,
 ) (*azcorearm.ResourceID, error) {
 	if d.parentResourceID == nil {
@@ -74,13 +75,13 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceID
 	return azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...)))
 }
 
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) GetByID(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) GetByID(
 	ctx context.Context, cosmosID string,
 ) (*InternalAPIType, error) {
 	return getByItemID[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.partitionKey, cosmosID)
 }
 
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Get(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Get(
 	ctx context.Context, resourceID string,
 ) (*InternalAPIType, error) {
 	completeResourceID, err := d.makeResourceIDPath(resourceID)
@@ -90,7 +91,7 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Get(
 	return get[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.partitionKey, completeResourceID)
 }
 
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) List(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) List(
 	ctx context.Context, options *DBClientListResourceDocsOptions,
 ) (DBClientIterator[InternalAPIType], error) {
 	prefix, err := d.makeResourceIDPath("")
@@ -107,10 +108,10 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) List(
 // document) and CosmosMetadata.PartitionKey (so the document lands in the
 // right partition). SerializeItem refuses to write a document with an empty
 // PartitionKey.
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Create(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Create(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
-	return create[InternalAPIType, CosmosAPIType](
+	return create[InternalAPIType, CosmosAPIType, InternalAPITypePointer](
 		ctx, d.containerClient, newObj, options,
 	)
 }
@@ -122,15 +123,15 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Create(
 // controllers achieve this via desirestatuswriter, which DeepCopy()'s the
 // fetched object (and therefore its embedded CosmosMetadata) before passing
 // it back in here.
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Replace(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Replace(
 	ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions,
 ) (*InternalAPIType, error) {
-	return replace[InternalAPIType, CosmosAPIType](
+	return replace[InternalAPIType, CosmosAPIType, InternalAPITypePointer](
 		ctx, d.containerClient, newObj, options,
 	)
 }
 
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Delete(
 	ctx context.Context, resourceName string,
 ) error {
 	completeResourceID, err := d.makeResourceIDPath(resourceName)
@@ -140,23 +141,23 @@ func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) Delete(
 	return deleteResource(ctx, d.containerClient, d.partitionKey, completeResourceID)
 }
 
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) AddCreateToTransaction(
 	ctx context.Context,
 	transaction DBTransaction,
 	newObj *InternalAPIType,
 	opts *azcosmos.TransactionalBatchItemOptions,
 ) (string, error) {
-	return addCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
+	return addCreateToTransaction[InternalAPIType, CosmosAPIType, InternalAPITypePointer](ctx, transaction, newObj, opts)
 }
 
-func (d *kubeApplierResourceCRUD[InternalAPIType, CosmosAPIType]) AddReplaceToTransaction(
+func (d *kubeApplierResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) AddReplaceToTransaction(
 	ctx context.Context,
 	transaction DBTransaction,
 	newObj *InternalAPIType,
 	opts *azcosmos.TransactionalBatchItemOptions,
 ) (string, error) {
-	return addReplaceToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
+	return addReplaceToTransaction[InternalAPIType, CosmosAPIType, InternalAPITypePointer](ctx, transaction, newObj, opts)
 }
 
 // Compile-time assertion that *kubeApplierResourceCRUD implements ResourceCRUD.
-var _ ResourceCRUD[kubeapplier.ApplyDesire] = &kubeApplierResourceCRUD[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]]{}
+var _ ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire] = &kubeApplierResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]]{}
