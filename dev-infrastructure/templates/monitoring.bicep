@@ -67,6 +67,12 @@ param manageConnection bool
 @description('Whether ICM alerting is enabled for this region')
 param alertsEnabled bool
 
+@description('Resource ID of the Kusto cluster (empty string when Kusto is disabled)')
+param kustoClusterId string
+
+@description('Region of the Kusto cluster (empty string when Kusto is disabled)')
+param kustoRegion string
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -145,6 +151,16 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     azureMonitorWorkspaceId: hcpAzureMonitoringWorkspaceId
     workspaceLabel: 'hcp'
+    actionGroups: sreActionGroups
+    enabled: alertsEnabled
+  }
+}
+
+// Since we deploy Kusto only once per Geography, only deploy alerts if the Kusto cluster is in the same region as the current resource group.
+module kustoAlerts '../modules/metrics/kusto-alerts.bicep' = if (kustoClusterId != '' && kustoRegion == resourceGroup().location) {
+  name: 'kustoAlerts'
+  params: {
+    kustoClusterId: kustoClusterId
     actionGroups: sreActionGroups
     enabled: alertsEnabled
   }
