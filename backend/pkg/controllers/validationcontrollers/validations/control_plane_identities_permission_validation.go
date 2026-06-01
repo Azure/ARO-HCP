@@ -198,7 +198,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) getManagedIdentityAccessTok
 			utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for the managed identity '%s'", identityResourceID.String()))
 	}
 	userAssignedIdentityCredential := resp.ExplicitIdentities[0]
-	creds, err := dataplane.GetCredential(*v.cloudEnvironment.AZCoreClientOptions(), userAssignedIdentityCredential)
+	creds, err := v.fpaMIdataplaneClientBuilder.GetCredential(*v.cloudEnvironment.AZCoreClientOptions(), userAssignedIdentityCredential)
 	if err != nil {
 		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("failed to get managed identity access token: %w", err))
 	}

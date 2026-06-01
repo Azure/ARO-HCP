@@ -39,13 +39,26 @@ type FPAMIDataplaneClientBuilder interface {
 	BuilderType() FPAMIDataplaneClientBuilderType
 	// ManagedIdentitiesDataplane returns a new Managed Identity Data Plane client using the given identity URL.
 	ManagedIdentitiesDataplane(identityURL string) (ManagedIdentitiesDataplaneClient, error)
+
+	GetCredential(clientOpts azcore.ClientOptions, credential dataplane.UserAssignedIdentityCredentials) (azcore.TokenCredential, error)
+}
+
+type DataPlaneCredentialGetter interface {
+	GetCredential(clientOpts azcore.ClientOptions, credential dataplane.UserAssignedIdentityCredentials) (azcore.TokenCredential, error)
+}
+
+type dataPlaneCredentialGetter struct{}
+
+func (d dataPlaneCredentialGetter) GetCredential(clientOpts azcore.ClientOptions, credential dataplane.UserAssignedIdentityCredentials) (azcore.TokenCredential, error) {
+	return dataplane.GetCredential(clientOpts, credential)
 }
 
 type fpaMIdataplaneClientBuilder struct {
-	serviceTenantID       string
-	audience              string
-	fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
-	options               *azcore.ClientOptions
+	serviceTenantID           string
+	audience                  string
+	fpaTokenCredRetriever     fpa.FirstPartyApplicationTokenCredentialRetriever
+	dataPlaneCredentialGetter DataPlaneCredentialGetter
+	options                   *azcore.ClientOptions
 }
 
 var _ FPAMIDataplaneClientBuilder = (*fpaMIdataplaneClientBuilder)(nil)
@@ -72,14 +85,19 @@ func (b *fpaMIdataplaneClientBuilder) ManagedIdentitiesDataplane(identityURL str
 	return dpClientFactory.NewClient(identityURL)
 }
 
+func (b *fpaMIdataplaneClientBuilder) GetCredential(clientOpts azcore.ClientOptions, credential dataplane.UserAssignedIdentityCredentials) (azcore.TokenCredential, error) {
+	return b.dataPlaneCredentialGetter.GetCredential(clientOpts, credential)
+}
+
 // NewFPAMIDataplaneClientBuilder provides a new instance of
 // FPAMIDataplaneClientBuilder that allows to retrieve Managed Identities Data Plane clients
 // authenticating as the the First Party Application (FPA) identity.
 func NewFPAMIDataplaneClientBuilder(serviceTenantID string, fpaTokenCredRetriever fpa.FirstPartyApplicationTokenCredentialRetriever, audience string, options *azcore.ClientOptions) FPAMIDataplaneClientBuilder {
 	return &fpaMIdataplaneClientBuilder{
-		serviceTenantID:       serviceTenantID,
-		fpaTokenCredRetriever: fpaTokenCredRetriever,
-		audience:              audience,
-		options:               options,
+		serviceTenantID:           serviceTenantID,
+		fpaTokenCredRetriever:     fpaTokenCredRetriever,
+		dataPlaneCredentialGetter: &dataPlaneCredentialGetter{},
+		audience:                  audience,
+		options:                   options,
 	}
 }

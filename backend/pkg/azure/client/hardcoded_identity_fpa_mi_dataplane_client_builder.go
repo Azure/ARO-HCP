@@ -14,7 +14,11 @@
 
 package client
 
-import "github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+import (
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/msi-dataplane/pkg/dataplane"
+)
 
 // hardcodedIdentityFPAMIDataplaneClientBuilder is used to
 // create Managed Identity Data Plane clients based on the
@@ -38,6 +42,11 @@ func (b *hardcodedIdentityFPAMIDataplaneClientBuilder) BuilderType() FPAMIDatapl
 // of the managed identities dataplane clientso we ignore it.
 func (b *hardcodedIdentityFPAMIDataplaneClientBuilder) ManagedIdentitiesDataplane(_ string) (ManagedIdentitiesDataplaneClient, error) {
 	return newHardcodedIdentityManagedIdentitiesDataPlaneClient(b.cloudConfiguration, b.hardcodedIdentity), nil
+}
+
+func (b *hardcodedIdentityFPAMIDataplaneClientBuilder) GetCredential(clientOpts azcore.ClientOptions, credential dataplane.UserAssignedIdentityCredentials) (azcore.TokenCredential, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 // NewHardcodedIdentityFPAMIDataplaneClientBuilder provides a new instance of
