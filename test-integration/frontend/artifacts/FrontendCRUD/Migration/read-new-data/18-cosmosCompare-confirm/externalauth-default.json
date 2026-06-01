@@ -69,7 +69,8 @@
 				},
 				"serviceProviderProperties": {
 					"activeOperationId": "117a9956-c10f-493d-a435-fcc43ab90896",
-					"clusterServiceID": ""
+					"clusterServiceID": "",
+					"usesNewExternalAuthDeletionApproach": false
 				},
 				"systemData": {
 					"createdBy": "Unknown-ARO-HCP-frontend",
@@ -127,7 +128,8 @@
 		},
 		"serviceProviderProperties": {
 			"activeOperationId": "117a9956-c10f-493d-a435-fcc43ab90896",
-			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/external_auth_config/external_auths/zt59xrx22b"
+			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/external_auth_config/external_auths/zt59xrx22b",
+			"usesNewExternalAuthDeletionApproach": false
 		},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
