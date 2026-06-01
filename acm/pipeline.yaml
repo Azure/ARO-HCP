@@ -78,6 +78,7 @@ resourceGroups:
   - name: deploy-mce-config
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'mce-config'
     releaseNamespace: 'multicluster-engine'
     chartDir: ./deploy/helm/multicluster-engine-config

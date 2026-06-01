@@ -300,6 +300,7 @@ resourceGroups:
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'arohcp-monitor'
     releaseNamespace: 'prometheus'
     namespaceFiles:

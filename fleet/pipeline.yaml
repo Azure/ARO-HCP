@@ -61,6 +61,7 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'fleet'
     releaseNamespace: '{{ .fleet.k8s.namespace }}'
     chartDir: ./deploy
