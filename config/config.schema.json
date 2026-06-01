@@ -2384,6 +2384,12 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
+        "hoImageOverride": {
+          "type": "string"
+        },
+        "cpoImageOverride": {
+          "type": "string"
+        },
         "additionalInstallArg": {
           "type": "string"
         },
