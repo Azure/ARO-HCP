@@ -705,6 +705,8 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
+	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))
+
 	transaction := f.resourcesDBClient.NewTransaction(cluster.ID.SubscriptionID)
 	if err := f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster); err != nil {
 		return utils.TrackError(err)
