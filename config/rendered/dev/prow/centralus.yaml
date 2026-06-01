@@ -493,7 +493,7 @@ kusto:
   autoScaleMin: 2
   crossClusterHostedControlPlaneLogsScript: ""
   crossClusterServiceLogsScript: ""
-  enableAutoScale: true
+  enableAutoScale: false
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us-2
   location: centralus
