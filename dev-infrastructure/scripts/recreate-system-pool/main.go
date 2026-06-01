@@ -1320,6 +1320,14 @@ func (c *clients) pollForNRPEvidence(ctx context.Context, timeout time.Duration,
 	deadline := time.Now().Add(timeout)
 	last := 0
 	for {
+		resp, err := c.pools.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, systemPoolName, nil)
+		if err != nil {
+			logf("WARN: forced-evidence pool state check failed: %v (continuing)", err)
+		} else if resp.Properties != nil && resp.Properties.ProvisioningState != nil && *resp.Properties.ProvisioningState == "Succeeded" {
+			logf("forced evidence: system pool provisioningState=Succeeded; wedge resolved, returning early")
+			return 0, nil
+		}
+
 		out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", windowMin))
 		if err != nil {
 			return last, fmt.Errorf("forced-evidence activity-log query: %w", err)
