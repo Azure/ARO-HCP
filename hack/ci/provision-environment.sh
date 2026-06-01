@@ -5,6 +5,7 @@
 set -o errexit
 set -o nounset
 set -o pipefail
+set +o xtrace
 
 : "${CLUSTER_PROFILE_DIR:?CLUSTER_PROFILE_DIR must be set}"
 : "${ARO_HCP_DEPLOY_ENV:?ARO_HCP_DEPLOY_ENV must be set}"
@@ -34,14 +35,19 @@ kubelogin --version
 parse_image() {
     local image="${1}"
     local prefix="${2}"
+    if [[ "${image}" != *"@"* ]]; then
+        echo "ERROR: ${prefix}_IMAGE must be a digest-based ref (registry/repo@sha256:...), got: ${image}" >&2
+        exit 1
+    fi
     local digest repo registry
     digest=$(echo "${image}" | cut -d'@' -f2)
     repo=$(echo "${image}" | cut -d'@' -f1 | cut -d'/' -f2-)
     registry=$(echo "${image}" | cut -d'@' -f1 | cut -d'/' -f1)
     echo "source registry set to ${registry} and repo ${repo} for ${prefix} Image"
-    eval "export ${prefix}_DIGEST='${digest}'"
-    eval "export ${prefix}_REPOSITORY='${repo}'"
-    eval "export ${prefix}_SOURCE_REGISTRY='${registry}'"
+    printf -v "${prefix}_DIGEST" '%s' "${digest}"
+    printf -v "${prefix}_REPOSITORY" '%s' "${repo}"
+    printf -v "${prefix}_SOURCE_REGISTRY" '%s' "${registry}"
+    export "${prefix}_DIGEST" "${prefix}_REPOSITORY" "${prefix}_SOURCE_REGISTRY"
 }
 
 CI_IMAGE_NAMES=()
@@ -62,7 +68,8 @@ for prefix in BACKEND FRONTEND ADMIN_API SESSIONGATE HCP_RECOVERY MGMT_AGENT KUB
     if [[ -n "${!var:-}" ]]; then
         parse_image "${!var}" "${prefix}"
         CI_IMAGE_NAMES+=("${prefix}")
-        CI_IMAGE_REGISTRIES+=("$(eval echo "\${${prefix}_SOURCE_REGISTRY}")")
+        reg_var="${prefix}_SOURCE_REGISTRY"
+        CI_IMAGE_REGISTRIES+=("${!reg_var}")
     fi
 done
 
@@ -101,16 +108,18 @@ YQ_EXPR="
 "
 
 # Append CI image overrides if present
-for prefix in "${CI_IMAGE_NAMES[@]}"; do
-    config_key="${IMAGE_MAP[${prefix}]}"
-    digest=$(eval echo "\${${prefix}_DIGEST}")
-    repo=$(eval echo "\${${prefix}_REPOSITORY}")
-    registry=$(eval echo "\${${prefix}_SOURCE_REGISTRY}")
-    YQ_EXPR="${YQ_EXPR} |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.registry = \"${registry}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.repository = \"${repo}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.digest = \"${digest}\""
-done
+if [[ ${#CI_IMAGE_NAMES[@]} -gt 0 ]]; then
+    for prefix in "${CI_IMAGE_NAMES[@]}"; do
+        config_key="${IMAGE_MAP[${prefix}]}"
+        local_digest="${prefix}_DIGEST"
+        local_repo="${prefix}_REPOSITORY"
+        local_registry="${prefix}_SOURCE_REGISTRY"
+        YQ_EXPR="${YQ_EXPR} |
+  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.registry = \"${!local_registry}\" |
+  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.repository = \"${!local_repo}\" |
+  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.digest = \"${!local_digest}\""
+    done
+fi
 
 yq eval -n "${YQ_EXPR}" > "${OVERRIDE_CONFIG_FILE}"
 
