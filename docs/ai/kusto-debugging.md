@@ -6,6 +6,14 @@
 ## Clusters
 - the `hcp-prod-usc` kusto cluster is US canary region and matches prod grafana's `*-eastus2euap` data sources
 
+## See Also
+
+For curated, ready-to-adapt KQL queries that trace an ARM request through
+every layer of the stack (frontend → backend → CS → Maestro → HyperShift),
+see [query-cookbook.md](query-cookbook.md). The cookbook also documents
+the discovery chain for resolving correlation IDs into the magic strings
+(CS internal cluster `cid`, Maestro bundle IDs) that downstream queries need.
+
 ## Databases
 
 - `HostedControlPlaneLogs` – logs from hosted control plane
@@ -31,3 +39,6 @@
 - `backendLogs` links to `frontendLogs` via `correlation_request_id` and contains state dumps from controllers.
 - `containerLogs` is filtered by `namespace_name` and `container_name` to isolate maestro/hypershift logs.
 - Maestro bundle tracking joins `containerLogs` + `backendLogs`/`clustersServiceLogs` via bundle ID extraction.
+- Hosted cluster namespaces on management clusters take the form `ocm-arohcp<env>-<cid>-<id>`, where `cid` is the Clusters Service internal cluster ID (an opaque hash like `2iig1flm0pfjr9h8kkg6ggbjig1p3fpa`). Use `| distinct pod_name, container_name` within such a namespace to enumerate available pods/containers.
+- Use `| where namespace_name !contains 'ocm-arohcp'` against `database('HostedControlPlaneLogs').table('containerLogs')` to review management-cluster-level components.
+- The Kusto ingest mappings and table schemas live in [dev-infrastructure/modules/logs/kusto/tables/](../../dev-infrastructure/modules/logs/kusto/tables/) — consult them when a query needs a column you haven't seen used before.
