@@ -5,7 +5,6 @@
 set -o errexit
 set -o nounset
 set -o pipefail
-set +o xtrace
 
 : "${CLUSTER_PROFILE_DIR:?CLUSTER_PROFILE_DIR must be set}"
 : "${ARO_HCP_DEPLOY_ENV:?ARO_HCP_DEPLOY_ENV must be set}"
@@ -22,36 +21,21 @@ export INFRA_SUBSCRIPTION_ID
 export DEPLOY_ENV="${ARO_HCP_DEPLOY_ENV}"
 export AZURE_TOKEN_CREDENTIALS=prod
 
+set +o xtrace
 az login --service-principal -u "${AZURE_CLIENT_ID}" -p "${AZURE_CLIENT_SECRET}" --tenant "${AZURE_TENANT_ID}" --output none
+set -o xtrace
 az account set --subscription "${INFRA_SUBSCRIPTION_ID}"
 oc version
 kubelogin --version
 
 # --- CI image overrides (optional — set by aro-hcp-provision-environment) ---
-# Each *_IMAGE var is a full image ref like "registry/repo@sha256:...".
+# Each *_IMAGE var is a full digest-based image ref like "registry/repo@sha256:...".
 # When set, we parse them into registry/repo/digest and add them to the
 # config overlay so the provisioned environment uses CI-built images.
 
-parse_image() {
-    local image="${1}"
-    local prefix="${2}"
-    if [[ "${image}" != *"@"* ]]; then
-        echo "ERROR: ${prefix}_IMAGE must be a digest-based ref (registry/repo@sha256:...), got: ${image}" >&2
-        exit 1
-    fi
-    local digest repo registry
-    digest=$(echo "${image}" | cut -d'@' -f2)
-    repo=$(echo "${image}" | cut -d'@' -f1 | cut -d'/' -f2-)
-    registry=$(echo "${image}" | cut -d'@' -f1 | cut -d'/' -f1)
-    echo "source registry set to ${registry} and repo ${repo} for ${prefix} Image"
-    printf -v "${prefix}_DIGEST" '%s' "${digest}"
-    printf -v "${prefix}_REPOSITORY" '%s' "${repo}"
-    printf -v "${prefix}_SOURCE_REGISTRY" '%s' "${registry}"
-    export "${prefix}_DIGEST" "${prefix}_REPOSITORY" "${prefix}_SOURCE_REGISTRY"
-}
-
-CI_IMAGE_NAMES=()
-CI_IMAGE_REGISTRIES=()
+declare -A IMAGE_DIGEST=()
+declare -A IMAGE_REPO=()
+declare -A IMAGE_REGISTRY=()
 
 declare -A IMAGE_MAP=(
     [BACKEND]=backend
@@ -63,23 +47,34 @@ declare -A IMAGE_MAP=(
     [KUBE_APPLIER]=kubeApplier
 )
 
+CI_IMAGE_NAMES=()
+
 for prefix in BACKEND FRONTEND ADMIN_API SESSIONGATE HCP_RECOVERY MGMT_AGENT KUBE_APPLIER; do
     var="${prefix}_IMAGE"
     if [[ -n "${!var:-}" ]]; then
-        parse_image "${!var}" "${prefix}"
+        image="${!var}"
+        if [[ "${image}" != *"@"* ]]; then
+            echo "ERROR: ${var} must be a digest-based ref (registry/repo@sha256:...), got: ${image}" >&2
+            exit 1
+        fi
+        IMAGE_DIGEST[${prefix}]=$(echo "${image}" | cut -d'@' -f2)
+        IMAGE_REPO[${prefix}]=$(echo "${image}" | cut -d'@' -f1 | cut -d'/' -f2-)
+        IMAGE_REGISTRY[${prefix}]=$(echo "${image}" | cut -d'@' -f1 | cut -d'/' -f1)
+        echo "source registry set to ${IMAGE_REGISTRY[${prefix}]} and repo ${IMAGE_REPO[${prefix}]} for ${prefix} Image"
         CI_IMAGE_NAMES+=("${prefix}")
-        reg_var="${prefix}_SOURCE_REGISTRY"
-        CI_IMAGE_REGISTRIES+=("${!reg_var}")
     fi
 done
 
 # Set up registries that require oc login
-if [[ ${#CI_IMAGE_REGISTRIES[@]} -gt 0 ]]; then
-    EXTRA_REGISTRIES="${CI_IMAGE_REGISTRIES[*]}"
+if [[ ${#CI_IMAGE_NAMES[@]} -gt 0 ]]; then
+    REGISTRIES=""
+    for prefix in "${CI_IMAGE_NAMES[@]}"; do
+        REGISTRIES="${REGISTRIES} ${IMAGE_REGISTRY[${prefix}]}"
+    done
     if [[ -n "${USE_OC_LOGIN_REGISTRIES:-}" ]]; then
-        USE_OC_LOGIN_REGISTRIES="${USE_OC_LOGIN_REGISTRIES} ${EXTRA_REGISTRIES}"
+        USE_OC_LOGIN_REGISTRIES="${USE_OC_LOGIN_REGISTRIES}${REGISTRIES}"
     else
-        USE_OC_LOGIN_REGISTRIES="${EXTRA_REGISTRIES}"
+        USE_OC_LOGIN_REGISTRIES="${REGISTRIES# }"
     fi
     export USE_OC_LOGIN_REGISTRIES
     echo "USE_OC_LOGIN_REGISTRIES set to: ${USE_OC_LOGIN_REGISTRIES}"
@@ -94,7 +89,6 @@ MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" d
 MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
 echo "MSI mock SP override: ${LEASED_MSI_MOCK_SP} -> clientId=${MSI_MOCK_CLIENT_ID}"
 
-# Start with base overrides (MSI config + VM sizes)
 YQ_EXPR="
   .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockClientId = \"${MSI_MOCK_CLIENT_ID}\" |
   .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockPrincipalId = \"${MSI_MOCK_PRINCIPAL_ID}\" |
@@ -111,13 +105,10 @@ YQ_EXPR="
 if [[ ${#CI_IMAGE_NAMES[@]} -gt 0 ]]; then
     for prefix in "${CI_IMAGE_NAMES[@]}"; do
         config_key="${IMAGE_MAP[${prefix}]}"
-        local_digest="${prefix}_DIGEST"
-        local_repo="${prefix}_REPOSITORY"
-        local_registry="${prefix}_SOURCE_REGISTRY"
         YQ_EXPR="${YQ_EXPR} |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.registry = \"${!local_registry}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.repository = \"${!local_repo}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.digest = \"${!local_digest}\""
+  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.registry = \"${IMAGE_REGISTRY[${prefix}]}\" |
+  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.repository = \"${IMAGE_REPO[${prefix}]}\" |
+  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.digest = \"${IMAGE_DIGEST[${prefix}]}\""
     done
 fi
 

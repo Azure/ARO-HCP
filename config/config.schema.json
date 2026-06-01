@@ -2386,11 +2386,11 @@
         },
         "hoImageOverride": {
           "type": "string",
-          "description": "Full image reference to override the HyperShift Operator image. When empty, uses the default image from the image field."
+          "description": "Full image reference to override the HyperShift Operator image. Empty string uses the default."
         },
         "cpoImageOverride": {
           "type": "string",
-          "description": "Full image reference to override the Control Plane Operator image. When empty, no override is applied. Passed to the frontend as --cpo-image-override."
+          "description": "Full image reference to override the Control Plane Operator image. Passed to Cluster Service as a cluster property."
         },
         "additionalInstallArg": {
           "type": "string"
