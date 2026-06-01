@@ -8,6 +8,10 @@ entrypoints:
   metadata:
     name: Region
     scopeDoc: high-level-architecture.md#regional-scope
+- identifier: 'Microsoft.Azure.ARO.HCP.Monitoring'
+  metadata:
+    name: Monitoring
+    scopeDoc: high-level-architecture.md
 services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Global
   children:
