@@ -127,7 +127,7 @@ import (
 const (
 	systemPoolName    = "system"
 	systmpPoolName    = "systmp"
-	defaultThreshold  = 10
+	defaultThreshold  = 5
 	defaultWindowMin  = 15
 	lroAbortAgeMin    = 30
 	lroLookupWindow   = "14d"
@@ -160,7 +160,7 @@ const (
 	// to produce fresh evidence (or to prove the wedge is not NRP-KVS).
 	// Times are short relative to the AKS RP retry cadence (~3 min) so
 	// threshold-many retries can accumulate during the wait window.
-	triggerEvidenceTimeoutMin      = 60 // wait at most this long for evidence
+	triggerEvidenceTimeoutMin      = 30 // wait at most this long for evidence
 	triggerEvidencePollIntervalSec = 60 // re-query activity log every poll
 	triggerEvidenceWindowMin       = 60 // activity-log lookback for the wait loop
 
