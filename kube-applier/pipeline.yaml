@@ -71,6 +71,7 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'kube-applier'
     releaseNamespace: '{{ .kubeApplier.k8s.namespace }}'
     chartDir: ./deploy

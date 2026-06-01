@@ -463,6 +463,7 @@ resourceGroups:
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'arohcp-monitor'
     releaseNamespace: 'prometheus'
     namespaceFiles:
