@@ -256,7 +256,7 @@ type orchestrator interface {
 	deletePool(ctx context.Context, pool string) error
 	recreatePool(ctx context.Context, poolName string, live *armcs.AgentPool) error
 	reconcileTagPut(ctx context.Context) error
-	triggerPoolReconcile(ctx context.Context, poolName string, live *armcs.AgentPool) error
+	triggerPoolScaleUp(ctx context.Context, poolName string, live *armcs.AgentPool) error
 	pollForNRPEvidence(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
 	abortPoolReconcile(ctx context.Context, poolName string) error
 }
@@ -527,10 +527,12 @@ func remediateNonSystemPool(ctx context.Context, orch orchestrator, wp wedgedPoo
 	return nil
 }
 
-// forcedEvidenceForPool triggers a no-op reconcile on the given pool
-// so the AKS RP attempts a fresh VMSS write. It then polls the
-// activity log for NRP-KVS Failed events and aborts the LRO it started
-// once threshold-many hits are observed or the timeout elapses.
+// forcedEvidenceForPool triggers a scale-up (+1 node) on the given pool
+// to force a VMSS write. A no-op reconcile may not trigger a VMSS write
+// for user pools, but a scale-up always does because it creates a new VM
+// instance. It then polls the activity log for NRP-KVS Failed events and
+// aborts the LRO once threshold-many hits are observed or the timeout
+// elapses.
 //
 // Returns a *wedgedPool if evidence reached the threshold and the caller
 // should proceed with the remediate flow. Returns nil with no error if
@@ -544,12 +546,12 @@ func forcedEvidenceForPool(ctx context.Context, cfg *config, orch orchestrator, 
 		return nil, fmt.Errorf("forced evidence snapshot %s: %w", sp.name, err)
 	}
 
-	if err := orch.triggerPoolReconcile(ctx, sp.name, live); err != nil {
-		logf("WARN: triggerPoolReconcile for %s failed: %v; treating as no-op", sp.name, err)
+	if err := orch.triggerPoolScaleUp(ctx, sp.name, live); err != nil {
+		logf("WARN: triggerPoolScaleUp for %s failed: %v; treating as no-op", sp.name, err)
 		return nil, nil
 	}
 
-	logf("triggered pool %s reconcile; polling activity log every %ds for up to %dm",
+	logf("triggered pool %s scale-up; polling activity log every %ds for up to %dm",
 		sp.name, triggerEvidencePollIntervalSec, triggerEvidenceTimeoutMin)
 	hits, pollErr := orch.pollForNRPEvidence(
 		ctx,
@@ -561,6 +563,7 @@ func forcedEvidenceForPool(ctx context.Context, cfg *config, orch orchestrator, 
 		cfg.threshold,
 	)
 
+	// Abort the scale-up LRO and restore the original pool spec.
 	abortCtx, abortCancel := context.WithTimeout(context.Background(), abortTriggerTimeoutMin*time.Minute)
 	defer abortCancel()
 	if abortErr := orch.abortPoolReconcile(abortCtx, sp.name); abortErr != nil {
@@ -1515,14 +1518,22 @@ func (c *clients) reconcileTagPut(ctx context.Context) error {
 // by issuing a sanitized CreateOrUpdate with the snapshot spec.
 // It does not wait for the LRO to finish — the caller polls the activity
 // log for NRP-KVS evidence in parallel and aborts the LRO when done.
-func (c *clients) triggerPoolReconcile(ctx context.Context, poolName string, live *armcs.AgentPool) error {
+func (c *clients) triggerPoolScaleUp(ctx context.Context, poolName string, live *armcs.AgentPool) error {
 	body, err := agentPoolForCreate(live, c.cfg.cpVersion)
 	if err != nil {
-		return fmt.Errorf("triggerPoolReconcile %s: %w", poolName, err)
+		return fmt.Errorf("triggerPoolScaleUp %s: %w", poolName, err)
 	}
-	logf("triggering AgentPool CreateOrUpdate on %q (no-op reconcile with live spec)", poolName)
+	if body.Properties.Count != nil {
+		*body.Properties.Count++
+	} else {
+		body.Properties.Count = ptr(int32(2))
+	}
+	if body.Properties.EnableAutoScaling != nil && *body.Properties.EnableAutoScaling && body.Properties.MinCount != nil {
+		*body.Properties.MinCount++
+	}
+	logf("triggering scale-up on %q (count=%d) to force VMSS write", poolName, *body.Properties.Count)
 	if _, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, poolName, *body, nil); err != nil {
-		return fmt.Errorf("begin trigger pool reconcile %s: %w", poolName, err)
+		return fmt.Errorf("begin trigger pool scale-up %s: %w", poolName, err)
 	}
 	return nil
 }

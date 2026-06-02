@@ -1403,20 +1403,20 @@ type mockOrchestrator struct {
 	calls       []string
 	detectCount int
 
-	ensureClusterFn        func(ctx context.Context) (armcs.ManagedCluster, bool, error)
-	bootstrapKubeFn        func(ctx context.Context, mc armcs.ManagedCluster) error
-	detectFn               func(ctx context.Context, n int) ([]wedgedPool, string, error)
-	preflightChecksFn      func(ctx context.Context, pools []wedgedPool) error
-	snapshotPoolFn         func(ctx context.Context, poolName string) (*armcs.AgentPool, error)
-	maybeAbortLROFn        func(ctx context.Context) (bool, error)
-	addSystmpFn            func(ctx context.Context, live *armcs.AgentPool) error
-	drainPoolFn            func(ctx context.Context, pool string, timeout time.Duration) error
-	deletePoolFn           func(ctx context.Context, pool string) error
-	recreatePoolFn         func(ctx context.Context, poolName string, live *armcs.AgentPool) error
-	reconcileTagPutFn      func(ctx context.Context) error
-	triggerPoolReconcileFn func(ctx context.Context, poolName string, live *armcs.AgentPool) error
-	pollForNRPEvidenceFn   func(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
-	abortPoolReconcileFn   func(ctx context.Context, poolName string) error
+	ensureClusterFn      func(ctx context.Context) (armcs.ManagedCluster, bool, error)
+	bootstrapKubeFn      func(ctx context.Context, mc armcs.ManagedCluster) error
+	detectFn             func(ctx context.Context, n int) ([]wedgedPool, string, error)
+	preflightChecksFn    func(ctx context.Context, pools []wedgedPool) error
+	snapshotPoolFn       func(ctx context.Context, poolName string) (*armcs.AgentPool, error)
+	maybeAbortLROFn      func(ctx context.Context) (bool, error)
+	addSystmpFn          func(ctx context.Context, live *armcs.AgentPool) error
+	drainPoolFn          func(ctx context.Context, pool string, timeout time.Duration) error
+	deletePoolFn         func(ctx context.Context, pool string) error
+	recreatePoolFn       func(ctx context.Context, poolName string, live *armcs.AgentPool) error
+	reconcileTagPutFn    func(ctx context.Context) error
+	triggerPoolScaleUpFn func(ctx context.Context, poolName string, live *armcs.AgentPool) error
+	pollForNRPEvidenceFn func(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
+	abortPoolReconcileFn func(ctx context.Context, poolName string) error
 }
 
 func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
@@ -1520,10 +1520,10 @@ func (m *mockOrchestrator) reconcileTagPut(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) triggerPoolReconcile(ctx context.Context, poolName string, live *armcs.AgentPool) error {
-	m.record("triggerPoolReconcile:" + poolName)
-	if m.triggerPoolReconcileFn != nil {
-		return m.triggerPoolReconcileFn(ctx, poolName, live)
+func (m *mockOrchestrator) triggerPoolScaleUp(ctx context.Context, poolName string, live *armcs.AgentPool) error {
+	m.record("triggerPoolScaleUp:" + poolName)
+	if m.triggerPoolScaleUpFn != nil {
+		return m.triggerPoolScaleUpFn(ctx, poolName, live)
 	}
 	return nil
 }
@@ -1622,7 +1622,7 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotPool:system", "triggerPoolReconcile:system", "pollForNRPEvidence:system", "abortPoolReconcile:system",
+				"snapshotPool:system", "triggerPoolScaleUp:system", "pollForNRPEvidence:system", "abortPoolReconcile:system",
 			},
 		},
 		{
@@ -1641,7 +1641,7 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotPool:system", "triggerPoolReconcile:system", "pollForNRPEvidence:system", "abortPoolReconcile:system",
+				"snapshotPool:system", "triggerPoolScaleUp:system", "pollForNRPEvidence:system", "abortPoolReconcile:system",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"maybeAbortLRO", "detect:2", "snapshotPool:system",
 				"addSystmp",
@@ -1658,13 +1658,13 @@ func TestRunWith(t *testing.T) {
 				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
 					return []wedgedPool{suspectedSystemPool}, "", nil
 				}
-				m.triggerPoolReconcileFn = func(_ context.Context, _ string, _ *armcs.AgentPool) error {
+				m.triggerPoolScaleUpFn = func(_ context.Context, _ string, _ *armcs.AgentPool) error {
 					return errors.New("conflict")
 				}
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotPool:system", "triggerPoolReconcile:system",
+				"snapshotPool:system", "triggerPoolScaleUp:system",
 			},
 		},
 		{
