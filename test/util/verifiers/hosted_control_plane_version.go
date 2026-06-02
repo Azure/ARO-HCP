@@ -28,14 +28,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-func GetClusterVersion(ctx context.Context, adminRESTConfig *rest.Config) *v1.ClusterVersion {
+func GetClusterVersion(ctx context.Context, adminRESTConfig *rest.Config) *configv1.ClusterVersion {
 	configClient, err := configv1client.NewForConfig(adminRESTConfig)
 	if err != nil {
 		ginkgo.Fail("failed to create config client")
@@ -49,7 +49,7 @@ func GetClusterVersion(ctx context.Context, adminRESTConfig *rest.Config) *v1.Cl
 	return clusterVersion
 }
 
-func InitZStreamTest(ctx context.Context, adminRESTConfig *rest.Config, initialVersion string) ([]v1.UpdateHistory, semver.Version) {
+func InitZStreamTest(ctx context.Context, adminRESTConfig *rest.Config, initialVersion string) ([]configv1.UpdateHistory, semver.Version) {
 	clusterVersion := GetClusterVersion(ctx, adminRESTConfig)
 
 	ginkgo.GinkgoLogr.Info("Initial version state",
@@ -64,7 +64,7 @@ func InitZStreamTest(ctx context.Context, adminRESTConfig *rest.Config, initialV
 	return clusterVersion.Status.History, initialSemver
 }
 
-func GetHistorySemver(version, initialVersion string, history []v1.UpdateHistory) semver.Version {
+func GetHistorySemver(version, initialVersion string, history []configv1.UpdateHistory) semver.Version {
 	if len(version) == 0 {
 		ginkgo.Fail(fmt.Sprintf("UpdateHistory version found with length 0. initialVersion: %s, history: %v",
 			initialVersion,
