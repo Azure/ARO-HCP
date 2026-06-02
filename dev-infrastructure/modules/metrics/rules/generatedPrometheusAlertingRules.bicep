@@ -1725,7 +1725,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation error rate critically high (>72%)'
           title: 'Node Pool operation error rate critically high (>72%)'
         }
-        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"}) ) > 0.72'
+        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"}) ) > 0.72'
         for: 'PT5M'
         severity: 4
       }
@@ -1753,7 +1753,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation error rate elevated (>30%) for 30+ minutes'
           title: 'Node Pool operation error rate elevated (>30%) for 30+ minutes'
         }
-        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"}) ) > 0.30'
+        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"}) ) > 0.30'
         for: 'PT30M'
         severity: 4
       }
@@ -1781,7 +1781,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
           title: 'Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
         }
-        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"}) ) > 0.05'
+        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"}) ) > 0.05'
         for: 'PT6H'
         severity: 4
       }
@@ -1799,6 +1799,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         enabled: true
         labels: {
           severity: '3'
+          slo: 'nodepool-errors'
         }
         annotations: {
           correlationId: 'UJNodePoolErrorsDegradation/{{ $labels.cluster }}'
@@ -1808,7 +1809,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation failure rate exceeds 15% for 30 minutes'
           title: 'Node Pool operation failure rate exceeds 15% for 30 minutes'
         }
-        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"}) ) > 0.15'
+        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"}) ) > 0.15'
         for: 'PT30M'
         severity: 4
       }
