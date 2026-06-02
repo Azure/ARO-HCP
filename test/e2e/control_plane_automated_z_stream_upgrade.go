@@ -32,6 +32,15 @@ import (
 )
 
 var _ = Describe("Service Provider", func() {
+	// basic flow for z-stream upgrade:
+	// 1. Every 5min, NewControlPlaneDesiredVersionController checks Cincinnati to see if there is a more up-to-date z-stream (patch) version
+	// 2. If z-stream update is available, Cincinnati responds with the updated version. This value is stored in existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+	// 3. Every 5min, NewTriggerControlPlaneUpgradeController compares the current version (at ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[]) to the value at existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+	// 4. If the versions are not equal, an upgrade policy is POSTed to the Cluster Service API.
+	// 5. Cluster Service publishes the policy to Maestro which forwards the update request to the management cluster at HostedCluster.Spec.Release.
+	// 6. Hypershift detects the Spec.Release change, applies the changes to the control plane/components, and updates version history.
+	// 7. The ClusterVersion Operator in the Guest cluster tracks the upgrade, including the state of the upgrade (Partial or Completed)
+	// 8. Every 5min, NewControlPlaneActiveVersionController checks the version history array and syncs it back to ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions[], thus closing the loop.
 	DescribeTable("should upgrade the control plane z-stream automatically on behalf of the customer",
 		func(ctx context.Context, minorVersion string, baseInstallVersion string) {
 			const (
@@ -124,6 +133,12 @@ var _ = Describe("Service Provider", func() {
 				By("skipping z-stream upgrade verification: no upgrade path (cluster installed at latest)")
 				return
 			}
+
+			By("waiting for z-stream upgrade to trigger")
+			Eventually(func() error {
+				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeTriggered(installVersion))
+			}, framework.HCPClusterVersionUpgradeTriggeredTimeout, 1*time.Minute).Should(Succeed())
+			GinkgoLogr.Info("z-stream upgrade has been triggered", "installVersion", installVersion)
 
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
