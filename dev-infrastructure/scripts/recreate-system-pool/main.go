@@ -952,7 +952,10 @@ func evalClusterSafety(pools []*armcs.AgentPool) (bool, string) {
 		if p == nil || p.Name == nil || p.Properties == nil {
 			continue
 		}
-		if *p.Name == systemPoolName || *p.Name == systmpPoolName {
+		if classifyPool(p) == poolCategorySystem {
+			continue
+		}
+		if *p.Name == systmpPoolName {
 			continue
 		}
 		cnt := int32(0)

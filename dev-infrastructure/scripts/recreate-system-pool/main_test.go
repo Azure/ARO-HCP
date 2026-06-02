@@ -270,13 +270,18 @@ func TestEvalClusterState(t *testing.T) {
 }
 
 func mkPool(name string, count, minCount *int32) *armcs.AgentPool {
-	return &armcs.AgentPool{
+	p := &armcs.AgentPool{
 		Name: ptr(name),
 		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
 			Count:    count,
 			MinCount: minCount,
 		},
 	}
+	if name == systemPoolName || name == systmpPoolName {
+		mode := armcs.AgentPoolModeSystem
+		p.Properties.Mode = &mode
+	}
+	return p
 }
 
 // mkPoolWithState builds a pool with provisioning state set, used for
