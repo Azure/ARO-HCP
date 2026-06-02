@@ -68,7 +68,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=\"succeeded\"})\n  /\n  count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed\"})\n) * 100",
+          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"}) > 0 or vector(1))\n) * 100",
           "instant": true,
           "legendFormat": "Success Rate",
           "refId": "A"
@@ -246,7 +246,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=\"succeeded\"})\n  /\n  count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed\"})\n) * 100",
+          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"}) > 0 or vector(1))\n) * 100",
           "legendFormat": "Success Rate %",
           "refId": "A"
         }
@@ -406,7 +406,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", phase=~\"succeeded|failed\"} - backend_resource_operation_start_time_seconds{resource_type=~\".*nodepools\", phase=~\"succeeded|failed\"}",
+          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"}",
           "legendFormat": "{{ operation_type }} - {{ phase }}",
           "refId": "A"
         }
@@ -508,7 +508,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count by (operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed\"})",
+          "expr": "count by (operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"})",
           "legendFormat": "{{ operation_type }} - {{ phase }}",
           "refId": "A"
         }
