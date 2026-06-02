@@ -33,8 +33,9 @@ const (
 
 // Resource Update timeouts
 const (
-	HCPClusterVersionUpgradeTimeout = 45 * time.Minute
-	NodePoolVersionUpgradeTimeout   = 45 * time.Minute
-	NodePoolScalingTimeout          = 20 * time.Minute
-	UpdateHCPClusterTimeout         = 10 * time.Minute
+	HCPClusterVersionUpgradeTriggeredTimeout = 15 * time.Minute
+	HCPClusterVersionUpgradeTimeout          = 45 * time.Minute
+	NodePoolVersionUpgradeTimeout            = 45 * time.Minute
+	NodePoolScalingTimeout                   = 20 * time.Minute
+	UpdateHCPClusterTimeout                  = 10 * time.Minute
 )
