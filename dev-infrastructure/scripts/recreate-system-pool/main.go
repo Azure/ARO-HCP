@@ -219,6 +219,9 @@ func tmpPoolName(poolName string) string {
 	if poolName == systemPoolName {
 		return systmpPoolName
 	}
+	if len(poolName) >= 12 {
+		return poolName[:11] + tmpPoolSuffix
+	}
 	return poolName + tmpPoolSuffix
 }
 
