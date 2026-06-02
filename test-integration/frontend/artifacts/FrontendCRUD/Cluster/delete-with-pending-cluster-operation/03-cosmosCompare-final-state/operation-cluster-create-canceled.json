@@ -9,6 +9,7 @@
 		"request": "Create",
 		"status": "Canceled",
 		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"usesNewExternalAuthDeletionApproach": false,
 		"usesNewNodePoolDeletionApproach": false
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
