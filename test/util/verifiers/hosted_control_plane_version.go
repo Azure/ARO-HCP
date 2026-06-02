@@ -173,7 +173,7 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 		}
 
 		if historyEntrySemver.GT(initialSemver) {
-			if historyEntry.State == "Partial" {
+			if historyEntry.State == configv1.PartialUpdate {
 				ginkgo.GinkgoLogr.Info("z-stream upgrade in progress",
 					"initialVersion", initialSemver.String(),
 					"upgradeVersion", historyEntrySemver.String(),
@@ -181,7 +181,7 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, 
 				return fmt.Errorf("z-stream upgrade in progress")
 			}
 
-			if historyEntry.State == "Completed" {
+			if historyEntry.State == configv1.CompletedUpdate {
 				var totalUpgradeTime time.Duration
 				if historyEntry.CompletionTime != nil {
 					totalUpgradeTime = historyEntry.CompletionTime.Sub(historyEntry.StartedTime.Time)
