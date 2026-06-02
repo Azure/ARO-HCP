@@ -32,12 +32,12 @@ spec:
           resource_type=~".*nodepools",
           phase="succeeded"
         }) or vector(0)
-    # Instantaneous count of all terminal node pool operations (succeeded + failed)
+    # Instantaneous count of all terminal node pool operations (succeeded + failed + canceled)
     - record: errors:backend_nodepool_operation:terminal_total
       expr: |
         count(backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
-          phase=~"succeeded|failed"
+          phase=~"succeeded|failed|canceled"
         }) or vector(0)
     # Instantaneous error rate: fraction of terminal operations that failed
     - record: errors:backend_nodepool_operation:error_rate
@@ -52,7 +52,7 @@ spec:
         (
           count(backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
-            phase=~"succeeded|failed"
+            phase=~"succeeded|failed|canceled"
           }) or vector(0)
         )
     # Node pool provisioning state distribution (for dashboards)
@@ -86,7 +86,7 @@ spec:
         (
           count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
           /
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"})
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"})
         ) > 0.72
       for: 5m
       labels:
@@ -106,7 +106,7 @@ spec:
         (
           count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
           /
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"})
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"})
         ) > 0.30
       for: 30m
       labels:
@@ -127,7 +127,7 @@ spec:
         (
           count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
           /
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"})
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"})
         ) > 0.05
       for: 6h
       labels:
@@ -147,11 +147,12 @@ spec:
         (
           count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
           /
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed"})
+          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"})
         ) > 0.15
       for: 30m
       labels:
         severity: "3"
+        slo: nodepool-errors
       annotations:
         summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
@@ -185,7 +186,7 @@ spec:
       expr: |
         max by (name, cluster) (
           max without(prometheus_replica) (
-            workqueue_depth{namespace="aro-hcp", name=~".*nodepool.*"}
+            workqueue_depth{namespace="aro-hcp", name=~".*NodePool.*"}
           )
         ) > 10
       for: 5m
@@ -201,13 +202,13 @@ spec:
         (
           sum by (name, cluster) (
             max without(prometheus_replica) (
-              rate(workqueue_retries_total{namespace="aro-hcp", name=~".*nodepool.*"}[10m])
+              rate(workqueue_retries_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m])
             )
           )
           /
           sum by (name, cluster) (
             max without(prometheus_replica) (
-              rate(workqueue_adds_total{namespace="aro-hcp", name=~".*nodepool.*"}[10m])
+              rate(workqueue_adds_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m])
             )
           )
         ) > 0.5
