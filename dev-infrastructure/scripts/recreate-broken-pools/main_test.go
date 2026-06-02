@@ -46,6 +46,7 @@ func TestParseEnvConfig_MinimalRequiredFields(t *testing.T) {
 		"CLUSTER_NAME":    "int-uksouth-mgmt-1",
 		"RESOURCE_GROUP":  "hcp-underlay-int-uksouth-mgmt-1",
 		"SUBSCRIPTION_ID": "sub-0001",
+		"NODEPOOL_TAG":    "user",
 	})
 	c, err := parseEnvConfig(env)
 	if err != nil {
@@ -100,6 +101,7 @@ func TestParseEnvConfig_CustomThresholdAndWindow(t *testing.T) {
 		"CLUSTER_NAME":        "c",
 		"RESOURCE_GROUP":      "rg",
 		"SUBSCRIPTION_ID":     "sub",
+		"NODEPOOL_TAG":        "user",
 		"NRP_FAIL_THRESHOLD":  "25",
 		"NRP_FAIL_WINDOW_MIN": "30",
 	})
@@ -127,6 +129,7 @@ func TestParseEnvConfig_InvalidThreshold(t *testing.T) {
 				"CLUSTER_NAME":       "c",
 				"RESOURCE_GROUP":     "rg",
 				"SUBSCRIPTION_ID":    "sub",
+				"NODEPOOL_TAG":       "user",
 				"NRP_FAIL_THRESHOLD": tc.v,
 			})
 			if _, err := parseEnvConfig(env); err == nil {
@@ -151,6 +154,7 @@ func TestParseEnvConfig_InvalidWindow(t *testing.T) {
 				"CLUSTER_NAME":        "c",
 				"RESOURCE_GROUP":      "rg",
 				"SUBSCRIPTION_ID":     "sub",
+				"NODEPOOL_TAG":        "user",
 				"NRP_FAIL_WINDOW_MIN": tc.v,
 			})
 			if _, err := parseEnvConfig(env); err == nil {
@@ -182,8 +186,8 @@ func TestParseEnvConfig_DryRunFlag(t *testing.T) {
 			env := envFromMap(map[string]string{
 				"CLUSTER_NAME":    "c",
 				"RESOURCE_GROUP":  "rg",
-				"SUBSCRIPTION_ID": "sub",
-				"DRY_RUN":         tc.v,
+				"SUBSCRIPTION_ID": "sub", "NODEPOOL_TAG": "user",
+				"DRY_RUN": tc.v,
 			})
 			c, err := parseEnvConfig(env)
 			if err != nil {
@@ -290,136 +294,108 @@ func mkPoolWithState(name string, count, minCount *int32, provState string) *arm
 	return p
 }
 
-func TestEvalNonSystemPools_AllHealthy(t *testing.T) {
+func TestEvalNonTargetPoolsHealthy_AllHealthy(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		mkPoolWithState("system", ptr(int32(2)), ptr(int32(2)), "Succeeded"),
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, sysMin, sysState, reason := evalNonSystemPools(pools)
+	pass, reason := evalNonTargetPoolsHealthy(pools)
 	if !pass {
 		t.Fatalf("expected pass, got fail: %s", reason)
 	}
-	if sysMin != 2 {
-		t.Errorf("systemMin=%d want 2", sysMin)
-	}
-	if sysState != "Succeeded" {
-		t.Errorf("sysState=%q want Succeeded", sysState)
-	}
 }
 
-func TestEvalNonSystemPools_NonSystemPoolEmpty(t *testing.T) {
+func TestEvalNonTargetPoolsHealthy_PoolEmpty(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		mkPool("system", ptr(int32(2)), ptr(int32(2))),
 		mkPool("userswft3", ptr(int32(0)), ptr(int32(0))),
 	}
-	pass, _, _, reason := evalNonSystemPools(pools)
+	pass, reason := evalNonTargetPoolsHealthy(pools)
 	if pass {
-		t.Fatal("expected fail when non-system pool has count=0")
+		t.Fatal("expected fail when a non-target pool has count=0")
 	}
 	if !strings.Contains(reason, "userswft3") {
 		t.Errorf("reason should mention failing pool, got %q", reason)
 	}
 }
 
-func TestEvalNonSystemPools_NoSystemPool(t *testing.T) {
+func TestEvalNonTargetPoolsHealthy_WedgedPoolWithZeroCount_OK(t *testing.T) {
+	// A pool that is itself wedge-compatible (Failed/Updating/...) is
+	// the target we want to remediate; its count=0 must not fail this
+	// sibling-health check.
 	pools := []*armcs.AgentPool{
+		mkPoolWithState("system", ptr(int32(0)), ptr(int32(2)), "Failed"),
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, _, _, reason := evalNonSystemPools(pools)
-	if pass {
-		t.Fatal("expected fail when no system pool")
-	}
-	if !strings.Contains(reason, "system pool") {
-		t.Errorf("reason should mention missing system pool, got %q", reason)
-	}
-}
-
-func TestEvalNonSystemPools_SystemPoolWithZeroCount_OK(t *testing.T) {
-	// System pool itself can have count=0 (that's the whole point of this script).
-	pools := []*armcs.AgentPool{
-		mkPool("system", ptr(int32(0)), ptr(int32(2))),
-		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
-	}
-	pass, sysMin, _, reason := evalNonSystemPools(pools)
+	pass, reason := evalNonTargetPoolsHealthy(pools)
 	if !pass {
-		t.Fatalf("system pool with count=0 should not fail guard 4: %s", reason)
-	}
-	if sysMin != 2 {
-		t.Errorf("systemMin=%d want 2", sysMin)
+		t.Fatalf("wedged pool with count=0 should not fail sibling-health check: %s", reason)
 	}
 }
 
-func TestEvalNonSystemPools_NilPoolsSkipped(t *testing.T) {
+func TestEvalNonTargetPoolsHealthy_HealthyPoolWithZeroCount_Fails(t *testing.T) {
+	// A pool in provisioningState=Succeeded but with count=0 is not a
+	// wedge and indicates the cluster is not in a safe-to-act state.
+	pools := []*armcs.AgentPool{
+		mkPoolWithState("system", ptr(int32(0)), ptr(int32(2)), "Succeeded"),
+		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
+	}
+	pass, reason := evalNonTargetPoolsHealthy(pools)
+	if pass {
+		t.Fatal("expected fail when a Succeeded pool has count=0")
+	}
+	if !strings.Contains(reason, "system") {
+		t.Errorf("reason should mention failing pool, got %q", reason)
+	}
+}
+
+func TestEvalNonTargetPoolsHealthy_NilPoolsSkipped(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		nil,
 		mkPool("system", ptr(int32(2)), ptr(int32(2))),
 		nil,
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, _, _, reason := evalNonSystemPools(pools)
+	pass, reason := evalNonTargetPoolsHealthy(pools)
 	if !pass {
 		t.Fatalf("nil pools should be skipped: %s", reason)
 	}
 }
 
-func TestEvalNonSystemPools_PoolMissingFieldsSkipped(t *testing.T) {
+func TestEvalNonTargetPoolsHealthy_PoolMissingFieldsSkipped(t *testing.T) {
 	pools := []*armcs.AgentPool{
 		{Name: ptr("orphan")}, // no properties
 		{Properties: &armcs.ManagedClusterAgentPoolProfileProperties{Count: ptr(int32(3))}}, // no name
 		mkPool("system", ptr(int32(1)), ptr(int32(2))),
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, _, _, reason := evalNonSystemPools(pools)
+	pass, reason := evalNonTargetPoolsHealthy(pools)
 	if !pass {
 		t.Fatalf("malformed pool entries should be skipped: %s", reason)
 	}
 }
 
-func TestEvalNonSystemPools_SystemMissingMinCount_DefaultsZero(t *testing.T) {
+func TestEvalNonTargetPoolsHealthy_EmptyList(t *testing.T) {
+	pass, _ := evalNonTargetPoolsHealthy(nil)
+	if !pass {
+		t.Fatal("empty pool list trivially passes (no pool has count=0)")
+	}
+}
+
+func TestEvalNonTargetPoolsHealthy_TempPoolSkipped(t *testing.T) {
+	// A temp pool created by a previous remediation run (purpose tag) must
+	// be skipped by this check; otherwise its count=0 between
+	// recreate+drain phases would block a re-entrant invocation.
+	temp := mkPool(tempPoolName("system"), ptr(int32(0)), nil)
+	temp.Properties.Tags = map[string]*string{tempPoolPurposeTag: ptr(tempPoolPurposeValue)}
 	pools := []*armcs.AgentPool{
-		mkPool("system", ptr(int32(1)), nil),
+		mkPool("system", ptr(int32(2)), ptr(int32(2))),
+		temp,
 		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
 	}
-	pass, sysMin, _, _ := evalNonSystemPools(pools)
-	if !pass || sysMin != 0 {
-		t.Errorf("systemMin=%d pass=%t (want 0/true)", sysMin, pass)
-	}
-}
-
-func TestEvalNonSystemPools_EmptyList(t *testing.T) {
-	pass, _, _, reason := evalNonSystemPools(nil)
-	if pass {
-		t.Fatal("empty pool list must fail")
-	}
-	if reason == "" {
-		t.Errorf("empty list fail must have a reason")
-	}
-}
-
-func TestEvalNonSystemPools_ExtractsSystemProvState(t *testing.T) {
-	cases := []struct {
-		name  string
-		state string
-	}{
-		{"Succeeded", "Succeeded"},
-		{"Failed", "Failed"},
-		{"Updating", "Updating"},
-		{"Canceled", "Canceled"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			pools := []*armcs.AgentPool{
-				mkPoolWithState("system", ptr(int32(0)), ptr(int32(2)), tc.state),
-				mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
-			}
-			pass, _, gotState, _ := evalNonSystemPools(pools)
-			if !pass {
-				t.Fatal("expected pass")
-			}
-			if gotState != tc.state {
-				t.Errorf("systemProvState=%q want %q", gotState, tc.state)
-			}
-		})
+	pass, reason := evalNonTargetPoolsHealthy(pools)
+	if !pass {
+		t.Fatalf("temp pool with count=0 should be skipped: %s", reason)
 	}
 }
 
@@ -620,6 +596,55 @@ func TestAgentPoolForCreate_DoesNotMutateInput(t *testing.T) {
 	}
 }
 
+func TestAgentPoolForScaleUpTrigger(t *testing.T) {
+	live := mkLiveSystemPool()
+	count := int32(3)
+	minCount := int32(3)
+	maxCount := int32(6)
+	autoscale := true
+	live.Properties.Count = &count
+	live.Properties.MinCount = &minCount
+	live.Properties.MaxCount = &maxCount
+	live.Properties.EnableAutoScaling = &autoscale
+
+	body, err := agentPoolForScaleUpTrigger(live, "1.35.4")
+	if err != nil {
+		t.Fatalf("agentPoolForScaleUpTrigger() error = %v", err)
+	}
+	if got := *body.Properties.Count; got != 4 {
+		t.Errorf("Count=%d want 4", got)
+	}
+	if got := *body.Properties.MinCount; got != 4 {
+		t.Errorf("MinCount=%d want 4", got)
+	}
+	if got := *body.Properties.MaxCount; got != 6 {
+		t.Errorf("MaxCount=%d want 6", got)
+	}
+}
+
+func TestAgentPoolForScaleUpTriggerRaisesMaxCount(t *testing.T) {
+	live := mkLiveSystemPool()
+	count := int32(3)
+	minCount := int32(3)
+	maxCount := int32(3)
+	autoscale := true
+	live.Properties.Count = &count
+	live.Properties.MinCount = &minCount
+	live.Properties.MaxCount = &maxCount
+	live.Properties.EnableAutoScaling = &autoscale
+
+	body, err := agentPoolForScaleUpTrigger(live, "1.35.4")
+	if err != nil {
+		t.Fatalf("agentPoolForScaleUpTrigger() error = %v", err)
+	}
+	if got := *body.Properties.MinCount; got != 4 {
+		t.Errorf("MinCount=%d want 4", got)
+	}
+	if got := *body.Properties.MaxCount; got != 4 {
+		t.Errorf("MaxCount=%d want 4", got)
+	}
+}
+
 func TestIsActiveClusterState(t *testing.T) {
 	cases := []struct {
 		state string
@@ -665,27 +690,87 @@ func TestAgentPoolForCreate_NilProperties(t *testing.T) {
 }
 
 // =============================================================================
-// buildSystmpAgentPool
+// tempPoolName
 // =============================================================================
 
-func TestBuildSystmpAgentPool_ValidInputs(t *testing.T) {
+func TestTempPoolName_Format(t *testing.T) {
+	cases := []string{
+		"a", "user", "system", "userswft3a", "userswft3xyz", "abcdefghijkl",
+	}
+	for _, src := range cases {
+		t.Run(src, func(t *testing.T) {
+			got := tempPoolName(src)
+			if len(got) < 1 || len(got) > 12 {
+				t.Errorf("tempPoolName(%q) = %q (len=%d); must be 1..12", src, got, len(got))
+			}
+			if got[0] < 'a' || got[0] > 'z' {
+				t.Errorf("tempPoolName(%q) = %q; must start with a lowercase letter", src, got)
+			}
+			for i, r := range got {
+				ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+				if !ok {
+					t.Errorf("tempPoolName(%q)[%d]=%q not lowercase alphanumeric (full=%q)", src, i, r, got)
+				}
+			}
+		})
+	}
+}
+
+func TestTempPoolName_NoCollisionsOnSharedPrefix(t *testing.T) {
+	// Pairs of source pool names that share a long prefix; the
+	// previous truncation-only algorithm produced collisions for
+	// every pair below. The hash-based scheme must keep them apart.
+	pairs := [][2]string{
+		{"userswft3a", "userswft3b"},
+		{"userswft3a", "userswft3xyz"},
+		{"systemnode1", "systemnode12"},
+		{"systempool1", "systempool2"},
+	}
+	for _, p := range pairs {
+		t.Run(p[0]+"_vs_"+p[1], func(t *testing.T) {
+			a, b := tempPoolName(p[0]), tempPoolName(p[1])
+			if a == b {
+				t.Errorf("tempPoolName collision: %q and %q both -> %q", p[0], p[1], a)
+			}
+		})
+	}
+}
+
+func TestTempPoolName_Deterministic(t *testing.T) {
+	for _, src := range []string{"system", "userswft3a", "abcdefghijkl"} {
+		first := tempPoolName(src)
+		second := tempPoolName(src)
+		if first != second {
+			t.Errorf("tempPoolName(%q) is non-deterministic: %q vs %q", src, first, second)
+		}
+	}
+}
+
+// =============================================================================
+// buildTempAgentPool
+// =============================================================================
+
+func TestBuildTempAgentPool_ValidInputs(t *testing.T) {
 	live := mkLiveSystemPool()
-	body, err := buildSystmpAgentPool(live, "1.35.4")
+	body, err := buildTempAgentPool(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	p := body.Properties
 	if p.VMSize == nil || *p.VMSize != "Standard_E8ds_v5" {
-		t.Errorf("systmp VMSize should match live: %v", p.VMSize)
+		t.Errorf("temp VMSize should match live: %v", p.VMSize)
 	}
 	if p.Count == nil || *p.Count != 1 {
-		t.Errorf("systmp Count should be 1, got %v", p.Count)
+		t.Errorf("temp Count should be 1, got %v", p.Count)
 	}
 	if p.OrchestratorVersion == nil || *p.OrchestratorVersion != "1.35.4" {
 		t.Errorf("OrchestratorVersion: %v", p.OrchestratorVersion)
 	}
+	// Mode must be inherited from the live snapshot — not hard-coded.
+	// AKS requires at least one System-mode pool; a system source must
+	// produce a System temp, and a user source must produce a User temp.
 	if p.Mode == nil || *p.Mode != armcs.AgentPoolModeSystem {
-		t.Errorf("Mode should be System")
+		t.Errorf("Mode should be inherited from live (System), got %v", p.Mode)
 	}
 	if p.EnableFIPS == nil || !*p.EnableFIPS {
 		t.Errorf("FIPS should be enabled")
@@ -711,49 +796,91 @@ func TestBuildSystmpAgentPool_ValidInputs(t *testing.T) {
 	if p.Tags["delegate-ip-allocation-for-nics-without-subnet"] == nil || *p.Tags["delegate-ip-allocation-for-nics-without-subnet"] != "true" {
 		t.Errorf("Swift tag not inherited: %v", p.Tags)
 	}
-	if p.Tags["purpose"] == nil || *p.Tags["purpose"] != "temp-system-aroslsre-924" {
+	if p.Tags[tempPoolPurposeTag] == nil || *p.Tags[tempPoolPurposeTag] != tempPoolPurposeValue {
 		t.Errorf("temporary purpose tag missing: %v", p.Tags)
 	}
 	if _, ok := p.Tags["aks-managed-foo"]; ok {
-		t.Errorf("AKS-managed tag should not be copied to systmp: %v", p.Tags)
+		t.Errorf("AKS-managed tag should not be copied to temp pool: %v", p.Tags)
 	}
 }
 
-func TestBuildSystmpAgentPool_NilLive(t *testing.T) {
-	if _, err := buildSystmpAgentPool(nil, "1.35.4"); err == nil {
+func TestBuildTempAgentPool_InheritsUserMode(t *testing.T) {
+	live := mkLiveSystemPool()
+	user := armcs.AgentPoolModeUser
+	live.Properties.Mode = &user
+	body, err := buildTempAgentPool(live, "1.35.4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if body.Properties.Mode == nil || *body.Properties.Mode != armcs.AgentPoolModeUser {
+		t.Errorf("Mode should be inherited from live (User), got %v", body.Properties.Mode)
+	}
+}
+
+func TestBuildTempAgentPool_NilLive(t *testing.T) {
+	if _, err := buildTempAgentPool(nil, "1.35.4"); err == nil {
 		t.Fatal("expected error for nil live")
 	}
 }
 
-func TestBuildSystmpAgentPool_NilProperties(t *testing.T) {
-	if _, err := buildSystmpAgentPool(&armcs.AgentPool{}, "1.35.4"); err == nil {
+func TestBuildTempAgentPool_MissingLiveID(t *testing.T) {
+	live := mkLiveSystemPool()
+	live.ID = nil
+	if _, err := buildTempAgentPool(live, "1.35.4"); err == nil {
+		t.Fatal("expected error when live.ID is nil")
+	}
+	live.ID = ptr("")
+	if _, err := buildTempAgentPool(live, "1.35.4"); err == nil {
+		t.Fatal("expected error when live.ID is empty")
+	}
+}
+
+func TestBuildTempAgentPool_RecordsSourceTag(t *testing.T) {
+	// The source tag must record the full Azure resource ID of the
+	// source pool (not just the short pool name) so a leftover temp
+	// pool can always be matched back to a unique source — important
+	// when multiple clusters in the same subscription share pool names
+	// like "system".
+	live := mkLiveSystemPool()
+	wantID := *live.ID
+	body, err := buildTempAgentPool(live, "1.35.4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v := body.Properties.Tags[tempPoolSourceTag]; v == nil || *v != wantID {
+		t.Errorf("source tag = %v, want %q", v, wantID)
+	}
+}
+
+func TestBuildTempAgentPool_NilProperties(t *testing.T) {
+	if _, err := buildTempAgentPool(&armcs.AgentPool{}, "1.35.4"); err == nil {
 		t.Fatal("expected error for nil properties")
 	}
 }
 
-func TestBuildSystmpAgentPool_MissingVMSize(t *testing.T) {
+func TestBuildTempAgentPool_MissingVMSize(t *testing.T) {
 	live := mkLiveSystemPool()
 	live.Properties.VMSize = nil
-	if _, err := buildSystmpAgentPool(live, "1.35.4"); err == nil {
+	if _, err := buildTempAgentPool(live, "1.35.4"); err == nil {
 		t.Fatal("expected error for missing VMSize")
 	}
 	live.Properties.VMSize = ptr("")
-	if _, err := buildSystmpAgentPool(live, "1.35.4"); err == nil {
+	if _, err := buildTempAgentPool(live, "1.35.4"); err == nil {
 		t.Fatal("expected error for empty VMSize")
 	}
 }
 
-func TestBuildSystmpAgentPool_MissingCPVersion(t *testing.T) {
+func TestBuildTempAgentPool_MissingCPVersion(t *testing.T) {
 	live := mkLiveSystemPool()
-	if _, err := buildSystmpAgentPool(live, ""); err == nil {
+	if _, err := buildTempAgentPool(live, ""); err == nil {
 		t.Fatal("expected error for empty cpVersion")
 	}
 }
 
-func TestBuildSystmpAgentPool_NoPodSubnet(t *testing.T) {
+func TestBuildTempAgentPool_NoPodSubnet(t *testing.T) {
 	live := mkLiveSystemPool()
 	live.Properties.PodSubnetID = nil
-	body, err := buildSystmpAgentPool(live, "1.35.4")
+	body, err := buildTempAgentPool(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -762,19 +889,19 @@ func TestBuildSystmpAgentPool_NoPodSubnet(t *testing.T) {
 	}
 }
 
-func TestBuildSystmpAgentPool_DoesNotShareTaintPointer(t *testing.T) {
-	// Mutating the live snapshot's taints must not affect the systmp body.
+func TestBuildTempAgentPool_DoesNotShareTaintPointer(t *testing.T) {
+	// Mutating the live snapshot's taints must not affect the temp body.
 	live := mkLiveSystemPool()
-	body, _ := buildSystmpAgentPool(live, "1.35.4")
+	body, _ := buildTempAgentPool(live, "1.35.4")
 	*live.Properties.NodeTaints[0] = "hacked"
 	if *body.Properties.NodeTaints[0] != "CriticalAddonsOnly=true:NoSchedule" {
-		t.Errorf("systmp NodeTaints share state with live: %v", body.Properties.NodeTaints)
+		t.Errorf("temp NodeTaints share state with live: %v", body.Properties.NodeTaints)
 	}
 }
 
-func TestBuildSystmpAgentPool_DoesNotShareInheritedMapsOrSlices(t *testing.T) {
+func TestBuildTempAgentPool_DoesNotShareInheritedMapsOrSlices(t *testing.T) {
 	live := mkLiveSystemPool()
-	body, err := buildSystmpAgentPool(live, "1.35.4")
+	body, err := buildTempAgentPool(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -792,24 +919,24 @@ func TestBuildSystmpAgentPool_DoesNotShareInheritedMapsOrSlices(t *testing.T) {
 	}
 }
 
-func TestBuildSystmpAgentPool_MissingOSDiskSizeGB(t *testing.T) {
+func TestBuildTempAgentPool_MissingOSDiskSizeGB(t *testing.T) {
 	live := mkLiveSystemPool()
 	live.Properties.OSDiskSizeGB = nil
-	if _, err := buildSystmpAgentPool(live, "1.35.4"); err == nil {
+	if _, err := buildTempAgentPool(live, "1.35.4"); err == nil {
 		t.Fatal("expected error for missing OSDiskSizeGB")
 	}
 	zero := int32(0)
 	live.Properties.OSDiskSizeGB = &zero
-	if _, err := buildSystmpAgentPool(live, "1.35.4"); err == nil {
+	if _, err := buildTempAgentPool(live, "1.35.4"); err == nil {
 		t.Fatal("expected error for OSDiskSizeGB == 0")
 	}
 }
 
-func TestBuildSystmpAgentPool_InheritsDiskSizeAndOSType(t *testing.T) {
+func TestBuildTempAgentPool_InheritsDiskSizeAndOSType(t *testing.T) {
 	live := mkLiveSystemPool()
 	custom := int32(64)
 	live.Properties.OSDiskSizeGB = &custom
-	body, err := buildSystmpAgentPool(live, "1.35.4")
+	body, err := buildTempAgentPool(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1290,10 +1417,10 @@ func TestIsActivityLogAuthorizationError(t *testing.T) {
 }
 
 // =============================================================================
-// evalSystemWedge  (system pool provisioningState == "Failed")
+// evalPoolWedge  (per-pool provisioningState == "Failed")
 // =============================================================================
 
-func TestEvalSystemWedge(t *testing.T) {
+func TestEvalPoolWedge(t *testing.T) {
 	cases := []struct {
 		name  string
 		state string
@@ -1316,7 +1443,7 @@ func TestEvalSystemWedge(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			pass, reason := evalSystemWedge(tc.state)
+			pass, reason := evalPoolWedge(tc.state)
 			if pass != tc.want {
 				t.Errorf("state=%q: pass=%t want %t (%s)", tc.state, pass, tc.want, reason)
 			}
@@ -1341,7 +1468,7 @@ type mockOrchestrator struct {
 	preflightChecksFn        func(ctx context.Context) error
 	snapshotSystemFn         func(ctx context.Context) (*armcs.AgentPool, error)
 	maybeAbortLROFn          func(ctx context.Context) (bool, error)
-	addSystmpFn              func(ctx context.Context, live *armcs.AgentPool) error
+	addTempPoolFn            func(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error
 	drainPoolFn              func(ctx context.Context, pool string, timeout time.Duration) error
 	deletePoolFn             func(ctx context.Context, pool string) error
 	recreateSystemFn         func(ctx context.Context, live *armcs.AgentPool) error
@@ -1349,6 +1476,7 @@ type mockOrchestrator struct {
 	triggerSystemReconcileFn func(ctx context.Context, live *armcs.AgentPool) error
 	pollForNRPEvidenceFn     func(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
 	abortSystemReconcileFn   func(ctx context.Context) error
+	restorePoolSpecFn        func(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error
 }
 
 func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
@@ -1369,13 +1497,22 @@ func (m *mockOrchestrator) bootstrapKube(ctx context.Context, mc armcs.ManagedCl
 	return nil
 }
 
-func (m *mockOrchestrator) detect(ctx context.Context) (bool, string, error) {
+func (m *mockOrchestrator) detect(ctx context.Context) ([]nodePoolTarget, string, error) {
 	m.detectCount++
 	m.record(fmt.Sprintf("detect:%d", m.detectCount))
 	if m.detectFn != nil {
-		return m.detectFn(ctx, m.detectCount)
+		pass, reason, err := m.detectFn(ctx, m.detectCount)
+		if err != nil {
+			return nil, reason, err
+		}
+		if !pass {
+			if strings.Contains(reason, "NRP-KVS storm FAIL") {
+				return []nodePoolTarget{{name: "system", vmssPrefix: poolVMSSPrefix("system"), suspected: true}}, reason, nil
+			}
+			return nil, reason, err
+		}
 	}
-	return true, "", nil
+	return []nodePoolTarget{{name: "system", vmssPrefix: poolVMSSPrefix("system"), nrpFailures: 10}}, "", nil
 }
 
 func (m *mockOrchestrator) dumpPreflight(ctx context.Context) error {
@@ -1388,7 +1525,7 @@ func (m *mockOrchestrator) dumpPostflight(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) preflightChecks(ctx context.Context) error {
+func (m *mockOrchestrator) preflightChecks(ctx context.Context, targets []nodePoolTarget) error {
 	m.record("preflightChecks")
 	if m.preflightChecksFn != nil {
 		return m.preflightChecksFn(ctx)
@@ -1396,8 +1533,12 @@ func (m *mockOrchestrator) preflightChecks(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) snapshotSystem(ctx context.Context) (*armcs.AgentPool, error) {
-	m.record("snapshotSystem")
+func (m *mockOrchestrator) snapshotPool(ctx context.Context, poolName string) (*armcs.AgentPool, error) {
+	if poolName == "system" {
+		m.record("snapshotSystem")
+	} else {
+		m.record("snapshotPool:" + poolName)
+	}
 	if m.snapshotSystemFn != nil {
 		return m.snapshotSystemFn(ctx)
 	}
@@ -1412,10 +1553,10 @@ func (m *mockOrchestrator) maybeAbortLRO(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (m *mockOrchestrator) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
-	m.record("addSystmp")
-	if m.addSystmpFn != nil {
-		return m.addSystmpFn(ctx, live)
+func (m *mockOrchestrator) addTempPool(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error {
+	m.record("addTempPool:" + target.name)
+	if m.addTempPoolFn != nil {
+		return m.addTempPoolFn(ctx, target, live)
 	}
 	return nil
 }
@@ -1436,8 +1577,12 @@ func (m *mockOrchestrator) deletePool(ctx context.Context, pool string) error {
 	return nil
 }
 
-func (m *mockOrchestrator) recreateSystem(ctx context.Context, live *armcs.AgentPool) error {
-	m.record("recreateSystem")
+func (m *mockOrchestrator) recreatePool(ctx context.Context, poolName string, live *armcs.AgentPool) error {
+	if poolName == "system" {
+		m.record("recreateSystem")
+	} else {
+		m.record("recreatePool:" + poolName)
+	}
 	if m.recreateSystemFn != nil {
 		return m.recreateSystemFn(ctx, live)
 	}
@@ -1452,15 +1597,19 @@ func (m *mockOrchestrator) reconcileTagPut(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) triggerSystemReconcile(ctx context.Context, live *armcs.AgentPool) error {
-	m.record("triggerSystemReconcile")
+func (m *mockOrchestrator) triggerPoolReconcile(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error {
+	if target.name == "system" {
+		m.record("triggerSystemReconcile")
+	} else {
+		m.record("triggerPoolReconcile:" + target.name)
+	}
 	if m.triggerSystemReconcileFn != nil {
 		return m.triggerSystemReconcileFn(ctx, live)
 	}
 	return nil
 }
 
-func (m *mockOrchestrator) pollForNRPEvidence(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
+func (m *mockOrchestrator) pollForNRPEvidence(ctx context.Context, target nodePoolTarget, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
 	m.record("pollForNRPEvidence")
 	if m.pollForNRPEvidenceFn != nil {
 		return m.pollForNRPEvidenceFn(ctx, timeout, pollInterval, windowMin, threshold)
@@ -1468,25 +1617,38 @@ func (m *mockOrchestrator) pollForNRPEvidence(ctx context.Context, timeout time.
 	return threshold, nil
 }
 
-func (m *mockOrchestrator) abortSystemReconcile(ctx context.Context) error {
-	m.record("abortSystemReconcile")
+func (m *mockOrchestrator) abortPoolReconcile(ctx context.Context, poolName string) error {
+	if poolName == "system" {
+		m.record("abortSystemReconcile")
+	} else {
+		m.record("abortPoolReconcile:" + poolName)
+	}
 	if m.abortSystemReconcileFn != nil {
 		return m.abortSystemReconcileFn(ctx)
 	}
 	return nil
 }
 
+func (m *mockOrchestrator) restorePoolSpec(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error {
+	m.record("restorePoolSpec:" + target.name)
+	if m.restorePoolSpecFn != nil {
+		return m.restorePoolSpecFn(ctx, target, live)
+	}
+	return nil
+}
+
 func TestRunWith(t *testing.T) {
 	dummyErr := errors.New("boom")
+	tmpSystem := tempPoolName("system")
 
 	fullHappyPath := []string{
 		"ensureCluster", "dumpPreflight", "detect:1",
 		"bootstrapKube", "dumpPreflight", "preflightChecks",
 		"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
-		"addSystmp",
+		"addTempPool:system",
 		"drainPool:system", "deletePool:system",
 		"recreateSystem",
-		"drainPool:systmp", "deletePool:systmp",
+		"drainPool:" + tmpSystem, "deletePool:" + tmpSystem,
 		"reconcileTagPut", "dumpPostflight",
 	}
 
@@ -1551,7 +1713,7 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile",
+				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
 			},
 		},
 		{
@@ -1570,13 +1732,13 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile",
+				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
-				"addSystmp",
+				"addTempPool:system",
 				"drainPool:system", "deletePool:system",
 				"recreateSystem",
-				"drainPool:systmp", "deletePool:systmp",
+				"drainPool:" + tmpSystem, "deletePool:" + tmpSystem,
 				"reconcileTagPut", "dumpPostflight",
 			},
 		},
@@ -1655,17 +1817,17 @@ func TestRunWith(t *testing.T) {
 			wantCalls: fullHappyPath,
 		},
 		{
-			name: "addSystmp_error",
+			name: "addTempPool_error",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
-				m.addSystmpFn = func(context.Context, *armcs.AgentPool) error { return dummyErr }
+				m.addTempPoolFn = func(context.Context, nodePoolTarget, *armcs.AgentPool) error { return dummyErr }
 			},
-			wantErr: "add systmp:",
+			wantErr: "add temp pool " + tmpSystem + " for system:",
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
-				"addSystmp",
+				"addTempPool:system",
 			},
 		},
 		{
@@ -1684,7 +1846,7 @@ func TestRunWith(t *testing.T) {
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
-				"addSystmp", "drainPool:system",
+				"addTempPool:system", "drainPool:system",
 			},
 		},
 		{
@@ -1709,11 +1871,11 @@ func TestRunWith(t *testing.T) {
 			wantErr: "recreate system:",
 		},
 		{
-			name: "systmp_drain_warns_but_continues",
+			name: "temp_drain_warns_but_continues",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
 				m.drainPoolFn = func(_ context.Context, pool string, _ time.Duration) error {
-					if pool == "systmp" {
+					if pool == tmpSystem {
 						return dummyErr
 					}
 					return nil
@@ -1722,17 +1884,17 @@ func TestRunWith(t *testing.T) {
 			wantCalls: fullHappyPath,
 		},
 		{
-			name: "delete_systmp_error",
+			name: "delete_temp_error",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
 				m.deletePoolFn = func(_ context.Context, pool string) error {
-					if pool == "systmp" {
+					if pool == tmpSystem {
 						return dummyErr
 					}
 					return nil
 				}
 			},
-			wantErr: "delete systmp:",
+			wantErr: "delete temp pool " + tmpSystem + ":",
 		},
 		{
 			name: "tag_reconcile_error",
