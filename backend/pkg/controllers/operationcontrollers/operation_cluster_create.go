@@ -151,9 +151,9 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
 
 	if newOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.provisioningState != arm.ProvisioningStateSucceeded {
-		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
-		// that our ability to read maestro is successful.
-		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
+		// Require the cosmos view (HostedCluster ControlPlaneEndpoint via ReadDesire) to also
+		// confirm readiness before marking the operation Succeeded. This ensures Maestro
+		// observability is functional independently of Cluster Service's status.
 		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q", cosmosNewOperationState.provisioningState, newOperationStatus)
 	}
 
