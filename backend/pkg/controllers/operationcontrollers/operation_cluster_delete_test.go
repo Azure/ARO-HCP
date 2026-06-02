@@ -42,11 +42,12 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 	createdAt := mustParseTime("2025-01-15T10:30:00Z")
 
 	tests := []struct {
-		name        string
-		nodePools   []*api.HCPOpenShiftClusterNodePool
-		setupMock   func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
-		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
+		name          string
+		nodePools     []*api.HCPOpenShiftClusterNodePool
+		externalAuths []*api.HCPOpenShiftClusterExternalAuth
+		setupMock     func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
+		expectError   bool
+		verify        func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
 			name: "cluster not found marks billing as deleted and removes cluster",
@@ -72,9 +73,6 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 		},
 		{
 			name: "cluster not found does not remove cluster while nodepools exist",
-			nodePools: []*api.HCPOpenShiftClusterNodePool{
-				newNodePoolTestFixture().newNodePool(),
-			},
 			setupMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				notFoundErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
@@ -84,11 +82,42 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 				return mockCSClient
 			},
 			expectError: false,
+			nodePools: []*api.HCPOpenShiftClusterNodePool{
+				newNodePoolTestFixture().newNodePool(),
+			},
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				// Operation should remain non-terminal since nodepools still exist
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
 
+				// Cluster should still exist
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.NotNil(t, cluster)
+			},
+		},
+		{
+			name: "cluster not found does not remove cluster while external auths exist",
+			setupMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				notFoundErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(nil, notFoundErr)
+				return mockCSClient
+			},
+			expectError: false,
+			externalAuths: []*api.HCPOpenShiftClusterExternalAuth{
+				newExternalAuthTestFixture().newExternalAuth(),
+			},
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				// Operation should remain non-terminal since external auths still exist
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+
+				// Cluster should still exist
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				assert.NotNil(t, cluster)
@@ -193,10 +222,13 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			err := mockBillingDBClient.BillingDocs(fixture.clusterResourceID.SubscriptionID).Create(ctx, billingDoc)
 			require.NoError(t, err)
 
-			// Mock resources DB client with cluster, operation, and node pools
+			// Mock resources DB client with cluster, operation, node pools and external auths
 			resources := []any{cluster, operation}
 			for _, nodePool := range tt.nodePools {
 				resources = append(resources, nodePool)
+			}
+			for _, externalAuth := range tt.externalAuths {
+				resources = append(resources, externalAuth)
 			}
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
