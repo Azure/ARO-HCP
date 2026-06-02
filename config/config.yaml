@@ -1646,6 +1646,8 @@ clouds:
         defaults:
           auditLogsEventHub:
             enabled: true
+          kusto:
+            manageInstance: false
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
