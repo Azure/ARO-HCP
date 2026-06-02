@@ -29,6 +29,12 @@ buildStep:
     chmod 0755 "${tmp2}"
     mv "${tmp2}" ./scripts/recreate-system-pool/recreate-system-pool
     trap - EXIT
+    tmp3="$(mktemp ./scripts/recreate-broken-pools/recreate-broken-pools.XXXXXX)"
+    trap 'rm -f "${tmp3}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp3}" ./scripts/recreate-broken-pools
+    chmod 0755 "${tmp3}"
+    mv "${tmp3}" ./scripts/recreate-broken-pools/recreate-broken-pools
+    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -252,6 +258,41 @@ resourceGroups:
       step: oncert-public-kv-issuer
     - resourceGroup: management
       step: pipeline-msi-reader-permissions
+  - name: recreate-broken-user-nodepools
+    action: Shell
+    command: ./scripts/recreate-broken-pools/recreate-broken-pools
+    workingDir: .
+    # Internal overallTimeoutMin = 120. The extra 30m headroom accommodates
+    # the deferred forced-evidence cleanup contexts (abort + restore are
+    # rooted in context.Background and can run for up to ~23m past the
+    # parent ctx after a forced-evidence probe).
+    timeout: '150m'
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: management
+        step: subscription-output
+        name: subscriptionId
+    - name: NODEPOOL_TAG
+      value: 'user'
+    - name: NRP_FAIL_THRESHOLD
+      value: '10'
+    - name: NRP_FAIL_WINDOW_MIN
+      value: '360'
+    - name: FORCED_EVIDENCE_TIMEOUT_MIN
+      value: '20'
+    dependsOn:
+    - resourceGroup: management
+      step: recreate-system-pool-if-broken
   # Build the MC
   - name: cluster
     action: ARM
@@ -307,7 +348,7 @@ resourceGroups:
     - resourceGroup: management
       step: oncert-public-kv-issuer
     - resourceGroup: management
-      step: recreate-system-pool-if-broken
+      step: recreate-broken-user-nodepools
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
