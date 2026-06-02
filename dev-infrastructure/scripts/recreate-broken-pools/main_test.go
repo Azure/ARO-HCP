@@ -1270,7 +1270,10 @@ func TestLatestClusterWriteStart_PicksNewestStartedEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want, _ := time.Parse(time.RFC3339, newTime)
+	want, err := time.Parse(time.RFC3339, newTime)
+	if err != nil {
+		t.Fatalf("parse want time: %v", err)
+	}
 	if !got.Equal(want) || corr != "new" {
 		t.Fatalf("got time=%s corr=%s, want %s/new", got.Format(time.RFC3339), corr, want.Format(time.RFC3339))
 	}
@@ -1845,6 +1848,45 @@ func TestRunWith(t *testing.T) {
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"snapshotSystem", "maybeAbortLRO",
+			},
+		},
+		{
+			// SKIP_GUARDS must not turn an empty confirmed-target list
+			// into a destructive run. Even though SKIP_GUARDS=true, the
+			// forced-evidence path is skipped (gated by !skipGuards), so
+			// targets = confirmed = []. We must exit no-op before Step 2
+			// (maybeAbortLRO) and Step 8 (reconcileTagPut) fire.
+			name: "skip_guards_pre_lro_empty_targets_exits_noop",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", skipGuards: true},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					// NRP-KVS storm FAIL injects a suspected target via the
+					// mock, but with skipGuards=true the forced-evidence
+					// probe is skipped, so confirmed stays empty.
+					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+				}
+			},
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+		},
+		{
+			// Same protection at the post-LRO recheck gate: detect:1
+			// confirms a target so we reach Step 2; detect:2 returns
+			// only a suspected target which gets filtered out. With
+			// skipGuards=true we must still exit before reconcileTagPut.
+			name: "skip_guards_post_lro_empty_targets_exits_noop",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", skipGuards: true},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
+					if n == 1 {
+						return true, "", nil
+					}
+					return false, "NRP-KVS storm FAIL after LRO", nil
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"snapshotSystem", "maybeAbortLRO", "detect:2",
 			},
 		},
 		{

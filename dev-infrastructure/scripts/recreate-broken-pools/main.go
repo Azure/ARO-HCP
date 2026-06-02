@@ -49,7 +49,11 @@
 //                               (default 3)
 //   DRY_RUN                     "true" to print intended actions but make no writes
 //   SKIP_GUARDS                 "true" to bypass detection guards (proceeds even
-//                               when NRP-KVS storm check fails — operator override)
+//                               when NRP-KVS storm check fails, operator override).
+//                               Has no effect when the confirmed target list is
+//                               empty: the run still exits no-op so that Step 2
+//                               (maybeAbortLRO) and Step 8 (reconcileTagPut) never
+//                               execute without a pool to recreate.
 //   LOG_VERBOSITY               integer logr verbosity for slog handler (default 0)
 //
 // Detection checks (ALL must pass; otherwise exit 0 no-op)
@@ -385,17 +389,23 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		}
 	}
 	targets = confirmed
-	if len(targets) == 0 && !cfg.skipGuards {
-		logf("no selected node pools confirmed broken: %s. Exiting no-op.", reason)
+	// Always exit no-op when no pools are confirmed broken, even if
+	// SKIP_GUARDS=true. With no targets there is nothing to recreate, so
+	// continuing past this point would only run Step 2 (maybeAbortLRO)
+	// and Step 8 (reconcileTagPut) without acting on any pool, which can
+	// abort an unrelated in-progress cluster operation or issue a
+	// cluster PUT that the operator did not intend.
+	if len(targets) == 0 {
+		if cfg.skipGuards {
+			logf("no selected node pools confirmed broken (%s) and SKIP_GUARDS=true; nothing to recreate. Exiting no-op.", reason)
+		} else {
+			logf("no selected node pools confirmed broken: %s. Exiting no-op.", reason)
+		}
 		return nil
 	}
-	if len(targets) > 0 {
-		logf("SELECTED BROKEN NODE POOLS: %d pool(s) confirmed", len(targets))
-		for _, target := range targets {
-			logf("  pool=%s role=%s nrpFailures=%d", target.name, cfg.nodePoolTag, target.nrpFailures)
-		}
-	} else {
-		logf("no selected node pools confirmed broken (%s) but SKIP_GUARDS=true — continuing", reason)
+	logf("SELECTED BROKEN NODE POOLS: %d pool(s) confirmed", len(targets))
+	for _, target := range targets {
+		logf("  pool=%s role=%s nrpFailures=%d", target.name, cfg.nodePoolTag, target.nrpFailures)
 	}
 
 	if cfg.dryRun {
@@ -449,15 +459,19 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		}
 	}
 	targets = postConfirmed
-	if len(targets) == 0 && !cfg.skipGuards {
-		logf("no selected node pools confirmed broken after LRO handling: %s. Exiting no-op.", reason)
+	// Same rationale as the pre-LRO recheck: if nothing is confirmed
+	// broken after the LRO handling, there is no pool to recreate and we
+	// must not fall through to Step 8 reconcileTagPut. Apply the no-op
+	// exit regardless of SKIP_GUARDS.
+	if len(targets) == 0 {
+		if cfg.skipGuards {
+			logf("no selected node pools confirmed broken after LRO handling (%s) and SKIP_GUARDS=true; nothing to recreate. Exiting no-op.", reason)
+		} else {
+			logf("no selected node pools confirmed broken after LRO handling: %s. Exiting no-op.", reason)
+		}
 		return nil
 	}
-	if len(targets) > 0 {
-		logf("selected node pools still confirmed broken after LRO handling: %d", len(targets))
-	} else {
-		logf("no selected node pools confirmed broken after LRO handling (%s) but SKIP_GUARDS=true — continuing", reason)
-	}
+	logf("selected node pools still confirmed broken after LRO handling: %d", len(targets))
 
 	for i, target := range targets {
 		logBanner(fmt.Sprintf("REMEDIATE POOL %d/%d :: %s", i+1, len(targets), target.name))
