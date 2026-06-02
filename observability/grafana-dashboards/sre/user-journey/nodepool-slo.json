@@ -727,7 +727,7 @@
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_hcps-.*$",
+        "regex": "^Managed_Prometheus_services-.*$",
         "type": "datasource"
       }
     ]
