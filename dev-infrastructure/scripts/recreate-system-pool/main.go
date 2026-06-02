@@ -387,24 +387,42 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	}
 
 	logBanner("RE-CHECK DETECTION AFTER LRO HANDLING")
+	priorConfirmed := wedgedPools
 	allWedged, reason, err = orch.detect(ctx)
 	if err != nil {
 		return fmt.Errorf("post-LRO detection: %w", err)
 	}
-	// Re-separate confirmed from suspected after LRO handling
-	confirmed = nil
+	// Merge: keep pools that are still confirmed, and carry forward any
+	// pool that was confirmed in phase 1 but came back as suspected
+	// (e.g. the activity-log window rolled past the forced-evidence trigger).
+	// Pools that disappeared from allWedged entirely (recovered to Succeeded)
+	// are NOT carried forward.
+	reconfirmed := make(map[string]bool)
+	suspectedNames := make(map[string]bool)
+	wedgedPools = nil
 	for _, wp := range allWedged {
 		if !wp.suspected {
-			confirmed = append(confirmed, wp)
+			wedgedPools = append(wedgedPools, wp)
+			reconfirmed[wp.name] = true
+		} else {
+			suspectedNames[wp.name] = true
 		}
 	}
-	wedgedPools = confirmed
+	for _, wp := range priorConfirmed {
+		if !reconfirmed[wp.name] && suspectedNames[wp.name] {
+			logf("pool %s: was confirmed in phase 1 but re-detect classified as suspected; carrying forward", wp.name)
+			wedgedPools = append(wedgedPools, wp)
+		}
+	}
+	sort.Slice(wedgedPools, func(i, j int) bool {
+		return wedgedPools[i].category < wedgedPools[j].category
+	})
 	if len(wedgedPools) == 0 && !cfg.skipGuards {
 		logf("no wedged pools after LRO handling: %s. Exiting no-op.", reason)
 		return nil
 	}
 	if len(wedgedPools) > 0 {
-		logf("wedged pools still present after LRO handling: %d", len(wedgedPools))
+		logf("wedged pools to remediate after LRO handling: %d", len(wedgedPools))
 	} else {
 		logf("no wedged pools after LRO handling (%s) but SKIP_GUARDS=true — continuing", reason)
 	}
@@ -440,13 +458,13 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		}
 	}
 
-	if skipped > 0 {
-		return fmt.Errorf("%d wedged pool(s) skipped due to insufficient time budget", skipped)
-	}
-
 	logBanner("TAG RECONCILE")
 	if err := orch.reconcileTagPut(ctx); err != nil {
 		return fmt.Errorf("tag reconcile: %w", err)
+	}
+
+	if skipped > 0 {
+		return fmt.Errorf("%d wedged pool(s) skipped due to insufficient time budget", skipped)
 	}
 
 	logBanner("DONE")
