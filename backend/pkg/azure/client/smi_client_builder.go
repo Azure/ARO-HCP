@@ -39,16 +39,20 @@ const (
 	ServiceManagedIdentityClientBuilderTypeValue ServiceManagedIdentityClientBuilderType = "SMI"
 )
 
-// ServiceManagedIdentityClientBuilder offers the ability tocreate Azure clients
-// authenticating as the the Cluster's Service Managed Identity, which is
+// ServiceManagedIdentityClientBuilder offers the ability to create Azure clients
+// authenticating as the Cluster's Service Managed Identity, which is
 // a cluster-scoped identity.
 type ServiceManagedIdentityClientBuilder interface {
 	BuilderType() ServiceManagedIdentityClientBuilderType
 	// UserAssignedIdentitiesClient returns a new User Assigned Identities client.
 	UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error)
 
-	// SubnetClient returns a new Subnet client.
-	SubnetClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
+	// SubnetsClient returns a new Subnet client.
+	SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
+
+	// IdentityCredential acquires an azcore.TokenCredential for the given managed identity
+	// by going through the Managed Identities Data Plane.
+	IdentityCredential(ctx context.Context, clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error)
 }
 
 type serviceManagedIdentityClientBuilder struct {
@@ -62,9 +66,9 @@ func (b *serviceManagedIdentityClientBuilder) BuilderType() ServiceManagedIdenti
 	return ServiceManagedIdentityClientBuilderTypeValue
 }
 
-// credentialsForSMI acquires an azcore.TokenCredential for the cluster's
+// credentialsForServiceManagedIdentity acquires an azcore.TokenCredential for the cluster's
 // Service Managed Identity by going through the Managed Identities Data Plane.
-func (b *serviceManagedIdentityClientBuilder) credentialsForSMI(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error) {
+func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdentity(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error) {
 	miDataplaneClient, err := b.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(clusterIdentityURL)
 	if err != nil {
 		return nil, err
@@ -84,16 +88,20 @@ func (b *serviceManagedIdentityClientBuilder) credentialsForSMI(ctx context.Cont
 	return dataplane.GetCredential(b.azCoreARMClientOptions.ClientOptions, resp.ExplicitIdentities[0])
 }
 
+func (b *serviceManagedIdentityClientBuilder) IdentityCredential(ctx context.Context, clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error) {
+	return b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, identityResourceID)
+}
+
 func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error) {
-	creds, err := b.credentialsForSMI(ctx, clusterIdentityURL, smiResourceID)
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
 	if err != nil {
 		return nil, err
 	}
 	return armmsi.NewUserAssignedIdentitiesClient(subscriptionID, creds, b.azCoreARMClientOptions)
 }
 
-func (b *serviceManagedIdentityClientBuilder) SubnetClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error) {
-	creds, err := b.credentialsForSMI(ctx, clusterIdentityURL, smiResourceID)
+func (b *serviceManagedIdentityClientBuilder) SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error) {
+	creds, err := b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, smiResourceID)
 	if err != nil {
 		return nil, err
 	}

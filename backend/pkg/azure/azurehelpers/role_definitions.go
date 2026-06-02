@@ -82,7 +82,7 @@ func UnionDataActions(roleDefinitions []armauthorization.RoleDefinition) ([]stri
 	return dataActionsUnion.UnsortedList(), nil
 }
 
-// IntersectActions returns the elements of a that are also present in b.
+// IntersectActions returns the role definition actions in a that are also present in b.
 func IntersectActions(a, b []string) []string {
 	lookup := make(map[string]struct{}, len(b))
 	for _, s := range b {

@@ -606,14 +606,17 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
+	var checkAccessV2Scope string
+	if b.options.CloudEnvironment != nil {
+		checkAccessV2Scope = b.options.CloudEnvironment.CheckAccessV2Scope()
+	}
 	controlPlaneIdentitiesPermissionValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewControlPlaneIdentitiesPermissionValidation(
 			b.options.SMIClientBuilder,
 			b.options.ClusterScopedIdentitiesConfig,
 			b.options.BackendIdentityAzureCachedReaders,
 			b.options.CheckAccessV2ClientBuilder,
-			b.options.FPAMIDataplaneClientBuilder,
-			b.options.CloudEnvironment,
+			checkAccessV2Scope,
 		),
 		activeOperationLister,
 		b.options.ResourcesDBClient,

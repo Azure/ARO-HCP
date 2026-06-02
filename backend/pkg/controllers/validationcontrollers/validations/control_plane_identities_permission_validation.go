@@ -1,3 +1,17 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package validations
 
 import (
@@ -10,12 +24,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/checkaccess-v2-go-sdk/client"
-	"github.com/Azure/msi-dataplane/pkg/dataplane"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/azurehelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
-	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/azure"
@@ -28,8 +40,7 @@ type ControlPlaneIdentitiesPermissionValidation struct {
 	clusterScopedIdentitiesConfig     *azure.ClusterScopedIdentitiesConfig
 	backendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
 	checkAccessV2ClientBuilder        azureclient.CheckAccessV2ClientBuilder
-	fpaMIdataplaneClientBuilder       azureclient.FPAMIDataplaneClientBuilder
-	cloudEnvironment                  *azureconfig.AzureCloudEnvironment
+	checkAccessV2Scope                string
 }
 
 func NewControlPlaneIdentitiesPermissionValidation(
@@ -37,16 +48,14 @@ func NewControlPlaneIdentitiesPermissionValidation(
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 	backendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders,
 	checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder,
-	fpaMIdataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder,
-	cloudEnvironment *azureconfig.AzureCloudEnvironment,
+	checkAccessV2Scope string,
 ) *ControlPlaneIdentitiesPermissionValidation {
 	return &ControlPlaneIdentitiesPermissionValidation{
 		smiClientBuilder:                  smiClientBuilder,
 		clusterScopedIdentitiesConfig:     clusterScopedIdentitiesConfig,
 		backendIdentityAzureCachedReaders: backendIdentityAzureCachedReaders,
 		checkAccessV2ClientBuilder:        checkAccessV2ClientBuilder,
-		fpaMIdataplaneClientBuilder:       fpaMIdataplaneClientBuilder,
-		cloudEnvironment:                  cloudEnvironment,
+		checkAccessV2Scope:                checkAccessV2Scope,
 	}
 }
 
@@ -60,7 +69,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) Validate(ctx context.Contex
 		return utils.TrackError(fmt.Errorf("failed to build check access client: %w", err))
 	}
 
-	subnetClient, err := v.smiClientBuilder.SubnetClient(ctx, cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
+	subnetClient, err := v.smiClientBuilder.SubnetsClient(ctx, cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
 		cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, cluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get subnet client: %w", err))
@@ -124,7 +133,11 @@ func (v *ControlPlaneIdentitiesPermissionValidation) findMissingActionsForIdenti
 	}
 
 	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
-	token, err := v.getManagedIdentityAccessToken(ctx, clusterIdentityURL, identity)
+	creds, err := v.smiClientBuilder.IdentityCredential(ctx, clusterIdentityURL, identity)
+	if err != nil {
+		return missingActions, utils.TrackError(fmt.Errorf("failed to get identity credential for %q: %w", identity.String(), err))
+	}
+	token, err := creds.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{v.checkAccessV2Scope}})
 	if err != nil {
 		return missingActions, utils.TrackError(err)
 	}
@@ -176,35 +189,6 @@ func (v *ControlPlaneIdentitiesPermissionValidation) findMissingActionsForIdenti
 	}
 
 	return missingActions, nil
-}
-
-func (v *ControlPlaneIdentitiesPermissionValidation) getManagedIdentityAccessToken(ctx context.Context, clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (azcore.AccessToken, error) {
-	miDataplaneClient, err := v.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(clusterIdentityURL)
-	if err != nil {
-		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("failed to get managed identity access token: %w", err))
-	}
-	dataplaneRequest := dataplane.UserAssignedIdentitiesRequest{
-		IdentityIDs: []string{identityResourceID.String()},
-	}
-
-	resp, err := miDataplaneClient.GetUserAssignedIdentitiesCredentials(ctx, dataplaneRequest)
-	if err != nil {
-		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("failed to get managed identity access token: %w", err))
-	}
-	if len(resp.ExplicitIdentities) == 0 {
-		return azcore.AccessToken{},
-			utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for the managed identity '%s'", identityResourceID.String()))
-	}
-	userAssignedIdentityCredential := resp.ExplicitIdentities[0]
-	creds, err := dataplane.GetCredential(*v.cloudEnvironment.AZCoreClientOptions(), userAssignedIdentityCredential)
-	if err != nil {
-		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("failed to get managed identity access token: %w", err))
-	}
-	token, err := creds.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{v.cloudEnvironment.CheckAccessV2Scope()}})
-	if err != nil {
-		return azcore.AccessToken{}, utils.TrackError(err)
-	}
-	return token, nil
 }
 
 func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, roleDefinitionActions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
