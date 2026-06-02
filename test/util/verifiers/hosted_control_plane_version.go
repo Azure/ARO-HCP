@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/ginkgo/v2"
@@ -27,11 +28,98 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	v1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
+
+func GetClusterVersion(ctx context.Context, adminRESTConfig *rest.Config) *v1.ClusterVersion {
+	configClient, err := configv1client.NewForConfig(adminRESTConfig)
+	if err != nil {
+		ginkgo.Fail("failed to create config client")
+	}
+
+	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+	if err != nil {
+		ginkgo.Fail("failed to get clusterversion from context")
+	}
+
+	return clusterVersion
+}
+
+func InitZStreamTest(ctx context.Context, adminRESTConfig *rest.Config, initialVersion string) ([]v1.UpdateHistory, semver.Version) {
+	clusterVersion := GetClusterVersion(ctx, adminRESTConfig)
+
+	ginkgo.GinkgoLogr.Info("Initial version state",
+		"initialVersion", initialVersion,
+		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
+
+	initialSemver, err := semver.ParseTolerant(initialVersion)
+	if err != nil {
+		ginkgo.Fail("unable to parse initial version")
+	}
+
+	return clusterVersion.Status.History, initialSemver
+}
+
+func GetHistorySemver(version, initialVersion string, history []v1.UpdateHistory) semver.Version {
+	if len(version) == 0 {
+		ginkgo.Fail(fmt.Sprintf("UpdateHistory version found with length 0. initialVersion: %s, history: %v",
+			initialVersion,
+			framework.SummarizeClusterVersionHistory(history)))
+	}
+
+	historyVersion, err := semver.ParseTolerant(version)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to parse version to semver",
+			"version", version)
+		ginkgo.Fail("unable to parse version to semver")
+	}
+
+	return historyVersion
+}
+
+type verifyHostedControlPlaneZStreamUpgradeTriggered struct {
+	initialVersion string
+}
+
+func (v verifyHostedControlPlaneZStreamUpgradeTriggered) Name() string {
+	return fmt.Sprintf("VerifyHostedControlPlaneZStreamUpgradeTriggered(initial=%s)", v.initialVersion)
+}
+
+func (v verifyHostedControlPlaneZStreamUpgradeTriggered) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	ginkgo.GinkgoLogr.Info("Checking if z-stream upgrade has been triggered")
+
+	history, initialSemver := InitZStreamTest(ctx, adminRESTConfig, v.initialVersion)
+
+	if len(history) == 0 {
+		ginkgo.Fail("Version history is empty. Cluster may not be properly initialized.")
+	}
+	if len(history) == 1 {
+		return fmt.Errorf("z-stream upgrade has not yet been triggered. initial version: %q. History: %v",
+			v.initialVersion,
+			framework.SummarizeClusterVersionHistory(history))
+	}
+
+	// quickly validate the newest version, then return. The VerifyHostedControlPlaneZStreamUpgradeOnly test will more thoroughly vet each version history entry.
+	latestHistoryEntrySemver := GetHistorySemver(history[0].Version, v.initialVersion, history)
+	if !latestHistoryEntrySemver.GT(initialSemver) {
+		ginkgo.Fail(fmt.Sprintf("Unexpected upgrade path occurred. initial version: %q. upgrade version: %q. History: %v",
+			v.initialVersion,
+			latestHistoryEntrySemver,
+			framework.SummarizeClusterVersionHistory(history)))
+	}
+
+	return nil
+}
+
+// VerifyHostedControlPlaneZStreamUpgradeTriggered returns a verifier that checks if a z-stream
+// upgrade has been triggered (but not necessarily completed).
+func VerifyHostedControlPlaneZStreamUpgradeTriggered(initialVersion string) HostedClusterVerifier {
+	return verifyHostedControlPlaneZStreamUpgradeTriggered{initialVersion: initialVersion}
+}
 
 type verifyHostedControlPlaneZStreamUpgradeOnly struct {
 	initialVersion string
@@ -42,51 +130,78 @@ func (v verifyHostedControlPlaneZStreamUpgradeOnly) Name() string {
 }
 
 func (v verifyHostedControlPlaneZStreamUpgradeOnly) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	initialSemver, err := semver.ParseTolerant(v.initialVersion)
-	if err != nil {
-		return fmt.Errorf("parse initial version %q: %w", v.initialVersion, err)
+	ginkgo.GinkgoLogr.Info("Checking if z-stream upgrade has completed")
+
+	history, initialSemver := InitZStreamTest(ctx, adminRESTConfig, v.initialVersion)
+
+	if len(history) < 2 {
+		ginkgo.Fail("z-stream upgrade not yet triggered. Cannot check if update has completed. " +
+			"Ensure VerifyHostedControlPlaneZStreamUpgradeTriggered runs successfully before calling this test.")
 	}
 
-	configClient, err := configv1client.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create config client: %w", err)
+	initialSemverCount := 0
+	for _, historyEntry := range history {
+		historyEntrySemver := GetHistorySemver(historyEntry.Version, v.initialVersion, history)
+
+		if historyEntrySemver.EQ(initialSemver) {
+			initialSemverCount++
+			if initialSemverCount > 1 {
+				ginkgo.Fail(fmt.Sprintf("more than 1 of the initial version was found in the version history. initial version: %q. History: %v",
+					v.initialVersion,
+					framework.SummarizeClusterVersionHistory(history)))
+			}
+
+			continue
+		}
+
+		if historyEntrySemver.Major != initialSemver.Major ||
+			historyEntrySemver.Minor != initialSemver.Minor {
+			ginkgo.Fail(fmt.Sprintf("version %q in clusterversion history has different major.minor than initial %q (expected %d.%d.x)",
+				historyEntrySemver.String(),
+				v.initialVersion,
+				initialSemver.Major,
+				initialSemver.Minor))
+		}
+
+		if historyEntrySemver.LT(initialSemver) {
+			ginkgo.Fail(fmt.Sprintf("downgrade unexpected: version %q is less than initial %q",
+				historyEntrySemver.String(),
+				initialSemver.String()))
+		}
+
+		if historyEntrySemver.GT(initialSemver) {
+			if historyEntry.State == "Partial" {
+				ginkgo.GinkgoLogr.Info("z-stream upgrade in progress",
+					"initialVersion", initialSemver.String(),
+					"upgradeVersion", historyEntrySemver.String(),
+					"startedTime", historyEntry.StartedTime)
+				return fmt.Errorf("z-stream upgrade in progress")
+			}
+
+			if historyEntry.State == "Completed" {
+				var totalUpgradeTime time.Duration
+				if historyEntry.CompletionTime != nil {
+					totalUpgradeTime = historyEntry.CompletionTime.Sub(historyEntry.StartedTime.Time)
+				}
+
+				ginkgo.GinkgoLogr.Info("z-stream was upgraded successfully",
+					"initialVersion", initialSemver.String(),
+					"upgradeVersion", historyEntrySemver.String(),
+					"startedTime", historyEntry.StartedTime,
+					"completionTime", historyEntry.CompletionTime,
+					"totalUpgradeTime", totalUpgradeTime)
+
+				return nil
+			}
+		}
 	}
 
-	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
-	}
-
-	ginkgo.GinkgoLogr.Info("Retrieved openshift cluster version history",
-		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
-
-	var sawUpgrade bool
-	for _, history := range clusterVersion.Status.History {
-		historyVersion, err := semver.ParseTolerant(history.Version)
-		if err != nil {
-			return fmt.Errorf("parse version %q in history: %w", history.Version, err)
-		}
-		if historyVersion.Major != initialSemver.Major || historyVersion.Minor != initialSemver.Minor {
-			return fmt.Errorf("version %q in clusterversion history has different major.minor than initial %q (expected %d.%d.x)",
-				historyVersion.String(), v.initialVersion, initialSemver.Major, initialSemver.Minor)
-		}
-		if historyVersion.GT(initialSemver) {
-			sawUpgrade = true
-		}
-		if historyVersion.LT(initialSemver) {
-			return fmt.Errorf("downgrade unexpected: version %q is less than initial %q", historyVersion.String(), initialSemver.String())
-		}
-	}
-	if !sawUpgrade {
-		return fmt.Errorf("no version in clusterversion/version status.history is greater than initial %q", v.initialVersion)
-	}
-	return nil
+	ginkgo.Fail("unexpected failure: no partial or completed z-stream upgrade found when validating version history array")
+	return fmt.Errorf("unexpected failure: no partial or completed z-stream upgrade found when validating version history array") // make compiler happy
 }
 
-// VerifyHostedControlPlaneZStreamUpgradeOnly returns a verifier that the HCP control plane has
-// performed only a z-stream upgrade from the initial version: at least one entry in
-// ClusterVersion status.history is greater than initialVersion, and every entry has the same
-// major.minor as initialVersion.
+// VerifyHostedControlPlaneZStreamUpgradeOnly returns a verifier that checks if a z-stream
+// upgrade has been completed, and that only the z-stream has been modified.
 func VerifyHostedControlPlaneZStreamUpgradeOnly(initialVersion string) HostedClusterVerifier {
 	return verifyHostedControlPlaneZStreamUpgradeOnly{initialVersion: initialVersion}
 }
@@ -101,15 +216,7 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Name() string {
 }
 
 func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	configClient, err := configv1client.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create config client: %w", err)
-	}
-
-	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get clusterversion %q: %w", "version", err)
-	}
+	clusterVersion := GetClusterVersion(ctx, adminRESTConfig)
 
 	ginkgo.GinkgoLogr.Info("clusterversion status after y-stream upgrade",
 		"history", framework.SummarizeClusterVersionHistory(clusterVersion.Status.History))
