@@ -147,12 +147,11 @@ const (
 	tempReadyTOMin   = 8
 	poolReadyTOMin   = 15
 	pollIntervalSec  = 30
-	// overallTimeoutMin caps the whole binary. The host (EV2 ShellExtension)
-	// currently hard-caps Shell steps at PT1H upstream, so today this value
-	// is effectively bounded by EV2 regardless. It is set to 120 in
-	// anticipation of ARO-Tools PR #246 + sdp-pipelines plumbing landing,
-	// after which mgmt-pipeline.yaml can set `timeout: 2h` on the recreate
-	// steps and the binary will get the full budget.
+	// overallTimeoutMin caps the whole binary. The EV2 ShellExtension host
+	// honors the `timeout` field set on the corresponding Shell step in
+	// mgmt-pipeline.yaml (currently `150m`, which leaves headroom for the
+	// deferred forced-evidence cleanup contexts that are rooted in
+	// context.Background and can run for ~20m past the parent ctx).
 	overallTimeoutMin = 120
 
 	// The NRP-KVS storm check requires this error code so other failure

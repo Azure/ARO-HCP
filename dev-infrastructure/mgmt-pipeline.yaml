@@ -262,6 +262,11 @@ resourceGroups:
     action: Shell
     command: ./scripts/recreate-broken-pools/recreate-broken-pools
     workingDir: .
+    # Internal overallTimeoutMin = 120. The extra 30m headroom accommodates
+    # the deferred forced-evidence cleanup contexts (abort + restore are
+    # rooted in context.Background and can run for up to ~23m past the
+    # parent ctx after a forced-evidence probe).
+    timeout: '150m'
     shellIdentity:
       input:
         resourceGroup: global
