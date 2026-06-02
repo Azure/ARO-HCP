@@ -1,0 +1,28 @@
+{
+	"cosmosMetadata": {
+		"resourceID": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dup-types"
+	},
+	"id": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dup-types",
+	"name": "dup-types",
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+	"location": "eastus",
+	"serviceProviderProperties": {
+		"provisioningState": "Succeeded",
+		"conditions": [
+			{
+				"type": "Available",
+				"status": "True",
+				"lastTransitionTime": "2026-05-10T12:00:00Z",
+				"reason": "AsExpected",
+				"message": "First Available condition."
+			},
+			{
+				"type": "Available",
+				"status": "False",
+				"lastTransitionTime": "2026-05-10T12:00:00Z",
+				"reason": "Duplicate",
+				"message": "Second Available condition - duplicate type."
+			}
+		]
+	}
+}

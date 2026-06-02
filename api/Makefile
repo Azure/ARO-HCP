@@ -7,7 +7,7 @@ VERSION ?= v20260630preview
 
 AUTOREST_OUTPUT_DIR = ../internal/api/${VERSION}/generated
 
-SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters
+SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters
 API_SPEC_PATHS = $(shell find $(SPEC_BASE_DIR) -type f -name "openapi.json" 2>/dev/null | sort)
 API_VERSIONS = $(shell echo '$(API_SPEC_PATHS)' | tr ' ' '\n' | sed 's|/openapi.json||' | xargs -n1 basename | sort -u)
 

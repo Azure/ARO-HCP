@@ -1,0 +1,27 @@
+{
+	"_attachments": "attachments/",
+	"_etag": "\"00000000-0000-0000-0000-000000000001\"",
+	"_rid": "test==",
+	"_self": "dbs/test==/colls/test==/docs/test==/",
+	"_ts": 1767637798,
+	"id": "2f2d4ba3-1ee6-57b6-bde9-b61d09eaf989",
+	"partitionKey": "ca3b7be4-6ac8-4784-b2b5-0e398a60269a",
+	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-cond-test"
+		},
+		"id": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-cond-test",
+		"intermediateResourceDoc": {
+			"provisioningState": "Succeeded",
+			"resourceId": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-cond-test"
+		},
+		"location": "eastus",
+		"name": "np-cond-test",
+		"serviceProviderProperties": {
+			"provisioningState": "Succeeded"
+		},
+		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+	},
+	"resourceID": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-cond-test",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

@@ -29,7 +29,7 @@ These settings apply only when `--tag=v20240610preview` is specified on the comm
 
 ``` yaml $(tag) == 'v20240610preview'
 input-file:
-  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2024-06-10-preview/openapi.json
+  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2024-06-10-preview/openapi.json
 go:
   module-name: sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ```
@@ -40,7 +40,7 @@ These settings apply only when `--tag=v20251223preview` is specified on the comm
 
 ``` yaml $(tag) == 'v20251223preview'
 input-file:
-  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2025-12-23-preview/openapi.json
+  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2025-12-23-preview/openapi.json
 go:
   module-name: sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ```
@@ -51,7 +51,7 @@ These settings apply only when `--tag=v20260630preview` is specified on the comm
 
 ``` yaml $(tag) == 'v20260630preview'
 input-file:
-  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2026-06-30-preview/openapi.json
+  - redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-06-30-preview/openapi.json
 go:
   module-name: sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 ```

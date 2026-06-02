@@ -1,0 +1,28 @@
+{
+	"cosmosMetadata": {
+		"resourceID": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/valid-cond"
+	},
+	"id": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/valid-cond",
+	"name": "valid-cond",
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+	"location": "eastus",
+	"serviceProviderProperties": {
+		"provisioningState": "Succeeded",
+		"conditions": [
+			{
+				"type": "Available",
+				"status": "True",
+				"lastTransitionTime": "2026-05-10T12:00:00Z",
+				"reason": "AsExpected",
+				"message": "All components are running and healthy."
+			},
+			{
+				"type": "Degraded",
+				"status": "False",
+				"lastTransitionTime": "2026-05-10T12:00:00Z",
+				"reason": "AsExpected",
+				"message": ""
+			}
+		]
+	}
+}

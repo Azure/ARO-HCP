@@ -1,0 +1,32 @@
+{
+	"cosmosMetadata": {
+		"resourceID": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-cond-test/nodePools/bad-cond"
+	},
+	"id": "/subscriptions/ca3b7be4-6ac8-4784-b2b5-0e398a60269a/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-cond-test/nodePools/bad-cond",
+	"name": "bad-cond",
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
+	"location": "eastus",
+	"properties": {
+		"provisioningState": "Succeeded",
+		"version": {
+			"channelGroup": "stable"
+		},
+		"platform": {
+			"vmSize": "large",
+			"osDisk": {
+				"diskStorageAccountType": "Premium_LRS",
+				"sizeGiB": 64
+			}
+		},
+		"autoRepair": true,
+		"conditions": [
+			{
+				"type": "NotAValidType",
+				"status": "True",
+				"lastTransitionTime": "2026-05-10T12:00:00Z",
+				"reason": "AsExpected",
+				"message": "Invalid type."
+			}
+		]
+	}
+}

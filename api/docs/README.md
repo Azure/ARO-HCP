@@ -47,9 +47,7 @@ For the reference, the API definition of ARO-RP is here https://github.com/Azure
 The tsp generation is setup to generate the right project structure for the azure-rest-api-specs. The
 repository structure for typespecs projects is explained here https://github.com/Azure/azure-rest-api-specs/blob/main/documentation/typespec-structure-guidelines.md.
 
-Going with the guide, the typespec service is stored in the `redhatopenshift/HcpCluster.Management` folder. The `redhatopenshift` is the folder
-that holds the current Openshift cluster API and both definitions will need to coexist in the same folder. According to the guide,
-the generation is placed in created `resource-manager` folder. Finally to allow the proper swagger inspection, the `common-types` are copied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
+Following the [v2 folder structure guide](https://github.com/Azure/azure-rest-api-specs/wiki/Specification-Folder-Structure-Guide), the typespec service is stored in `redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/`. TypeSpec sources, examples, readmes, and generated OpenAPI specs all live in this unified service directory. Finally to allow the proper swagger inspection, the `common-types` are copied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
 
 
 ## How to use typespec
@@ -59,7 +57,7 @@ To do so, open terminal, switch to api directory and call the following command 
 
 ```bash
 cd
-tsp compile ./api/redhatopenshift/HcpCluster.Management/
+tsp compile ./api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/
 ```
 
 Or you can use the submitted build task, that does exactly the same. The default shortcut is `Ctrl+Shift+B` or `Cmd+Shift+B`.
@@ -70,7 +68,7 @@ When introducing a new API version, there are several steps beyond defining the 
 
 1. **Define the version in `main.tsp`**: Add the new version enum value to the `Versions` enum (e.g., `v2026_06_30_preview: "2026-06-30-preview"`).
 
-2. **Create the examples source directory**: The typespec-autorest emitter requires example JSON files to be present in `redhatopenshift/HcpCluster.Management/examples/<version>/` (e.g., `examples/2026-06-30-preview/`). Without this directory, `tsp compile` will generate an `openapi.json` that is missing `x-ms-examples` references, which will fail API validation in CI.
+2. **Create the examples source directory**: The typespec-autorest emitter requires example JSON files to be present in `redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/examples/<version>/` (e.g., `examples/2026-06-30-preview/`). Without this directory, `tsp compile` will generate an `openapi.json` that is missing `x-ms-examples` references, which will fail API validation in CI.
 
    You can bootstrap the examples for a new version by generating them from the compiled openapi spec (see [Swagger example generation](#swagger-example-generation) below), or by copying and updating examples from the previous version.
 
@@ -89,8 +87,8 @@ To generate the example requests and responses, you can use the following comman
 
 ```bash
 export API_VERSION=2024-06-10-preview
-cd api/redhatopenshift/HcpCluster.Management/examples/$API_VERSION
-oav generate-examples ../../../resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/$API_VERSION/openapi.json
+cd api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/examples/$API_VERSION
+oav generate-examples ../../preview/$API_VERSION/openapi.json
 ```
 
 ## Generating the api client
