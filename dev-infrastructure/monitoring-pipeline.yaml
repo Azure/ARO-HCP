@@ -9,16 +9,6 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
 rolloutName: Monitoring Rollout
 resourceGroups:
-- name: kusto
-  resourceGroup: '{{ .kusto.rg }}'
-  subscription: '{{ .global.subscription.key }}'
-  steps:
-  - name: output
-    action: ARM
-    template: templates/kusto-lookup.bicep
-    parameters: configurations/kusto-lookup.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    outputOnly: true
 - name: regional
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -47,6 +37,22 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: kusto-monitoring
+    action: ARM
+    template: templates/kusto-monitoring.bicep
+    parameters: configurations/kusto-monitoring.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
     - name: kustoClusterId
       input:
         resourceGroup: kusto
@@ -57,3 +63,8 @@ resourceGroups:
         resourceGroup: kusto
         step: output
         name: kustoRegion
+    - name: actionGroupSL
+      input:
+        resourceGroup: regional
+        step: monitoring
+        name: actionGroupSL

@@ -2,8 +2,6 @@ using '../templates/monitoring.bicep'
 
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
-param kustoClusterId = '__kustoClusterId__'
-param kustoRegion = '__kustoRegion__'
 
 param manageConnection = {{ .monitoring.icm.manageConnection }}
 param alertsEnabled = {{ .monitoring.alertsEnabled }}
