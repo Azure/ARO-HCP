@@ -152,13 +152,19 @@ const (
 	activityLogAuthRetryInitialSec = 10
 	activityLogAuthRetryMaxSec     = 60
 
-	// triggerEvidence forces an AKS RP reconcile of the wedged pool when
-	// the cluster-state / cluster-safety / pool-wedge checks PASS
-	// but the NRP-KVS-storm check has no recent NRP-KVS events in the
-	// configured lookback window. The trigger gives the wedge a chance
-	// to produce fresh evidence (or to prove the wedge is not NRP-KVS).
-	// Times are short relative to the AKS RP retry cadence (~3 min) so
-	// threshold-many retries can accumulate during the wait window.
+	// triggerEvidence forces a scale-up on the wedged pool when the
+	// cluster-state / cluster-safety / pool-wedge checks PASS but the
+	// NRP-KVS-storm check has no recent NRP-KVS events in the configured
+	// lookback window (NRP_FAIL_WINDOW_MIN). The scale-up forces a VMSS
+	// write, giving the wedge a chance to produce fresh evidence.
+	//
+	// These constants are independent of NRP_FAIL_WINDOW_MIN: initial
+	// detection uses NRP_FAIL_WINDOW_MIN (env var, default 15 min) to
+	// check for existing evidence. Forced evidence uses its own wider
+	// window (triggerEvidenceWindowMin=60) since it needs to capture
+	// events it just triggered, and polls for up to
+	// triggerEvidenceTimeoutMin. The same NRP_FAIL_THRESHOLD applies
+	// to both paths.
 	triggerEvidenceTimeoutMin      = 20 // wait at most this long for evidence
 	triggerEvidencePollIntervalSec = 60 // re-query activity log every poll
 	triggerEvidenceWindowMin       = 60 // activity-log lookback for the wait loop
