@@ -310,6 +310,7 @@ type orchestrator interface {
 	detect(ctx context.Context) ([]nodePoolTarget, string, error)
 	dumpPreflight(ctx context.Context) error
 	dumpPostflight(ctx context.Context) error
+	adoptLeftoverTempPools(ctx context.Context) error
 	adoptLeftoverTempPool(ctx context.Context, target nodePoolTarget) error
 	snapshotPool(ctx context.Context, poolName string) (*armcs.AgentPool, error)
 	maybeAbortLRO(ctx context.Context) (bool, error)
@@ -358,6 +359,13 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	logBanner("PRE-FLIGHT ARM STATE")
 	if err := orch.dumpPreflight(ctx); err != nil {
 		logf("WARN: pre-flight dump partial: %v", err)
+	}
+
+	if !cfg.dryRun {
+		logBanner("LEFTOVER TEMP POOL ADOPTION")
+		if err := orch.adoptLeftoverTempPools(ctx); err != nil {
+			return fmt.Errorf("adopt leftover temp pools: %w", err)
+		}
 	}
 
 	logBanner("DETECTION GUARDS")
@@ -1197,6 +1205,39 @@ func tempPoolSourceID(p *armcs.AgentPool) string {
 	return *v
 }
 
+// targetFromLeftoverTempPool validates a temp pool discovered during the
+// pre-detection adoption scan and returns the source pool target that owns it.
+// Non-temp pools and temp pools for other NODEPOOL_TAG values are ignored.
+// Malformed temp pools for this run fail closed so the operator can inspect
+// them before normal detection exits no-op and hides the leftover.
+func targetFromLeftoverTempPool(p *armcs.AgentPool, nodePoolTag string) (*nodePoolTarget, bool, error) {
+	if p == nil || p.Name == nil || p.Properties == nil {
+		return nil, false, nil
+	}
+	if !isTempPool(p) {
+		return nil, false, nil
+	}
+	if role := poolRoleTag(p); role != nodePoolTag {
+		logf("adopt pre-scan: ignoring temp pool %q with %s=%q while this run targets %q", *p.Name, nodePoolRoleLabel, role, nodePoolTag)
+		return nil, false, nil
+	}
+
+	srcID := tempPoolSourceID(p)
+	if srcID == "" {
+		return nil, true, fmt.Errorf("leftover temp pool %q has no %q tag", *p.Name, tempPoolSourceTag)
+	}
+	srcName, err := poolNameFromARMID(srcID)
+	if err != nil {
+		return nil, true, fmt.Errorf("leftover temp pool %q has malformed %q tag %q: %w", *p.Name, tempPoolSourceTag, srcID, err)
+	}
+	expectedName := tempPoolName(srcName)
+	if *p.Name != expectedName {
+		return nil, true, fmt.Errorf("leftover temp pool %q source tag points to %q, whose deterministic temp name is %q", *p.Name, srcName, expectedName)
+	}
+
+	return &nodePoolTarget{name: srcName, vmssPrefix: poolVMSSPrefix(srcName)}, true, nil
+}
+
 // poolNameFromARMID parses the trailing agent-pool name segment from
 // an AKS agent pool ARM resource ID, e.g.
 //
@@ -1221,6 +1262,33 @@ func poolNameFromARMID(id string) (string, error) {
 		return "", fmt.Errorf("trailing pool name segment %q contains a path separator", name)
 	}
 	return name, nil
+}
+
+// adoptLeftoverTempPools scans all agent pools before detection can exit
+// no-op. This makes the Succeeded-source and missing-source adoption paths
+// reachable even when no source pool is currently wedge-compatible.
+func (c *clients) adoptLeftoverTempPools(ctx context.Context) error {
+	pager := c.pools.NewListPager(c.cfg.resourceGroup, c.cfg.clusterName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("adopt pre-scan: list pools: %w", err)
+		}
+		for _, p := range page.Value {
+			target, ok, err := targetFromLeftoverTempPool(p, c.cfg.nodePoolTag)
+			if err != nil {
+				return fmt.Errorf("adopt pre-scan: %w", err)
+			}
+			if !ok {
+				continue
+			}
+			logf("adopt pre-scan: found leftover temp pool %q for source %q", strDeref(p.Name), target.name)
+			if err := c.adoptLeftoverTempPool(ctx, *target); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // adoptLeftoverTempPool handles a leftover temp pool from a previous

@@ -974,6 +974,84 @@ func TestTempPoolSourceID(t *testing.T) {
 	}
 }
 
+func mkLeftoverTempPool(name, source, role string) *armcs.AgentPool {
+	return &armcs.AgentPool{
+		Name: ptr(name),
+		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+			NodeLabels: map[string]*string{
+				nodePoolRoleLabel: ptr(role),
+			},
+			Tags: map[string]*string{
+				tempPoolPurposeTag: ptr(tempPoolPurposeValue),
+				tempPoolSourceTag:  ptr(source),
+			},
+		},
+	}
+}
+
+func TestTargetFromLeftoverTempPool(t *testing.T) {
+	source := "/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/userswft3"
+	temp := mkLeftoverTempPool(tempPoolName("userswft3"), source, "user")
+
+	target, ok, err := targetFromLeftoverTempPool(temp, "user")
+	if err != nil {
+		t.Fatalf("targetFromLeftoverTempPool() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("targetFromLeftoverTempPool() skipped matching temp pool")
+	}
+	if target.name != "userswft3" || target.vmssPrefix != poolVMSSPrefix("userswft3") {
+		t.Fatalf("target = %#v", target)
+	}
+}
+
+func TestTargetFromLeftoverTempPoolIgnoresOtherRoles(t *testing.T) {
+	source := "/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/system"
+	temp := mkLeftoverTempPool(tempPoolName("system"), source, "system")
+
+	target, ok, err := targetFromLeftoverTempPool(temp, "user")
+	if err != nil {
+		t.Fatalf("targetFromLeftoverTempPool() error = %v", err)
+	}
+	if ok || target != nil {
+		t.Fatalf("targetFromLeftoverTempPool() = %#v, %t; want skip", target, ok)
+	}
+}
+
+func TestTargetFromLeftoverTempPoolMalformedForTargetRoleFailsClosed(t *testing.T) {
+	cases := []struct {
+		name string
+		pool *armcs.AgentPool
+	}{
+		{
+			name: "missing source tag",
+			pool: &armcs.AgentPool{
+				Name: ptr(tempPoolName("userswft3")),
+				Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+					NodeLabels: map[string]*string{nodePoolRoleLabel: ptr("user")},
+					Tags:       map[string]*string{tempPoolPurposeTag: ptr(tempPoolPurposeValue)},
+				},
+			},
+		},
+		{
+			name: "malformed source tag",
+			pool: mkLeftoverTempPool(tempPoolName("userswft3"), "not-an-agent-pool-id", "user"),
+		},
+		{
+			name: "name does not match deterministic source name",
+			pool: mkLeftoverTempPool(tempPoolName("otherpool"), "/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/userswft3", "user"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, _, err := targetFromLeftoverTempPool(tc.pool, "user"); err == nil {
+				t.Fatal("expected fail-closed error")
+			}
+		})
+	}
+}
+
 func TestBuildTempAgentPool_NilProperties(t *testing.T) {
 	if _, err := buildTempAgentPool(&armcs.AgentPool{}, "1.35.4"); err == nil {
 		t.Fatal("expected error for nil properties")
@@ -1590,6 +1668,7 @@ type mockOrchestrator struct {
 	ensureClusterFn          func(ctx context.Context) (armcs.ManagedCluster, bool, error)
 	bootstrapKubeFn          func(ctx context.Context, mc armcs.ManagedCluster) error
 	detectFn                 func(ctx context.Context, n int) (bool, string, error)
+	adoptLeftoverTempPoolsFn func(ctx context.Context) error
 	adoptLeftoverTempPoolFn  func(ctx context.Context, target nodePoolTarget) error
 	snapshotSystemFn         func(ctx context.Context) (*armcs.AgentPool, error)
 	maybeAbortLROFn          func(ctx context.Context) (bool, error)
@@ -1648,6 +1727,14 @@ func (m *mockOrchestrator) dumpPreflight(ctx context.Context) error {
 func (m *mockOrchestrator) dumpPostflight(ctx context.Context) error {
 	m.record("dumpPostflight")
 	return nil
+}
+
+func (m *mockOrchestrator) adoptLeftoverTempPools(ctx context.Context) error {
+	if m.adoptLeftoverTempPoolsFn == nil {
+		return nil
+	}
+	m.record("adoptLeftoverTempPools")
+	return m.adoptLeftoverTempPoolsFn(ctx)
 }
 
 func (m *mockOrchestrator) adoptLeftoverTempPool(ctx context.Context, target nodePoolTarget) error {
@@ -1816,9 +1903,32 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
 		},
 		{
+			name: "pre_scan_adopts_leftover_before_detection_noop",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.adoptLeftoverTempPoolsFn = func(context.Context) error { return nil }
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "no selected node pools with role user", nil
+				}
+			},
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "adoptLeftoverTempPools", "detect:1"},
+		},
+		{
+			name: "pre_scan_error_stops_before_detection",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				m.adoptLeftoverTempPoolsFn = func(context.Context) error { return dummyErr }
+			},
+			wantErr:   "adopt leftover temp pools:",
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "adoptLeftoverTempPools"},
+		},
+		{
 			name: "guard1_fail_dry_run_skips_forced_evidence",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
 			setup: func(m *mockOrchestrator) {
+				m.adoptLeftoverTempPoolsFn = func(context.Context) error {
+					return errors.New("dry run must not adopt temp pools")
+				}
 				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
 					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
 				}
