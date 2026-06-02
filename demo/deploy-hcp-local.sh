@@ -6,29 +6,76 @@
 # 2. Creates managed identities and role assignments via ARM bicep
 # 3. Registers the subscription with the personal dev RP
 # 4. PUTs the HCP cluster directly to the port-forwarded frontend
-# 5. PUTs a node pool
+# 5. Waits for cluster to reach Succeeded state
+# 6. PUTs a node pool
 #
-# Prerequisites:
-#   - Port-forward to the frontend: kubectl port-forward svc/aro-hcp-frontend 8443:8443 -n aro-hcp
-#   - az CLI logged in
+# The script is idempotent — safe to re-run. It skips steps that are
+# already complete (cluster already Succeeded, nodepool already exists).
+#
+# Port-forward is managed automatically. If port 8443 is already in use,
+# the existing port-forward is reused.
 #
 # Usage:
-#   kubectl port-forward svc/aro-hcp-frontend 8443:8443 -n aro-hcp &
 #   ./demo/deploy-hcp-local.sh
+#   CLUSTER_NAME=my-test CUSTOMER_RG_NAME=my-rg ./demo/deploy-hcp-local.sh
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
-source env_vars
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+source "${SCRIPT_DIR}/env_vars"
 LOCATION=${LOCATION:-westus3}
 SUBSCRIPTION=$(az account show --query 'id' -o tsv)
 TENANT_ID=$(az account show --query 'tenantId' -o tsv)
-FRONTEND_URL=${FRONTEND_URL:-http://localhost:8443}
+FRONTEND_PORT=${FRONTEND_PORT:-8443}
+FRONTEND_URL=${FRONTEND_URL:-http://localhost:${FRONTEND_PORT}}
 CLUSTER_VERSION=${CLUSTER_VERSION:-"4.20"}
 NODEPOOL_VERSION=${NODEPOOL_VERSION:-"4.20.16"}
 PRIVATE_KEYVAULT=${PRIVATE_KEYVAULT:-true}
 MANAGED_RESOURCE_GROUP="${CLUSTER_NAME}-rg-03"
+
+# Port-forward management
+PF_PID=""
+cleanup() {
+    if [[ -n "${PF_PID}" ]]; then
+        kill "${PF_PID}" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+setup_port_forward() {
+    if lsof -i ":${FRONTEND_PORT}" &>/dev/null; then
+        echo "    Port ${FRONTEND_PORT} already in use, reusing existing port-forward"
+        return
+    fi
+
+    echo "    Setting up port-forward to frontend..."
+    SVC_KUBECONFIG="${SVC_KUBECONFIG:-$(make -C "${REPO_ROOT}" -s infra.svc.aks.kubeconfigfile 2>/dev/null || echo "")}"
+    if [[ -z "${SVC_KUBECONFIG}" ]]; then
+        echo "    ERROR: Cannot determine service cluster kubeconfig."
+        echo "    Set SVC_KUBECONFIG env var or run 'make infra.svc.aks.kubeconfig' first."
+        exit 1
+    fi
+    kubectl --kubeconfig="${SVC_KUBECONFIG}" port-forward svc/aro-hcp-frontend "${FRONTEND_PORT}:8443" -n aro-hcp &
+    PF_PID=$!
+    sleep 5
+
+    if ! curl --silent --max-time 5 -o /dev/null -w "%{http_code}" "${FRONTEND_URL}/subscriptions" 2>/dev/null | grep -q '^[0-9]'; then
+        echo "    ERROR: Port-forward started but frontend is not responding."
+        exit 1
+    fi
+    echo "    Port-forward established (PID ${PF_PID})"
+}
+
+check_frontend() {
+    if ! curl --silent --max-time 5 -o /dev/null "${FRONTEND_URL}/subscriptions" 2>/dev/null; then
+        echo "    ERROR: Lost connection to frontend. Port-forward may have died."
+        exit 1
+    fi
+}
 
 echo "==> Creating HCP cluster via personal dev RP"
 echo "    Frontend:  ${FRONTEND_URL}"
@@ -50,7 +97,7 @@ az deployment group create \
   --name 'infra' \
   --subscription "${SUBSCRIPTION}" \
   --resource-group "${CUSTOMER_RG_NAME}" \
-  --template-file bicep/customer-infra.bicep \
+  --template-file "${SCRIPT_DIR}/bicep/customer-infra.bicep" \
   --parameters \
     customerNsgName="${CUSTOMER_NSG}" \
     customerVnetName="${CUSTOMER_VNET_NAME}" \
@@ -71,7 +118,7 @@ az deployment group create \
   --name 'cluster-prereqs' \
   --subscription "${SUBSCRIPTION}" \
   --resource-group "${CUSTOMER_RG_NAME}" \
-  --template-file bicep/cluster-prereqs.bicep \
+  --template-file "${SCRIPT_DIR}/bicep/cluster-prereqs.bicep" \
   --parameters \
     vnetName="${CUSTOMER_VNET_NAME}" \
     subnetName="${CUSTOMER_VNET_SUBNET1}" \
@@ -112,8 +159,12 @@ VNET_INTEGRATION_SUBNET_ID=$(get_output vnetIntegrationSubnetId)
 NSG_ID=$(get_output nsgId)
 ETCD_KEY_VERSION=$(get_output etcdEncryptionKeyVersion)
 
+# Set up port-forward before any frontend calls
+setup_port_forward
+
 # Step 4: Register subscription with personal dev RP
 echo "==> Step 4: Registering subscription with dev RP"
+check_frontend
 curl --silent --show-error \
   --request PUT \
   --header "Content-Type: application/json" \
@@ -196,6 +247,7 @@ CLUSTER_PAYLOAD=$(cat <<EOF
 EOF
 )
 
+check_frontend
 HTTP_CODE=$(curl --silent --show-error --output /tmp/hcp-create-response.json --write-out "%{http_code}" \
   --request PUT \
   --header "Content-Type: application/json" \
@@ -213,40 +265,62 @@ else
 fi
 
 # Step 6: Wait for cluster to be ready for node pool creation
-echo "==> Step 6: Waiting for cluster to reach an updatable state..."
-MAX_WAIT=1800
-WAITED=0
-while true; do
-  CLUSTER_STATE=$(curl --silent --show-error \
-    --header "X-Ms-Client-Principal-Name: deploy-script" \
-    "${FRONTEND_URL}${CLUSTER_RESOURCE_ID}?api-version=${API_VERSION}" \
-    | python3 -c "import json,sys; print(json.load(sys.stdin).get('properties',{}).get('provisioningState','unknown'))" 2>/dev/null || echo "unknown")
+echo "==> Step 6: Waiting for cluster to reach Succeeded state..."
 
-  if [[ "${CLUSTER_STATE}" == "Succeeded" || "${CLUSTER_STATE}" == "Failed" ]]; then
-    echo "    Cluster state: ${CLUSTER_STATE}"
-    break
+# Check current state first — skip waiting if already Succeeded
+CLUSTER_STATE=$(curl --silent --max-time 10 \
+  --header "X-Ms-Client-Principal-Name: deploy-script" \
+  "${FRONTEND_URL}${CLUSTER_RESOURCE_ID}?api-version=${API_VERSION}" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin).get('properties',{}).get('provisioningState','unknown'))" 2>/dev/null || echo "unknown")
+
+if [[ "${CLUSTER_STATE}" == "Succeeded" ]]; then
+  echo "    Cluster already Succeeded, skipping wait"
+else
+  MAX_WAIT=1800
+  WAITED=0
+  while true; do
+    check_frontend
+    CLUSTER_STATE=$(curl --silent --max-time 10 \
+      --header "X-Ms-Client-Principal-Name: deploy-script" \
+      "${FRONTEND_URL}${CLUSTER_RESOURCE_ID}?api-version=${API_VERSION}" \
+      | python3 -c "import json,sys; print(json.load(sys.stdin).get('properties',{}).get('provisioningState','unknown'))" 2>/dev/null || echo "unknown")
+
+    if [[ "${CLUSTER_STATE}" == "Succeeded" || "${CLUSTER_STATE}" == "Failed" ]]; then
+      echo "    Cluster state: ${CLUSTER_STATE}"
+      break
+    fi
+
+    if [[ ${WAITED} -ge ${MAX_WAIT} ]]; then
+      echo "    WARNING: Timed out waiting (${MAX_WAIT}s). Current state: ${CLUSTER_STATE}"
+      echo "    Attempting node pool creation anyway..."
+      break
+    fi
+
+    echo "    Cluster state: ${CLUSTER_STATE} (waited ${WAITED}s)..."
+    sleep 30
+    WAITED=$((WAITED + 30))
+  done
+
+  if [[ "${CLUSTER_STATE}" == "Failed" ]]; then
+    echo "    ERROR: Cluster provisioning failed"
+    exit 1
   fi
-
-  if [[ ${WAITED} -ge ${MAX_WAIT} ]]; then
-    echo "    WARNING: Timed out waiting (${MAX_WAIT}s). Current state: ${CLUSTER_STATE}"
-    echo "    Attempting node pool creation anyway..."
-    break
-  fi
-
-  echo "    Cluster state: ${CLUSTER_STATE} (waited ${WAITED}s)..."
-  sleep 30
-  WAITED=$((WAITED + 30))
-done
-
-if [[ "${CLUSTER_STATE}" == "Failed" ]]; then
-  echo "    ERROR: Cluster provisioning failed"
-  exit 1
 fi
 
 # Step 7: Create node pool
 echo "==> Step 7: Creating node pool ${NP_NAME}"
 
-NP_PAYLOAD=$(cat <<EOF
+# Check if nodepool already exists
+check_frontend
+NP_STATE=$(curl --silent --max-time 10 \
+  --header "X-Ms-Client-Principal-Name: deploy-script" \
+  "${FRONTEND_URL}${NODE_POOL_RESOURCE_ID}?api-version=${API_VERSION}" \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('properties',{}).get('provisioningState','notfound'))" 2>/dev/null || echo "notfound")
+
+if [[ "${NP_STATE}" == "Succeeded" ]]; then
+  echo "    Node pool already exists (state: Succeeded), skipping"
+else
+  NP_PAYLOAD=$(cat <<EOF
 {
   "location": "${LOCATION}",
   "properties": {
@@ -262,20 +336,22 @@ NP_PAYLOAD=$(cat <<EOF
 EOF
 )
 
-HTTP_CODE=$(curl --silent --show-error --output /tmp/np-create-response.json --write-out "%{http_code}" \
-  --request PUT \
-  --header "Content-Type: application/json" \
-  --header "X-Ms-Arm-Resource-System-Data: ${SYSTEM_DATA}" \
-  --header "X-Ms-Identity-Url: https://dummyhost.identity.azure.net" \
-  --data "${NP_PAYLOAD}" \
-  "${FRONTEND_URL}${NODE_POOL_RESOURCE_ID}?api-version=${API_VERSION}")
+  check_frontend
+  HTTP_CODE=$(curl --silent --show-error --output /tmp/np-create-response.json --write-out "%{http_code}" \
+    --request PUT \
+    --header "Content-Type: application/json" \
+    --header "X-Ms-Arm-Resource-System-Data: ${SYSTEM_DATA}" \
+    --header "X-Ms-Identity-Url: https://dummyhost.identity.azure.net" \
+    --data "${NP_PAYLOAD}" \
+    "${FRONTEND_URL}${NODE_POOL_RESOURCE_ID}?api-version=${API_VERSION}")
 
-if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
-  echo "    Node pool creation accepted (HTTP ${HTTP_CODE})"
-else
-  echo "    ERROR: Node pool creation failed (HTTP ${HTTP_CODE})"
-  cat /tmp/np-create-response.json
-  exit 1
+  if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
+    echo "    Node pool creation accepted (HTTP ${HTTP_CODE})"
+  else
+    echo "    ERROR: Node pool creation failed (HTTP ${HTTP_CODE})"
+    cat /tmp/np-create-response.json
+    exit 1
+  fi
 fi
 
 echo ""

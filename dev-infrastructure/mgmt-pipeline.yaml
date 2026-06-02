@@ -376,11 +376,6 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: sessiongate
-    - name: adminApiMIResourceId
-      input:
-        resourceGroup: service
-        step: output
-        name: adminApi
     dependsOn:
     - resourceGroup: management
       step: cluster

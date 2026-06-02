@@ -128,6 +128,18 @@ spec:
           value: "24h"
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
+        - name: HOLMES_IMAGE
+          value: "quay.io/haoran/holmesgpt:latest"
+        - name: HOLMES_AZURE_OPENAI_API_BASE
+          value: "https://arohcp-dev-aoai-usw3.openai.azure.com"
+        - name: HOLMES_MODEL
+          value: "azure/gpt-5.2"
+        - name: HOLMES_AZURE_OPENAI_API_VERSION
+          value: "2025-04-01-preview"
+        - name: HOLMES_DEFAULT_TIMEOUT
+          value: "600"
+        - name: HOLMES_MAX_CONCURRENT_INVESTIGATIONS
+          value: "20"
         ports:
         - containerPort: 8443
           name: http

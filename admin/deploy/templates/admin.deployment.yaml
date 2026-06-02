@@ -69,6 +69,8 @@ spec:
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
 {{- if and .Values.holmes .Values.holmes.enabled }}
+        - name: HOLMES_IMAGE
+          value: "{{ .Values.holmes.image }}"
         - name: HOLMES_AZURE_OPENAI_API_BASE
           value: "{{ .Values.holmes.azureOpenAIAPIBase }}"
         - name: HOLMES_MODEL

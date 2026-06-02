@@ -20,12 +20,28 @@ func TestAskHolmes(t *testing.T) {
 		wantBody       string
 	}{
 		{
-			name: "successful response",
+			name: "extracts analysis from JSON response",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				fmt.Fprint(w, `{"analysis":"all good"}`)
+				fmt.Fprint(w, `{"analysis":"all good","conversation_history":[{"role":"system","content":"long system prompt"}]}`)
 			},
-			wantBody: `{"analysis":"all good"}`,
+			wantBody: "all good",
+		},
+		{
+			name: "returns raw body when not valid JSON",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "plain text response")
+			},
+			wantBody: "plain text response",
+		},
+		{
+			name: "returns raw body when analysis is empty",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, `{"analysis":"","conversation_history":[]}`)
+			},
+			wantBody: `{"analysis":"","conversation_history":[]}`,
 		},
 		{
 			name: "non-200 response",

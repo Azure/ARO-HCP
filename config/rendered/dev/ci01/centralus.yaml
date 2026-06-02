@@ -36,10 +36,11 @@ adminApi:
     name: admin-api-cert-ci01-j7654321
   holmes:
     aoaiName: arohcp-ci01-aoai-j7654321
-    azureOpenAIAPIBase: ""
+    azureOpenAIAPIBase: https://arohcp-ci01-aoai-j7654321.openai.azure.com
     azureOpenAIAPIVersion: 2025-04-01-preview
     defaultTimeout: 600
     enabled: true
+    holmesImage: quay.io/haoran/holmesgpt:latest
     maxConcurrent: 20
     model: azure/gpt-5.2
   image:
@@ -260,6 +261,7 @@ firstPartyAppCertificate:
   manage: false
   name: firstPartyCert2
 firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
+<<<<<<< HEAD:config/rendered/dev/ci01/centralus.yaml
 fleet:
   image:
     digest: ""
@@ -279,6 +281,9 @@ fleet:
   registration:
     autoApproveStamps: true
     stampIdentifier: "1"
+=======
+firstPartyAppObjectId: 47f69502-0065-4d9a-b19b-d403e183d2f4
+>>>>>>> e1fc273b3 (fix: pipeline gaps, FPA RBAC, deploy script, and response extraction):config/rendered/dev/ci01/westus3.yaml
 frontend:
   audit:
     connectSocket: false
@@ -809,6 +814,7 @@ msiCredentialsRefresher:
     sanDnsNames: []
   earlyRefreshFrequency: "0"
   firstPartyAppClientId: ""
+  firstPartyAppObjectId: ""
   image:
     digest: ""
     registry: empty-sentinel

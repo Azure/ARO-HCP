@@ -1204,6 +1204,10 @@
     "firstPartyAppClientId": {
       "type": "string"
     },
+    "firstPartyAppObjectId": {
+      "type": "string",
+      "description": "Object ID of the FPA service principal in Entra ID"
+    },
     "firstPartyAppCertificate": {
       "type": "object",
       "properties": {
@@ -1495,6 +1499,10 @@
             "enabled": {
               "type": "boolean",
               "description": "Whether Holmes GPT investigation is enabled"
+            },
+            "holmesImage": {
+              "type": "string",
+              "description": "HolmesGPT container image for ephemeral investigation pods"
             },
             "aoaiName": {
               "type": "string",
@@ -2246,6 +2254,10 @@
         "firstPartyAppClientId": {
           "type": "string",
           "description": "The client ID of the first party application that will be used by the refresher"
+        },
+        "firstPartyAppObjectId": {
+          "type": "string",
+          "description": "The object ID of the FPA service principal in Entra ID"
         },
         "earlyRefreshFrequency": {
           "type": "string",

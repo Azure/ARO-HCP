@@ -11,9 +11,15 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const maxResponseSize = 10 * 1024 * 1024 // 10MB
+
 type chatRequest struct {
 	Ask   string `json:"ask"`
 	Model string `json:"model,omitempty"`
+}
+
+type chatResponse struct {
+	Analysis string `json:"analysis"`
 }
 
 func AskHolmes(ctx context.Context, endpoint, question, model string, w http.ResponseWriter) error {
@@ -44,31 +50,20 @@ func AskHolmesWithClient(ctx context.Context, httpClient *http.Client, endpoint,
 		return fmt.Errorf("Holmes service returned HTTP %d: %s", resp.StatusCode, string(body))
 	}
 
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
+	if err != nil {
+		return fmt.Errorf("failed to read Holmes response: %w", err)
+	}
+
+	var chatResp chatResponse
+	if err := json.Unmarshal(body, &chatResp); err == nil && chatResp.Analysis != "" {
+		body = []byte(chatResp.Analysis)
+	}
+
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Cache-Control", "no-cache")
-
-	buf := make([]byte, 4096)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
-			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
-				return fmt.Errorf("failed to write response: %w", writeErr)
-			}
-			if flusher, ok := w.(http.Flusher); ok {
-				flusher.Flush()
-			}
-		}
-		if readErr == io.EOF {
-			break
-		}
-		if readErr != nil {
-			return fmt.Errorf("failed to read Holmes response: %w", readErr)
-		}
+	if _, err := w.Write(body); err != nil {
+		return fmt.Errorf("failed to write response: %w", err)
 	}
 
 	return nil

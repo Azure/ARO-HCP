@@ -60,6 +60,14 @@ fpa:
   keyVaultName: "{{ .serviceKeyVault.name }}"
   certName: "{{ .firstPartyAppCertificate.name }}"
   clientId: "{{ .firstPartyAppClientId }}"
+holmes:
+  enabled: {{ .adminApi.holmes.enabled }}
+  image: "{{ .adminApi.holmes.holmesImage }}"
+  azureOpenAIAPIBase: "{{ .adminApi.holmes.azureOpenAIAPIBase }}"
+  model: "{{ .adminApi.holmes.model }}"
+  azureOpenAIAPIVersion: "{{ .adminApi.holmes.azureOpenAIAPIVersion }}"
+  defaultTimeout: "{{ .adminApi.holmes.defaultTimeout }}"
+  maxConcurrent: "{{ .adminApi.holmes.maxConcurrent }}"
 sessiongate:
   namespace: "{{ .sessiongate.k8s.namespace }}"
   servicePort: 8080

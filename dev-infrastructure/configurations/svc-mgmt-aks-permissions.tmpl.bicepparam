@@ -7,6 +7,6 @@ param aksClusterName = '{{ .mgmt.aks.name }}'
 // used for AKS access
 param sessiongateMIResourceId = '__sessiongateMIResourceId__'
 
-// Admin API identity
-// used for AKS access (Holmes investigation)
-param adminApiMIResourceId = '__adminApiMIResourceId__'
+// FPA service principal object ID
+// used for AKS access (Holmes investigation — admin API uses FPA to reach mgmt clusters)
+param fpaObjectId = '{{ .firstPartyAppObjectId }}'

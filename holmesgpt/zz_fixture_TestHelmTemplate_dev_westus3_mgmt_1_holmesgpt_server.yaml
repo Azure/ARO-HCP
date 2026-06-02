@@ -1,0 +1,332 @@
+---
+# Source: holmesgpt-mgmt/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-config
+  namespace: 'aro-holmesgpt'
+data:
+  toolsets.yaml: |
+    toolsets:
+      # ========== ENABLED ==========
+      kubectl-run:
+        enabled: true
+      kubernetes/kube-prometheus-stack:
+        enabled: true
+      kubernetes/logs:
+        enabled: true
+      kubernetes/core:
+        enabled: true
+      kubernetes/live-metrics:
+        enabled: true
+      bash:
+        enabled: true
+        config:
+          builtin_allowlist: extended
+          allow:
+            - "kubectl get"
+            - "kubectl describe"
+            - "kubectl logs"
+            - "kubectl top"
+            - "kubectl cluster-info"
+            - "kubectl explain"
+            - "kubectl api-resources"
+            - "kubectl version"
+            - "egrep"
+          deny:
+            - "kubectl delete"
+            - "kubectl apply"
+            - "kubectl create"
+            - "kubectl edit"
+            - "kubectl exec"
+            - "kubectl patch"
+            - "kubectl scale"
+            - "kubectl drain"
+            - "kubectl cordon"
+            - "kubectl taint"
+            - "kubectl debug"
+            - "rm"
+            - "oc"
+    
+      # ========== DISABLED ==========
+      core_investigation:
+        enabled: false
+      openshift/core:
+        enabled: false
+      openshift/logs:
+        enabled: false
+      openshift/security:
+        enabled: false
+      openshift/live-metrics:
+        enabled: false
+      runbook:
+        enabled: false
+      internet:
+        enabled: false
+      connectivity_check:
+        enabled: false
+      robusta:
+        enabled: false
+      kubernetes/krew-extras:
+        enabled: false
+      kubernetes/kube-lineage-extras:
+        enabled: false
+      aks/core:
+        enabled: false
+      aks/node-health:
+        enabled: false
+      argocd/core:
+        enabled: false
+      cilium/core:
+        enabled: false
+      hubble/observability:
+        enabled: false
+      docker/core:
+        enabled: false
+      helm/core:
+        enabled: false
+      grafana/dashboards:
+        enabled: false
+      grafana/loki:
+        enabled: false
+      grafana/tempo:
+        enabled: false
+      prometheus/metrics:
+        enabled: false
+      datadog/logs:
+        enabled: false
+      datadog/general:
+        enabled: false
+      datadog/metrics:
+        enabled: false
+      datadog/traces:
+        enabled: false
+      elasticsearch/data:
+        enabled: false
+      elasticsearch/cluster:
+        enabled: false
+      opensearch/query_assist:
+        enabled: false
+      coralogix:
+        enabled: false
+      newrelic:
+        enabled: false
+      kafka/admin:
+        enabled: false
+      rabbitmq/core:
+        enabled: false
+      notion:
+        enabled: false
+      confluence:
+        enabled: false
+      slab:
+        enabled: false
+      servicenow/tables:
+        enabled: false
+      azure/sql:
+        enabled: false
+      MongoDBAtlas:
+        enabled: false
+      database/sql:
+        enabled: false
+      inspektor-gadget/node:
+        enabled: false
+      inspektor-gadget/tcpdump:
+        enabled: false
+      kubevela/core:
+        enabled: false
+      crossplane/core:
+        enabled: false
+    
+  config.yaml: |
+    model: "azure/gpt-5.2"
+    api_base: "https://arohcp-dev-aoai-usw3.openai.azure.com"
+    api_version: "2025-04-01-preview"
+    custom_toolsets:
+      - "/etc/holmes/toolsets.yaml"
+---
+# Source: holmesgpt-mgmt/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: holmesgpt-readonly
+rules:
+- apiGroups: [""]
+  resources:
+  - configmaps
+  - endpoints
+  - events
+  - namespaces
+  - nodes
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods
+  - pods/log
+  - services
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources:
+  - cronjobs
+  - jobs
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources:
+  - ingresses
+  - networkpolicies
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources:
+  - nodes
+  - pods
+  verbs: ["get", "list"]
+- apiGroups: ["hypershift.openshift.io"]
+  resources:
+  - hostedclusters
+  - hostedcontrolplanes
+  - nodepools
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["cluster.x-k8s.io"]
+  resources:
+  - machines
+  - machinesets
+  - machinedeployments
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["certificates.k8s.io"]
+  resources:
+  - certificatesigningrequests
+  verbs: ["get", "list", "watch"]
+---
+# Source: holmesgpt-mgmt/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: holmesgpt-readonly
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: holmesgpt-readonly
+subjects:
+- kind: ServiceAccount
+  name: holmesgpt
+  namespace: 'aro-holmesgpt'
+---
+# Source: holmesgpt-mgmt/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: holmesgpt-svc
+  namespace: 'aro-holmesgpt'
+spec:
+  type: ClusterIP
+  selector:
+    app: holmesgpt
+  ports:
+  - name: http
+    port: 80
+    targetPort: 5050
+    protocol: TCP
+---
+# Source: holmesgpt-mgmt/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holmesgpt
+  namespace: 'aro-holmesgpt'
+  labels:
+    app: holmesgpt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: holmesgpt
+  template:
+    metadata:
+      labels:
+        app: holmesgpt
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: holmesgpt
+      automountServiceAccountToken: true
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: holmesgpt
+        image: 'quay.io/haoran/holmesgpt:latest'
+        imagePullPolicy: Always
+        command: ["python", "server.py"]
+        ports:
+        - name: http
+          containerPort: 5050
+          protocol: TCP
+        env:
+        - name: AZURE_AD_TOKEN_AUTH
+          value: "true"
+        - name: AZURE_API_BASE
+          value: 'https://arohcp-dev-aoai-usw3.openai.azure.com'
+        - name: AZURE_API_VERSION
+          value: '2025-04-01-preview'
+        - name: HOLMES_MODEL
+          value: 'azure/gpt-5.2'
+        - name: HOLMES_PORT
+          value: "5050"
+        volumeMounts:
+        - name: holmes-main-config
+          mountPath: /.holmes/config.yaml
+          subPath: config.yaml
+          readOnly: true
+        - name: holmes-toolsets
+          mountPath: /etc/holmes/toolsets.yaml
+          subPath: toolsets.yaml
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5050
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 5050
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: holmes-main-config
+        configMap:
+          name: holmesgpt-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: holmes-toolsets
+        configMap:
+          name: holmesgpt-config
+          items:
+          - key: toolsets.yaml
+            path: toolsets.yaml
+      - name: tmp
+        emptyDir: {}
+
