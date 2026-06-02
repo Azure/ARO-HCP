@@ -18,17 +18,20 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -37,15 +40,92 @@ import (
 )
 
 func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
-	tests := []struct {
-		name        string
-		setupMock   func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec
-		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture)
+	fixture := newNodePoolTestFixture()
+
+	nodePoolPassingExtraReconcileGate := func() *api.HCPOpenShiftClusterNodePool {
+		now := time.Now()
+		np := fixture.newNodePool()
+		np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: now}
+		np.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: now}
+		return np
+	}
+
+	testCases := []struct {
+		name                    string
+		existingNodePool        *api.HCPOpenShiftClusterNodePool
+		wantErr                 bool
+		verifyDB                func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		usesNewDeletionApproach bool
+		setupCSMock             func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec
 	}{
 		{
-			name: "node pool not found marks operation succeeded and removes node pool",
-			setupMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
+			name: "node pool document gone completes operation",
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+			},
+			usesNewDeletionApproach: true,
+		},
+		{
+			name: "shouldReconcile gate not passed skips cluster service",
+			existingNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := fixture.newNodePool()
+				np.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+				return np
+			}(),
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+			usesNewDeletionApproach: true,
+		},
+		{
+			name:             "extra reconcilegate passed and CS Ready waits without updating operation",
+			existingNodePool: nodePoolPassingExtraReconcileGate(),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				nodePoolStatus, err := arohcpv1alpha1.NewNodePoolStatus().
+					State(arohcpv1alpha1.NewNodePoolState().NodePoolStateValue(string(NodePoolStateReady))).
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetNodePoolStatus(gomock.Any(), fixture.nodePoolInternalID).
+					Return(nodePoolStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+			usesNewDeletionApproach: true,
+		},
+		{
+			name:             "extra reconcile gate passed and CS uninstalling updates operation to deleting",
+			existingNodePool: nodePoolPassingExtraReconcileGate(),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				nodePoolStatus, err := arohcpv1alpha1.NewNodePoolStatus().
+					State(arohcpv1alpha1.NewNodePoolState().NodePoolStateValue(string(NodePoolStateUninstalling))).
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetNodePoolStatus(gomock.Any(), fixture.nodePoolInternalID).
+					Return(nodePoolStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
+			},
+			usesNewDeletionApproach: true,
+		},
+		{
+			name: "legacy approach: node pool gone in cluster service marks operation succeeded",
+			setupCSMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				notFoundErr, _ := ocmerrors.NewError().Status(http.StatusNotFound).Build()
 				mockCSClient.EXPECT().
@@ -53,110 +133,57 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 					Return(nil, notFoundErr)
 				return mockCSClient
 			},
-			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
-
-				// Verify node pool document was deleted
-				_, err = db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
-				assert.Error(t, err, "node pool should have been deleted")
 			},
+			usesNewDeletionApproach: false,
 		},
 		{
-			name: "node pool uninstalling updates operation to deleting",
-			setupMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
+			name: "legacy approach: node pool still exists in cluster service keeps operation accepted",
+			setupCSMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				nodePoolStatus, _ := arohcpv1alpha1.NewNodePoolStatus().
-					State(arohcpv1alpha1.NewNodePoolState().NodePoolStateValue(string(NodePoolStateUninstalling))).
-					Build()
-				mockCSClient.EXPECT().
-					GetNodePoolStatus(gomock.Any(), fixture.nodePoolInternalID).
-					Return(nodePoolStatus, nil)
-				return mockCSClient
-			},
-			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
-				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
-				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateDeleting, op.Status)
-
-				// Node pool should still exist during uninstalling
-				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
-				require.NoError(t, err)
-				assert.NotNil(t, nodePool)
-			},
-		},
-		{
-			name: "node pool ready during delete stays at current status",
-			setupMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				nodePoolStatus, _ := arohcpv1alpha1.NewNodePoolStatus().
+				nodePoolStatus, err := arohcpv1alpha1.NewNodePoolStatus().
 					State(arohcpv1alpha1.NewNodePoolState().NodePoolStateValue(string(NodePoolStateReady))).
 					Build()
+				require.NoError(t, err)
 				mockCSClient.EXPECT().
 					GetNodePoolStatus(gomock.Any(), fixture.nodePoolInternalID).
 					Return(nodePoolStatus, nil)
 				return mockCSClient
 			},
-			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
-				// When node pool is Ready during delete, operation stays at Accepted
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
-
-				// Node pool should still exist
-				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
-				require.NoError(t, err)
-				assert.NotNil(t, nodePool)
 			},
-		},
-		{
-			name: "node pool error during delete transitions to failed",
-			setupMock: func(ctrl *gomock.Controller, fixture *nodePoolTestFixture) ocm.ClusterServiceClientSpec {
-				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-				nodePoolStatus, _ := arohcpv1alpha1.NewNodePoolStatus().
-					State(arohcpv1alpha1.NewNodePoolState().NodePoolStateValue(string(NodePoolStateError))).
-					Message("delete failed").
-					Build()
-				mockCSClient.EXPECT().
-					GetNodePoolStatus(gomock.Any(), fixture.nodePoolInternalID).
-					Return(nodePoolStatus, nil)
-				return mockCSClient
-			},
-			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *nodePoolTestFixture) {
-				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
-				require.NoError(t, err)
-				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
-				assert.NotNil(t, op.Error)
-
-				// Node pool should still exist on failure
-				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
-				require.NoError(t, err)
-				assert.NotNil(t, nodePool)
-			},
+			usesNewDeletionApproach: false,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			ctx = utils.ContextWithLogger(ctx, testr.New(t))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			fixture := newNodePoolTestFixture()
-			cluster := fixture.newCluster()
-			nodePool := fixture.newNodePool()
 			operation := fixture.newOperation(database.OperationRequestDelete)
+			// TODO remove this once the new deletion approach is fully rolled out in all ARO-HCP permanent environments, for all regions.
+			operation.UsesNewNodePoolDeletionApproach = tc.usesNewDeletionApproach
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, nodePool, operation})
+			resources := []any{operation}
+			if tc.existingNodePool != nil {
+				resources = append(resources, tc.existingNodePool)
+			}
+
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			mockCSClient := tt.setupMock(ctrl, fixture)
+			var mockCSClient ocm.ClusterServiceClientSpec
+			if tc.setupCSMock != nil {
+				mockCSClient = tc.setupCSMock(ctrl, fixture)
+			}
 
 			controller := &operationNodePoolDelete{
 				clock:                utilsclock.RealClock{},
@@ -166,15 +193,14 @@ func TestOperationNodePoolDelete_SynchronizeOperation(t *testing.T) {
 			}
 
 			err = controller.SynchronizeOperation(ctx, fixture.operationKey())
-
-			if tt.expectError {
+			if tc.wantErr {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+			require.NoError(t, err)
 
-			if tt.verify != nil {
-				tt.verify(t, ctx, mockResourcesDBClient, fixture)
+			if tc.verifyDB != nil {
+				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
 		})
 	}
