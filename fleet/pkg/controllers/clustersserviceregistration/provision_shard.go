@@ -15,15 +15,29 @@
 package clustersserviceregistration
 
 import (
+	"context"
 	"fmt"
+	"strings"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func baseProvisionShardBuilder(managementCluster *fleet.ManagementCluster, region string) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
+func schedulingPolicyToShardStatus(policy fleet.ManagementClusterSchedulingPolicy) (string, error) {
+	switch policy {
+	case fleet.ManagementClusterSchedulingPolicySchedulable:
+		return ocm.CSProvisionShardStatusActive, nil
+	case fleet.ManagementClusterSchedulingPolicyUnschedulable:
+		return ocm.CSProvisionShardStatusMaintenance, nil
+	default:
+		return "", fmt.Errorf("unknown scheduling policy: %q", policy)
+	}
+}
+
+func buildProvisionShardForCreate(managementCluster *fleet.ManagementCluster, region string) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
 	if managementCluster.Status.AKSResourceID == nil {
 		return nil, fmt.Errorf("AKSResourceID is required")
 	}
@@ -74,29 +88,51 @@ func baseProvisionShardBuilder(managementCluster *fleet.ManagementCluster, regio
 		Topology(ocm.CSProvisionShardTopologyShared), nil
 }
 
-func schedulingPolicyToShardStatus(policy fleet.ManagementClusterSchedulingPolicy) (string, error) {
-	switch policy {
-	case fleet.ManagementClusterSchedulingPolicySchedulable:
-		return ocm.CSProvisionShardStatusActive, nil
-	case fleet.ManagementClusterSchedulingPolicyUnschedulable:
-		return ocm.CSProvisionShardStatusMaintenance, nil
-	default:
-		return "", fmt.Errorf("unknown scheduling policy: %q", policy)
-	}
-}
-
-func buildProvisionShardForCreate(managementCluster *fleet.ManagementCluster, region string) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
-	return baseProvisionShardBuilder(managementCluster, region)
-}
-
-// buildProvisionShardForUpdate builds a partial shard with only topology and status.
-// CS treats all other fields (region, cloud provider, azure shard details, maestro config) as immutable after create.
-func buildProvisionShardForUpdate(managementCluster *fleet.ManagementCluster) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
-	shardStatus, err := schedulingPolicyToShardStatus(managementCluster.Spec.SchedulingPolicy)
+// provisionShardStatusUpdateBuilder builds a patch that only sets the shard status.
+// All other fields are immutable after create in CS.
+// If the shard is already in the desired state, returns nil.
+func provisionShardStatusUpdateBuilder(shard *arohcpv1alpha1.ProvisionShard, policy fleet.ManagementClusterSchedulingPolicy) (*arohcpv1alpha1.ProvisionShardBuilder, error) {
+	newStatus, err := schedulingPolicyToShardStatus(policy)
 	if err != nil {
 		return nil, err
 	}
-	return arohcpv1alpha1.NewProvisionShard().
-		Topology(ocm.CSProvisionShardTopologyShared).
-		Status(shardStatus), nil
+	if shard.Status() == newStatus {
+		return nil, nil
+	}
+	return arohcpv1alpha1.NewProvisionShard().Status(newStatus), nil
+}
+
+// searchByIdentityKeys scans all provision shards for a match on both AKS
+// resource ID and consumer name. Both keys must point to the same shard. A
+// partial match (only one key matches) or a duplicate is an error.
+func searchByIdentityKeys(ctx context.Context, clustersServiceClient ProvisionShardClient, aksResourceID, consumerName string) (*api.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
+	var found *arohcpv1alpha1.ProvisionShard
+
+	iter := clustersServiceClient.ListProvisionShards()
+	for shard := range iter.Items(ctx) {
+		matchAKS := strings.EqualFold(shard.AzureShard().AksManagementClusterResourceId(), aksResourceID)
+		matchConsumer := shard.MaestroConfig().ConsumerName() == consumerName
+
+		if !matchAKS && !matchConsumer {
+			continue
+		}
+		if matchAKS != matchConsumer {
+			return nil, nil, fmt.Errorf("shard %s partially matches: AKS=%v consumer=%v", shard.HREF(), matchAKS, matchConsumer)
+		}
+		if found != nil {
+			return nil, nil, fmt.Errorf("multiple shards match AKS resource ID %q and consumer name %q", aksResourceID, consumerName)
+		}
+		found = shard
+	}
+	if err := iter.GetError(); err != nil {
+		return nil, nil, err
+	}
+	if found == nil {
+		return nil, nil, nil
+	}
+	shardID, err := api.NewInternalID(found.HREF())
+	if err != nil {
+		return nil, nil, fmt.Errorf("parsing provision shard HREF: %w", err)
+	}
+	return &shardID, found, nil
 }

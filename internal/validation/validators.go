@@ -442,6 +442,17 @@ func HostPort(_ context.Context, _ operation.Operation, fldPath *field.Path, val
 	return nil
 }
 
+func DNS1123Label(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	errs := field.ErrorList{}
+	for _, msg := range k8svalidation.IsDNS1123Label(*value) {
+		errs = append(errs, field.Invalid(fldPath, *value, msg))
+	}
+	return errs
+}
+
 func URL(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
