@@ -86,7 +86,7 @@ arobit:
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
   authRuleName: SendRule
-  enabled: true
+  enabled: false
   kustoConsumerGroupName: AuditLogsToKusto
   kustoDataConnectionName: prow-centralus-auditlogs
   name: aks-auditlogs
