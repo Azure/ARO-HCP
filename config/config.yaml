@@ -1100,6 +1100,7 @@ clouds:
       cloudEnvironmentName: "AzurePublicCloud"
       kusto:
         kustoName: "hcp-dev-us-2"
+        location: eastus2
         manageInstance: true
         sku: "Standard_E8ads_v5"
         tier: "Standard"
@@ -1647,7 +1648,6 @@ clouds:
           auditLogsEventHub:
             enabled: true
           kusto:
-            location: eastus2
             manageInstance: false
           # Service Key Vault
           serviceKeyVault:

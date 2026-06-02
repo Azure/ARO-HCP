@@ -496,7 +496,7 @@ kusto:
   enableAutoScale: true
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us-2
-  location: westus3
+  location: eastus2
   manageInstance: true
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
