@@ -139,8 +139,8 @@ const (
 	systmpReadyTOMin  = 10
 	poolReadyTOMin    = 10
 	pollIntervalSec   = 30
-	overallTimeoutMin = 150
-	minPoolBudgetMin  = 20
+	overallTimeoutMin = 55
+	minPoolBudgetMin  = 5
 
 	// The NRP-KVS storm check requires this error code so other failure
 	// modes (quota / capacity / policy / etc) cannot trip the threshold.
@@ -158,7 +158,7 @@ const (
 	// to produce fresh evidence (or to prove the wedge is not NRP-KVS).
 	// Times are short relative to the AKS RP retry cadence (~3 min) so
 	// threshold-many retries can accumulate during the wait window.
-	triggerEvidenceTimeoutMin      = 30 // wait at most this long for evidence
+	triggerEvidenceTimeoutMin      = 10 // wait at most this long for evidence
 	triggerEvidencePollIntervalSec = 60 // re-query activity log every poll
 	triggerEvidenceWindowMin       = 60 // activity-log lookback for the wait loop
 
@@ -299,7 +299,7 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 
 	logBanner("DETECTION")
 	if cfg.skipGuards {
-		logf("SKIP_GUARDS=true — bypassing detection guards")
+		logf("SKIP_GUARDS=true — bypassing per-pool wedge and NRP-KVS checks (cluster-state and safety checks still apply)")
 	}
 	allWedged, reason, err := orch.detect(ctx)
 	if err != nil {
@@ -404,12 +404,14 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	}
 
 	deadline, hasDeadline := ctx.Deadline()
+	skipped := 0
 	for i, wp := range wedgedPools {
 		if hasDeadline {
 			remaining := time.Until(deadline)
 			if remaining < minPoolBudgetMin*time.Minute {
+				skipped = len(wedgedPools) - i
 				logf("WARN: only %s remaining; skipping pool %s and %d remaining pool(s)",
-					remaining.Round(time.Minute), wp.name, len(wedgedPools)-i)
+					remaining.Round(time.Minute), wp.name, skipped)
 				break
 			}
 		}
@@ -430,6 +432,10 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 				return err
 			}
 		}
+	}
+
+	if skipped > 0 {
+		return fmt.Errorf("%d wedged pool(s) skipped due to insufficient time budget", skipped)
 	}
 
 	logBanner("TAG RECONCILE")

@@ -506,9 +506,9 @@ func TestClassifyPool(t *testing.T) {
 
 func TestPoolVMSSPrefix(t *testing.T) {
 	cases := []struct {
-		name   string
-		pool   string
-		want   string
+		name string
+		pool string
+		want string
 	}{
 		{"system", "system", "aks-system-"},
 		{"user", "userswft3", "aks-userswft3-"},
@@ -1398,20 +1398,20 @@ type mockOrchestrator struct {
 	calls       []string
 	detectCount int
 
-	ensureClusterFn      func(ctx context.Context) (armcs.ManagedCluster, bool, error)
-	bootstrapKubeFn      func(ctx context.Context, mc armcs.ManagedCluster) error
-	detectFn             func(ctx context.Context, n int) ([]wedgedPool, string, error)
-	preflightChecksFn    func(ctx context.Context, pools []wedgedPool) error
-	snapshotPoolFn       func(ctx context.Context, poolName string) (*armcs.AgentPool, error)
-	maybeAbortLROFn      func(ctx context.Context) (bool, error)
-	addSystmpFn          func(ctx context.Context, live *armcs.AgentPool) error
-	drainPoolFn          func(ctx context.Context, pool string, timeout time.Duration) error
-	deletePoolFn         func(ctx context.Context, pool string) error
-	recreatePoolFn       func(ctx context.Context, poolName string, live *armcs.AgentPool) error
-	reconcileTagPutFn    func(ctx context.Context) error
+	ensureClusterFn        func(ctx context.Context) (armcs.ManagedCluster, bool, error)
+	bootstrapKubeFn        func(ctx context.Context, mc armcs.ManagedCluster) error
+	detectFn               func(ctx context.Context, n int) ([]wedgedPool, string, error)
+	preflightChecksFn      func(ctx context.Context, pools []wedgedPool) error
+	snapshotPoolFn         func(ctx context.Context, poolName string) (*armcs.AgentPool, error)
+	maybeAbortLROFn        func(ctx context.Context) (bool, error)
+	addSystmpFn            func(ctx context.Context, live *armcs.AgentPool) error
+	drainPoolFn            func(ctx context.Context, pool string, timeout time.Duration) error
+	deletePoolFn           func(ctx context.Context, pool string) error
+	recreatePoolFn         func(ctx context.Context, poolName string, live *armcs.AgentPool) error
+	reconcileTagPutFn      func(ctx context.Context) error
 	triggerPoolReconcileFn func(ctx context.Context, poolName string, live *armcs.AgentPool) error
-	pollForNRPEvidenceFn func(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
-	abortPoolReconcileFn func(ctx context.Context, poolName string) error
+	pollForNRPEvidenceFn   func(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
+	abortPoolReconcileFn   func(ctx context.Context, poolName string) error
 }
 
 func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
