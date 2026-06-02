@@ -905,6 +905,75 @@ func TestBuildTempAgentPool_RecordsSourceTag(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// adopt-leftover helpers: poolNameFromARMID, tempPoolSourceID
+// =============================================================================
+
+func TestPoolNameFromARMID_Valid(t *testing.T) {
+	cases := map[string]string{
+		"/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/system": "system",
+		"/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/user01": "user01",
+		// LastIndex of /agentPools/ correctly skips earlier segments
+		"/subscriptions/x/resourceGroups/agentPools/providers/Microsoft.ContainerService/managedClusters/c/agentPools/sys": "sys",
+	}
+	for id, want := range cases {
+		got, err := poolNameFromARMID(id)
+		if err != nil {
+			t.Errorf("poolNameFromARMID(%q) unexpected error: %v", id, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("poolNameFromARMID(%q) = %q, want %q", id, got, want)
+		}
+	}
+}
+
+func TestPoolNameFromARMID_Invalid(t *testing.T) {
+	cases := []string{
+		"",                           // empty
+		"/some/random/path",          // missing segment
+		"foo/agentPools/",            // empty trailing segment
+		"foo/agentPools/bar/baz",     // trailing path after pool name
+		"foo/agentPools/bar/baz/qux", // multiple trailing segments
+	}
+	for _, id := range cases {
+		if got, err := poolNameFromARMID(id); err == nil {
+			t.Errorf("poolNameFromARMID(%q) = %q, expected error", id, got)
+		}
+	}
+}
+
+func TestTempPoolSourceID(t *testing.T) {
+	if got := tempPoolSourceID(nil); got != "" {
+		t.Errorf("nil pool: got %q, want \"\"", got)
+	}
+	if got := tempPoolSourceID(&armcs.AgentPool{}); got != "" {
+		t.Errorf("pool with nil properties: got %q, want \"\"", got)
+	}
+	if got := tempPoolSourceID(&armcs.AgentPool{Properties: &armcs.ManagedClusterAgentPoolProfileProperties{}}); got != "" {
+		t.Errorf("pool with nil tags: got %q, want \"\"", got)
+	}
+	noTag := &armcs.AgentPool{Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+		Tags: map[string]*string{"unrelated": ptr("v")},
+	}}
+	if got := tempPoolSourceID(noTag); got != "" {
+		t.Errorf("pool without source tag: got %q, want \"\"", got)
+	}
+	nilValue := &armcs.AgentPool{Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+		Tags: map[string]*string{tempPoolSourceTag: nil},
+	}}
+	if got := tempPoolSourceID(nilValue); got != "" {
+		t.Errorf("pool with nil tag value: got %q, want \"\"", got)
+	}
+	want := "/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/system"
+	withTag := &armcs.AgentPool{Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+		Tags: map[string]*string{tempPoolSourceTag: ptr(want)},
+	}}
+	if got := tempPoolSourceID(withTag); got != want {
+		t.Errorf("pool with source tag: got %q, want %q", got, want)
+	}
+}
+
 func TestBuildTempAgentPool_NilProperties(t *testing.T) {
 	if _, err := buildTempAgentPool(&armcs.AgentPool{}, "1.35.4"); err == nil {
 		t.Fatal("expected error for nil properties")
@@ -1521,7 +1590,7 @@ type mockOrchestrator struct {
 	ensureClusterFn          func(ctx context.Context) (armcs.ManagedCluster, bool, error)
 	bootstrapKubeFn          func(ctx context.Context, mc armcs.ManagedCluster) error
 	detectFn                 func(ctx context.Context, n int) (bool, string, error)
-	preflightChecksFn        func(ctx context.Context) error
+	adoptLeftoverTempPoolFn  func(ctx context.Context, target nodePoolTarget) error
 	snapshotSystemFn         func(ctx context.Context) (*armcs.AgentPool, error)
 	maybeAbortLROFn          func(ctx context.Context) (bool, error)
 	addTempPoolFn            func(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error
@@ -1581,10 +1650,10 @@ func (m *mockOrchestrator) dumpPostflight(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) preflightChecks(ctx context.Context, targets []nodePoolTarget) error {
-	m.record("preflightChecks")
-	if m.preflightChecksFn != nil {
-		return m.preflightChecksFn(ctx)
+func (m *mockOrchestrator) adoptLeftoverTempPool(ctx context.Context, target nodePoolTarget) error {
+	m.record("adoptLeftoverTempPool:" + target.name)
+	if m.adoptLeftoverTempPoolFn != nil {
+		return m.adoptLeftoverTempPoolFn(ctx, target)
 	}
 	return nil
 }
@@ -1699,8 +1768,8 @@ func TestRunWith(t *testing.T) {
 
 	fullHappyPath := []string{
 		"ensureCluster", "dumpPreflight", "detect:1",
-		"bootstrapKube", "dumpPreflight", "preflightChecks",
-		"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+		"bootstrapKube", "dumpPreflight",
+		"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
 		"addTempPool:system",
 		"drainPool:system", "deletePool:system",
 		"recreateSystem",
@@ -1789,8 +1858,8 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
-				"bootstrapKube", "dumpPreflight", "preflightChecks",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"bootstrapKube", "dumpPreflight",
+				"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
 				"addTempPool:system",
 				"drainPool:system", "deletePool:system",
 				"recreateSystem",
@@ -1846,7 +1915,7 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"bootstrapKube", "dumpPreflight",
 				"snapshotSystem", "maybeAbortLRO",
 			},
 		},
@@ -1885,7 +1954,7 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"bootstrapKube", "dumpPreflight",
 				"snapshotSystem", "maybeAbortLRO", "detect:2",
 			},
 		},
@@ -1902,7 +1971,7 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"bootstrapKube", "dumpPreflight",
 				"snapshotSystem", "maybeAbortLRO", "detect:2",
 			},
 		},
@@ -1920,8 +1989,8 @@ func TestRunWith(t *testing.T) {
 			wantErr: "add temp pool " + tmpSystem + " for system:",
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"bootstrapKube", "dumpPreflight", "preflightChecks",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"bootstrapKube", "dumpPreflight",
+				"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
 				"addTempPool:system",
 			},
 		},
@@ -1939,8 +2008,8 @@ func TestRunWith(t *testing.T) {
 			wantErr: "drain system:",
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"bootstrapKube", "dumpPreflight", "preflightChecks",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"bootstrapKube", "dumpPreflight",
+				"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
 				"addTempPool:system", "drainPool:system",
 			},
 		},

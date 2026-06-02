@@ -166,8 +166,9 @@ const (
 	// tempPoolPurposeTag / tempPoolPurposeValue mark agent pools created
 	// by this binary as throwaway replacements. Detection skips any pool
 	// carrying this tag so the temp pool itself is never picked as a
-	// remediation target, and preflightChecks uses the deterministic
-	// per-target name from tempPoolName to detect leftover temp pools.
+	// remediation target, and adoptLeftoverTempPool uses the deterministic
+	// per-target name from tempPoolName to detect (and either adopt or
+	// fail closed on) leftover temp pools from previous crashed runs.
 	tempPoolPurposeTag   = "purpose"
 	tempPoolPurposeValue = "temp-recreate-broken-pools"
 
@@ -309,7 +310,7 @@ type orchestrator interface {
 	detect(ctx context.Context) ([]nodePoolTarget, string, error)
 	dumpPreflight(ctx context.Context) error
 	dumpPostflight(ctx context.Context) error
-	preflightChecks(ctx context.Context, targets []nodePoolTarget) error
+	adoptLeftoverTempPool(ctx context.Context, target nodePoolTarget) error
 	snapshotPool(ctx context.Context, poolName string) (*armcs.AgentPool, error)
 	maybeAbortLRO(ctx context.Context) (bool, error)
 	addTempPool(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error
@@ -426,10 +427,6 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		logf("WARN: pre-action dump partial: %v", err)
 	}
 
-	if err := orch.preflightChecks(ctx, targets); err != nil {
-		return err
-	}
-
 	logBanner("STEP 1 :: snapshot selected node pools")
 	for _, target := range targets {
 		if _, err := orch.snapshotPool(ctx, target.name); err != nil {
@@ -475,6 +472,17 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 
 	for i, target := range targets {
 		logBanner(fmt.Sprintf("REMEDIATE POOL %d/%d :: %s", i+1, len(targets), target.name))
+		// Per-pool atomicity: any leftover temp pool for this target
+		// from a previous crashed run must be adopted (deleted or fail
+		// closed) BEFORE we touch the source pool, and the entire
+		// adopt + snapshot + recreate sequence below must complete
+		// for this target before we move on to the next one in the
+		// loop. The orchestrator primitives below are all synchronous
+		// (LRO pollers wait via PollUntilDone), so the loop is
+		// strictly sequential per target by construction.
+		if err := orch.adoptLeftoverTempPool(ctx, target); err != nil {
+			return err
+		}
 		live, err := orch.snapshotPool(ctx, target.name)
 		if err != nil {
 			return fmt.Errorf("post-LRO snapshot %s: %w", target.name, err)
@@ -1173,21 +1181,145 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 	return targets, "", nil
 }
 
-// preflightChecks fails CLOSED: if the AKS Get for any target's temp pool
-// returns anything other than HTTP 404 we must not proceed. Treating
-// auth/throttling/transient errors as "pool does not exist" would let us
-// create a duplicate temp pool on top of an existing one, which would
-// fail with a less actionable error later.
-func (c *clients) preflightChecks(ctx context.Context, targets []nodePoolTarget) error {
-	for _, target := range targets {
-		tmpName := tempPoolName(target.name)
-		_, err := c.pools.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, tmpName, nil)
-		if err == nil {
-			return fmt.Errorf("leftover %q temp pool present from previous run; clean it up then re-run", tmpName)
-		}
-		if !isNotFoundErr(err) {
-			return fmt.Errorf("preflight Get %s: %w", tmpName, err)
-		}
+// tempPoolSourceID returns the value of the tempPoolSourceTag on p, or
+// "" if the tag is absent. The tag is always set by buildTempAgentPool
+// for pools created by this binary; an empty value on a pool that
+// otherwise carries tempPoolPurposeTag is treated by
+// adoptLeftoverTempPool as a defensive failure.
+func tempPoolSourceID(p *armcs.AgentPool) string {
+	if p == nil || p.Properties == nil || p.Properties.Tags == nil {
+		return ""
+	}
+	v := p.Properties.Tags[tempPoolSourceTag]
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+// poolNameFromARMID parses the trailing agent-pool name segment from
+// an AKS agent pool ARM resource ID, e.g.
+//
+//	/subscriptions/<sub>/resourceGroups/<rg>/providers/
+//	  Microsoft.ContainerService/managedClusters/<cluster>/agentPools/<pool>
+//
+// Returns an error if the input does not contain a single
+// "/agentPools/<name>" segment with a non-empty name and no trailing
+// path segments. adoptLeftoverTempPool surfaces that error verbatim
+// to the operator rather than guessing at recovery.
+func poolNameFromARMID(id string) (string, error) {
+	const sep = "/agentPools/"
+	i := strings.LastIndex(id, sep)
+	if i < 0 {
+		return "", fmt.Errorf("missing %q segment", sep)
+	}
+	name := id[i+len(sep):]
+	if name == "" {
+		return "", errors.New("trailing pool name segment empty")
+	}
+	if strings.Contains(name, "/") {
+		return "", fmt.Errorf("trailing pool name segment %q contains a path separator", name)
+	}
+	return name, nil
+}
+
+// adoptLeftoverTempPool handles a leftover temp pool from a previous
+// crashed or aborted run of this binary for the given target. It is
+// called per-target from runWith's remediation loop and runs to
+// completion (including the temp-pool Delete LRO via PollUntilDone)
+// before the loop touches the source pool, so each target is processed
+// atomically: nothing in the next iteration can run until this
+// target's leftover (if any) is fully cleaned up.
+//
+// The temp pool name is deterministic (tempPoolName(target.name)), so
+// a single Get suffices to detect a leftover. The decision matrix
+// uses the tempPoolSourceTag (full ARM resource ID of the source pool)
+// recorded by buildTempAgentPool:
+//
+//	no leftover (Get returns 404)
+//	    -> nothing to do.
+//	leftover present but missing the purpose tag
+//	    -> fail closed (something else owns this name).
+//	leftover present but no/malformed source tag
+//	    -> fail closed (defensive).
+//	leftover's source tag points to a pool other than target.name
+//	    -> fail closed (rename/collision; manual review).
+//	source pool exists and ProvisioningState == "Succeeded"
+//	    -> delete the temp pool. The previous run completed the
+//	       recreate but crashed before deleting the temp.
+//	source pool exists and ProvisioningState in {Failed, Canceled}
+//	    -> delete the temp pool. The target is wedged (likely an
+//	       NRP-KVS re-wedge or a crash during recreate) and is being
+//	       remediated this run; the temp will be created fresh by the
+//	       upcoming addTempPool. Failing closed here would block the
+//	       binary's primary job (auto-heal a wedged pool).
+//	source pool exists and ProvisioningState in {Updating, Upgrading}
+//	    -> fail closed. An active LRO is in flight on the source;
+//	       continuing would race the in-progress operation. Re-run
+//	       after the LRO settles.
+//	source pool missing
+//	    -> fail closed (CRITICAL). The previous run deleted the
+//	       source but never recreated it; manual recovery required.
+//	source pool in any other ProvisioningState
+//	    -> fail closed (defensive).
+//
+// adoptLeftoverTempPool never resumes a crashed mid-flight
+// remediation. Remediation requires the live source pool snapshot
+// (VMSize, OSDiskSizeGB, etc.), which is in-memory only and is lost
+// on crash; reconstructing it from the temp pool's tags would risk
+// picking wrong compute sizing across stg/prod.
+func (c *clients) adoptLeftoverTempPool(ctx context.Context, target nodePoolTarget) error {
+	tmpName := tempPoolName(target.name)
+	tempResp, err := c.pools.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, tmpName, nil)
+	if isNotFoundErr(err) {
+		logf("adopt: no leftover temp pool %q for target %q", tmpName, target.name)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("adopt: get temp pool %q for target %q: %w", tmpName, target.name, err)
+	}
+	temp := &tempResp.AgentPool
+
+	if !isTempPool(temp) {
+		return fmt.Errorf("adopt: pool %q exists at the deterministic temp name for target %q but lacks the %q=%q tag; refusing to act, please inspect and clean up manually then re-run", tmpName, target.name, tempPoolPurposeTag, tempPoolPurposeValue)
+	}
+	srcID := tempPoolSourceID(temp)
+	if srcID == "" {
+		return fmt.Errorf("adopt: leftover temp pool %q for target %q has no %q tag; refusing to act, please clean up manually then re-run", tmpName, target.name, tempPoolSourceTag)
+	}
+	srcName, err := poolNameFromARMID(srcID)
+	if err != nil {
+		return fmt.Errorf("adopt: leftover temp pool %q for target %q has malformed %q tag %q: %w; manual cleanup required", tmpName, target.name, tempPoolSourceTag, srcID, err)
+	}
+	if srcName != target.name {
+		return fmt.Errorf("adopt: leftover temp pool %q embeds source pool %q but the current target with the matching deterministic name is %q (rename or hash collision?); refusing to act, manual review required", tmpName, srcName, target.name)
+	}
+
+	srcResp, err := c.pools.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, srcName, nil)
+	if isNotFoundErr(err) {
+		return fmt.Errorf("adopt: leftover temp pool %q references source pool %q which no longer exists; CRITICAL: previous run deleted the source but never recreated it, manual recovery required (re-create source pool or delete temp pool) then re-run", tmpName, srcName)
+	}
+	if err != nil {
+		return fmt.Errorf("adopt: get source pool %q for leftover temp %q: %w", srcName, tmpName, err)
+	}
+	srcState := ""
+	if srcResp.Properties != nil {
+		srcState = strDeref(srcResp.Properties.ProvisioningState)
+	}
+
+	switch srcState {
+	case "Succeeded":
+		logf("adopt: leftover temp pool %q source %q is Succeeded; previous run finished the recreate but crashed before cleanup. Deleting temp pool.", tmpName, srcName)
+	case "Failed", "Canceled":
+		logf("adopt: leftover temp pool %q source %q is %q; target is wedged and will be remediated this run. Deleting old temp pool so the upcoming addTempPool starts clean.", tmpName, srcName, srcState)
+	case "Updating", "Upgrading":
+		return fmt.Errorf("adopt: leftover temp pool %q source %q is in provisioning state %q (active LRO in flight); refusing to race, please re-run after the LRO settles", tmpName, srcName, srcState)
+	default:
+		return fmt.Errorf("adopt: leftover temp pool %q source %q is in unexpected provisioning state %q; refusing to auto-adopt, please inspect manually then re-run", tmpName, srcName, srcState)
+	}
+
+	if err := c.deletePool(ctx, tmpName); err != nil {
+		return fmt.Errorf("adopt: delete leftover temp pool %q (source %q): %w", tmpName, srcName, err)
 	}
 	return nil
 }
