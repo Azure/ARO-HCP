@@ -201,12 +201,12 @@ resourceGroups:
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
-  # Detect and self-heal the AKS system pool when NRP KVS corruption
-  # has wedged it (AROSLSRE-924 / ICM 798003653). Runs BEFORE the cluster
-  # ARM step so the cluster PUT does not get stuck behind a wedged
-  # VMSS update. The Go binary checks cluster existence first and exits
-  # 0 (no-op) if the cluster has not been created yet (greenfield
-  # rollout), or if any of the four detection guards fail.
+  # Detect and self-heal any AKS nodepool whose VMSS is wedged by NRP
+  # KVS corruption (AROSLSRE-924 / ICM 798003653). Checks all pools
+  # (system, user/swft, infra). Runs BEFORE the cluster ARM step so
+  # the cluster PUT does not get stuck behind a wedged VMSS update.
+  # The Go binary exits 0 (no-op) if the cluster does not exist yet
+  # (greenfield rollout), or if no pools are in a wedge-compatible state.
   - name: pipeline-msi-reader-permissions
     action: ARM
     template: templates/pipeline-msi-reader-permissions.bicep

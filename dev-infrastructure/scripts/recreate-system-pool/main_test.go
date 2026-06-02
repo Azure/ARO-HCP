@@ -197,7 +197,7 @@ func TestParseEnvConfig_DryRunFlag(t *testing.T) {
 }
 
 // =============================================================================
-// evalNRPStorm..4
+// evalNRPStorm, evalClusterState, evalClusterSafety, evalPoolWedged
 // =============================================================================
 
 func TestEvalNRPStorm(t *testing.T) {
@@ -280,7 +280,7 @@ func mkPool(name string, count, minCount *int32) *armcs.AgentPool {
 }
 
 // mkPoolWithState builds a pool with provisioning state set, used for
-// guard 4/5 interactions.
+// guard interactions.
 func mkPoolWithState(name string, count, minCount *int32, provState string) *armcs.AgentPool {
 	p := mkPool(name, count, minCount)
 	if provState != "" {
@@ -290,134 +290,235 @@ func mkPoolWithState(name string, count, minCount *int32, provState string) *arm
 	return p
 }
 
-func TestEvalNonSystemPools_AllHealthy(t *testing.T) {
-	pools := []*armcs.AgentPool{
-		mkPoolWithState("system", ptr(int32(2)), ptr(int32(2)), "Succeeded"),
-		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
-	}
-	pass, sysMin, sysState, reason := evalNonSystemPools(pools)
-	if !pass {
-		t.Fatalf("expected pass, got fail: %s", reason)
-	}
-	if sysMin != 2 {
-		t.Errorf("systemMin=%d want 2", sysMin)
-	}
-	if sysState != "Succeeded" {
-		t.Errorf("sysState=%q want Succeeded", sysState)
+// mkPoolWithMode builds a pool with mode set.
+func mkPoolWithMode(name string, mode armcs.AgentPoolMode) *armcs.AgentPool {
+	return &armcs.AgentPool{
+		Name: ptr(name),
+		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+			Count: ptr(int32(1)),
+			Mode:  &mode,
+		},
 	}
 }
 
-func TestEvalNonSystemPools_NonSystemPoolEmpty(t *testing.T) {
-	pools := []*armcs.AgentPool{
-		mkPool("system", ptr(int32(2)), ptr(int32(2))),
-		mkPool("userswft3", ptr(int32(0)), ptr(int32(0))),
-	}
-	pass, _, _, reason := evalNonSystemPools(pools)
-	if pass {
-		t.Fatal("expected fail when non-system pool has count=0")
-	}
-	if !strings.Contains(reason, "userswft3") {
-		t.Errorf("reason should mention failing pool, got %q", reason)
+// mkPoolWithLabel builds a pool with a label set.
+func mkPoolWithLabel(name string, labelKey, labelValue string) *armcs.AgentPool {
+	return &armcs.AgentPool{
+		Name: ptr(name),
+		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+			Count:      ptr(int32(1)),
+			NodeLabels: map[string]*string{labelKey: ptr(labelValue)},
+		},
 	}
 }
 
-func TestEvalNonSystemPools_NoSystemPool(t *testing.T) {
-	pools := []*armcs.AgentPool{
-		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
-	}
-	pass, _, _, reason := evalNonSystemPools(pools)
-	if pass {
-		t.Fatal("expected fail when no system pool")
-	}
-	if !strings.Contains(reason, "system pool") {
-		t.Errorf("reason should mention missing system pool, got %q", reason)
-	}
-}
-
-func TestEvalNonSystemPools_SystemPoolWithZeroCount_OK(t *testing.T) {
-	// System pool itself can have count=0 (that's the whole point of this script).
-	pools := []*armcs.AgentPool{
-		mkPool("system", ptr(int32(0)), ptr(int32(2))),
-		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
-	}
-	pass, sysMin, _, reason := evalNonSystemPools(pools)
-	if !pass {
-		t.Fatalf("system pool with count=0 should not fail guard 4: %s", reason)
-	}
-	if sysMin != 2 {
-		t.Errorf("systemMin=%d want 2", sysMin)
-	}
-}
-
-func TestEvalNonSystemPools_NilPoolsSkipped(t *testing.T) {
-	pools := []*armcs.AgentPool{
-		nil,
-		mkPool("system", ptr(int32(2)), ptr(int32(2))),
-		nil,
-		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
-	}
-	pass, _, _, reason := evalNonSystemPools(pools)
-	if !pass {
-		t.Fatalf("nil pools should be skipped: %s", reason)
-	}
-}
-
-func TestEvalNonSystemPools_PoolMissingFieldsSkipped(t *testing.T) {
-	pools := []*armcs.AgentPool{
-		{Name: ptr("orphan")}, // no properties
-		{Properties: &armcs.ManagedClusterAgentPoolProfileProperties{Count: ptr(int32(3))}}, // no name
-		mkPool("system", ptr(int32(1)), ptr(int32(2))),
-		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
-	}
-	pass, _, _, reason := evalNonSystemPools(pools)
-	if !pass {
-		t.Fatalf("malformed pool entries should be skipped: %s", reason)
-	}
-}
-
-func TestEvalNonSystemPools_SystemMissingMinCount_DefaultsZero(t *testing.T) {
-	pools := []*armcs.AgentPool{
-		mkPool("system", ptr(int32(1)), nil),
-		mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
-	}
-	pass, sysMin, _, _ := evalNonSystemPools(pools)
-	if !pass || sysMin != 0 {
-		t.Errorf("systemMin=%d pass=%t (want 0/true)", sysMin, pass)
-	}
-}
-
-func TestEvalNonSystemPools_EmptyList(t *testing.T) {
-	pass, _, _, reason := evalNonSystemPools(nil)
-	if pass {
-		t.Fatal("empty pool list must fail")
-	}
-	if reason == "" {
-		t.Errorf("empty list fail must have a reason")
-	}
-}
-
-func TestEvalNonSystemPools_ExtractsSystemProvState(t *testing.T) {
+func TestEvalClusterSafety(t *testing.T) {
 	cases := []struct {
-		name  string
-		state string
+		name     string
+		pools    []*armcs.AgentPool
+		wantPass bool
 	}{
-		{"Succeeded", "Succeeded"},
-		{"Failed", "Failed"},
-		{"Updating", "Updating"},
-		{"Canceled", "Canceled"},
+		{
+			name: "has_non_system_pool_with_count",
+			pools: []*armcs.AgentPool{
+				mkPoolWithState("system", ptr(int32(2)), ptr(int32(2)), "Succeeded"),
+				mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
+			},
+			wantPass: true,
+		},
+		{
+			name: "non_system_pool_has_zero_count",
+			pools: []*armcs.AgentPool{
+				mkPool("system", ptr(int32(2)), ptr(int32(2))),
+				mkPool("userswft3", ptr(int32(0)), ptr(int32(0))),
+			},
+			wantPass: false,
+		},
+		{
+			name: "only_system_pool",
+			pools: []*armcs.AgentPool{
+				mkPool("system", ptr(int32(2)), ptr(int32(2))),
+			},
+			wantPass: false,
+		},
+		{
+			name: "system_pool_zero_count_but_user_pool_ok",
+			pools: []*armcs.AgentPool{
+				mkPool("system", ptr(int32(0)), ptr(int32(2))),
+				mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
+			},
+			wantPass: true,
+		},
+		{
+			name: "nil_pools_skipped",
+			pools: []*armcs.AgentPool{
+				nil,
+				mkPool("system", ptr(int32(2)), ptr(int32(2))),
+				nil,
+				mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
+			},
+			wantPass: true,
+		},
+		{
+			name: "pools_missing_fields_skipped",
+			pools: []*armcs.AgentPool{
+				{Name: ptr("orphan")}, // no properties
+				{Properties: &armcs.ManagedClusterAgentPoolProfileProperties{Count: ptr(int32(3))}}, // no name
+				mkPool("system", ptr(int32(1)), ptr(int32(2))),
+				mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
+			},
+			wantPass: true,
+		},
+		{
+			name:     "empty_list",
+			pools:    nil,
+			wantPass: false,
+		},
+		{
+			name: "systmp_pool_excluded",
+			pools: []*armcs.AgentPool{
+				mkPool("system", ptr(int32(2)), ptr(int32(2))),
+				mkPool("systmp", ptr(int32(1)), ptr(int32(1))),
+			},
+			wantPass: false,
+		},
+		{
+			name: "multiple_non_system_one_with_count",
+			pools: []*armcs.AgentPool{
+				mkPool("system", ptr(int32(2)), ptr(int32(2))),
+				mkPool("user1", ptr(int32(0)), nil),
+				mkPool("user2", ptr(int32(3)), nil),
+			},
+			wantPass: true,
+		},
+		{
+			name: "non_system_nil_count_treated_as_zero",
+			pools: []*armcs.AgentPool{
+				mkPool("system", ptr(int32(2)), ptr(int32(2))),
+				mkPool("userswft3", nil, nil),
+			},
+			wantPass: false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			pools := []*armcs.AgentPool{
-				mkPoolWithState("system", ptr(int32(0)), ptr(int32(2)), tc.state),
-				mkPool("userswft3", ptr(int32(4)), ptr(int32(4))),
+			pass, reason := evalClusterSafety(tc.pools)
+			if pass != tc.wantPass {
+				t.Errorf("pass=%t want %t (%s)", pass, tc.wantPass, reason)
 			}
-			pass, _, gotState, _ := evalNonSystemPools(pools)
-			if !pass {
-				t.Fatal("expected pass")
+			if !pass && reason == "" {
+				t.Errorf("non-pass result must have a reason")
 			}
-			if gotState != tc.state {
-				t.Errorf("systemProvState=%q want %q", gotState, tc.state)
+		})
+	}
+}
+
+// =============================================================================
+// evalPoolWedged
+// =============================================================================
+
+func TestEvalPoolWedged(t *testing.T) {
+	cases := []struct {
+		name  string
+		state string
+		want  bool
+	}{
+		// Wedge-compatible states.
+		{"failed", "Failed", true},
+		{"canceled", "Canceled", true},
+		{"updating", "Updating", true}, // AROSLSRE-880 wedge signature
+		{"upgrading", "Upgrading", true},
+		// Healthy: explicitly reject.
+		{"succeeded", "Succeeded", false},
+		// Transitional: explicitly reject.
+		{"creating", "Creating", false},
+		{"deleting", "Deleting", false},
+		// Defensive rejects.
+		{"empty", "", false},
+		{"lowercase_failed", "failed", false}, // case-sensitive on purpose
+		{"unknown", "SomethingFuture", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pass, reason := evalPoolWedged(tc.state)
+			if pass != tc.want {
+				t.Errorf("state=%q: pass=%t want %t (%s)", tc.state, pass, tc.want, reason)
+			}
+			if !pass && reason == "" {
+				t.Errorf("non-pass result must have a reason")
+			}
+			if !pass && !strings.Contains(reason, "pool wedge FAIL:") {
+				t.Errorf("reason should contain 'pool wedge FAIL:', got %q", reason)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// classifyPool
+// =============================================================================
+
+func TestClassifyPool(t *testing.T) {
+	cases := []struct {
+		name string
+		pool *armcs.AgentPool
+		want poolCategory
+	}{
+		{
+			name: "system_pool",
+			pool: mkPoolWithMode("system", armcs.AgentPoolModeSystem),
+			want: poolCategorySystem,
+		},
+		{
+			name: "user_pool_explicit",
+			pool: mkPoolWithMode("userswft3", armcs.AgentPoolModeUser),
+			want: poolCategoryUser,
+		},
+		{
+			name: "infra_pool",
+			pool: mkPoolWithLabel("infra", "aro-hcp.azure.com/role", "infra"),
+			want: poolCategoryInfra,
+		},
+		{
+			name: "user_pool_no_mode",
+			pool: mkPool("somepool", ptr(int32(1)), nil),
+			want: poolCategoryUser,
+		},
+		{
+			name: "user_pool_with_other_label",
+			pool: mkPoolWithLabel("labeled", "aro-hcp.azure.com/role", "worker"),
+			want: poolCategoryUser,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := classifyPool(tc.pool)
+			if got != tc.want {
+				t.Errorf("classifyPool(%s)=%v want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// poolVMSSPrefix
+// =============================================================================
+
+func TestPoolVMSSPrefix(t *testing.T) {
+	cases := []struct {
+		name   string
+		pool   string
+		want   string
+	}{
+		{"system", "system", "aks-system-"},
+		{"user", "userswft3", "aks-userswft3-"},
+		{"infra", "infra", "aks-infra-"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := poolVMSSPrefix(tc.pool)
+			if got != tc.want {
+				t.Errorf("poolVMSSPrefix(%q)=%q want %q", tc.pool, got, tc.want)
 			}
 		})
 	}
@@ -1290,44 +1391,6 @@ func TestIsActivityLogAuthorizationError(t *testing.T) {
 }
 
 // =============================================================================
-// evalSystemWedge  (system pool provisioningState == "Failed")
-// =============================================================================
-
-func TestEvalSystemWedge(t *testing.T) {
-	cases := []struct {
-		name  string
-		state string
-		want  bool
-	}{
-		// Wedge-compatible states.
-		{"failed", "Failed", true},
-		{"canceled", "Canceled", true},
-		{"updating", "Updating", true}, // AROSLSRE-880 wedge signature
-		{"upgrading", "Upgrading", true},
-		// Healthy: explicitly reject.
-		{"succeeded", "Succeeded", false},
-		// Transitional: explicitly reject.
-		{"creating", "Creating", false},
-		{"deleting", "Deleting", false},
-		// Defensive rejects.
-		{"empty", "", false},
-		{"lowercase_failed", "failed", false}, // case-sensitive on purpose
-		{"unknown", "SomethingFuture", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			pass, reason := evalSystemWedge(tc.state)
-			if pass != tc.want {
-				t.Errorf("state=%q: pass=%t want %t (%s)", tc.state, pass, tc.want, reason)
-			}
-			if !pass && reason == "" {
-				t.Errorf("non-pass result must have a reason")
-			}
-		})
-	}
-}
-
-// =============================================================================
 // runWith orchestration integration tests
 // =============================================================================
 
@@ -1335,20 +1398,20 @@ type mockOrchestrator struct {
 	calls       []string
 	detectCount int
 
-	ensureClusterFn          func(ctx context.Context) (armcs.ManagedCluster, bool, error)
-	bootstrapKubeFn          func(ctx context.Context, mc armcs.ManagedCluster) error
-	detectFn                 func(ctx context.Context, n int) (bool, string, error)
-	preflightChecksFn        func(ctx context.Context) error
-	snapshotSystemFn         func(ctx context.Context) (*armcs.AgentPool, error)
-	maybeAbortLROFn          func(ctx context.Context) (bool, error)
-	addSystmpFn              func(ctx context.Context, live *armcs.AgentPool) error
-	drainPoolFn              func(ctx context.Context, pool string, timeout time.Duration) error
-	deletePoolFn             func(ctx context.Context, pool string) error
-	recreateSystemFn         func(ctx context.Context, live *armcs.AgentPool) error
-	reconcileTagPutFn        func(ctx context.Context) error
-	triggerSystemReconcileFn func(ctx context.Context, live *armcs.AgentPool) error
-	pollForNRPEvidenceFn     func(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
-	abortSystemReconcileFn   func(ctx context.Context) error
+	ensureClusterFn      func(ctx context.Context) (armcs.ManagedCluster, bool, error)
+	bootstrapKubeFn      func(ctx context.Context, mc armcs.ManagedCluster) error
+	detectFn             func(ctx context.Context, n int) ([]wedgedPool, string, error)
+	preflightChecksFn    func(ctx context.Context, pools []wedgedPool) error
+	snapshotPoolFn       func(ctx context.Context, poolName string) (*armcs.AgentPool, error)
+	maybeAbortLROFn      func(ctx context.Context) (bool, error)
+	addSystmpFn          func(ctx context.Context, live *armcs.AgentPool) error
+	drainPoolFn          func(ctx context.Context, pool string, timeout time.Duration) error
+	deletePoolFn         func(ctx context.Context, pool string) error
+	recreatePoolFn       func(ctx context.Context, poolName string, live *armcs.AgentPool) error
+	reconcileTagPutFn    func(ctx context.Context) error
+	triggerPoolReconcileFn func(ctx context.Context, poolName string, live *armcs.AgentPool) error
+	pollForNRPEvidenceFn func(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
+	abortPoolReconcileFn func(ctx context.Context, poolName string) error
 }
 
 func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
@@ -1369,13 +1432,13 @@ func (m *mockOrchestrator) bootstrapKube(ctx context.Context, mc armcs.ManagedCl
 	return nil
 }
 
-func (m *mockOrchestrator) detect(ctx context.Context) (bool, string, error) {
+func (m *mockOrchestrator) detect(ctx context.Context) ([]wedgedPool, string, error) {
 	m.detectCount++
 	m.record(fmt.Sprintf("detect:%d", m.detectCount))
 	if m.detectFn != nil {
 		return m.detectFn(ctx, m.detectCount)
 	}
-	return true, "", nil
+	return []wedgedPool{{name: "system", category: poolCategorySystem, vmssPrefix: "aks-system-"}}, "", nil
 }
 
 func (m *mockOrchestrator) dumpPreflight(ctx context.Context) error {
@@ -1388,18 +1451,18 @@ func (m *mockOrchestrator) dumpPostflight(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) preflightChecks(ctx context.Context) error {
+func (m *mockOrchestrator) preflightChecks(ctx context.Context, pools []wedgedPool) error {
 	m.record("preflightChecks")
 	if m.preflightChecksFn != nil {
-		return m.preflightChecksFn(ctx)
+		return m.preflightChecksFn(ctx, pools)
 	}
 	return nil
 }
 
-func (m *mockOrchestrator) snapshotSystem(ctx context.Context) (*armcs.AgentPool, error) {
-	m.record("snapshotSystem")
-	if m.snapshotSystemFn != nil {
-		return m.snapshotSystemFn(ctx)
+func (m *mockOrchestrator) snapshotPool(ctx context.Context, poolName string) (*armcs.AgentPool, error) {
+	m.record("snapshotPool:" + poolName)
+	if m.snapshotPoolFn != nil {
+		return m.snapshotPoolFn(ctx, poolName)
 	}
 	return &armcs.AgentPool{}, nil
 }
@@ -1436,10 +1499,10 @@ func (m *mockOrchestrator) deletePool(ctx context.Context, pool string) error {
 	return nil
 }
 
-func (m *mockOrchestrator) recreateSystem(ctx context.Context, live *armcs.AgentPool) error {
-	m.record("recreateSystem")
-	if m.recreateSystemFn != nil {
-		return m.recreateSystemFn(ctx, live)
+func (m *mockOrchestrator) recreatePool(ctx context.Context, poolName string, live *armcs.AgentPool) error {
+	m.record("recreatePool:" + poolName)
+	if m.recreatePoolFn != nil {
+		return m.recreatePoolFn(ctx, poolName, live)
 	}
 	return nil
 }
@@ -1452,26 +1515,26 @@ func (m *mockOrchestrator) reconcileTagPut(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) triggerSystemReconcile(ctx context.Context, live *armcs.AgentPool) error {
-	m.record("triggerSystemReconcile")
-	if m.triggerSystemReconcileFn != nil {
-		return m.triggerSystemReconcileFn(ctx, live)
+func (m *mockOrchestrator) triggerPoolReconcile(ctx context.Context, poolName string, live *armcs.AgentPool) error {
+	m.record("triggerPoolReconcile:" + poolName)
+	if m.triggerPoolReconcileFn != nil {
+		return m.triggerPoolReconcileFn(ctx, poolName, live)
 	}
 	return nil
 }
 
-func (m *mockOrchestrator) pollForNRPEvidence(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
-	m.record("pollForNRPEvidence")
+func (m *mockOrchestrator) pollForNRPEvidence(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
+	m.record("pollForNRPEvidence:" + poolName)
 	if m.pollForNRPEvidenceFn != nil {
-		return m.pollForNRPEvidenceFn(ctx, timeout, pollInterval, windowMin, threshold)
+		return m.pollForNRPEvidenceFn(ctx, poolName, vmssPrefix, timeout, pollInterval, windowMin, threshold)
 	}
 	return threshold, nil
 }
 
-func (m *mockOrchestrator) abortSystemReconcile(ctx context.Context) error {
-	m.record("abortSystemReconcile")
-	if m.abortSystemReconcileFn != nil {
-		return m.abortSystemReconcileFn(ctx)
+func (m *mockOrchestrator) abortPoolReconcile(ctx context.Context, poolName string) error {
+	m.record("abortPoolReconcile:" + poolName)
+	if m.abortPoolReconcileFn != nil {
+		return m.abortPoolReconcileFn(ctx, poolName)
 	}
 	return nil
 }
@@ -1479,13 +1542,16 @@ func (m *mockOrchestrator) abortSystemReconcile(ctx context.Context) error {
 func TestRunWith(t *testing.T) {
 	dummyErr := errors.New("boom")
 
+	systemPool := wedgedPool{name: "system", category: poolCategorySystem, vmssPrefix: "aks-system-"}
+	suspectedSystemPool := wedgedPool{name: "system", category: poolCategorySystem, vmssPrefix: "aks-system-", suspected: true}
+
 	fullHappyPath := []string{
 		"ensureCluster", "dumpPreflight", "detect:1",
 		"bootstrapKube", "dumpPreflight", "preflightChecks",
-		"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+		"maybeAbortLRO", "detect:2", "snapshotPool:system",
 		"addSystmp",
 		"drainPool:system", "deletePool:system",
-		"recreateSystem",
+		"recreatePool:system",
 		"drainPool:systmp", "deletePool:systmp",
 		"reconcileTagPut", "dumpPostflight",
 	}
@@ -1519,97 +1585,102 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{"ensureCluster"},
 		},
 		{
-			name: "guards_do_not_fire_non_guard1",
+			name: "guards_do_not_fire",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "cluster state FAIL: not recoverable", nil
+				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
+					return nil, "cluster state FAIL: not recoverable", nil
 				}
 			},
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
 		},
 		{
-			name: "guard1_fail_dry_run_skips_forced_evidence",
+			name: "suspected_pool_dry_run_skips_forced_evidence",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
+					return []wedgedPool{suspectedSystemPool}, "", nil
 				}
 			},
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
 		},
 		{
-			name: "guard1_fail_forced_evidence_inconclusive",
+			name: "suspected_pool_forced_evidence_inconclusive",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
+					return []wedgedPool{suspectedSystemPool}, "", nil
 				}
-				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
+				m.pollForNRPEvidenceFn = func(_ context.Context, _ string, _ string, _ time.Duration, _ time.Duration, _ int, _ int) (int, error) {
 					return 3, nil
 				}
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile",
+				"snapshotPool:system", "triggerPoolReconcile:system", "pollForNRPEvidence:system", "abortPoolReconcile:system",
 			},
 		},
 		{
-			name: "guard1_fail_forced_evidence_confirms_nrp",
+			name: "suspected_pool_forced_evidence_confirms_nrp",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
+				m.detectFn = func(_ context.Context, n int) ([]wedgedPool, string, error) {
 					if n == 1 {
-						return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+						return []wedgedPool{suspectedSystemPool}, "", nil
 					}
-					return true, "", nil
+					return []wedgedPool{systemPool}, "", nil
 				}
-				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
+				m.pollForNRPEvidenceFn = func(_ context.Context, _ string, _ string, _ time.Duration, _ time.Duration, _ int, _ int) (int, error) {
 					return 12, nil
 				}
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile",
+				"snapshotPool:system", "triggerPoolReconcile:system", "pollForNRPEvidence:system", "abortPoolReconcile:system",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"maybeAbortLRO", "detect:2", "snapshotPool:system",
 				"addSystmp",
 				"drainPool:system", "deletePool:system",
-				"recreateSystem",
+				"recreatePool:system",
 				"drainPool:systmp", "deletePool:systmp",
 				"reconcileTagPut", "dumpPostflight",
 			},
 		},
 		{
-			name: "guard1_fail_trigger_failure_exits_noop",
+			name: "suspected_pool_trigger_failure_exits_noop",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
+					return []wedgedPool{suspectedSystemPool}, "", nil
 				}
-				m.triggerSystemReconcileFn = func(context.Context, *armcs.AgentPool) error {
+				m.triggerPoolReconcileFn = func(_ context.Context, _ string, _ *armcs.AgentPool) error {
 					return errors.New("conflict")
 				}
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile",
+				"snapshotPool:system", "triggerPoolReconcile:system",
 			},
 		},
 		{
 			name: "detect_error",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "", dummyErr
+				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
+					return nil, "", dummyErr
 				}
 			},
 			wantErr:   "detection:",
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
 		},
 		{
-			name:      "dry_run_exits_after_guards",
-			cfg:       &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
+			name: "dry_run_exits_after_guards",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
+					return []wedgedPool{systemPool}, "", nil
+				}
+			},
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
 		},
 		{
@@ -1629,24 +1700,24 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
-				"snapshotSystem", "maybeAbortLRO",
+				"maybeAbortLRO",
 			},
 		},
 		{
 			name: "guards_fail_after_lro_abort",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
+				m.detectFn = func(_ context.Context, n int) ([]wedgedPool, string, error) {
 					if n == 1 {
-						return true, "", nil
+						return []wedgedPool{systemPool}, "", nil
 					}
-					return false, "system wedge FAIL after LRO", nil
+					return nil, "pool wedge FAIL after LRO", nil
 				}
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
-				"snapshotSystem", "maybeAbortLRO", "detect:2",
+				"maybeAbortLRO", "detect:2",
 			},
 		},
 		{
@@ -1660,11 +1731,11 @@ func TestRunWith(t *testing.T) {
 			setup: func(m *mockOrchestrator) {
 				m.addSystmpFn = func(context.Context, *armcs.AgentPool) error { return dummyErr }
 			},
-			wantErr: "add systmp:",
+			wantErr: "add systmp",
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"maybeAbortLRO", "detect:2", "snapshotPool:system",
 				"addSystmp",
 			},
 		},
@@ -1683,7 +1754,7 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "snapshotSystem",
+				"maybeAbortLRO", "detect:2", "snapshotPool:system",
 				"addSystmp", "drainPool:system",
 			},
 		},
@@ -1704,7 +1775,7 @@ func TestRunWith(t *testing.T) {
 			name: "recreate_system_error",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
-				m.recreateSystemFn = func(context.Context, *armcs.AgentPool) error { return dummyErr }
+				m.recreatePoolFn = func(_ context.Context, _ string, _ *armcs.AgentPool) error { return dummyErr }
 			},
 			wantErr: "recreate system:",
 		},
@@ -1741,6 +1812,54 @@ func TestRunWith(t *testing.T) {
 				m.reconcileTagPutFn = func(context.Context) error { return dummyErr }
 			},
 			wantErr: "tag reconcile:",
+		},
+		{
+			name: "user_pool_only_remediation",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				userPool := wedgedPool{name: "userswft3", category: poolCategoryUser, vmssPrefix: "aks-userswft3-"}
+				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
+					return []wedgedPool{userPool}, "", nil
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"maybeAbortLRO", "detect:2", "snapshotPool:userswft3",
+				"drainPool:userswft3", "deletePool:userswft3",
+				"recreatePool:userswft3",
+				"reconcileTagPut", "dumpPostflight",
+			},
+		},
+		{
+			name: "multi_pool_system_and_user",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
+			setup: func(m *mockOrchestrator) {
+				pools := []wedgedPool{
+					{name: "system", category: poolCategorySystem, vmssPrefix: "aks-system-"},
+					{name: "userswft3", category: poolCategoryUser, vmssPrefix: "aks-userswft3-"},
+				}
+				m.detectFn = func(_ context.Context, _ int) ([]wedgedPool, string, error) {
+					return pools, "", nil
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"bootstrapKube", "dumpPreflight", "preflightChecks",
+				"maybeAbortLRO", "detect:2",
+				// system pool (with systmp dance)
+				"snapshotPool:system",
+				"addSystmp",
+				"drainPool:system", "deletePool:system",
+				"recreatePool:system",
+				"drainPool:systmp", "deletePool:systmp",
+				// user pool (no systmp)
+				"snapshotPool:userswft3",
+				"drainPool:userswft3", "deletePool:userswft3",
+				"recreatePool:userswft3",
+				// finish
+				"reconcileTagPut", "dumpPostflight",
+			},
 		},
 	}
 
