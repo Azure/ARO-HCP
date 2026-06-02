@@ -61,6 +61,16 @@ const (
 	NodePoolStateError            NodePoolStateValue = "error"
 )
 
+// Copied from uhc-clusters-service, because the
+// OCM SDK does not define this for some reason.
+type ExternalAuthStateValue string
+
+const (
+	ExternalAuthStateReady        ExternalAuthStateValue = "ready"
+	ExternalAuthStateUninstalling ExternalAuthStateValue = "uninstalling"
+	ExternalAuthStateError        ExternalAuthStateValue = "error"
+)
+
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
 // If the operation has an associated resource, both documents are updated
 // atomically using a transactional batch to prevent a window where the
@@ -556,6 +566,32 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
 	}
 
+	return newOperationStatus, opError, err
+}
+
+func convertExternalAuthStatus(operation *api.Operation, externalAuthStatus *arohcpv1alpha1.ExternalAuthStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var newOperationStatus = operation.Status
+	var opError *arm.CloudErrorBody
+	var err error
+
+	switch state := ExternalAuthStateValue(externalAuthStatus.State().Value()); state {
+	case ExternalAuthStateReady:
+		if operation.Request != database.OperationRequestDelete {
+			newOperationStatus = arm.ProvisioningStateSucceeded
+		}
+	case ExternalAuthStateError:
+		// XXX OCM SDK offers no error code or message for failed externalauth
+		//     operations so "Internal Server Error" is all we can do for now.
+		newOperationStatus = arm.ProvisioningStateFailed
+		opError = arm.NewInternalServerError().CloudErrorBody
+		if msg, ok := externalAuthStatus.GetMessage(); ok {
+			opError.Message = msg
+		}
+	case ExternalAuthStateUninstalling:
+		newOperationStatus = arm.ProvisioningStateDeleting
+	default:
+		err = fmt.Errorf("unhandled ExternalAuthState '%s'", state)
+	}
 	return newOperationStatus, opError, err
 }
 
