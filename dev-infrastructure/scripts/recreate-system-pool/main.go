@@ -316,9 +316,15 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		}
 	}
 
-	// Run forced evidence for suspected pools
+	// Run forced evidence for suspected SwiftV2 pools (system, user).
+	// Infra pools are not SwiftV2 and cannot have NRP-KVS corruption,
+	// so probing them wastes ~10 min each with no possible result.
 	if len(confirmed) == 0 && len(suspected) > 0 && !cfg.skipGuards && !cfg.dryRun {
 		for _, sp := range suspected {
+			if sp.category == poolCategoryInfra {
+				logf("skipping forced evidence for infra pool %s (not SwiftV2)", sp.name)
+				continue
+			}
 			logBanner(fmt.Sprintf("FORCED EVIDENCE :: pool %s (%s)", sp.name, sp.category))
 			wp, err := forcedEvidenceForPool(ctx, cfg, orch, sp)
 			if err != nil {
