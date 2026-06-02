@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -31,10 +30,6 @@ import (
 )
 
 var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
-	// Set deadline to a reasonable date after which we expect the private keyvault
-	// feature to be fully ready. Adjust as needed based on rollout schedule.
-	timeBombDeadline := mustParseDate("2026-04-01")
-
 	BeforeEach(func() {
 		// do nothing. per test initialization usually ages better than shared.
 	})
@@ -99,12 +94,6 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 				clusterResource,
 				framework.ClusterCreationTimeout,
 			)
-			if isAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20251223preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
-				}
-				Fail(fmt.Sprintf("v20251223preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private keyvault", customerClusterName)
 
 			By("verifying cluster was created with private keyvault visibility")
@@ -122,13 +111,7 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged was nil", customerClusterName)
 			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms).ToNot(BeNil(), "cluster %q Properties.Etcd.DataEncryption.CustomerManaged.Kms was nil", customerClusterName)
 
-			visibilityNotPresent := cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility == nil
-			if visibilityNotPresent {
-				if time.Now().Before(timeBombDeadline) {
-					Skip("v20251223preview deployed but Visibility field not present in cluster response; skipping until rollout completes")
-				}
-				Fail(fmt.Sprintf("Visibility field still not present in v20251223preview cluster response as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
-			}
+			Expect(cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).ToNot(BeNil(), "cluster %q Visibility field was nil", customerClusterName)
 			Expect(*cluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms.Visibility).To(Equal(hcpsdk20251223preview.KeyVaultVisibilityPrivate), "cluster etcd encryption key vault visibility should be Private")
 
 			GinkgoLogr.Info("Cluster created successfully with private keyvault",
