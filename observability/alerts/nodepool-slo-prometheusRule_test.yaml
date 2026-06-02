@@ -109,6 +109,7 @@ tests:
     exp_alerts:
     - exp_labels:
         severity: "3"
+        slo: nodepool-errors
       exp_annotations:
         summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
@@ -159,6 +160,7 @@ tests:
     exp_alerts:
     - exp_labels:
         severity: "3"
+        slo: nodepool-errors
       exp_annotations:
         summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
