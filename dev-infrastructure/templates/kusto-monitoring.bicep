@@ -1,8 +1,8 @@
 @description('Resource ID of the Kusto cluster')
 param kustoClusterId string
 
-@description('Action group resource IDs to notify when alerts fire')
-param actionGroups array
+@description('SL action group resource ID, injected from monitoring step output')
+param actionGroupSL string
 
 @description('Whether alerts are enabled')
 param alertsEnabled bool
@@ -17,7 +17,7 @@ module kustoAlerts '../modules/metrics/kusto-alerts.bicep' = if (kustoClusterId 
   name: 'kustoAlerts'
   params: {
     kustoClusterId: kustoClusterId
-    actionGroups: actionGroups
+    actionGroups: [actionGroupSL]
     enabled: alertsEnabled
   }
 }
