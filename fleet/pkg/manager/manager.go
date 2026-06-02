@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/clustersserviceregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/datadump"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/informers"
@@ -183,6 +184,12 @@ func (m *Manager) runControllersUnderLeaderElection(
 		base.StampWatchingControllerConfig{},
 	)
 
+	lifecycleController := lifecycle.NewManagementClusterLifecycleController(
+		managementClusterInformer,
+		m.FleetDBClient,
+		base.StampWatchingControllerConfig{},
+	)
+
 	dataDumpController := datadump.NewStampDataDumpController(
 		stampInformer,
 		managementClusterInformer,
@@ -210,6 +217,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 				logger.Info("informer caches synced; starting controllers")
 				go csRegistrationController.Run(ctx, 4)
 				go maestroRegistrationController.Run(ctx, 4)
+				go lifecycleController.Run(ctx, 1)
 				go dataDumpController.Run(ctx, 1)
 			},
 			OnStoppedLeading: func() {

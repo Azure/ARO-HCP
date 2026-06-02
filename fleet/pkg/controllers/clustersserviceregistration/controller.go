@@ -24,7 +24,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/tools/cache"
 
-	arohcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
@@ -202,8 +202,14 @@ func (s *clustersServiceRegistrationSyncer) findExistingProvisionShard(
 	ctx context.Context,
 	managementCluster *fleet.ManagementCluster,
 ) (*api.InternalID, *arohcpv1alpha1.ProvisionShard, error) {
+	if managementCluster.Status.AKSResourceID == nil {
+		return nil, nil, fmt.Errorf("AKSResourceID is required")
+	}
 	aksResourceID := managementCluster.Status.AKSResourceID.String()
 	consumerName := managementCluster.Status.MaestroConsumerName
+	if len(consumerName) == 0 {
+		return nil, nil, fmt.Errorf("MaestroConsumerName is required")
+	}
 
 	storedID := managementCluster.Status.ClusterServiceProvisionShardID
 	if storedID != nil {

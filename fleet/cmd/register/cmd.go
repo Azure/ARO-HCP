@@ -163,7 +163,6 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 
 func (o *RegisterOptions) applyToManagementCluster(managementCluster *fleet.ManagementCluster) {
 	managementCluster.Spec.SchedulingPolicy = o.schedulingPolicy
-	managementCluster.Status.ClusterServiceProvisionShardID = o.provisionShardID
 	managementCluster.Status.AKSResourceID = o.aksResourceID
 	managementCluster.Status.PublicDNSZoneResourceID = o.publicDNSZoneResourceID
 	managementCluster.Status.HostedClustersSecretsKeyVaultURL = o.hostedClustersSecretsKeyVaultURL
@@ -173,10 +172,4 @@ func (o *RegisterOptions) applyToManagementCluster(managementCluster *fleet.Mana
 	managementCluster.Status.MaestroRESTAPIURL = o.maestroRESTAPIURL
 	managementCluster.Status.MaestroGRPCTarget = o.maestroGRPCTarget
 	managementCluster.Status.KubeApplierCosmosContainerName = o.kubeApplierCosmosContainerName
-	apimeta.SetStatusCondition(&managementCluster.Status.Conditions, metav1.Condition{
-		Type:               string(fleet.ManagementClusterConditionReady),
-		Status:             metav1.ConditionTrue,
-		Reason:             string(fleet.ManagementClusterConditionReasonProvisionShardActive),
-		LastTransitionTime: metav1.NewTime(time.Now()),
-	})
 }

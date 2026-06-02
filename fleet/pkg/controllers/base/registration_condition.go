@@ -29,27 +29,24 @@ func SetRegistrationCondition(conditions *[]metav1.Condition, conditionType stri
 	switch {
 	case syncErr == nil:
 		apimeta.SetStatusCondition(conditions, metav1.Condition{
-			Type:               conditionType,
-			Status:             metav1.ConditionTrue,
-			Reason:             string(fleetapi.ManagementClusterConditionReasonRegistered),
-			Message:            "Registration successful",
-			LastTransitionTime: metav1.Now(),
+			Type:    conditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  string(fleetapi.ManagementClusterConditionReasonRegistered),
+			Message: "Registration successful",
 		})
 	case apimeta.IsStatusConditionTrue(*conditions, conditionType):
 		apimeta.SetStatusCondition(conditions, metav1.Condition{
-			Type:               conditionType,
-			Status:             metav1.ConditionTrue,
-			Reason:             string(fleetapi.ManagementClusterConditionReasonRegistrationCheckFailed),
-			Message:            syncErr.Error(),
-			LastTransitionTime: metav1.Now(),
+			Type:    conditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  string(fleetapi.ManagementClusterConditionReasonRegistrationCheckFailed),
+			Message: syncErr.Error(),
 		})
 	default:
 		apimeta.SetStatusCondition(conditions, metav1.Condition{
-			Type:               conditionType,
-			Status:             metav1.ConditionFalse,
-			Reason:             string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
-			Message:            syncErr.Error(),
-			LastTransitionTime: metav1.Now(),
+			Type:    conditionType,
+			Status:  metav1.ConditionFalse,
+			Reason:  string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
+			Message: syncErr.Error(),
 		})
 	}
 }

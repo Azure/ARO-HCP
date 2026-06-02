@@ -168,7 +168,6 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 				{fieldPath: "status.hostedClustersSecretsKeyVaultURL", message: "Required"},
 				{fieldPath: "status.hostedClustersManagedIdentitiesKeyVaultURL", message: "Required"},
 				{fieldPath: "status.hostedClustersSecretsKeyVaultManagedIdentityClientID", message: "Required"},
-				{fieldPath: "status.clusterServiceProvisionShardID", message: "Required"},
 				{fieldPath: "status.maestroConsumerName", message: "Required"},
 				{fieldPath: "status.maestroRESTAPIURL", message: "Required"},
 				{fieldPath: "status.maestroGRPCTarget", message: "Required"},
@@ -192,6 +191,13 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			expectErrors: []expectedError{
 				{fieldPath: "status.aksResourceID", message: "Required"},
 			},
+		},
+		{
+			name: "nil clusterServiceProvisionShardID accepted on create",
+			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+				mc.Status.ClusterServiceProvisionShardID = nil
+			},
+			expectErrors: nil,
 		},
 		{
 			name: "invalid hostedClustersSecretsKeyVaultManagedIdentityClientID",
@@ -332,9 +338,12 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "clusterServiceProvisionShardID changed",
+			name: "clusterServiceProvisionShardID immutable once set",
 			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
 				mc.Status.ClusterServiceProvisionShardID = ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555")))
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.clusterServiceProvisionShardID", message: "immutable once set"},
 			},
 		},
 		{
@@ -499,6 +508,84 @@ func TestValidateManagementClusterUpdate_KubeApplierContainerMigration(t *testin
 			}
 			if !found {
 				t.Errorf("expected kubeApplierCosmosContainerName error containing %q, got: %v", tt.wantErrSub, fieldErrs)
+			}
+		})
+	}
+}
+
+func TestValidateManagementClusterUpdate_ClusterServiceProvisionShardID(t *testing.T) {
+	t.Parallel()
+
+	shardA := ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")))
+	shardB := ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555")))
+
+	tests := []struct {
+		name       string
+		oldValue   *api.InternalID
+		newValue   *api.InternalID
+		wantErrSub string
+	}{
+		{
+			name:     "nil old, set new is allowed (controller first-time set)",
+			oldValue: nil,
+			newValue: shardA,
+		},
+		{
+			name:     "nil old, nil new is allowed",
+			oldValue: nil,
+			newValue: nil,
+		},
+		{
+			name:     "unchanged value is allowed",
+			oldValue: shardA,
+			newValue: shardA,
+		},
+		{
+			name:       "set value changed is rejected",
+			oldValue:   shardA,
+			newValue:   shardB,
+			wantErrSub: "immutable once set",
+		},
+		{
+			name:       "set value cleared is rejected",
+			oldValue:   shardA,
+			newValue:   nil,
+			wantErrSub: "immutable once set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			oldObj := validManagementCluster(t)
+			newObj := validManagementCluster(t)
+			oldObj.Status.ClusterServiceProvisionShardID = tt.oldValue
+			newObj.Status.ClusterServiceProvisionShardID = tt.newValue
+
+			errs := ValidateManagementClusterUpdate(context.Background(), newObj, oldObj)
+
+			var fieldErrs []string
+			for _, e := range errs {
+				if strings.Contains(e.Field, "clusterServiceProvisionShardID") {
+					fieldErrs = append(fieldErrs, e.Error())
+				}
+			}
+
+			if len(tt.wantErrSub) == 0 {
+				if len(fieldErrs) != 0 {
+					t.Errorf("expected no clusterServiceProvisionShardID errors, got: %v", fieldErrs)
+				}
+				return
+			}
+			found := false
+			for _, e := range fieldErrs {
+				if strings.Contains(e, tt.wantErrSub) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected clusterServiceProvisionShardID error containing %q, got: %v", tt.wantErrSub, fieldErrs)
 			}
 		})
 	}

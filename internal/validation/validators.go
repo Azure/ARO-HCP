@@ -74,6 +74,23 @@ func immutableByReflect[T any](_ context.Context, op operation.Operation, fldPat
 	return nil
 }
 
+// immutableByReflectOnceSet allows a nil→non-nil transition (first-time set)
+// but rejects any change or clearing once the field has been set.
+func immutableByReflectOnceSet[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+	if oldValue == nil {
+		return nil
+	}
+	if value == nil || !equality.Semantic.DeepEqual(value, oldValue) {
+		return field.ErrorList{
+			field.Forbidden(fldPath, "field is immutable once set"),
+		}
+	}
+	return nil
+}
+
 func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
@@ -444,6 +461,9 @@ func HostPort(_ context.Context, _ operation.Operation, fldPath *field.Path, val
 
 func DNS1123Label(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
 		return nil
 	}
 	errs := field.ErrorList{}
