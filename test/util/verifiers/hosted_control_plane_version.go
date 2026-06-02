@@ -38,11 +38,13 @@ import (
 func GetClusterVersion(ctx context.Context, adminRESTConfig *rest.Config) *configv1.ClusterVersion {
 	configClient, err := configv1client.NewForConfig(adminRESTConfig)
 	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to create config client")
 		ginkgo.Fail("failed to create config client")
 	}
 
 	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to get clusterversion from context")
 		ginkgo.Fail("failed to get clusterversion from context")
 	}
 
@@ -58,6 +60,7 @@ func InitZStreamTest(ctx context.Context, adminRESTConfig *rest.Config, initialV
 
 	initialSemver, err := semver.ParseTolerant(initialVersion)
 	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "unable to parse initial version")
 		ginkgo.Fail("unable to parse initial version")
 	}
 
