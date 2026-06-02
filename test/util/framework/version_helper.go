@@ -101,6 +101,9 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 	if err != nil {
 		return "", false, err
 	}
+	if len(candidates) == 0 {
+		return "", false, &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no versions found for %s", configuredVersionID)}
+	}
 	if len(candidates) == 1 {
 		return candidates[0].String(), false, nil
 	}
@@ -132,9 +135,9 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 // parse-tolerant (e.g. "4.20", "4.20.0", "4.20.1"). Results are sorted descending (latest first).
 //
 // If semver.Parse succeeds, only that version is used as the Cincinnati graph root for GetUpdates. When semver.Parse
-// fails (major.minor only), discovery queries ParseTolerant dot-zero, X.Y.0-rc.0, and X.Y.0-ec.0 in turn when GA z0 may
-// not yet be a graph node. Each successful response is merged into the result; VersionNotFound skips to the next root;
-// any other error fails immediately.
+// fails (major.minor only), discovery queries the GA dot-zero anchor and, for non-nightly channels, also X.Y.0-rc.0
+// and X.Y.0-ec.0 (RC/EC don't exist in CS as nightly builds). Each successful response is merged into the result;
+// VersionNotFound skips to the next root; any other error fails immediately.
 func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string, version string) ([]semver.Version, error) {
 	var getUpdatesGraphRoots []semver.Version
 	if parsed, err := semver.Parse(version); err != nil {
@@ -142,11 +145,14 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 		if err != nil {
 			return nil, err
 		}
-		// Major.minor only (e.g. "4.20"): discover the minor by querying each dot-zero anchor (GA z0, RC, EC).
-		getUpdatesGraphRoots = []semver.Version{
-			versionToDiscover,
-			semver.MustParse(fmt.Sprintf("%d.%d.0-rc.0", versionToDiscover.Major, versionToDiscover.Minor)),
-			semver.MustParse(fmt.Sprintf("%d.%d.0-ec.0", versionToDiscover.Major, versionToDiscover.Minor)),
+		// Major.minor only (e.g. "4.20"): discover the minor by querying each dot-zero anchor.
+		// For nightly, only use the GA z0 anchor — RC/EC versions don't exist in CS as nightly builds.
+		getUpdatesGraphRoots = []semver.Version{versionToDiscover}
+		if channelGroup != "nightly" {
+			getUpdatesGraphRoots = append(getUpdatesGraphRoots,
+				semver.MustParse(fmt.Sprintf("%d.%d.0-rc.0", versionToDiscover.Major, versionToDiscover.Minor)),
+				semver.MustParse(fmt.Sprintf("%d.%d.0-ec.0", versionToDiscover.Major, versionToDiscover.Minor)),
+			)
 		}
 	} else {
 		getUpdatesGraphRoots = []semver.Version{parsed}
