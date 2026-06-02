@@ -140,7 +140,7 @@ const (
 	systmpReadyTOMin  = 10
 	poolReadyTOMin    = 10
 	pollIntervalSec   = 30
-	overallTimeoutMin = 55
+	overallTimeoutMin = 110
 	minPoolBudgetMin  = 20
 
 	// The NRP-KVS storm check requires this error code so other failure

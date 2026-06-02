@@ -224,6 +224,7 @@ resourceGroups:
     action: Shell
     command: ./scripts/recreate-system-pool/recreate-system-pool
     workingDir: .
+    timeout: 120m
     shellIdentity:
       input:
         resourceGroup: global
