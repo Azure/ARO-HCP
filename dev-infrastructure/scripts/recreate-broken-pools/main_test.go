@@ -67,6 +67,12 @@ func TestParseEnvConfig_MinimalRequiredFields(t *testing.T) {
 	if c.windowMin != defaultWindowMin {
 		t.Errorf("windowMin=%d want default %d", c.windowMin, defaultWindowMin)
 	}
+	if c.forcedEvidenceTimeoutMin != defaultForcedEvidenceTimeoutMin {
+		t.Errorf("forcedEvidenceTimeoutMin=%d want default %d", c.forcedEvidenceTimeoutMin, defaultForcedEvidenceTimeoutMin)
+	}
+	if c.forcedEvidenceThreshold != defaultForcedEvidenceThreshold {
+		t.Errorf("forcedEvidenceThreshold=%d want default %d", c.forcedEvidenceThreshold, defaultForcedEvidenceThreshold)
+	}
 	if c.dryRun {
 		t.Errorf("dryRun=true, want false by default")
 	}
@@ -111,6 +117,53 @@ func TestParseEnvConfig_CustomThresholdAndWindow(t *testing.T) {
 	}
 	if c.threshold != 25 || c.windowMin != 30 {
 		t.Errorf("threshold=%d windowMin=%d", c.threshold, c.windowMin)
+	}
+}
+
+func TestParseEnvConfig_CustomForcedEvidence(t *testing.T) {
+	env := envFromMap(map[string]string{
+		"CLUSTER_NAME":                "c",
+		"RESOURCE_GROUP":              "rg",
+		"SUBSCRIPTION_ID":             "sub",
+		"NODEPOOL_TAG":                "user",
+		"FORCED_EVIDENCE_TIMEOUT_MIN": "45",
+		"FORCED_EVIDENCE_THRESHOLD":   "7",
+	})
+	c, err := parseEnvConfig(env)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.forcedEvidenceTimeoutMin != 45 || c.forcedEvidenceThreshold != 7 {
+		t.Errorf("forcedEvidenceTimeoutMin=%d forcedEvidenceThreshold=%d", c.forcedEvidenceTimeoutMin, c.forcedEvidenceThreshold)
+	}
+}
+
+func TestParseEnvConfig_InvalidForcedEvidence(t *testing.T) {
+	cases := []struct {
+		name string
+		key  string
+		v    string
+	}{
+		{"timeout_non_numeric", "FORCED_EVIDENCE_TIMEOUT_MIN", "abc"},
+		{"timeout_zero", "FORCED_EVIDENCE_TIMEOUT_MIN", "0"},
+		{"timeout_negative", "FORCED_EVIDENCE_TIMEOUT_MIN", "-1"},
+		{"threshold_non_numeric", "FORCED_EVIDENCE_THRESHOLD", "xyz"},
+		{"threshold_zero", "FORCED_EVIDENCE_THRESHOLD", "0"},
+		{"threshold_negative", "FORCED_EVIDENCE_THRESHOLD", "-2"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := envFromMap(map[string]string{
+				"CLUSTER_NAME":    "c",
+				"RESOURCE_GROUP":  "rg",
+				"SUBSCRIPTION_ID": "sub",
+				"NODEPOOL_TAG":    "user",
+				tc.key:            tc.v,
+			})
+			if _, err := parseEnvConfig(env); err == nil {
+				t.Errorf("expected error for %s=%q", tc.key, tc.v)
+			}
+		})
 	}
 }
 
@@ -1702,13 +1755,13 @@ func TestRunWith(t *testing.T) {
 		},
 		{
 			name: "guard1_fail_forced_evidence_inconclusive",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
 			setup: func(m *mockOrchestrator) {
 				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
 					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
 				}
 				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
-					return 3, nil
+					return 2, nil
 				}
 			},
 			wantCalls: []string{
@@ -1718,7 +1771,7 @@ func TestRunWith(t *testing.T) {
 		},
 		{
 			name: "guard1_fail_forced_evidence_confirms_nrp",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
 			setup: func(m *mockOrchestrator) {
 				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
 					if n == 1 {

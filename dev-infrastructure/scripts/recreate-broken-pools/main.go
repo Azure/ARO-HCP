@@ -35,12 +35,22 @@
 //
 // Inputs (env vars, set by mgmt-pipeline.yaml step)
 // -------------------------------------------------
-//   CLUSTER_NAME              AKS cluster name (e.g. int-uksouth-mgmt-1)
-//   RESOURCE_GROUP            Resource group containing the AKS cluster
-//   SUBSCRIPTION_ID           Azure subscription ID containing the AKS cluster
-//   NRP_FAIL_THRESHOLD        Failed-event count threshold (default 10)
-//   NRP_FAIL_WINDOW_MIN       Activity-log lookback window in min (default 15)
-//   DRY_RUN                   "true" to print intended actions but make no writes
+//   CLUSTER_NAME                AKS cluster name (e.g. int-uksouth-mgmt-1)
+//   RESOURCE_GROUP              Resource group containing the AKS cluster
+//   SUBSCRIPTION_ID             Azure subscription ID containing the AKS cluster
+//   NODEPOOL_TAG                aro-hcp.azure.com/role tag value selecting which
+//                               pools this run targets (e.g. "system", "user")
+//   NRP_FAIL_THRESHOLD          Failed-event count threshold (default 5)
+//   NRP_FAIL_WINDOW_MIN         Activity-log lookback window in min (default 15)
+//   FORCED_EVIDENCE_TIMEOUT_MIN Max minutes to wait for evidence after the
+//                               forced reconcile trigger (default 20)
+//   FORCED_EVIDENCE_THRESHOLD   Distinct NRP-KVS hits required during the
+//                               forced-evidence probe to confirm the wedge
+//                               (default 3)
+//   DRY_RUN                     "true" to print intended actions but make no writes
+//   SKIP_GUARDS                 "true" to bypass detection guards (proceeds even
+//                               when NRP-KVS storm check fails — operator override)
+//   LOG_VERBOSITY               integer logr verbosity for slog handler (default 0)
 //
 // Detection checks (ALL must pass; otherwise exit 0 no-op)
 // --------------------------------------------------------
@@ -130,14 +140,20 @@ import (
 )
 
 const (
-	defaultThreshold  = 5
-	defaultWindowMin  = 15
-	lroAbortAgeMin    = 30
-	lroLookupWindow   = "14d"
-	tempReadyTOMin    = 10
-	poolReadyTOMin    = 10
-	pollIntervalSec   = 30
-	overallTimeoutMin = 60
+	defaultThreshold = 5
+	defaultWindowMin = 15
+	lroAbortAgeMin   = 30
+	lroLookupWindow  = "14d"
+	tempReadyTOMin   = 8
+	poolReadyTOMin   = 15
+	pollIntervalSec  = 30
+	// overallTimeoutMin caps the whole binary. The host (EV2 ShellExtension)
+	// currently hard-caps Shell steps at PT1H upstream, so today this value
+	// is effectively bounded by EV2 regardless. It is set to 120 in
+	// anticipation of ARO-Tools PR #246 + sdp-pipelines plumbing landing,
+	// after which mgmt-pipeline.yaml can set `timeout: 2h` on the recreate
+	// steps and the binary will get the full budget.
+	overallTimeoutMin = 120
 
 	// The NRP-KVS storm check requires this error code so other failure
 	// modes (quota / capacity / policy / etc) cannot trip the threshold.
@@ -174,25 +190,38 @@ const (
 	activityLogAuthRetryInitialSec = 10
 	activityLogAuthRetryMaxSec     = 60
 
-	// triggerEvidence forces an AKS RP reconcile of the system pool when
-	// the cluster-state / non-system-pools / system-wedge checks PASS
-	// but the NRP-KVS-storm check has no recent NRP-KVS events in the
-	// configured lookback window. The trigger gives the wedge a chance
-	// to produce fresh evidence (or to prove the wedge is not NRP-KVS).
-	// Times are short relative to the AKS RP retry cadence (~3 min) so
-	// threshold-many retries can accumulate during the wait window.
-	triggerEvidenceTimeoutMin      = 30 // wait at most this long for evidence
-	triggerEvidencePollIntervalSec = 60 // re-query activity log every poll
-	triggerEvidenceWindowMin       = 60 // activity-log lookback for the wait loop
+	// forcedEvidence forces an AKS RP reconcile of a suspected pool
+	// when the cluster-state / non-system-pools / system-wedge checks
+	// PASS but the NRP-KVS-storm check has no recent NRP-KVS events in
+	// the configured lookback window. The trigger gives the wedge a
+	// chance to produce fresh evidence (or to prove the wedge is not
+	// NRP-KVS). Times are short relative to the AKS RP retry cadence
+	// (~3 min) so threshold-many retries can accumulate during the wait
+	// window.
+	defaultForcedEvidenceTimeoutMin = 20 // wait at most this long for evidence
+	defaultForcedEvidenceThreshold  = 3  // distinct NRP-KVS hits to confirm the wedge during the probe
+	forcedEvidencePollIntervalSec   = 60 // re-query activity log every poll
+	forcedEvidenceWindowMin         = 30 // activity-log lookback for the wait loop (covers the probe window plus a small margin)
 
-	// abortTriggerTimeoutMin caps the wait for cleanup of the LRO that
-	// forcedEvidencePath itself triggered. The abort runs with a fresh
-	// context derived from context.Background so it executes even when
-	// the parent run context has already expired (overall script timeout
-	// or pollForNRPEvidence consuming the full triggerEvidenceTimeoutMin
-	// budget). Without this, a cancelled parent context would silently
-	// skip the abort and leave the AKS RP retrying the wedged write.
-	abortTriggerTimeoutMin = 5
+	// forcedEvidenceAbortTimeoutMin caps the wait for cleanup of the LRO
+	// that forcedEvidencePath itself triggered. The abort runs with a
+	// fresh context derived from context.Background so it executes even
+	// when the parent run context has already expired (overall script
+	// timeout or pollForNRPEvidence consuming the full forced-evidence
+	// timeout budget). Without this, a cancelled parent context would
+	// silently skip the abort and leave the AKS RP retrying the wedged
+	// write.
+	forcedEvidenceAbortTimeoutMin = 8
+
+	// forcedEvidenceRestoreTimeoutMin caps the wait for the restorePoolSpec
+	// PUT + PollUntilDone that reverses the forced-evidence scale-up. ARM
+	// pool PUTs against AKS can legitimately take 5-10m, so this runs on
+	// its own context (also derived from context.Background) rather than
+	// sharing the shorter abort budget. Without a dedicated context, an
+	// abort that consumed most of forcedEvidenceAbortTimeoutMin would
+	// silently skip the restore and leave the pool one node larger than
+	// the original snapshot.
+	forcedEvidenceRestoreTimeoutMin = 15
 )
 
 const nodePoolRoleLabel = "aro-hcp.azure.com/role"
@@ -459,13 +488,25 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 // activity log for NRP-KVS Failed events, aborts the LRO it started,
 // and restores the original pool spec before deciding whether to act.
 //
-// Returns (act, reason, error). act=true means evidence reached the
-// threshold and the caller should proceed with the recreate flow.
-// act=false with no error means the trigger was inconclusive (the
-// cluster is wedged for a different reason) and the caller should
-// exit no-op.
+// Returns (*nodePoolTarget, error). A non-nil target means evidence
+// reached the threshold and the caller should proceed with the
+// recreate flow on the returned (now-confirmed) target. A nil target
+// with no error means the trigger was inconclusive (the cluster is
+// wedged for a different reason or the trigger itself failed) and
+// the caller should treat this pool as a no-op.
 func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, target nodePoolTarget) (*nodePoolTarget, error) {
 	logf("initial NRP-KVS storm check saw no evidence for pool %s in last %dm", target.name, cfg.windowMin)
+
+	// triggerPoolReconcile builds a PUT body via agentPoolForScaleUpTrigger,
+	// which pins OrchestratorVersion to cfg.cpVersion. An empty cpVersion
+	// would either be rejected by AKS or, worse, silently sent as "" — and
+	// the main flow already refuses to act on an empty cpVersion further
+	// down. Treat empty cpVersion as inconclusive here so we do not issue
+	// an unnecessary (and potentially invalid) write during the probe.
+	if cfg.cpVersion == "" {
+		logf("WARN: cpVersion empty; skipping forced-evidence trigger for %s (cannot build a safe scale-up PUT)", target.name)
+		return nil, nil
+	}
 
 	live, err := orch.snapshotPool(ctx, target.name)
 	if err != nil {
@@ -477,33 +518,39 @@ func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, tar
 		return nil, nil
 	}
 
-	logf("triggered pool %s reconcile; polling activity log every %ds for up to %dm", target.name, triggerEvidencePollIntervalSec, triggerEvidenceTimeoutMin)
+	logf("triggered pool %s reconcile; polling activity log every %ds for up to %dm", target.name, forcedEvidencePollIntervalSec, cfg.forcedEvidenceTimeoutMin)
 	hits, pollErr := orch.pollForNRPEvidence(
 		ctx,
 		target,
-		triggerEvidenceTimeoutMin*time.Minute,
-		triggerEvidencePollIntervalSec*time.Second,
-		triggerEvidenceWindowMin,
-		cfg.threshold,
+		time.Duration(cfg.forcedEvidenceTimeoutMin)*time.Minute,
+		forcedEvidencePollIntervalSec*time.Second,
+		forcedEvidenceWindowMin,
+		cfg.forcedEvidenceThreshold,
 	)
 
-	abortCtx, abortCancel := context.WithTimeout(context.Background(), abortTriggerTimeoutMin*time.Minute)
+	abortCtx, abortCancel := context.WithTimeout(context.Background(), forcedEvidenceAbortTimeoutMin*time.Minute)
 	defer abortCancel()
 	if abortErr := orch.abortPoolReconcile(abortCtx, target.name); abortErr != nil {
 		logf("WARN: abortPoolReconcile for %s failed: %v", target.name, abortErr)
 	}
-	if restoreErr := orch.restorePoolSpec(abortCtx, target, live); restoreErr != nil {
+	// Restore runs on its own longer context: an AKS pool PUT + LRO can
+	// legitimately take 5-10m, so sharing the abort budget would risk
+	// skipping the restore when the abort consumed most of those 8m and
+	// leaving the pool one node larger than the original snapshot.
+	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), forcedEvidenceRestoreTimeoutMin*time.Minute)
+	defer restoreCancel()
+	if restoreErr := orch.restorePoolSpec(restoreCtx, target, live); restoreErr != nil {
 		logf("WARN: restorePoolSpec for %s failed: %v", target.name, restoreErr)
 	}
 
 	if pollErr != nil {
 		return nil, fmt.Errorf("poll for NRP evidence on %s: %w", target.name, pollErr)
 	}
-	if hits < cfg.threshold {
-		logf("forced evidence inconclusive for %s: only %d NRP failures < %d after %dm", target.name, hits, cfg.threshold, triggerEvidenceTimeoutMin)
+	if hits < cfg.forcedEvidenceThreshold {
+		logf("forced evidence inconclusive for %s: only %d NRP failures < %d after %dm", target.name, hits, cfg.forcedEvidenceThreshold, cfg.forcedEvidenceTimeoutMin)
 		return nil, nil
 	}
-	logf("forced evidence confirmed NRP-KVS for %s (%d hits >= threshold %d)", target.name, hits, cfg.threshold)
+	logf("forced evidence confirmed NRP-KVS for %s (%d hits >= threshold %d)", target.name, hits, cfg.forcedEvidenceThreshold)
 	target.nrpFailures = hits
 	target.suspected = false
 	return &target, nil
@@ -520,7 +567,7 @@ func remediatePool(ctx context.Context, orch orchestrator, target nodePoolTarget
 	if err := orch.addTempPool(ctx, target, live); err != nil {
 		return fmt.Errorf("add temp pool %s for %s: %w", tmpName, target.name, err)
 	}
-	if err := orch.drainPool(ctx, target.name, 10*time.Minute); err != nil {
+	if err := orch.drainPool(ctx, target.name, 5*time.Minute); err != nil {
 		return fmt.Errorf("drain %s: %w", target.name, err)
 	}
 	if err := orch.deletePool(ctx, target.name); err != nil {
@@ -529,7 +576,7 @@ func remediatePool(ctx context.Context, orch orchestrator, target nodePoolTarget
 	if err := orch.recreatePool(ctx, target.name, live); err != nil {
 		return fmt.Errorf("recreate %s: %w", target.name, err)
 	}
-	if err := orch.drainPool(ctx, tmpName, 5*time.Minute); err != nil {
+	if err := orch.drainPool(ctx, tmpName, 3*time.Minute); err != nil {
 		logf("WARN: temp pool %s drain returned: %v (continuing to delete)", tmpName, err)
 	}
 	if err := orch.deletePool(ctx, tmpName); err != nil {
@@ -543,28 +590,32 @@ func remediatePool(ctx context.Context, orch orchestrator, target nodePoolTarget
 // ---------------------------------------------------------------------------
 
 type config struct {
-	clusterName    string
-	resourceGroup  string
-	subscriptionID string
-	nodeRG         string
-	cpVersion      string
-	nodePoolTag    string
-	threshold      int
-	windowMin      int
-	dryRun         bool
-	skipGuards     bool
+	clusterName              string
+	resourceGroup            string
+	subscriptionID           string
+	nodeRG                   string
+	cpVersion                string
+	nodePoolTag              string
+	threshold                int
+	windowMin                int
+	forcedEvidenceTimeoutMin int
+	forcedEvidenceThreshold  int
+	dryRun                   bool
+	skipGuards               bool
 }
 
 // parseEnvConfig builds a config from environment variables only. It does
 // not call any external tools or APIs, which makes it safe to unit-test.
 func parseEnvConfig(env func(string) string) (*config, error) {
 	c := &config{
-		clusterName:    env("CLUSTER_NAME"),
-		resourceGroup:  env("RESOURCE_GROUP"),
-		subscriptionID: env("SUBSCRIPTION_ID"),
-		nodePoolTag:    env("NODEPOOL_TAG"),
-		threshold:      defaultThreshold,
-		windowMin:      defaultWindowMin,
+		clusterName:              env("CLUSTER_NAME"),
+		resourceGroup:            env("RESOURCE_GROUP"),
+		subscriptionID:           env("SUBSCRIPTION_ID"),
+		nodePoolTag:              env("NODEPOOL_TAG"),
+		threshold:                defaultThreshold,
+		windowMin:                defaultWindowMin,
+		forcedEvidenceTimeoutMin: defaultForcedEvidenceTimeoutMin,
+		forcedEvidenceThreshold:  defaultForcedEvidenceThreshold,
 	}
 	if c.clusterName == "" {
 		return nil, errors.New("CLUSTER_NAME is required")
@@ -598,6 +649,26 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 		}
 		c.windowMin = n
 	}
+	if v := env("FORCED_EVIDENCE_TIMEOUT_MIN"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("FORCED_EVIDENCE_TIMEOUT_MIN: %w", err)
+		}
+		if n <= 0 {
+			return nil, fmt.Errorf("FORCED_EVIDENCE_TIMEOUT_MIN must be > 0, got %d", n)
+		}
+		c.forcedEvidenceTimeoutMin = n
+	}
+	if v := env("FORCED_EVIDENCE_THRESHOLD"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("FORCED_EVIDENCE_THRESHOLD: %w", err)
+		}
+		if n <= 0 {
+			return nil, fmt.Errorf("FORCED_EVIDENCE_THRESHOLD must be > 0, got %d", n)
+		}
+		c.forcedEvidenceThreshold = n
+	}
 	if v := strings.ToLower(strings.TrimSpace(env("DRY_RUN"))); v == "true" || v == "1" || v == "yes" {
 		c.dryRun = true
 	}
@@ -618,6 +689,8 @@ func (c *config) logEnv() {
 	logf("NODEPOOL_TAG=%s", c.nodePoolTag)
 	logf("NRP_FAIL_THRESHOLD=%d", c.threshold)
 	logf("NRP_FAIL_WINDOW_MIN=%d", c.windowMin)
+	logf("FORCED_EVIDENCE_TIMEOUT_MIN=%d", c.forcedEvidenceTimeoutMin)
+	logf("FORCED_EVIDENCE_THRESHOLD=%d", c.forcedEvidenceThreshold)
 	logf("DRY_RUN=%t", c.dryRun)
 	logf("SKIP_GUARDS=%t", c.skipGuards)
 }
@@ -1014,12 +1087,16 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 	}
 	logf("cluster safety PASS")
 
-	out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", c.cfg.windowMin))
-	if err != nil {
-		return nil, "", fmt.Errorf("NRP-KVS storm activity-log query failed: %w", err)
+	// First pass: classify pools by role match and wedge state without
+	// touching Activity Log. This honors the file-header promise to
+	// short-circuit on cheap ARM checks before issuing the activity-log
+	// query (which costs an ARM List call and a throttling slot per run).
+	type wedgedPool struct {
+		target    nodePoolTarget
+		provState string
 	}
-
-	var selected, targets []nodePoolTarget
+	var selected []nodePoolTarget
+	var wedged []wedgedPool
 	for _, p := range allPools {
 		if p == nil || p.Name == nil || p.Properties == nil {
 			continue
@@ -1031,31 +1108,54 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 			continue
 		}
 		name := *p.Name
-		selected = append(selected, nodePoolTarget{name: name, vmssPrefix: poolVMSSPrefix(name)})
+		vmssPrefix := poolVMSSPrefix(name)
+		selected = append(selected, nodePoolTarget{name: name, vmssPrefix: vmssPrefix})
 		provState := strDeref(p.Properties.ProvisioningState)
-		if pass, _ := evalPoolWedge(provState); !pass {
+		if ok, _ := evalPoolWedge(provState); !ok {
 			continue
 		}
-		logf("pool %s: role=%s provisioningState=%s — wedge-compatible", name, c.cfg.nodePoolTag, provState)
-		vmssPrefix := poolVMSSPrefix(name)
-		hits, err := countNRPFailures(out, vmssPrefix)
-		if err != nil {
-			return nil, "", fmt.Errorf("NRP failure count for pool %s: %w", name, err)
-		}
-		logf("pool %s: NRP-KVS failures on %s*: %d (threshold %d)", name, vmssPrefix, hits, c.cfg.threshold)
-		target := nodePoolTarget{name: name, vmssPrefix: vmssPrefix, nrpFailures: hits}
-		if hits >= c.cfg.threshold || c.cfg.skipGuards {
-			targets = append(targets, target)
-		} else {
-			target.suspected = true
-			targets = append(targets, target)
-		}
+		wedged = append(wedged, wedgedPool{
+			target:    nodePoolTarget{name: name, vmssPrefix: vmssPrefix},
+			provState: provState,
+		})
 	}
 	if len(selected) == 0 {
 		return nil, fmt.Sprintf("no node pools found with %s=%q", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
 	}
-	if len(targets) == 0 {
+	if len(wedged) == 0 {
 		return nil, fmt.Sprintf("no selected node pools with %s=%q are in wedge-compatible state", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
+	}
+
+	// Only now do we pay for the Activity Log list.
+	out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", c.cfg.windowMin))
+	if err != nil {
+		return nil, "", fmt.Errorf("NRP-KVS storm activity-log query failed: %w", err)
+	}
+
+	var targets []nodePoolTarget
+	var confirmedCount int
+	for _, w := range wedged {
+		logf("pool %s: role=%s provisioningState=%s — wedge-compatible", w.target.name, c.cfg.nodePoolTag, w.provState)
+		hits, err := countNRPFailures(out, w.target.vmssPrefix)
+		if err != nil {
+			return nil, "", fmt.Errorf("NRP failure count for pool %s: %w", w.target.name, err)
+		}
+		logf("pool %s: NRP-KVS failures on %s*: %d (threshold %d)", w.target.name, w.target.vmssPrefix, hits, c.cfg.threshold)
+		target := w.target
+		target.nrpFailures = hits
+		if hits < c.cfg.threshold && !c.cfg.skipGuards {
+			target.suspected = true
+		} else {
+			confirmedCount++
+		}
+		targets = append(targets, target)
+	}
+	// When every candidate is below threshold the caller will either route
+	// through the forced-evidence path or log a no-op exit. Surface a
+	// non-empty reason so the operator log line is actionable rather than
+	// trailing an empty period ("...confirmed broken: .").
+	if confirmedCount == 0 {
+		return targets, fmt.Sprintf("%d candidate pool(s) all below NRP failure threshold %d in last %dm", len(targets), c.cfg.threshold, c.cfg.windowMin), nil
 	}
 	return targets, "", nil
 }
@@ -1165,12 +1265,12 @@ func agentPoolForScaleUpTrigger(live *armcs.AgentPool, cpVersion string) (*armcs
 		return nil, fmt.Errorf("agentPoolForScaleUpTrigger: %w", err)
 	}
 	if body.Properties.Count != nil {
-		*body.Properties.Count++
+		(*body.Properties.Count)++
 	} else {
 		body.Properties.Count = ptr(int32(2))
 	}
 	if body.Properties.EnableAutoScaling != nil && *body.Properties.EnableAutoScaling && body.Properties.MinCount != nil {
-		*body.Properties.MinCount++
+		(*body.Properties.MinCount)++
 		if body.Properties.MaxCount != nil && *body.Properties.MinCount > *body.Properties.MaxCount {
 			*body.Properties.MaxCount = *body.Properties.MinCount
 		}
@@ -1511,10 +1611,10 @@ func (c *clients) pollForNRPEvidence(ctx context.Context, target nodePoolTarget,
 	}
 }
 
-// abortSystemReconcile aborts the latest LRO on the system pool, which
-// (when the forced-evidence trigger started one) cancels the in-flight
-// CreateOrUpdate. Best-effort: failures here are logged by the caller
-// but not propagated.
+// abortPoolReconcile aborts the latest LRO on the named agent pool,
+// which (when the forced-evidence trigger started one) cancels the
+// in-flight CreateOrUpdate. Used for both system and user pools.
+// Best-effort: failures here are logged by the caller but not propagated.
 func (c *clients) abortPoolReconcile(ctx context.Context, poolName string) error {
 	poller, err := c.pools.BeginAbortLatestOperation(ctx, c.cfg.resourceGroup, c.cfg.clusterName, poolName, nil)
 	if err != nil {

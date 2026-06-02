@@ -283,6 +283,8 @@ resourceGroups:
       value: '10'
     - name: NRP_FAIL_WINDOW_MIN
       value: '360'
+    - name: FORCED_EVIDENCE_TIMEOUT_MIN
+      value: '20'
     dependsOn:
     - resourceGroup: management
       step: recreate-system-pool-if-broken
