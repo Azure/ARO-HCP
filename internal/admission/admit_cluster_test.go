@@ -56,6 +56,7 @@ func TestMutateCluster(t *testing.T) {
 		expectedControlPlaneAvailability  api.ControlPlaneAvailability
 		expectedControlPlanePodSizing     api.ControlPlanePodSizing
 		expectedControlPlaneOperatorImage string
+		expectedFIPSEnabled               bool
 	}{
 		{
 			name:               "nil subscription ignores all tags",
@@ -233,6 +234,49 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:                      []utils.ExpectedError{},
 			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo:v1.0",
 		},
+		{
+			name:                "AFEC registered with FIPS enabled",
+			subscription:        afecRegistered,
+			tags:                map[string]string{api.TagClusterFIPSEnabled: "true"},
+			expectErrors:        []utils.ExpectedError{},
+			expectedFIPSEnabled: true,
+		},
+		{
+			name:                "AFEC registered with FIPS disabled",
+			subscription:        afecRegistered,
+			tags:                map[string]string{api.TagClusterFIPSEnabled: "false"},
+			expectErrors:        []utils.ExpectedError{},
+			expectedFIPSEnabled: false,
+		},
+		{
+			name:               "AFEC registered with FIPS empty string defaults to disabled",
+			subscription:       afecRegistered,
+			tags:               map[string]string{api.TagClusterFIPSEnabled: ""},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered with invalid FIPS value",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterFIPSEnabled: "yes"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be true or false"},
+			},
+		},
+		{
+			name:               "no AFEC registered ignores FIPS tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{api.TagClusterFIPSEnabled: "true"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:                "AFEC registered with case insensitive FIPS tag key",
+			subscription:        afecRegistered,
+			tags:                map[string]string{"ARO-HCP.Experimental.Cluster.FIPS-Enabled": "true"},
+			expectErrors:        []utils.ExpectedError{},
+			expectedFIPSEnabled: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -267,6 +311,10 @@ func TestMutateCluster(t *testing.T) {
 			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage != tt.expectedControlPlaneOperatorImage {
 				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
 					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled != tt.expectedFIPSEnabled {
+				t.Errorf("expected FIPSEnabled %t, got %t",
+					tt.expectedFIPSEnabled, cluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled)
 			}
 		})
 	}
