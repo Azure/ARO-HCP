@@ -283,7 +283,7 @@ resourceGroups:
         step: subscription-output
         name: subscriptionId
     - name: NODEPOOL_TAG
-      value: 'user'
+      value: 'worker'
     - name: NRP_FAIL_THRESHOLD
       value: '10'
     - name: NRP_FAIL_WINDOW_MIN
