@@ -44,8 +44,8 @@ func GetClusterVersion(ctx context.Context, adminRESTConfig *rest.Config) *confi
 
 	clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to get clusterversion from context")
-		ginkgo.Fail("failed to get clusterversion from context")
+		ginkgo.GinkgoLogr.Error(err, "failed to GET clusterversions/version")
+		ginkgo.Fail("failed to GET clusterversions/version")
 	}
 
 	return clusterVersion
