@@ -116,7 +116,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Error rate for Maestro GRPC operations (dropped events). High values indicate communication issues with Maestro server.",
+      "description": "Error rate for Maestro GRPC operations. High values indicate communication issues with Maestro server.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -153,7 +153,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_errors_total{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n  )\n)\n/\nsum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_operations_total{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n  )\n)",
+          "expr": "(\n  sum by (operation) (\n    max without(prometheus_replica) (\n      rate(maestro_grpc_errors_total{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n    )\n  )\n  /\n  sum by (operation) (\n    max without(prometheus_replica) (\n      rate(maestro_grpc_operations_total{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n    )\n  )\n)\nand\nsum by (operation) (\n  max without(prometheus_replica) (\n    rate(maestro_grpc_operations_total{cluster=\"$cluster\",namespace=\"aro-hcp\"}[5m])\n  )\n) > 0",
           "instant": false,
           "legendFormat": "{{operation}}",
           "range": true,

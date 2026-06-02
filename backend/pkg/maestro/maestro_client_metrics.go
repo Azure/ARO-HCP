@@ -45,7 +45,7 @@ func NewMaestroMetrics(r prometheus.Registerer) *MaestroMetrics {
 		errorsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "maestro_grpc_errors_total",
-				Help: "Total number of failed Maestro GRPC operations (dropped events)",
+				Help: "Total number of failed Maestro GRPC operations",
 			},
 			[]string{"operation"},
 		),
@@ -103,7 +103,7 @@ func NewInstrumentedMaestroClient(client Client, metrics *MaestroMetrics) Client
 }
 
 // observe records metrics for a completed operation.
-// Uses defer-friendly design to ensure metrics are always recorded even on panics.
+// Called after each client operation to track duration, errors, and event flow.
 func (c *instrumentedMaestroClient) observe(operation string, start time.Time, err error, eventType string) {
 	c.metrics.operationDuration.WithLabelValues(operation).Observe(time.Since(start).Seconds())
 
