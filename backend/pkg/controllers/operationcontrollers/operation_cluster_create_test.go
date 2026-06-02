@@ -36,8 +36,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -132,9 +130,6 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
-				clusterLister: &listertesting.SliceClusterLister{
-					Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-				},
 				readDesireLister: &internallistertesting.SliceReadDesireLister{
 					Desires: []*kubeapplier.ReadDesire{succeededDesire},
 				},
@@ -153,21 +148,6 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			}
 		})
 	}
-}
-
-// errorClusterLister always returns the configured error.
-type errorClusterLister struct {
-	err error
-}
-
-func (l *errorClusterLister) List(_ context.Context) ([]*api.HCPOpenShiftCluster, error) {
-	return nil, l.err
-}
-func (l *errorClusterLister) Get(_ context.Context, _, _, _ string) (*api.HCPOpenShiftCluster, error) {
-	return nil, l.err
-}
-func (l *errorClusterLister) ListForResourceGroup(_ context.Context, _, _ string) ([]*api.HCPOpenShiftCluster, error) {
-	return nil, l.err
 }
 
 // errorReadDesireLister always returns the configured error.
@@ -224,20 +204,12 @@ func newHostedClusterReadDesire(t *testing.T, hostedCluster *v1beta1.HostedClust
 	}
 }
 
-func newClusterWithAPIURL(url string) *api.HCPOpenShiftCluster {
-	fixture := newClusterTestFixture()
-	cluster := fixture.newCluster(nil)
-	cluster.ServiceProviderProperties.API = api.ServiceProviderAPIProfile{URL: url}
-	return cluster
-}
-
 func TestDetermineOperationStatus(t *testing.T) {
 	fixture := newClusterTestFixture()
 	operation := fixture.newOperation(database.OperationRequestCreate)
 
 	tests := []struct {
 		name             string
-		clusterLister    listers.ClusterLister
 		readDesireLister dblisters.ReadDesireLister
 		expectedState    arm.ProvisioningState
 		expectedMessage  string
@@ -245,10 +217,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 		errContains      string
 	}{
 		{
-			name: "both checks succeed → Succeeded",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-			},
+			name: "hosted cluster ready → Succeeded",
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -273,88 +242,18 @@ func TestDetermineOperationStatus(t *testing.T) {
 			expectedMessage: "",
 		},
 		{
-			name: "cluster API URL empty → Provisioning (lowest priority wins)",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("")},
-			},
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
-				Desires: []*kubeapplier.ReadDesire{
-					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
-						Status: v1beta1.HostedClusterStatus{
-							Conditions: []metav1.Condition{
-								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
-							},
-							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
-								History: []v1beta1.ControlPlaneUpdateHistory{
-									{Version: "4.17.3", State: configv1.CompletedUpdate},
-								},
-							},
-							ControlPlaneEndpoint: v1beta1.APIEndpoint{
-								Host: "api.example.com",
-								Port: 6443,
-							},
-						},
-					}),
-				},
-			},
-			expectedState:   arm.ProvisioningStateProvisioning,
-			expectedMessage: ".api.url is empty",
-		},
-		{
-			name: "hosted cluster not found → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-			},
+			name:             "hosted cluster not found → Provisioning",
 			readDesireLister: &internallistertesting.SliceReadDesireLister{},
 			expectedState:    arm.ProvisioningStateProvisioning,
 		},
 		{
-			name:          "cluster lister error → error propagated",
-			clusterLister: &errorClusterLister{err: fmt.Errorf("cosmos error")},
-			readDesireLister: &internallistertesting.SliceReadDesireLister{
-				Desires: []*kubeapplier.ReadDesire{
-					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
-						Status: v1beta1.HostedClusterStatus{
-							Conditions: []metav1.Condition{
-								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
-							},
-							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
-								History: []v1beta1.ControlPlaneUpdateHistory{
-									{Version: "4.17.3", State: configv1.CompletedUpdate},
-								},
-							},
-							ControlPlaneEndpoint: v1beta1.APIEndpoint{
-								Host: "api.example.com",
-								Port: 6443,
-							},
-						},
-					}),
-				},
-			},
-			expectError: true,
-			errContains: "cosmos error",
-		},
-		{
-			name: "read desire lister non-404 error → error propagated",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-			},
+			name:             "read desire lister non-404 error → error propagated",
 			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("maestro error")},
 			expectError:      true,
 			errContains:      "maestro error",
 		},
 		{
-			name:             "both errors → joined error",
-			clusterLister:    &errorClusterLister{err: fmt.Errorf("cluster error")},
-			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("content error")},
-			expectError:      true,
-			errContains:      "cluster error",
-		},
-		{
 			name: "read desire not yet successful → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-			},
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{},
@@ -366,9 +265,6 @@ func TestDetermineOperationStatus(t *testing.T) {
 		},
 		{
 			name: "hosted cluster not available → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-			},
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -390,9 +286,6 @@ func TestDetermineOperationStatus(t *testing.T) {
 		},
 		{
 			name: "no control plane endpoint host → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-			},
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -414,9 +307,6 @@ func TestDetermineOperationStatus(t *testing.T) {
 		},
 		{
 			name: "no control plane endpoint port → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-			},
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -441,9 +331,6 @@ func TestDetermineOperationStatus(t *testing.T) {
 		},
 		{
 			name: "version with valid success condition but not installed → Provisioning",
-			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
-			},
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -474,7 +361,6 @@ func TestDetermineOperationStatus(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 			controller := &operationClusterCreate{
-				clusterLister:    tt.clusterLister,
 				readDesireLister: tt.readDesireLister,
 			}
 

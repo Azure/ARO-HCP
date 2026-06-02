@@ -148,7 +148,11 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 		for _, historyEntry := range hostedCluster.Status.ControlPlaneVersion.History {
 			parsedVersion, err := semver.Parse(historyEntry.Version)
 			if err != nil {
-				logger.Error(err, "Skipping HostedCluster controlPlaneVersion history entry with unparseable version", "history", historyEntry)
+				if historyEntry.Version == "" && historyEntry.State != configv1.CompletedUpdate {
+					logger.Info("Skipping HostedCluster controlPlaneVersion history entry with empty version (expected during rollout)", "state", historyEntry.State)
+				} else {
+					logger.Error(err, "Skipping HostedCluster controlPlaneVersion history entry with unparseable version", "history", historyEntry)
+				}
 				continue
 			}
 			activeVersions = append(activeVersions, api.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})
@@ -165,7 +169,11 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 	for _, historyEntry := range hostedCluster.Status.Version.History {
 		parsedVersion, err := semver.Parse(historyEntry.Version)
 		if err != nil {
-			logger.Error(err, "Skipping HostedCluster version history entry with unparseable version", "history", historyEntry)
+			if historyEntry.Version == "" && historyEntry.State != configv1.CompletedUpdate {
+				logger.Info("Skipping HostedCluster version history entry with empty version (expected during rollout)", "state", historyEntry.State)
+			} else {
+				logger.Error(err, "Skipping HostedCluster version history entry with unparseable version", "history", historyEntry)
+			}
 			continue
 		}
 		activeVersions = append(activeVersions, api.HCPClusterActiveVersion{Version: &parsedVersion, State: historyEntry.State})

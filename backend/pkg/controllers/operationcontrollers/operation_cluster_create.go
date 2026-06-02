@@ -48,7 +48,6 @@ import (
 
 type operationClusterCreate struct {
 	clock                                 utilsclock.PassiveClock
-	clusterLister                         listers.ClusterLister
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
 	readDesireLister                      dblisters.ReadDesireLister
 	resourcesDBClient                     database.ResourcesDBClient
@@ -79,11 +78,9 @@ func NewOperationClusterCreateController(
 	informers informers.BackendInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
-	_, clusterLister := informers.Clusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
 	syncer := &operationClusterCreate{
 		clock:                                 clock,
-		clusterLister:                         clusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
 		readDesireLister:                      readDesireLister,
 		resourcesDBClient:                     resourcesDBClient,
@@ -180,11 +177,6 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	} else {
 		operationStates = append(operationStates, currState)
 	}
-	if currState, err := c.clusterOperationStatus(ctx, operation); err != nil {
-		errs = append(errs, utils.TrackError(err))
-	} else {
-		operationStates = append(operationStates, currState)
-	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -206,20 +198,6 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	}
 	logger.Info("picked cluster create operation status", "provisioningState", picked.provisioningState, "message", picked.message)
 	return picked, nil
-}
-
-func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
-	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	if len(cluster.ServiceProviderProperties.API.URL) == 0 {
-		message := ".api.url is empty"
-		return newOperationState(arm.ProvisioningStateProvisioning, message), nil
-	}
-
-	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
 }
 
 // minVersionsWithValidSuccessCondition maps from <major>.<micro> to the first z-stream version that includes the fix for
