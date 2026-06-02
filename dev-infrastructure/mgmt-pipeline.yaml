@@ -205,8 +205,10 @@ resourceGroups:
   # KVS corruption (AROSLSRE-924 / ICM 798003653). Checks all pools
   # (system, user/swft, infra). Runs BEFORE the cluster ARM step so
   # the cluster PUT does not get stuck behind a wedged VMSS update.
-  # The Go binary exits 0 (no-op) if the cluster does not exist yet
-  # (greenfield rollout), or if no pools are in a wedge-compatible state.
+  # Exits 0 (no-op) when: cluster does not exist (greenfield), cluster
+  # state is not recoverable, no pools are wedge-compatible, or NRP-KVS
+  # evidence does not reach threshold (including after forced-evidence
+  # probing). Exits non-zero when pools are skipped due to time budget.
   - name: pipeline-msi-reader-permissions
     action: ARM
     template: templates/pipeline-msi-reader-permissions.bicep
@@ -238,9 +240,9 @@ resourceGroups:
         step: subscription-output
         name: subscriptionId
     - name: NRP_FAIL_THRESHOLD
-      value: '10'
+      value: '5'
     - name: NRP_FAIL_WINDOW_MIN
-      value: '360'
+      value: '15'
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer

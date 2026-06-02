@@ -38,7 +38,7 @@
 //   CLUSTER_NAME              AKS cluster name (e.g. int-uksouth-mgmt-1)
 //   RESOURCE_GROUP            Resource group containing the AKS cluster
 //   SUBSCRIPTION_ID           Azure subscription ID containing the AKS cluster
-//   NRP_FAIL_THRESHOLD        Failed-event count threshold (default 10)
+//   NRP_FAIL_THRESHOLD        Failed-event count threshold (default 5)
 //   NRP_FAIL_WINDOW_MIN       Activity-log lookback window in min (default 15)
 //   DRY_RUN                   "true" to print intended actions but make no writes
 //
@@ -132,6 +132,7 @@ import (
 const (
 	systemPoolName    = "system"
 	systmpPoolName    = "systmp"
+	tmpPoolSuffix     = "t"
 	defaultThreshold  = 5
 	defaultWindowMin  = 15
 	lroAbortAgeMin    = 30
@@ -140,7 +141,7 @@ const (
 	poolReadyTOMin    = 10
 	pollIntervalSec   = 30
 	overallTimeoutMin = 55
-	minPoolBudgetMin  = 5
+	minPoolBudgetMin  = 20
 
 	// The NRP-KVS storm check requires this error code so other failure
 	// modes (quota / capacity / policy / etc) cannot trip the threshold.
@@ -158,7 +159,7 @@ const (
 	// to produce fresh evidence (or to prove the wedge is not NRP-KVS).
 	// Times are short relative to the AKS RP retry cadence (~3 min) so
 	// threshold-many retries can accumulate during the wait window.
-	triggerEvidenceTimeoutMin      = 10 // wait at most this long for evidence
+	triggerEvidenceTimeoutMin      = 20 // wait at most this long for evidence
 	triggerEvidencePollIntervalSec = 60 // re-query activity log every poll
 	triggerEvidenceWindowMin       = 60 // activity-log lookback for the wait loop
 
@@ -208,6 +209,17 @@ func poolVMSSPrefix(poolName string) string {
 	return "aks-" + poolName + "-"
 }
 
+func tmpPoolName(poolName string) string {
+	if poolName == systemPoolName {
+		return systmpPoolName
+	}
+	return poolName + tmpPoolSuffix
+}
+
+func isTmpPool(name string) bool {
+	return name == systmpPoolName || strings.HasSuffix(name, tmpPoolSuffix)
+}
+
 func classifyPool(p *armcs.AgentPool) poolCategory {
 	if p.Properties != nil && p.Properties.Mode != nil && *p.Properties.Mode == armcs.AgentPoolModeSystem {
 		return poolCategorySystem
@@ -251,12 +263,13 @@ type orchestrator interface {
 	preflightChecks(ctx context.Context, pools []wedgedPool) error
 	snapshotPool(ctx context.Context, poolName string) (*armcs.AgentPool, error)
 	maybeAbortLRO(ctx context.Context) (bool, error)
-	addSystmp(ctx context.Context, live *armcs.AgentPool) error
+	addTmpPool(ctx context.Context, tmpName string, live *armcs.AgentPool) error
 	drainPool(ctx context.Context, pool string, timeout time.Duration) error
 	deletePool(ctx context.Context, pool string) error
 	recreatePool(ctx context.Context, poolName string, live *armcs.AgentPool) error
 	reconcileTagPut(ctx context.Context) error
 	triggerPoolScaleUp(ctx context.Context, poolName string, live *armcs.AgentPool) error
+	restorePoolSpec(ctx context.Context, poolName string, live *armcs.AgentPool) error
 	pollForNRPEvidence(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
 	abortPoolReconcile(ctx context.Context, poolName string) error
 }
@@ -447,24 +460,18 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 			return fmt.Errorf("snapshot pool %s: %w", wp.name, err)
 		}
 
-		if wp.category == poolCategorySystem {
-			if err := remediateSystemPool(ctx, orch, wp, live); err != nil {
-				return err
-			}
-		} else {
-			if err := remediateNonSystemPool(ctx, orch, wp, live); err != nil {
-				return err
-			}
+		if err := remediatePool(ctx, orch, wp, live); err != nil {
+			return err
 		}
+	}
+
+	if skipped > 0 {
+		return fmt.Errorf("%d wedged pool(s) skipped due to insufficient time budget", skipped)
 	}
 
 	logBanner("TAG RECONCILE")
 	if err := orch.reconcileTagPut(ctx); err != nil {
 		return fmt.Errorf("tag reconcile: %w", err)
-	}
-
-	if skipped > 0 {
-		return fmt.Errorf("%d wedged pool(s) skipped due to insufficient time budget", skipped)
 	}
 
 	logBanner("DONE")
@@ -474,12 +481,12 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	return nil
 }
 
-func remediateSystemPool(ctx context.Context, orch orchestrator, wp wedgedPool, live *armcs.AgentPool) error {
-	logf("system pool requires systmp dance")
+func remediatePool(ctx context.Context, orch orchestrator, wp wedgedPool, live *armcs.AgentPool) error {
+	tmp := tmpPoolName(wp.name)
 
-	logf(">>> adding throwaway systmp pool")
-	if err := orch.addSystmp(ctx, live); err != nil {
-		return fmt.Errorf("add systmp for %s: %w", wp.name, err)
+	logf(">>> adding throwaway pool %s", tmp)
+	if err := orch.addTmpPool(ctx, tmp, live); err != nil {
+		return fmt.Errorf("add tmp pool %s for %s: %w", tmp, wp.name, err)
 	}
 
 	logf(">>> draining pool %s", wp.name)
@@ -497,31 +504,12 @@ func remediateSystemPool(ctx context.Context, orch orchestrator, wp wedgedPool, 
 		return fmt.Errorf("recreate %s: %w", wp.name, err)
 	}
 
-	logf(">>> cleaning up systmp")
-	if err := orch.drainPool(ctx, systmpPoolName, 5*time.Minute); err != nil {
-		logf("WARN: systmp drain returned: %v (continuing to delete)", err)
+	logf(">>> cleaning up tmp pool %s", tmp)
+	if err := orch.drainPool(ctx, tmp, 5*time.Minute); err != nil {
+		logf("WARN: %s drain returned: %v (continuing to delete)", tmp, err)
 	}
-	if err := orch.deletePool(ctx, systmpPoolName); err != nil {
-		return fmt.Errorf("delete systmp: %w", err)
-	}
-
-	return nil
-}
-
-func remediateNonSystemPool(ctx context.Context, orch orchestrator, wp wedgedPool, live *armcs.AgentPool) error {
-	logf(">>> draining pool %s", wp.name)
-	if err := orch.drainPool(ctx, wp.name, 10*time.Minute); err != nil {
-		return fmt.Errorf("drain %s: %w", wp.name, err)
-	}
-
-	logf(">>> deleting pool %s", wp.name)
-	if err := orch.deletePool(ctx, wp.name); err != nil {
-		return fmt.Errorf("delete %s: %w", wp.name, err)
-	}
-
-	logf(">>> recreating pool %s", wp.name)
-	if err := orch.recreatePool(ctx, wp.name, live); err != nil {
-		return fmt.Errorf("recreate %s: %w", wp.name, err)
+	if err := orch.deletePool(ctx, tmp); err != nil {
+		return fmt.Errorf("delete %s: %w", tmp, err)
 	}
 
 	return nil
@@ -564,10 +552,16 @@ func forcedEvidenceForPool(ctx context.Context, cfg *config, orch orchestrator, 
 	)
 
 	// Abort the scale-up LRO and restore the original pool spec.
+	// If the scale-up completed before abort, the pool has an extra
+	// node and bumped min/maxCount. Restoring the original spec via
+	// CreateOrUpdate reverts that.
 	abortCtx, abortCancel := context.WithTimeout(context.Background(), abortTriggerTimeoutMin*time.Minute)
 	defer abortCancel()
 	if abortErr := orch.abortPoolReconcile(abortCtx, sp.name); abortErr != nil {
 		logf("WARN: abortPoolReconcile for %s failed: %v", sp.name, abortErr)
+	}
+	if restoreErr := orch.restorePoolSpec(abortCtx, sp.name, live); restoreErr != nil {
+		logf("WARN: restorePoolSpec for %s failed: %v", sp.name, restoreErr)
 	}
 
 	if pollErr != nil {
@@ -973,10 +967,7 @@ func evalClusterSafety(pools []*armcs.AgentPool) (bool, string) {
 		if p == nil || p.Name == nil || p.Properties == nil {
 			continue
 		}
-		if classifyPool(p) == poolCategorySystem {
-			continue
-		}
-		if *p.Name == systmpPoolName {
+		if classifyPool(p) == poolCategorySystem || isTmpPool(*p.Name) {
 			continue
 		}
 		cnt := int32(0)
@@ -1070,7 +1061,7 @@ func (c *clients) detect(ctx context.Context) ([]wedgedPool, string, error) {
 				continue
 			}
 			name := *p.Name
-			if name == systmpPoolName {
+			if isTmpPool(name) {
 				continue
 			}
 			cat := classifyPool(p)
@@ -1101,7 +1092,7 @@ func (c *clients) detect(ctx context.Context) ([]wedgedPool, string, error) {
 			continue
 		}
 		name := *p.Name
-		if name == systmpPoolName {
+		if isTmpPool(name) {
 			continue
 		}
 
@@ -1157,26 +1148,19 @@ func (c *clients) detect(ctx context.Context) ([]wedgedPool, string, error) {
 // would let us create a duplicate systmp on top of an existing one,
 // which would fail with a less actionable error later.
 func (c *clients) preflightChecks(ctx context.Context, pools []wedgedPool) error {
-	systemInList := false
 	for _, wp := range pools {
-		if wp.category == poolCategorySystem {
-			systemInList = true
-			break
+		tmp := tmpPoolName(wp.name)
+		_, err := c.pools.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, tmp, nil)
+		switch {
+		case err == nil:
+			return fmt.Errorf("leftover tmp pool %q present from previous run; clean it up then re-run", tmp)
+		case isNotFoundErr(err):
+			continue
+		default:
+			return fmt.Errorf("preflight Get %s: %w", tmp, err)
 		}
 	}
-	if !systemInList {
-		return nil
-	}
-
-	_, err := c.pools.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, systmpPoolName, nil)
-	switch {
-	case err == nil:
-		return fmt.Errorf("leftover 'systmp' pool present from previous run; clean it up then re-run")
-	case isNotFoundErr(err):
-		return nil
-	default:
-		return fmt.Errorf("preflight Get systmp: %w", err)
-	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -1333,23 +1317,21 @@ func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 // across environments). The temporary pool overrides Count=1 and adds
 // an obviously-temporary purpose tag while otherwise relying on the
 // sanitized live-pool clone for node labels, taints and VMSS tags.
-func buildSystmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPool, error) {
+func buildTmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPool, error) {
 	body, err := agentPoolForCreate(live, cpVersion)
 	if err != nil {
-		return nil, fmt.Errorf("buildSystmpAgentPool: %w", err)
+		return nil, fmt.Errorf("buildTmpAgentPool: %w", err)
 	}
 	if body.Properties.VMSize == nil || *body.Properties.VMSize == "" {
-		return nil, errors.New("buildSystmpAgentPool: live snapshot has no VMSize")
+		return nil, errors.New("buildTmpAgentPool: live snapshot has no VMSize")
 	}
 	if body.Properties.OSDiskSizeGB == nil || *body.Properties.OSDiskSizeGB <= 0 {
-		return nil, errors.New("buildSystmpAgentPool: live snapshot has no OSDiskSizeGB")
+		return nil, errors.New("buildTmpAgentPool: live snapshot has no OSDiskSizeGB")
 	}
 	if cpVersion == "" {
-		return nil, errors.New("buildSystmpAgentPool: empty cpVersion")
+		return nil, errors.New("buildTmpAgentPool: empty cpVersion")
 	}
-	mode := armcs.AgentPoolModeSystem
 	cnt := int32(1)
-	body.Properties.Mode = &mode
 	body.Properties.Count = &cnt
 	body.Properties.MinCount = nil
 	body.Properties.MaxCount = nil
@@ -1357,25 +1339,25 @@ func buildSystmpAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.Agent
 	if body.Properties.Tags == nil {
 		body.Properties.Tags = map[string]*string{}
 	}
-	body.Properties.Tags["purpose"] = ptr("temp-system-aroslsre-924")
+	body.Properties.Tags["purpose"] = ptr("temp-aroslsre-924")
 	return body, nil
 }
 
-func (c *clients) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
-	body, err := buildSystmpAgentPool(live, c.cfg.cpVersion)
+func (c *clients) addTmpPool(ctx context.Context, tmpName string, live *armcs.AgentPool) error {
+	body, err := buildTmpAgentPool(live, c.cfg.cpVersion)
 	if err != nil {
 		return err
 	}
-	logf("creating systmp (vmSize=%s, 1 node, k8s=%s, inherited taints)", strDeref(live.Properties.VMSize), c.cfg.cpVersion)
-	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, systmpPoolName, *body, nil)
+	logf("creating tmp pool %s (vmSize=%s, 1 node, k8s=%s, inherited taints)", tmpName, strDeref(live.Properties.VMSize), c.cfg.cpVersion)
+	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, tmpName, *body, nil)
 	if err != nil {
-		return fmt.Errorf("begin create systmp: %w", err)
+		return fmt.Errorf("begin create %s: %w", tmpName, err)
 	}
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
-		return fmt.Errorf("poll create systmp: %w", err)
+		return fmt.Errorf("poll create %s: %w", tmpName, err)
 	}
-	logf("systmp pool created; waiting for k8s node Ready")
-	return c.waitForReadyNodes(ctx, systmpPoolName, 1, systmpReadyTOMin*time.Minute)
+	logf("tmp pool %s created; waiting for k8s node Ready", tmpName)
+	return c.waitForReadyNodes(ctx, tmpName, 1, systmpReadyTOMin*time.Minute)
 }
 
 // ---------------------------------------------------------------------------
@@ -1530,6 +1512,9 @@ func (c *clients) triggerPoolScaleUp(ctx context.Context, poolName string, live 
 	}
 	if body.Properties.EnableAutoScaling != nil && *body.Properties.EnableAutoScaling && body.Properties.MinCount != nil {
 		*body.Properties.MinCount++
+		if body.Properties.MaxCount != nil && *body.Properties.MinCount > *body.Properties.MaxCount {
+			*body.Properties.MaxCount = *body.Properties.MinCount
+		}
 	}
 	logf("triggering scale-up on %q (count=%d) to force VMSS write", poolName, *body.Properties.Count)
 	if _, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, poolName, *body, nil); err != nil {
@@ -1597,6 +1582,22 @@ func (c *clients) abortPoolReconcile(ctx context.Context, poolName string) error
 	}
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
 		return fmt.Errorf("poll abort pool reconcile %s: %w", poolName, err)
+	}
+	return nil
+}
+
+func (c *clients) restorePoolSpec(ctx context.Context, poolName string, live *armcs.AgentPool) error {
+	body, err := agentPoolForCreate(live, c.cfg.cpVersion)
+	if err != nil {
+		return fmt.Errorf("restorePoolSpec %s: %w", poolName, err)
+	}
+	logf("restoring original spec for pool %s", poolName)
+	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, poolName, *body, nil)
+	if err != nil {
+		return fmt.Errorf("begin restore pool spec %s: %w", poolName, err)
+	}
+	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
+		return fmt.Errorf("poll restore pool spec %s: %w", poolName, err)
 	}
 	return nil
 }

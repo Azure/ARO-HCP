@@ -771,12 +771,12 @@ func TestAgentPoolForCreate_NilProperties(t *testing.T) {
 }
 
 // =============================================================================
-// buildSystmpAgentPool
+// buildTmpAgentPool
 // =============================================================================
 
 func TestBuildSystmpAgentPool_ValidInputs(t *testing.T) {
 	live := mkLiveSystemPool()
-	body, err := buildSystmpAgentPool(live, "1.35.4")
+	body, err := buildTmpAgentPool(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -817,7 +817,7 @@ func TestBuildSystmpAgentPool_ValidInputs(t *testing.T) {
 	if p.Tags["delegate-ip-allocation-for-nics-without-subnet"] == nil || *p.Tags["delegate-ip-allocation-for-nics-without-subnet"] != "true" {
 		t.Errorf("Swift tag not inherited: %v", p.Tags)
 	}
-	if p.Tags["purpose"] == nil || *p.Tags["purpose"] != "temp-system-aroslsre-924" {
+	if p.Tags["purpose"] == nil || *p.Tags["purpose"] != "temp-aroslsre-924" {
 		t.Errorf("temporary purpose tag missing: %v", p.Tags)
 	}
 	if _, ok := p.Tags["aks-managed-foo"]; ok {
@@ -826,13 +826,13 @@ func TestBuildSystmpAgentPool_ValidInputs(t *testing.T) {
 }
 
 func TestBuildSystmpAgentPool_NilLive(t *testing.T) {
-	if _, err := buildSystmpAgentPool(nil, "1.35.4"); err == nil {
+	if _, err := buildTmpAgentPool(nil, "1.35.4"); err == nil {
 		t.Fatal("expected error for nil live")
 	}
 }
 
 func TestBuildSystmpAgentPool_NilProperties(t *testing.T) {
-	if _, err := buildSystmpAgentPool(&armcs.AgentPool{}, "1.35.4"); err == nil {
+	if _, err := buildTmpAgentPool(&armcs.AgentPool{}, "1.35.4"); err == nil {
 		t.Fatal("expected error for nil properties")
 	}
 }
@@ -840,18 +840,18 @@ func TestBuildSystmpAgentPool_NilProperties(t *testing.T) {
 func TestBuildSystmpAgentPool_MissingVMSize(t *testing.T) {
 	live := mkLiveSystemPool()
 	live.Properties.VMSize = nil
-	if _, err := buildSystmpAgentPool(live, "1.35.4"); err == nil {
+	if _, err := buildTmpAgentPool(live, "1.35.4"); err == nil {
 		t.Fatal("expected error for missing VMSize")
 	}
 	live.Properties.VMSize = ptr("")
-	if _, err := buildSystmpAgentPool(live, "1.35.4"); err == nil {
+	if _, err := buildTmpAgentPool(live, "1.35.4"); err == nil {
 		t.Fatal("expected error for empty VMSize")
 	}
 }
 
 func TestBuildSystmpAgentPool_MissingCPVersion(t *testing.T) {
 	live := mkLiveSystemPool()
-	if _, err := buildSystmpAgentPool(live, ""); err == nil {
+	if _, err := buildTmpAgentPool(live, ""); err == nil {
 		t.Fatal("expected error for empty cpVersion")
 	}
 }
@@ -859,7 +859,7 @@ func TestBuildSystmpAgentPool_MissingCPVersion(t *testing.T) {
 func TestBuildSystmpAgentPool_NoPodSubnet(t *testing.T) {
 	live := mkLiveSystemPool()
 	live.Properties.PodSubnetID = nil
-	body, err := buildSystmpAgentPool(live, "1.35.4")
+	body, err := buildTmpAgentPool(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -871,7 +871,7 @@ func TestBuildSystmpAgentPool_NoPodSubnet(t *testing.T) {
 func TestBuildSystmpAgentPool_DoesNotShareTaintPointer(t *testing.T) {
 	// Mutating the live snapshot's taints must not affect the systmp body.
 	live := mkLiveSystemPool()
-	body, _ := buildSystmpAgentPool(live, "1.35.4")
+	body, _ := buildTmpAgentPool(live, "1.35.4")
 	*live.Properties.NodeTaints[0] = "hacked"
 	if *body.Properties.NodeTaints[0] != "CriticalAddonsOnly=true:NoSchedule" {
 		t.Errorf("systmp NodeTaints share state with live: %v", body.Properties.NodeTaints)
@@ -880,7 +880,7 @@ func TestBuildSystmpAgentPool_DoesNotShareTaintPointer(t *testing.T) {
 
 func TestBuildSystmpAgentPool_DoesNotShareInheritedMapsOrSlices(t *testing.T) {
 	live := mkLiveSystemPool()
-	body, err := buildSystmpAgentPool(live, "1.35.4")
+	body, err := buildTmpAgentPool(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -901,12 +901,12 @@ func TestBuildSystmpAgentPool_DoesNotShareInheritedMapsOrSlices(t *testing.T) {
 func TestBuildSystmpAgentPool_MissingOSDiskSizeGB(t *testing.T) {
 	live := mkLiveSystemPool()
 	live.Properties.OSDiskSizeGB = nil
-	if _, err := buildSystmpAgentPool(live, "1.35.4"); err == nil {
+	if _, err := buildTmpAgentPool(live, "1.35.4"); err == nil {
 		t.Fatal("expected error for missing OSDiskSizeGB")
 	}
 	zero := int32(0)
 	live.Properties.OSDiskSizeGB = &zero
-	if _, err := buildSystmpAgentPool(live, "1.35.4"); err == nil {
+	if _, err := buildTmpAgentPool(live, "1.35.4"); err == nil {
 		t.Fatal("expected error for OSDiskSizeGB == 0")
 	}
 }
@@ -915,7 +915,7 @@ func TestBuildSystmpAgentPool_InheritsDiskSizeAndOSType(t *testing.T) {
 	live := mkLiveSystemPool()
 	custom := int32(64)
 	live.Properties.OSDiskSizeGB = &custom
-	body, err := buildSystmpAgentPool(live, "1.35.4")
+	body, err := buildTmpAgentPool(live, "1.35.4")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1409,7 +1409,7 @@ type mockOrchestrator struct {
 	preflightChecksFn    func(ctx context.Context, pools []wedgedPool) error
 	snapshotPoolFn       func(ctx context.Context, poolName string) (*armcs.AgentPool, error)
 	maybeAbortLROFn      func(ctx context.Context) (bool, error)
-	addSystmpFn          func(ctx context.Context, live *armcs.AgentPool) error
+	addTmpPoolFn         func(ctx context.Context, tmpName string, live *armcs.AgentPool) error
 	drainPoolFn          func(ctx context.Context, pool string, timeout time.Duration) error
 	deletePoolFn         func(ctx context.Context, pool string) error
 	recreatePoolFn       func(ctx context.Context, poolName string, live *armcs.AgentPool) error
@@ -1417,6 +1417,7 @@ type mockOrchestrator struct {
 	triggerPoolScaleUpFn func(ctx context.Context, poolName string, live *armcs.AgentPool) error
 	pollForNRPEvidenceFn func(ctx context.Context, poolName string, vmssPrefix string, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
 	abortPoolReconcileFn func(ctx context.Context, poolName string) error
+	restorePoolSpecFn    func(ctx context.Context, poolName string, live *armcs.AgentPool) error
 }
 
 func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
@@ -1480,10 +1481,10 @@ func (m *mockOrchestrator) maybeAbortLRO(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (m *mockOrchestrator) addSystmp(ctx context.Context, live *armcs.AgentPool) error {
-	m.record("addSystmp")
-	if m.addSystmpFn != nil {
-		return m.addSystmpFn(ctx, live)
+func (m *mockOrchestrator) addTmpPool(ctx context.Context, tmpName string, live *armcs.AgentPool) error {
+	m.record("addTmpPool:" + tmpName)
+	if m.addTmpPoolFn != nil {
+		return m.addTmpPoolFn(ctx, tmpName, live)
 	}
 	return nil
 }
@@ -1544,6 +1545,14 @@ func (m *mockOrchestrator) abortPoolReconcile(ctx context.Context, poolName stri
 	return nil
 }
 
+func (m *mockOrchestrator) restorePoolSpec(ctx context.Context, poolName string, live *armcs.AgentPool) error {
+	m.record("restorePoolSpec:" + poolName)
+	if m.restorePoolSpecFn != nil {
+		return m.restorePoolSpecFn(ctx, poolName, live)
+	}
+	return nil
+}
+
 func TestRunWith(t *testing.T) {
 	dummyErr := errors.New("boom")
 
@@ -1554,7 +1563,7 @@ func TestRunWith(t *testing.T) {
 		"ensureCluster", "dumpPreflight", "detect:1",
 		"bootstrapKube", "dumpPreflight", "preflightChecks",
 		"maybeAbortLRO", "detect:2", "snapshotPool:system",
-		"addSystmp",
+		"addTmpPool:systmp",
 		"drainPool:system", "deletePool:system",
 		"recreatePool:system",
 		"drainPool:systmp", "deletePool:systmp",
@@ -1622,7 +1631,7 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotPool:system", "triggerPoolScaleUp:system", "pollForNRPEvidence:system", "abortPoolReconcile:system",
+				"snapshotPool:system", "triggerPoolScaleUp:system", "pollForNRPEvidence:system", "abortPoolReconcile:system", "restorePoolSpec:system",
 			},
 		},
 		{
@@ -1641,10 +1650,10 @@ func TestRunWith(t *testing.T) {
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotPool:system", "triggerPoolScaleUp:system", "pollForNRPEvidence:system", "abortPoolReconcile:system",
+				"snapshotPool:system", "triggerPoolScaleUp:system", "pollForNRPEvidence:system", "abortPoolReconcile:system", "restorePoolSpec:system",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"maybeAbortLRO", "detect:2", "snapshotPool:system",
-				"addSystmp",
+				"addTmpPool:systmp",
 				"drainPool:system", "deletePool:system",
 				"recreatePool:system",
 				"drainPool:systmp", "deletePool:systmp",
@@ -1731,17 +1740,17 @@ func TestRunWith(t *testing.T) {
 			wantCalls: fullHappyPath,
 		},
 		{
-			name: "addSystmp_error",
+			name: "addTmpPool_error",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
-				m.addSystmpFn = func(context.Context, *armcs.AgentPool) error { return dummyErr }
+				m.addTmpPoolFn = func(context.Context, string, *armcs.AgentPool) error { return dummyErr }
 			},
-			wantErr: "add systmp",
+			wantErr: "add tmp pool",
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"maybeAbortLRO", "detect:2", "snapshotPool:system",
-				"addSystmp",
+				"addTmpPool:systmp",
 			},
 		},
 		{
@@ -1760,7 +1769,7 @@ func TestRunWith(t *testing.T) {
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"maybeAbortLRO", "detect:2", "snapshotPool:system",
-				"addSystmp", "drainPool:system",
+				"addTmpPool:systmp", "drainPool:system",
 			},
 		},
 		{
@@ -1831,8 +1840,10 @@ func TestRunWith(t *testing.T) {
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"bootstrapKube", "dumpPreflight", "preflightChecks",
 				"maybeAbortLRO", "detect:2", "snapshotPool:userswft3",
+				"addTmpPool:userswft3t",
 				"drainPool:userswft3", "deletePool:userswft3",
 				"recreatePool:userswft3",
+				"drainPool:userswft3t", "deletePool:userswft3t",
 				"reconcileTagPut", "dumpPostflight",
 			},
 		},
@@ -1854,14 +1865,16 @@ func TestRunWith(t *testing.T) {
 				"maybeAbortLRO", "detect:2",
 				// system pool (with systmp dance)
 				"snapshotPool:system",
-				"addSystmp",
+				"addTmpPool:systmp",
 				"drainPool:system", "deletePool:system",
 				"recreatePool:system",
 				"drainPool:systmp", "deletePool:systmp",
-				// user pool (no systmp)
+				// user pool (with tmp dance)
 				"snapshotPool:userswft3",
+				"addTmpPool:userswft3t",
 				"drainPool:userswft3", "deletePool:userswft3",
 				"recreatePool:userswft3",
+				"drainPool:userswft3t", "deletePool:userswft3t",
 				// finish
 				"reconcileTagPut", "dumpPostflight",
 			},
