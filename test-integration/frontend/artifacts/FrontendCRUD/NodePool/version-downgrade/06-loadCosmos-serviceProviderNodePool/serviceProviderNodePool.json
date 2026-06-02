@@ -5,14 +5,14 @@
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/downgrade/nodePools/downgrade-np/serviceProviderNodePools/default",
 		"spec": {
 			"nodePoolVersion": {
-				"desiredVersion": "4.20.8"
+				"desiredVersion": "4.23.0"
 			}
 		},
 		"status": {
 			"nodePoolVersion": {
 				"activeVersions": [
 					{
-						"version": "4.20.8"
+						"version": "4.23.0"
 					}
 				]
 			}

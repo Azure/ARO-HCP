@@ -166,12 +166,12 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 	return errs
 }
 
-// validateNodePoolVersionChange validates that a node pool version change is a valid upgrade.
+// validateNodePoolVersionChange validates that a node pool version change is valid.
 // It checks:
-//   - No downgrade: new version >= old version
-//   - No major version change: new major == old major (unless FeatureExperimentalReleaseFeatures is registered)
-//   - Minor version upgrades limited to +2 (N-2 skew policy)
-//   - Cannot exceed cluster version: new version <= cluster version
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
+//   - Downgrade: at most -2 minor versions from the highest control plane version
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - NP version must be in the allowed skew map when CP and NP are on different majors
 func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolVersionProfile) field.ErrorList {
 	spNodePool, spCluster := admissionContext.ServiceProviderNodePool, admissionContext.ServiceProviderCluster
 	// Skip validation if no version is specified or version didn't change
@@ -193,13 +193,10 @@ func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePo
 		return nil
 	}
 
-	lowestCPVersion, _ := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
-	if err := validation.ValidateNodePoolUpgrade(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
+	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+	if err := validation.ValidateNodePoolVersionChange(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, highestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
 		errs = append(errs, field.Invalid(fldPath, newObj.ID, err.Error()))
 	}
 
-	if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil && newVersion.LE(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
-		errs = append(errs, field.Invalid(fldPath, newObj.ID, fmt.Sprintf("cannot downgrade from version %s to %s", spNodePool.Spec.NodePoolVersion.DesiredVersion.String(), newVersion.String())))
-	}
 	return errs
 }
