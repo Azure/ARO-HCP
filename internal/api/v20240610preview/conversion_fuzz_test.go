@@ -72,6 +72,8 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ClusterUID = ""
 			// BillingDocumentCosmosID does not roundtrip through the external type because it is purely an internal detail
 			j.BillingDocumentCosmosID = ""
+			// UsesNewClusterDeletionApproach does not roundtrip through the external type because it is purely an internal detail
+			j.UsesNewClusterDeletionApproach = false
 		},
 		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)

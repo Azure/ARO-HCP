@@ -31,7 +31,8 @@
 				"name": "some-hcp-cluster",
 				"serviceProviderProperties": {
 					"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
-					"provisioningState": "Succeeded"
+					"provisioningState": "Succeeded",
+					"usesNewClusterDeletionApproach": false
 				},
 				"tags": {
 					"foo": "bar"
@@ -43,7 +44,8 @@
 		"name": "some-hcp-cluster",
 		"serviceProviderProperties": {
 			"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
-			"provisioningState": "Succeeded"
+			"provisioningState": "Succeeded",
+			"usesNewClusterDeletionApproach": false
 		},
 		"tags": {
 			"foo": "bar"
