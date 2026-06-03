@@ -146,6 +146,14 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 	// This is available on 4.22+ clusters,  older clusters once Hypershift backports it.
 	if len(hostedCluster.Status.ControlPlaneVersion.History) > 0 {
 		for _, historyEntry := range hostedCluster.Status.ControlPlaneVersion.History {
+			if historyEntry.Version == "" {
+				if historyEntry.State != configv1.CompletedUpdate {
+					logger.Info("Skipping HostedCluster controlPlaneVersion history entry with empty version (expected during rollout)", "history", historyEntry)
+				} else {
+					logger.Error(fmt.Errorf("empty version in completed entry"), "Skipping HostedCluster controlPlaneVersion history entry with empty version", "history", historyEntry)
+				}
+				continue
+			}
 			parsedVersion, err := semver.Parse(historyEntry.Version)
 			if err != nil {
 				logger.Error(err, "Skipping HostedCluster controlPlaneVersion history entry with unparseable version", "history", historyEntry)
@@ -163,6 +171,14 @@ func (c *controlPlaneActiveVersionSyncer) getHostedClusterActiveVersions(ctx con
 	}
 	// Pre-4.22 clusters: fall back to status.version.history.
 	for _, historyEntry := range hostedCluster.Status.Version.History {
+		if historyEntry.Version == "" {
+			if historyEntry.State != configv1.CompletedUpdate {
+				logger.Info("Skipping HostedCluster version history entry with empty version (expected during rollout)", "history", historyEntry)
+			} else {
+				logger.Error(fmt.Errorf("empty version in completed entry"), "Skipping HostedCluster version history entry with empty version", "history", historyEntry)
+			}
+			continue
+		}
 		parsedVersion, err := semver.Parse(historyEntry.Version)
 		if err != nil {
 			logger.Error(err, "Skipping HostedCluster version history entry with unparseable version", "history", historyEntry)

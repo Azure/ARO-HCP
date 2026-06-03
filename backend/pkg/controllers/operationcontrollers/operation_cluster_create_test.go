@@ -236,19 +236,28 @@ func TestDetermineOperationStatus(t *testing.T) {
 	operation := fixture.newOperation(database.OperationRequestCreate)
 
 	tests := []struct {
-		name             string
-		clusterLister    listers.ClusterLister
-		readDesireLister dblisters.ReadDesireLister
-		expectedState    arm.ProvisioningState
-		expectedMessage  string
-		expectError      bool
-		errContains      string
+		name              string
+		clusterLister     listers.ClusterLister
+		readDesireLister  dblisters.ReadDesireLister
+		resourcesDBClient database.ResourcesDBClient
+		expectedState     arm.ProvisioningState
+		expectedMessage   string
+		expectError       bool
+		errContains       string
 	}{
 		{
 			name: "both checks succeed → Succeeded",
 			clusterLister: &listertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
 			},
+			resourcesDBClient: func() database.ResourcesDBClient {
+				db, err := databasetesting.NewMockResourcesDBClientWithResources(
+					utils.ContextWithLogger(context.Background(), testr.New(t)),
+					[]any{fixture.newCluster(nil)},
+				)
+				require.NoError(t, err)
+				return db
+			}(),
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -277,6 +286,14 @@ func TestDetermineOperationStatus(t *testing.T) {
 			clusterLister: &listertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("")},
 			},
+			resourcesDBClient: func() database.ResourcesDBClient {
+				db, err := databasetesting.NewMockResourcesDBClientWithResources(
+					utils.ContextWithLogger(context.Background(), testr.New(t)),
+					[]any{fixture.newCluster(nil)},
+				)
+				require.NoError(t, err)
+				return db
+			}(),
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -311,6 +328,14 @@ func TestDetermineOperationStatus(t *testing.T) {
 		{
 			name:          "cluster lister error → error propagated",
 			clusterLister: &errorClusterLister{err: fmt.Errorf("cosmos error")},
+			resourcesDBClient: func() database.ResourcesDBClient {
+				db, err := databasetesting.NewMockResourcesDBClientWithResources(
+					utils.ContextWithLogger(context.Background(), testr.New(t)),
+					[]any{fixture.newCluster(nil)},
+				)
+				require.NoError(t, err)
+				return db
+			}(),
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -474,8 +499,9 @@ func TestDetermineOperationStatus(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 			controller := &operationClusterCreate{
-				clusterLister:    tt.clusterLister,
-				readDesireLister: tt.readDesireLister,
+				clusterLister:     tt.clusterLister,
+				readDesireLister:  tt.readDesireLister,
+				resourcesDBClient: tt.resourcesDBClient,
 			}
 
 			result, err := controller.determineOperationStatus(ctx, operation)
