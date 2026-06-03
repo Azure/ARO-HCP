@@ -1,0 +1,7 @@
+version: v2.1.6
+name: custom-golangci-lint
+destination: ./bin
+plugins:
+  - module: 'github.com/Azure/ARO-HCP/tooling/customlinters'
+    import: 'github.com/Azure/ARO-HCP/tooling/customlinters'
+    path: .
