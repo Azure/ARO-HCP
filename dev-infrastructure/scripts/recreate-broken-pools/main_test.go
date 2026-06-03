@@ -1854,6 +1854,20 @@ func TestRunWith(t *testing.T) {
 				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
 					return 12, nil
 				}
+				m.restorePoolSpecFn = func(ctx context.Context, _ nodePoolTarget, _ *armcs.AgentPool) error {
+					deadline, ok := ctx.Deadline()
+					if !ok {
+						t.Fatalf("restorePoolSpec context has no deadline")
+					}
+					remaining := time.Until(deadline)
+					if remaining <= 0 || remaining > forcedEvidenceRestoreTimeoutMin*time.Minute {
+						t.Fatalf("restorePoolSpec deadline remaining=%s, want <= %dm and > 0", remaining, forcedEvidenceRestoreTimeoutMin)
+					}
+					if remaining < (forcedEvidenceRestoreTimeoutMin*time.Minute)-10*time.Second {
+						t.Fatalf("restorePoolSpec deadline remaining=%s, want near %dm", remaining, forcedEvidenceRestoreTimeoutMin)
+					}
+					return nil
+				}
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
