@@ -1714,7 +1714,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors5m1h'
         enabled: true
         labels: {
-          severity: '3'
+          severity: 'critical'
           slo: 'nodepool-errors'
         }
         annotations: {
@@ -1725,9 +1725,9 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation error rate critically high (>72%)'
           title: 'Node Pool operation error rate critically high (>72%)'
         }
-        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"}) ) > 0.72'
+        expression: 'errors:backend_nodepool_operation:error_rate > 0.72'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1742,7 +1742,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors30m6h'
         enabled: true
         labels: {
-          severity: '3'
+          severity: 'critical'
           slo: 'nodepool-errors'
         }
         annotations: {
@@ -1753,9 +1753,9 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation error rate elevated (>30%) for 30+ minutes'
           title: 'Node Pool operation error rate elevated (>30%) for 30+ minutes'
         }
-        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"}) ) > 0.30'
+        expression: 'errors:backend_nodepool_operation:error_rate > 0.30'
         for: 'PT30M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1770,7 +1770,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors6h3d'
         enabled: true
         labels: {
-          severity: '4'
+          severity: 'warning'
           slo: 'nodepool-errors'
         }
         annotations: {
@@ -1781,9 +1781,9 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
           title: 'Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
         }
-        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"}) ) > 0.05'
+        expression: 'errors:backend_nodepool_operation:error_rate > 0.05'
         for: 'PT6H'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1798,7 +1798,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrorsDegradation'
         enabled: true
         labels: {
-          severity: '3'
+          severity: 'warning'
           slo: 'nodepool-errors'
         }
         annotations: {
@@ -1809,9 +1809,9 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation failure rate exceeds 15% for 30 minutes'
           title: 'Node Pool operation failure rate exceeds 15% for 30 minutes'
         }
-        expression: '( count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"}) / count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"}) ) > 0.15'
+        expression: 'errors:backend_nodepool_operation:error_rate > 0.15'
         for: 'PT30M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1826,7 +1826,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolStuckOperation'
         enabled: true
         labels: {
-          severity: '3'
+          severity: 'critical'
         }
         annotations: {
           correlationId: 'UJNodePoolStuckOperation/{{ $labels.cluster }}'
@@ -1836,8 +1836,8 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: 'Node Pool operation stuck in {{ $labels.phase }} for over 1 hour'
           title: 'Node Pool operation stuck in {{ $labels.phase }} for over 1 hour'
         }
-        expression: '( time() - backend_resource_operation_start_time_seconds{ resource_type=~".*nodepools", phase=~"updating|deleting" } ) > 3600'
-        severity: 4
+        expression: '( (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1 ) > 3600'
+        severity: 3
       }
     ]
     scopes: [
@@ -1865,7 +1865,7 @@ resource arohcpNodepoolComponentAlerts 'Microsoft.AlertsManagement/prometheusRul
         alert: 'CNodePoolQueueDepth'
         enabled: true
         labels: {
-          severity: '3'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'CNodePoolQueueDepth/{{ $labels.cluster }}'
@@ -1877,7 +1877,7 @@ resource arohcpNodepoolComponentAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp", name=~".*NodePool.*"} ) ) > 10'
         for: 'PT5M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [
@@ -1892,7 +1892,7 @@ resource arohcpNodepoolComponentAlerts 'Microsoft.AlertsManagement/prometheusRul
         alert: 'CNodePoolRetryHotLoop'
         enabled: true
         labels: {
-          severity: '3'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'CNodePoolRetryHotLoop/{{ $labels.cluster }}'
@@ -1904,7 +1904,7 @@ resource arohcpNodepoolComponentAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m]) ) ) ) > 0.5'
         for: 'PT10M'
-        severity: 4
+        severity: 3
       }
     ]
     scopes: [
