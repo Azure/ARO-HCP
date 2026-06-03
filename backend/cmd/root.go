@@ -398,7 +398,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(err)
 	}
 
-	resourcesCosmosDBClient, billingDBClient, err := app.NewCosmosDBClients(cosmosDatabaseClient)
+	resourcesCosmosDBClient, billingDBClient, err := app.NewCosmosDBClients(ctx, cosmosDatabaseClient)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

@@ -122,11 +122,11 @@ func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, listers.Bil
 	return b.billingInformer, b.billingLister
 }
 
-func NewBackendInformers(ctx context.Context, resourcesGlobalListers database.ResourcesGlobalListers, billingGlobalListers database.BillingGlobalListers) BackendInformers {
-	return NewBackendInformersWithRelistDuration(ctx, resourcesGlobalListers, billingGlobalListers, nil)
+func NewBackendInformers(ctx context.Context, resourcesGlobalListers database.ResourcesGlobalListers, resourcesDBClient database.ResourcesDBClient, billingGlobalListers database.BillingGlobalListers) BackendInformers {
+	return NewBackendInformersWithRelistDuration(ctx, resourcesGlobalListers, resourcesDBClient, billingGlobalListers, nil)
 }
 
-func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalListers database.ResourcesGlobalListers, billingGlobalListers database.BillingGlobalListers, relistDuration *time.Duration) BackendInformers {
+func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalListers database.ResourcesGlobalListers, resourcesDBClient database.ResourcesDBClient, billingGlobalListers database.BillingGlobalListers, relistDuration *time.Duration) BackendInformers {
 	subscriptionRelistDuration := SubscriptionRelistDuration
 	clusterRelistDuration := ClusterRelistDuration
 	nodePoolRelistDuration := NodePoolRelistDuration
@@ -153,15 +153,15 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	}
 
 	ret := &backendInformers{}
-	ret.subscriptionInformer = NewSubscriptionInformerWithRelistDuration(resourcesGlobalListers.Subscriptions(), subscriptionRelistDuration)
-	ret.activeOperationInformer = NewActiveOperationInformerWithRelistDuration(resourcesGlobalListers.ActiveOperations(), activeOperationsRelistDuration)
-	ret.allOperationInformer = NewOperationInformerWithRelistDuration(resourcesGlobalListers.Operations(), allOperationsRelistDuration)
-	ret.clusterInformer = NewClusterInformerWithRelistDuration(resourcesGlobalListers.Clusters(), clusterRelistDuration)
-	ret.nodePoolInformer = NewNodePoolInformerWithRelistDuration(resourcesGlobalListers.NodePools(), nodePoolRelistDuration)
-	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(resourcesGlobalListers.ExternalAuths(), externalAuthRelistDuration)
-	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformerWithRelistDuration(resourcesGlobalListers.ServiceProviderClusters(), serviceProviderClusterRelistDuration)
-	ret.serviceProviderNodePoolInformer = NewServiceProviderNodePoolInformerWithRelistDuration(resourcesGlobalListers.ServiceProviderNodePools(), serviceProviderNodePoolRelistDuration)
-	ret.controllerInformer = NewControllerInformerWithRelistDuration(resourcesGlobalListers.Controllers(), controllerRelistDuration)
+	ret.subscriptionInformer = NewSubscriptionInformerWithRelistDuration(resourcesGlobalListers.Subscriptions(), resourcesDBClient, subscriptionRelistDuration)
+	ret.activeOperationInformer = NewActiveOperationInformerWithRelistDuration(resourcesGlobalListers.ActiveOperations(), resourcesDBClient, activeOperationsRelistDuration)
+	ret.allOperationInformer = NewOperationInformerWithRelistDuration(resourcesGlobalListers.Operations(), resourcesDBClient, allOperationsRelistDuration)
+	ret.clusterInformer = NewClusterInformerWithRelistDuration(resourcesGlobalListers.Clusters(), resourcesDBClient, clusterRelistDuration)
+	ret.nodePoolInformer = NewNodePoolInformerWithRelistDuration(resourcesGlobalListers.NodePools(), resourcesDBClient, nodePoolRelistDuration)
+	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(resourcesGlobalListers.ExternalAuths(), resourcesDBClient, externalAuthRelistDuration)
+	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformerWithRelistDuration(resourcesGlobalListers.ServiceProviderClusters(), resourcesDBClient, serviceProviderClusterRelistDuration)
+	ret.serviceProviderNodePoolInformer = NewServiceProviderNodePoolInformerWithRelistDuration(resourcesGlobalListers.ServiceProviderNodePools(), resourcesDBClient, serviceProviderNodePoolRelistDuration)
+	ret.controllerInformer = NewControllerInformerWithRelistDuration(resourcesGlobalListers.Controllers(), resourcesDBClient, controllerRelistDuration)
 	ret.managementClusterContentInformer = NewManagementClusterContentInformerWithRelistDuration(resourcesGlobalListers.ManagementClusterContents(), managementClusterContentRelistDuration)
 	ret.billingInformer = NewBillingInformerWithRelistDuration(billingGlobalListers.BillingDocs(), billingRelistDuration)
 
