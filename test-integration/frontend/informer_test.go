@@ -280,7 +280,7 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewSubscriptionInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Subscriptions(), 5*time.Second)
+			return informers.NewSubscriptionInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Subscriptions(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
@@ -394,7 +394,7 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), 5*time.Second)
+			return informers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
@@ -530,7 +530,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), 5*time.Second)
+			return informers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
@@ -633,7 +633,7 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewActiveOperationInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().ActiveOperations(), 5*time.Second)
+			return informers.NewActiveOperationInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().ActiveOperations(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
