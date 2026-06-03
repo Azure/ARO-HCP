@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 // FSWatcher watches a file for content changes using hash-based change detection.
@@ -129,6 +131,7 @@ func (w *FSWatcher) checkAndSignal(ctx context.Context) {
 
 // watchLoop periodically checks for file changes and invokes the callback if so
 func (w *FSWatcher) watchLoop(ctx context.Context) {
+	defer utilruntime.HandleCrash()
 	logger := LoggerFromContext(ctx)
 	ticker := time.NewTicker(w.checkInterval)
 	defer ticker.Stop()

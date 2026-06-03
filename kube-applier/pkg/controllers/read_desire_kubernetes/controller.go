@@ -178,6 +178,7 @@ func (c *ReadDesireKubernetesController) Run(ctx context.Context) {
 	ticker := time.NewTicker(ResyncDuration)
 	defer ticker.Stop()
 	go func() {
+		defer utilruntime.HandleCrash()
 		for {
 			select {
 			case <-ctx.Done():

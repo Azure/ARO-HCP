@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/spf13/cobra"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/set"
@@ -366,6 +367,7 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	runErrCh := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		runErrCh <- adminAPI.Run(ctx)
 		logger.Info("admin api exited")
 	}()

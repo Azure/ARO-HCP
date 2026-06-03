@@ -118,6 +118,7 @@ func (o *BackendOptions) RunBackend(ctx context.Context) error {
 	}
 	runErrCh := make(chan error, 1)
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		runErrCh <- backend.Run(ctx)
 		cancel(fmt.Errorf("backend exited"))
 	}()
@@ -214,6 +215,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			electionChecker:   electionChecker,
 		}
 		go func() {
+			defer k8sutilruntime.HandleCrash()
 			err := s.Run(ctx)
 			if err != nil {
 				cancel(fmt.Errorf("healthz server exited: %w", err))
@@ -230,6 +232,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			metricsGatherer:   b.options.MetricsGatherer,
 		}
 		go func() {
+			defer k8sutilruntime.HandleCrash()
 			err := s.Run(ctx)
 			if err != nil {
 				cancel(fmt.Errorf("metrics server exited: %w", err))
@@ -239,6 +242,7 @@ func (b *Backend) Run(ctx context.Context) error {
 	}
 
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
 		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
 		cancel(fmt.Errorf("backend controllers leader election exited"))
@@ -319,6 +323,7 @@ func runHTTPServer(ctx context.Context, name string, addr string, server *http.S
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		select {
 		case <-ctx.Done():
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), backendShutdownTimeout)

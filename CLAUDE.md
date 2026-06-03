@@ -93,6 +93,10 @@ Each service follows consistent patterns:
 ### Build Tags
 - Lint tags: `LINT_GOTAGS='${GOTAGS},E2Etests'`
 
+### Go conventions
+
+- Every `go func(...)` spawned in non-test code must `defer utilruntime.HandleCrash()` (alias `k8s.io/apimachinery/pkg/util/runtime`) as its first deferred call, so an unhandled panic in the goroutine respects `utilruntime.ReallyCrash` and the binary's crash-on-panic policy instead of silently taking down the process. Goroutines whose body is passed to a kube wait helper that already wraps the call (e.g. `wait.Until`, `wait.UntilWithContext`, `wait.JitterUntil`) do not need it — those helpers call `HandleCrash` internally. When the goroutine invokes a named function via `go fn(...)`, put the `defer utilruntime.HandleCrash()` at the top of `fn` rather than wrapping the call site in a closure. Test code (`*_test.go`, `test/`, `test-integration/`, generated SDK fakes) is exempt.
+
 ### Infrastructure as Code
 - Bicep templates in `dev-infrastructure/templates/`
 - Reusable modules in `dev-infrastructure/modules/`
