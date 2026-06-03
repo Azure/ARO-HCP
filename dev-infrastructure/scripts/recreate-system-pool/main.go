@@ -260,9 +260,13 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		return fmt.Errorf("detection: %w", err)
 	}
 	if !act && !cfg.skipGuards && !cfg.dryRun && reasonIsNRPStormFail(reason) {
-		act, reason, err = forcedEvidencePath(ctx, cfg, orch, reason)
-		if err != nil {
-			return err
+		if shouldTriggerForcedEvidence(cfg.windowMin) {
+			act, reason, err = forcedEvidencePath(ctx, cfg, orch, reason)
+			if err != nil {
+				return err
+			}
+		} else {
+			logf("skipping forced-evidence: initial window (%dm) >= forced window (%dm) with zero hits; no active wedge. Exiting no-op.", cfg.windowMin, triggerEvidenceWindowMin)
 		}
 	}
 	if !act && !cfg.skipGuards {
@@ -369,6 +373,18 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		logf("WARN: post-flight dump partial: %v", err)
 	}
 	return nil
+}
+
+// shouldTriggerForcedEvidence reports whether the forced-evidence path
+// is worth running given the initial NRP-KVS lookback window. It only
+// helps when that initial window was shorter than the forced poll window
+// (triggerEvidenceWindowMin): if we already looked back >= the forced
+// window and saw zero hits, an active wedge — which the AKS RP retries
+// roughly every 3 min — would already be visible, so a forced reconcile
+// plus a fresh poll cannot add signal and only risks bouncing a healthy
+// control plane.
+func shouldTriggerForcedEvidence(windowMin int) bool {
+	return windowMin < triggerEvidenceWindowMin
 }
 
 // forcedEvidencePath triggers a no-op reconcile on the live system

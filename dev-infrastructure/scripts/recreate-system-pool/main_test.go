@@ -226,6 +226,27 @@ func TestEvalNRPStorm(t *testing.T) {
 	}
 }
 
+func TestShouldTriggerForcedEvidence(t *testing.T) {
+	cases := []struct {
+		name      string
+		windowMin int
+		want      bool
+	}{
+		{"default_window_triggers", defaultWindowMin, true},
+		{"zero_window_triggers", 0, true},
+		{"just_below_forced_window", triggerEvidenceWindowMin - 1, true},
+		{"equal_forced_window_skips", triggerEvidenceWindowMin, false},
+		{"prod_window_360_skips", 360, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldTriggerForcedEvidence(tc.windowMin); got != tc.want {
+				t.Errorf("shouldTriggerForcedEvidence(%d)=%t want %t", tc.windowMin, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEvalClusterState(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -1531,6 +1552,16 @@ func TestRunWith(t *testing.T) {
 		{
 			name: "guard1_fail_dry_run_skips_forced_evidence",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+				}
+			},
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+		},
+		{
+			name: "guard1_fail_large_window_skips_forced_evidence",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, windowMin: triggerEvidenceWindowMin},
 			setup: func(m *mockOrchestrator) {
 				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
 					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
