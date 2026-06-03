@@ -44,8 +44,6 @@ var (
 	}
 )
 
-var _ DiagnosticVerifier = verifyOperatorInstalled{}
-
 // imagePullErrorReasons lists all container waiting reasons that indicate an
 // image pull problem.  Values come from k8s.io/kubernetes/pkg/kubelet/images/types.go.
 var imagePullErrorReasons = sets.New(
@@ -143,6 +141,7 @@ func catalogSourceHealthCheck(ctx context.Context, cs *unstructured.Unstructured
 type verifyOperatorInstalled struct {
 	namespace        string
 	subscriptionName string
+	wait             waitSettings
 }
 
 func (v verifyOperatorInstalled) Name() string {
@@ -150,6 +149,10 @@ func (v verifyOperatorInstalled) Name() string {
 }
 
 func (v verifyOperatorInstalled) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return verifyOnceOrPoll(ctx, v.Name(), adminRESTConfig, v.wait, v.diagnoseFailure, v.checkOnce)
+}
+
+func (v verifyOperatorInstalled) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -361,7 +364,7 @@ func formatInstallPlanConditions(conditions []any) string {
 	return strings.Join(formatted, "\n")
 }
 
-func (v verifyOperatorInstalled) DiagnoseFailure(ctx context.Context, restConfig *rest.Config) string {
+func (v verifyOperatorInstalled) diagnoseFailure(ctx context.Context, restConfig *rest.Config) string {
 	var sections []string
 
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
@@ -528,10 +531,11 @@ func diagnoseEvents(ctx context.Context, kubeClient kubernetes.Interface, namesp
 	return lines
 }
 
-func VerifyOperatorInstalled(namespace, subscriptionName string) HostedClusterVerifier {
+func VerifyOperatorInstalled(namespace, subscriptionName string, opts ...WaitOption) HostedClusterVerifier {
 	return verifyOperatorInstalled{
 		namespace:        namespace,
 		subscriptionName: subscriptionName,
+		wait:             applyWaitOptions(opts),
 	}
 }
 
@@ -585,6 +589,7 @@ func VerifyOperatorCSV(namespace, csvName string) HostedClusterVerifier {
 type verifyCatalogSourceReady struct {
 	namespace     string
 	catalogSource string
+	wait          waitSettings
 }
 
 func (v verifyCatalogSourceReady) Name() string {
@@ -592,6 +597,10 @@ func (v verifyCatalogSourceReady) Name() string {
 }
 
 func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return verifyOnceOrPoll(ctx, v.Name(), adminRESTConfig, v.wait, nil, v.checkOnce)
+}
+
+func (v verifyCatalogSourceReady) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -620,10 +629,11 @@ func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *r
 	return catalogSourceHealthCheck(ctx, cs, v.namespace, v.catalogSource, kubeClient, false)
 }
 
-// VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators
-func VerifyCatalogSourceReady(namespace, catalogSource string) HostedClusterVerifier {
+// VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators.
+func VerifyCatalogSourceReady(namespace, catalogSource string, opts ...WaitOption) HostedClusterVerifier {
 	return verifyCatalogSourceReady{
 		namespace:     namespace,
 		catalogSource: catalogSource,
+		wait:          applyWaitOptions(opts),
 	}
 }

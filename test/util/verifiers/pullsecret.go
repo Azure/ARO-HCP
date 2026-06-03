@@ -29,6 +29,7 @@ import (
 
 type verifyPullSecretMergedIntoGlobal struct {
 	expectedHost string
+	wait         waitSettings
 }
 
 func (v verifyPullSecretMergedIntoGlobal) Name() string {
@@ -36,6 +37,10 @@ func (v verifyPullSecretMergedIntoGlobal) Name() string {
 }
 
 func (v verifyPullSecretMergedIntoGlobal) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return verifyOnceOrPoll(ctx, v.Name(), adminRESTConfig, v.wait, nil, v.checkOnce)
+}
+
+func (v verifyPullSecretMergedIntoGlobal) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
@@ -58,41 +63,22 @@ func (v verifyPullSecretMergedIntoGlobal) Verify(ctx context.Context, adminRESTC
 	return nil
 }
 
-func VerifyPullSecretMergedIntoGlobal(expectedHost string) HostedClusterVerifier {
-	return verifyPullSecretMergedIntoGlobal{expectedHost: expectedHost}
+func VerifyPullSecretMergedIntoGlobal(expectedHost string, opts ...WaitOption) HostedClusterVerifier {
+	return verifyPullSecretMergedIntoGlobal{
+		expectedHost: expectedHost,
+		wait:         applyWaitOptions(opts),
+	}
 }
 
-type verifyGlobalPullSecretSyncer struct{}
+const (
+	globalPullSecretSyncerNamespace = "kube-system"
+	globalPullSecretSyncerName      = "global-pull-secret-syncer"
+)
 
-func (v verifyGlobalPullSecretSyncer) Name() string {
-	return "VerifyGlobalPullSecretSyncer"
-}
-
-func (v verifyGlobalPullSecretSyncer) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	ds, err := kubeClient.AppsV1().DaemonSets("kube-system").Get(ctx, "global-pull-secret-syncer", metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get global-pull-secret-syncer DaemonSet: %w", err)
-	}
-
-	// Verify the DaemonSet is ready - all desired pods are available
-	if ds.Status.DesiredNumberScheduled == 0 {
-		return fmt.Errorf("global-pull-secret-syncer has no desired pods scheduled")
-	}
-	if ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
-		return fmt.Errorf("global-pull-secret-syncer not ready: %d/%d pods ready",
-			ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
-	}
-
-	return nil
-}
-
-func VerifyGlobalPullSecretSyncer() HostedClusterVerifier {
-	return verifyGlobalPullSecretSyncer{}
+// VerifyGlobalPullSecretSyncer verifies the global-pull-secret-syncer DaemonSet in kube-system.
+// It delegates to [VerifyDaemonSetReady]. Pass [WithWait] when the syncer may not be ready yet.
+func VerifyGlobalPullSecretSyncer(opts ...WaitOption) HostedClusterVerifier {
+	return VerifyDaemonSetReady(globalPullSecretSyncerNamespace, globalPullSecretSyncerName, opts...)
 }
 
 type verifyPullSecretAuthData struct {
