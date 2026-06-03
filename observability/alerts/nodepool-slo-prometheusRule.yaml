@@ -49,11 +49,12 @@ spec:
           }) or vector(0)
         )
         /
-        (
+        clamp_min(
           count(backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
             phase=~"succeeded|failed|canceled"
-          }) or vector(0)
+          }) or vector(0),
+          1
         )
     # Node pool provisioning state distribution (for dashboards)
     - record: nodepool:provision_state:count_by_phase
@@ -83,11 +84,7 @@ spec:
     # Would exhaust 7-day error budget in ~12 hours
     - alert: UJNodePoolErrors5m1h
       expr: |
-        (
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
-          /
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"})
-        ) > 0.72
+        errors:backend_nodepool_operation:error_rate > 0.72
       for: 5m
       labels:
         severity: "3"
@@ -103,11 +100,7 @@ spec:
     # Would exhaust 7-day error budget in ~28 hours
     - alert: UJNodePoolErrors30m6h
       expr: |
-        (
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
-          /
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"})
-        ) > 0.30
+        errors:backend_nodepool_operation:error_rate > 0.30
       for: 30m
       labels:
         severity: "3"
@@ -124,11 +117,7 @@ spec:
     # Would exhaust 7-day error budget in ~7 days
     - alert: UJNodePoolErrors6h3d
       expr: |
-        (
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
-          /
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"})
-        ) > 0.05
+        errors:backend_nodepool_operation:error_rate > 0.05
       for: 6h
       labels:
         severity: "4"
@@ -144,11 +133,7 @@ spec:
     # This provides early warning at 15% failure rate before burn-rate alerts fire.
     - alert: UJNodePoolErrorsDegradation
       expr: |
-        (
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase="failed"})
-          /
-          count(backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"succeeded|failed|canceled"})
-        ) > 0.15
+        errors:backend_nodepool_operation:error_rate > 0.15
       for: 30m
       labels:
         severity: "3"
@@ -164,10 +149,9 @@ spec:
     - alert: UJNodePoolStuckOperation
       expr: |
         (
-          time() - backend_resource_operation_start_time_seconds{
-            resource_type=~".*nodepools",
-            phase=~"updating|deleting"
-          }
+          (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
+          and
+          backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1
         ) > 3600
       labels:
         severity: "3"

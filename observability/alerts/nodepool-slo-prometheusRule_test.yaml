@@ -210,16 +210,12 @@ tests:
     alertname: UJNodePoolStuckOperation
 
 # ========================================
-# Test 6: Below SLO boundary — 3% failure rate, no alerts
+# Test 6: Zero failure rate — all succeeded, no alerts
 # ========================================
-# 97 succeeded, 3 failed → error rate = 3% < 5% SLO threshold
-# No alerts should fire (below all thresholds including slow burn).
+# 5 succeeded, 0 failed → error rate = 0%
+# No alerts should fire (well below all thresholds).
 - interval: 1m
   input_series:
-  # Using fewer series for simplicity: 9 succeeded, 1 failed would give 10%
-  # Instead: 19 succeeded, 1 failed = 5% — right at boundary
-  # For 3%: need ~32 succeeded, 1 failed → too many series
-  # Simplified: 9 succeeded, 0 failed = 0% failure rate
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/np/a", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
     values: "1+0x15"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/np/b", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="succeeded"}'
