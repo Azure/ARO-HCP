@@ -16,11 +16,6 @@ package database
 
 import "testing"
 
-// NewKubeApplierPartitionKey is exercised end-to-end by the mock CRUD round-trip
-// tests in databasetesting/. azcosmos.PartitionKey exposes no public string
-// accessor, so a direct unit test isn't worth the contortion.
-var _ = NewKubeApplierPartitionKey
-
 func TestClusterParentResourceID(t *testing.T) {
 	tests := []struct {
 		name              string
