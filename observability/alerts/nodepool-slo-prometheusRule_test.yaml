@@ -243,19 +243,19 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'workqueue_depth{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
     values: "15+0x10"
   alert_rule_test:
   - eval_time: 7m
     alertname: CNodePoolQueueDepth
     exp_alerts:
     - exp_labels:
-        name: "nodepool-properties-metrics"
+        name: "OperationNodePoolUpdate"
         cluster: "mgmt-1"
         severity: "3"
       exp_annotations:
-        summary: "Node Pool controller workqueue nodepool-properties-metrics depth is high"
-        description: "Node pool controller workqueue nodepool-properties-metrics has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
+        summary: "Node Pool controller workqueue OperationNodePoolUpdate depth is high"
+        description: "Node pool controller workqueue OperationNodePoolUpdate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
 
 # ========================================
@@ -263,7 +263,7 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'workqueue_depth{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
     values: "5+0x10"
   alert_rule_test:
   - eval_time: 7m
@@ -274,21 +274,21 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'workqueue_retries_total{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
     values: "0+80x25"
-  - series: 'workqueue_adds_total{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
     values: "0+100x25"
   alert_rule_test:
   - eval_time: 22m
     alertname: CNodePoolRetryHotLoop
     exp_alerts:
     - exp_labels:
-        name: "nodepool-properties-metrics"
+        name: "OperationNodePoolUpdate"
         cluster: "mgmt-1"
         severity: "3"
       exp_annotations:
-        summary: "Node Pool controller workqueue nodepool-properties-metrics retry hot loop"
-        description: "Node pool controller workqueue nodepool-properties-metrics has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
+        summary: "Node Pool controller workqueue OperationNodePoolUpdate retry hot loop"
+        description: "Node pool controller workqueue OperationNodePoolUpdate has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
 
 # ========================================
@@ -296,9 +296,9 @@ tests:
 # ========================================
 - interval: 1m
   input_series:
-  - series: 'workqueue_retries_total{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
     values: "0+10x25"
-  - series: 'workqueue_adds_total{namespace="aro-hcp", name="nodepool-properties-metrics", cluster="mgmt-1"}'
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
     values: "0+100x25"
   alert_rule_test:
   - eval_time: 22m
