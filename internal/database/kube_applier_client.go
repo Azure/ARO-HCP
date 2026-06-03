@@ -204,8 +204,9 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resou
 	if err != nil {
 		return nil, err
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.ClusterScopedApplyDesireResourceType,
+	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
+		c.kubeApplier, parentID, kubeapplier.ClusterScopedApplyDesireResourceType,
+		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -214,8 +215,9 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForNodePool(subscriptionID, reso
 	if err != nil {
 		return nil, err
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.NodePoolScopedApplyDesireResourceType,
+	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
+		c.kubeApplier, parentID, kubeapplier.NodePoolScopedApplyDesireResourceType,
+		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -224,8 +226,9 @@ func (c *kubeApplierCosmosDBClient) DeleteDesiresForCluster(subscriptionID, reso
 	if err != nil {
 		return nil, err
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.ClusterScopedDeleteDesireResourceType,
+	return NewCosmosResourceCRUDWithStrategies[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
+		c.kubeApplier, parentID, kubeapplier.ClusterScopedDeleteDesireResourceType,
+		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -234,8 +237,9 @@ func (c *kubeApplierCosmosDBClient) DeleteDesiresForNodePool(subscriptionID, res
 	if err != nil {
 		return nil, err
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.NodePoolScopedDeleteDesireResourceType,
+	return NewCosmosResourceCRUDWithStrategies[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
+		c.kubeApplier, parentID, kubeapplier.NodePoolScopedDeleteDesireResourceType,
+		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -244,8 +248,9 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForCluster(subscriptionID, resour
 	if err != nil {
 		return nil, err
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.ClusterScopedReadDesireResourceType,
+	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
+		c.kubeApplier, parentID, kubeapplier.ClusterScopedReadDesireResourceType,
+		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -254,8 +259,9 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForNodePool(subscriptionID, resou
 	if err != nil {
 		return nil, err
 	}
-	return newKubeApplierResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
-		c.kubeApplier, c.managementClusterPartitionKey, parentID, kubeapplier.NodePoolScopedReadDesireResourceType,
+	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
+		c.kubeApplier, parentID, kubeapplier.NodePoolScopedReadDesireResourceType,
+		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 

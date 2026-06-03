@@ -77,10 +77,9 @@ func NewFleetDBClientFromContainer(container *azcosmos.ContainerClient) FleetDBC
 }
 
 func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
-	inner := &fleetResourceCRUD[fleet.Stamp, *fleet.Stamp, GenericDocument[fleet.Stamp]]{
-		containerClient: c.container,
-		resourceType:    fleet.StampResourceType,
-	}
+	inner := NewCosmosResourceCRUDWithStrategies[fleet.Stamp, *fleet.Stamp, GenericDocument[fleet.Stamp]](
+		c.container, nil, fleet.StampResourceType,
+		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{})
 	return &cosmosStampsCRUD{
 		ValidatingResourceCRUD: NewValidatingCRUD(inner,
 			validation.ValidateStampCreate,
@@ -104,11 +103,9 @@ func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) Management
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
-	inner := &fleetResourceCRUD[fleet.ManagementCluster, *fleet.ManagementCluster, GenericDocument[fleet.ManagementCluster]]{
-		containerClient:  s.containerClient,
-		parentResourceID: stampResourceID,
-		resourceType:     fleet.ManagementClusterResourceType,
-	}
+	inner := NewCosmosResourceCRUDWithStrategies[fleet.ManagementCluster, *fleet.ManagementCluster, GenericDocument[fleet.ManagementCluster]](
+		s.containerClient, stampResourceID, fleet.ManagementClusterResourceType,
+		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{})
 	return &cosmosManagementClustersCRUD{
 		ValidatingResourceCRUD: NewValidatingCRUD(inner,
 			validation.ValidateManagementClusterCreate,
@@ -130,11 +127,9 @@ func (m *cosmosManagementClustersCRUD) Controllers() ResourceCRUD[api.Controller
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
-	return &fleetResourceCRUD[api.Controller, *api.Controller, GenericDocument[api.Controller]]{
-		containerClient:  m.containerClient,
-		parentResourceID: mcResourceID,
-		resourceType:     fleet.ManagementClusterControllerResourceType,
-	}
+	return NewCosmosResourceCRUDWithStrategies[api.Controller, *api.Controller, GenericDocument[api.Controller]](
+		m.containerClient, mcResourceID, fleet.ManagementClusterControllerResourceType,
+		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{})
 }
 
 type cosmosFleetGlobalListers struct {
