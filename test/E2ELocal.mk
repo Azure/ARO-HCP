@@ -11,8 +11,7 @@ DEPLOY_ENV ?= pers
 CONFIG_FILE ?= ../config/config.yaml
 DEV_SETTINGS_FILE ?= ../tooling/templatize/settings.yaml
 ARO_HCP_CLOUD ?= dev
-LOCAL_FRONTEND_PORT ?= 8443
-LOCAL_ADMIN_API_PORT ?= 8444
+LOCAL_PORT ?= 8443
 AROHCP_ENV ?= development
 CUSTOMER_SUBSCRIPTION ?= $$(az account show --output tsv --query 'name')
 ifndef E2E_ARTIFACT_DIR
@@ -27,15 +26,13 @@ e2e-local/run-test: $(ARO_HCP_TESTS)
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export SKIP_CERT_VERIFICATION=$${SKIP_CERT_VERIFICATION:-false}; \
 	export FRONTEND_ADDRESS=$${FRONTEND_ADDRESS:-http://localhost:8443}; \
-	export ADMIN_API_ADDRESS=$${ADMIN_API_ADDRESS:-http://localhost:8444}; \
 	export ARTIFACT_DIR="$(E2E_ARTIFACT_DIR)"; \
 	$(ARO_HCP_TESTS) run-test "$$TEST_NAME"
 .PHONY: e2e-local/run-test
 
 e2e-local/pf/run-test: $(HCPCTL)
-	HCPCTL=$(HCPCTL) ../hack/run-with-port-forward.sh "${SVC_CLUSTER}" "aro-hcp/aro-hcp-frontend/$(LOCAL_FRONTEND_PORT)/8443" \
-		../hack/run-with-port-forward.sh "${SVC_CLUSTER}" "aro-hcp-admin-api/admin-api/$(LOCAL_ADMIN_API_PORT)/8443" \
-			$(MAKE) -C $(DIR) -f $(THIS) e2e-local/run-test SKIP_CERT_VERIFICATION=true FRONTEND_ADDRESS=http://localhost:$(LOCAL_FRONTEND_PORT) ADMIN_API_ADDRESS=http://localhost:$(LOCAL_ADMIN_API_PORT)
+	HCPCTL=$(HCPCTL) ../hack/run-with-port-forward.sh "${SVC_CLUSTER}" "aro-hcp/aro-hcp-frontend/$(LOCAL_PORT)/8443" \
+		$(MAKE) -C $(DIR) -f $(THIS) e2e-local/run-test SKIP_CERT_VERIFICATION=true FRONTEND_ADDRESS=http://localhost:$(LOCAL_PORT)
 .PHONY: e2e-local/pf/run-test
 
 e2e-local/gather-snapshot: $(ARO_HCP_TESTS) $(TEMPLATIZE)
@@ -82,5 +79,5 @@ e2e-local/gather-observability: $(ARO_HCP_TESTS) $(TEMPLATIZE)
 		--request PUT \
 		--header "Content-Type: application/json" \
 		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'", "registeredFeatures": [{"name": "Microsoft.RedHatOpenShift/ExperimentalReleaseFeatures", "state": "Registered"}]}}' \
-		"http://localhost:${LOCAL_FRONTEND_PORT}/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
+		"http://localhost:${LOCAL_PORT}/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: .e2e-local/setup

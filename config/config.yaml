@@ -721,9 +721,6 @@ defaults:
           memory: 512Mi
         limits:
           memory: 1Gi
-    registration:
-      stampIdentifier: '{{ .ctx.stamp }}'
-      autoApproveStamps: true
   # Admin API
   adminApi:
     audit:

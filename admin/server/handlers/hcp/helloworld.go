@@ -83,7 +83,7 @@ func (h *HCPHelloWorldHandler) ServeHTTP(writer http.ResponseWriter, request *ht
 		"hcpName":              hcp.Name,
 	}
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, output)
-	return utils.TrackError(err)
+	return err
 }
 
 type HCPDemoListLoadbalancersHandler struct {
@@ -137,5 +137,5 @@ func (h *HCPDemoListLoadbalancersHandler) ServeHTTP(writer http.ResponseWriter, 
 	// some output
 	output := map[string]any{"loadBalancers": loadBalancers}
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, output)
-	return utils.TrackError(err)
+	return err
 }

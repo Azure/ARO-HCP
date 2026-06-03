@@ -126,12 +126,6 @@ func NewAdminAPI(
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
 
 	// Stamp management routes
-	middlewareMux.Handle("GET /admin/v1/stamps",
-		errorutils.ReportError(stamphandlers.NewStampListHandler(fleetDBClient).ServeHTTP))
-	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}",
-		errorutils.ReportError(stamphandlers.NewStampGetHandler(fleetDBClient).ServeHTTP))
-	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}",
-		errorutils.ReportError(stamphandlers.NewManagementClusterGetHandler(fleetDBClient).ServeHTTP))
 	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/approval",
 		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
 

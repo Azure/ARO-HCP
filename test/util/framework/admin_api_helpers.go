@@ -37,8 +37,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
-
-	"github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
 )
 
 const (
@@ -442,76 +440,4 @@ func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, 
 	}
 
 	return string(body), nil
-}
-
-func (tc *perItOrDescribeTestContext) ListStamps(ctx context.Context, identityDetails *AzureIdentityDetails) ([]stamp.Stamp, error) {
-	endpoint := fmt.Sprintf("%s/admin/v1/stamps", tc.perBinaryInvocationTestContext.adminAPIAddress)
-
-	By(fmt.Sprintf("listing stamps via admin API: %s", endpoint))
-	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)
-	if err != nil {
-		return nil, err
-	}
-
-	var stamps []stamp.Stamp
-	if err := json.Unmarshal(body, &stamps); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal stamps: %w", err)
-	}
-	return stamps, nil
-}
-
-func (tc *perItOrDescribeTestContext) GetStamp(ctx context.Context, stampIdentifier string, identityDetails *AzureIdentityDetails) (*stamp.Stamp, error) {
-	endpoint := fmt.Sprintf("%s/admin/v1/stamps/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, stampIdentifier)
-
-	By(fmt.Sprintf("getting stamp %s via admin API: %s", stampIdentifier, endpoint))
-	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)
-	if err != nil {
-		return nil, err
-	}
-
-	var result stamp.Stamp
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal stamp: %w", err)
-	}
-	return &result, nil
-}
-
-func (tc *perItOrDescribeTestContext) GetManagementCluster(ctx context.Context, stampIdentifier string, managementClusterName string, identityDetails *AzureIdentityDetails) (*stamp.ManagementCluster, error) {
-	endpoint := fmt.Sprintf("%s/admin/v1/stamps/%s/managementClusters/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, stampIdentifier, managementClusterName)
-
-	By(fmt.Sprintf("getting management cluster %s for stamp %s via admin API: %s", managementClusterName, stampIdentifier, endpoint))
-	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)
-	if err != nil {
-		return nil, err
-	}
-
-	var result stamp.ManagementCluster
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal management cluster: %w", err)
-	}
-	return &result, nil
-}
-
-func adminAPIGet(ctx context.Context, httpClient *http.Client, endpoint string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
-	}
-
-	return body, nil
 }

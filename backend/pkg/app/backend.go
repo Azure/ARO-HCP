@@ -373,6 +373,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		"OperationPhaseMetrics", backendInformers.AllOperations(), operationPhaseHandler)
 
 	fleetInformers := dbinformers.NewFleetInformers(ctx, b.options.FleetDBClient.GlobalListers())
+	_, stampLister := fleetInformers.Stamps()
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 	// Union kube-applier informers: one aggregator surface that fans out
@@ -622,6 +623,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+	managementClusterMigrationController := managementclustercontrollers.NewManagementClusterMigrationController(
+		b.options.ClustersServiceClient,
+		b.options.FleetDBClient,
+		stampLister,
+		managementClusterLister,
+	)
 	placementSyncController := managementclustercontrollers.NewManagementClusterPlacementSyncController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -750,6 +757,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
 				go externalAuthMetricsController.Run(ctx, 1)
+				go managementClusterMigrationController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
