@@ -47,7 +47,7 @@ For the reference, the API definition of ARO-RP is here https://github.com/Azure
 The tsp generation is setup to generate the right project structure for the azure-rest-api-specs. The
 repository structure for typespecs projects is explained here https://github.com/Azure/azure-rest-api-specs/blob/main/documentation/typespec-structure-guidelines.md.
 
-Going with the guide, the typespec service is stored in the `redhatopenshift/HcpCluster` folder. The `redhatopenshift` is the folder
+Going with the guide, the typespec service is stored in the `redhatopenshift/HcpCluster.Management` folder. The `redhatopenshift` is the folder
 that holds the current Openshift cluster API and both definitions will need to coexist in the same folder. According to the guide,
 the generation is placed in created `resource-manager` folder. Finally to allow the proper swagger inspection, the `common-types` are copied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
 
@@ -59,10 +59,26 @@ To do so, open terminal, switch to api directory and call the following command 
 
 ```bash
 cd
-tsp compile ./api/redhatopenshift/HcpCluster/
+tsp compile ./api/redhatopenshift/HcpCluster.Management/
 ```
 
 Or you can use the submitted build task, that does exactly the same. The default shortcut is `Ctrl+Shift+B` or `Cmd+Shift+B`.
+
+## Adding a new API version
+
+When introducing a new API version, there are several steps beyond defining the version in TypeSpec:
+
+1. **Define the version in `main.tsp`**: Add the new version enum value to the `Versions` enum (e.g., `v2026_06_30_preview: "2026-06-30-preview"`).
+
+2. **Create the examples source directory**: The typespec-autorest emitter requires example JSON files to be present in `redhatopenshift/HcpCluster.Management/examples/<version>/` (e.g., `examples/2026-06-30-preview/`). Without this directory, `tsp compile` will generate an `openapi.json` that is missing `x-ms-examples` references, which will fail API validation in CI.
+
+   You can bootstrap the examples for a new version by generating them from the compiled openapi spec (see [Swagger example generation](#swagger-example-generation) below), or by copying and updating examples from the previous version.
+
+3. **Compile and verify**: Run `make swagger` in the `api/` directory and confirm that the generated `openapi.json` under `resource-manager/.../preview/<version>/` contains `x-ms-examples` entries.
+
+4. **Generate the Go models**: Run `make models` to regenerate the autorest models for the new version.
+
+5. **Generate the test SDK**: Run `make testsdk` to generate the test SDK client for the new version.
 
 ## Swagger example generation
 
@@ -73,8 +89,8 @@ To generate the example requests and responses, you can use the following comman
 
 ```bash
 export API_VERSION=2024-06-10-preview
-cd api/redhatopenshift/HcpCluster/examples/$API_VERSION
-oav generate-examples ../../../resource-manager/Microsoft.RedHatOpenShift/preview/$API_VERSION/openapi.json
+cd api/redhatopenshift/HcpCluster.Management/examples/$API_VERSION
+oav generate-examples ../../../resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/$API_VERSION/openapi.json
 ```
 
 ## Generating the api client
