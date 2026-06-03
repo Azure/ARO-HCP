@@ -18,21 +18,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
-
-// provisionShardNamespaceUUID is the namespace UUID used to generate deterministic
-// provision shard IDs via UUID v5. Must match the value used by cluster-service.
-var provisionShardNamespaceUUID = uuid.MustParse("916f9976-e1c0-4afd-b84c-5d5c94fbeaed")
 
 type RawRegisterOptions struct {
 	CloudEnvironment                                     string
@@ -104,7 +98,6 @@ type validatedRegisterOptions struct {
 	managementClusterResourceID *azcorearm.ResourceID
 	aksResourceID               *azcorearm.ResourceID
 	publicDNSZoneResourceID     *azcorearm.ResourceID
-	provisionShardID            *api.InternalID
 	schedulingPolicy            fleet.ManagementClusterSchedulingPolicy
 }
 
@@ -142,15 +135,6 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 		return nil, fmt.Errorf("invalid public-dns-zone-resource-id: %w", err)
 	}
 
-	// Deterministic UUID v5 matching cluster-service/Makefile's PROVISION_SHARD_ID
-	// generation. Both use the AKS cluster name as input — case-sensitive, so
-	// casing must stay consistent across config sources.
-	shardUUID := uuid.NewSHA1(provisionShardNamespaceUUID, []byte(aksID.Name))
-	shardID, err := api.NewInternalID(fmt.Sprintf("/api/aro_hcp/v1alpha1/provision_shards/%s", shardUUID.String()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to construct provision shard ID: %w", err)
-	}
-
 	return &ValidatedRegisterOptions{
 		validatedRegisterOptions: &validatedRegisterOptions{
 			RawRegisterOptions:          o,
@@ -159,7 +143,6 @@ func (o *RawRegisterOptions) Validate(ctx context.Context) (*ValidatedRegisterOp
 			managementClusterResourceID: managementClusterResourceID,
 			aksResourceID:               aksID,
 			publicDNSZoneResourceID:     dnsID,
-			provisionShardID:            &shardID,
 			schedulingPolicy:            schedulingPolicy,
 		},
 	}, nil
@@ -177,7 +160,6 @@ type registerOptions struct {
 	hostedClustersSecretsKeyVaultURL                     string
 	hostedClustersManagedIdentitiesKeyVaultURL           string
 	hostedClustersSecretsKeyVaultManagedIdentityClientID string
-	provisionShardID                                     *api.InternalID
 	maestroConsumerName                                  string
 	maestroRESTAPIURL                                    string
 	maestroGRPCTarget                                    string
@@ -215,7 +197,6 @@ func (o *ValidatedRegisterOptions) Complete(ctx context.Context) (*RegisterOptio
 			hostedClustersSecretsKeyVaultURL:           o.HostedClustersSecretsKeyVaultURL,
 			hostedClustersManagedIdentitiesKeyVaultURL: o.HostedClustersManagedIdentitiesKeyVaultURL,
 			hostedClustersSecretsKeyVaultManagedIdentityClientID: o.HostedClustersSecretsKeyVaultManagedIdentityClientID,
-			provisionShardID:               o.provisionShardID,
 			maestroConsumerName:            o.MaestroConsumerName,
 			maestroRESTAPIURL:              o.MaestroRESTAPIURL,
 			maestroGRPCTarget:              o.MaestroGRPCTarget,
