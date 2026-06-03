@@ -173,23 +173,6 @@ func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
 	}
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
-		errorDetails = append(errorDetails, arm.CloudErrorBody{
-			Code: arm.CloudErrorCodeInvalidRequestContent,
-			Message: fmt.Sprintf(
-				"Node pool channel group '%s' must be the same as control plane channel group '%s'",
-				nodePool.Properties.Version.ChannelGroup,
-				cluster.CustomerProperties.Version.ChannelGroup),
-			Target: "properties.version.channelGroup",
-		})
-	}
-
-	return errorDetails
-}
-
 func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
@@ -218,7 +201,6 @@ func (nodePool *HCPOpenShiftClusterNodePool) Validate(cluster *HCPOpenShiftClust
 	var errorDetails []arm.CloudErrorBody
 
 	if cluster != nil {
-		errorDetails = append(errorDetails, nodePool.validateVersion(cluster)...)
 		errorDetails = append(errorDetails, nodePool.validateSubnetID(cluster)...)
 	}
 

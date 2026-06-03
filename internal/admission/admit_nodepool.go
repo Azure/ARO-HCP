@@ -116,18 +116,6 @@ func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmi
 func admitNodePoolVersion(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolVersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	clusterVersion := &admissionContext.Cluster.CustomerProperties.Version
-
-	// Check only if it is a creating nodepool or a change in the channelGroup
-	if (op.Type == operation.Create || newObj.ChannelGroup != oldObj.ChannelGroup) &&
-		newObj.ChannelGroup != clusterVersion.ChannelGroup {
-		errs = append(errs, field.Invalid(
-			fldPath.Child("channelGroup"),
-			newObj.ChannelGroup,
-			fmt.Sprintf("must be the same as control plane channel group '%s'", clusterVersion.ChannelGroup),
-		))
-	}
-
 	// Perform update-specific version upgrade validation
 	if op.Type == operation.Update {
 		errs = append(errs, validateNodePoolVersionChange(ctx, admissionContext, op, fldPath.Child("id"), newObj, oldObj)...)

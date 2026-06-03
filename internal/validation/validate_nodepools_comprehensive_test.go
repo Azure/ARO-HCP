@@ -189,6 +189,42 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "Required value", FieldPath: "properties.version.channelGroup"},
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "invalid channel group - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "invalid-cg"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "candidate channel group rejected without feature flag - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.21.0-rc.1"
+				np.Properties.Version.ChannelGroup = "candidate"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "nightly channel group rejected without feature flag - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.21.0-0.nightly-2024-01-15-123456"
+				np.Properties.Version.ChannelGroup = "nightly"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
 			},
 		},
 		{
@@ -1474,6 +1510,18 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			}(),
 			opOptions:    testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "invalid channel group rejected even with experimental flag",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "invalid-cg"
+				return np
+			}(),
+			opOptions: testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
 		},
 		{
 			name: "malformed version rejected",
