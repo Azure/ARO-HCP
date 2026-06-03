@@ -39,6 +39,7 @@ ignore:
 - 'maestro/server/deploy/templates/maestro.deployment.yaml'
 - 'maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml'
 - 'maestro/server/deploy/templates/allow-backend.authorizationpolicy.yaml'
+- 'maestro/server/deploy/templates/allow-fleet-controller.authorizationpolicy.yaml'
 - 'backend/deploy/templates/backend.service-key-vault.secretproviderclass.yaml'
 - 'backend/deploy/templates/backend.deployment.yaml'
 - 'dev-infrastructure/dev-ci/cihealth/deploy/templates/*.yaml'
@@ -46,7 +47,6 @@ ignore:
 - 'tooling/aro-hcp-exporter/deploy/templates/deployment.yaml'
 - 'fleet/registration/deploy/templates/registration.job.yaml'
 - 'kube-applier/deploy/templates/deployment.yaml'
-- 'fleet/registration/deploy/templates/registration.job.yaml'
 - 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
 - 'image-registry-policy/values.yaml'
 rules:
