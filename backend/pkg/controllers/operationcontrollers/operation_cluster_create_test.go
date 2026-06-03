@@ -245,6 +245,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 			name:             "hosted cluster not found → Provisioning",
 			readDesireLister: &internallistertesting.SliceReadDesireLister{},
 			expectedState:    arm.ProvisioningStateProvisioning,
+			expectedMessage:  "ReadDesire not yet created for cluster",
 		},
 		{
 			name:             "read desire lister non-404 error → error propagated",
