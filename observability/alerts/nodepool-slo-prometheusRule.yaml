@@ -78,7 +78,7 @@ spec:
   - name: arohcp_nodepool_slo_error_alerts
     rules:
     # ----------------------------------------
-    # Fast Burn Alert (Severity 3)
+    # Fast Burn Alert (critical)
     # ----------------------------------------
     # 14.4x burn rate → >72% failure rate sustained for 5 minutes
     # Would exhaust 7-day error budget in ~12 hours
@@ -87,14 +87,14 @@ spec:
         errors:backend_nodepool_operation:error_rate > 0.72
       for: 5m
       labels:
-        severity: "3"
+        severity: critical
         slo: nodepool-errors
       annotations:
         summary: "Node Pool operation error rate critically high (>72%)"
         description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
     # ----------------------------------------
-    # Medium Burn Alert (Severity 3)
+    # Medium Burn Alert (critical)
     # ----------------------------------------
     # 6x burn rate → >30% failure rate sustained for 30 minutes
     # Would exhaust 7-day error budget in ~28 hours
@@ -103,16 +103,16 @@ spec:
         errors:backend_nodepool_operation:error_rate > 0.30
       for: 30m
       labels:
-        severity: "3"
+        severity: critical
         slo: nodepool-errors
       annotations:
         summary: "Node Pool operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
     # ----------------------------------------
-    # Slow Burn Alerts (Severity 4)
+    # Slow Burn Alert (warning)
     # ----------------------------------------
-    # Per ADR: slow burn alerts generate IcM Sev 4 / Jira ticket.
+    # Per ADR: slow burn alerts generate Jira ticket.
     # 1x burn rate → >5% failure rate sustained for 6 hours
     # Would exhaust 7-day error budget in ~7 days
     - alert: UJNodePoolErrors6h3d
@@ -120,14 +120,14 @@ spec:
         errors:backend_nodepool_operation:error_rate > 0.05
       for: 6h
       labels:
-        severity: "4"
+        severity: warning
         slo: nodepool-errors
       annotations:
         summary: "Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
     # ----------------------------------------
-    # Degradation Alert (Severity 3)
+    # Degradation Alert (warning)
     # ----------------------------------------
     # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
     # This provides early warning at 15% failure rate before burn-rate alerts fire.
@@ -136,14 +136,14 @@ spec:
         errors:backend_nodepool_operation:error_rate > 0.15
       for: 30m
       labels:
-        severity: "3"
+        severity: warning
         slo: nodepool-errors
       annotations:
         summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
     # ----------------------------------------
-    # Stuck Operations Alert (Severity 3)
+    # Stuck Operations Alert (critical)
     # ----------------------------------------
     # Operations stuck in non-terminal phases are invisible to success/failure SLIs.
     - alert: UJNodePoolStuckOperation
@@ -154,7 +154,7 @@ spec:
           backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1
         ) > 3600
       labels:
-        severity: "3"
+        severity: critical
       annotations:
         summary: "Node Pool operation stuck in {{ $labels.phase }} for over 1 hour"
         description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -175,7 +175,7 @@ spec:
         ) > 10
       for: 5m
       labels:
-        severity: "3"
+        severity: warning
       annotations:
         summary: "Node Pool controller workqueue {{ $labels.name }} depth is high"
         description: "Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
@@ -198,7 +198,7 @@ spec:
         ) > 0.5
       for: 10m
       labels:
-        severity: "3"
+        severity: warning
       annotations:
         summary: "Node Pool controller workqueue {{ $labels.name }} retry hot loop"
         description: "Node pool controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
