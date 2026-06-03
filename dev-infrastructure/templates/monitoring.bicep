@@ -151,3 +151,5 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     lowEventIngestionThreshold: 5
   }
 }
+
+output actionGroupSL string = manageConnection ? actionGroups.outputs.actionGroupsSL : ''
