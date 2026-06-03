@@ -64,5 +64,5 @@ resource holmesAoaiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' exi
   name: holmesAoaiName
 }
 
-output holmesAoaiEndpoint string = holmesEnabled && holmesAoaiName != '' ? holmesAoaiAccount.properties.endpoint : ''
-output holmesAoaiResourceId string = holmesEnabled && holmesAoaiName != '' ? holmesAoaiAccount.id : ''
+output holmesAoaiEndpoint string = holmesEnabled && holmesAoaiName != '' ? holmesAoaiAccount!.properties.endpoint : ''
+output holmesAoaiResourceId string = holmesEnabled && holmesAoaiName != '' ? holmesAoaiAccount!.id : ''
