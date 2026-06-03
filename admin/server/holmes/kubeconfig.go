@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -29,18 +28,19 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
 	"github.com/Azure/ARO-HCP/internal/certs"
 	"github.com/Azure/ARO-HCP/internal/csrminting"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
-
 	hypershiftscheme "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/common"
 )
 
 const (
-	defaultRSAKeySize  = 2048
-	csrTimeout         = 60 * time.Second
-	rootCASecret = "root-ca"
-	diagnosticsUser    = "aro-diagnostics"
+	defaultRSAKeySize = 2048
+	csrTimeout        = 60 * time.Second
+	rootCASecret      = "root-ca"
+	diagnosticsUser   = "aro-diagnostics"
 )
 
 type KubeconfigResult struct {

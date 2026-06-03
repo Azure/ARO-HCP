@@ -4,6 +4,7 @@ go 1.25.7
 
 require (
 	cloud.google.com/go/storage v1.62.1
+	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260602125010-e7c9d4923e48
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
@@ -87,7 +88,6 @@ require (
 	github.com/google/cel-go v0.28.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
-	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
@@ -116,7 +116,6 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/samber/lo v1.53.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
@@ -164,3 +163,5 @@ require (
 )
 
 replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../utilitytypes
+
+replace github.com/Azure/ARO-HCP/internal => ../../internal

@@ -21,6 +21,7 @@ import (
 	"regexp"
 
 	"github.com/google/uuid"
+
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/ARO-HCP/admin/server/holmes"
@@ -30,7 +31,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
-
 	mc "github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
 )
 

@@ -14,6 +14,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
         - Microsoft.Azure.ARO.HCP.SessionGate ([ref](https://github.com/Azure/ARO-HCP/tree/main/sessiongate/pipeline.yaml)): Deploy the Session Gate.
         - Microsoft.Azure.ARO.HCP.AdminAPI ([ref](https://github.com/Azure/ARO-HCP/tree/main/admin/pipeline.yaml)): Deploy the Admin API.
         - Microsoft.Azure.ARO.HCP.Fleet ([ref](https://github.com/Azure/ARO-HCP/tree/main/fleet/pipeline.yaml)): Deploy the Fleet controller.
+        - Microsoft.Azure.ARO.HCP.HolmesGPT.Svc ([ref](https://github.com/Azure/ARO-HCP/tree/main/holmesgpt/svc-pipeline.yaml)): Deploy the HolmesGPT persistent server on the service cluster.
       - Microsoft.Azure.ARO.HCP.Management.Infra ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-pipeline.yaml)): Deploy a management cluster and backing infrastructure.
         - Microsoft.Azure.ARO.HCP.Velero ([ref](https://github.com/Azure/ARO-HCP/tree/main/velero/pipeline.yaml)): Deploy Velero for HostedCluster backup and restore.
         - Microsoft.Azure.ARO.HCP.SecretSyncController ([ref](https://github.com/Azure/ARO-HCP/tree/main/secret-sync-controller/pipeline.yaml)): Deploy the Secret Sync Controller.
@@ -24,6 +25,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
         - Microsoft.Azure.ARO.HCP.RouteMonitorOperator ([ref](https://github.com/Azure/ARO-HCP/tree/main/route-monitor-operator/pipeline.yaml)): Deploy the Route Monitor Operator.
         - Microsoft.Azure.ARO.HCP.MgmtAgent ([ref](https://github.com/Azure/ARO-HCP/tree/main/mgmt-agent/pipeline.yaml)): Deploy the Management Agent.
         - Microsoft.Azure.ARO.HCP.Fleet.Registration ([ref](https://github.com/Azure/ARO-HCP/tree/main/fleet/registration/pipeline.yaml)): Register the stamp and management cluster in CosmosDB.
+        - Microsoft.Azure.ARO.HCP.HolmesGPT ([ref](https://github.com/Azure/ARO-HCP/tree/main/holmesgpt/pipeline.yaml)): Deploy the HolmesGPT namespace and ServiceAccount for cluster investigation.
       - Microsoft.Azure.ARO.HCP.Monitoring ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/monitoring-pipeline.yaml)): Deploy the Monitoring resources
       - Microsoft.Azure.ARO.HCP.E2E ([ref](https://github.com/Azure/ARO-HCP/tree/main/test/e2e-pipeline.yaml)): Run the E2E tests towards a region and gate SDP progression.
 - Microsoft.Azure.ARO.HCP.Management.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml)): Delete the management resources and management resource group

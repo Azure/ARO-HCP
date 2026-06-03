@@ -7,9 +7,9 @@ roleRef:
   kind: ClusterRole
   name: system:aro-diagnostics
 subjects:
-  - apiGroup: rbac.authorization.k8s.io
-    kind: Group
-    name: system:aro-diagnostics
-  - apiGroup: rbac.authorization.k8s.io
-    kind: User
-    name: system:sre-break-glass:aro-diagnostics
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:aro-diagnostics
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: system:sre-break-glass:aro-diagnostics
