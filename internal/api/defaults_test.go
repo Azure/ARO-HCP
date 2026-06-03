@@ -28,7 +28,7 @@ import (
 // Several fields lack "default" annotations in the OpenAPI spec due to a
 // TypeSpec bug (typespec-azure#1586). These are skipped with a comment.
 func TestTypeSpecDefaultsConsistency(t *testing.T) {
-	specPath := "../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2025-12-23-preview/openapi.json"
+	specPath := "../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2025-12-23-preview/openapi.json"
 	specData, err := os.ReadFile(specPath)
 	if err != nil {
 		t.Fatalf("failed to read OpenAPI spec: %v", err)

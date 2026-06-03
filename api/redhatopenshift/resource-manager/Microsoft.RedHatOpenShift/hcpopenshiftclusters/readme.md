@@ -38,7 +38,7 @@ These settings apply only when `--tag=package-2025-12-23-preview` is specified o
 
 ``` yaml $(tag) == 'package-2025-12-23-preview'
 input-file:
-  - 2025-12-23-preview/openapi.json
+  - preview/2025-12-23-preview/openapi.json
 ```
 
 ### Tag: package-2024-06-10-preview
@@ -47,7 +47,7 @@ These settings apply only when `--tag=package-2024-06-10-preview` is specified o
 
 ``` yaml $(tag) == 'package-2024-06-10-preview'
 input-file:
-  - 2024-06-10-preview/openapi.json
+  - preview/2024-06-10-preview/openapi.json
 ```
 
 # Code Generation
