@@ -19,6 +19,7 @@ import (
 	"errors"
 	"iter"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -133,27 +134,44 @@ type ResourcesDBClient interface {
 	ResourcesGlobalListers() ResourcesGlobalListers
 
 	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD
+
+	// GetResourcesChangeFeed retrieves a single page of the change feed for the
+	// "Resources" container using the provided options.
+	GetResourcesChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)
+
+	// GetResourcesFeedRanges returns all the feed ranges for the "Resources" container.
+	GetResourcesFeedRanges() []azcosmos.FeedRange
 }
 
 var _ ResourcesDBClient = &resourcesCosmosDBClient{}
 
 // resourcesCosmosDBClient defines the needed values to perform CRUD operations against Cosmos DB.
 type resourcesCosmosDBClient struct {
-	database  *azcosmos.DatabaseClient
-	resources *azcosmos.ContainerClient
+	database            *azcosmos.DatabaseClient
+	resources           *azcosmos.ContainerClient
+	resourcesFeedRanges []azcosmos.FeedRange
 }
 
 // NewResourcesDBClient instantiates a ResourcesDBClient from a Cosmos DatabaseClient instance
 // targeting the Frontends async database (Resources container).
-func NewResourcesDBClient(database *azcosmos.DatabaseClient) (ResourcesDBClient, error) {
+func NewResourcesDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (ResourcesDBClient, error) {
 	resources, err := database.NewContainer(resourcesContainer)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
+	// Cache feed ranges for the duration of the DBClient instance.
+	// Even if Cosmos DB splits a physical partition due to throughput
+	// or data size limits being exceeded, the feed ranges remain valid.
+	resourcesFeedRanges, err := resources.GetFeedRanges(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	return &resourcesCosmosDBClient{
-		database:  database,
-		resources: resources,
+		database:            database,
+		resources:           resources,
+		resourcesFeedRanges: resourcesFeedRanges,
 	}, nil
 }
 
@@ -192,6 +210,14 @@ func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.Resourc
 
 func (d *resourcesCosmosDBClient) ResourcesGlobalListers() ResourcesGlobalListers {
 	return NewCosmosResourcesGlobalListers(d.resources)
+}
+
+func (d *resourcesCosmosDBClient) GetResourcesChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return d.resources.GetChangeFeed(ctx, options)
+}
+
+func (d *resourcesCosmosDBClient) GetResourcesFeedRanges() []azcosmos.FeedRange {
+	return slices.Clone(d.resourcesFeedRanges)
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.
