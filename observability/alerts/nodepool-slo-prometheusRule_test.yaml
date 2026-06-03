@@ -169,7 +169,7 @@ tests:
 # ========================================
 # Test 4: Stuck operation — operation in "updating" for > 1 hour
 # ========================================
-# An operation has start_time 7200 seconds in the past and is still in "updating" phase.
+# start_time is 0 (epoch). At eval_time=70m (4200s), delta = 4200 > 3600 threshold.
 - interval: 1m
   input_series:
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/np/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
@@ -199,8 +199,7 @@ tests:
 # Operation started recently, should not trigger stuck alert.
 - interval: 1m
   input_series:
-  # start_time far enough in the future that time() - start_time < 3600
-  # At eval_time=30m, time()=1800. Start at 600 → delta=1200 < 3600.
+  # start_time=600 (recent). At eval_time=30m, time()=1800. delta=1200 < 3600.
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/np/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
     values: "600+0x35"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/np/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
