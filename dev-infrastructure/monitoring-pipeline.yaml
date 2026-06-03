@@ -48,10 +48,12 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
   - name: kusto-monitoring
-    action: ARM
+    action: ARMStack
     template: templates/kusto-monitoring.bicep
     parameters: configurations/kusto-monitoring.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
     variables:
     - name: kustoClusterId
       input:

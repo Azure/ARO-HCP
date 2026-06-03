@@ -17,7 +17,7 @@ module kustoAlerts '../modules/metrics/kusto-alerts.bicep' = if (kustoClusterId 
   name: 'kustoAlerts'
   params: {
     kustoClusterId: kustoClusterId
-    actionGroups: [actionGroupSL]
+    actionGroups: actionGroupSL != '' ? [actionGroupSL] : []
     enabled: alertsEnabled
   }
 }
