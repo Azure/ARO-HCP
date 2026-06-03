@@ -61,7 +61,7 @@ func AskHolmesWithClient(ctx context.Context, httpClient *http.Client, endpoint,
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return fmt.Errorf("Holmes service returned HTTP %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("holmes service returned HTTP %d: %s", resp.StatusCode, string(body))
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))

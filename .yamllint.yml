@@ -46,6 +46,8 @@ ignore:
 - 'tooling/aro-hcp-exporter/deploy/templates/deployment.yaml'
 - 'kube-applier/deploy/templates/deployment.yaml'
 - 'fleet/registration/deploy/templates/registration.job.yaml'
+- 'holmesgpt/deploy-svc/templates/*.yaml'
+- 'holmesgpt/deploy-mgmt/templates/*.yaml'
 - 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
 - 'image-registry-policy/values.yaml'
 rules:

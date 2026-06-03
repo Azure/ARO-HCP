@@ -74,7 +74,7 @@ func NewHolmesConfig(ctx context.Context, acrDomain string, kvClient KeyVaultSec
 		return nil, fmt.Errorf("failed to get %s from Key Vault: %w", kvSecretAzureOpenAIAPIBase, err)
 	}
 	if apiBaseResp.Value == nil {
-		return nil, fmt.Errorf("Key Vault secret %s has nil value", kvSecretAzureOpenAIAPIBase)
+		return nil, fmt.Errorf("key vault secret %s has nil value", kvSecretAzureOpenAIAPIBase)
 	}
 
 	cfg := newHolmesConfigBase(acrDomain)
@@ -114,10 +114,10 @@ func (c *HolmesConfig) Validate() error {
 		return fmt.Errorf("AzureOpenAIAPIBase is required")
 	}
 	if c.Image == "" || c.Image[0] == '/' {
-		return fmt.Errorf("Image %q is invalid (set HOLMES_IMAGE or provide acrDomain)", c.Image)
+		return fmt.Errorf("image %q is invalid (set HOLMES_IMAGE or provide acrDomain)", c.Image)
 	}
 	if !modelRegex.MatchString(c.Model) {
-		return fmt.Errorf("Model %q does not match required pattern %s", c.Model, modelRegex.String())
+		return fmt.Errorf("model %q does not match required pattern %s", c.Model, modelRegex.String())
 	}
 	if c.DefaultTimeout <= 0 {
 		return fmt.Errorf("DefaultTimeout must be > 0, got %d", c.DefaultTimeout)

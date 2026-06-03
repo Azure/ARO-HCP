@@ -64,7 +64,7 @@ func TestAskHolmes(t *testing.T) {
 				fmt.Fprint(w, "internal error")
 			},
 			wantErr:        true,
-			wantErrContain: "Holmes service returned HTTP 500",
+			wantErrContain: "holmes service returned HTTP 500",
 		},
 		{
 			name: "large error body is truncated",
@@ -73,7 +73,7 @@ func TestAskHolmes(t *testing.T) {
 				fmt.Fprint(w, strings.Repeat("x", 2048))
 			},
 			wantErr:        true,
-			wantErrContain: "Holmes service returned HTTP 502",
+			wantErrContain: "holmes service returned HTTP 502",
 		},
 	}
 

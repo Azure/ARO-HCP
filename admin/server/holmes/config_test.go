@@ -192,8 +192,8 @@ func TestHolmesConfigValidate(t *testing.T) {
 	}{
 		{name: "valid config", modify: func(_ *HolmesConfig) {}},
 		{name: "empty API base", modify: func(c *HolmesConfig) { c.AzureOpenAIAPIBase = "" }, wantErr: true, errMsg: "AzureOpenAIAPIBase is required"},
-		{name: "empty image", modify: func(c *HolmesConfig) { c.Image = "" }, wantErr: true, errMsg: "Image"},
-		{name: "image with leading slash", modify: func(c *HolmesConfig) { c.Image = "/holmesgpt:latest" }, wantErr: true, errMsg: "Image"},
+		{name: "empty image", modify: func(c *HolmesConfig) { c.Image = "" }, wantErr: true, errMsg: "image"},
+		{name: "image with leading slash", modify: func(c *HolmesConfig) { c.Image = "/holmesgpt:latest" }, wantErr: true, errMsg: "image"},
 		{name: "invalid model", modify: func(c *HolmesConfig) { c.Model = "invalid model" }, wantErr: true, errMsg: "does not match"},
 		{name: "zero timeout", modify: func(c *HolmesConfig) { c.DefaultTimeout = 0 }, wantErr: true, errMsg: "DefaultTimeout must be > 0"},
 		{name: "zero max concurrent", modify: func(c *HolmesConfig) { c.MaxConcurrentInvestigations = 0 }, wantErr: true, errMsg: "MaxConcurrentInvestigations must be > 0"},
