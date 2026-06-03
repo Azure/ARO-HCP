@@ -29,24 +29,48 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
-// ValidateClusterNodePoolsMinorVersionSkew lists all node pools for the cluster in Cosmos and checks clusterVersion against each pool
-// using the same skew rules (n-2 minor, cross-major allowlist) for:
-//   - the customer node pool properties.version.id (when non-empty),
-//   - the service provider node pool lowest and highest active versions when they exist.
+// ValidateClusterNodePoolsMinorVersionSkew lists all node pools for the cluster
+// in Cosmos (along with their service provider records) and delegates to
+// admitClusterNodePoolsMinorVersionSkew. The frontend cluster admission path
+// prefetches the same list into ClusterAdmissionContext.ClusterNodePools and
+// calls the inner helper directly; this entry point exists for callers that
+// don't have an admission context handy (currently the backend upgrade
+// controller).
 func ValidateClusterNodePoolsMinorVersionSkew(ctx context.Context, resourcesDBClient database.ResourcesDBClient, clusterResourceID *azcorearm.ResourceID, clusterVersion semver.Version) error {
 	nodePoolIterator, err := resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
 	if err != nil {
 		return errors.New("cannot validate node pool skew")
 	}
-	var errs []error
+	var clusterNodePools []ClusterAdmissionNodePool
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		serviceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, resourcesDBClient, nodePool.ID)
+		spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, resourcesDBClient, nodePool.ID)
 		if err != nil {
-			errs = append(errs, errors.New("cannot validate node pool skew"))
+			return errors.New("cannot validate node pool skew")
+		}
+		clusterNodePools = append(clusterNodePools, ClusterAdmissionNodePool{
+			NodePool:                nodePool,
+			ServiceProviderNodePool: spNodePool,
+		})
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return errors.New("cannot validate node pool skew")
+	}
+	return admitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, clusterVersion)
+}
+
+// admitClusterNodePoolsMinorVersionSkew walks the prefetched node pools for the
+// cluster and checks the desired clusterVersion against each pool using the
+// same skew rules (n-2 minor, cross-major allowlist) for:
+//   - the customer node pool properties.version.id (when non-empty),
+//   - the service provider node pool lowest and highest active versions when
+//     they exist.
+func admitClusterNodePoolsMinorVersionSkew(_ context.Context, clusterNodePools []ClusterAdmissionNodePool, clusterVersion semver.Version) error {
+	var errs []error
+	for _, entry := range clusterNodePools {
+		nodePool := entry.NodePool
+		if nodePool == nil {
 			continue
 		}
-		lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(serviceProviderNodePool.Status.NodePoolVersion.ActiveVersions)
-
 		if len(nodePool.Properties.Version.ID) > 0 {
 			parsed, err := semver.ParseTolerant(nodePool.Properties.Version.ID)
 			if err != nil {
@@ -55,17 +79,17 @@ func ValidateClusterNodePoolsMinorVersionSkew(ctx context.Context, resourcesDBCl
 				errs = append(errs, err)
 			}
 		}
-		if lowest != nil && highest != nil {
-			if err := clusterVersionSkewVersusNodePool(nodePool.Name, *lowest, clusterVersion); err != nil {
-				errs = append(errs, err)
-			}
-			if err := clusterVersionSkewVersusNodePool(nodePool.Name, *highest, clusterVersion); err != nil {
-				errs = append(errs, err)
+		if entry.ServiceProviderNodePool != nil {
+			lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(entry.ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions)
+			if lowest != nil && highest != nil {
+				if err := clusterVersionSkewVersusNodePool(nodePool.Name, *lowest, clusterVersion); err != nil {
+					errs = append(errs, err)
+				}
+				if err := clusterVersionSkewVersusNodePool(nodePool.Name, *highest, clusterVersion); err != nil {
+					errs = append(errs, err)
+				}
 			}
 		}
-	}
-	if err := nodePoolIterator.GetError(); err != nil {
-		return errors.New("cannot validate node pool skew")
 	}
 	return errors.Join(errs...)
 }

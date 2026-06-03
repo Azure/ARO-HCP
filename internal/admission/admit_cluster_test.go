@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/blang/semver/v4"
-	"github.com/stretchr/testify/assert"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
@@ -29,7 +28,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -199,7 +197,11 @@ func TestMutateCluster(t *testing.T) {
 					Tags: tt.tags,
 				},
 			}
-			errs := MutateCluster(cluster, tt.subscription)
+			admissionContext := &ClusterAdmissionContext{
+				Subscription:    tt.subscription,
+				OriginalCluster: cluster.DeepCopy(),
+			}
+			errs := MutateCluster(context.Background(), admissionContext, operation.Operation{Type: operation.Create}, cluster, nil)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 
@@ -221,7 +223,7 @@ func TestMutateCluster(t *testing.T) {
 	}
 }
 
-func TestAdmitClusterOnUpdate(t *testing.T) {
+func TestAdmitCluster_Update(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -545,15 +547,25 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
-			resources := []any{serviceProviderCluster}
+			// Pair each node pool with its matching service provider node pool
+			// by name. The frontend's newClusterAdmissionContext prefetches both
+			// from Cosmos and zips them together; we replicate that wiring here.
+			spByName := map[string]*api.ServiceProviderNodePool{}
+			for _, sp := range tt.serviceProviderNodePools {
+				spByName[sp.ResourceID.Parent.Name] = sp
+			}
+			var admissionNodePools []ClusterAdmissionNodePool
 			for _, nodePool := range tt.nodePools {
-				resources = append(resources, nodePool)
+				admissionNodePools = append(admissionNodePools, ClusterAdmissionNodePool{
+					NodePool:                nodePool,
+					ServiceProviderNodePool: spByName[nodePool.Name],
+				})
 			}
-			for _, serviceProviderNodePool := range tt.serviceProviderNodePools {
-				resources = append(resources, serviceProviderNodePool)
+
+			admissionContext := &ClusterAdmissionContext{
+				ServiceProviderCluster: serviceProviderCluster,
+				ClusterNodePools:       admissionNodePools,
 			}
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
-			assert.NoError(t, err)
 
 			oldCluster := &api.HCPOpenShiftCluster{
 				TrackedResource: arm.NewTrackedResource(clusterResourceID, "eastus"),
@@ -568,7 +580,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 				},
 			}
 
-			errs := AdmitClusterOnUpdate(ctx, operation.Operation{Type: operation.Update}, mockResourcesDBClient, oldCluster, newCluster)
+			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Update}, newCluster, oldCluster)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})

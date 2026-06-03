@@ -245,6 +245,63 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	return newInternalCluster, nil
 }
 
+// newClusterAdmissionContext creates an admission context for cluster operations.
+// The subscription is always required. originalCluster is the inbound cluster as
+// the user submitted it — admission deepcopies it to use as a read-only source
+// for fields (like tags) that earlier mutations may overwrite on the live
+// cluster. For UPDATE operations the caller must also pass the cluster's
+// existing resource ID; the constructor then prefetches the
+// ServiceProviderCluster and the list of node pools (plus their service-provider
+// records) so admission can validate version skew without hitting the DB itself.
+// On CREATE pass a nil clusterResourceID — no prior state exists to prefetch.
+func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.Operation, subscription *arm.Subscription, originalCluster *api.HCPOpenShiftCluster, clusterResourceID *azcorearm.ResourceID) (*admission.ClusterAdmissionContext, error) {
+	if subscription == nil {
+		return nil, fmt.Errorf("subscription is required for admission context")
+	}
+	if originalCluster == nil {
+		return nil, fmt.Errorf("originalCluster is required for admission context")
+	}
+
+	admissionContext := &admission.ClusterAdmissionContext{
+		Subscription:    subscription,
+		OriginalCluster: originalCluster.DeepCopy(),
+	}
+
+	if op.Type != operation.Update {
+		return admissionContext, nil
+	}
+
+	if clusterResourceID == nil {
+		return nil, fmt.Errorf("clusterResourceID is required for UPDATE operations")
+	}
+
+	spCluster, err := database.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, clusterResourceID)
+	if err != nil {
+		return nil, err
+	}
+	admissionContext.ServiceProviderCluster = spCluster
+
+	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
+	}
+	for _, nodePool := range nodePoolIterator.Items(ctx) {
+		spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, nodePool.ID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load service provider node pool %s: %w", nodePool.ID, err)
+		}
+		admissionContext.ClusterNodePools = append(admissionContext.ClusterNodePools, admission.ClusterAdmissionNodePool{
+			NodePool:                nodePool,
+			ServiceProviderNodePool: spNodePool,
+		})
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
+	}
+
+	return admissionContext, nil
+}
+
 func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Request) error {
 	var err error
 
@@ -283,16 +340,19 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	admission.MutateClusterCreate(newInternalCluster)
-	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
-		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
-	}
 	validationOp := operation.Operation{
 		Type:    operation.Create,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
+	admissionContext, err := f.newClusterAdmissionContext(ctx, validationOp, subscription, newInternalCluster, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if mutationErrs := admission.MutateCluster(ctx, admissionContext, validationOp, newInternalCluster, nil); len(mutationErrs) > 0 {
+		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
+	}
 	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, nil, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
+	validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, validationOp, newInternalCluster, nil)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -568,16 +628,20 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		return utils.TrackError(err)
 	}
 
-	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
-		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
-	}
-
 	validationOp := operation.Operation{
 		Type:    operation.Update,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
+	admissionContext, err := f.newClusterAdmissionContext(ctx, validationOp, subscription, newInternalCluster, oldInternalCluster.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if mutationErrs := admission.MutateCluster(ctx, admissionContext, validationOp, newInternalCluster, oldInternalCluster); len(mutationErrs) > 0 {
+		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
+	}
+
 	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	validationErrs = append(validationErrs, admission.AdmitClusterOnUpdate(ctx, validationOp, f.resourcesDBClient, oldInternalCluster, newInternalCluster)...)
+	validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, validationOp, newInternalCluster, oldInternalCluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
