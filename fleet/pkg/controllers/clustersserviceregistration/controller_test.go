@@ -42,7 +42,7 @@ const testAKSResourceID = "/subscriptions/00000000-0000-0000-0000-000000000000/r
 func testStamp(identifier string, approved bool) *fleet.Stamp {
 	resourceID := api.Must(fleet.ToStampResourceID(identifier))
 	stamp := &fleet.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(identifier)},
 		ResourceID:     resourceID,
 	}
 	if approved {
@@ -61,7 +61,7 @@ func testManagementCluster(stampIdentifier string) *fleet.ManagementCluster {
 	dnsZoneResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dns-rg/providers/Microsoft.Network/dnszones/example.com"))
 	placeholderShardID := api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/placeholder"))
 	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     resourceID,
 		Spec: fleet.ManagementClusterSpec{
 			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
