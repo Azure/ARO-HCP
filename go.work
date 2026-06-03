@@ -18,6 +18,7 @@ use (
 	./tooling/aro-hcp-exporter
 	./tooling/azutils
 	./tooling/cleanup-sweeper
+	./tooling/customlinters
 	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest

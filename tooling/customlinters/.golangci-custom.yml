@@ -1,0 +1,18 @@
+version: "2"
+run:
+  timeout: 10m
+  modules-download-mode: readonly
+  skip-dirs:
+    - testdata
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+linters:
+  default: none
+  enable:
+  - noprint
+  settings:
+    custom:
+      noprint:
+        type: "module"
+        description: Detects print statements to standard output in test files
