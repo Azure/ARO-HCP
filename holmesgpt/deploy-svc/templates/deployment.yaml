@@ -51,6 +51,10 @@ spec:
           mountPath: /etc/holmes/toolsets.yaml
           subPath: toolsets.yaml
           readOnly: true
+        - name: holmes-skills
+          mountPath: /etc/holmes/skills/hcp-creation-serviceplane/SKILL.md
+          subPath: hcp-creation-serviceplane.md
+          readOnly: true
         - name: tmp
           mountPath: /tmp
         resources:
@@ -91,5 +95,8 @@ spec:
           items:
           - key: toolsets.yaml
             path: toolsets.yaml
+      - name: holmes-skills
+        configMap:
+          name: holmesgpt-skills
       - name: tmp
         emptyDir: {}

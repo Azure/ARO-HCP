@@ -2,7 +2,6 @@ package holmes
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,8 +15,9 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-//go:embed staticresources/holmes-config.yaml
-var holmesToolsetConfig []byte
+const (
+	dataplaneConfigMapName = "holmesgpt-dataplane-config"
+)
 
 type PodManager struct {
 	config *HolmesConfig
@@ -37,7 +37,6 @@ func (pm *PodManager) RunInvestigation(
 ) error {
 	namespace := HolmesNamespace
 	secretName := "holmes-investigate-" + investigationID
-	configMapName := "holmes-config-" + investigationID
 	podName := "holmes-investigate-" + investigationID
 
 	secret := &corev1.Secret{
@@ -50,32 +49,17 @@ func (pm *PodManager) RunInvestigation(
 		},
 	}
 
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      configMapName,
-			Namespace: namespace,
-		},
-		Data: map[string]string{
-			"config.yaml": string(holmesToolsetConfig),
-		},
-	}
-
-	pod := buildPodSpec(podName, namespace, secretName, configMapName, pm.config, question)
+	pod := buildPodSpec(podName, namespace, secretName, pm.config, question)
 
 	defer func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_ = kubeClient.CoreV1().Pods(namespace).Delete(cleanupCtx, podName, metav1.DeleteOptions{})
 		_ = kubeClient.CoreV1().Secrets(namespace).Delete(cleanupCtx, secretName, metav1.DeleteOptions{})
-		_ = kubeClient.CoreV1().ConfigMaps(namespace).Delete(cleanupCtx, configMapName, metav1.DeleteOptions{})
 	}()
 
 	if _, err := kubeClient.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("failed to create investigation secret: %w", err)
-	}
-
-	if _, err := kubeClient.CoreV1().ConfigMaps(namespace).Create(ctx, cm, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("failed to create investigation configmap: %w", err)
 	}
 
 	if _, err := kubeClient.CoreV1().Pods(namespace).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
@@ -89,7 +73,7 @@ func (pm *PodManager) RunInvestigation(
 	return streamPodLogs(ctx, kubeClient, namespace, podName, w)
 }
 
-func buildPodSpec(name, namespace, secretName, configMapName string, config *HolmesConfig, question string) *corev1.Pod {
+func buildPodSpec(name, namespace, secretName string, config *HolmesConfig, question string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -113,16 +97,19 @@ func buildPodSpec(name, namespace, secretName, configMapName string, config *Hol
 				Image:           config.Image,
 				ImagePullPolicy: corev1.PullAlways,
 				Command:         []string{"python", "holmes_cli.py"},
-				Args:            []string{"ask", question, "-n", "--model=" + config.Model, "--config=/etc/holmes/config.yaml"},
+				Args:            []string{"ask", question, "-n", "--model=" + config.Model, "--config=/etc/holmes/main-config.yaml"},
 				Env: []corev1.EnvVar{
 					{Name: "AZURE_AD_TOKEN_AUTH", Value: "true"},
 					{Name: "AZURE_API_BASE", Value: config.AzureOpenAIAPIBase},
 					{Name: "AZURE_API_VERSION", Value: config.AzureOpenAIAPIVersion},
 					{Name: "KUBECONFIG", Value: "/etc/kubeconfig/config"},
+					{Name: "HOLMES_CONFIG_PATH", Value: "/etc/holmes/main-config.yaml"},
 				},
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "kubeconfig", MountPath: "/etc/kubeconfig", ReadOnly: true},
-					{Name: "holmes-config", MountPath: "/etc/holmes/config.yaml", SubPath: "config.yaml", ReadOnly: true},
+					{Name: "dataplane-config", MountPath: "/etc/holmes/config.yaml", SubPath: "toolsets.yaml", ReadOnly: true},
+					{Name: "dataplane-config", MountPath: "/etc/holmes/main-config.yaml", SubPath: "main-config.yaml", ReadOnly: true},
+					{Name: "dataplane-config", MountPath: "/etc/holmes/skills/hcp-creation-dataplane/SKILL.md", SubPath: "skill-dataplane.md", ReadOnly: true},
 					{Name: "tmp", MountPath: "/tmp"},
 					{Name: "holmes-cache", MountPath: "/.holmes"},
 				},
@@ -149,9 +136,9 @@ func buildPodSpec(name, namespace, secretName, configMapName string, config *Hol
 						Items:      []corev1.KeyToPath{{Key: "config", Path: "config"}},
 					},
 				}},
-				{Name: "holmes-config", VolumeSource: corev1.VolumeSource{
+				{Name: "dataplane-config", VolumeSource: corev1.VolumeSource{
 					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{Name: configMapName},
+						LocalObjectReference: corev1.LocalObjectReference{Name: dataplaneConfigMapName},
 					},
 				}},
 				{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},

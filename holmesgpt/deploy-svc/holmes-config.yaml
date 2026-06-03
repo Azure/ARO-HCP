@@ -50,8 +50,8 @@ toolsets:
     enabled: false
   openshift/live-metrics:
     enabled: false
-  runbook:
-    enabled: false
+  skills:
+    enabled: true
   internet:
     enabled: false
   connectivity_check:

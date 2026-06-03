@@ -12,3 +12,33 @@ data:
     api_version: "{{ .Values.azureOpenAI.apiVersion }}"
     custom_toolsets:
       - "/etc/holmes/toolsets.yaml"
+    custom_skill_paths:
+      - "/etc/holmes/skills/"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-skills
+  namespace: '{{ .Release.Namespace }}'
+data:
+  hcp-creation-controlplane.md: |
+{{ .Files.Get "skills/hcp-creation-controlplane/SKILL.md" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-dataplane-config
+  namespace: '{{ .Release.Namespace }}'
+data:
+  toolsets.yaml: |
+{{ .Files.Get "holmes-config.yaml" | indent 4 }}
+  main-config.yaml: |
+    model: "{{ .Values.model }}"
+    api_base: "{{ .Values.azureOpenAI.apiBase }}"
+    api_version: "{{ .Values.azureOpenAI.apiVersion }}"
+    custom_toolsets:
+      - "/etc/holmes/config.yaml"
+    custom_skill_paths:
+      - "/etc/holmes/skills/"
+  skill-dataplane.md: |
+{{ .Files.Get "skills/hcp-creation-dataplane/SKILL.md" | indent 4 }}

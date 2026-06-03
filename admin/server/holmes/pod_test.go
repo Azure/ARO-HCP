@@ -15,7 +15,7 @@ func TestBuildPodSpec(t *testing.T) {
 		DefaultTimeout:        600,
 	}
 
-	pod := buildPodSpec("test-pod", "aro-holmesgpt", "test-secret", "test-cm", config, "what is wrong?")
+	pod := buildPodSpec("test-pod", "aro-holmesgpt", "test-secret", config, "what is wrong?")
 
 	t.Run("metadata", func(t *testing.T) {
 		if pod.Name != "test-pod" {
@@ -123,10 +123,10 @@ func TestBuildPodSpec(t *testing.T) {
 			t.Errorf("kubeconfig secret = %v", v.Secret)
 		}
 
-		if v, ok := volMap["holmes-config"]; !ok {
-			t.Error("missing holmes-config volume")
-		} else if v.ConfigMap == nil || v.ConfigMap.Name != "test-cm" {
-			t.Errorf("holmes-config configmap = %v", v.ConfigMap)
+		if v, ok := volMap["dataplane-config"]; !ok {
+			t.Error("missing dataplane-config volume")
+		} else if v.ConfigMap == nil || v.ConfigMap.Name != dataplaneConfigMapName {
+			t.Errorf("dataplane-config configmap name = %v, want %v", v.ConfigMap.Name, dataplaneConfigMapName)
 		}
 
 		if _, ok := volMap["tmp"]; !ok {
@@ -151,10 +151,10 @@ func TestBuildPodSpec(t *testing.T) {
 			t.Error("kubeconfig should be read-only")
 		}
 
-		if m, ok := mountMap["holmes-config"]; !ok {
-			t.Error("missing holmes-config mount")
+		if m, ok := mountMap["dataplane-config"]; !ok {
+			t.Error("missing dataplane-config mount")
 		} else if !m.ReadOnly {
-			t.Error("holmes-config should be read-only")
+			t.Error("dataplane-config should be read-only")
 		}
 	})
 

@@ -12,3 +12,14 @@ data:
     api_version: "{{ .Values.azureOpenAI.apiVersion }}"
     custom_toolsets:
       - "/etc/holmes/toolsets.yaml"
+    custom_skill_paths:
+      - "/etc/holmes/skills/"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-skills
+  namespace: '{{ .Release.Namespace }}'
+data:
+  hcp-creation-serviceplane.md: |
+{{ .Files.Get "skills/hcp-creation-serviceplane/SKILL.md" | indent 4 }}

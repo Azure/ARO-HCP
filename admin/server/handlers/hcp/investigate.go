@@ -88,16 +88,19 @@ func (h *HCPInvestigateHandler) ServeHTTP(writer http.ResponseWriter, request *h
 
 	// Serviceplane investigates the service cluster itself — no HCP lookup needed.
 	if req.Scope == "serviceplane" {
-		return holmes.AskHolmes(ctx, h.holmesConfig.ServiceClusterEndpoint, req.Question, h.holmesConfig.Model, writer)
+		if err := holmes.AskHolmes(ctx, h.holmesConfig.ServiceClusterEndpoint, req.Question, h.holmesConfig.Model, writer); err != nil {
+			return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "serviceplane investigation failed: %s", err)
+		}
+		return nil
 	}
 
 	hcp, err := h.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get HCP from database: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to get HCP from database: %s", err)
 	}
 
 	if hcp.ServiceProviderProperties.ClusterServiceID == nil {
-		return fmt.Errorf("cluster has no ClusterServiceID")
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "cluster has no ClusterServiceID")
 	}
 
 	switch req.Scope {
@@ -123,27 +126,30 @@ func (h *HCPInvestigateHandler) handleControlplane(writer http.ResponseWriter, r
 
 	subscription, err := h.resourcesDBClient.Subscriptions().Get(ctx, hcp.ID.SubscriptionID)
 	if err != nil {
-		return fmt.Errorf("failed to get subscription: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to get subscription: %s", err)
 	}
 
 	credential, err := h.fpaCredentialRetriever.RetrieveCredential(*subscription.Properties.TenantId)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve FPA credential: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to retrieve FPA credential: %s", err)
 	}
 
 	mgmtRESTConfig, err := mc.GetAKSRESTConfig(ctx, mgmtClusterResourceID, credential)
 	if err != nil {
-		return fmt.Errorf("failed to get management cluster REST config: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to get management cluster REST config: %s", err)
 	}
 
 	proxyURL := holmes.ServiceProxyURL(mgmtRESTConfig, holmes.HolmesNamespace, "holmesgpt-svc")
 
 	httpClient, err := holmes.HTTPClientForRESTConfig(mgmtRESTConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create HTTP client for management cluster: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to create HTTP client for management cluster: %s", err)
 	}
 
-	return holmes.AskHolmesWithClient(ctx, httpClient, proxyURL, question, h.holmesConfig.Model, writer)
+	if err := holmes.AskHolmesWithClient(ctx, httpClient, proxyURL, question, h.holmesConfig.Model, writer); err != nil {
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "controlplane investigation failed: %s", err)
+	}
+	return nil
 }
 
 func (h *HCPInvestigateHandler) handleDataplane(writer http.ResponseWriter, request *http.Request, hcp *api.HCPOpenShiftCluster, question string) error {
@@ -165,12 +171,12 @@ func (h *HCPInvestigateHandler) handleDataplane(writer http.ResponseWriter, requ
 
 	subscription, err := h.resourcesDBClient.Subscriptions().Get(ctx, hcp.ID.SubscriptionID)
 	if err != nil {
-		return fmt.Errorf("failed to get subscription: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to get subscription: %s", err)
 	}
 
 	credential, err := h.fpaCredentialRetriever.RetrieveCredential(*subscription.Properties.TenantId)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve FPA credential: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to retrieve FPA credential: %s", err)
 	}
 
 	kasEndpoint := fmt.Sprintf("https://kube-apiserver.%s.svc.cluster.local:6443", hcpNamespace)
@@ -180,23 +186,26 @@ func (h *HCPInvestigateHandler) handleDataplane(writer http.ResponseWriter, requ
 		csID.ClusterID(), kasEndpoint,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to build kubeconfig: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to build kubeconfig: %s", err)
 	}
 	defer kubeconfigResult.Cleanup()
 
 	mgmtRESTConfig, err := mc.GetAKSRESTConfig(ctx, mgmtClusterResourceID, credential)
 	if err != nil {
-		return fmt.Errorf("failed to get management cluster REST config: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to get management cluster REST config: %s", err)
 	}
 
 	mgmtKubeClient, err := kubernetes.NewForConfig(mgmtRESTConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create management cluster kubernetes client: %w", err)
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "failed to create management cluster kubernetes client: %s", err)
 	}
 
 	investigationID := uuid.New().String()[:8]
 
-	return h.podManager.RunInvestigation(ctx, mgmtKubeClient, kubeconfigResult.KubeconfigYAML, question, investigationID, writer)
+	if err := h.podManager.RunInvestigation(ctx, mgmtKubeClient, kubeconfigResult.KubeconfigYAML, question, investigationID, writer); err != nil {
+		return arm.NewCloudError(http.StatusInternalServerError, arm.CloudErrorCodeInternalServerError, "", "dataplane investigation failed: %s", err)
+	}
+	return nil
 }
 
 func validateInvestigateRequest(req *investigateRequest) error {
