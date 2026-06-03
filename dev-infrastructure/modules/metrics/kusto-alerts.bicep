@@ -52,7 +52,7 @@ resource ingestionLatencyHigh 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   location: 'global'
   properties: {
     description: 'Kusto ingestion latency exceeds 15 minutes. This indicates a serious ingestion pipeline issue. https://learn.microsoft.com/azure/data-explorer/monitor-batching-ingestion'
-    severity: 2
+    severity: 3
     enabled: enabled
     autoMitigate: true
     scopes: [
