@@ -29,6 +29,7 @@ type verifyImagePulled struct {
 	namespace       string
 	imageRepository string
 	imageName       string // optional - if empty, any image from repository is checked
+	wait            waitSettings
 }
 
 func (v verifyImagePulled) Name() string {
@@ -39,6 +40,10 @@ func (v verifyImagePulled) Name() string {
 }
 
 func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return verifyOnceOrPoll(ctx, v.Name(), adminRESTConfig, v.wait, nil, v.checkOnce)
+}
+
+func (v verifyImagePulled) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
@@ -122,18 +127,18 @@ func (v verifyImagePulled) imageRef() string {
 }
 
 // VerifyImagePulled creates a verifier that checks if an image has been successfully pulled.
-// Pass [WithPolling] when pods may not have pulled the image yet; poll logging and elapsed
-// time are handled by the polling wrapper. This verifier returns stable, sorted error text
-// so repeated polls with unchanged state do not produce duplicate log lines.
+// Pass [WithWait] when pods may not have pulled the image yet. This verifier returns stable,
+// sorted error text so repeated polls with unchanged state do not produce duplicate log lines.
 //
 // Parameters:
 //   - namespace: the namespace to check for pods
 //   - imageRepository: the repository to match (e.g., "registry.redhat.io")
 //   - imageName: optional specific image name to match (empty string matches any image from repository)
-func VerifyImagePulled(namespace, imageRepository, imageName string, opts ...PollOption) HostedClusterVerifier {
-	return maybePoll(verifyImagePulled{
+func VerifyImagePulled(namespace, imageRepository, imageName string, opts ...WaitOption) HostedClusterVerifier {
+	return verifyImagePulled{
 		namespace:       namespace,
 		imageRepository: imageRepository,
 		imageName:       imageName,
-	}, opts, nil)
+		wait:            applyWaitOptions(opts),
+	}
 }

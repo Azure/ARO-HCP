@@ -29,6 +29,7 @@ import (
 
 type verifyPullSecretMergedIntoGlobal struct {
 	expectedHost string
+	wait         waitSettings
 }
 
 func (v verifyPullSecretMergedIntoGlobal) Name() string {
@@ -36,6 +37,10 @@ func (v verifyPullSecretMergedIntoGlobal) Name() string {
 }
 
 func (v verifyPullSecretMergedIntoGlobal) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return verifyOnceOrPoll(ctx, v.Name(), adminRESTConfig, v.wait, nil, v.checkOnce)
+}
+
+func (v verifyPullSecretMergedIntoGlobal) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
@@ -58,8 +63,11 @@ func (v verifyPullSecretMergedIntoGlobal) Verify(ctx context.Context, adminRESTC
 	return nil
 }
 
-func VerifyPullSecretMergedIntoGlobal(expectedHost string, opts ...PollOption) HostedClusterVerifier {
-	return maybePoll(verifyPullSecretMergedIntoGlobal{expectedHost: expectedHost}, opts, nil)
+func VerifyPullSecretMergedIntoGlobal(expectedHost string, opts ...WaitOption) HostedClusterVerifier {
+	return verifyPullSecretMergedIntoGlobal{
+		expectedHost: expectedHost,
+		wait:         applyWaitOptions(opts),
+	}
 }
 
 const (
@@ -68,8 +76,8 @@ const (
 )
 
 // VerifyGlobalPullSecretSyncer verifies the global-pull-secret-syncer DaemonSet in kube-system.
-// It delegates to [VerifyDaemonSetReady]. Pass [WithPolling] when the syncer may not be ready yet.
-func VerifyGlobalPullSecretSyncer(opts ...PollOption) HostedClusterVerifier {
+// It delegates to [VerifyDaemonSetReady]. Pass [WithWait] when the syncer may not be ready yet.
+func VerifyGlobalPullSecretSyncer(opts ...WaitOption) HostedClusterVerifier {
 	return VerifyDaemonSetReady(globalPullSecretSyncerNamespace, globalPullSecretSyncerName, opts...)
 }
 

@@ -141,6 +141,7 @@ func catalogSourceHealthCheck(ctx context.Context, cs *unstructured.Unstructured
 type verifyOperatorInstalled struct {
 	namespace        string
 	subscriptionName string
+	wait             waitSettings
 }
 
 func (v verifyOperatorInstalled) Name() string {
@@ -148,6 +149,10 @@ func (v verifyOperatorInstalled) Name() string {
 }
 
 func (v verifyOperatorInstalled) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return verifyOnceOrPoll(ctx, v.Name(), adminRESTConfig, v.wait, v.diagnoseFailure, v.checkOnce)
+}
+
+func (v verifyOperatorInstalled) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -526,14 +531,12 @@ func diagnoseEvents(ctx context.Context, kubeClient kubernetes.Interface, namesp
 	return lines
 }
 
-func VerifyOperatorInstalled(namespace, subscriptionName string, opts ...PollOption) HostedClusterVerifier {
-	inner := verifyOperatorInstalled{
+func VerifyOperatorInstalled(namespace, subscriptionName string, opts ...WaitOption) HostedClusterVerifier {
+	return verifyOperatorInstalled{
 		namespace:        namespace,
 		subscriptionName: subscriptionName,
+		wait:             applyWaitOptions(opts),
 	}
-	return maybePoll(inner, opts, func(ctx context.Context, restConfig *rest.Config) string {
-		return inner.diagnoseFailure(ctx, restConfig)
-	})
 }
 
 type verifyOperatorCSV struct {
@@ -586,6 +589,7 @@ func VerifyOperatorCSV(namespace, csvName string) HostedClusterVerifier {
 type verifyCatalogSourceReady struct {
 	namespace     string
 	catalogSource string
+	wait          waitSettings
 }
 
 func (v verifyCatalogSourceReady) Name() string {
@@ -593,6 +597,10 @@ func (v verifyCatalogSourceReady) Name() string {
 }
 
 func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return verifyOnceOrPoll(ctx, v.Name(), adminRESTConfig, v.wait, nil, v.checkOnce)
+}
+
+func (v verifyCatalogSourceReady) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -622,9 +630,10 @@ func (v verifyCatalogSourceReady) Verify(ctx context.Context, adminRESTConfig *r
 }
 
 // VerifyCatalogSourceReady verifies that a catalog source is healthy and ready to serve operators.
-func VerifyCatalogSourceReady(namespace, catalogSource string, opts ...PollOption) HostedClusterVerifier {
-	return maybePoll(verifyCatalogSourceReady{
+func VerifyCatalogSourceReady(namespace, catalogSource string, opts ...WaitOption) HostedClusterVerifier {
+	return verifyCatalogSourceReady{
 		namespace:     namespace,
 		catalogSource: catalogSource,
-	}, opts, nil)
+		wait:          applyWaitOptions(opts),
+	}
 }
