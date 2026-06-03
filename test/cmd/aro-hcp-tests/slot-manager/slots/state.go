@@ -140,7 +140,6 @@ func WriteEnvFile(sharedDir string, state *AcquiredSlotState, customerSubscripti
 	if err := state.Validate(); err != nil {
 		return err
 	}
-	customerSubscription = strings.TrimSpace(customerSubscription)
 	if customerSubscription == "" {
 		return errors.New("customer subscription is empty")
 	}
@@ -158,7 +157,7 @@ func WriteEnvFile(sharedDir string, state *AcquiredSlotState, customerSubscripti
 		"ARO_HCP_E2E_SLOT_RESOURCE_TYPE": state.Slot.ResourceType,
 		"CUSTOMER_SUBSCRIPTION":          customerSubscription,
 		"LEASED_MSI_CONTAINERS":          strings.Join(state.Slot.IdentityContainerNames(), " "),
-		"LOCATION":                       state.RuntimeRegion,
+		"SELECTED_LOCATION":              state.RuntimeRegion,
 	}
 
 	var builder strings.Builder

@@ -79,8 +79,8 @@ func TestWriteAndLoadAcquiredSlotStateAndEnvFile(t *testing.T) {
 	if !strings.Contains(content, `export LEASED_MSI_CONTAINERS='aro-hcp-msi-container-dev-00-00 aro-hcp-msi-container-dev-00-01 aro-hcp-msi-container-dev-00-02'`) {
 		t.Fatalf("expected env file to contain LEASED_MSI_CONTAINERS export, got %q", content)
 	}
-	if !strings.Contains(content, `export LOCATION='eastus2'`) {
-		t.Fatalf("expected env file to contain LOCATION export, got %q", content)
+	if !strings.Contains(content, `export SELECTED_LOCATION='eastus2'`) {
+		t.Fatalf("expected env file to contain SELECTED_LOCATION export, got %q", content)
 	}
 	if strings.Contains(content, "ARO_HCP_E2E_SLOT_REGION") {
 		t.Fatalf("expected env file to omit ARO_HCP_E2E_SLOT_REGION export, got %q", content)

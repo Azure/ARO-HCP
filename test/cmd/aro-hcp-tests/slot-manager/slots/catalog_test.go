@@ -18,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const syntheticCatalogYAML = `version: 1
@@ -114,7 +116,7 @@ func TestResolvePool(t *testing.T) {
 
 	catalog := loadSyntheticCatalog(t)
 
-	pool, err := catalog.ResolvePool("dev", "dev-shard-0", "westus3")
+	pool, err := catalog.ResolvePool("dev", sets.New("dev-shard-0"), sets.New("westus3"), "")
 	if err != nil {
 		t.Fatalf("expected pool resolution to succeed: %v", err)
 	}
@@ -128,7 +130,7 @@ func TestCandidatePoolsFixedPreservesCatalogOrder(t *testing.T) {
 
 	catalog := loadSyntheticCatalog(t)
 
-	pools, err := catalog.CandidatePools("dev", "", "")
+	pools, err := catalog.CandidatePools("dev", nil, nil, "")
 	if err != nil {
 		t.Fatalf("expected candidate pool resolution to succeed: %v", err)
 	}
@@ -143,12 +145,46 @@ func TestCandidatePoolsFixedPreservesCatalogOrder(t *testing.T) {
 	}
 }
 
-func TestCandidatePoolsFixedFiltersByRegion(t *testing.T) {
+func TestCandidatePoolsFixedFiltersByAllowedLocations(t *testing.T) {
 	t.Parallel()
 
 	catalog := loadSyntheticCatalog(t)
 
-	pools, err := catalog.CandidatePools("dev", "", "eastus2")
+	pools, err := catalog.CandidatePools("dev", nil, sets.New("eastus2"), "")
+	if err != nil {
+		t.Fatalf("expected candidate pool resolution to succeed: %v", err)
+	}
+	if len(pools) != 1 {
+		t.Fatalf("expected 1 candidate pool, got %d", len(pools))
+	}
+	if pools[0].ResourceType != "aro-hcp-dev-shard1-eastus2-slot" {
+		t.Fatalf("unexpected candidate resource type %q", pools[0].ResourceType)
+	}
+}
+
+func TestCandidatePoolsFiltersByAllowedSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadSyntheticCatalog(t)
+
+	pools, err := catalog.CandidatePools("dev", sets.New("dev-shard-1"), nil, "")
+	if err != nil {
+		t.Fatalf("expected candidate pool resolution to succeed: %v", err)
+	}
+	if len(pools) != 1 {
+		t.Fatalf("expected 1 candidate pool, got %d", len(pools))
+	}
+	if pools[0].ResourceType != "aro-hcp-dev-shard1-eastus2-slot" {
+		t.Fatalf("unexpected candidate resource type %q", pools[0].ResourceType)
+	}
+}
+
+func TestCandidatePoolsFixedSelectedLocationOverrideTakesPrecedenceOverAllowedLocations(t *testing.T) {
+	t.Parallel()
+
+	catalog := loadSyntheticCatalog(t)
+
+	pools, err := catalog.CandidatePools("dev", nil, sets.New("westus3"), "eastus2")
 	if err != nil {
 		t.Fatalf("expected candidate pool resolution to succeed: %v", err)
 	}
@@ -255,7 +291,7 @@ environments:
         identity_container_count: 1
 `)
 
-	pool, err := catalog.ResolvePool("prod", "", "eastus2")
+	pool, err := catalog.ResolvePool("prod", nil, sets.New("eastus2"), "")
 	if err != nil {
 		t.Fatalf("expected runtime-selected pool resolution to ignore region: %v", err)
 	}
@@ -288,7 +324,7 @@ environments:
         identity_container_count: 1
 `)
 
-	pools, err := catalog.CandidatePools("prod", "", "eastus2")
+	pools, err := catalog.CandidatePools("prod", nil, sets.New("eastus2"), "")
 	if err != nil {
 		t.Fatalf("expected runtime-selected candidate pool resolution to ignore region: %v", err)
 	}
@@ -324,7 +360,7 @@ environments:
         identity_container_count: 1
 `)
 
-	_, err := catalog.ResolvePool("prod", "", "eastus2")
+	_, err := catalog.ResolvePool("prod", nil, sets.New("eastus2"), "")
 	if err == nil {
 		t.Fatal("expected runtime-selected pool resolution to require subscription selector when multiple pools exist")
 	}

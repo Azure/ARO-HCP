@@ -25,6 +25,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
 
@@ -34,57 +36,78 @@ const (
 )
 
 func DefaultAcquireOptions() *RawAcquireOptions {
+	allowedSubscriptions, allowedLocations, selectedLocation := defaultAcquireSelectors()
 	return &RawAcquireOptions{
-		ClusterProfileDir: os.Getenv("CLUSTER_PROFILE_DIR"),
-		DeployEnv:         os.Getenv("ARO_HCP_DEPLOY_ENV"),
-		Region:            defaultAcquireRegion(),
-		SharedDir:         os.Getenv("SHARED_DIR"),
+		ClusterProfileDir:    strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
+		DeployEnv:            strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
+		AllowedSubscriptions: allowedSubscriptions,
+		AllowedLocations:     allowedLocations,
+		SelectedLocation:     selectedLocation,
+		SharedDir:            strings.TrimSpace(os.Getenv("SHARED_DIR")),
 
-		LeaseProxyServerURL: os.Getenv("LEASE_PROXY_SERVER_URL"),
+		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
 	}
 }
 
-func defaultAcquireRegion() string {
-	for _, value := range []string{
-		os.Getenv("MULTISTAGE_PARAM_OVERRIDE_LOCATION"),
-		os.Getenv("LOCATION"),
-	} {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
+func defaultAcquireSelectors() ([]string, []string, string) {
+	allowedSubscriptions := splitSelectorValues(os.Getenv("ALLOWED_SUBSCRIPTIONS"))
+	selectedLocation := strings.TrimSpace(os.Getenv("MULTISTAGE_PARAM_OVERRIDE_LOCATION"))
+	if selectedLocation != "" {
+		return allowedSubscriptions, nil, selectedLocation
 	}
 
-	return ""
+	return allowedSubscriptions, splitSelectorValues(os.Getenv("ALLOWED_LOCATIONS")), ""
+}
+
+func splitSelectorValues(raw string) []string {
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == '\n'
+	})
+	values := make([]string, 0, len(parts))
+	seen := map[string]struct{}{}
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		if _, found := seen[value]; found {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	return values
 }
 
 func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ClusterProfileDir, "cluster-profile-dir", opts.ClusterProfileDir, "Path to CLUSTER_PROFILE_DIR")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Deploy environment name (prow, ci01, int, stg, prod)")
-	cmd.Flags().StringVar(&opts.SubscriptionName, "subscription-name", opts.SubscriptionName, "Optional subscription name selector for environments with multiple pools.")
-	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Optional runtime region selector. For fixed pools it also participates in pool selection.")
+	cmd.Flags().StringSliceVar(&opts.AllowedSubscriptions, "allowed-subscriptions", opts.AllowedSubscriptions, "Optional catalog subscription_name values allowed for candidate pool selection.")
+	cmd.Flags().StringSliceVar(&opts.AllowedLocations, "allowed-locations", opts.AllowedLocations, "Optional Azure regions allowed for fixed-mode candidate pool selection.")
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.CatalogPath, "slot-catalog", opts.CatalogPath, "Path to the canonical E2E slot catalog")
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
-	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Timeout per lease proxy request attempt")
-	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool exhaustion. Zero waits forever.")
-	cmd.Flags().DurationVar(&opts.LeaseWaitInterval, "lease-wait-interval", opts.LeaseWaitInterval, "Wait between retries after a full exhausted pass across all candidate pools.")
+	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend probing a single candidate pool, including retryable proxy/network retries.")
+	cmd.Flags().DurationVar(&opts.MaxWaitForLease, "max-wait-for-lease", opts.MaxWaitForLease, "Maximum total time to keep retrying after full candidate-pool passes yield no immediate lease. Zero waits forever.")
+	cmd.Flags().DurationVar(&opts.LeaseWaitInterval, "lease-wait-interval", opts.LeaseWaitInterval, "Wait between retries after a full candidate-pool pass yields no immediate lease.")
 	return nil
 }
 
 type RawAcquireOptions struct {
-	ClusterProfileDir   string
-	DeployEnv           string
-	SubscriptionName    string
-	Region              string
-	SharedDir           string
-	CatalogPath         string
-	LeaseProxyServerURL string
-	LeaseProxyTimeout   time.Duration
-	MaxWaitForLease     time.Duration
-	LeaseWaitInterval   time.Duration
+	ClusterProfileDir    string
+	DeployEnv            string
+	AllowedSubscriptions []string
+	AllowedLocations     []string
+	SelectedLocation     string
+	SharedDir            string
+	CatalogPath          string
+	LeaseProxyServerURL  string
+	LeaseProxyTimeout    time.Duration
+	MaxWaitForLease      time.Duration
+	LeaseWaitInterval    time.Duration
 }
 
 type validatedAcquireOptions struct {
@@ -103,11 +126,13 @@ type completedAcquireOptions struct {
 	LeaseProxyTimeout time.Duration
 	MaxWaitForLease   time.Duration
 	LeaseWaitInterval time.Duration
-	RequestedRegion   string
-	CandidatePools    []slots.Pool
-	PoolEnvironment   string
-	Now               func() time.Time
-	Sleep             func(context.Context, time.Duration) error
+	// RuntimeLocationOverride carries the concrete runtime region when pool
+	// identity is decoupled from region selection.
+	RuntimeLocationOverride string
+	CandidatePools          []slots.Pool
+	PoolEnvironment         string
+	Now                     func() time.Time
+	Sleep                   func(context.Context, time.Duration) error
 }
 
 type AcquireOptions struct {
@@ -145,13 +170,13 @@ func Acquire(ctx context.Context, opts *RawAcquireOptions) error {
 
 func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 	switch {
-	case strings.TrimSpace(o.ClusterProfileDir) == "":
+	case o.ClusterProfileDir == "":
 		return nil, fmt.Errorf("--cluster-profile-dir must not be empty")
-	case strings.TrimSpace(o.DeployEnv) == "":
+	case o.DeployEnv == "":
 		return nil, fmt.Errorf("--deploy-env must not be empty")
-	case strings.TrimSpace(o.SharedDir) == "":
+	case o.SharedDir == "":
 		return nil, fmt.Errorf("--shared-dir must not be empty")
-	case strings.TrimSpace(o.LeaseProxyServerURL) == "":
+	case o.LeaseProxyServerURL == "":
 		return nil, fmt.Errorf("--lease-proxy-server-url must not be empty")
 	case o.LeaseProxyTimeout <= 0:
 		return nil, fmt.Errorf("--lease-proxy-timeout must be greater than zero")
@@ -177,25 +202,25 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 		return nil, err
 	}
 
-	candidatePools, err := catalog.CandidatePools(environment, o.SubscriptionName, o.Region)
+	candidatePools, err := catalog.CandidatePools(environment, sets.New(o.AllowedSubscriptions...), sets.New(o.AllowedLocations...), o.SelectedLocation)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			ClusterProfileDir: o.ClusterProfileDir,
-			DeployEnvironment: o.DeployEnv,
-			SharedDir:         o.SharedDir,
-			LeaseProxyURL:     o.LeaseProxyServerURL,
-			LeaseProxyTimeout: o.LeaseProxyTimeout,
-			MaxWaitForLease:   o.MaxWaitForLease,
-			LeaseWaitInterval: o.LeaseWaitInterval,
-			RequestedRegion:   strings.TrimSpace(o.Region),
-			CandidatePools:    candidatePools,
-			PoolEnvironment:   environment,
-			Now:               time.Now,
-			Sleep:             sleepContext,
+			ClusterProfileDir:       o.ClusterProfileDir,
+			DeployEnvironment:       o.DeployEnv,
+			SharedDir:               o.SharedDir,
+			LeaseProxyURL:           o.LeaseProxyServerURL,
+			LeaseProxyTimeout:       o.LeaseProxyTimeout,
+			MaxWaitForLease:         o.MaxWaitForLease,
+			LeaseWaitInterval:       o.LeaseWaitInterval,
+			RuntimeLocationOverride: o.SelectedLocation,
+			CandidatePools:          candidatePools,
+			PoolEnvironment:         environment,
+			Now:                     time.Now,
+			Sleep:                   sleepContext,
 		},
 	}, nil
 }
@@ -233,15 +258,15 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 	}
 
 	for pass := 1; ; pass++ {
-		exhaustedPools := make([]string, 0, len(o.CandidatePools))
+		unavailablePools := make([]string, 0, len(o.CandidatePools))
 
 		for _, pool := range o.CandidatePools {
 			leasedName, err := slots.AcquireLease(ctx, o.LeaseProxyURL, pool.ResourceType, o.LeaseProxyTimeout)
 			if err != nil {
-				if errors.Is(err, slots.ErrLeasePoolExhausted) {
-					exhaustedPools = append(exhaustedPools, describePool(pool))
+				if errors.Is(err, slots.ErrLeasePoolUnavailableNow) {
+					unavailablePools = append(unavailablePools, describePool(pool))
 					logger.Info(
-						"Candidate pool exhausted, trying next pool",
+						"Candidate pool did not yield an immediate lease, trying next pool",
 						"pass", pass,
 						"environment", o.PoolEnvironment,
 						"pool", describePool(pool),
@@ -265,54 +290,59 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 			return o.finalizeAcquiredLease(ctx, logger, pool, leasedName)
 		}
 
+		poolFailureSummary := strings.Join(unavailablePools, ", ")
+		waitMessage := "No candidate pool yielded an immediate lease, waiting before retrying full pass"
+
 		if o.MaxWaitForLease > 0 {
 			currentTime := now()
 			if !currentTime.Before(deadline) {
 				return fmt.Errorf(
-					"all candidate pools for environment %q were exhausted for %s across %d full pass(es): %s",
+					"no candidate pool for environment %q yielded an immediate lease for %s across %d full pass(es): %s",
 					o.PoolEnvironment,
 					o.MaxWaitForLease,
 					pass,
-					strings.Join(exhaustedPools, ", "),
+					poolFailureSummary,
 				)
 			}
 
 			remainingWait := deadline.Sub(currentTime)
 			sleepDuration := min(o.LeaseWaitInterval, deadline.Sub(currentTime))
 			logger.Info(
-				"All candidate pools exhausted, waiting before retrying full pass",
+				waitMessage,
 				"pass", pass,
 				"environment", o.PoolEnvironment,
 				"candidatePoolCount", len(o.CandidatePools),
+				"candidatePoolFailures", poolFailureSummary,
 				"sleepDuration", sleepDuration,
 				"leaseWaitInterval", o.LeaseWaitInterval,
 				"remainingWait", remainingWait,
 				"maxWaitForLease", o.MaxWaitForLease,
 			)
 			if err := sleep(ctx, sleepDuration); err != nil {
-				return fmt.Errorf("waiting to retry exhausted candidate pools: %w", err)
+				return fmt.Errorf("waiting to retry candidate pool pass: %w", err)
 			}
 			continue
 		}
 
 		logger.Info(
-			"All candidate pools exhausted, waiting before retrying full pass",
+			waitMessage,
 			"pass", pass,
 			"environment", o.PoolEnvironment,
 			"candidatePoolCount", len(o.CandidatePools),
+			"candidatePoolFailures", poolFailureSummary,
 			"sleepDuration", o.LeaseWaitInterval,
 			"leaseWaitInterval", o.LeaseWaitInterval,
 			"maxWaitForLease", o.MaxWaitForLease,
 		)
 		if err := sleep(ctx, o.LeaseWaitInterval); err != nil {
-			return fmt.Errorf("waiting to retry exhausted candidate pools: %w", err)
+			return fmt.Errorf("waiting to retry candidate pool pass: %w", err)
 		}
 	}
 }
 
 func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
-	if requestedRegion := strings.TrimSpace(o.RequestedRegion); requestedRegion != "" {
-		return requestedRegion
+	if o.RuntimeLocationOverride != "" {
+		return o.RuntimeLocationOverride
 	}
 	return pool.Region
 }
