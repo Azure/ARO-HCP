@@ -75,6 +75,11 @@ const (
 	// registration failed and could not be reestablished.
 	ManagementClusterConditionReasonRegistrationFailed ManagementClusterConditionReason = "RegistrationFailed"
 
+	// ManagementClusterConditionReasonRegistrationCheckFailed indicates the registration
+	// check failed but a previous registration was successful. The condition
+	// stays True to avoid regressing a known-good registration.
+	ManagementClusterConditionReasonRegistrationCheckFailed ManagementClusterConditionReason = "CheckFailed"
+
 	// ManagementClusterConditionReasonAllRegistered indicates all sub-conditions
 	// (ClustersServiceRegistered, MaestroRegistered) are True.
 	ManagementClusterConditionReasonAllRegistered ManagementClusterConditionReason = "AllRegistered"

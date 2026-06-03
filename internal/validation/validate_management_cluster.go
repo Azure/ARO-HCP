@@ -141,12 +141,12 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	errs = append(errs, ValidateUUID(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
 
-	// ClusterServiceProvisionShardID — required, immutable
+	// ClusterServiceProvisionShardID — required
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
 
-	// MaestroConsumerName — required, immutable
+	// MaestroConsumerName — required, DNS-1123 label, immutable
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
+	errs = append(errs, DNS1123Label(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
 
 	// MaestroRESTAPIURL — required, validated as URL, immutable

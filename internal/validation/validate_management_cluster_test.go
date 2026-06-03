@@ -203,6 +203,15 @@ func TestValidateManagementClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid maestroConsumerName rejected",
+			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
+				mc.Status.MaestroConsumerName = "INVALID_CONSUMER_NAME!"
+			},
+			expectErrors: []expectedError{
+				{fieldPath: "status.maestroConsumerName"},
+			},
+		},
+		{
 			name: "invalid maestroGRPCTarget format rejected",
 			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
 				mc.Status.MaestroGRPCTarget = "missing-port"
@@ -326,9 +335,6 @@ func TestValidateManagementClusterUpdate(t *testing.T) {
 			name: "clusterServiceProvisionShardID changed",
 			modify: func(t *testing.T, mc *fleet.ManagementCluster) {
 				mc.Status.ClusterServiceProvisionShardID = ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/11111111-2222-3333-4444-555555555555")))
-			},
-			expectErrors: []expectedError{
-				{fieldPath: "status.clusterServiceProvisionShardID", message: "immutable"},
 			},
 		},
 		{
