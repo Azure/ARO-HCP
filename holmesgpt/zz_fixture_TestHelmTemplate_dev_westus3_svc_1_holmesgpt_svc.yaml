@@ -174,10 +174,11 @@ data:
     Diagnose why an ARO-HCP cluster creation is failing or stuck by investigating the service cluster components involved in the creation workflow.
     
     ## Important Instructions
-    - When checking logs, always use `--tail=500` to get recent logs. Do NOT ask the user for a time window.
+    - When checking logs, always use `--tail=100` to limit output size. Do NOT ask the user for a time window.
     - When grepping for a cluster name, use the cluster name from the user's question.
     - Execute all steps — do not skip log checks. If a grep returns no results, report that and move on.
-    - Use per-pod log fetching: first list pods, then fetch logs from each pod individually.
+    - Use per-pod log fetching: first list pods, then fetch logs from ONE pod per deployment (not all replicas).
+    - Keep output concise — summarize log findings, do not include full log dumps in your response.
     
     ## HCP Creation Flow on Service Cluster
     
@@ -197,7 +198,7 @@ data:
     
     ### Step 2: Check Frontend Logs
     * List frontend pods: `kubectl get pods -n aro-hcp -l app=aro-hcp-frontend -o name`
-    * For each pod, run: `kubectl logs <pod-name> -n aro-hcp -c aro-hcp-frontend --tail=500 | grep -i "<cluster-name>"`
+    * For each pod, run: `kubectl logs <pod-name> -n aro-hcp -c aro-hcp-frontend --tail=100 | grep -i "<cluster-name>"`
     * Look for: HTTP status codes on the PUT request, validation errors, Cluster Service call failures
     * Common issues: 400 (validation), 409 (conflict), 500 (CS unreachable)
     
@@ -207,7 +208,7 @@ data:
     
     ### Step 4: Check Backend Logs
     * List backend pods: `kubectl get pods -n aro-hcp -l app=aro-hcp-backend -o name`
-    * For each pod, run: `kubectl logs <pod-name> -n aro-hcp -c aro-hcp-backend --tail=500 | grep -i "<cluster-name>"`
+    * For each pod, run: `kubectl logs <pod-name> -n aro-hcp -c aro-hcp-backend --tail=100 | grep -i "<cluster-name>"`
     * Look for operation state transitions (Accepted → Provisioning → Succeeded/Failed)
     * Key error messages to search for:
       - `"maestro bundle is degraded"` — ManifestWork has issues on management cluster
@@ -221,7 +222,7 @@ data:
     
     ### Step 6: Check Cluster Service Logs
     * List CS pods: `kubectl get pods -n clusters-service -l app=clusters-service -o name`
-    * For one pod, run: `kubectl logs <pod-name> -n clusters-service -c clusters-service --tail=500 | grep -i "<cluster-name>"`
+    * For one pod, run: `kubectl logs <pod-name> -n clusters-service -c clusters-service --tail=100 | grep -i "<cluster-name>"`
     * Look for: cluster creation events, ManifestWork creation status, Azure resource provisioning errors
     
     ### Step 7: Check Cluster Service Database

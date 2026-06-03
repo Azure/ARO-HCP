@@ -198,37 +198,39 @@ Admin API ──creates──► Ephemeral Holmes Pod (management cluster)
 - Workload Identity federated credentials require a fixed namespace/ServiceAccount subject (`aro-holmesgpt/holmesgpt`). HCP namespaces are dynamic and per-cluster, which would require a separate federated credential per HCP.
 - The pod accesses the HCP cluster via a CSR-signed kubeconfig, so the pod's own namespace does not affect its ability to reach the customer cluster's kube-apiserver.
 
-**Ephemeral pod spec** (aligned with [ARO classic](https://github.com/Azure/ARO-RP/pull/4754)):
+**Ephemeral pod spec**:
 - Holmes container image with `python holmes_cli.py ask` command
-- Args: `ask <question> -n --model=<model> --config=/etc/holmes/config.yaml`
+- Args: `ask <question> -n --model=<model> --config=/etc/holmes/main-config.yaml`
 - `ServiceAccountName: "holmesgpt"` (Workload Identity projected token)
-- `AutomountServiceAccountToken: true` (required for Workload Identity — the projected SA token is exchanged for an Entra ID access token)
-- Pod label: `azure.workload.identity/use: "true"` (triggers the WI mutating webhook to inject token volume)
-- Env vars:
-  - `AZURE_AD_TOKEN_AUTH=true` (plain value — instructs the Azure SDK to use Entra ID token auth instead of API keys)
-  - `AZURE_API_BASE` (plain env var from config — Azure OpenAI endpoint URL)
-  - `AZURE_API_VERSION` (plain env var from config — Azure OpenAI API version)
-  - `KUBECONFIG=/etc/kubeconfig/config` (path to the CSR-signed kubeconfig)
-- Kubeconfig mounted from Secret at `/etc/kubeconfig/config`
-- Holmes toolset config mounted from ConfigMap at `/etc/holmes/config.yaml`
-- `/tmp` and `/.holmes` EmptyDir volumes (required by Holmes for temp files and cache)
+- `AutomountServiceAccountToken: true` (required for Workload Identity)
+- Pod label: `azure.workload.identity/use: "true"` (triggers WI mutating webhook)
+- Env vars: `AZURE_AD_TOKEN_AUTH=true`, `AZURE_API_BASE`, `AZURE_API_VERSION`, `KUBECONFIG=/etc/kubeconfig/config`, `HOLMES_CONFIG_PATH=/etc/holmes/main-config.yaml`
 - Security context: non-root (UID 1000), all capabilities dropped, no privilege escalation
 - `ActiveDeadlineSeconds` for timeout enforcement (default: 600 seconds)
 - `RestartPolicy: Never`
 - Resource limits: 1 CPU / 2Gi memory; requests: 100m CPU / 256Mi memory
 
-**Holmes toolset config** (`holmes-config.yaml`, embedded via `//go:embed`):
-Defines which toolsets Holmes can use, with security-critical bash allowlist/denylist:
-- **Enabled**: `kubectl-run`, `kubernetes/core`, `kubernetes/logs`, `kubernetes/live-metrics`, `kubernetes/kube-prometheus-stack`, `bash` (with restricted commands)
+**Persistent ConfigMap** (`holmesgpt-dataplane-config`): Deployed once to the management cluster by the `deploy-mgmt` Helm chart. Contains:
+- `main-config.yaml` — HolmesGPT main config (model, api_base, api_version, custom_toolsets, custom_skill_paths)
+- `toolsets.yaml` — toolset allow/deny config (bash allowlist, enabled toolsets)
+- `skill-dataplane.md` — HCP creation troubleshooting skill for the data plane
+
+The ephemeral pod mounts this persistent ConfigMap instead of creating a per-investigation ConfigMap. Only the per-investigation **Secret** (kubeconfig) is created and cleaned up per request.
+
+**Holmes toolset config** (`holmes-config.yaml`):
+Defines which toolsets Holmes can use:
+- **Enabled**: `kubectl-run`, `kubernetes/core`, `kubernetes/logs`, `kubernetes/live-metrics`, `kubernetes/kube-prometheus-stack`, `bash` (with restricted commands), `skills`
 - **Bash allowlist**: `kubectl get`, `kubectl describe`, `kubectl logs`, `kubectl top`, `kubectl cluster-info`, `egrep`
 - **Bash denylist**: `kubectl delete`, `kubectl apply`, `kubectl create`, `kubectl exec`, `kubectl patch`, `kubectl scale`, `kubectl drain`, `rm`, `oc`
 - **Disabled**: All other toolsets (openshift, robusta, internet, argocd, helm, grafana, datadog, etc.)
 
-**Response streaming**: Admin API watches pod logs from the management cluster with `Follow: true` and streams to the HTTP response with chunked flushing.
+**Response handling**: For persistent Holmes (serviceplane/controlplane), the admin API buffers the `/api/chat` JSON response, extracts the `analysis` field, and returns only the analysis text. For ephemeral pods (dataplane), the admin API streams raw CLI output via pod logs.
 
-**Ephemeral Secret**: Contains only the `config` key (kubeconfig YAML with embedded client cert/key + CA). No Azure OpenAI credentials are stored in the Secret — authentication to Azure OpenAI is handled via Workload Identity tokens.
+**Ephemeral Secret**: Contains only the `config` key (kubeconfig YAML with embedded client cert/key + CA). No Azure OpenAI credentials — authentication is via Workload Identity.
 
-**Cleanup**: Deferred deletion of pod, Secret, ConfigMap, CSR, and CSR approval on the management cluster.
+**Cleanup**: Deferred deletion of pod, Secret, CSR, and CSR approval on the management cluster.
+
+**Error handling**: All infrastructure errors (FPA auth, REST config, kubeconfig build, Holmes service errors) return `arm.CloudError` with descriptive messages including the root cause, not generic "Internal server error".
 
 **RBAC on customer clusters**: A `system:aro-diagnostics` ClusterRole + ClusterRoleBinding must be deployed to every HCP cluster, providing read-only access to diagnostic resources (pods, logs, nodes, events, deployments, etc.). This mirrors the ARO classic `system:aro-diagnostics` role.
 
@@ -282,19 +284,49 @@ The following Azure infrastructure must be provisioned per environment:
 
 | Resource | Scope | How Provisioned |
 |----------|-------|-----------------|
-| Azure OpenAI resource | Per region (or shared) | Bicep template in `dev-infrastructure/`. Must have custom subdomain and `disableLocalAuth=true` (enforces Entra ID-only auth). |
+| Azure OpenAI resource (DataZoneStandard SKU) | Per region | Bicep template in `dev-infrastructure/`. Custom subdomain, `disableLocalAuth=true`. |
 | Azure OpenAI model deployment (`gpt-5.2`) | Per AOAI resource | Bicep template |
-| Key Vault secrets (`holmes-azure-api-base`) | Per service Key Vault | Populated after AOAI provisioning |
-| Managed identity (`holmesgpt`) | Per management cluster | Created in `mgmt-cluster.bicep` |
+| Managed identity (`holmesgpt`) | Per management + service cluster | Created in `mgmt-cluster.bicep` and `svc-cluster.bicep` |
 | Federated credential | Links `aro-holmesgpt/holmesgpt` SA to managed identity | Created in `aks-cluster-base.bicep` (automatic) |
-| `Cognitive Services OpenAI User` role | On AOAI resource | Assigned to `holmesgpt` managed identity |
-| `aro-holmesgpt` namespace + `holmesgpt` ServiceAccount | Per management cluster | Created by admin API or pipeline |
-| HolmesGPT container image in ACR | Per ACR | Image build pipeline or manual push |
+| `Cognitive Services OpenAI User` role | On AOAI resource | Assigned to `holmesgpt` managed identity on both clusters |
+| FPA `Azure Kubernetes Service Cluster User Role` | On management cluster AKS | `svc-mgmt-aks-permissions.bicep` — required for `listClusterUserCredential` API |
+| FPA `Azure Kubernetes Service RBAC Cluster Admin` | On management cluster AKS | `svc-mgmt-aks-permissions.bicep` — required for pod/secret/CSR operations |
+| `aro-holmesgpt` namespace + `holmesgpt` ServiceAccount | Per management + service cluster | Created by Holmes pipeline |
+| HolmesGPT container image | Per environment | `quay.io/haoran/holmesgpt:latest` (dev) or ACR (prod) |
 | `system:aro-diagnostics` RBAC on HCP clusters | Per HCP cluster | ACM policy (`aro-diagnostics-rbac.policy.yaml`) via `all-hosted-clusters` Placement |
+
+**Pipeline deployment**:
+- Management cluster: `holmesgpt/pipeline.yaml` deploys SA + persistent server + dataplane ConfigMap
+- Service cluster: `holmesgpt/svc-pipeline.yaml` deploys persistent server (registered in `topology.yaml` as `HolmesGPT.Svc`)
+- `azureOpenAIAPIBase` is derived from `aoaiName` in `config.yaml`: `https://arohcp-{env}-aoai-{regionShort}.openai.azure.com`
 
 **Production deployment**: Changes deploy via EV2 through ADO pipelines in `sdp-pipelines`. MSFT-specific overrides (image digests, AOAI endpoints, KV names) go in `sdp-pipelines/hcp/config.clouds-overlay.yaml`. STG/PROD require approval from `TM-AzureRedHatOpenshift-HCP-Leads`.
 
-## 6. Shared Code: CSR and Certificate Utilities
+## 6. Custom Skills for HCP Creation Troubleshooting
+
+HolmesGPT supports custom skills — step-by-step troubleshooting guides that Holmes follows when investigating issues. Each skill is a `SKILL.md` file with YAML frontmatter and markdown body, loaded via `custom_skill_paths` in the main config.
+
+### Scope-Specific Skills
+
+Each scope's Holmes instance has only its own skill to avoid confusion:
+
+| Scope | Skill | What it checks |
+|-------|-------|---------------|
+| `serviceplane` | `hcp-creation-serviceplane` | Frontend/backend pods + logs, Cluster Service state, Maestro server, operation status |
+| `controlplane` | `hcp-creation-controlplane` | HostedCluster/HostedControlPlane conditions, control plane pods (etcd, kube-apiserver), NodePool, CAPI machines, HyperShift operator |
+| `dataplane` | `hcp-creation-dataplane` | Node status, ClusterOperators, ClusterVersion, pod health, storage, networking |
+
+### Skill Deployment
+
+- **Service cluster**: `holmesgpt-skills` ConfigMap with serviceplane skill, mounted at `/etc/holmes/skills/`
+- **Management cluster (persistent server)**: `holmesgpt-skills` ConfigMap with controlplane skill
+- **Management cluster (ephemeral pods)**: `holmesgpt-dataplane-config` ConfigMap with dataplane skill
+
+### Skill Discovery
+
+Skills are configured via `custom_skill_paths: ["/etc/holmes/skills/"]` in the HolmesGPT main config. Holmes scans the directory for `SKILL.md` files and matches them to user questions based on the skill's `description` field.
+
+## 7. Shared Code: CSR and Certificate Utilities
 
 The CSR generation and certificate utility code currently lives in `tooling/hcpctl/pkg/breakglass/certs/` and `minting/`. To enable reuse by the admin API without importing from `tooling/`, these packages will be extracted to shared `internal/` packages:
 
@@ -307,7 +339,7 @@ New addition: `BuildDiagnosticsSubject()` returning CN=`system:sre-break-glass:a
 
 `tooling/hcpctl/` imports will be updated to point to the new shared packages.
 
-## 7. Security Considerations
+## 8. Security Considerations
 
 | Concern | Mitigation |
 |---------|-----------|
@@ -320,7 +352,7 @@ New addition: `BuildDiagnosticsSubject()` returning CN=`system:sre-break-glass:a
 | **Management cluster access** | FPA credentials scoped to specific tenant. AKS API requires proper Azure RBAC. |
 | **Persistent Holmes services** | Helm-managed ServiceAccount with read-only ClusterRole. No write permissions. |
 
-## 8. Phasing
+## 9. Phasing
 
 | Phase | Scope | Status | Description |
 |-------|-------|--------|-------------|
@@ -330,7 +362,7 @@ New addition: `BuildDiagnosticsSubject()` returning CN=`system:sre-break-glass:a
 
 Note: Private HCP clusters are supported out of the box by running the ephemeral pod on the management cluster (where the kube-apiserver is co-located). No separate phase is needed.
 
-## 9. Alternatives Considered
+## 10. Alternatives Considered
 
 ### 9.1 All-Ephemeral Pods
 Run ephemeral Holmes pods for every scope, not just dataplane. Rejected because:
@@ -359,7 +391,7 @@ Run the dataplane investigation pod on the service cluster instead of the manage
 - Service cluster can only reach public HCP API servers — private clusters would require a separate Phase 4 for network path establishment
 - Running on the management cluster provides co-located access to the kube-apiserver (which runs as a pod in the HCP namespace), eliminating all connectivity concerns
 
-## 10. Open Questions
+## 11. Open Questions
 
 1. **Holmes on management cluster routing**: How does the admin API know the Holmes service namespace on the management cluster? Should it be a convention (e.g., `aro-holmes`) or configurable per management cluster?
    - **Resolved**: `aro-holmesgpt` is used as a fixed convention on all clusters (management and service). This namespace hosts the ephemeral investigation pods (dataplane), the persistent Holmes server (serviceplane/controlplane), and the `holmesgpt` ServiceAccount bound to Workload Identity.
