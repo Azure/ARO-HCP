@@ -23,6 +23,8 @@ metadata:
 data:
   hcp-creation-controlplane.md: |
 {{ .Files.Get "skills/hcp-creation-controlplane/SKILL.md" | indent 4 }}
+  hcp-deletion-controlplane.md: |
+{{ .Files.Get "skills/hcp-deletion-controlplane/SKILL.md" | indent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -40,5 +42,7 @@ data:
       - "/etc/holmes/config.yaml"
     custom_skill_paths:
       - "/etc/holmes/skills/"
-  skill-dataplane.md: |
-{{ .Files.Get "skills/hcp-creation-dataplane/SKILL.md" | indent 4 }}
+  skill-creation-dataplane.md: |
+{{ .Files.Get "skills-dataplane/hcp-creation-dataplane/SKILL.md" | indent 4 }}
+  skill-deletion-dataplane.md: |
+{{ .Files.Get "skills-dataplane/hcp-deletion-dataplane/SKILL.md" | indent 4 }}

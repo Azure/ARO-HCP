@@ -7,6 +7,9 @@ description: Troubleshoot HCP cluster creation failures on the service cluster. 
 Diagnose why an ARO-HCP cluster creation is failing or stuck by investigating the service cluster components involved in the creation workflow.
 
 ## Important Instructions
+- Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+- Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+- Do NOT try to access ManifestWork, ManagedCluster, HostedCluster, or HyperShift CRDs — these live on the management cluster, not here. Only check pods, logs, events in `aro-hcp`, `clusters-service`, `maestro` namespaces.
 - When checking logs, always use `--tail=100` to limit output size. Do NOT ask the user for a time window.
 - When grepping for a cluster name, use the cluster name from the user's question.
 - Execute all steps — do not skip log checks. If a grep returns no results, report that and move on.

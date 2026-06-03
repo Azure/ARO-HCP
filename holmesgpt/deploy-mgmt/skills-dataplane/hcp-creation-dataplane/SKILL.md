@@ -3,6 +3,10 @@ name: hcp-creation-dataplane
 description: Troubleshoot HCP cluster creation failures on the customer data plane cluster. Use this when worker nodes are not joining, OpenShift operators are degraded, cluster version is not converging, or pods are failing on the customer cluster.
 ---
 
+## Important Instructions
+- Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+- Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+
 ## Goal
 Diagnose why an ARO-HCP customer cluster's data plane is not healthy after control plane creation succeeded. Check worker nodes, OpenShift operators, and cluster convergence.
 

@@ -23,3 +23,5 @@ metadata:
 data:
   hcp-creation-serviceplane.md: |
 {{ .Files.Get "skills/hcp-creation-serviceplane/SKILL.md" | indent 4 }}
+  hcp-deletion-serviceplane.md: |
+{{ .Files.Get "skills/hcp-deletion-serviceplane/SKILL.md" | indent 4 }}

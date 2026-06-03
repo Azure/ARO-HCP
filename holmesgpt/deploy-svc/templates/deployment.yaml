@@ -55,6 +55,10 @@ spec:
           mountPath: /etc/holmes/skills/hcp-creation-serviceplane/SKILL.md
           subPath: hcp-creation-serviceplane.md
           readOnly: true
+        - name: holmes-skills
+          mountPath: /etc/holmes/skills/hcp-deletion-serviceplane/SKILL.md
+          subPath: hcp-deletion-serviceplane.md
+          readOnly: true
         - name: tmp
           mountPath: /tmp
         resources:

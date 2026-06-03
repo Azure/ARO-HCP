@@ -3,6 +3,10 @@ name: hcp-creation-controlplane
 description: Troubleshoot HCP cluster creation failures on the management cluster. Use this when HostedCluster is not becoming available, control plane pods are failing, NodePool machines are not provisioning, or HyperShift operator has issues.
 ---
 
+## Important Instructions
+- Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+- Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+
 ## Goal
 Diagnose why an ARO-HCP cluster creation is failing on the management cluster by checking HyperShift custom resources, control plane pods, and CAPI machines.
 
