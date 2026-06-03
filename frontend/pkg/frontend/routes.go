@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/errorutils"
 )
 
@@ -51,7 +52,163 @@ const (
 
 	ActionRequestAdminCredential = "requestadmincredential"
 	ActionRevokeCredentials      = "revokecredentials"
+
+	// User-visible display names for provider and resource types
+	ProviderDisplay                          = "Azure Red Hat OpenShift"
+	ClusterResourceTypeDisplaySingle         = "Hosted Control Plane (HCP) OpenShift Cluster"
+	ClusterResourceTypeDisplayPlural         = "Hosted Control Plane (HCP) OpenShift Clusters"
+	NodePoolResourceTypeDisplaySingle        = "Node Pool"
+	NodePoolResourceTypeDisplayPlural        = "Node Pools"
+	ExternalAuthResourceTypeDisplaySingle    = "External Authentication Configuration"
+	ExternalAuthResourceTypeDisplayPlural    = "External Authentication Configurations"
+	VersionResourceTypeDisplaySingle         = "OpenShift Container Platform Version"
+	VersionResourceTypeDisplayPlural         = "OpenShift Container Platform Versions"
+	OperationResultResourceTypeDisplaySingle = "Asynchronous Operation Result"
+	OperationResultResourceTypeDisplayPlural = "Asynchronous Operation Results"
+	OperationStatusResourceTypeDisplaySingle = "Asynchronous Operation Status"
+	OperationStatusResourceTypeDisplayPlural = "Asynchronous Operation Statuses"
 )
+
+// AvailableOperations defines the static response content for the resource provider's "operations" endpoint.
+// There should be an entry in this list for each route defined in our provider namespace. For more details see:
+// https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/proxy-api-reference.md#exposing-available-operations
+var AvailableOperations = []arm.NamespaceOperation{
+	{
+		Name: path.Join(api.ProviderNamespace, "register", arm.NamespaceOperationAction),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ProviderDisplay,
+			Operation:   "Register the Azure Red Hat OpenShift (ARO) Resource Provider",
+			Description: "Register the subscription for the Azure Red Hat OpenShift (ARO) resource provider and enable the creation of OpenShift clusters",
+		},
+	},
+	{
+		Name: path.Join(api.ClusterResourceType.String(), arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ClusterResourceTypeDisplayPlural,
+			Operation:   "Read " + ClusterResourceTypeDisplaySingle,
+			Description: "Read any " + ClusterResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.ClusterResourceType.String(), arm.NamespaceOperationWrite),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ClusterResourceTypeDisplayPlural,
+			Operation:   "Create or Update " + ClusterResourceTypeDisplaySingle,
+			Description: "Create or Update any " + ClusterResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.ClusterResourceType.String(), arm.NamespaceOperationDelete),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ClusterResourceTypeDisplayPlural,
+			Operation:   "Delete " + ClusterResourceTypeDisplaySingle,
+			Description: "Delete any " + ClusterResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.ClusterResourceType.String(), ActionRequestAdminCredential, arm.NamespaceOperationAction),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ClusterResourceTypeDisplayPlural,
+			Operation:   "Request Administrator Credential",
+			Description: "Request a kubeconfig file for a " + ClusterResourceTypeDisplaySingle + " that authenticates using a limited-time signed certificate with administrator permissions",
+		},
+	},
+	{
+		Name: path.Join(api.ClusterResourceType.String(), ActionRevokeCredentials, arm.NamespaceOperationAction),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ClusterResourceTypeDisplayPlural,
+			Operation:   "Revoke All Credentials",
+			Description: "Revoke all unexpired certificates issued for user access to a " + ClusterResourceTypeDisplaySingle,
+		},
+	},
+	{
+		Name: path.Join(api.NodePoolResourceType.String(), arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    NodePoolResourceTypeDisplayPlural,
+			Operation:   "Read " + NodePoolResourceTypeDisplaySingle,
+			Description: "Read any " + NodePoolResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.NodePoolResourceType.String(), arm.NamespaceOperationWrite),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    NodePoolResourceTypeDisplayPlural,
+			Operation:   "Create or Update " + NodePoolResourceTypeDisplaySingle,
+			Description: "Create or Update any " + NodePoolResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.NodePoolResourceType.String(), arm.NamespaceOperationDelete),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    NodePoolResourceTypeDisplayPlural,
+			Operation:   "Delete " + NodePoolResourceTypeDisplaySingle,
+			Description: "Delete any " + NodePoolResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.ExternalAuthResourceType.String(), arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ExternalAuthResourceTypeDisplayPlural,
+			Operation:   "Read " + ExternalAuthResourceTypeDisplaySingle,
+			Description: "Read any " + ExternalAuthResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.ExternalAuthResourceType.String(), arm.NamespaceOperationWrite),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ExternalAuthResourceTypeDisplayPlural,
+			Operation:   "Create or Update " + ExternalAuthResourceTypeDisplaySingle,
+			Description: "Create or Update any " + ExternalAuthResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.ExternalAuthResourceType.String(), arm.NamespaceOperationDelete),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    ExternalAuthResourceTypeDisplayPlural,
+			Operation:   "Delete " + ExternalAuthResourceTypeDisplaySingle,
+			Description: "Delete any " + ExternalAuthResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.VersionResourceType.String(), arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    VersionResourceTypeDisplayPlural,
+			Operation:   "Read " + VersionResourceTypeDisplaySingle,
+			Description: "Read any " + VersionResourceTypeDisplayPlural,
+		},
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "locations", api.OperationResultResourceTypeName, arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    OperationResultResourceTypeDisplayPlural,
+			Operation:   "Read " + OperationResultResourceTypeDisplaySingle,
+			Description: "Read the result of a successful asynchronous operation",
+		},
+	},
+	{
+		Name: path.Join(api.ProviderNamespace, "locations", api.OperationStatusResourceTypeName, arm.NamespaceOperationRead),
+		Display: arm.NamespaceOperationDisplay{
+			Provider:    ProviderDisplay,
+			Resource:    OperationStatusResourceTypeDisplayPlural,
+			Operation:   "Read " + OperationStatusResourceTypeDisplaySingle,
+			Description: "Read the status of an ongoing or failed asynchronous operation",
+		},
+	},
+}
 
 // MuxPattern forms a URL pattern suitable for passing to http.ServeMux.
 // Literal path segments must be lowercase because MiddlewareLowercase
@@ -106,6 +263,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmResourceListVersion)))
 
 	// Resource read endpoints
+	// These endpoints must have a corresponding entry in AvailableOperations.
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
@@ -125,6 +283,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.GetExternalAuth)))
 
 	// Resource create/update/delete endpoints
+	// These endpoints must have a corresponding entry in AvailableOperations.
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
@@ -165,7 +324,8 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.DeleteExternalAuth)))
 
-	// Operation endpoints
+	// Asynchronous operation endpoints
+	// These endpoints must have a corresponding entry in AvailableOperations.
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
@@ -177,7 +337,19 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationStatuses),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.OperationStatus)))
+
 	// Exclude ARO-HCP API version validation for the following endpoints defined by ARM.
+
+	// Available operations endpoint
+	// This is a tenant-wide endpoint and is therefore not grouped with the other subscription-scoped list endpoints.
+	// API version validation is intentionally omitted on this endpoint because both ARO Classic and ARO-HCP services
+	// share the same provider namespace, and each service uses its own disjoint set of API versions. This endpoint
+	// must respond with the same content across all API versions registered to this provider namespace.
+	postMuxMiddleware = NewMiddleware(
+		MiddlewareLoggingPostMux)
+	middlewareMux.Handle(
+		MuxPattern(http.MethodGet, PatternProviders, "operations"),
+		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmOperationsList)))
 
 	// Subscription management endpoints
 	postMuxMiddleware = NewMiddleware(
