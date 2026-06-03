@@ -1875,7 +1875,7 @@ resource arohcpNodepoolComponentAlerts 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Node Pool controller workqueue {{ $labels.name }} depth is high'
           title: 'Node Pool controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp", name=~".*nodepool.*"} ) ) > 10'
+        expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp", name=~".*NodePool.*"} ) ) > 10'
         for: 'PT5M'
         severity: 4
       }
@@ -1902,7 +1902,7 @@ resource arohcpNodepoolComponentAlerts 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Node Pool controller workqueue {{ $labels.name }} retry hot loop'
           title: 'Node Pool controller workqueue {{ $labels.name }} retry hot loop'
         }
-        expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp", name=~".*nodepool.*"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp", name=~".*nodepool.*"}[10m]) ) ) ) > 0.5'
+        expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m]) ) ) ) > 0.5'
         for: 'PT10M'
         severity: 4
       }
