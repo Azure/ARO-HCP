@@ -17,6 +17,7 @@ package testrunner
 import (
 	"fmt"
 	"io"
+	"path"
 	"slices"
 	"strings"
 
@@ -49,7 +50,20 @@ var workloadKinds = sets.New[string](
 	"CronJob",
 )
 
-func checkPolicyViolations(manifest string, resourceLimitsAllowlist sets.Set[string]) []string {
+func matchesAllowlist(key string, patterns []string) (bool, error) {
+	for _, p := range patterns {
+		matched, err := path.Match(p, key)
+		if err != nil {
+			return false, fmt.Errorf("invalid allowlist pattern %q: %w", p, err)
+		}
+		if matched {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func checkPolicyViolations(manifest string, resourceLimitsAllowlist []string) []string {
 	var violations []string
 
 	decoder := utilyaml.NewYAMLToJSONDecoder(strings.NewReader(manifest))
@@ -82,12 +96,17 @@ func checkPolicyViolations(manifest string, resourceLimitsAllowlist sets.Set[str
 	return violations
 }
 
-func checkPodSpecHasNoResourceLimits(kind, name string, podSpec corev1.PodSpec, allowlist sets.Set[string]) []string {
+func checkPodSpecHasNoResourceLimits(kind, name string, podSpec corev1.PodSpec, allowlist []string) []string {
 	var violations []string
 	for _, c := range slices.Concat(podSpec.InitContainers, podSpec.Containers) {
 		if len(c.Resources.Limits) > 0 {
 			key := fmt.Sprintf("%s/%s/%s", kind, name, c.Name)
-			if allowlist.Has(key) {
+			matched, err := matchesAllowlist(key, allowlist)
+			if err != nil {
+				violations = append(violations, err.Error())
+				continue
+			}
+			if matched {
 				continue
 			}
 			violations = append(violations, fmt.Sprintf("%s has resource limits set (add to ResourceLimitsAllowlist if intentional)", key))
@@ -96,7 +115,12 @@ func checkPodSpecHasNoResourceLimits(kind, name string, podSpec corev1.PodSpec, 
 	for _, ec := range podSpec.EphemeralContainers {
 		if len(ec.Resources.Limits) > 0 {
 			key := fmt.Sprintf("%s/%s/%s", kind, name, ec.Name)
-			if allowlist.Has(key) {
+			matched, err := matchesAllowlist(key, allowlist)
+			if err != nil {
+				violations = append(violations, err.Error())
+				continue
+			}
+			if matched {
 				continue
 			}
 			violations = append(violations, fmt.Sprintf("%s has resource limits set (add to ResourceLimitsAllowlist if intentional)", key))

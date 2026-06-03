@@ -6,4 +6,7 @@ Replace:
 ResourceLimitsAllowlist:
 - Deployment/acrpull/acrpull-controller # upstream chart sets limits
 - DaemonSet/arobit-forwarder/fluentbit # upstream fluent-bit chart sets limits
+- DaemonSet/arobit-forwarder/mdsd-cert-watchdog # upstream arobit chart sets limits
 - Deployment/multicluster-engine-operator/backplane-operator # third-party MCE chart, not ours to modify
+- Deployment/fleet-controller/fleet-controller # fleet controller chart sets limits
+- Job/*/fleet-registration # fleet registration job name varies by environment

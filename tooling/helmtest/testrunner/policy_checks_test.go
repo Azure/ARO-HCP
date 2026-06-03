@@ -18,15 +18,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-var emptyAllowlist = sets.New[string]()
+var emptyAllowlist []string
 
-var testAllowlist = sets.New[string](
+var testAllowlist = []string{
 	"DaemonSet/test-allowlisted-ds/test-container",
-)
+}
 
 func TestCheckPolicyViolations_DeploymentWithLimits(t *testing.T) {
 	manifest := `
@@ -220,6 +218,67 @@ spec:
 `
 	violations := checkPolicyViolations(manifest, emptyAllowlist)
 	assert.Empty(t, violations)
+}
+
+func TestCheckPolicyViolations_WildcardAllowlist(t *testing.T) {
+	manifest := `
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dev-westus3-svc-1-fleet-reg
+spec:
+  template:
+    spec:
+      containers:
+      - name: fleet-registration
+        resources:
+          limits:
+            memory: "256Mi"
+`
+	wildcardAllowlist := []string{"Job/*/fleet-registration"}
+	violations := checkPolicyViolations(manifest, wildcardAllowlist)
+	assert.Empty(t, violations)
+}
+
+func TestCheckPolicyViolations_WildcardNoMatch(t *testing.T) {
+	manifest := `
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dev-westus3-svc-1-fleet-reg
+spec:
+  template:
+    spec:
+      containers:
+      - name: some-other-container
+        resources:
+          limits:
+            memory: "256Mi"
+`
+	wildcardAllowlist := []string{"Job/*/fleet-registration"}
+	violations := checkPolicyViolations(manifest, wildcardAllowlist)
+	assert.Equal(t, []string{`Job/dev-westus3-svc-1-fleet-reg/some-other-container has resource limits set (add to ResourceLimitsAllowlist if intentional)`}, violations)
+}
+
+func TestCheckPolicyViolations_MalformedPattern(t *testing.T) {
+	manifest := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: web
+        resources:
+          limits:
+            memory: "128Mi"
+`
+	badAllowlist := []string{"Deployment/my-app/[bad"}
+	violations := checkPolicyViolations(manifest, badAllowlist)
+	assert.Len(t, violations, 1)
+	assert.Contains(t, violations[0], "invalid allowlist pattern")
 }
 
 func TestCheckPolicyViolations_MixedAllowlistedAndViolating(t *testing.T) {

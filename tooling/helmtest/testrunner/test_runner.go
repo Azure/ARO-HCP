@@ -32,8 +32,6 @@ import (
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/config"
@@ -154,7 +152,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 	assert.NoError(t, err)
 	assert.NotNil(t, helmSteps)
 
-	resourceLimitsAllowlist := sets.New[string](settings.ResourceLimitsAllowlist...)
+	resourceLimitsAllowlist := settings.ResourceLimitsAllowlist
 	chartDirsVisited := make(map[string]bool)
 
 	for _, helmStep := range helmSteps {
