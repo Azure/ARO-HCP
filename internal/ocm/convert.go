@@ -59,31 +59,32 @@ import (
 // See docs/api-version-defaults-and-storage.md for the full design rationale.
 
 const (
-	csCloudProvider    string = "azure"
+	CSCloudProvider    string = "azure"
 	csProductId        string = "aro"
 	csHypershifEnabled bool   = true
 	csCCSEnabled       bool   = true
 
 	// The OCM SDK does not provide these constants.
 
-	csCustomerManagedEncryptionTypeKms   string = "kms"
-	csEncryptionAtHostStateDisabled      string = "disabled"
-	csEncryptionAtHostStateEnabled       string = "enabled"
-	csImageRegistryStateDisabled         string = "disabled"
-	csImageRegistryStateEnabled          string = "enabled"
-	csKeyManagementModeCustomerManaged   string = "customer_managed"
-	csKeyManagementModePlatformManaged   string = "platform_managed"
-	csNodeDrainGracePeriodUnit           string = "minutes"
-	csOutboundType                       string = "load_balancer"
-	csUsernameClaimPrefixPolicyNoPrefix  string = "NoPrefix"
-	csUsernameClaimPrefixPolicyPrefix    string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll   string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList  string = "allow_list"
-	csOsDiskPersistencePersistent        string = "persistent"
-	csOsDiskPersistenceEphemeral         string = "ephemeral"
-	csProvisioningShardStatusActive      string = "active"
-	csProvisioningShardStatusMaintenance string = "maintenance"
-	csProvisioningShardStatusOffline     string = "offline"
+	csCustomerManagedEncryptionTypeKms  string = "kms"
+	csEncryptionAtHostStateDisabled     string = "disabled"
+	csEncryptionAtHostStateEnabled      string = "enabled"
+	csImageRegistryStateDisabled        string = "disabled"
+	csImageRegistryStateEnabled         string = "enabled"
+	csKeyManagementModeCustomerManaged  string = "customer_managed"
+	csKeyManagementModePlatformManaged  string = "platform_managed"
+	csNodeDrainGracePeriodUnit          string = "minutes"
+	csOutboundType                      string = "load_balancer"
+	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
+	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
+	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
+	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+	csOsDiskPersistencePersistent       string = "persistent"
+	csOsDiskPersistenceEphemeral        string = "ephemeral"
+	CSProvisionShardStatusActive        string = "active"
+	CSProvisionShardStatusMaintenance   string = "maintenance"
+	CSProvisionShardStatusOffline       string = "offline"
+	CSProvisionShardTopologyShared      string = "shared"
 )
 
 // Sentinel error for use with errors.Is
@@ -439,7 +440,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(hcpCluster.Location)).
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
-			ID(csCloudProvider)).
+			ID(CSCloudProvider)).
 		Product(arohcpv1alpha1.NewProduct().
 			ID(csProductId)).
 		Hypershift(arohcpv1alpha1.NewHypershift().
@@ -806,14 +807,14 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 		LastTransitionTime: metav1.Now(),
 	}
 	switch csShard.Status() {
-	case csProvisioningShardStatusActive:
+	case CSProvisionShardStatusActive:
 		readyCondition.Status = metav1.ConditionTrue
 		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardActive)
-	case csProvisioningShardStatusMaintenance:
+	case CSProvisionShardStatusMaintenance:
 		readyCondition.Status = metav1.ConditionFalse
 		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardMaintenance)
 		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
-	case csProvisioningShardStatusOffline:
+	case CSProvisionShardStatusOffline:
 		readyCondition.Status = metav1.ConditionFalse
 		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardOffline)
 		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
@@ -874,7 +875,7 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 // convertShardStatusToSchedulingPolicy maps a Cluster Service provision shard
 // status to a ManagementClusterSchedulingPolicy.
 func convertShardStatusToSchedulingPolicy(status string) fleet.ManagementClusterSchedulingPolicy {
-	if status == csProvisioningShardStatusActive {
+	if status == CSProvisionShardStatusActive {
 		return fleet.ManagementClusterSchedulingPolicySchedulable
 	}
 	return fleet.ManagementClusterSchedulingPolicyUnschedulable
