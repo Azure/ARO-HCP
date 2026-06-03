@@ -38,7 +38,7 @@ const (
 	// ManagementClusterConditionReady indicates the management cluster is
 	// provisioned and operational. This is an aggregate condition: True only
 	// when both ClustersServiceRegistered and MaestroRegistered are True.
-	// Owner: ManagementClusterPromotionController.
+	// Owner: ManagementClusterLifecycleController.
 	ManagementClusterConditionReady ManagementClusterConditionType = "Ready"
 
 	// ManagementClusterConditionClustersServiceRegistered indicates whether the
