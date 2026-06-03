@@ -67,6 +67,10 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, "https://api.example.com:6443", cluster.ServiceProviderProperties.API.URL, "API URL should be populated from ControlPlaneEndpoint")
 			},
 		},
 		{
@@ -209,15 +213,24 @@ func TestDetermineOperationStatus(t *testing.T) {
 	operation := fixture.newOperation(database.OperationRequestCreate)
 
 	tests := []struct {
-		name             string
-		readDesireLister dblisters.ReadDesireLister
-		expectedState    arm.ProvisioningState
-		expectedMessage  string
-		expectError      bool
-		errContains      string
+		name              string
+		readDesireLister  dblisters.ReadDesireLister
+		resourcesDBClient database.ResourcesDBClient
+		expectedState     arm.ProvisioningState
+		expectedMessage   string
+		expectError       bool
+		errContains       string
 	}{
 		{
 			name: "hosted cluster ready → Succeeded",
+			resourcesDBClient: func() database.ResourcesDBClient {
+				db, err := databasetesting.NewMockResourcesDBClientWithResources(
+					utils.ContextWithLogger(context.Background(), testr.New(t)),
+					[]any{fixture.newCluster(nil)},
+				)
+				require.NoError(t, err)
+				return db
+			}(),
 			readDesireLister: &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
 					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
@@ -362,7 +375,8 @@ func TestDetermineOperationStatus(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 			controller := &operationClusterCreate{
-				readDesireLister: tt.readDesireLister,
+				readDesireLister:  tt.readDesireLister,
+				resourcesDBClient: tt.resourcesDBClient,
 			}
 
 			result, err := controller.determineOperationStatus(ctx, operation)

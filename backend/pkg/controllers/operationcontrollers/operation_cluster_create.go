@@ -285,9 +285,36 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 		return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster has no control plane endpoint port"), nil
 	}
 
-	// if we got here,
-	// 1. the hosted cluster is available via condition
-	// 2. the hosted cluster has successfully installed at least one version
-	// 3. the hosted cluster has a control plane endpoint host and port
+	// Ensure the API URL is populated in the Cosmos cluster document before
+	// the create operation transitions to Succeeded. The cluster_properties_sync
+	// controller copies this from Cluster Service on a 5-minute cycle; writing
+	// it here from the HostedCluster's ControlPlaneEndpoint avoids a delay
+	// where the operation succeeds but the user sees an empty API URL.
+	if err := c.ensureAPIURL(ctx, operation, hostedCluster); err != nil {
+		return nil, utils.TrackError(err)
+	}
+
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) ensureAPIURL(ctx context.Context, operation *api.Operation, hostedCluster *v1beta1.HostedCluster) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	clusterCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName)
+	cluster, err := clusterCRUD.Get(ctx, operation.ExternalID.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster for API URL check: %w", err)
+	}
+
+	if len(cluster.ServiceProviderProperties.API.URL) > 0 {
+		return nil
+	}
+
+	apiURL := fmt.Sprintf("https://%s:%d", hostedCluster.Status.ControlPlaneEndpoint.Host, hostedCluster.Status.ControlPlaneEndpoint.Port)
+	cluster.ServiceProviderProperties.API.URL = apiURL
+	if _, err := clusterCRUD.Replace(ctx, cluster, nil); err != nil {
+		return fmt.Errorf("failed to write API URL to cluster: %w", err)
+	}
+	logger.Info("Populated API URL from HostedCluster ControlPlaneEndpoint", "apiURL", apiURL)
+	return nil
 }
