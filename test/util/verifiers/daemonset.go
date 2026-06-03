@@ -26,6 +26,7 @@ import (
 type verifyDaemonSetReady struct {
 	namespace string
 	name      string
+	wait      waitSettings
 }
 
 func (v verifyDaemonSetReady) Name() string {
@@ -37,6 +38,10 @@ func daemonSetVerifierName(namespace, name string) string {
 }
 
 func (v verifyDaemonSetReady) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	return verifyOnceOrPoll(ctx, v.Name(), adminRESTConfig, v.wait, nil, v.checkOnce)
+}
+
+func (v verifyDaemonSetReady) checkOnce(ctx context.Context, adminRESTConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
@@ -59,8 +64,12 @@ func (v verifyDaemonSetReady) Verify(ctx context.Context, adminRESTConfig *rest.
 }
 
 // VerifyDaemonSetReady verifies that a DaemonSet exists, has at least one desired pod, and
-// NumberReady equals DesiredNumberScheduled. Pass [WithPolling] when the DaemonSet may not
-// exist or become ready immediately; omit poll options for a single-shot check.
-func VerifyDaemonSetReady(namespace, name string, opts ...PollOption) HostedClusterVerifier {
-	return maybePoll(verifyDaemonSetReady{namespace: namespace, name: name}, opts, nil)
+// NumberReady equals DesiredNumberScheduled. Pass [WithWait] when the DaemonSet may not exist
+// or become ready immediately; omit wait options for a single-shot check.
+func VerifyDaemonSetReady(namespace, name string, opts ...WaitOption) HostedClusterVerifier {
+	return verifyDaemonSetReady{
+		namespace: namespace,
+		name:      name,
+		wait:      applyWaitOptions(opts),
+	}
 }

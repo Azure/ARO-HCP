@@ -30,27 +30,25 @@ const DefaultPollInterval = 15 * time.Second
 
 type diagnoseFunc func(ctx context.Context, restConfig *rest.Config) string
 
-type pollConfig struct {
+type waitSettings struct {
 	timeout  time.Duration
 	interval time.Duration
-	diagnose diagnoseFunc
 }
 
-// PollOption configures optional polling behavior for verifier constructors.
-// Test authors should use [WithPolling] when a condition may take time to become true,
-// and omit poll options for a single-shot check. Verifier authors pass opts to maybePoll.
-type PollOption func(*pollConfig)
+// WaitOption configures optional wait behavior on verifier constructors. When timeout is
+// zero (the default), Verify performs a single check. Verifier authors store the result
+// on the verifier struct and call verifyOnceOrPoll from Verify.
+type WaitOption func(*waitSettings)
 
-// WithPolling is the only poll option intended for E2E tests. It wraps the verifier so
-// Verify polls until success or timeout, with delta-only logging and elapsed-time reporting.
-// Omit WithPolling (and any other PollOption) when the condition must already be true.
+// WithWait configures Verify to poll until the condition succeeds or timeout expires.
+// Omit WithWait when the condition must already be true.
 //
 // Example:
 //
-//	err := verifiers.VerifyDaemonSetReady(ns, name, verifiers.WithPolling(10*time.Minute, 15*time.Second)).
+//	err := verifiers.VerifyDaemonSetReady(ns, name, verifiers.WithWait(10*time.Minute, 15*time.Second)).
 //		Verify(ctx, adminRESTConfig)
-func WithPolling(timeout, interval time.Duration) PollOption {
-	return func(c *pollConfig) {
+func WithWait(timeout, interval time.Duration) WaitOption {
+	return func(c *waitSettings) {
 		c.timeout = timeout
 		if interval > 0 {
 			c.interval = interval
@@ -58,44 +56,32 @@ func WithPolling(timeout, interval time.Duration) PollOption {
 	}
 }
 
-func applyPollOptions(opts []PollOption) pollConfig {
-	cfg := pollConfig{}
+func applyWaitOptions(opts []WaitOption) waitSettings {
+	cfg := waitSettings{}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	if cfg.interval == 0 {
+	if cfg.timeout > 0 && cfg.interval == 0 {
 		cfg.interval = DefaultPollInterval
 	}
 	return cfg
 }
 
-// maybePoll applies poll options from verifier constructors. Internal to this package; tests
-// must not call it — use [WithPolling] on the public constructor instead.
-func maybePoll(inner HostedClusterVerifier, opts []PollOption, defaultDiagnose diagnoseFunc) HostedClusterVerifier {
-	cfg := applyPollOptions(opts)
-	if cfg.timeout == 0 {
-		return inner
+// verifyOnceOrPoll runs check once or polls until success depending on wait settings.
+func verifyOnceOrPoll(
+	ctx context.Context,
+	name string,
+	restConfig *rest.Config,
+	wait waitSettings,
+	diagnose diagnoseFunc,
+	check func(context.Context, *rest.Config) error,
+) error {
+	if wait.timeout == 0 {
+		return check(ctx, restConfig)
 	}
-	if cfg.diagnose == nil {
-		cfg.diagnose = defaultDiagnose
-	}
-	return pollVerifier{
-		inner:    inner,
-		timeout:  cfg.timeout,
-		interval: cfg.interval,
-		diagnose: cfg.diagnose,
-	}
-}
-
-type pollVerifier struct {
-	inner    HostedClusterVerifier
-	timeout  time.Duration
-	interval time.Duration
-	diagnose diagnoseFunc
-}
-
-func (p pollVerifier) Name() string {
-	return p.inner.Name()
+	return pollUntilReady(ctx, name, wait.timeout, wait.interval, restConfig, diagnose, func(ctx context.Context) error {
+		return check(ctx, restConfig)
+	})
 }
 
 // logVerifierTiming records actual wall-clock duration when a verifier finishes polling.
@@ -109,28 +95,34 @@ func logVerifierTiming(name, outcome string, elapsed time.Duration) {
 	ginkgo.GinkgoWriter.Printf("[%s] %s after %s\n", name, outcome, rounded)
 }
 
-// Verify polls inner.Verify until it succeeds or timeout expires. Failure details are logged
+// pollUntilReady polls check until it succeeds or timeout expires. Failure details are logged
 // only when the error message changes between polls (delta-only logging). Actual elapsed
 // wall-clock time is logged on both success and failure. If diagnose is set, its output is
 // logged and appended when the poll times out.
-func (p pollVerifier) Verify(ctx context.Context, restConfig *rest.Config) error {
+func pollUntilReady(
+	ctx context.Context,
+	name string,
+	timeout, interval time.Duration,
+	restConfig *rest.Config,
+	diagnose diagnoseFunc,
+	check func(context.Context) error,
+) error {
 	logger := ginkgo.GinkgoLogr
 	var previousError string
 	var lastErr error
 	startTime := time.Now()
-	name := p.inner.Name()
 
-	logger.Info("Verifier polling", "name", name, "timeout", p.timeout.String(), "interval", p.interval.String())
-	ginkgo.GinkgoWriter.Printf("[%s] polling (timeout=%s, interval=%s)\n", name, p.timeout, p.interval)
+	logger.Info("Verifier polling", "name", name, "timeout", timeout.String(), "interval", interval.String())
+	ginkgo.GinkgoWriter.Printf("[%s] polling (timeout=%s, interval=%s)\n", name, timeout, interval)
 
-	err := wait.PollUntilContextTimeout(ctx, p.interval, p.timeout, true, func(ctx context.Context) (bool, error) {
-		err := p.inner.Verify(ctx, restConfig)
+	err := wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
+		err := check(ctx)
 		if err == nil {
 			return true, nil
 		}
 		currentError := err.Error()
 		if currentError != previousError {
-			logger.Info("Verifier check", "name", p.inner.Name(), "status", "failed", "error", currentError)
+			logger.Info("Verifier check", "name", name, "status", "failed", "error", currentError)
 			previousError = currentError
 		}
 		lastErr = err
@@ -144,10 +136,10 @@ func (p pollVerifier) Verify(ctx context.Context, restConfig *rest.Config) error
 	}
 
 	logVerifierTiming(name, "timed out", elapsed)
-	if p.diagnose != nil {
+	if diagnose != nil {
 		diagCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		if details := p.diagnose(diagCtx, restConfig); details != "" {
+		if details := diagnose(diagCtx, restConfig); details != "" {
 			logger.Info("Failure diagnostics", "name", name, "details", details)
 			if lastErr != nil {
 				return fmt.Errorf("%s timed out after %s: %w\n%s", name, elapsed.Round(time.Millisecond), lastErr, details)
