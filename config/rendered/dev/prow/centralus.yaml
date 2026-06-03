@@ -86,7 +86,7 @@ arobit:
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
   authRuleName: SendRule
-  enabled: true
+  enabled: false
   kustoConsumerGroupName: AuditLogsToKusto
   kustoDataConnectionName: prow-centralus-auditlogs
   name: aks-auditlogs
@@ -496,7 +496,7 @@ kusto:
   enableAutoScale: true
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us-2
-  location: centralus
+  location: eastus2
   manageInstance: false
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
