@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -38,6 +39,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/rest"
 
 	"sigs.k8s.io/yaml"
 
@@ -75,6 +77,7 @@ type perItOrDescribeTestContext struct {
 	azureLogFile     *os.File
 	timingMetadata   timing.SpecTimingMetadata
 	knownDeployments []deploymentInfo
+	hcpAdminConfigs  map[string]*rest.Config
 }
 
 type deploymentInfo struct {
@@ -131,6 +134,7 @@ func NewTestContext() *perItOrDescribeTestContext {
 		perBinaryInvocationTestContext: invocationContext(),
 		LogDirPath:                     logDirPath,
 		azureLogFile:                   azureLogFile,
+		hcpAdminConfigs:                make(map[string]*rest.Config),
 		timingMetadata: timing.SpecTimingMetadata{
 			// Answering the question of "what's the currently-running test name?" in Ginkgo is difficult -
 			// all we know in general is the hierarchy of nodes under which we are currently running. We
@@ -400,6 +404,11 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 			return tc.collectDebugInfoForResourceGroup(ctx, currResourceGroupName)
 		})
 	}
+	waitGroup.Go(func() error {
+		defer utilruntime.HandleCrashWithContext(ctx)
+		tc.collectHCPInspectData(ctx)
+		return nil
+	})
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
 		if !isResourceGroupNotFoundError(err) {
@@ -678,6 +687,102 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	}
 
 	return errors.Join(errs...)
+}
+
+func (tc *perItOrDescribeTestContext) collectHCPInspectData(ctx context.Context) {
+	if tc.LogDirPath == "" {
+		return
+	}
+
+	if _, err := exec.LookPath("oc"); err != nil {
+		ginkgo.GinkgoLogr.Info("oc not found in PATH, skipping HCP inspect data collection")
+		return
+	}
+
+	tc.contextLock.RLock()
+	configs := make(map[string]*rest.Config, len(tc.hcpAdminConfigs))
+	for k, v := range tc.hcpAdminConfigs {
+		configs[k] = v
+	}
+	tc.contextLock.RUnlock()
+
+	if len(configs) == 0 {
+		return
+	}
+
+	inspectGroup, inspectCtx := errgroup.WithContext(ctx)
+	for clusterKey, restConfig := range configs {
+		currKey := clusterKey
+		currConfig := restConfig
+		inspectGroup.Go(func() error {
+			defer utilruntime.HandleCrashWithContext(inspectCtx)
+			tc.runOCAdmInspect(inspectCtx, currKey, currConfig)
+			return nil
+		})
+	}
+	_ = inspectGroup.Wait()
+}
+
+func (tc *perItOrDescribeTestContext) runOCAdmInspect(ctx context.Context, clusterKey string, restConfig *rest.Config) {
+	parts := strings.SplitN(clusterKey, "/", 2)
+	if len(parts) != 2 {
+		ginkgo.GinkgoLogr.Error(fmt.Errorf("invalid cluster key %q", clusterKey), "skipping oc adm inspect")
+		return
+	}
+	clusterName := parts[1]
+	logger := ginkgo.GinkgoLogr.WithValues("cluster", clusterKey)
+	logger.Info("starting oc adm inspect for HCP cluster")
+
+	startTime := time.Now()
+	defer func() {
+		tc.RecordTestStep(fmt.Sprintf("oc adm inspect %s", clusterKey), startTime, time.Now())
+	}()
+
+	kubeconfigContent, err := GenerateKubeconfig(restConfig)
+	if err != nil {
+		logger.Error(err, "failed to generate kubeconfig for HCP inspect, skipping")
+		return
+	}
+
+	kubeconfigFile, err := os.CreateTemp("", fmt.Sprintf("inspect-kubeconfig-%s-*.yaml", clusterName))
+	if err != nil {
+		logger.Error(err, "failed to create temp kubeconfig file, skipping")
+		return
+	}
+	defer os.Remove(kubeconfigFile.Name())
+	defer kubeconfigFile.Close()
+
+	if _, err := kubeconfigFile.WriteString(kubeconfigContent); err != nil {
+		logger.Error(err, "failed to write temp kubeconfig file, skipping")
+		return
+	}
+	if err := kubeconfigFile.Close(); err != nil {
+		logger.Error(err, "failed to flush temp kubeconfig file, skipping")
+		return
+	}
+
+	inspectDir := filepath.Join(tc.LogDirPath, fmt.Sprintf("inspect-%s", clusterName))
+
+	inspectCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(inspectCtx, "oc", "adm", "inspect",
+		"--kubeconfig", kubeconfigFile.Name(),
+		"--dest-dir", inspectDir,
+		"ns/openshift-ingress",
+		"ns/openshift-ingress-operator",
+		"clusteroperator/ingress",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Error(err, "oc adm inspect failed", "output", string(output))
+		if mkdirErr := os.MkdirAll(inspectDir, 0755); mkdirErr == nil {
+			_ = os.WriteFile(filepath.Join(inspectDir, "inspect-error.log"), output, 0644)
+		}
+		return
+	}
+
+	logger.Info("oc adm inspect completed successfully", "outputDir", inspectDir)
 }
 
 func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx context.Context) (*graphutil.Application, *graphutil.ServicePrincipal, error) {
