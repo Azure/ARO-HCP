@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -128,11 +129,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
 	}
 
-	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
 	kubeInformers := kubeinformers.NewSharedInformerFactory(kubeClientset, 10*time.Minute)
 
 	ctrl, err := controller.NewSwiftNICController(
@@ -148,6 +144,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	var ksmCtrl *ksmhcp.KSMHCPController
 	var hsInformers hypershiftinformers.SharedInformerFactory
 	if o.KSMImage != "" {
+		dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dynamic client: %w", err)
+		}
+
 		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)

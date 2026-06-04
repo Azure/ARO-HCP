@@ -37,9 +37,7 @@ rules:
   - list
   - watch
   - create
-  - update
   - patch
-  - delete
 - apiGroups:
   - ""
   resources:
@@ -49,9 +47,7 @@ rules:
   - list
   - watch
   - create
-  - update
   - patch
-  - delete
 - apiGroups:
   - monitoring.coreos.com
   resources:
@@ -61,6 +57,4 @@ rules:
   - list
   - watch
   - create
-  - update
   - patch
-  - delete
