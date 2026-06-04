@@ -1567,7 +1567,9 @@ func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 // different VM SKUs and disk sizes (see config/config.yaml entries
 // across environments), and AKS rejects an all-User cluster (the
 // existing System pool, if any, must be replaced by another System
-// pool). The temporary pool overrides Count=1 and tags itself with
+// pool). The temporary pool uses the source pool's current Count so it
+// can absorb the source pool's capacity during drain/delete, and tags
+// itself with
 // (1) the purpose marker so detection can skip it and (2) the full
 // Azure resource ID of the source pool (read from live.ID) so a
 // leftover temp pool can always be matched back to a unique source —
@@ -1591,7 +1593,10 @@ func buildTempAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPo
 	if cpVersion == "" {
 		return nil, errors.New("buildTempAgentPool: empty cpVersion")
 	}
-	cnt := int32(1)
+	if body.Properties.Count == nil || *body.Properties.Count <= 0 {
+		return nil, errors.New("buildTempAgentPool: live snapshot has no positive Count")
+	}
+	cnt := *body.Properties.Count
 	body.Properties.Count = &cnt
 	body.Properties.MinCount = nil
 	body.Properties.MaxCount = nil
@@ -1610,8 +1615,9 @@ func (c *clients) addTempPool(ctx context.Context, target nodePoolTarget, live *
 		return err
 	}
 	tmpName := tempPoolName(target.name)
-	logf("creating temp pool %s for %s (vmSize=%s, mode=%v, 1 node, k8s=%s, inherited taints)",
-		tmpName, target.name, strDeref(live.Properties.VMSize), ptrValue(live.Properties.Mode), c.cfg.cpVersion)
+	wantReady := int(*body.Properties.Count)
+	logf("creating temp pool %s for %s (vmSize=%s, mode=%v, count=%d, k8s=%s, inherited taints)",
+		tmpName, target.name, strDeref(live.Properties.VMSize), ptrValue(live.Properties.Mode), wantReady, c.cfg.cpVersion)
 	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, tmpName, *body, nil)
 	if err != nil {
 		return fmt.Errorf("begin create temp pool %s: %w", tmpName, err)
@@ -1620,7 +1626,7 @@ func (c *clients) addTempPool(ctx context.Context, target nodePoolTarget, live *
 		return fmt.Errorf("poll create temp pool %s: %w", tmpName, err)
 	}
 	logf("temp pool %s created; waiting for k8s node Ready", tmpName)
-	return c.waitForReadyNodes(ctx, tmpName, 1, tempReadyTOMin*time.Minute)
+	return c.waitForReadyNodes(ctx, tmpName, wantReady, tempReadyTOMin*time.Minute)
 }
 
 // ---------------------------------------------------------------------------

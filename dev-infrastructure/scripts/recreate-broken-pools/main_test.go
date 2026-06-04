@@ -813,8 +813,8 @@ func TestBuildTempAgentPool_ValidInputs(t *testing.T) {
 	if p.VMSize == nil || *p.VMSize != "Standard_E8ds_v5" {
 		t.Errorf("temp VMSize should match live: %v", p.VMSize)
 	}
-	if p.Count == nil || *p.Count != 1 {
-		t.Errorf("temp Count should be 1, got %v", p.Count)
+	if p.Count == nil || *p.Count != 2 {
+		t.Errorf("temp Count should match live Count=2, got %v", p.Count)
 	}
 	if p.OrchestratorVersion == nil || *p.OrchestratorVersion != "1.35.4" {
 		t.Errorf("OrchestratorVersion: %v", p.OrchestratorVersion)
@@ -1074,6 +1074,20 @@ func TestBuildTempAgentPool_MissingCPVersion(t *testing.T) {
 	live := mkLiveSystemPool()
 	if _, err := buildTempAgentPool(live, ""); err == nil {
 		t.Fatal("expected error for empty cpVersion")
+	}
+}
+
+func TestBuildTempAgentPool_MissingOrInvalidCount(t *testing.T) {
+	live := mkLiveSystemPool()
+	live.Properties.Count = nil
+	if _, err := buildTempAgentPool(live, "1.35.4"); err == nil {
+		t.Fatal("expected error for missing Count")
+	}
+
+	zero := int32(0)
+	live.Properties.Count = &zero
+	if _, err := buildTempAgentPool(live, "1.35.4"); err == nil {
+		t.Fatal("expected error for Count == 0")
 	}
 }
 
