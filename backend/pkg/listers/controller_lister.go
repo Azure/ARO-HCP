@@ -28,6 +28,7 @@ type ControllerLister interface {
 	ListForResourceGroup(ctx context.Context, subscriptionName, resourceGroupName string) ([]*api.Controller, error)
 	ListForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Controller, error)
 	ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error)
+	GetForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName, controllerName string) (*api.Controller, error)
 	ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error)
 }
 
@@ -60,6 +61,11 @@ func (l *controllerLister) ListForCluster(ctx context.Context, subscriptionName,
 func (l *controllerLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error) {
 	key := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
 	return listFromIndex[api.Controller](l.indexer, ByNodePool, key)
+}
+
+func (l *controllerLister) GetForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName, controllerName string) (*api.Controller, error) {
+	key := api.ToNodePoolControllerResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName, controllerName)
+	return getByKey[api.Controller](l.indexer, key)
 }
 
 func (l *controllerLister) ListForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {

@@ -465,6 +465,19 @@ func (l *SliceControllerLister) ListForNodePool(_ context.Context, subscriptionI
 		api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 }
 
+func (l *SliceControllerLister) GetForNodePool(_ context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, controllerName string) (*api.Controller, error) {
+	key := api.ToNodePoolControllerResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName, controllerName)
+	for _, c := range l.Controllers {
+		if c.ResourceID == nil {
+			continue
+		}
+		if strings.EqualFold(c.ResourceID.String(), key) {
+			return c, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
 func (l *SliceControllerLister) ListForExternalAuth(_ context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
 	return listControllersUnderPrefix(l.Controllers,
 		api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName))

@@ -487,43 +487,6 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 	return newOperationStatus, opError, err
 }
 
-// pollNodePoolStatus converts a node pool status from Cluster
-// Service to info for an Azure async operation status endpoint.
-func pollNodePoolStatus(
-	ctx context.Context,
-	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
-	operation *api.Operation,
-	notificationClient *http.Client) error {
-	// XXX This is currently called by the operationNodePoolCreate and
-	//     operationNodePoolUpdate controllers because the logic flows
-	//     are identical. If the logic flows ever diverge, then this
-	//     function should be split up and the pieces moved back to
-	//     their respective controllers.
-
-	logger := utils.LoggerFromContext(ctx)
-
-	nodePoolStatus, err := clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	logger.Info("new status", "newStatus", newOperationStatus)
-
-	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, clock, resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
 // convertNodePoolStatus attempts to translate a NodePoolStatus object
 // from Cluster Service into an ARM provisioning state and, if necessary,
 // a structured OData error.

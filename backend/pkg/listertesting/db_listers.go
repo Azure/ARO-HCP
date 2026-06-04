@@ -245,6 +245,10 @@ func (l *DBControllerLister) ListForNodePool(ctx context.Context, subscriptionID
 	return l.listWithPrefix(ctx, prefix)
 }
 
+func (l *DBControllerLister) GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, controllerName string) (*api.Controller, error) {
+	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).Controllers(nodePoolName).Get(ctx, controllerName)
+}
+
 func (l *DBControllerLister) ListForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
 	prefix := api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
 	return l.listWithPrefix(ctx, prefix)

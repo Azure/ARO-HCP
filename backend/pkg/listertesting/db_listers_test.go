@@ -370,6 +370,18 @@ func TestDBControllerLister(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
+
+	t.Run("GetForNodePool returns matching controller", func(t *testing.T) {
+		result, err := lister.GetForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "ctrl-np")
+		require.NoError(t, err)
+		assert.Equal(t, "ctrl-np", result.ResourceID.Name)
+	})
+
+	t.Run("GetForNodePool returns not found for non-existent controller", func(t *testing.T) {
+		_, err := lister.GetForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "non-existent")
+		require.Error(t, err)
+		assert.True(t, database.IsNotFoundError(err))
+	})
 }
 
 func TestDBManagementClusterContentLister(t *testing.T) {
