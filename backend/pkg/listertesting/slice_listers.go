@@ -408,3 +408,73 @@ func (l *SliceBillingLister) ListForSubscription(ctx context.Context, subscripti
 	}
 	return result, nil
 }
+
+// SliceControllerLister implements listers.ControllerLister backed by a
+// slice. The List-for-parent methods filter to controllers whose resource
+// ID hangs DIRECTLY off the requested parent — i.e. they have exactly one
+// path segment beyond the parent's resource ID. That excludes
+// controllers nested further down (e.g. a node-pool controller is not
+// returned by ListForCluster for that node pool's parent cluster).
+type SliceControllerLister struct {
+	Controllers []*api.Controller
+}
+
+var _ listers.ControllerLister = &SliceControllerLister{}
+
+func (l *SliceControllerLister) List(_ context.Context) ([]*api.Controller, error) {
+	return l.Controllers, nil
+}
+
+func (l *SliceControllerLister) ListForResourceGroup(_ context.Context, subscriptionID, resourceGroupName string) ([]*api.Controller, error) {
+	out := []*api.Controller{}
+	for _, c := range l.Controllers {
+		if c.ResourceID == nil {
+			continue
+		}
+		if strings.EqualFold(c.ResourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(c.ResourceID.ResourceGroupName, resourceGroupName) {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+func (l *SliceControllerLister) ListForCluster(_ context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Controller, error) {
+	return listControllersUnderPrefix(l.Controllers,
+		api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
+}
+
+func (l *SliceControllerLister) ListForNodePool(_ context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error) {
+	return listControllersUnderPrefix(l.Controllers,
+		api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+}
+
+func (l *SliceControllerLister) ListForExternalAuth(_ context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
+	return listControllersUnderPrefix(l.Controllers,
+		api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+}
+
+// listControllersUnderPrefix returns the controllers whose ResourceID is a
+// direct child of parentResourceID — exactly one path segment-pair (type +
+// name) below the parent.
+func listControllersUnderPrefix(controllers []*api.Controller, parentResourceID string) ([]*api.Controller, error) {
+	prefix := strings.ToLower(parentResourceID) + "/"
+	out := []*api.Controller{}
+	for _, c := range controllers {
+		if c.ResourceID == nil {
+			continue
+		}
+		lowered := strings.ToLower(c.ResourceID.String())
+		if !strings.HasPrefix(lowered, prefix) {
+			continue
+		}
+		rest := strings.TrimPrefix(lowered, prefix)
+		// A direct child has exactly one "/" in the trailing segment:
+		// "<resourceType>/<name>".
+		if strings.Count(rest, "/") != 1 {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
