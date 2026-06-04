@@ -67,31 +67,31 @@ func TestSet_DifferentKeysCoexist(t *testing.T) {
 }
 
 func TestGetAll_PrunesExpiredEntries(t *testing.T) {
-	c := NewCache(50 * time.Millisecond)
+	c := NewCache(1 * time.Second)
 
 	m := testMetric("test_metric", 1, "a")
 	c.Set("key1", m)
 
 	assert.Len(t, c.GetAll(), 1)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	assert.Len(t, c.GetAll(), 0)
 	assert.Equal(t, 0, len(c.entries))
 }
 
 func TestGetAll_MixedFreshAndExpired(t *testing.T) {
-	c := NewCache(100 * time.Millisecond)
+	c := NewCache(1 * time.Second)
 
 	old := testMetric("old_metric", 1, "a")
 	c.Set("old", old)
 
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(600 * time.Millisecond)
 
 	fresh := testMetric("fresh_metric", 2, "b")
 	c.Set("fresh", fresh)
 
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(600 * time.Millisecond)
 
 	result := c.GetAll()
 	assert.Len(t, result, 1)
@@ -100,10 +100,10 @@ func TestGetAll_MixedFreshAndExpired(t *testing.T) {
 }
 
 func TestGetAll_PrunesFromMap(t *testing.T) {
-	c := NewCache(50 * time.Millisecond)
+	c := NewCache(1 * time.Second)
 
 	c.Set("key1", testMetric("m", 1, "a"))
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// expired entry still in map before GetAll
 	assert.Equal(t, 1, len(c.entries))

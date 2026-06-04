@@ -79,7 +79,8 @@ func resolveNames(nameToID map[string]string, names []string) (map[string]string
 			for n := range nameToID {
 				available = append(available, n)
 			}
-			return nil, fmt.Errorf("subscription %q not found; credential can see %d subscriptions: %v",
+			return nil, fmt.Errorf("subscription %q not found (check that the display name matches exactly "+
+				"and the credential has at least Reader role on it); credential can see %d subscriptions: %v",
 				name, len(available), available)
 		}
 		result[name] = id
@@ -106,6 +107,9 @@ func List(ctx context.Context, cred azcore.TokenCredential) (map[string]string, 
 // Returns a map of name to ID for each requested name. Returns an error
 // if any requested name is not found among the visible subscriptions.
 func ResolveByName(ctx context.Context, cred azcore.TokenCredential, names []string) (map[string]string, error) {
+	if len(names) == 0 {
+		return map[string]string{}, nil
+	}
 	nameToID, err := List(ctx, cred)
 	if err != nil {
 		return nil, err
