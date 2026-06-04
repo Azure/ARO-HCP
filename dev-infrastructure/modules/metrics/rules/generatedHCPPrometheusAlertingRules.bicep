@@ -858,7 +858,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           title: 'Different semantic versions of Kubernetes components running.'
         }
         expression: 'count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"},"git_version","$1","git_version","(v[0-9]*.[0-9]*).*"))) > 1'
-        for: 'PT15M'
+        for: 'PT1H30M'
         severity: 3
       }
       {
