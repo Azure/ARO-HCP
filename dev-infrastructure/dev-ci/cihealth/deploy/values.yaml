@@ -83,6 +83,7 @@ controllers:
       stg: aro-stage
       prod: aro-production
   threads:
+    sourceProwRuns: 1
     sourceSippyRuns: 1
     sourceSippyTestsDaily: 1
     sourceGitHubPullRequests: 1
