@@ -15,6 +15,8 @@
 package ksmhcp
 
 import (
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -22,8 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
-
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
 func labels() map[string]string {
@@ -193,7 +193,7 @@ func buildService(namespace string, ownerRef metav1.OwnerReference) *corev1.Serv
 // The metricRelabelings inject the HCP namespace so node metrics (which are
 // cluster-scoped with namespace="") get routed to the correct HCP Azure
 // Monitor Workspace via the existing remote write namespace filter.
-func buildServiceMonitor(namespace, region string, ownerRef metav1.OwnerReference) *unstructured.Unstructured {
+func buildServiceMonitor(namespace, region string, ownerRef metav1.OwnerReference) (*unstructured.Unstructured, error) {
 	sm := &monitoringv1.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "monitoring.coreos.com/v1",
@@ -233,6 +233,5 @@ func buildServiceMonitor(namespace, region string, ownerRef metav1.OwnerReferenc
 		},
 	}
 
-	u, _ := toUnstructured(sm)
-	return u
+	return toUnstructured(sm)
 }

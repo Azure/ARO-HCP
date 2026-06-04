@@ -134,11 +134,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
 	}
 
-	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
 	kubeInformers := kubeinformers.NewSharedInformerFactory(kubeClientset, 10*time.Minute)
 
 	ctrl, err := controller.NewSwiftNICController(
@@ -149,6 +144,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create controller: %w", err)
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeConfig)
