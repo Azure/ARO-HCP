@@ -36,6 +36,19 @@ type HCPOpenShiftClusterNodePool struct {
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
+	Status                    HCPOpenShiftClusterNodePoolStatus                    `json:"status"`
+}
+
+// HCPOpenShiftClusterNodePoolStatus contains the observed state of the node pool.
+type HCPOpenShiftClusterNodePoolStatus struct {
+	// Conditions are the top-level HCPOpenShiftClusterNodePool status conditions.
+	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}

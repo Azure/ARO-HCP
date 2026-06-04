@@ -34,6 +34,7 @@
 					"provisioningState": "Succeeded",
 					"usesNewClusterDeletionApproach": false
 				},
+				"status": {},
 				"tags": {
 					"foo": "bar"
 				},
@@ -47,6 +48,7 @@
 			"provisioningState": "Succeeded",
 			"usesNewClusterDeletionApproach": false
 		},
+		"status": {},
 		"tags": {
 			"foo": "bar"
 		},
