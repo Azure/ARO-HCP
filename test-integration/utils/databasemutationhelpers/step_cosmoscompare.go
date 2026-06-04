@@ -17,6 +17,7 @@ package databasemutationhelpers
 import (
 	"context"
 	"io/fs"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,30 +51,35 @@ func (l *cosmosCompare) StepID() StepID {
 }
 
 func (l *cosmosCompare) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	var allActual []*database.TypedDocument
-	var err error
-
 	// Use the DocumentLister interface (works with both Cosmos and mock)
-	allActual, err = stepInput.DocumentLister.ListAllDocuments(ctx)
+	allActual, err := stepInput.DocumentLister.ListAllDocuments(ctx)
 	require.NoError(t, err)
 
-	for _, currExpected := range l.expectedContent {
-		found := false
-		currDiffs := []string{}
-		for _, currActual := range allActual {
-			diff, equals := ResourceInstanceEquals(t, currExpected, currActual)
-			if equals {
-				found = true
-				break
-			}
-			currDiffs = append(currDiffs, diff)
+	// Index actuals by ResourceID so each expected document matches at most one
+	// actual. Diffs are only computed for the resourceID-matched pair, which
+	// keeps failures readable instead of dumping an N*M diff of every actual.
+	actualByResourceID := map[string]*database.TypedDocument{}
+	for _, currActual := range allActual {
+		if currActual.ResourceID == nil {
+			continue
 		}
-		if !found {
-			t.Log(stringifyResource(allActual))
-			for _, diff := range currDiffs {
-				t.Log(diff)
-			}
-			t.Errorf("did not find:\n%v", stringifyResource(currExpected))
+		actualByResourceID[strings.ToLower(currActual.ResourceID.String())] = currActual
+	}
+
+	for _, currExpected := range l.expectedContent {
+		if currExpected.ResourceID == nil {
+			t.Errorf("expected document has no resourceID; cannot match:\n%v", stringifyResource(currExpected))
+			continue
+		}
+		currActual, ok := actualByResourceID[strings.ToLower(currExpected.ResourceID.String())]
+		if !ok {
+			t.Errorf("did not find document with resourceID %s:\n%v", currExpected.ResourceID, stringifyResource(currExpected))
+			continue
+		}
+		diff, equals := ResourceInstanceEquals(t, currExpected, currActual)
+		if !equals {
+			t.Log(diff)
+			t.Errorf("document with resourceID %s did not match expected", currExpected.ResourceID)
 		}
 	}
 }
