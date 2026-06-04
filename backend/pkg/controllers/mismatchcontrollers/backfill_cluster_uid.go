@@ -122,16 +122,17 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 		)
 	}
 
-	existingCluster.ServiceProviderProperties.ClusterUID = clusterUID
+	replacement := existingCluster.DeepCopy()
+	replacement.ServiceProviderProperties.ClusterUID = clusterUID
 
-	_, err = c.resourcesDBClient.HCPClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName).Replace(ctx, existingCluster, nil)
+	_, err = c.resourcesDBClient.HCPClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName).Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	logger.Info("successfully backfilled ClusterUID for cluster",
-		"clusterResourceID", existingCluster.ID,
-		"clusterUID", existingCluster.ServiceProviderProperties.ClusterUID,
+		"clusterResourceID", replacement.ID,
+		"clusterUID", replacement.ServiceProviderProperties.ClusterUID,
 	)
 
 	return nil

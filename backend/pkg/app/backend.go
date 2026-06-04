@@ -367,6 +367,7 @@ func shutdownHTTPServer(ctx context.Context, server *http.Server, name string) e
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
 	backendInformers := informers.NewBackendInformers(ctx,
 		b.options.ResourcesDBClient.ResourcesGlobalListers(),
+		b.options.ResourcesDBClient,
 		b.options.BillingDBClient.BillingGlobalListers(),
 	)
 

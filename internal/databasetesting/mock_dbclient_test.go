@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,7 +151,8 @@ func TestMockResourcesDBClient_CRUD_Cluster(t *testing.T) {
 
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceID,
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(subscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -244,7 +246,8 @@ func TestMockResourcesDBClient_CRUD_Operation(t *testing.T) {
 	now := time.Now().UTC()
 	operation := &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		OperationID:        operationID,
 		ExternalID:         externalID,
@@ -316,7 +319,8 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 	registrationDate := "2025-01-01T00:00:00Z"
 	subscription := &arm.Subscription{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: subscriptionResourceID,
+			ResourceID:   subscriptionResourceID,
+			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
 		ResourceID:       subscriptionResourceID,
 		State:            arm.SubscriptionStateRegistered,
@@ -345,9 +349,10 @@ func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 		t.Errorf("Expected state %s, got %s", arm.SubscriptionStateRegistered, retrieved.State)
 	}
 
-	// Replace
-	subscription.State = arm.SubscriptionStateSuspended
-	replaced, err := subscriptionCRUD.Replace(ctx, subscription, nil)
+	// Replace using the object returned from Create so the etag is carried
+	// over; Replace refuses unconditional updates.
+	created.State = arm.SubscriptionStateSuspended
+	replaced, err := subscriptionCRUD.Replace(ctx, created, nil)
 	if err != nil {
 		t.Fatalf("Failed to replace subscription: %v", err)
 	}
@@ -390,7 +395,8 @@ func TestMockResourcesDBClient_Transaction(t *testing.T) {
 
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceID,
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -451,7 +457,8 @@ func TestMockResourcesDBClient_UntypedCRUD(t *testing.T) {
 
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceID,
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -580,7 +587,8 @@ func TestMockResourcesDBClient_ServiceProviderCluster_ETagConditionalReplace(t *
 
 	serviceProviderCluster := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: serviceProviderClusterResourceID,
+			ResourceID:   serviceProviderClusterResourceID,
+			PartitionKey: strings.ToLower(serviceProviderClusterResourceID.SubscriptionID),
 		},
 	}
 
@@ -673,7 +681,8 @@ func TestMockResourcesDBClient_Controller_ETagConditionalReplace(t *testing.T) {
 
 	controller := &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: controllerResourceID,
+			ResourceID:   controllerResourceID,
+			PartitionKey: strings.ToLower(controllerResourceID.SubscriptionID),
 		},
 		ExternalID: clusterResourceID,
 		Status: api.ControllerStatus{
@@ -807,7 +816,8 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceID,
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -842,7 +852,8 @@ func TestMockResourcesDBClient_addResource(t *testing.T) {
 	subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	subscription := &arm.Subscription{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: subscriptionResourceID,
+			ResourceID:   subscriptionResourceID,
+			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
 		ResourceID: subscriptionResourceID,
 		State:      arm.SubscriptionStateRegistered,
@@ -891,7 +902,8 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceID,
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -915,7 +927,7 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 			"/nodePools/" + nodePoolName))
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,
@@ -930,7 +942,8 @@ func TestNewMockResourcesDBClientWithResources(t *testing.T) {
 	subscriptionResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	subscription := &arm.Subscription{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: subscriptionResourceID,
+			ResourceID:   subscriptionResourceID,
+			PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 		},
 		ResourceID: subscriptionResourceID,
 		State:      arm.SubscriptionStateRegistered,

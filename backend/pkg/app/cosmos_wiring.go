@@ -15,6 +15,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -36,8 +37,8 @@ func NewCosmosDatabaseClient(cosmosDBURL string, cosmosDBName string, azCoreClie
 
 // NewCosmosDBClients returns data-plane clients for
 // ARM resource documents (Resources container) and billing documents (Billing container).
-func NewCosmosDBClients(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.ResourcesDBClient, database.BillingDBClient, error) {
-	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
+func NewCosmosDBClients(ctx context.Context, cosmosDatabaseClient *azcosmos.DatabaseClient) (database.ResourcesDBClient, database.BillingDBClient, error) {
+	resourcesDBClient, err := database.NewResourcesDBClient(ctx, cosmosDatabaseClient)
 	if err != nil {
 		return nil, nil, utils.TrackError(fmt.Errorf("failed to create resources database client: %w", err))
 	}

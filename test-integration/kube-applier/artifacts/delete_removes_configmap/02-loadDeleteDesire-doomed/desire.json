@@ -1,6 +1,7 @@
 {
 	"cosmosMetadata": {
-		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/hcp-cluster/deletedesires/doomed"
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/hcp-cluster/deletedesires/doomed",
+		"partitionKey": "00000000-0000-0000-0000-000000000001"
 	},
 	"spec": {
 		"managementCluster": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1",

@@ -223,13 +223,13 @@ func TestSyncOnce(t *testing.T) {
 				existing, err := ocm.ConvertCSManagementClusterToInternal(shard)
 				require.NoError(t, err)
 				existing.Spec.SchedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
-				_, err = fleetClient.Stamps().ManagementClusters("1").Create(t.Context(), existing, nil)
+				actualExisting, err := fleetClient.Stamps().ManagementClusters("1").Create(t.Context(), existing, nil)
 				require.NoError(t, err)
 
 				mockCS.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{shard}, nil),
 				)
-				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleet.ManagementCluster{existing}}
+				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleet.ManagementCluster{actualExisting}}
 			},
 			validate: func(t *testing.T, ctx context.Context, client *databasetesting.MockFleetDBClient) {
 				t.Helper()
@@ -313,14 +313,14 @@ func TestSyncOnce(t *testing.T) {
 				maintenanceShard := buildTestProvisionShard(t, testShardID, "test-consumer", "test-westus3-mgmt-1", "maintenance")
 				existing, err := ocm.ConvertCSManagementClusterToInternal(maintenanceShard)
 				require.NoError(t, err)
-				_, err = fleetClient.Stamps().ManagementClusters("1").Create(t.Context(), existing, nil)
+				actualExisting, err := fleetClient.Stamps().ManagementClusters("1").Create(t.Context(), existing, nil)
 				require.NoError(t, err)
 
 				activeShard := buildTestProvisionShard(t, testShardID, "test-consumer", "test-westus3-mgmt-1", "active")
 				mockCS.EXPECT().ListProvisionShards().Return(
 					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{activeShard}, nil),
 				)
-				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleet.ManagementCluster{existing}}
+				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleet.ManagementCluster{actualExisting}}
 			},
 			validate: func(t *testing.T, ctx context.Context, client *databasetesting.MockFleetDBClient) {
 				t.Helper()

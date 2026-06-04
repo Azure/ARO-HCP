@@ -30,6 +30,7 @@ import (
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePool struct {
+	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	arm.TrackedResource

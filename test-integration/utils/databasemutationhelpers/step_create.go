@@ -22,16 +22,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-type createStep[InternalAPIType any] struct {
+type createStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	stepID StepID
 	key    CosmosCRUDKey
 
 	resources []*InternalAPIType
 }
 
-func newCreateStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*createStep[InternalAPIType], error) {
+func newCreateStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*createStep[InternalAPIType, InternalAPITypePointer], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -46,21 +48,19 @@ func newCreateStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*createSt
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
-	return &createStep[InternalAPIType]{
+	return &createStep[InternalAPIType, InternalAPITypePointer]{
 		stepID:    stepID,
 		key:       key,
 		resources: resources,
 	}, nil
 }
 
-var _ IntegrationTestStep = &createStep[any]{}
-
-func (l *createStep[InternalAPIType]) StepID() StepID {
+func (l *createStep[InternalAPIType, InternalAPITypePointer]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *createStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
+func (l *createStep[InternalAPIType, InternalAPITypePointer]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType, InternalAPITypePointer](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
 	for _, resource := range l.resources {
 		_, err := resourceCRUDClient.Create(ctx, resource, nil)

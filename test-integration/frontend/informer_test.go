@@ -16,6 +16,7 @@ package frontend
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -258,14 +259,16 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 			t.Helper()
 			sub1 := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
+					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-1"),
+					PartitionKey: "sub-1",
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				State:      arm.SubscriptionStateRegistered,
 			}
 			sub2 := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
+					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-2"),
+					PartitionKey: "sub-2",
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
 				State:      arm.SubscriptionStateRegistered,
@@ -276,24 +279,25 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewSubscriptionInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Subscriptions(), 5*time.Second)
+			return informers.NewSubscriptionInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Subscriptions(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
-			sub1Updated := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				State:      arm.SubscriptionStateWarned,
-			}
-			_, err := resourcesDBClient.Subscriptions().Replace(ctx, sub1Updated, nil)
+			// Deep-copy the live document so the Replace carries the existing
+			// etag and instance version forward; PrepareForReplace rejects
+			// fresh-built docs.
+			existing, err := resourcesDBClient.Subscriptions().Get(ctx, "sub-1")
+			require.NoError(t, err)
+			sub1Updated := existing.DeepCopy()
+			sub1Updated.State = arm.SubscriptionStateWarned
+			_, err = resourcesDBClient.Subscriptions().Replace(ctx, sub1Updated, nil)
 			require.NoError(t, err)
 
 			sub3 := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
+					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-3"),
+					PartitionKey: "sub-3",
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
 				State:      arm.SubscriptionStateRegistered,
@@ -360,7 +364,8 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 		require.NoError(t, err)
 		return &api.HCPOpenShiftCluster{
 			CosmosMetadata: arm.CosmosMetadata{
-				ResourceID: clusterResourceID,
+				ResourceID:   clusterResourceID,
+				PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 			},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
@@ -388,13 +393,20 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), 5*time.Second)
+			return informers.NewClusterInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().Clusters(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
 			clusterCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
-			_, err := clusterCRUD.Replace(ctx, newCluster(t, "cluster-1", arm.ProvisioningStateDeleting), nil)
+			// Deep-copy the live document so the Replace carries the existing
+			// etag and instance version forward; PrepareForReplace rejects
+			// fresh-built docs.
+			existing, err := clusterCRUD.Get(ctx, "cluster-1")
+			require.NoError(t, err)
+			updated := existing.DeepCopy()
+			updated.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateDeleting
+			_, err = clusterCRUD.Replace(ctx, updated, nil)
 			require.NoError(t, err)
 
 			_, err = clusterCRUD.Create(ctx, newCluster(t, "cluster-3", arm.ProvisioningStateAccepted), nil)
@@ -459,7 +471,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 				"/nodePools/"+name)
 		internalID := api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
 		return &api.HCPOpenShiftClusterNodePool{
-			CosmosMetadata: arm.CosmosMetadata{ResourceID: npResourceID},
+			CosmosMetadata: arm.CosmosMetadata{ResourceID: npResourceID, PartitionKey: strings.ToLower(npResourceID.SubscriptionID)},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
 					ID:   npResourceID,
@@ -491,7 +503,8 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 			cluster := &api.HCPOpenShiftCluster{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: clusterResourceID,
+					ResourceID:   clusterResourceID,
+					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
@@ -516,14 +529,21 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), 5*time.Second)
+			return informers.NewNodePoolInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().NodePools(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
 			t.Helper()
 			npCRUD := resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
 
-			_, err := npCRUD.Replace(ctx, newNodePool(t, "np-1", 10), nil)
+			// Deep-copy the live document so the Replace carries the existing
+			// etag and instance version forward; PrepareForReplace rejects
+			// fresh-built docs.
+			existing, err := npCRUD.Get(ctx, "np-1")
+			require.NoError(t, err)
+			updated := existing.DeepCopy()
+			updated.Properties.Replicas = 10
+			_, err = npCRUD.Replace(ctx, updated, nil)
 			require.NoError(t, err)
 
 			_, err = npCRUD.Create(ctx, newNodePool(t, "np-3", 2), nil)
@@ -589,7 +609,8 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 		now := time.Now().UTC()
 		return &api.Operation{
 			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: resourceID,
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 			},
 			OperationID:        operationID,
 			ExternalID:         externalID,
@@ -611,7 +632,7 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(resourcesDBClient database.ResourcesDBClient) cache.SharedIndexInformer {
-			return informers.NewActiveOperationInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().ActiveOperations(), 5*time.Second)
+			return informers.NewActiveOperationInformerWithRelistDuration(resourcesDBClient.ResourcesGlobalListers().ActiveOperations(), resourcesDBClient, 5*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, resourcesDBClient database.ResourcesDBClient) {
@@ -619,7 +640,14 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 			opCRUD := resourcesDBClient.Operations(subscriptionID)
 
 			// Transition op-1 to terminal state — should appear as deletion.
-			_, err := opCRUD.Replace(ctx, newOperation(t, "op-1", arm.ProvisioningStateSucceeded), nil)
+			// Deep-copy the live document so the Replace carries the existing
+			// etag and instance version forward; PrepareForReplace rejects
+			// fresh-built docs.
+			existing, err := opCRUD.Get(ctx, "op-1")
+			require.NoError(t, err)
+			updated := existing.DeepCopy()
+			updated.Status = arm.ProvisioningStateSucceeded
+			_, err = opCRUD.Replace(ctx, updated, nil)
 			require.NoError(t, err)
 
 			// Add new active operation.

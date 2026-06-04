@@ -43,7 +43,7 @@ type ApplyDesireKey struct {
 func (k ApplyDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
 // CRUD returns the right per-scope CRUD for this key's parent.
-func (k ApplyDesireKey) CRUD(client database.KubeApplierApplyDesireCRUD) (database.ResourceCRUD[kubeapplier.ApplyDesire], error) {
+func (k ApplyDesireKey) CRUD(client database.KubeApplierApplyDesireCRUD) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
 	if k.IsNodePoolScoped() {
 		return client.ApplyDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
@@ -63,7 +63,7 @@ type DeleteDesireKey struct {
 func (k DeleteDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
 // CRUD returns the right per-scope CRUD for this key's parent.
-func (k DeleteDesireKey) CRUD(client database.KubeApplierDeleteDesireCRUD) (database.ResourceCRUD[kubeapplier.DeleteDesire], error) {
+func (k DeleteDesireKey) CRUD(client database.KubeApplierDeleteDesireCRUD) (database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
 	if k.IsNodePoolScoped() {
 		return client.DeleteDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
@@ -83,7 +83,7 @@ type ReadDesireKey struct {
 func (k ReadDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
 // CRUD returns the right per-scope CRUD for this key's parent.
-func (k ReadDesireKey) CRUD(client database.KubeApplierReadDesireCRUD) (database.ResourceCRUD[kubeapplier.ReadDesire], error) {
+func (k ReadDesireKey) CRUD(client database.KubeApplierReadDesireCRUD) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
 	if k.IsNodePoolScoped() {
 		return client.ReadDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}

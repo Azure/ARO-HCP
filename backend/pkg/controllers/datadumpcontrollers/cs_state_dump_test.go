@@ -17,6 +17,7 @@ package datadumpcontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -174,7 +175,8 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 				clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))
 				cluster := &api.HCPOpenShiftCluster{
 					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID: clusterResourceID,
+						ResourceID:   clusterResourceID,
+						PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{ID: clusterResourceID},
@@ -214,7 +216,7 @@ func newTestNodePool(name, clusterServiceIDStr string) *api.HCPOpenShiftClusterN
 	nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/" + name))
 	np := &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,

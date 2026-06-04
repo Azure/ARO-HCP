@@ -19,7 +19,7 @@ import (
 )
 
 type ManagementClusterContentCRUD interface {
-	ResourceCRUD[api.ManagementClusterContent]
+	ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent]
 }
 
 type ManagementClusterContentContainer interface {

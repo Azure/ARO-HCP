@@ -549,6 +549,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
+	requestSubscription.SetPartitionKey(subscriptionID)
 
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
@@ -571,6 +572,9 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			logger.Info(message)
 		}
 		if len(messages) > 0 {
+			// Carry the etag of the just-read document forward so Replace
+			// is conditional on it; the DB layer refuses unconditional updates.
+			requestSubscription.CosmosMetadata = *existingSubscription.CosmosMetadata.DeepCopy()
 			resultingSubscription, err = f.resourcesDBClient.Subscriptions().Replace(ctx, &requestSubscription, nil)
 			if err != nil {
 				return utils.TrackError(err)

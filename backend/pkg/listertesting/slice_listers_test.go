@@ -16,6 +16,7 @@ package listertesting
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -324,7 +325,8 @@ func newTestCluster(subscriptionID, resourceGroupName, clusterName string) *api.
 	))
 	return &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -347,7 +349,7 @@ func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolNam
 			"/nodePools/" + nodePoolName,
 	))
 	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -370,7 +372,8 @@ func newTestOperation(subscriptionID, operationName, targetSubscription, targetR
 	))
 	return &api.Operation{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: operationResourceID,
+			ResourceID:   operationResourceID,
+			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
 		},
 		OperationID: operationResourceID,
 		ExternalID:  externalID,
@@ -385,7 +388,7 @@ func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externa
 			"/externalAuths/" + externalAuthName,
 	))
 	return &api.HCPOpenShiftClusterExternalAuth{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		ProxyResource:  arm.NewProxyResource(resourceID),
 	}
 }
@@ -399,7 +402,8 @@ func newTestServiceProviderCluster(subscriptionID, resourceGroupName, clusterNam
 	))
 	return &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
@@ -413,7 +417,8 @@ func newTestClusterController(subscriptionID, resourceGroupName, clusterName, co
 	))
 	return &api.Controller{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
@@ -428,7 +433,8 @@ func newTestNodePoolController(subscriptionID, resourceGroupName, clusterName, n
 	))
 	return &api.Controller{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
@@ -443,7 +449,8 @@ func newTestExternalAuthController(subscriptionID, resourceGroupName, clusterNam
 	))
 	return &api.Controller{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
@@ -454,7 +461,8 @@ func newTestSubscription(subscriptionID string) *arm.Subscription {
 	))
 	return &arm.Subscription{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ResourceID: resourceID,
 	}
@@ -468,7 +476,7 @@ func newTestClusterScopedManagementClusterContent(subscriptionID, resourceGroupN
 			"/managementClusterContents/" + mccName,
 	))
 	return &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 	}
 }
 
@@ -481,6 +489,6 @@ func newTestNodePoolScopedManagementClusterContent(subscriptionID, resourceGroup
 			"/managementClusterContents/" + mccName,
 	))
 	return &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 	}
 }

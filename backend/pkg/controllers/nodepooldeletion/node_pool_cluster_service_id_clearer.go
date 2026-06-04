@@ -131,8 +131,9 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 		}
 		// 404 - cluster-service has finished deleting the NodePool, clear the CS ID.
 		logger.Info("cluster-service NodePool gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
-		nodePool.ServiceProviderProperties.ClusterServiceID = nil
-		if _, err := nodePoolCRUD.Replace(ctx, nodePool, nil); err != nil {
+		replacement := nodePool.DeepCopy()
+		replacement.ServiceProviderProperties.ClusterServiceID = nil
+		if _, err := nodePoolCRUD.Replace(ctx, replacement, nil); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
 		}
 		return nil

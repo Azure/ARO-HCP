@@ -60,6 +60,7 @@ func newClusterApplyDesire(t *testing.T) *kubeapplier.ApplyDesire {
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: mustParse(t,
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
+			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: testMgmtID,
@@ -77,6 +78,7 @@ func newNodePoolReadDesire(t *testing.T) *kubeapplier.ReadDesire {
 			ResourceID: mustParse(t,
 				kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 					testSub, testRG, testCluster, testNodePool, testDesireName)),
+			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: testMgmtID,
@@ -175,6 +177,7 @@ func TestMockKubeApplierGlobalLister_UnionsClusterAndNodePoolScopes(t *testing.T
 				ResourceID: mustParse(t,
 					kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
 						testSub, testRG, testCluster, testNodePool, "other")),
+				PartitionKey: strings.ToLower(testMgmtID.String()),
 			},
 			Spec: kubeapplier.ApplyDesireSpec{
 				ManagementCluster: testMgmtID,

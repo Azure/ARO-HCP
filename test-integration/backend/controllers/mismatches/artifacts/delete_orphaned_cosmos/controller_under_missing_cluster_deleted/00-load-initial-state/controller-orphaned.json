@@ -1,9 +1,12 @@
 {
+	"_etag": "\"00000000-0000-0000-0000-000000000001\"",
 	"id": "68116f0a-a3f3-55c9-9f1d-9163b85d6838",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
 		"cosmosMetadata": {
-			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missingcluster/hcpOpenShiftControllers/orphanedcontroller"
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missingcluster/hcpOpenShiftControllers/orphanedcontroller",
+			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+			"instanceVersion": 1
 		},
 		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missingcluster",
 		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missingcluster/hcpOpenShiftControllers/orphanedcontroller",
@@ -20,5 +23,6 @@
 		}
 	},
 	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/missingcluster/hcpOpenShiftControllers/orphanedcontroller",
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/hcpOpenShiftControllers",
+	"_etag": "\"3211c111-95a4-412f-b457-f9299e2bf32d\""
 }

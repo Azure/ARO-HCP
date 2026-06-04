@@ -24,15 +24,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-type deleteStep[InternalAPIType any] struct {
+type deleteStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	stepID        StepID
 	key           CosmosItemKey
 	expectedError string
 }
 
-func newDeleteStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*deleteStep[InternalAPIType], error) {
+func newDeleteStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*deleteStep[InternalAPIType, InternalAPITypePointer], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -48,21 +50,19 @@ func newDeleteStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*deleteSt
 	}
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
-	return &deleteStep[InternalAPIType]{
+	return &deleteStep[InternalAPIType, InternalAPITypePointer]{
 		stepID:        stepID,
 		key:           key,
 		expectedError: expectedError,
 	}, nil
 }
 
-var _ IntegrationTestStep = &deleteStep[any]{}
-
-func (l *deleteStep[InternalAPIType]) StepID() StepID {
+func (l *deleteStep[InternalAPIType, InternalAPITypePointer]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *deleteStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+func (l *deleteStep[InternalAPIType, InternalAPITypePointer]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType, InternalAPITypePointer](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 	err := resourceCRUDClient.Delete(ctx, l.key.ResourceID.Name)
 	switch {
 	case len(l.expectedError) > 0:

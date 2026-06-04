@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -215,7 +216,8 @@ func newHostedClusterReadDesire(t *testing.T, hostedCluster *v1beta1.HostedClust
 
 	return &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		Status: kubeapplier.ReadDesireStatus{
 			Conditions:  conditions,
