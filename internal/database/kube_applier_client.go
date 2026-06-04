@@ -131,37 +131,35 @@ type KubeApplierReadDesireCRUD interface {
 }
 
 // kubeApplierCosmosDBClient implements KubeApplierDBClient against a Cosmos
-// container that holds one management cluster's data. managementClusterPartitionKey
-// is the lowercased partition-key value used for every write/query against the
-// container; documents must carry a matching Spec.ManagementCluster.
+// container that holds one management cluster's data. managementClusterResourceID
+// identifies the management cluster whose data lives in this container; its
+// lowercased string form is the partition key used for every write/query
+// against the container, and documents must carry a matching Spec.ManagementCluster.
 type kubeApplierCosmosDBClient struct {
-	kubeApplier                   *azcosmos.ContainerClient
-	managementClusterPartitionKey string
+	kubeApplier                 *azcosmos.ContainerClient
+	managementClusterResourceID *azcorearm.ResourceID
 }
 
 var _ KubeApplierDBClient = &kubeApplierCosmosDBClient{}
 
 // NewKubeApplierDBClient wraps a pre-opened Cosmos container client for a single
-// management cluster. managementClusterPartitionKey is the value used as the
-// partition key for every CRUD call; it is lowercased on entry to match the
-// existing kube-applier write helpers, which lowercase Spec.ManagementCluster
-// before comparing.
-func NewKubeApplierDBClient(container *azcosmos.ContainerClient, managementClusterPartitionKey *azcorearm.ResourceID) KubeApplierDBClient {
+// management cluster.
+func NewKubeApplierDBClient(container *azcosmos.ContainerClient, managementClusterResourceID *azcorearm.ResourceID) KubeApplierDBClient {
 	return &kubeApplierCosmosDBClient{
-		kubeApplier:                   container,
-		managementClusterPartitionKey: strings.ToLower(managementClusterPartitionKey.String()),
+		kubeApplier:                 container,
+		managementClusterResourceID: managementClusterResourceID,
 	}
 }
 
 // NewKubeApplierDBClientFromDatabase opens the named container under the given
 // Cosmos database and wraps it for the named management cluster. Convenience
 // for callers like the kube-applier sidecar that have a DatabaseClient in hand.
-func NewKubeApplierDBClientFromDatabase(database *azcosmos.DatabaseClient, containerName string, managementClusterPartitionKey *azcorearm.ResourceID) (KubeApplierDBClient, error) {
+func NewKubeApplierDBClientFromDatabase(database *azcosmos.DatabaseClient, containerName string, managementClusterResourceID *azcorearm.ResourceID) (KubeApplierDBClient, error) {
 	container, err := database.NewContainer(containerName)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	return NewKubeApplierDBClient(container, managementClusterPartitionKey), nil
+	return NewKubeApplierDBClient(container, managementClusterResourceID), nil
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
@@ -171,7 +169,7 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resou
 	}
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
 		c.kubeApplier, parentID, kubeapplier.ClusterScopedApplyDesireResourceType,
-		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
+		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -182,7 +180,7 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForNodePool(subscriptionID, reso
 	}
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
 		c.kubeApplier, parentID, kubeapplier.NodePoolScopedApplyDesireResourceType,
-		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
+		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -193,7 +191,7 @@ func (c *kubeApplierCosmosDBClient) DeleteDesiresForCluster(subscriptionID, reso
 	}
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
 		c.kubeApplier, parentID, kubeapplier.ClusterScopedDeleteDesireResourceType,
-		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
+		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -204,7 +202,7 @@ func (c *kubeApplierCosmosDBClient) DeleteDesiresForNodePool(subscriptionID, res
 	}
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
 		c.kubeApplier, parentID, kubeapplier.NodePoolScopedDeleteDesireResourceType,
-		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
+		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -215,7 +213,7 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForCluster(subscriptionID, resour
 	}
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
 		c.kubeApplier, parentID, kubeapplier.ClusterScopedReadDesireResourceType,
-		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
+		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
@@ -226,19 +224,19 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForNodePool(subscriptionID, resou
 	}
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
 		c.kubeApplier, parentID, kubeapplier.NodePoolScopedReadDesireResourceType,
-		StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}, ClusterNestedResourceIDBuilder{},
+		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
 	), nil
 }
 
 func (c *kubeApplierCosmosDBClient) Listers() KubeApplierListers {
 	return &cosmosKubeApplierListers{
 		kubeApplier:  c.kubeApplier,
-		partitionKey: c.managementClusterPartitionKey,
+		partitionKey: strings.ToLower(c.managementClusterResourceID.String()),
 	}
 }
 
 func (c *kubeApplierCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
-	return NewUntypedCRUDWithPartitionKey(c.kubeApplier, parentResourceID, StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}), nil
+	return NewUntypedCRUDWithPartitionKey(c.kubeApplier, parentResourceID, KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}), nil
 }
 
 // cosmosKubeApplierListers implements KubeApplierListers against a single per-MC
