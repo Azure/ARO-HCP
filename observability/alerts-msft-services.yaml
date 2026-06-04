@@ -93,4 +93,21 @@ prometheusRules:
   # an actual cluster name
   - from: 'absent\(up{job="(.+)"} == 1\)'
     to: 'count by (cluster) (up{job="$1"} == 1) == 0'
+  labelsToExtract:
+  - persistentvolumeclaim
+  - persistentvolume
+  - node
+  - name
+  - job
+  - instance
+  - namespace
+  - horizontalpodautoscaler
+  - deployment
+  - daemonset
+  - statefulset
+  - job_name
+  - pod
+  - container
+  - phase
+  - resource
   groupNamePrefix: "msft-"

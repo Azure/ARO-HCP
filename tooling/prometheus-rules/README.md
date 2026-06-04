@@ -15,6 +15,13 @@ This tool converts Kubernetes PrometheusRule custom resources (used by the Prome
 - Automatically generates IcM correlation IDs for proper incident aggregation
 - Supports expression replacements for platform-specific adjustments
 
+## Recent Change
+
+- Added support for `labelsToExtract` in config.
+- During generation, labels listed in `labelsToExtract` are detected from the `description` annotation template text and then appended to generated alert metadata in configured order.
+- This ensures generated alert title/correlation fields can include extra routing context (such as cluster/namespace/pod) without hard-coding those labels in the generator.
+- Using `description` as the signal for which labels to append is not perfectly precise, but for upstream-managed alert sources that cannot be edited directly (for example, `kubernetesControlPlane-prometheusRule.yaml`), it provides a practical way to preserve useful alert scoping.
+
 ## Usage
 
 ### Build
