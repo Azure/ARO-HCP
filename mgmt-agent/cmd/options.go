@@ -30,7 +30,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	kubeinformers "k8s.io/client-go/informers"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -152,11 +151,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create controller: %w", err)
 	}
 
-	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create discovery client: %w", err)
@@ -164,20 +158,24 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	resourceWatcher := controller.NewResourceWatcher(dynamicClient, discoveryClient)
 
-	hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
-	}
-	hsInformers := hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
+	var ksmCtrl *ksmhcp.KSMHCPController
+	var hsInformers hypershiftinformers.SharedInformerFactory
+	if o.KSMImage != "" {
+		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
+		}
+		hsInformers = hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
 
-	ksmCtrl, err := ksmhcp.NewKSMHCPController(
-		kubeClientset,
-		dynamicClient,
-		hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
-		o.KSMImage,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
+		ksmCtrl, err = ksmhcp.NewKSMHCPController(
+			kubeClientset,
+			dynamicClient,
+			hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+			o.KSMImage,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
+		}
 	}
 
 	leaderElectionCfg := &controller.LeaderElectionConfig{
@@ -231,7 +229,9 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
 	o.kubeInformers.Start(ctx.Done())
-	o.hypershiftInformers.Start(ctx.Done())
+	if o.hypershiftInformers != nil {
+		o.hypershiftInformers.Start(ctx.Done())
+	}
 	logger.V(6).Info("Informer factories started")
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -261,7 +261,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// swift-nic controller with leader election
+	// controllers with leader election
 	g.Go(func() error {
 		logger.Info("Starting controllers under leader election")
 		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
