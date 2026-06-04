@@ -126,13 +126,13 @@ type ResourcesDBClient interface {
 
 	Subscriptions() ResourceCRUD[arm.Subscription, *arm.Subscription]
 
-	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
+	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster]
 
 	// ResourcesGlobalListers returns interfaces for listing ARM resource documents across all partitions
 	// (Resources container only), intended for feeding SharedInformers.
 	ResourcesGlobalListers() ResourcesGlobalListers
 
-	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD
+	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool]
 }
 
 var _ ResourcesDBClient = &resourcesCosmosDBClient{}
@@ -174,13 +174,13 @@ func (d *resourcesCosmosDBClient) Subscriptions() ResourceCRUD[arm.Subscription,
 		d.resources, nil, azcorearm.SubscriptionResourceType)
 }
 
-func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {
+func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] {
 	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return NewCosmosResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
 		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
 }
 
-func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD {
+func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
 	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
