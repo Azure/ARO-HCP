@@ -16,11 +16,8 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
-
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -230,8 +227,7 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForNodePool(subscriptionID, resou
 
 func (c *kubeApplierCosmosDBClient) Listers() KubeApplierListers {
 	return &cosmosKubeApplierListers{
-		kubeApplier:  c.kubeApplier,
-		partitionKey: strings.ToLower(c.managementClusterResourceID.String()),
+		kubeApplier: c.kubeApplier,
 	}
 }
 
@@ -240,19 +236,19 @@ func (c *kubeApplierCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.Resou
 }
 
 // cosmosKubeApplierListers implements KubeApplierListers against a single per-MC
-// Cosmos container. partitionKey scopes every query to this container's one
-// partition (there is only one in the per-MC model, but Cosmos still requires a key).
+// Cosmos container. Queries go cross-partition (empty partition key) — each
+// container holds exactly one management cluster's data on a single partition,
+// so cross-partition reads the same single partition without us having to plumb
+// the partition string through.
 type cosmosKubeApplierListers struct {
-	kubeApplier  *azcosmos.ContainerClient
-	partitionKey string
+	kubeApplier *azcosmos.ContainerClient
 }
 
 var _ KubeApplierListers = &cosmosKubeApplierListers{}
 
 func (g *cosmosKubeApplierListers) ApplyDesires() GlobalLister[kubeapplier.ApplyDesire] {
-	return &cosmosKubeApplierDesireLister[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]]{
-		kubeApplier:  g.kubeApplier,
-		partitionKey: g.partitionKey,
+	return &cosmosGlobalLister[kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]]{
+		containerClient: g.kubeApplier,
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedApplyDesireResourceType,
 			kubeapplier.NodePoolScopedApplyDesireResourceType,
@@ -261,9 +257,8 @@ func (g *cosmosKubeApplierListers) ApplyDesires() GlobalLister[kubeapplier.Apply
 }
 
 func (g *cosmosKubeApplierListers) DeleteDesires() GlobalLister[kubeapplier.DeleteDesire] {
-	return &cosmosKubeApplierDesireLister[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]]{
-		kubeApplier:  g.kubeApplier,
-		partitionKey: g.partitionKey,
+	return &cosmosGlobalLister[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]]{
+		containerClient: g.kubeApplier,
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedDeleteDesireResourceType,
 			kubeapplier.NodePoolScopedDeleteDesireResourceType,
@@ -272,51 +267,13 @@ func (g *cosmosKubeApplierListers) DeleteDesires() GlobalLister[kubeapplier.Dele
 }
 
 func (g *cosmosKubeApplierListers) ReadDesires() GlobalLister[kubeapplier.ReadDesire] {
-	return &cosmosKubeApplierDesireLister[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]]{
-		kubeApplier:  g.kubeApplier,
-		partitionKey: g.partitionKey,
+	return &cosmosGlobalLister[kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]]{
+		containerClient: g.kubeApplier,
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedReadDesireResourceType,
 			kubeapplier.NodePoolScopedReadDesireResourceType,
 		},
 	}
-}
-
-// cosmosKubeApplierDesireLister lists *Desire documents (one kind per instance)
-// from a kube-applier container, unioning the cluster-scoped and node-pool-scoped
-// resource types in a single query against one partition.
-type cosmosKubeApplierDesireLister[InternalAPIType, CosmosAPIType any] struct {
-	kubeApplier   *azcosmos.ContainerClient
-	resourceTypes []azcorearm.ResourceType
-	partitionKey  string
-}
-
-func (l *cosmosKubeApplierDesireLister[InternalAPIType, CosmosAPIType]) List(
-	ctx context.Context, options *DBClientListResourceDocsOptions,
-) (DBClientIterator[InternalAPIType], error) {
-	var resourceTypeConditions []string
-	for _, rt := range l.resourceTypes {
-		resourceTypeConditions = append(
-			resourceTypeConditions,
-			fmt.Sprintf("STRINGEQUALS(c.resourceType, %q, true)", rt.String()),
-		)
-	}
-	query := fmt.Sprintf("SELECT * FROM c WHERE %s", strings.Join(resourceTypeConditions, " OR "))
-
-	queryOptions := azcosmos.QueryOptions{PageSizeHint: -1}
-	if options != nil {
-		if options.PageSizeHint != nil {
-			queryOptions.PageSizeHint = max(*options.PageSizeHint, -1)
-		}
-		queryOptions.ContinuationToken = options.ContinuationToken
-	}
-
-	pager := l.kubeApplier.NewQueryItemsPager(query, azcosmos.NewPartitionKeyString(l.partitionKey), &queryOptions)
-
-	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
-		return newQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType](pager), nil
-	}
-	return newQueryResourcesIterator[InternalAPIType, CosmosAPIType](pager), nil
 }
 
 // KubeApplierDBClients is a thread-safe registry of KubeApplierDBClient keyed by
