@@ -87,7 +87,13 @@ func (c *operationNodePoolCreate) ShouldProcess(ctx context.Context, operation *
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
 		return false
 	}
+
 	return true
+}
+
+func (c *operationNodePoolCreate) shouldReconcileOperationAndResourceStatus(nodePool *api.HCPOpenShiftClusterNodePool) bool {
+	return nodePool.ServiceProviderProperties.DeletionTimestamp == nil &&
+		nodePool.ServiceProviderProperties.ClusterServiceID != nil
 }
 
 func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
@@ -105,5 +111,31 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	return pollNodePoolStatus(ctx, c.clock, c.resourcesDBClient, c.clusterServiceClient, operation, c.notificationClient)
+	nodePool, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).NodePools(operation.ExternalID.Parent.Name).Get(ctx, operation.ExternalID.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster: %w", err)
+	}
+
+	if !c.shouldReconcileOperationAndResourceStatus(nodePool) {
+		return nil
+	}
+
+	csNodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, csNodePoolStatus)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	logger.Info("new status", "newStatus", newOperationStatus)
+
+	logger.Info("updating status")
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
 }

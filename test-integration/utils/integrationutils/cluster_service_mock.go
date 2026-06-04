@@ -502,6 +502,25 @@ func (s *ClusterServiceMock) GetOrCreateMockData(dataName string) map[string][]a
 	return newData
 }
 
+// FindClusterHREF returns the Cluster Service HREF for a cluster created via PostCluster
+// in this test, matched by OCM cluster name.
+func (s *ClusterServiceMock) FindClusterHREF(testName, clusterName string) (string, bool) {
+	data := s.GetOrCreateMockData(testName + "_clusters")
+	for _, history := range data {
+		if len(history) == 0 {
+			continue
+		}
+		cluster, ok := history[len(history)-1].(*arohcpv1alpha1.Cluster)
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(cluster.Name(), clusterName) {
+			return cluster.HREF(), true
+		}
+	}
+	return "", false
+}
+
 // GetMergedClusters returns all clusters stored in the mock, each merged from
 // its full mutation history and serialized to a JSON map. The testName should
 // be t.Name() from the test that created the mock.
