@@ -118,7 +118,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 
 	// Pull the domain prefix from cosmos rather than Cluster Service: the
-	// cluster_properties_sync controller already mirrors CS DomainPrefix into
+	// cluster_base_domain_prefix_sync controller already mirrors CS DomainPrefix into
 	// CustomerProperties.DNS.BaseDomainPrefix, so we'd just be re-doing its
 	// work. Skip until that sync has happened; we'll retrigger on relist.
 	csClusterDomainPrefix := existingCluster.CustomerProperties.DNS.BaseDomainPrefix

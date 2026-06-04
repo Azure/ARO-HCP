@@ -553,9 +553,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
-	clusterPropertiesSyncController := clusterpropertiescontroller.NewClusterPropertiesSyncController(
+	clusterBaseDomainPrefixSyncController := clusterpropertiescontroller.NewClusterBaseDomainPrefixSyncController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	clusterPropertiesSyncController := clusterpropertiescontroller.NewClusterPropertiesSyncController(
+		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
 		unionKubeApplierInformers,
@@ -740,6 +746,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
+				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go identityMigrationController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)

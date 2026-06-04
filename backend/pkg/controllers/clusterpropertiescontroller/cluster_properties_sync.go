@@ -32,135 +32,89 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// clusterPropertiesSyncer is a Cluster syncer that synchronizes cluster properties
-// to Cosmos DB. CustomerProperties.DNS.BaseDomainPrefix is synced from Cluster Service
-// first so downstream ReadDesires can target the HostedCluster on the management cluster.
-// The remaining fields are synced from the observed HostedCluster ReadDesire content:
+// clusterPropertiesSyncer synchronizes ServiceProviderProperties from the observed
+// HostedCluster ReadDesire content to Cosmos DB, reconciling when values differ:
 //   - ServiceProviderProperties.Console.URL
 //   - ServiceProviderProperties.DNS.BaseDomain
 //   - ServiceProviderProperties.API.URL
 //   - ServiceProviderProperties.Platform.IssuerURL
 type clusterPropertiesSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
-	resourcesDBClient    database.ResourcesDBClient
-	clusterServiceClient ocm.ClusterServiceClientSpec
-	readDesireLister     dblisters.ReadDesireLister
+	cooldownChecker   controllerutil.CooldownChecker
+	resourcesDBClient database.ResourcesDBClient
+	readDesireLister  dblisters.ReadDesireLister
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterPropertiesSyncer)(nil)
 
-// NewClusterPropertiesSyncController creates a new controller that synchronizes
-// cluster properties from Cluster Service and HostedCluster to Cosmos DB.
-// It periodically checks each cluster and populates the Console.URL, DNS.BaseDomain,
-// API.URL, and Platform.IssuerURL fields from CS and HostedCluster and updates Cosmos.
+// NewClusterPropertiesSyncController creates a controller that synchronizes
+// cluster properties from the HostedCluster ReadDesire mirror to Cosmos DB.
 func NewClusterPropertiesSyncController(
 	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &clusterPropertiesSyncer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient:    resourcesDBClient,
-		clusterServiceClient: clusterServiceClient,
-		readDesireLister:     readDesireLister,
+		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient: resourcesDBClient,
+		readDesireLister:  readDesireLister,
 	}
 
-	controller := controllerutils.NewClusterWatchingController(
+	return controllerutils.NewClusterWatchingController(
 		"ClusterPropertiesSync",
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
-		5*time.Minute, // Check every 5 minutes
+		5*time.Minute,
 		syncer,
 	)
-
-	return controller
 }
 
 func (c *clusterPropertiesSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-// SyncOnce performs a single reconciliation of cluster properties.
-// It checks if the Console.URL, DNS.BaseDomain, API.URL,
-// Platform.IssuerURL, or DNS.BaseDomainPrefix fields are unset, and if so, fetches the
-// values from CS and HostedCluster and updates Cosmos.
 func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Get the cluster from Cosmos
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil // cluster doesn't exist, no work to do
+		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
-	}
-
-	// Check if any of the properties need to be synced
-	needsConsoleURL := len(existingCluster.ServiceProviderProperties.Console.URL) == 0
-	needsBaseDomain := len(existingCluster.ServiceProviderProperties.DNS.BaseDomain) == 0
-	needsAPIURL := len(existingCluster.ServiceProviderProperties.API.URL) == 0
-	needsIssuerURL := len(existingCluster.ServiceProviderProperties.Platform.IssuerURL) == 0
-	needsBaseDomainPrefix := len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0
-
-	if !needsConsoleURL && !needsBaseDomain && !needsBaseDomainPrefix && !needsAPIURL && !needsIssuerURL {
-		return nil
-	}
-
-	originalCluster := existingCluster.DeepCopy()
-
-	// Sync domain prefix from CS first; ReadDesire targeting needs it before HostedCluster content is observed.
-	if needsBaseDomainPrefix {
-		// Check if we have a cluster service ID to query
-		if existingCluster.ServiceProviderProperties.ClusterServiceID == nil ||
-			len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-			return nil
-		}
-		csCluster, err := c.clusterServiceClient.GetCluster(ctx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
-		}
-		existingCluster.CustomerProperties.DNS.BaseDomainPrefix = csCluster.DomainPrefix()
 	}
 
 	hostedCluster, err := maestrohelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}
-	if hostedCluster != nil {
-		domainPrefix := existingCluster.CustomerProperties.DNS.BaseDomainPrefix
-		if needsConsoleURL {
-			existingCluster.ServiceProviderProperties.Console.URL = fmt.Sprintf("https://console-openshift-console.apps.%s", hostedCluster.Spec.DNS.BaseDomain)
-		}
-		if needsBaseDomain {
-			existingCluster.ServiceProviderProperties.DNS.BaseDomain = strings.TrimPrefix(
-				hostedCluster.Spec.KubeAPIServerDNSName,
-				fmt.Sprintf("api.%s.", domainPrefix),
-			)
-		}
-		if needsAPIURL {
-			existingCluster.ServiceProviderProperties.API.URL = fmt.Sprintf("https://%s", net.JoinHostPort(hostedCluster.Spec.KubeAPIServerDNSName, strconv.Itoa(int(hostedCluster.Status.ControlPlaneEndpoint.Port))))
-		}
-		if needsIssuerURL {
-			existingCluster.ServiceProviderProperties.Platform.IssuerURL = hostedCluster.Spec.IssuerURL
-		}
+	if hostedCluster == nil {
+		return nil
 	}
 
-	// Only write back if something actually changed
+	originalCluster := existingCluster.DeepCopy()
+	domainPrefix := existingCluster.CustomerProperties.DNS.BaseDomainPrefix
+
+	existingCluster.ServiceProviderProperties.Console.URL = fmt.Sprintf("https://console-openshift-console.apps.%s", hostedCluster.Spec.DNS.BaseDomain)
+	existingCluster.ServiceProviderProperties.DNS.BaseDomain = strings.TrimPrefix(
+		hostedCluster.Spec.KubeAPIServerDNSName,
+		fmt.Sprintf("api.%s.", domainPrefix),
+	)
+	if hostedCluster.Status.ControlPlaneEndpoint.Port != 0 {
+		existingCluster.ServiceProviderProperties.API.URL = fmt.Sprintf("https://%s", net.JoinHostPort(hostedCluster.Spec.KubeAPIServerDNSName, strconv.Itoa(int(hostedCluster.Status.ControlPlaneEndpoint.Port))))
+	}
+	existingCluster.ServiceProviderProperties.Platform.IssuerURL = hostedCluster.Spec.IssuerURL
+
 	if equality.Semantic.DeepEqual(originalCluster, existingCluster) {
 		return nil
 	}
 
-	// Write the updated cluster back to Cosmos
 	if _, err := clusterCRUD.Replace(ctx, existingCluster, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
