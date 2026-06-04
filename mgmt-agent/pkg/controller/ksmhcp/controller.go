@@ -16,17 +16,18 @@ package ksmhcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	hcpinformers "github.com/openshift/hypershift/client/informers/externalversions/hypershift/v1beta1"
@@ -44,6 +46,12 @@ const (
 	resourceName = "kube-state-metrics-hcp"
 	labelApp     = "app.kubernetes.io/name"
 	fieldManager = "mgmt-agent-ksm-hcp"
+
+	// serviceNetworkKubeconfigSecret is the well-known secret name created by
+	// HyperShift's control-plane-operator (manifests/kas.go:KASServiceKubeconfigSecret)
+	// for in-cluster access to the HCP kube-apiserver. Used by 25+ HCP components.
+	serviceNetworkKubeconfigSecret = "service-network-admin-kubeconfig"
+	serviceNetworkKubeconfigKey    = "kubeconfig"
 )
 
 var serviceMonitorGVR = schema.GroupVersionResource{
@@ -171,9 +179,9 @@ func (c *KSMHCPController) syncHandler(ctx context.Context, key string) error {
 		return fmt.Errorf("failed to get HostedControlPlane %q: %w", key, err)
 	}
 
-	if hcp.Status.KubeConfig == nil {
-		logger.V(4).Info("HostedControlPlane kubeconfig not yet available, requeueing", "key", key)
-		return fmt.Errorf("kubeconfig not ready for %q", key)
+	if !isKubeAPIServerAvailable(hcp) {
+		logger.V(4).Info("KubeAPIServer not yet available, requeueing", "key", key)
+		return fmt.Errorf("KubeAPIServer not available for %q", key)
 	}
 
 	return c.reconcile(ctx, hcp)
@@ -190,7 +198,7 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 		UID:        hcp.UID,
 	}
 
-	deployment := buildDeployment(ns, c.ksmImage, hcp.Status.KubeConfig, ownerRef)
+	deployment := buildDeployment(ns, c.ksmImage, serviceNetworkKubeconfigSecret, serviceNetworkKubeconfigKey, ownerRef)
 	if err := c.ensureDeployment(ctx, deployment); err != nil {
 		return fmt.Errorf("failed to ensure deployment in %s: %w", ns, err)
 	}
@@ -200,7 +208,8 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 		return fmt.Errorf("failed to ensure service in %s: %w", ns, err)
 	}
 
-	serviceMonitor := buildServiceMonitor(ns, ownerRef)
+	region := hcp.Spec.Platform.Azure.Location
+	serviceMonitor := buildServiceMonitor(ns, region, ownerRef)
 	if err := c.ensureServiceMonitor(ctx, serviceMonitor); err != nil {
 		return fmt.Errorf("failed to ensure servicemonitor in %s: %w", ns, err)
 	}
@@ -210,58 +219,38 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 }
 
 func (c *KSMHCPController) ensureDeployment(ctx context.Context, desired *appsv1.Deployment) error {
-	existing, err := c.kubeClientset.AppsV1().Deployments(desired.Namespace).Get(ctx, desired.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = c.kubeClientset.AppsV1().Deployments(desired.Namespace).Create(ctx, desired, metav1.CreateOptions{FieldManager: fieldManager})
-		return err
-	}
+	data, err := json.Marshal(desired)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal deployment: %w", err)
 	}
-
-	if !equality.Semantic.DeepEqual(existing.Spec, desired.Spec) {
-		existing.Spec = desired.Spec
-		_, err = c.kubeClientset.AppsV1().Deployments(desired.Namespace).Update(ctx, existing, metav1.UpdateOptions{FieldManager: fieldManager})
-		return err
-	}
-
-	return nil
+	_, err = c.kubeClientset.AppsV1().Deployments(desired.Namespace).Patch(
+		ctx, desired.Name, types.ApplyPatchType, data,
+		metav1.PatchOptions{FieldManager: fieldManager, Force: ptr.To(true)},
+	)
+	return err
 }
 
 func (c *KSMHCPController) ensureService(ctx context.Context, desired *corev1.Service) error {
-	existing, err := c.kubeClientset.CoreV1().Services(desired.Namespace).Get(ctx, desired.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = c.kubeClientset.CoreV1().Services(desired.Namespace).Create(ctx, desired, metav1.CreateOptions{FieldManager: fieldManager})
-		return err
-	}
+	data, err := json.Marshal(desired)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal service: %w", err)
 	}
-
-	if !equality.Semantic.DeepEqual(existing.Spec.Ports, desired.Spec.Ports) ||
-		!equality.Semantic.DeepEqual(existing.Spec.Selector, desired.Spec.Selector) {
-		existing.Spec.Ports = desired.Spec.Ports
-		existing.Spec.Selector = desired.Spec.Selector
-		_, err = c.kubeClientset.CoreV1().Services(desired.Namespace).Update(ctx, existing, metav1.UpdateOptions{FieldManager: fieldManager})
-		return err
-	}
-
-	return nil
+	_, err = c.kubeClientset.CoreV1().Services(desired.Namespace).Patch(
+		ctx, desired.Name, types.ApplyPatchType, data,
+		metav1.PatchOptions{FieldManager: fieldManager, Force: ptr.To(true)},
+	)
+	return err
 }
 
 func (c *KSMHCPController) ensureServiceMonitor(ctx context.Context, desired *unstructured.Unstructured) error {
-	client := c.dynamicClient.Resource(serviceMonitorGVR).Namespace(desired.GetNamespace())
-
-	_, err := client.Get(ctx, desired.GetName(), metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = client.Create(ctx, desired, metav1.CreateOptions{FieldManager: fieldManager})
-		return err
-	}
+	data, err := json.Marshal(desired)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal servicemonitor: %w", err)
 	}
-
-	_, err = client.Update(ctx, desired, metav1.UpdateOptions{FieldManager: fieldManager})
+	_, err = c.dynamicClient.Resource(serviceMonitorGVR).Namespace(desired.GetNamespace()).Patch(
+		ctx, desired.GetName(), types.ApplyPatchType, data,
+		metav1.PatchOptions{FieldManager: fieldManager, Force: ptr.To(true)},
+	)
 	return err
 }
 
@@ -272,4 +261,13 @@ func toUnstructured(obj runtime.Object) (*unstructured.Unstructured, error) {
 		return nil, err
 	}
 	return &unstructured.Unstructured{Object: data}, nil
+}
+
+func isKubeAPIServerAvailable(hcp *hypershiftv1beta1.HostedControlPlane) bool {
+	for _, c := range hcp.Status.Conditions {
+		if c.Type == "KubeAPIServerAvailable" {
+			return c.Status == metav1.ConditionTrue
+		}
+	}
+	return false
 }

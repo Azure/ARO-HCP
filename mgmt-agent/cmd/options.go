@@ -146,20 +146,24 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create controller: %w", err)
 	}
 
-	hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
-	}
-	hsInformers := hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
+	var ksmCtrl *ksmhcp.KSMHCPController
+	var hsInformers hypershiftinformers.SharedInformerFactory
+	if o.KSMImage != "" {
+		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
+		}
+		hsInformers = hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
 
-	ksmCtrl, err := ksmhcp.NewKSMHCPController(
-		kubeClientset,
-		dynamicClient,
-		hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
-		o.KSMImage,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
+		ksmCtrl, err = ksmhcp.NewKSMHCPController(
+			kubeClientset,
+			dynamicClient,
+			hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+			o.KSMImage,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
+		}
 	}
 
 	leaderElectionCfg := &controller.LeaderElectionConfig{
@@ -212,7 +216,9 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
 	o.kubeInformers.Start(ctx.Done())
-	o.hypershiftInformers.Start(ctx.Done())
+	if o.hypershiftInformers != nil {
+		o.hypershiftInformers.Start(ctx.Done())
+	}
 	logger.V(6).Info("Informer factories started")
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -242,29 +248,28 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// swift-nic controller with leader election
+	// controllers with leader election
 	g.Go(func() error {
-		logger.Info("Starting swift-nic controller")
-		if err := controller.RunWithLeaderElection(ctx, "swift-nic", o.leaderElectionCfg, func(leaderCtx context.Context) error {
-			return o.ctrl.Run(leaderCtx, o.workers)
-		}); err != nil {
-			logger.Error(err, "Swift NIC controller stopped with error")
-			return err
-		}
-		logger.Info("Swift NIC controller stopped")
-		return nil
-	})
+		logger.Info("Starting controllers with leader election")
+		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
+			controllerGroup, controllerCtx := errgroup.WithContext(leaderCtx)
 
-	// ksm-hcp controller with leader election
-	g.Go(func() error {
-		logger.Info("Starting KSM HCP controller")
-		if err := controller.RunWithLeaderElection(ctx, "ksm-hcp", o.leaderElectionCfg, func(leaderCtx context.Context) error {
-			return o.ksmCtrl.Run(leaderCtx, o.workers)
+			controllerGroup.Go(func() error {
+				return o.ctrl.Run(controllerCtx, o.workers)
+			})
+
+			if o.ksmCtrl != nil {
+				controllerGroup.Go(func() error {
+					return o.ksmCtrl.Run(controllerCtx, o.workers)
+				})
+			}
+
+			return controllerGroup.Wait()
 		}); err != nil {
-			logger.Error(err, "KSM HCP controller stopped with error")
+			logger.Error(err, "Controllers stopped with error")
 			return err
 		}
-		logger.Info("KSM HCP controller stopped")
+		logger.Info("Controllers stopped")
 		return nil
 	})
 

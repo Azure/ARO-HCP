@@ -23,8 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
-	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
@@ -34,8 +32,12 @@ func labels() map[string]string {
 	}
 }
 
-func buildDeployment(namespace, ksmImage string, kubeconfigRef *hypershiftv1beta1.KubeconfigSecretRef, ownerRef metav1.OwnerReference) *appsv1.Deployment {
+func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey string, ownerRef metav1.OwnerReference) *appsv1.Deployment {
 	return &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            resourceName,
 			Namespace:       namespace,
@@ -59,6 +61,7 @@ func buildDeployment(namespace, ksmImage string, kubeconfigRef *hypershiftv1beta
 							Args: []string{
 								"--resources=nodes",
 								"--kubeconfig=/opt/k8s/.kube/config",
+								"--metric-allowlist=kube_node_status_condition,kube_node_info",
 							},
 							Ports: []corev1.ContainerPort{
 								{
@@ -71,6 +74,26 @@ func buildDeployment(namespace, ksmImage string, kubeconfigRef *hypershiftv1beta
 									ContainerPort: 8081,
 									Protocol:      corev1.ProtocolTCP,
 								},
+							},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/livez",
+										Port: intstr.FromString("http-metrics"),
+									},
+								},
+								InitialDelaySeconds: 5,
+								TimeoutSeconds:      5,
+							},
+							ReadinessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/readyz",
+										Port: intstr.FromString("telemetry"),
+									},
+								},
+								InitialDelaySeconds: 5,
+								TimeoutSeconds:      5,
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
@@ -101,15 +124,16 @@ func buildDeployment(namespace, ksmImage string, kubeconfigRef *hypershiftv1beta
 							},
 						},
 					},
+					AutomountServiceAccountToken: ptr.To(false),
 					Volumes: []corev1.Volume{
 						{
 							Name: "kubeconfig",
 							VolumeSource: corev1.VolumeSource{
 								Secret: &corev1.SecretVolumeSource{
-									SecretName: kubeconfigRef.Name,
+									SecretName: kubeconfigSecretName,
 									Items: []corev1.KeyToPath{
 										{
-											Key:  kubeconfigRef.Key,
+											Key:  kubeconfigKey,
 											Path: "config",
 										},
 									},
@@ -119,6 +143,12 @@ func buildDeployment(namespace, ksmImage string, kubeconfigRef *hypershiftv1beta
 					},
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsNonRoot: ptr.To(true),
+						RunAsUser:    ptr.To(int64(65534)),
+						RunAsGroup:   ptr.To(int64(65534)),
+						FSGroup:      ptr.To(int64(65534)),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
 					},
 				},
 			},
@@ -128,6 +158,10 @@ func buildDeployment(namespace, ksmImage string, kubeconfigRef *hypershiftv1beta
 
 func buildService(namespace string, ownerRef metav1.OwnerReference) *corev1.Service {
 	return &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Service",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            resourceName,
 			Namespace:       namespace,
@@ -159,7 +193,7 @@ func buildService(namespace string, ownerRef metav1.OwnerReference) *corev1.Serv
 // The metricRelabelings inject the HCP namespace so node metrics (which are
 // cluster-scoped with namespace="") get routed to the correct HCP Azure
 // Monitor Workspace via the existing remote write namespace filter.
-func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) *unstructured.Unstructured {
+func buildServiceMonitor(namespace, region string, ownerRef metav1.OwnerReference) *unstructured.Unstructured {
 	sm := &monitoringv1.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "monitoring.coreos.com/v1",
@@ -180,6 +214,11 @@ func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) *unst
 						{
 							TargetLabel: "namespace",
 							Replacement: ptr.To(namespace),
+							Action:      "replace",
+						},
+						{
+							TargetLabel: "azure_region",
+							Replacement: ptr.To(region),
 							Action:      "replace",
 						},
 					},
