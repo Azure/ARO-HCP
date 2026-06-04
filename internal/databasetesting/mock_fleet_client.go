@@ -252,15 +252,15 @@ type mockFleetGlobalListers struct {
 var _ database.FleetGlobalListers = &mockFleetGlobalListers{}
 
 func (g *mockFleetGlobalListers) Stamps() database.GlobalLister[fleet.Stamp] {
-	return &mockTypedGlobalLister[fleet.Stamp, database.GenericDocument[fleet.Stamp]]{
-		client:       g.client,
-		resourceType: fleet.StampResourceType,
+	return &mockGlobalLister[fleet.Stamp, database.GenericDocument[fleet.Stamp]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{fleet.StampResourceType},
 	}
 }
 
 func (g *mockFleetGlobalListers) ManagementClusters() database.GlobalLister[fleet.ManagementCluster] {
-	return &mockTypedGlobalLister[fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]]{
-		client:       g.client,
-		resourceType: fleet.ManagementClusterResourceType,
+	return &mockGlobalLister[fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{fleet.ManagementClusterResourceType},
 	}
 }

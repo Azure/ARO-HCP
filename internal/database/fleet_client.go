@@ -17,6 +17,7 @@ package database
 import (
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -141,13 +142,13 @@ var _ FleetGlobalListers = &cosmosFleetGlobalListers{}
 func (g *cosmosFleetGlobalListers) Stamps() GlobalLister[fleet.Stamp] {
 	return &cosmosGlobalLister[fleet.Stamp, GenericDocument[fleet.Stamp]]{
 		containerClient: g.container,
-		resourceType:    fleet.StampResourceType,
+		resourceTypes:   []azcorearm.ResourceType{fleet.StampResourceType},
 	}
 }
 
 func (g *cosmosFleetGlobalListers) ManagementClusters() GlobalLister[fleet.ManagementCluster] {
 	return &cosmosGlobalLister[fleet.ManagementCluster, GenericDocument[fleet.ManagementCluster]]{
 		containerClient: g.container,
-		resourceType:    fleet.ManagementClusterResourceType,
+		resourceTypes:   []azcorearm.ResourceType{fleet.ManagementClusterResourceType},
 	}
 }
