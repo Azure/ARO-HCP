@@ -2,6 +2,7 @@ ClusterId: cid1
 ClusterIds: '''cid1'', ''cid2'''
 ClusterName: my-cluster
 ClusterNames: '''cluster-a'', ''cluster-b'''
+FilterClusterName: ""
 HCPNamespacePrefix: ocm-arohcp
 Limit: 100
 NoTruncation: false

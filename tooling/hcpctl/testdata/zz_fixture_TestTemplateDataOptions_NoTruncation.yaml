@@ -2,6 +2,7 @@ ClusterId: ""
 ClusterIds: ""
 ClusterName: ""
 ClusterNames: ''''''
+FilterClusterName: ""
 HCPNamespacePrefix: ""
 Limit: 0
 NoTruncation: true
