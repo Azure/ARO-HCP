@@ -196,7 +196,7 @@ func (h *hcpClusterCRUD) Controllers(hcpClusterName string) ResourceCRUD[api.Con
 	return NewControllerCRUD(h.containerClient, parentResourceID, api.ClusterControllerResourceType)
 }
 
-func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) ManagementClusterContentCRUD {
+func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] {
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.parentResourceID.String(),
@@ -242,7 +242,7 @@ func (h *nodePoolsCRUD) Controllers(nodePoolName string) ResourceCRUD[api.Contro
 	return NewControllerCRUD(h.containerClient, parentResourceID, api.NodePoolControllerResourceType)
 }
 
-func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ManagementClusterContentCRUD {
+func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] {
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.parentResourceID.String(),
