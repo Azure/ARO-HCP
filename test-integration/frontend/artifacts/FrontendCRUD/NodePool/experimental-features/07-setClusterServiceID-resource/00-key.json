@@ -1,0 +1,5 @@
+{
+  "id": "96aef0db-89eb-5b1c-af68-ce2c21997fa2",
+  "resourceID": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/valid-420-np",
+  "_artifactStep": "setClusterServiceID"
+}
