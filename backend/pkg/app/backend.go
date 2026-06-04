@@ -559,6 +559,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 		unionKubeApplierInformers,
+		unionReadDesireLister,
 	)
 	identityMigrationController := clusterpropertiescontroller.NewIdentityMigrationController(
 		b.options.ResourcesDBClient,
