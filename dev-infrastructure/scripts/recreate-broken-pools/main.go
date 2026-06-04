@@ -1566,7 +1566,10 @@ func (c *clients) maybeAbortLRO(ctx context.Context) (bool, error) {
 // different VM SKUs and disk sizes (see config/config.yaml entries
 // across environments), and AKS rejects an all-User cluster (the
 // existing System pool, if any, must be replaced by another System
-// pool). The temporary pool overrides Count=1 and tags itself with
+// pool). The temporary pool uses the source pool's current Count so it
+// can absorb the source pool's capacity during drain/delete. If Count is
+// unavailable, it falls back to MinCount and then to one node so remediation
+// can still proceed. The temporary pool tags itself with
 // (1) the purpose marker so detection can skip it and (2) the full
 // Azure resource ID of the source pool (read from live.ID) so a
 // leftover temp pool can always be matched back to a unique source —
@@ -1590,7 +1593,7 @@ func buildTempAgentPool(live *armcs.AgentPool, cpVersion string) (*armcs.AgentPo
 	if cpVersion == "" {
 		return nil, errors.New("buildTempAgentPool: empty cpVersion")
 	}
-	cnt := int32(1)
+	cnt, _ := tempPoolDesiredCount(body.Properties)
 	body.Properties.Count = &cnt
 	body.Properties.MinCount = nil
 	body.Properties.MaxCount = nil
@@ -1609,8 +1612,16 @@ func (c *clients) addTempPool(ctx context.Context, target nodePoolTarget, live *
 		return err
 	}
 	tmpName := tempPoolName(target.name)
-	logf("creating temp pool %s for %s (vmSize=%s, mode=%v, 1 node, k8s=%s, inherited taints)",
-		tmpName, target.name, strDeref(live.Properties.VMSize), ptrValue(live.Properties.Mode), c.cfg.cpVersion)
+	_, countSource := tempPoolDesiredCount(live.Properties)
+	wantReady := int(*body.Properties.Count)
+	if countSource == "MinCount" {
+		logf("source pool %s has no positive Count; using MinCount=%d for temp pool size", target.name, wantReady)
+	}
+	if countSource == "default" {
+		logf("WARN: source pool %s has no positive Count or MinCount; using minimal temp pool size count=1", target.name)
+	}
+	logf("creating temp pool %s for %s (vmSize=%s, mode=%v, count=%d, countSource=%s, k8s=%s, inherited taints)",
+		tmpName, target.name, strDeref(live.Properties.VMSize), ptrValue(live.Properties.Mode), wantReady, countSource, c.cfg.cpVersion)
 	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, tmpName, *body, nil)
 	if err != nil {
 		return fmt.Errorf("begin create temp pool %s: %w", tmpName, err)
@@ -1618,8 +1629,28 @@ func (c *clients) addTempPool(ctx context.Context, target nodePoolTarget, live *
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
 		return fmt.Errorf("poll create temp pool %s: %w", tmpName, err)
 	}
-	logf("temp pool %s created; waiting for k8s node Ready", tmpName)
-	return c.waitForReadyNodes(ctx, tmpName, 1, tempReadyTOMin*time.Minute)
+	readyTimeout := tempPoolReadyTimeout(wantReady)
+	logf("temp pool %s created; waiting for %d k8s node(s) Ready (timeout=%s)", tmpName, wantReady, readyTimeout)
+	return c.waitForReadyNodes(ctx, tmpName, wantReady, readyTimeout)
+}
+
+func tempPoolDesiredCount(props *armcs.ManagedClusterAgentPoolProfileProperties) (int32, string) {
+	if props != nil {
+		if props.Count != nil && *props.Count > 0 {
+			return *props.Count, "Count"
+		}
+		if props.MinCount != nil && *props.MinCount > 0 {
+			return *props.MinCount, "MinCount"
+		}
+	}
+	return 1, "default"
+}
+
+func tempPoolReadyTimeout(wantReady int) time.Duration {
+	if wantReady > 1 {
+		return poolReadyTOMin * time.Minute
+	}
+	return tempReadyTOMin * time.Minute
 }
 
 // ---------------------------------------------------------------------------

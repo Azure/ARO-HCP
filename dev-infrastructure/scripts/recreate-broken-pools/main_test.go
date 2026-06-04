@@ -813,8 +813,8 @@ func TestBuildTempAgentPool_ValidInputs(t *testing.T) {
 	if p.VMSize == nil || *p.VMSize != "Standard_E8ds_v5" {
 		t.Errorf("temp VMSize should match live: %v", p.VMSize)
 	}
-	if p.Count == nil || *p.Count != 1 {
-		t.Errorf("temp Count should be 1, got %v", p.Count)
+	if p.Count == nil || *p.Count != 2 {
+		t.Errorf("temp Count should match live Count=2, got %v", p.Count)
 	}
 	if p.OrchestratorVersion == nil || *p.OrchestratorVersion != "1.35.4" {
 		t.Errorf("OrchestratorVersion: %v", p.OrchestratorVersion)
@@ -1074,6 +1074,47 @@ func TestBuildTempAgentPool_MissingCPVersion(t *testing.T) {
 	live := mkLiveSystemPool()
 	if _, err := buildTempAgentPool(live, ""); err == nil {
 		t.Fatal("expected error for empty cpVersion")
+	}
+}
+
+func TestBuildTempAgentPool_CountFallbacks(t *testing.T) {
+	cases := []struct {
+		name      string
+		count     *int32
+		minCount  *int32
+		wantCount int32
+	}{
+		{name: "count_wins", count: ptr(int32(3)), minCount: ptr(int32(5)), wantCount: 3},
+		{name: "missing_count_uses_min_count", count: nil, minCount: ptr(int32(4)), wantCount: 4},
+		{name: "zero_count_uses_min_count", count: ptr(int32(0)), minCount: ptr(int32(2)), wantCount: 2},
+		{name: "missing_count_and_min_count_uses_one", count: nil, minCount: nil, wantCount: 1},
+		{name: "zero_count_and_zero_min_count_uses_one", count: ptr(int32(0)), minCount: ptr(int32(0)), wantCount: 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			live := mkLiveSystemPool()
+			live.Properties.Count = tc.count
+			live.Properties.MinCount = tc.minCount
+			body, err := buildTempAgentPool(live, "1.35.4")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := *body.Properties.Count; got != tc.wantCount {
+				t.Fatalf("Count=%d want %d", got, tc.wantCount)
+			}
+		})
+	}
+}
+
+func TestTempPoolReadyTimeout(t *testing.T) {
+	if got := tempPoolReadyTimeout(1); got != tempReadyTOMin*time.Minute {
+		t.Errorf("single-node temp timeout=%s want %dm", got, tempReadyTOMin)
+	}
+	for _, wantReady := range []int{2, 3, 4} {
+		if got := tempPoolReadyTimeout(wantReady); got != poolReadyTOMin*time.Minute {
+			t.Errorf("multi-node temp timeout for wantReady=%d got %s want %dm", wantReady, got, poolReadyTOMin)
+		}
 	}
 }
 
