@@ -37,6 +37,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
@@ -681,19 +682,51 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+
 	externalAuthClusterServiceIDClearerController := externalauthdeletion.NewExternalAuthClusterServiceIDClearerController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
 	)
+
 	externalAuthChildResourcesCleanupController := externalauthdeletion.NewExternalAuthChildResourcesCleanupController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
 	)
+
 	externalAuthDeletionController := externalauthdeletion.NewExternalAuthDeletionController(
 		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterClusterServiceIDClearerController := clusterdeletion.NewClusterClusterServiceIDClearerController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterChildResourcesCleanupController := clusterdeletion.NewClusterChildResourcesCleanupController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterDeletionController := clusterdeletion.NewClusterDeletionController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.BillingDBClient,
 		activeOperationLister,
 		backendInformers,
 	)
@@ -766,6 +799,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthClusterServiceIDClearerController.Run(ctx, 20)
 				go externalAuthChildResourcesCleanupController.Run(ctx, 20)
 				go externalAuthDeletionController.Run(ctx, 20)
+				go clusterDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
+				go clusterClusterServiceIDClearerController.Run(ctx, 20)
+				go clusterChildResourcesCleanupController.Run(ctx, 20)
+				go clusterDeletionController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)

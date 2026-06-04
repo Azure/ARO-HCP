@@ -63,6 +63,8 @@ func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *api.H
 		return false
 	}
 
+	// TODO should we add a cluster.DeletionTimestamp == nil check here?
+
 	// Skip if the billing document has already been created (BillingDocumentCosmosID is set)
 	if len(existingCluster.ServiceProviderProperties.BillingDocumentCosmosID) != 0 {
 		return false
