@@ -21,43 +21,36 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 	t.Parallel()
 
-	hostedClusterReadDesire := newHostedClusterReadDesire(t, &hsv1beta1.HostedCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: testBaseDomainPrefix},
-		Spec: hsv1beta1.HostedClusterSpec{
-			DNS:                  hsv1beta1.DNSSpec{BaseDomain: testHostedClusterIngressBaseDomain},
-			KubeAPIServerDNSName: testAPIHost,
-			IssuerURL:            testIssuerURL,
-		},
-		Status: hsv1beta1.HostedClusterStatus{
-			ControlPlaneEndpoint: hsv1beta1.APIEndpoint{Port: testAPIPort},
-		},
-	})
+	const unexpectedKubeAPIServerDNSName = "api.unexpected.example.com"
 
 	testCases := []struct {
 		name               string
 		existingCluster    *api.HCPOpenShiftCluster
+		readDesire         *kubeapplier.ReadDesire
+		wantErr            bool
 		expectedConsoleURL string
 		expectedBaseDomain string
 		expectedAPIURL     string
 		expectedIssuerURL  string
 	}{
 		{
-			name: "sync cluster properties from HostedCluster ReadDesire when they differ from Cosmos",
+			name: "sync cluster properties from HostedCluster ReadDesire when they differ from cache",
 			existingCluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
+			readDesire:         newTestHostedClusterReadDesire(t),
 			expectedConsoleURL: testConsoleURL,
 			expectedBaseDomain: testBaseDomain,
 			expectedAPIURL:     testAPIURL,
@@ -72,18 +65,33 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.Platform.IssuerURL = testIssuerURL
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
+			readDesire:         newTestHostedClusterReadDesire(t),
 			expectedConsoleURL: testConsoleURL,
 			expectedBaseDomain: testBaseDomain,
 			expectedAPIURL:     testAPIURL,
 			expectedIssuerURL:  testIssuerURL,
 		},
 		{
-			name:               "no-op when HostedCluster ReadDesire not found",
-			existingCluster:    newTestCluster(testOtherClusterName),
-			expectedConsoleURL: "",
-			expectedBaseDomain: "",
-			expectedAPIURL:     "",
-			expectedIssuerURL:  "",
+			name: "no-op when HostedCluster ReadDesire not found",
+			existingCluster: newTestCluster(testOtherClusterName, func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
+			}),
+			readDesire: nil,
+		},
+		{
+			name:            "no-op when base domain prefix is unset",
+			existingCluster: newTestCluster(testClusterName),
+			readDesire:      nil,
+		},
+		{
+			name: "error when KubeAPIServerDNSName does not match base domain prefix",
+			existingCluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
+			}),
+			readDesire: newTestHostedClusterReadDesire(t, func(hc *hsv1beta1.HostedCluster) {
+				hc.Spec.KubeAPIServerDNSName = unexpectedKubeAPIServerDNSName
+			}),
+			wantErr: true,
 		},
 	}
 
@@ -96,11 +104,16 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster})
 			require.NoError(t, err)
 
-			readDesireLister, err := newSeededReadDesireLister(ctx, hostedClusterReadDesire)
+			readDesireLister, err := newSeededReadDesireLister(ctx, tc.readDesire)
 			require.NoError(t, err)
+
+			clusterLister := &listertesting.SliceClusterLister{
+				Clusters: []*api.HCPOpenShiftCluster{tc.existingCluster},
+			}
 
 			syncer := &clusterPropertiesSyncer{
 				cooldownChecker:   &alwaysSyncCooldownChecker{},
+				clusterLister:     clusterLister,
 				resourcesDBClient: mockResourcesDB,
 				readDesireLister:  readDesireLister,
 			}
@@ -111,6 +124,19 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				HCPClusterName:    tc.existingCluster.Name,
 			}
 			err = syncer.SyncOnce(ctx, key)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), unexpectedKubeAPIServerDNSName)
+				assert.Contains(t, err.Error(), "api."+testBaseDomainPrefix+".")
+
+				unchangedCluster, getErr := mockResourcesDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, tc.existingCluster.Name)
+				require.NoError(t, getErr)
+				assert.Empty(t, unchangedCluster.ServiceProviderProperties.Console.URL)
+				assert.Empty(t, unchangedCluster.ServiceProviderProperties.DNS.BaseDomain)
+				assert.Empty(t, unchangedCluster.ServiceProviderProperties.API.URL)
+				assert.Empty(t, unchangedCluster.ServiceProviderProperties.Platform.IssuerURL)
+				return
+			}
 			require.NoError(t, err)
 
 			updatedCluster, err := mockResourcesDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, tc.existingCluster.Name)

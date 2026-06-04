@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -35,6 +36,7 @@ import (
 // Cluster Service to Cosmos DB when the field is unset.
 type clusterBaseDomainPrefixSyncer struct {
 	cooldownChecker      controllerutil.CooldownChecker
+	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -50,8 +52,11 @@ func NewClusterBaseDomainPrefixSyncController(
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
+	_, clusterLister := informers.Clusters()
+
 	syncer := &clusterBaseDomainPrefixSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		clusterLister:        clusterLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -70,8 +75,28 @@ func (c *clusterBaseDomainPrefixSyncer) CooldownChecker() controllerutil.Cooldow
 	return c.cooldownChecker
 }
 
+func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *api.HCPOpenShiftCluster) bool {
+	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil ||
+		len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return false
+	}
+
+	return len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0
+}
+
 func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
+
+	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+	}
+	if !c.needsWork(cachedCluster) {
+		return nil
+	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
@@ -81,30 +106,23 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-
-	if len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) > 0 {
+	if !c.needsWork(existingCluster) {
 		return nil
 	}
-
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil ||
-		len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return nil
-	}
-
-	originalCluster := existingCluster.DeepCopy()
 
 	csCluster, err := c.clusterServiceClient.GetCluster(ctx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
-	existingCluster.CustomerProperties.DNS.BaseDomainPrefix = csCluster.DomainPrefix()
+	replacement := existingCluster.DeepCopy()
+	replacement.CustomerProperties.DNS.BaseDomainPrefix = csCluster.DomainPrefix()
 
-	if equality.Semantic.DeepEqual(originalCluster, existingCluster) {
+	if equality.Semantic.DeepEqual(existingCluster, replacement) {
 		return nil
 	}
 
-	if _, err := clusterCRUD.Replace(ctx, existingCluster, nil); err != nil {
+	if _, err := clusterCRUD.Replace(ctx, replacement, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 

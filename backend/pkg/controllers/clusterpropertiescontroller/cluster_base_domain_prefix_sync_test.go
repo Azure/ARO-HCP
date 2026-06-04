@@ -25,6 +25,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -35,6 +36,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 
 	testCases := []struct {
 		name                     string
+		cachedCluster            *api.HCPOpenShiftCluster
 		existingCluster          *api.HCPOpenShiftCluster
 		csDomainPrefix           string
 		expectCSGetCluster       bool
@@ -42,6 +44,14 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 	}{
 		{
 			name: "short-circuit when base domain prefix already set",
+			existingCluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
+			}),
+			expectedBaseDomainPrefix: testBaseDomainPrefix,
+		},
+		{
+			name:          "cache says work needed but live data has base domain prefix",
+			cachedCluster: newTestCluster(testClusterName),
 			existingCluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
 				c.CustomerProperties.DNS.BaseDomainPrefix = testBaseDomainPrefix
 			}),
@@ -67,6 +77,14 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster})
 			require.NoError(t, err)
 
+			cachedCluster := tc.cachedCluster
+			if cachedCluster == nil {
+				cachedCluster = tc.existingCluster
+			}
+			clusterLister := &listertesting.SliceClusterLister{
+				Clusters: []*api.HCPOpenShiftCluster{cachedCluster},
+			}
+
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			if tc.expectCSGetCluster {
 				csCluster, err := arohcpv1alpha1.NewCluster().DomainPrefix(tc.csDomainPrefix).Build()
@@ -78,6 +96,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &clusterBaseDomainPrefixSyncer{
 				cooldownChecker:      &alwaysSyncCooldownChecker{},
+				clusterLister:        clusterLister,
 				resourcesDBClient:    mockResourcesDB,
 				clusterServiceClient: mockCSClient,
 			}

@@ -43,6 +43,7 @@ import (
 //   - ServiceProviderProperties.Platform.IssuerURL
 type clusterPropertiesSyncer struct {
 	cooldownChecker   controllerutil.CooldownChecker
+	clusterLister     listers.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 	readDesireLister  dblisters.ReadDesireLister
 }
@@ -58,8 +59,11 @@ func NewClusterPropertiesSyncController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
+	_, clusterLister := informers.Clusters()
+
 	syncer := &clusterPropertiesSyncer{
 		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		clusterLister:     clusterLister,
 		resourcesDBClient: resourcesDBClient,
 		readDesireLister:  readDesireLister,
 	}
@@ -81,13 +85,15 @@ func (c *clusterPropertiesSyncer) CooldownChecker() controllerutil.CooldownCheck
 func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
-	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+	}
+	if len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
+		return nil
 	}
 
 	hostedCluster, err := maestrohelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -98,24 +104,32 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	originalCluster := existingCluster.DeepCopy()
-	domainPrefix := existingCluster.CustomerProperties.DNS.BaseDomainPrefix
+	replacement := existingCluster.DeepCopy()
 
-	existingCluster.ServiceProviderProperties.Console.URL = fmt.Sprintf("https://console-openshift-console.apps.%s", hostedCluster.Spec.DNS.BaseDomain)
-	existingCluster.ServiceProviderProperties.DNS.BaseDomain = strings.TrimPrefix(
+	replacement.ServiceProviderProperties.Console.URL = fmt.Sprintf("https://console-openshift-console.apps.%s", hostedCluster.Spec.DNS.BaseDomain)
+	kubeAPIServerDNSNamePrefix := fmt.Sprintf("api.%s.", replacement.CustomerProperties.DNS.BaseDomainPrefix)
+	// A mismatch should not happen in normal operation; error so any regression is visible.
+	if !strings.HasPrefix(hostedCluster.Spec.KubeAPIServerDNSName, kubeAPIServerDNSNamePrefix) {
+		return utils.TrackError(fmt.Errorf(
+			"failed to derive DNS base domain from kubeAPIServerDNSName %q: does not have expected prefix %q",
+			hostedCluster.Spec.KubeAPIServerDNSName,
+			kubeAPIServerDNSNamePrefix,
+		))
+	}
+	replacement.ServiceProviderProperties.DNS.BaseDomain = strings.TrimPrefix(
 		hostedCluster.Spec.KubeAPIServerDNSName,
-		fmt.Sprintf("api.%s.", domainPrefix),
+		kubeAPIServerDNSNamePrefix,
 	)
 	if hostedCluster.Status.ControlPlaneEndpoint.Port != 0 {
-		existingCluster.ServiceProviderProperties.API.URL = fmt.Sprintf("https://%s", net.JoinHostPort(hostedCluster.Spec.KubeAPIServerDNSName, strconv.Itoa(int(hostedCluster.Status.ControlPlaneEndpoint.Port))))
+		replacement.ServiceProviderProperties.API.URL = fmt.Sprintf("https://%s", net.JoinHostPort(hostedCluster.Spec.KubeAPIServerDNSName, strconv.Itoa(int(hostedCluster.Status.ControlPlaneEndpoint.Port))))
 	}
-	existingCluster.ServiceProviderProperties.Platform.IssuerURL = hostedCluster.Spec.IssuerURL
+	replacement.ServiceProviderProperties.Platform.IssuerURL = hostedCluster.Spec.IssuerURL
 
-	if equality.Semantic.DeepEqual(originalCluster, existingCluster) {
+	if equality.Semantic.DeepEqual(existingCluster, replacement) {
 		return nil
 	}
 
-	if _, err := clusterCRUD.Replace(ctx, existingCluster, nil); err != nil {
+	if _, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 

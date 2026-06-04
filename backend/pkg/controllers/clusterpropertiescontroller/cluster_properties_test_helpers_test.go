@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
 
@@ -55,7 +56,12 @@ const (
 )
 
 func newSeededReadDesireLister(ctx context.Context, readDesire *kubeapplier.ReadDesire) (dblisters.ReadDesireLister, error) {
-	mockKubeApplierDB, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{readDesire})
+	resources := []any{}
+	if readDesire != nil {
+		resources = append(resources, readDesire)
+	}
+
+	mockKubeApplierDB, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, resources)
 	if err != nil {
 		return nil, err
 	}
@@ -108,8 +114,23 @@ func newTestCluster(hcpClusterName string, opts ...func(*api.HCPOpenShiftCluster
 	return cluster
 }
 
-func newHostedClusterReadDesire(t *testing.T, hostedCluster *hsv1beta1.HostedCluster) *kubeapplier.ReadDesire {
+func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.HostedCluster)) *kubeapplier.ReadDesire {
 	t.Helper()
+
+	hostedCluster := &hsv1beta1.HostedCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: testBaseDomainPrefix},
+		Spec: hsv1beta1.HostedClusterSpec{
+			DNS:                  hsv1beta1.DNSSpec{BaseDomain: testHostedClusterIngressBaseDomain},
+			KubeAPIServerDNSName: testAPIHost,
+			IssuerURL:            testIssuerURL,
+		},
+		Status: hsv1beta1.HostedClusterStatus{
+			ControlPlaneEndpoint: hsv1beta1.APIEndpoint{Port: testAPIPort},
+		},
+	}
+	for _, opt := range opts {
+		opt(hostedCluster)
+	}
 
 	resourceIDString := kubeapplier.ToClusterScopedReadDesireResourceIDString(
 		testSubscriptionID,
