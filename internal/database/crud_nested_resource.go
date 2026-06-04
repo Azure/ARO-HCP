@@ -25,6 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
 type ResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] interface {
@@ -55,11 +57,19 @@ type ValidatingResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.Cosm
 // partitions by management cluster name. Injecting the deriver lets a single
 // CRUD type serve all three schemes.
 //
-// The two arguments cover both list/GetByID (resourceName is "") and per-item
+// PartitionKey is the parent-scoped form used by CRUD operations: the two
+// arguments cover both list/GetByID (resourceName is "") and per-item
 // operations (resourceName is the leaf name). Implementations decide which
 // arguments are load-bearing.
+//
+// PartitionKeyFromObject derives the partition key directly from a fully-formed
+// object. It is used by the read-path migration fallback and by the in-memory
+// mock CRUD's generic helpers. Implementations return an error when the
+// object's shape isn't appropriate for the deriver's policy (so a registry of
+// derivers can be tried in order to find the one that applies).
 type PartitionKeyDeriver interface {
 	PartitionKey(parentResourceID *azcorearm.ResourceID, resourceName string) (string, error)
+	PartitionKeyFromObject(obj any) (string, error)
 }
 
 // SubscriptionPartitionKeyDeriver derives the partition key from the
@@ -76,6 +86,21 @@ func (SubscriptionPartitionKeyDeriver) PartitionKey(parentResourceID *azcorearm.
 		return "", fmt.Errorf("subscriptionID is required")
 	}
 	return strings.ToLower(parentResourceID.SubscriptionID), nil
+}
+
+func (SubscriptionPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
+	md, ok := obj.(arm.CosmosMetadataAccessor)
+	if !ok {
+		return "", fmt.Errorf("subscription partitioning requires an arm.CosmosMetadataAccessor, got %T", obj)
+	}
+	rid := md.GetResourceID()
+	if rid == nil {
+		return "", fmt.Errorf("subscription partitioning requires a non-nil resourceID")
+	}
+	if len(rid.SubscriptionID) == 0 {
+		return "", fmt.Errorf("subscription partitioning requires a non-empty subscriptionID on the resource")
+	}
+	return strings.ToLower(rid.SubscriptionID), nil
 }
 
 // ResourceIDBuilder constructs a full Azure resource ID from a parent scope, a
@@ -105,6 +130,23 @@ func (FleetPartitionKeyDeriver) PartitionKey(parentResourceID *azcorearm.Resourc
 	return strings.ToLower(resourceName), nil
 }
 
+func (FleetPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
+	switch obj.(type) {
+	case *fleet.Stamp, *fleet.ManagementCluster:
+		// only the fleet types live in the fleet container
+	default:
+		return "", fmt.Errorf("fleet partitioning does not apply to %T", obj)
+	}
+	md, ok := obj.(arm.CosmosMetadataAccessor)
+	if !ok {
+		return "", fmt.Errorf("fleet partitioning requires an arm.CosmosMetadataAccessor, got %T", obj)
+	}
+	if pk := topLevelResourceName(md.GetResourceID()); len(pk) > 0 {
+		return pk, nil
+	}
+	return "", fmt.Errorf("fleet partitioning could not derive a key from %T's resourceID", obj)
+}
+
 // topLevelResourceName walks a resource ID to its root ancestor and returns
 // its lowercased name. Returns "" if rid is nil or carries no name.
 func topLevelResourceName(rid *azcorearm.ResourceID) string {
@@ -118,18 +160,33 @@ func topLevelResourceName(rid *azcorearm.ResourceID) string {
 	return strings.ToLower(curr.Name)
 }
 
-// StaticPartitionKeyDeriver returns one pre-configured partition key for every
-// operation. Used when a CRUD's scope IS the partition (e.g. the kube-applier
-// container, partitioned by management cluster name).
-type StaticPartitionKeyDeriver struct {
-	Key string
+// KubeApplierPartitionKeyDeriver derives the partition key used by the
+// kube-applier container, which is partitioned by the lowercased management
+// cluster resourceID. For CRUD-scope operations the per-container instance
+// carries the management cluster's resourceID directly; for per-object
+// derivation (read-path migration fallback, mock CRUD) we read the cluster
+// off the *Desire's spec.managementCluster.
+type KubeApplierPartitionKeyDeriver struct {
+	ManagementClusterResourceID *azcorearm.ResourceID
 }
 
-func (d StaticPartitionKeyDeriver) PartitionKey(_ *azcorearm.ResourceID, _ string) (string, error) {
-	if len(d.Key) == 0 {
-		return "", fmt.Errorf("static partition key is empty")
+func (d KubeApplierPartitionKeyDeriver) PartitionKey(_ *azcorearm.ResourceID, _ string) (string, error) {
+	if d.ManagementClusterResourceID == nil {
+		return "", fmt.Errorf("kube-applier partitioning requires a non-nil ManagementClusterResourceID")
 	}
-	return strings.ToLower(d.Key), nil
+	return strings.ToLower(d.ManagementClusterResourceID.String()), nil
+}
+
+func (KubeApplierPartitionKeyDeriver) PartitionKeyFromObject(obj any) (string, error) {
+	mc, ok := obj.(kubeapplier.ManagementClusterAccessor)
+	if !ok {
+		return "", fmt.Errorf("kube-applier partitioning requires a kubeapplier.ManagementClusterAccessor, got %T", obj)
+	}
+	rid := mc.GetManagementCluster()
+	if rid == nil {
+		return "", fmt.Errorf("kube-applier partitioning requires a non-nil ManagementCluster on the object")
+	}
+	return strings.ToLower(rid.String()), nil
 }
 
 // ClusterNestedResourceIDBuilder is the default ARO-resource path policy: a
