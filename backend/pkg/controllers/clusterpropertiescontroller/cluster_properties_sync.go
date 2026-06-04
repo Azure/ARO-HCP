@@ -35,7 +35,6 @@ import (
 // from Cluster Service to Cosmos DB. It ensures that the following fields are populated:
 //   - ServiceProviderProperties.Console.URL
 //   - ServiceProviderProperties.DNS.BaseDomain
-//   - ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
 //   - ServiceProviderProperties.API.URL
 //   - ServiceProviderProperties.Platform.IssuerURL
 //   - CustomerProperties.DNS.BaseDomainPrefix
@@ -50,7 +49,7 @@ var _ controllerutils.ClusterSyncer = (*clusterPropertiesSyncer)(nil)
 // NewClusterPropertiesSyncController creates a new controller that synchronizes
 // cluster properties from Cluster Service to Cosmos DB.
 // It periodically checks each cluster and populates the Console.URL, DNS.BaseDomain,
-// ManagedIdentitiesDataPlaneIdentityURL, Platform.IssuerURL, and DNS.BaseDomainPrefix fields if they are not set.
+// Platform.IssuerURL, and DNS.BaseDomainPrefix fields if they are not set.
 func NewClusterPropertiesSyncController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -81,8 +80,8 @@ func (c *clusterPropertiesSyncer) CooldownChecker() controllerutil.CooldownCheck
 }
 
 // SyncOnce performs a single reconciliation of cluster properties.
-// It checks if the Console.URL, DNS.BaseDomain, ManagedIdentitiesDataPlaneIdentityURL,
-// Platform.IssuerURL, or DNS.BaseDomainPrefix fields are unset, and if so, fetches the
+// It checks if the Console.URL, DNS.BaseDomain, Platform.IssuerURL, or
+// DNS.BaseDomainPrefix fields are unset, and if so, fetches the
 // values from Cluster Service and updates Cosmos.
 func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -106,11 +105,10 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	needsConsoleURL := len(existingCluster.ServiceProviderProperties.Console.URL) == 0
 	needsBaseDomain := len(existingCluster.ServiceProviderProperties.DNS.BaseDomain) == 0
 	needsAPIURL := len(existingCluster.ServiceProviderProperties.API.URL) == 0
-	needsManagedIdentitiesDataPlaneIdentityURL := len(existingCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL) == 0
 	needsIssuerURL := len(existingCluster.ServiceProviderProperties.Platform.IssuerURL) == 0
 	needsBaseDomainPrefix := len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0
 
-	if !needsConsoleURL && !needsBaseDomain && !needsBaseDomainPrefix && !needsManagedIdentitiesDataPlaneIdentityURL && !needsAPIURL && !needsIssuerURL {
+	if !needsConsoleURL && !needsBaseDomain && !needsBaseDomainPrefix && !needsAPIURL && !needsIssuerURL {
 		return nil
 	}
 
@@ -129,13 +127,6 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 	if needsBaseDomain {
 		existingCluster.ServiceProviderProperties.DNS.BaseDomain = csCluster.DNS().BaseDomain()
-	}
-	if needsManagedIdentitiesDataPlaneIdentityURL {
-		if csCluster.Azure() != nil && csCluster.Azure().OperatorsAuthentication() != nil {
-			if mi, ok := csCluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
-				existingCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = mi.ManagedIdentitiesDataPlaneIdentityUrl()
-			}
-		}
 	}
 	if needsAPIURL {
 		existingCluster.ServiceProviderProperties.API.URL = csCluster.API().URL()
