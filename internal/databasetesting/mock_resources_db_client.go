@@ -101,13 +101,13 @@ func (m *MockResourcesDBClient) ResourcesGlobalListers() database.ResourcesGloba
 }
 
 // ServiceProviderClusters returns a CRUD interface for service provider cluster resources.
-func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
+func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] {
 	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
 }
 
 // ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
-func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ServiceProviderNodePoolCRUD {
+func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
 	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }

@@ -622,7 +622,7 @@ func newMockSubscriptionCRUD(client *MockResourcesDBClient) *mockSubscriptionCRU
 
 var _ database.ResourceCRUD[arm.Subscription, *arm.Subscription] = &mockSubscriptionCRUD{}
 
-// mockServiceProviderClusterCRUD implements database.ServiceProviderClusterCRUD.
+// mockServiceProviderClusterCRUD implements database.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster].
 type mockServiceProviderClusterCRUD struct {
 	*mockResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]]
 }
@@ -634,9 +634,9 @@ func newMockServiceProviderClusterCRUD(client *MockResourcesDBClient, parentReso
 	}
 }
 
-var _ database.ServiceProviderClusterCRUD = &mockServiceProviderClusterCRUD{}
+var _ database.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] = &mockServiceProviderClusterCRUD{}
 
-// mockServiceProviderNodePoolCRUD implements database.ServiceProviderNodePoolCRUD.
+// mockServiceProviderNodePoolCRUD implements database.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool].
 type mockServiceProviderNodePoolCRUD struct {
 	*mockResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]]
 }
@@ -648,7 +648,7 @@ func newMockServiceProviderNodePoolCRUD(client *MockResourcesDBClient, parentRes
 	}
 }
 
-var _ database.ServiceProviderNodePoolCRUD = &mockServiceProviderNodePoolCRUD{}
+var _ database.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] = &mockServiceProviderNodePoolCRUD{}
 
 // mockManagementClusterContentCRUD implements database.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent].
 type mockManagementClusterContentCRUD struct {
