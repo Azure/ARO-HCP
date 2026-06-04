@@ -24,7 +24,7 @@ import (
 )
 
 type ServiceProviderClusterCRUD interface {
-	ResourceCRUD[api.ServiceProviderCluster]
+	ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster]
 }
 
 func NewClusterResourceID(subscriptionID, resourceGroupName, clusterName string) *azcorearm.ResourceID {

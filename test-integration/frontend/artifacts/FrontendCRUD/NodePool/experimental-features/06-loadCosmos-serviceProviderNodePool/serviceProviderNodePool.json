@@ -19,5 +19,6 @@
 		}
 	},
 	"resourceID": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/valid-419-np/serviceProviderNodePools/default",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools"
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools",
+	"_etag": "\"5ef9863b-9978-4d83-b2bb-489fed47697f\""
 }

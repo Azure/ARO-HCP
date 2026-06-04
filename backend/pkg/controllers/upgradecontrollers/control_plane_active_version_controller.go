@@ -119,9 +119,10 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	}
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions)
-	existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
+	replacement := existingServiceProviderCluster.DeepCopy()
+	replacement.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	_, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
+	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}

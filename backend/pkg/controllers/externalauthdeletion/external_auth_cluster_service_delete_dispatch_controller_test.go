@@ -425,7 +425,7 @@ func newTestExternalAuthWithNewDeletionApproach(t *testing.T, opts func(*api.HCP
 				Type: api.ExternalAuthResourceType.String(),
 			},
 		},
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
 			Issuer: api.TokenIssuerProfile{
 				URL:       "https://example.com",

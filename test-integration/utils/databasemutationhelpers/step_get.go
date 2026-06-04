@@ -26,13 +26,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type CosmosItemKey struct {
 	ResourceID *azcorearm.ResourceID `json:"resourceId"`
 }
 
-type getStep[InternalAPIType any] struct {
+type getStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	stepID StepID
 	key    CosmosItemKey
 
@@ -40,7 +42,7 @@ type getStep[InternalAPIType any] struct {
 	expectedError    string
 }
 
-func newGetStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*getStep[InternalAPIType], error) {
+func newGetStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*getStep[InternalAPIType, InternalAPITypePointer], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -73,7 +75,7 @@ func newGetStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*getStep[Int
 		return nil, fmt.Errorf("must expect either error and value")
 	}
 
-	return &getStep[InternalAPIType]{
+	return &getStep[InternalAPIType, InternalAPITypePointer]{
 		stepID:           stepID,
 		key:              key,
 		expectedResource: expectedResource,
@@ -81,14 +83,12 @@ func newGetStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*getStep[Int
 	}, nil
 }
 
-var _ IntegrationTestStep = &getStep[any]{}
-
-func (l *getStep[InternalAPIType]) StepID() StepID {
+func (l *getStep[InternalAPIType, InternalAPITypePointer]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *getStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+func (l *getStep[InternalAPIType, InternalAPITypePointer]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType, InternalAPITypePointer](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
 	actualResource, err := resourceCRUDClient.Get(ctx, l.key.ResourceID.Name)
 	switch {
 	case len(l.expectedError) > 0:

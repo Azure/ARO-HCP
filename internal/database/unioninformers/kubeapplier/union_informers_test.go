@@ -17,6 +17,7 @@ package kubeapplier_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -360,7 +361,7 @@ func TestUnionDesireInformer_ConcurrentAddRemoveVsRead(t *testing.T) {
 func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
 	t.Helper()
 	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr), PartitionKey: strings.ToLower(mgmt.String())},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: mgmt,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},

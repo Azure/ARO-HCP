@@ -195,7 +195,7 @@ func ctlNewApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *
 		t.Fatalf("parse %q: %v", idStr, err)
 	}
 	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: id},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: id, PartitionKey: strings.ToLower(mgmt.String())},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: mgmt,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
@@ -205,7 +205,7 @@ func ctlNewApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *
 
 func ctlMC(rid *azcorearm.ResourceID) *fleet.ManagementCluster {
 	return &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.Name)},
 		ResourceID:     rid,
 	}
 }
