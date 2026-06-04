@@ -66,7 +66,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				tc := framework.NewTestContext()
 
 				if tc.UsePooledIdentities() {
-					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+					err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
