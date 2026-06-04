@@ -152,8 +152,9 @@ flowchart TD
 - Multi-pool candidate selection and fallback are implemented:
   - fixed-mode environments filter candidate pools by `ALLOWED_SUBSCRIPTIONS` and either `ALLOWED_LOCATIONS` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION`, then try pools in catalog order,
   - runtime-selected environments use `ALLOWED_SUBSCRIPTIONS` for pool identity, ignore `ALLOWED_LOCATIONS` for candidate selection, and use `MULTISTAGE_PARAM_OVERRIDE_LOCATION` only as the concrete runtime location,
-  - current `openshift/release` dev rollout pins the normal `e2e-parallel` job to the first dev pool on `ARO HCP E2E Hosted Clusters (EA Subscription)` in `centralus`,
-  - the separate `e2e-parallel-multipool` job exercises only the additional pools on `ARO HCP E2E Hosted Clusters 2 (EA Subscription)` in `centralus` and `westus3`.
+  - the dev catalog now uses one runtime-selected pool per customer subscription, with `westus3` as the default runtime region,
+  - those shared dev pools provision their MSI container stacks in `westus3` via `identity_provisioning_region`,
+  - that intentionally optimizes the current rollout for multi-subscription, single-region operation first; multi-region CI behavior will need a follow-up job strategy.
 - Pool fallback is now adapted to the Boskos proxy's blocking acquire behavior:
   - the proxy does not reliably give `slot-manager` a distinct immediate "pool exhausted" signal for candidate failover,
   - each candidate pool probe is therefore bounded by `lease-proxy-timeout` and interpreted through the client-side `ErrLeasePoolUnavailableNow` classification,

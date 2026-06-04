@@ -5,23 +5,24 @@ environments:
     - prow
     - ci01
     pools:
+    # shard1: additional dev capacity for multi-subscription testing.
+    # Capacity is still limited to 4000 role assignments.
+    - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-shard1-slot
+      slot_count: 7
+      identity_container_prefix: aro-hcp-msi-container-dev-shard1
+      identity_container_count: 20
+    # shard0: current CI dev capacity on the first customer subscription.
+    # Jobs choose the runtime region; `region` is only the default when no runtime override is provided.
+    # Identity containers are provisioned in westus3.
     - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
-      region: centralus
-      resource_type: aro-hcp-dev-shard0-centralus-slot
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-shard0-slot
       slot_count: 15
-      identity_container_prefix: aro-hcp-msi-container-dev
-      identity_container_count: 20
-    - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
-      region: canadacentral
-      resource_type: aro-hcp-dev-shard1-canadacentral-slot
-      slot_count: 1
-      identity_container_prefix: aro-hcp-msi-container-dev
-      identity_container_count: 20
-    - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
-      region: centralus
-      resource_type: aro-hcp-dev-shard1-centralus-slot
-      slot_count: 6
-      identity_container_prefix: aro-hcp-msi-container-dev
+      identity_container_prefix: aro-hcp-msi-container-dev-shard0
       identity_container_count: 20
 
 # int:
@@ -30,6 +31,7 @@ environments:
 #   pools:
 #     - subscription_name: "ARO SRE Team - INT (EA Subscription 3)"
 #       region: uksouth
+#       region_mode: fixed
 #       resource_type: aro-hcp-int-uksouth-slot
 #       slot_count: 1
 #       identity_container_prefix: aro-hcp-msi-container-int
@@ -41,6 +43,7 @@ environments:
 #   pools:
 #     - subscription_name: "ARO HCP E2E - Staging"
 #       region: uksouth
+#       region_mode: fixed
 #       resource_type: aro-hcp-stg-uksouth-slot
 #       slot_count: 1
 #       identity_container_prefix: aro-hcp-msi-container-stg
