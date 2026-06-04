@@ -120,40 +120,40 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
-	// Take a copy before making changes for comparison
-	originalCluster := existingCluster.DeepCopy()
+	// Build the mutation on a deep copy; the original is retained for the equality check.
+	replacement := existingCluster.DeepCopy()
 
 	// Update the properties if they are not set
 	if needsConsoleURL {
-		existingCluster.ServiceProviderProperties.Console.URL = csCluster.Console().URL()
+		replacement.ServiceProviderProperties.Console.URL = csCluster.Console().URL()
 	}
 	if needsBaseDomain {
-		existingCluster.ServiceProviderProperties.DNS.BaseDomain = csCluster.DNS().BaseDomain()
+		replacement.ServiceProviderProperties.DNS.BaseDomain = csCluster.DNS().BaseDomain()
 	}
 	if needsManagedIdentitiesDataPlaneIdentityURL {
 		if csCluster.Azure() != nil && csCluster.Azure().OperatorsAuthentication() != nil {
 			if mi, ok := csCluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
-				existingCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = mi.ManagedIdentitiesDataPlaneIdentityUrl()
+				replacement.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = mi.ManagedIdentitiesDataPlaneIdentityUrl()
 			}
 		}
 	}
 	if needsAPIURL {
-		existingCluster.ServiceProviderProperties.API.URL = csCluster.API().URL()
+		replacement.ServiceProviderProperties.API.URL = csCluster.API().URL()
 	}
 	if needsIssuerURL {
-		existingCluster.ServiceProviderProperties.Platform.IssuerURL = csCluster.Azure().OidcIssuerUrl()
+		replacement.ServiceProviderProperties.Platform.IssuerURL = csCluster.Azure().OidcIssuerUrl()
 	}
 	if needsBaseDomainPrefix {
-		existingCluster.CustomerProperties.DNS.BaseDomainPrefix = csCluster.DomainPrefix()
+		replacement.CustomerProperties.DNS.BaseDomainPrefix = csCluster.DomainPrefix()
 	}
 
 	// Only write back if something actually changed
-	if equality.Semantic.DeepEqual(originalCluster, existingCluster) {
+	if equality.Semantic.DeepEqual(existingCluster, replacement) {
 		return nil
 	}
 
 	// Write the updated cluster back to Cosmos
-	if _, err := clusterCRUD.Replace(ctx, existingCluster, nil); err != nil {
+	if _, err := clusterCRUD.Replace(ctx, replacement, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 

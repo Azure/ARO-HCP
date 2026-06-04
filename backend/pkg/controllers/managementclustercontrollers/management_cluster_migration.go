@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -209,7 +210,8 @@ func (c *managementClusterMigrationController) ensureStamp(ctx context.Context, 
 		}
 		stamp := &fleet.Stamp{
 			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: stampResourceID,
+				ResourceID:   stampResourceID,
+				PartitionKey: strings.ToLower(stampIdentifier),
 			},
 			ResourceID: stampResourceID,
 		}

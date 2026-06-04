@@ -201,13 +201,14 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	// Only assign the Identity.UserAssignedIdentities from the converted cluster
-	if existingCluster.Identity == nil {
-		existingCluster.Identity = &arm.ManagedServiceIdentity{}
+	replacement := existingCluster.DeepCopy()
+	if replacement.Identity == nil {
+		replacement.Identity = &arm.ManagedServiceIdentity{}
 	}
-	existingCluster.Identity.UserAssignedIdentities = userAssignedIdentities
+	replacement.Identity.UserAssignedIdentities = userAssignedIdentities
 
 	// Write the updated cluster back to Cosmos
-	if _, err := clusterCRUD.Replace(ctx, existingCluster, nil); err != nil {
+	if _, err := clusterCRUD.Replace(ctx, replacement, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
