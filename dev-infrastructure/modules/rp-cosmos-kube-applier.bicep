@@ -3,6 +3,9 @@ param containerName string
 param containerMaxScale int
 param kubeApplierManagedIdentityPrincipalId string
 
+// https://learn.microsoft.com/en-us/azure/cosmos-db/reference-data-plane-security#cosmos-db-built-in-data-contributor
+param cosmosdbBuiltInDataContributorRoleId string = '00000000-0000-0000-0000-000000000002'
+
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
   name: cosmosDBAccountName
 }
@@ -55,14 +58,14 @@ resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/container
   }
 }
 
-var kubeApplierRoleDefinitionId = guid('kube-applier-role', cosmosDbAccount.id)
+var kubeApplierRoleDefinitionId = guid('kube-applier-role', cosmosDbAccount.id, cosmosdbBuiltInDataContributorRoleId)
 var containerScope = '${cosmosDbAccount.id}/dbs/${cosmosDBAccountName}/colls/${containerName}'
 
 resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
   name: guid(kubeApplierRoleDefinitionId, kubeApplierManagedIdentityPrincipalId, container.id)
   parent: cosmosDbAccount
   properties: {
-    roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${kubeApplierRoleDefinitionId}'
+    roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${cosmosdbBuiltInDataContributorRoleId}'
     principalId: kubeApplierManagedIdentityPrincipalId
     scope: containerScope
   }
