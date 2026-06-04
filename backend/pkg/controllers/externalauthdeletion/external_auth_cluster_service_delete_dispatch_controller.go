@@ -202,8 +202,9 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 		logger.Info("requested cluster-service ExternalAuth delete", "clusterServiceID", csID.String())
 	}
 
-	externalAuth.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now().UTC()}
-	_, err = externalAuthCRUD.Replace(ctx, externalAuth, nil)
+	replacement := externalAuth.DeepCopy()
+	replacement.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now().UTC()}
+	_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
 	}

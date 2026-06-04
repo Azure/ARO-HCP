@@ -383,8 +383,9 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 			if err != nil {
 				logger.Error(err, "Failed to re-read operation to clear notification URI")
 			} else {
-				currentOperation.NotificationURI = ""
-				_, err = operationsCRUD.Replace(ctx, currentOperation, nil)
+				replacement := currentOperation.DeepCopy()
+				replacement.NotificationURI = ""
+				_, err = operationsCRUD.Replace(ctx, replacement, nil)
 				if err != nil {
 					logger.Error(err, "Failed to clear notification URI")
 				}

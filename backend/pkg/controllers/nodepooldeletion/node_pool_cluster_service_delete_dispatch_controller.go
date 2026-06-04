@@ -208,8 +208,9 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 		logger.Info("requested cluster-service NodePool delete", "clusterServiceID", csID.String())
 	}
 
-	nodePool.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now().UTC()}
-	_, err = nodePoolCRUD.Replace(ctx, nodePool, nil)
+	replacement := nodePool.DeepCopy()
+	replacement.ServiceProviderProperties.ClusterServiceDeletionTimestamp = &metav1.Time{Time: c.clock.Now().UTC()}
+	_, err = nodePoolCRUD.Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
 	}
