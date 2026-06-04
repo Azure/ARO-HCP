@@ -273,7 +273,7 @@ func (c *kubeApplierCosmosDBClient) Listers() KubeApplierListers {
 }
 
 func (c *kubeApplierCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
-	return newKubeApplierUntypedCRUD(c.kubeApplier, parentResourceID), nil
+	return NewUntypedCRUDWithPartitionKey(c.kubeApplier, parentResourceID, StaticPartitionKeyDeriver{Key: c.managementClusterPartitionKey}), nil
 }
 
 // cosmosKubeApplierListers implements KubeApplierListers against a single per-MC

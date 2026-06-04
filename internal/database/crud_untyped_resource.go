@@ -46,40 +46,67 @@ type untypedCRUD struct {
 
 	// parentResourceID is relative to the storage we're using.  it can be as high as a subscription and as low as we go.
 	// resources directly under a subscription or resourcegroup are handled a little specially when computing a resourceIDPath.
-	parentResourceID azcorearm.ResourceID
+	parentResourceID    azcorearm.ResourceID
+	partitionKeyDeriver PartitionKeyDeriver
 }
 
 var _ UntypedResourceCRUD = &untypedCRUD{}
 
+// NewUntypedCRUD builds an UntypedResourceCRUD that scopes all operations to
+// descendents of parentResourceID and derives partition keys from the
+// subscription embedded in the resource hierarchy. For containers that
+// partition differently use NewUntypedCRUDWithPartitionKey.
 func NewUntypedCRUD(containerClient *azcosmos.ContainerClient, parentResourceID azcorearm.ResourceID) UntypedResourceCRUD {
-	ret := &untypedCRUD{
-		containerClient:  containerClient,
-		parentResourceID: parentResourceID,
-	}
+	return NewUntypedCRUDWithPartitionKey(containerClient, parentResourceID, SubscriptionPartitionKeyDeriver{})
+}
 
-	return ret
+// NewUntypedCRUDWithPartitionKey builds an UntypedResourceCRUD with a
+// caller-supplied partition-key policy. Single-resource operations (GetByID,
+// Get, Delete) call PartitionKey with a non-empty resourceName so a deriver
+// that can't compute a key per resource can return an error; List /
+// ListRecursive call PartitionKey with an empty resourceName so the same
+// deriver can return "" to opt into a cross-partition query.
+func NewUntypedCRUDWithPartitionKey(containerClient *azcosmos.ContainerClient, parentResourceID azcorearm.ResourceID, partitionKeyDeriver PartitionKeyDeriver) UntypedResourceCRUD {
+	return &untypedCRUD{
+		containerClient:     containerClient,
+		parentResourceID:    parentResourceID,
+		partitionKeyDeriver: partitionKeyDeriver,
+	}
 }
 
 func (d *untypedCRUD) GetByID(ctx context.Context, cosmosID string) (*TypedDocument, error) {
-	panic("this function cannot work (yet) because we cannot guarantee that the item is under the parent")
+	partitionKey, err := d.partitionKeyDeriver.PartitionKey(&d.parentResourceID, cosmosID)
+	if err != nil {
+		return nil, err
+	}
+	return getByItemID[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, cosmosID)
 }
 
 func (d *untypedCRUD) Get(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, error) {
 	if !strings.HasPrefix(strings.ToLower(resourceID.String()), strings.ToLower(d.parentResourceID.String())) {
 		return nil, fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), d.parentResourceID.String())
 	}
-	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	partitionKey, err := d.partitionKeyDeriver.PartitionKey(&d.parentResourceID, resourceID.Name)
+	if err != nil {
+		return nil, err
+	}
 
 	return get[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, resourceID)
 }
 
 func (d *untypedCRUD) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
-	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	partitionKey, err := d.partitionKeyDeriver.PartitionKey(&d.parentResourceID, "")
+	if err != nil {
+		return nil, err
+	}
 	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, true)
 }
 
 func (d *untypedCRUD) ListRecursive(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
-	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	partitionKey, err := d.partitionKeyDeriver.PartitionKey(&d.parentResourceID, "")
+	if err != nil {
+		return nil, err
+	}
 	return list[TypedDocument, TypedDocument](ctx, d.containerClient, partitionKey, nil, &d.parentResourceID, options, false)
 }
 
@@ -87,7 +114,10 @@ func (d *untypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.Resource
 	if !strings.HasPrefix(strings.ToLower(resourceID.String()), strings.ToLower(d.parentResourceID.String())) {
 		return fmt.Errorf("resourceID %q must be a descendent of parentResourceID %q", resourceID.String(), d.parentResourceID.String())
 	}
-	partitionKey := strings.ToLower(d.parentResourceID.SubscriptionID)
+	partitionKey, err := d.partitionKeyDeriver.PartitionKey(&d.parentResourceID, resourceID.Name)
+	if err != nil {
+		return err
+	}
 
 	return deleteResource(ctx, d.containerClient, partitionKey, resourceID)
 }
@@ -123,5 +153,5 @@ func (d *untypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName st
 		return nil, utils.TrackError(err)
 	}
 
-	return NewUntypedCRUD(d.containerClient, *newParentResourceID), nil
+	return NewUntypedCRUDWithPartitionKey(d.containerClient, *newParentResourceID, d.partitionKeyDeriver), nil
 }
