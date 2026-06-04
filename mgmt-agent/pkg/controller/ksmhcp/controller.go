@@ -180,8 +180,8 @@ func (c *KSMHCPController) syncHandler(ctx context.Context, key string) error {
 	}
 
 	if !isKubeAPIServerAvailable(hcp) {
-		logger.V(4).Info("KubeAPIServer not yet available, requeueing", "key", key)
-		return fmt.Errorf("KubeAPIServer not available for %q", key)
+		logger.V(4).Info("KubeAPIServer not yet available, skipping until next informer event", "key", key)
+		return nil
 	}
 
 	return c.reconcile(ctx, hcp)
@@ -209,7 +209,10 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 	}
 
 	region := hcp.Spec.Platform.Azure.Location
-	serviceMonitor := buildServiceMonitor(ns, region, ownerRef)
+	serviceMonitor, err := buildServiceMonitor(ns, region, ownerRef)
+	if err != nil {
+		return fmt.Errorf("failed to build servicemonitor in %s: %w", ns, err)
+	}
 	if err := c.ensureServiceMonitor(ctx, serviceMonitor); err != nil {
 		return fmt.Errorf("failed to ensure servicemonitor in %s: %w", ns, err)
 	}
