@@ -47,6 +47,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepooldeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statuscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
@@ -401,15 +402,17 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	_, billingLister := backendInformers.BillingDocs()
 
-	nodePoolInformer, _ := backendInformers.NodePools()
+	nodePoolInformer, nodePoolLister := backendInformers.NodePools()
 	nodePoolHandler := metricscontrollers.NewNodePoolMetricsHandler(b.options.MetricsRegisterer)
 	nodePoolMetricsController := metricscontrollers.NewController(
 		"NodePoolMetrics", nodePoolInformer, nodePoolHandler)
 
-	externalAuthInformer, _ := backendInformers.ExternalAuths()
+	externalAuthInformer, externalAuthLister := backendInformers.ExternalAuths()
 	externalAuthHandler := metricscontrollers.NewExternalAuthMetricsHandler(b.options.MetricsRegisterer)
 	externalAuthMetricsController := metricscontrollers.NewController(
 		"ExternalAuthMetrics", externalAuthInformer, externalAuthHandler)
+
+	_, controllerLister := backendInformers.Controllers()
 
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
@@ -573,6 +576,35 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+
+	// Each aggregator hardcodes its own inertia inside the statuscontrollers
+	// package so subsystem-specific tuning lives next to the controller that
+	// uses it. The constructors here just supply listers / DB / clock.
+	clusterDegradedAggregatorController := statuscontrollers.NewClusterDegradedAggregatorController(
+		b.options.ResourcesDBClient,
+		clusterLister,
+		controllerLister,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+		b.clock,
+	)
+	nodePoolDegradedAggregatorController := statuscontrollers.NewNodePoolDegradedAggregatorController(
+		b.options.ResourcesDBClient,
+		nodePoolLister,
+		controllerLister,
+		activeOperationLister,
+		backendInformers,
+		b.clock,
+	)
+	externalAuthDegradedAggregatorController := statuscontrollers.NewExternalAuthDegradedAggregatorController(
+		b.options.ResourcesDBClient,
+		externalAuthLister,
+		controllerLister,
+		activeOperationLister,
+		backendInformers,
+		b.clock,
 	)
 
 	createClusterScopedReadDesiresController := controllers.NewCreateClusterScopedReadDesiresController(
@@ -777,6 +809,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go identityMigrationController.Run(ctx, 20)
+				go clusterDegradedAggregatorController.Run(ctx, 20)
+				go nodePoolDegradedAggregatorController.Run(ctx, 20)
+				go externalAuthDegradedAggregatorController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
