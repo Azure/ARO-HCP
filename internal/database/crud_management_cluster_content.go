@@ -18,10 +18,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-type ManagementClusterContentCRUD interface {
-	ResourceCRUD[api.ManagementClusterContent]
-}
-
 type ManagementClusterContentContainer interface {
-	ManagementClusterContents(resourceName string) ManagementClusterContentCRUD
+	ManagementClusterContents(resourceName string) ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent]
 }

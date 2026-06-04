@@ -38,7 +38,8 @@ func newStamp(stampIdentifier string) *fleet.Stamp {
 	stampResourceID, _ := fleet.ToStampResourceID(stampIdentifier)
 	return &fleet.Stamp{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: stampResourceID,
+			ResourceID:   stampResourceID,
+			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		ResourceID: stampResourceID,
 	}
@@ -48,7 +49,8 @@ func newStampWithConditions(stampIdentifier string, conditions ...metav1.Conditi
 	stampResourceID, _ := fleet.ToStampResourceID(stampIdentifier)
 	return &fleet.Stamp{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: stampResourceID,
+			ResourceID:   stampResourceID,
+			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		ResourceID: stampResourceID,
 		Status: fleet.StampStatus{

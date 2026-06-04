@@ -24,6 +24,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -154,10 +155,10 @@ func (m *MockFleetDBClient) GetAllDocuments() map[string]json.RawMessage {
 // that mirrors fleetResourceCRUD. Fleet resources live outside the subscription
 // hierarchy (e.g. /providers/Microsoft.RedHatOpenShift/stamps/{id}), so the
 // standard subscription-scoped mockResourceCRUD path logic does not apply.
-func newMockFleetResourceCRUD[InternalAPIType, CosmosAPIType any](
+func newMockFleetResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
 	client mockDocumentStore, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType,
-) *mockResourceCRUD[InternalAPIType, CosmosAPIType] {
-	m := newMockResourceCRUD[InternalAPIType, CosmosAPIType](client, parentResourceID, resourceType)
+) *mockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	m := newMockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType](client, parentResourceID, resourceType)
 	m.makeResourceIDPath = func(resourceName string) (*azcorearm.ResourceID, error) {
 		var base string
 		if parentResourceID != nil {
@@ -183,7 +184,7 @@ func newMockFleetResourceCRUD[InternalAPIType, CosmosAPIType any](
 // --- FleetDBClient implementation ---
 
 func (m *MockFleetDBClient) Stamps() database.StampsCRUD {
-	inner := newMockFleetResourceCRUD[fleet.Stamp, database.GenericDocument[fleet.Stamp]](
+	inner := newMockFleetResourceCRUD[fleet.Stamp, *fleet.Stamp, database.GenericDocument[fleet.Stamp]](
 		m, nil, fleet.StampResourceType,
 	)
 	return &mockStampsCRUD{
@@ -202,7 +203,7 @@ func (m *MockFleetDBClient) GlobalListers() database.FleetGlobalListers {
 // --- StampsCRUD ---
 
 type mockStampsCRUD struct {
-	database.ValidatingResourceCRUD[fleet.Stamp]
+	database.ValidatingResourceCRUD[fleet.Stamp, *fleet.Stamp]
 	store *MockFleetDBClient
 }
 
@@ -211,7 +212,7 @@ func (s *mockStampsCRUD) ManagementClusters(stampIdentifier string) database.Man
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
-	inner := newMockFleetResourceCRUD[fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]](
+	inner := newMockFleetResourceCRUD[fleet.ManagementCluster, *fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]](
 		s.store, parentResourceID, fleet.ManagementClusterResourceType,
 	)
 	return &mockManagementClustersCRUD{
@@ -227,17 +228,17 @@ func (s *mockStampsCRUD) ManagementClusters(stampIdentifier string) database.Man
 // --- ManagementClustersCRUD ---
 
 type mockManagementClustersCRUD struct {
-	database.ValidatingResourceCRUD[fleet.ManagementCluster]
+	database.ValidatingResourceCRUD[fleet.ManagementCluster, *fleet.ManagementCluster]
 	store           *MockFleetDBClient
 	stampIdentifier string
 }
 
-func (m *mockManagementClustersCRUD) Controllers() database.ResourceCRUD[api.Controller] {
+func (m *mockManagementClustersCRUD) Controllers() database.ResourceCRUD[api.Controller, *api.Controller] {
 	mcResourceID, err := fleet.ToManagementClusterResourceID(m.stampIdentifier)
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", m.stampIdentifier, err))
 	}
-	return newMockFleetResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](
+	return newMockFleetResourceCRUD[api.Controller, *api.Controller, database.GenericDocument[api.Controller]](
 		m.store, mcResourceID, fleet.ManagementClusterControllerResourceType,
 	)
 }
@@ -251,15 +252,15 @@ type mockFleetGlobalListers struct {
 var _ database.FleetGlobalListers = &mockFleetGlobalListers{}
 
 func (g *mockFleetGlobalListers) Stamps() database.GlobalLister[fleet.Stamp] {
-	return &mockTypedGlobalLister[fleet.Stamp, database.GenericDocument[fleet.Stamp]]{
-		client:       g.client,
-		resourceType: fleet.StampResourceType,
+	return &mockGlobalLister[fleet.Stamp, database.GenericDocument[fleet.Stamp]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{fleet.StampResourceType},
 	}
 }
 
 func (g *mockFleetGlobalListers) ManagementClusters() database.GlobalLister[fleet.ManagementCluster] {
-	return &mockTypedGlobalLister[fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]]{
-		client:       g.client,
-		resourceType: fleet.ManagementClusterResourceType,
+	return &mockGlobalLister[fleet.ManagementCluster, database.GenericDocument[fleet.ManagementCluster]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{fleet.ManagementClusterResourceType},
 	}
 }

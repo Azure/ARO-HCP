@@ -114,10 +114,11 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		validationCondition.Reason = "Succeeded"
 		validationCondition.Message = "Validation succeeded"
 	}
-	meta.SetStatusCondition(&existingServiceProviderCluster.Status.Validations, validationCondition)
+	replacement := existingServiceProviderCluster.DeepCopy()
+	meta.SetStatusCondition(&replacement.Status.Validations, validationCondition)
 
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	_, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
+	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}

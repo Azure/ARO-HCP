@@ -63,9 +63,9 @@ func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx co
 				}
 				decodedItem := &obj
 
-				decodedItemAsTypedDocumentAccessor, ok := any(decodedItem).(TypedDocumentAccessor)
-				if !ok {
-					iter.err = fmt.Errorf("type %T does not implement TypedDocumentAccessor interface", decodedItem)
+				var baseDocument BaseDocument
+				if err := json.Unmarshal(itemJSON, &baseDocument); err != nil {
+					iter.err = err
 					return
 				}
 
@@ -75,7 +75,7 @@ func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx co
 					return
 				}
 
-				if !yield(decodedItemAsTypedDocumentAccessor.GetTypedDocument().ID, internalObj) {
+				if !yield(baseDocument.ID, internalObj) {
 					return
 				}
 			}

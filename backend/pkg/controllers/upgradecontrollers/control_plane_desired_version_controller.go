@@ -182,19 +182,15 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	previousDesiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
-	desiredVersionUpdated := false
 	if desiredVersion != nil && (previousDesiredVersion == nil || !desiredVersion.EQ(*previousDesiredVersion)) {
 		logger.Info("Selected desired version", "desiredVersion", desiredVersion, "previousDesiredVersion", previousDesiredVersion)
-		existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
-		desiredVersionUpdated = true
-	}
-
-	// on successful resolution of the desired version.
-	// update the ServiceProviderCluster first and only afterwards
-	// clear the IntentFailed condition
-	if desiredVersionUpdated {
+		// on successful resolution of the desired version.
+		// update the ServiceProviderCluster first and only afterwards
+		// clear the IntentFailed condition
+		replacement := existingServiceProviderCluster.DeepCopy()
+		replacement.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-		_, err := serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
+		_, err := serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 		}

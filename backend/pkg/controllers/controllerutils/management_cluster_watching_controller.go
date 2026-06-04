@@ -17,6 +17,7 @@ package controllerutils
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -52,7 +53,8 @@ func (k ManagementClusterKey) InitialController(controllerName string) *api.Cont
 	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + fleet.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(k.StampIdentifier),
 		},
 		ExternalID: k.GetResourceID(),
 		Status: api.ControllerStatus{

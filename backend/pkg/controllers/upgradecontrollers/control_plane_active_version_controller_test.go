@@ -17,6 +17,7 @@ package upgradecontrollers
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -362,7 +363,8 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceID,
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -401,7 +403,10 @@ func newHostedClusterReadDesireWithVersions(
 	raw, err := json.Marshal(hc)
 	require.NoError(t, err)
 	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: hostedClusterReadDesireResourceID(t)},
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   hostedClusterReadDesireResourceID(t),
+			PartitionKey: strings.ToLower("management-cluster-resource-id"),
+		},
 		Status: kubeapplier.ReadDesireStatus{
 			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},

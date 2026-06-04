@@ -17,6 +17,7 @@ package unionkubeapplierinformers_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -270,7 +271,7 @@ func newApplyDesire(t *testing.T, resourceIDString string, managementClusterReso
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	require.NoError(t, err, "parse %q", resourceIDString)
 	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: managementClusterResourceID,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
@@ -281,7 +282,7 @@ func newApplyDesire(t *testing.T, resourceIDString string, managementClusterReso
 func createStamp(ctx context.Context, fleetClient database.FleetDBClient, stampIdentifier string) error {
 	stampResourceID := api.Must(fleet.ToStampResourceID(stampIdentifier))
 	stamp := &fleet.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: stampResourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: stampResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     stampResourceID,
 	}
 	_, err := fleetClient.Stamps().Create(ctx, stamp, nil)
@@ -297,7 +298,7 @@ func createManagementCluster(ctx context.Context, fleetClient database.FleetDBCl
 	provisionShardID := ptr.To(api.Must(api.NewInternalID(
 		fmt.Sprintf("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee%s", stampIdentifier))))
 	managementCluster := &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterResourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     managementClusterResourceID,
 		Spec: fleet.ManagementClusterSpec{
 			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
@@ -327,7 +328,7 @@ func createApplyDesire(ctx context.Context, mockClient *databasetesting.MockKube
 		return fmt.Errorf("desire %v has no parent in its resource ID", id)
 	}
 	parentType := id.Parent.ResourceType
-	var applyDesireCRUD database.ResourceCRUD[kubeapplier.ApplyDesire]
+	var applyDesireCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire]
 	var err error
 	switch {
 	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):

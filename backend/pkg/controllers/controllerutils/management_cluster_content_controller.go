@@ -16,6 +16,7 @@ package controllerutils
 
 import (
 	"fmt"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -28,7 +29,8 @@ import (
 func NewInitialManagementClusterContent(managementClusterContentResourceID *azcorearm.ResourceID) *api.ManagementClusterContent {
 	return &api.ManagementClusterContent{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: managementClusterContentResourceID,
+			ResourceID:   managementClusterContentResourceID,
+			PartitionKey: strings.ToLower(managementClusterContentResourceID.SubscriptionID),
 		},
 	}
 }

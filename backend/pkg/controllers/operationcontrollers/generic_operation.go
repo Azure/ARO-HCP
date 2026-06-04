@@ -94,7 +94,7 @@ func NewGenericOperationController(
 	return c
 }
 
-func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) database.ResourceCRUD[api.Controller] {
+func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) database.ResourceCRUD[api.Controller, *api.Controller] {
 	parentResourceID := key.GetParentResourceID()
 	sub := parentResourceID.SubscriptionID
 	rg := parentResourceID.ResourceGroupName
