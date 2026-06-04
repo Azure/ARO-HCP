@@ -34,36 +34,41 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// ControlPlaneIdentitiesPermissionValidation validates that the control plane identities have the necessary permissions.
-type ControlPlaneIdentitiesPermissionValidation struct {
-	smiClientBuilder                  azureclient.ServiceManagedIdentityClientBuilder
-	clusterScopedIdentitiesConfig     *azure.ClusterScopedIdentitiesConfig
-	backendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders
-	checkAccessV2ClientBuilder        azureclient.CheckAccessV2ClientBuilder
-	checkAccessV2Scope                string
+// ControlPlaneIdentitiesPermissionsValidation validates that the control plane identities have the necessary permissions.
+type ControlPlaneIdentitiesPermissionsValidation struct {
+	smiClientBuilder                            azureclient.ServiceManagedIdentityClientBuilder
+	clusterScopedIdentitiesConfig               *azure.ClusterScopedIdentitiesConfig
+	backendIdentityAzureCachedReaders           *cachedreader.BackendIdentityAzureCachedReaders
+	checkAccessV2ClientBuilder                  azureclient.CheckAccessV2ClientBuilder
+	miDataplaneBasedAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
+	// checkAccessV2Scope is the OAuth scope (typically a "<resource>/.default" App ID URI. public, gov, and China clouds
+	// each use a different App ID URI respectively) passed to MI Dataplane when minting an access token for each control plane operator identity.
+	checkAccessV2Scope string
 }
 
-func NewControlPlaneIdentitiesPermissionValidation(
+func NewControlPlaneIdentitiesPermissionsValidation(
 	smiClientBuilder azureclient.ServiceManagedIdentityClientBuilder,
 	clusterScopedIdentitiesConfig *azure.ClusterScopedIdentitiesConfig,
 	backendIdentityAzureCachedReaders *cachedreader.BackendIdentityAzureCachedReaders,
 	checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder,
+	miDataplaneBasedAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 	checkAccessV2Scope string,
-) *ControlPlaneIdentitiesPermissionValidation {
-	return &ControlPlaneIdentitiesPermissionValidation{
-		smiClientBuilder:                  smiClientBuilder,
-		clusterScopedIdentitiesConfig:     clusterScopedIdentitiesConfig,
-		backendIdentityAzureCachedReaders: backendIdentityAzureCachedReaders,
-		checkAccessV2ClientBuilder:        checkAccessV2ClientBuilder,
-		checkAccessV2Scope:                checkAccessV2Scope,
+) *ControlPlaneIdentitiesPermissionsValidation {
+	return &ControlPlaneIdentitiesPermissionsValidation{
+		smiClientBuilder:                            smiClientBuilder,
+		clusterScopedIdentitiesConfig:               clusterScopedIdentitiesConfig,
+		backendIdentityAzureCachedReaders:           backendIdentityAzureCachedReaders,
+		checkAccessV2ClientBuilder:                  checkAccessV2ClientBuilder,
+		miDataplaneBasedAccessTokenRetrieverBuilder: miDataplaneBasedAccessTokenRetrieverBuilder,
+		checkAccessV2Scope:                          checkAccessV2Scope,
 	}
 }
 
-func (v *ControlPlaneIdentitiesPermissionValidation) Name() string {
-	return "ControlPlaneIdentitiesPermissionValidation"
+func (v *ControlPlaneIdentitiesPermissionsValidation) Name() string {
+	return "ControlPlaneIdentitiesPermissionsValidation"
 }
 
-func (v *ControlPlaneIdentitiesPermissionValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error {
+func (v *ControlPlaneIdentitiesPermissionsValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error {
 	checkAccessClient, err := v.checkAccessV2ClientBuilder.Build(*clusterSubscription.Properties.TenantId)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build check access client: %w", err))
@@ -102,7 +107,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) Validate(ctx context.Contex
 	return nil
 }
 
-func (v *ControlPlaneIdentitiesPermissionValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, cluster *api.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID, subnet armnetwork.SubnetsClientGetResponse) ([]string, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, cluster *api.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID, subnet armnetwork.SubnetsClientGetResponse) ([]string, error) {
 	var missingActions []string
 	var roleActions []string
 	roleDefinitionsResourceIDs := v.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)].RoleDefinitionsResourceIDs()
@@ -133,11 +138,11 @@ func (v *ControlPlaneIdentitiesPermissionValidation) findMissingActionsForIdenti
 	}
 
 	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
-	creds, err := v.smiClientBuilder.IdentityCredential(ctx, clusterIdentityURL, identity)
+	retriever, err := v.miDataplaneBasedAccessTokenRetrieverBuilder.Build(clusterIdentityURL, identity)
 	if err != nil {
-		return missingActions, utils.TrackError(fmt.Errorf("failed to get identity credential for %q: %w", identity.String(), err))
+		return missingActions, utils.TrackError(err)
 	}
-	token, err := creds.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{v.checkAccessV2Scope}})
+	token, err := retriever.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{v.checkAccessV2Scope}})
 	if err != nil {
 		return missingActions, utils.TrackError(err)
 	}
@@ -191,7 +196,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) findMissingActionsForIdenti
 	return missingActions, nil
 }
 
-func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, roleDefinitionActions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, roleDefinitionActions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
 	// Minimal set of required actions for the network security group.
 	networkSecurityGroupActions := []string{
 		"Microsoft.Network/networkSecurityGroups/read",
@@ -213,7 +218,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedAct
 // - a slice of AuthorizationDecision entries with AccessDecision of NotAllowed or Denied
 // - a nil slice if all actions are explicitly allowed
 // - an error if the CheckAccess API call fails or returns an unexpected result
-func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedActionsForResourceID(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, actions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForResourceID(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, actions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	authRequest, err := checkAccessClient.CreateAuthorizationRequest(resourceID.String(), actions, token.Token)
@@ -239,7 +244,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedAct
 	return notAllowedAndDeniedActions, nil
 }
 
-func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedActionsForVnet(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, resourceId *azcorearm.ResourceID, roleDefinitionActions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForVnet(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, resourceId *azcorearm.ResourceID, roleDefinitionActions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
 	// Minimal set of required actions for the virtual network.
 	subnetActions := []string{
 		"Microsoft.Network/virtualNetworks/join/action",
@@ -257,7 +262,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedAct
 	return v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessClient, resourceId, requiredActions, token)
 }
 
-func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedActionsForRouteTable(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, routeTable *armnetwork.RouteTable, roleDefinitionActions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForRouteTable(ctx context.Context, checkAccessClient azureclient.CheckAccessV2Client, routeTable *armnetwork.RouteTable, roleDefinitionActions []string, token azcore.AccessToken) ([]client.AuthorizationDecision, error) {
 	// Minimal set of required actions for the route table.
 	routeTableActions := []string{
 		"Microsoft.Network/routeTables/join/action",
@@ -277,7 +282,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) checkNotAllowedAndDeniedAct
 
 // filterNotAllowedAndDeniedActions filters out only those authorization decisions where access was not granted.
 // These are either explicitly Denied or simply NotAllowed.
-func (v *ControlPlaneIdentitiesPermissionValidation) filterNotAllowedAndDeniedActions(authDecisionsResponse []client.AuthorizationDecision) []client.AuthorizationDecision {
+func (v *ControlPlaneIdentitiesPermissionsValidation) filterNotAllowedAndDeniedActions(authDecisionsResponse []client.AuthorizationDecision) []client.AuthorizationDecision {
 	var missingPermissions []client.AuthorizationDecision
 	for _, authDecision := range authDecisionsResponse {
 		if authDecision.AccessDecision == client.NotAllowed || authDecision.AccessDecision == client.Denied {
@@ -288,7 +293,7 @@ func (v *ControlPlaneIdentitiesPermissionValidation) filterNotAllowedAndDeniedAc
 	return missingPermissions
 }
 
-func (v *ControlPlaneIdentitiesPermissionValidation) formatMissingRequiredActionsMessage(resourceId string, notAllowedAndDeniedActions []client.AuthorizationDecision) string {
+func (v *ControlPlaneIdentitiesPermissionsValidation) formatMissingRequiredActionsMessage(resourceId string, notAllowedAndDeniedActions []client.AuthorizationDecision) string {
 	var notAllowedActions []string
 	var deniedActions []string
 	for _, action := range notAllowedAndDeniedActions {

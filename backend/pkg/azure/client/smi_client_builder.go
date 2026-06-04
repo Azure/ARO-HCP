@@ -49,10 +49,6 @@ type ServiceManagedIdentityClientBuilder interface {
 
 	// SubnetsClient returns a new Subnet client.
 	SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (SubnetsClient, error)
-
-	// IdentityCredential acquires an azcore.TokenCredential for the given managed identity
-	// by going through the Managed Identities Data Plane.
-	IdentityCredential(ctx context.Context, clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error)
 }
 
 type serviceManagedIdentityClientBuilder struct {
@@ -86,10 +82,6 @@ func (b *serviceManagedIdentityClientBuilder) credentialsForServiceManagedIdenti
 	}
 
 	return dataplane.GetCredential(b.azCoreARMClientOptions.ClientOptions, resp.ExplicitIdentities[0])
-}
-
-func (b *serviceManagedIdentityClientBuilder) IdentityCredential(ctx context.Context, clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (azcore.TokenCredential, error) {
-	return b.credentialsForServiceManagedIdentity(ctx, clusterIdentityURL, identityResourceID)
 }
 
 func (b *serviceManagedIdentityClientBuilder) UserAssignedIdentitiesClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (UserAssignedIdentitiesClient, error) {

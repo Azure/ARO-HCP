@@ -64,31 +64,32 @@ type Backend struct {
 }
 
 type BackendOptions struct {
-	AppShortDescriptionName            string
-	AppVersion                         string
-	AzureLocation                      string
-	LeaderElectionLock                 resourcelock.Interface
-	ResourcesDBClient                  database.ResourcesDBClient
-	BillingDBClient                    database.BillingDBClient
-	FleetDBClient                      database.FleetDBClient
-	KubeApplierDBClients               database.KubeApplierDBClients
-	ClustersServiceClient              ocm.ClusterServiceClientSpec
-	MetricsRegisterer                  prometheus.Registerer
-	MetricsGatherer                    prometheus.Gatherer
-	MetricsServerListenAddress         string
-	MetricsServerListener              net.Listener
-	HealthzServerListenAddress         string
-	TracerProviderShutdownFunc         func(context.Context) error
-	MaestroSourceEnvironmentIdentifier string
-	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
-	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
-	BackendIdentityAzureCachedReaders  *cachedreader.BackendIdentityAzureCachedReaders
-	ExitOnPanic                        bool
-	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
-	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
-	CheckAccessV2ClientBuilder         azureclient.CheckAccessV2ClientBuilder
-	ClusterScopedIdentitiesConfig      *internalazure.ClusterScopedIdentitiesConfig
-	CloudEnvironment                   *azureconfig.AzureCloudEnvironment
+	AppShortDescriptionName                             string
+	AppVersion                                          string
+	AzureLocation                                       string
+	LeaderElectionLock                                  resourcelock.Interface
+	ResourcesDBClient                                   database.ResourcesDBClient
+	BillingDBClient                                     database.BillingDBClient
+	FleetDBClient                                       database.FleetDBClient
+	KubeApplierDBClients                                database.KubeApplierDBClients
+	ClustersServiceClient                               ocm.ClusterServiceClientSpec
+	MetricsRegisterer                                   prometheus.Registerer
+	MetricsGatherer                                     prometheus.Gatherer
+	MetricsServerListenAddress                          string
+	MetricsServerListener                               net.Listener
+	HealthzServerListenAddress                          string
+	TracerProviderShutdownFunc                          func(context.Context) error
+	MaestroSourceEnvironmentIdentifier                  string
+	FPAClientBuilder                                    azureclient.FirstPartyApplicationClientBuilder
+	BackendIdentityAzureClients                         *azureclient.BackendIdentityAzureClients
+	BackendIdentityAzureCachedReaders                   *cachedreader.BackendIdentityAzureCachedReaders
+	ExitOnPanic                                         bool
+	FPAMIDataplaneClientBuilder                         azureclient.FPAMIDataplaneClientBuilder
+	MIDataplaneBasedIdentityAccessTokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
+	SMIClientBuilder                                    azureclient.ServiceManagedIdentityClientBuilder
+	CheckAccessV2ClientBuilder                          azureclient.CheckAccessV2ClientBuilder
+	ClusterScopedIdentitiesConfig                       *internalazure.ClusterScopedIdentitiesConfig
+	CloudEnvironment                                    *azureconfig.AzureCloudEnvironment
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -160,6 +161,7 @@ func (o *BackendOptions) validate() error {
 		return fmt.Errorf("metrics registerer and gatherer must both be set (registerer set=%t, gatherer set=%t)",
 			o.MetricsRegisterer != nil, o.MetricsGatherer != nil)
 	}
+
 	return nil
 }
 
@@ -606,17 +608,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
-	var checkAccessV2Scope string
-	if b.options.CloudEnvironment != nil {
-		checkAccessV2Scope = b.options.CloudEnvironment.CheckAccessV2Scope()
-	}
-	controlPlaneIdentitiesPermissionValidationController := validationcontrollers.NewClusterValidationController(
-		validations.NewControlPlaneIdentitiesPermissionValidation(
+	controlPlaneIdentitiesPermissionsValidationController := validationcontrollers.NewClusterValidationController(
+		validations.NewControlPlaneIdentitiesPermissionsValidation(
 			b.options.SMIClientBuilder,
 			b.options.ClusterScopedIdentitiesConfig,
 			b.options.BackendIdentityAzureCachedReaders,
 			b.options.CheckAccessV2ClientBuilder,
-			checkAccessV2Scope,
+			b.options.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder,
+			b.options.CloudEnvironment.CheckAccessV2Scope(),
 		),
 		activeOperationLister,
 		b.options.ResourcesDBClient,
@@ -704,7 +703,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
-				go controlPlaneIdentitiesPermissionValidationController.Run(ctx, 20)
+				go controlPlaneIdentitiesPermissionsValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go maestroCreateClusterScopedReadonlyBundlesController.Run(ctx, 20)
 				go maestroReadAndPersistClusterScopedReadonlyBundlesContentController.Run(ctx, 20)
