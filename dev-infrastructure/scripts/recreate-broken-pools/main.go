@@ -219,13 +219,12 @@ const (
 
 	// forcedEvidenceRestoreTimeoutMin caps the wait for the restorePoolSpec
 	// PUT + PollUntilDone that reverses the forced-evidence scale-up. ARM
-	// pool PUTs against AKS can legitimately take 5-10m, so this runs on
-	// its own context (also derived from context.Background) rather than
-	// sharing the shorter abort budget. Without a dedicated context, an
-	// abort that consumed most of forcedEvidenceAbortTimeoutMin would
-	// silently skip the restore and leave the pool one node larger than
-	// the original snapshot.
-	forcedEvidenceRestoreTimeoutMin = 15
+	// pool PUTs in the NRP-KVS wedge path are expected to fail or hang, so
+	// the restore is best-effort and intentionally short. This runs on its
+	// own context (also derived from context.Background) rather than sharing
+	// the abort budget. Without a dedicated context, an abort that consumed
+	// most of forcedEvidenceAbortTimeoutMin would silently skip the restore.
+	forcedEvidenceRestoreTimeoutMin = 5
 )
 
 const nodePoolRoleLabel = "aro-hcp.azure.com/role"
