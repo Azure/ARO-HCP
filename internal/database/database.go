@@ -175,13 +175,13 @@ func (d *resourcesCosmosDBClient) Subscriptions() ResourceCRUD[arm.Subscription,
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {
-	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return NewCosmosResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
 		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD {
-	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
 }
