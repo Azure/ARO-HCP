@@ -105,5 +105,22 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 		return nil // no work to do
 	}
 
-	return pollNodePoolStatus(ctx, c.clock, c.resourcesDBClient, c.clusterServiceClient, operation, c.notificationClient)
+	nodePoolStatus, err := c.clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	logger.Info("new status", "newStatus", newOperationStatus)
+
+	logger.Info("updating status")
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(c.notificationClient))
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
 }
