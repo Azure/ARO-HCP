@@ -290,7 +290,11 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		if err := validation.OpenshiftVersionAtMostOneMinorSkew(actualLatestMinorVersion.String(), desiredMinorVersion.String()); err != nil {
 			return nil, utils.TrackError(err)
 		}
-		if err := admission.ValidateClusterNodePoolsMinorVersionSkew(ctx, c.resourcesDBClient, clusterResourceID, desiredMinorVersion); err != nil {
+		clusterNodePools, err := c.listClusterAdmissionNodePools(ctx, clusterResourceID)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		if err := admission.AdmitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, desiredMinorVersion); err != nil {
 			return nil, utils.TrackError(err)
 		}
 	}
@@ -328,6 +332,33 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		"no upgrade path found from %s to %s: no reachable versions in target minor and no gateway version in current minor",
 		actualLatestVersion.String(), desiredMinorVersion.String(),
 	))
+}
+
+// listClusterAdmissionNodePools prefetches every node pool under clusterResourceID
+// paired with its service-provider record, in the same shape that
+// frontend.newClusterAdmissionContext builds for cluster admission. The upgrade
+// controller passes the result to admission.AdmitClusterNodePoolsMinorVersionSkew
+// directly so that admission code stays free of any DB dependency.
+func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, error) {
+	nodePoolIterator, err := c.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	var clusterNodePools []admission.ClusterAdmissionNodePool
+	for _, nodePool := range nodePoolIterator.Items(ctx) {
+		spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, nodePool.ID)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		clusterNodePools = append(clusterNodePools, admission.ClusterAdmissionNodePool{
+			NodePool:                nodePool,
+			ServiceProviderNodePool: spNodePool,
+		})
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return nil, utils.TrackError(err)
+	}
+	return clusterNodePools, nil
 }
 
 // FindAllUpgradeTargetVersionsInMinor queries Cincinnati and finds the latest version within the specified target minor.

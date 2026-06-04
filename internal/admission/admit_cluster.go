@@ -241,7 +241,7 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 	newVersion, parseErr := semver.ParseTolerant(newObj.ID)
 	if parseErr != nil {
 		errs = append(errs, field.Invalid(versionPath, newObj.ID, parseErr.Error()))
-	} else if npErr := admitClusterNodePoolsMinorVersionSkew(ctx, admissionContext.ClusterNodePools, newVersion); npErr != nil {
+	} else if npErr := AdmitClusterNodePoolsMinorVersionSkew(ctx, admissionContext.ClusterNodePools, newVersion); npErr != nil {
 		errs = append(errs, field.Invalid(versionPath, newObj.ID, npErr.Error()))
 	}
 
