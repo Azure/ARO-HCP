@@ -31,6 +31,7 @@ type httpGetStep struct {
 	key    ResourceKey
 
 	expectedResource map[string]any
+	expectedFilename string
 	expectedError    string
 }
 
@@ -51,7 +52,8 @@ func newHTTPGetStep(stepID StepID, stepDir fs.FS) (*httpGetStep, error) {
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
 	var expectedResource map[string]any
-	expectedResources, err := readResourcesInDir[map[string]any](stepDir)
+	var expectedFilename string
+	expectedResources, expectedFilenames, err := readResourcesAndFilenamesInDir[map[string]any](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -59,6 +61,7 @@ func newHTTPGetStep(stepID StepID, stepDir fs.FS) (*httpGetStep, error) {
 	case 0:
 	case 1:
 		expectedResource = *expectedResources[0]
+		expectedFilename = expectedFilenames[0]
 	default:
 		return nil, fmt.Errorf("cannot expect more than one resource")
 	}
@@ -71,6 +74,7 @@ func newHTTPGetStep(stepID StepID, stepDir fs.FS) (*httpGetStep, error) {
 		stepID:           stepID,
 		key:              key,
 		expectedResource: expectedResource,
+		expectedFilename: expectedFilename,
 		expectedError:    expectedError,
 	}, nil
 }
@@ -92,8 +96,5 @@ func (l *httpGetStep) RunTest(ctx context.Context, t *testing.T, stepInput StepI
 		require.NoError(t, err)
 	}
 
-	if diff, equals := ResourceInstanceEquals(t, l.expectedResource, actual); !equals {
-		t.Logf("actual:\n%v", stringifyResource(actual))
-		t.Error(diff)
-	}
+	verifyOrUpdateGet(t, l.stepID, l.expectedResource, actual, l.expectedFilename)
 }

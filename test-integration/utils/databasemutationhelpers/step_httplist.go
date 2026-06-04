@@ -29,6 +29,7 @@ type httpListStep struct {
 	key    ResourceKey
 
 	expectedResources []*map[string]any
+	expectedFilenames []string
 }
 
 func newHTTPListStep(stepID StepID, stepDir fs.FS) (*httpListStep, error) {
@@ -41,7 +42,7 @@ func newHTTPListStep(stepID StepID, stepDir fs.FS) (*httpListStep, error) {
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	expectedResources, err := readResourcesInDir[map[string]any](stepDir)
+	expectedResources, expectedFilenames, err := readResourcesAndFilenamesInDir[map[string]any](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -50,6 +51,7 @@ func newHTTPListStep(stepID StepID, stepDir fs.FS) (*httpListStep, error) {
 		stepID:            stepID,
 		key:               key,
 		expectedResources: expectedResources,
+		expectedFilenames: expectedFilenames,
 	}, nil
 }
 
@@ -64,40 +66,6 @@ func (l *httpListStep) RunTest(ctx context.Context, t *testing.T, stepInput Step
 	actualResources, err := accessor.List(ctx, l.key.ResourceID)
 	require.NoError(t, err)
 
-	if len(l.expectedResources) != len(actualResources) {
-		t.Logf("actual:\n%v", stringifyResource(actualResources))
-	}
-
-	require.Equal(t, len(l.expectedResources), len(actualResources), "unexpected number of resources")
-	// all the expected must be present
-	for i, expected := range l.expectedResources {
-		found := false
-		for _, actual := range actualResources {
-			_, equals := ResourceInstanceEquals(t, expected, actual)
-			if equals {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Logf("actual:\n%v", stringifyResource(actualResources))
-		}
-		require.True(t, found, "expected resource not found: %d", i)
-	}
-
-	// all the actual must be expected
-	for i, actual := range actualResources {
-		found := false
-		for _, expected := range l.expectedResources {
-			_, equals := ResourceInstanceEquals(t, expected, actual)
-			if equals {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Logf("expected:\n%v", stringifyResource(l.expectedResources))
-		}
-		require.True(t, found, "actual resource not found: %d", i)
-	}
+	// HTTP responses come back as raw JSON maps; match by their ARM "id" field.
+	verifyOrUpdateList(t, l.stepID, toAnySlice(l.expectedResources), l.expectedFilenames, actualResources, resourceIDFromMap)
 }

@@ -32,6 +32,7 @@ type listActiveOperationsStep struct {
 	key    CosmosCRUDKey
 
 	expectedOperations []*api.Operation
+	expectedFilenames  []string
 }
 
 func newListActiveOperationsStep(stepID StepID, stepDir fs.FS) (*listActiveOperationsStep, error) {
@@ -44,7 +45,7 @@ func newListActiveOperationsStep(stepID StepID, stepDir fs.FS) (*listActiveOpera
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	expectedResources, err := readResourcesInDir[api.Operation](stepDir)
+	expectedResources, expectedFilenames, err := readResourcesAndFilenamesInDir[api.Operation](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -53,10 +54,28 @@ func newListActiveOperationsStep(stepID StepID, stepDir fs.FS) (*listActiveOpera
 		stepID:             stepID,
 		key:                key,
 		expectedOperations: expectedResources,
+		expectedFilenames:  expectedFilenames,
 	}, nil
 }
 
 var _ IntegrationTestStep = &listActiveOperationsStep{}
+
+// operationKey identifies an Operation by (externalId, request, status) since
+// the operation's own resourceID is a UUID re-generated on every run and so is
+// stripped by the comparator. listActiveOperations filters to non-terminal
+// status server-side; status is still part of the key so a single (resource,
+// verb) pair can legitimately appear with more than one non-terminal state
+// without collapsing them onto the same fixture.
+func operationKey(v any) string {
+	op, ok := v.(*api.Operation)
+	if !ok {
+		return ""
+	}
+	if op.ExternalID == nil {
+		return ""
+	}
+	return op.ExternalID.String() + "|" + string(op.Request) + "|" + string(op.Status)
+}
 
 func (l *listActiveOperationsStep) StepID() StepID {
 	return l.stepID
@@ -66,50 +85,13 @@ func (l *listActiveOperationsStep) RunTest(ctx context.Context, t *testing.T, st
 	resourceCRUDClient := NewCosmosCRUD[api.Operation](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
 	var operationsCRUD = any(resourceCRUDClient).(database.OperationCRUD)
-	actualControllersIterator := operationsCRUD.ListActiveOperations(nil)
+	actualOperationsIterator := operationsCRUD.ListActiveOperations(nil)
 
-	actualControllers := []*api.Operation{}
-	for _, actual := range actualControllersIterator.Items(ctx) {
-		actualControllers = append(actualControllers, actual)
+	actualOperations := []*api.Operation{}
+	for _, actual := range actualOperationsIterator.Items(ctx) {
+		actualOperations = append(actualOperations, actual)
 	}
-	require.NoError(t, actualControllersIterator.GetError())
+	require.NoError(t, actualOperationsIterator.GetError())
 
-	if len(l.expectedOperations) != len(actualControllers) {
-		t.Logf("actual:\n%v", stringifyResource(actualControllers))
-	}
-
-	require.Equal(t, len(l.expectedOperations), len(actualControllers), "unexpected number of resources")
-	// all the expected must be present
-	for _, expected := range l.expectedOperations {
-		found := false
-		for _, actual := range actualControllers {
-			diff, equals := ResourceInstanceEquals(t, expected, actual)
-			if equals {
-				found = true
-				break
-			}
-			t.Log(diff)
-		}
-		if !found {
-			t.Logf("actual:\n%v", stringifyResource(actualControllers))
-		}
-		require.True(t, found, "expected resource not found: %v", ResourceName(expected))
-	}
-
-	// all the actual must be expected
-	for _, actual := range actualControllers {
-		found := false
-		for _, expected := range l.expectedOperations {
-			diff, equals := ResourceInstanceEquals(t, expected, actual)
-			if equals {
-				found = true
-				break
-			}
-			t.Log(diff)
-		}
-		if !found {
-			t.Logf("expected:\n%v", stringifyResource(l.expectedOperations))
-		}
-		require.True(t, found, "actual resource not found: %v", ResourceName(actual))
-	}
+	verifyOrUpdateList(t, l.stepID, toAnySlice(l.expectedOperations), l.expectedFilenames, toAnySlice(actualOperations), operationKey)
 }

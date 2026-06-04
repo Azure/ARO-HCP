@@ -31,6 +31,7 @@ type listStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAcce
 	key    CosmosCRUDKey
 
 	expectedResources []*InternalAPIType
+	expectedFilenames []string
 }
 
 func newListStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*listStep[InternalAPIType, InternalAPITypePointer], error) {
@@ -43,7 +44,7 @@ func newListStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataA
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	expectedResources, err := readResourcesInDir[InternalAPIType](stepDir)
+	expectedResources, expectedFilenames, err := readResourcesAndFilenamesInDir[InternalAPIType](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -52,6 +53,7 @@ func newListStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataA
 		stepID:            stepID,
 		key:               key,
 		expectedResources: expectedResources,
+		expectedFilenames: expectedFilenames,
 	}, nil
 }
 
@@ -61,47 +63,14 @@ func (l *listStep[InternalAPIType, InternalAPITypePointer]) StepID() StepID {
 
 func (l *listStep[InternalAPIType, InternalAPITypePointer]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	resourceCRUDClient := NewCosmosCRUD[InternalAPIType, InternalAPITypePointer](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
-	actualControllersIterator, err := resourceCRUDClient.List(ctx, nil)
+	actualResourcesIterator, err := resourceCRUDClient.List(ctx, nil)
 	require.NoError(t, err)
 
 	actualResources := []*InternalAPIType{}
-	for _, actual := range actualControllersIterator.Items(ctx) {
+	for _, actual := range actualResourcesIterator.Items(ctx) {
 		actualResources = append(actualResources, actual)
 	}
-	require.NoError(t, actualControllersIterator.GetError())
+	require.NoError(t, actualResourcesIterator.GetError())
 
-	if len(l.expectedResources) != len(actualResources) {
-		t.Logf("actual:\n%v", stringifyResource(actualResources))
-	}
-
-	require.Equal(t, len(l.expectedResources), len(actualResources), "unexpected number of resources")
-	// all the expected must be present
-	for _, expected := range l.expectedResources {
-		found := false
-		for _, actual := range actualResources {
-			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Logf("actual:\n%v", stringifyResource(actualResources))
-		}
-		require.True(t, found, "expected resource not found: %v", ResourceName(expected))
-	}
-
-	// all the actual must be expected
-	for _, actual := range actualResources {
-		found := false
-		for _, expected := range l.expectedResources {
-			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Logf("expected:\n%v", stringifyResource(l.expectedResources))
-		}
-		require.True(t, found, "actual resource not found: %v", ResourceName(actual))
-	}
+	verifyOrUpdateList(t, l.stepID, toAnySlice(l.expectedResources), l.expectedFilenames, toAnySlice(actualResources), ResourceName)
 }
