@@ -27,6 +27,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	"github.com/Azure/ARO-HCP/tooling/metricscache"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
 )
@@ -53,7 +54,7 @@ var (
 type Collector struct {
 	config       *config.Config
 	logger       *slog.Logger
-	cache        *MetricsCache
+	cache        *metricscache.Cache
 	sources      []QuotaSource
 	credProvider *credentials.Provider
 }
@@ -72,7 +73,7 @@ func NewCollector(cfg *config.Config, logger *slog.Logger,
 	return &Collector{
 		config:       cfg,
 		logger:       logger,
-		cache:        NewMetricsCache(cacheTTL),
+		cache:        metricscache.NewCache(cacheTTL),
 		sources:      sources,
 		credProvider: credProvider,
 	}
@@ -137,8 +138,6 @@ func (c *Collector) collectAll(ctx context.Context) {
 			}
 		}
 	}
-
-	c.cache.Prune()
 }
 
 func (c *Collector) collectSource(parentCtx context.Context, source QuotaSource,
