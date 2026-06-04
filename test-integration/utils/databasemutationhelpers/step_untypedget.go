@@ -39,6 +39,7 @@ type untypedGetStep struct {
 	key    UntypedItemKey
 
 	expectedResource *database.TypedDocument
+	expectedFilename string
 	expectedError    string
 }
 
@@ -59,7 +60,8 @@ func newUntypedGetStep(stepID StepID, stepDir fs.FS) (*untypedGetStep, error) {
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
 	var expectedResource *database.TypedDocument
-	expectedResources, err := readResourcesInDir[database.TypedDocument](stepDir)
+	var expectedFilename string
+	expectedResources, expectedFilenames, err := readResourcesAndFilenamesInDir[database.TypedDocument](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -67,6 +69,7 @@ func newUntypedGetStep(stepID StepID, stepDir fs.FS) (*untypedGetStep, error) {
 	case 0:
 	case 1:
 		expectedResource = expectedResources[0]
+		expectedFilename = expectedFilenames[0]
 	default:
 		return nil, fmt.Errorf("cannot expect more than one resource")
 	}
@@ -79,6 +82,7 @@ func newUntypedGetStep(stepID StepID, stepDir fs.FS) (*untypedGetStep, error) {
 		stepID:           stepID,
 		key:              key,
 		expectedResource: expectedResource,
+		expectedFilename: expectedFilename,
 		expectedError:    expectedError,
 	}, nil
 }
@@ -106,10 +110,5 @@ func (l *untypedGetStep) RunTest(ctx context.Context, t *testing.T, stepInput St
 		require.NoError(t, err)
 	}
 
-	if reason, equals := ResourceInstanceEquals(t, l.expectedResource, actualResource); !equals {
-		t.Logf("actual:\n%v", stringifyResource(actualResource))
-		t.Log(reason)
-		// cmpdiff doesn't handle private fields gracefully
-		require.Equal(t, l.expectedResource, actualResource)
-	}
+	verifyOrUpdateGet(t, l.stepID, l.expectedResource, actualResource, l.expectedFilename)
 }
