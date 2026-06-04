@@ -38,3 +38,8 @@ const (
 	NodePoolScalingTimeout          = 20 * time.Minute
 	UpdateHCPClusterTimeout         = 10 * time.Minute
 )
+
+// Identity assignment
+const (
+	IdentityContainerAssignmentRetryInterval = 60 * time.Second
+)
