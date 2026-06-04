@@ -1185,6 +1185,10 @@
           "required": [
             "tlsCertificatesIssuer"
           ]
+        },
+        "dataPlaneHAProxyImage": {
+          "type": "string",
+          "description": "A valid image reference used for overriding the HAProxy image of the worker node API server proxy. If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used."
         }
       },
       "additionalProperties": false,

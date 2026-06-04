@@ -160,6 +160,7 @@ clustersService:
     tlsCertificatesIssuer: Self
   batchProcesses: ""
   batchProcessesDryRun: true
+  dataPlaneHAProxyImage: ""
   denyAssignments: disabled
   deployDebugJobs: false
   environment: arohcpperf
