@@ -116,16 +116,12 @@ type HCPClusterCRUD interface {
 }
 
 func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID, resourceGroupName string) HCPClusterCRUD {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-	}
+	var parentResourceID *azcorearm.ResourceID
 	if len(resourceGroupName) > 0 {
-		parts = append(parts,
-			"resourceGroups",
-			resourceGroupName)
+		parentResourceID = api.Must(api.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+	} else {
+		parentResourceID = api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 
 	return &hcpClusterCRUD{
 		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](containerClient, parentResourceID, api.ClusterResourceType),

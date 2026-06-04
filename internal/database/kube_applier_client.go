@@ -17,7 +17,6 @@ package database
 import (
 	"context"
 	"fmt"
-	"path"
 	"strings"
 	"sync"
 
@@ -131,40 +130,6 @@ type KubeApplierReadDesireCRUD interface {
 	ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
 }
 
-// clusterParentResourceID returns the parent resource ID for a cluster-scoped
-// *Desire (everything under /providers/.../hcpOpenShiftClusters/<clusterName>).
-func clusterParentResourceID(subscriptionID, resourceGroupName, clusterName string) (*azcorearm.ResourceID, error) {
-	if len(subscriptionID) == 0 {
-		return nil, fmt.Errorf("subscriptionID is required")
-	}
-	if len(resourceGroupName) == 0 {
-		return nil, fmt.Errorf("resourceGroupName is required")
-	}
-	if len(clusterName) == 0 {
-		return nil, fmt.Errorf("clusterName is required")
-	}
-	return azcorearm.ParseResourceID(strings.ToLower(path.Join(
-		"/subscriptions", strings.ToLower(subscriptionID),
-		"resourceGroups", resourceGroupName,
-		"providers", api.ClusterResourceType.String(), clusterName,
-	)))
-}
-
-// nodePoolParentResourceID returns the parent resource ID for a nodepool-scoped
-// *Desire (under .../hcpOpenShiftClusters/<clusterName>/nodePools/<nodePoolName>).
-func nodePoolParentResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*azcorearm.ResourceID, error) {
-	if len(nodePoolName) == 0 {
-		return nil, fmt.Errorf("nodePoolName is required")
-	}
-	clusterID, err := clusterParentResourceID(subscriptionID, resourceGroupName, clusterName)
-	if err != nil {
-		return nil, err
-	}
-	return azcorearm.ParseResourceID(strings.ToLower(path.Join(
-		clusterID.String(), api.NodePoolResourceTypeName, nodePoolName,
-	)))
-}
-
 // kubeApplierCosmosDBClient implements KubeApplierDBClient against a Cosmos
 // container that holds one management cluster's data. managementClusterPartitionKey
 // is the lowercased partition-key value used for every write/query against the
@@ -200,7 +165,7 @@ func NewKubeApplierDBClientFromDatabase(database *azcosmos.DatabaseClient, conta
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
-	parentID, err := clusterParentResourceID(subscriptionID, resourceGroupName, clusterName)
+	parentID, err := api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +176,7 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resou
 }
 
 func (c *kubeApplierCosmosDBClient) ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
-	parentID, err := nodePoolParentResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	parentID, err := api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +187,7 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForNodePool(subscriptionID, reso
 }
 
 func (c *kubeApplierCosmosDBClient) DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
-	parentID, err := clusterParentResourceID(subscriptionID, resourceGroupName, clusterName)
+	parentID, err := api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +198,7 @@ func (c *kubeApplierCosmosDBClient) DeleteDesiresForCluster(subscriptionID, reso
 }
 
 func (c *kubeApplierCosmosDBClient) DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
-	parentID, err := nodePoolParentResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	parentID, err := api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +209,7 @@ func (c *kubeApplierCosmosDBClient) DeleteDesiresForNodePool(subscriptionID, res
 }
 
 func (c *kubeApplierCosmosDBClient) ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
-	parentID, err := clusterParentResourceID(subscriptionID, resourceGroupName, clusterName)
+	parentID, err := api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +220,7 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForCluster(subscriptionID, resour
 }
 
 func (c *kubeApplierCosmosDBClient) ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
-	parentID, err := nodePoolParentResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	parentID, err := api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	if err != nil {
 		return nil, err
 	}
@@ -450,26 +415,12 @@ func (c *kubeApplierDBClients) findManagementClusterLocked(ctx context.Context, 
 	}
 	target := strings.ToLower(rid.String())
 	for _, mc := range mcs {
-		mcRID := managementClusterResourceID(mc)
-		if mcRID == nil {
+		if mc.CosmosMetadata.ResourceID == nil {
 			continue
 		}
-		if strings.ToLower(mcRID.String()) == target {
+		if strings.ToLower(mc.CosmosMetadata.ResourceID.String()) == target {
 			return mc
 		}
 	}
 	return nil
-}
-
-// managementClusterResourceID prefers the explicit ResourceID field (kept on the
-// type during the migration off cosmosMetadata-only resourceIDs), falling back
-// to CosmosMetadata.ResourceID. Returns nil if neither is set.
-func managementClusterResourceID(mc *fleet.ManagementCluster) *azcorearm.ResourceID {
-	if mc == nil {
-		return nil
-	}
-	if mc.ResourceID != nil {
-		return mc.ResourceID
-	}
-	return mc.CosmosMetadata.ResourceID
 }

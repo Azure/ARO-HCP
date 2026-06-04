@@ -15,28 +15,9 @@
 package database
 
 import (
-	"path"
-	"strings"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type ServiceProviderClusterCRUD interface {
 	ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster]
-}
-
-func NewClusterResourceID(subscriptionID, resourceGroupName, clusterName string) *azcorearm.ResourceID {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-		"resourceGroups",
-		resourceGroupName,
-		"providers",
-		api.ClusterResourceType.Namespace,
-		api.ClusterResourceType.Type,
-		clusterName,
-	}
-	return api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 }
