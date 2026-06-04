@@ -84,9 +84,7 @@ When writing tests that poll until a condition is met (e.g. `Eventually(...)`, `
 
 4. **Consider dumping targeted state on failure:** When a polling loop times out, it is strongly recommended to dump the status of the specific resources you were directly polling — e.g. if you were waiting for Machines to upgrade, dump those Machine statuses. Keep this narrowly scoped to avoid log clutter; broad cluster diagnostics should be left to `oc adm inspect` or equivalent artifact collection. The goal is that the most immediately relevant context appears inline next to the failure message.
 
-5. **Use `eventuallyVerify` or equivalent patterns:** The `eventuallyVerify` helper in `e2e/cluster_pullsecret.go` implements delta-only logging by tracking the previous error string. This pattern (based on HyperShift's `EventuallyObject` in [test/e2e/util/eventually.go](https://github.com/openshift/hypershift/blob/main/test/e2e/util/eventually.go)) should be used as the baseline for all polling-style verifications. Consider also logging a timestamp for when the `eventuallyVerify` or similar polling operation completes successfully if the verifier you are using does not already implement this function.
-
-6. **Think about failure before writing the test:** Test authors must consider what happens when the test fails. Before submitting a test, intentionally trigger a failure and verify that the error output answers: *what went wrong, what was expected, and what information does someone need to debug it?*
+5. **Think about failure before writing the test:** Test authors must consider what happens when the test fails. Before submitting a test, intentionally trigger a failure and verify that the error output answers: *what went wrong, what was expected, and what information does someone need to debug it?*
 
 ## Labels
 
@@ -178,3 +176,179 @@ specs = specs.MustFilter([]string{`name.contains("Cluster") && labels.exists(l, 
 
 **WARNING**: Always revert `MustFilter` edits before merging. Leaving a filter
 in place silently skips tests in CI.
+
+---
+
+# E2E Test Code Review Standards
+
+This section defines the standards for reviewing E2E test code changes. These rules supplement the general project [PR standards](../CONTRIBUTING.md#pull-request-standards) with E2E-specific requirements.
+
+## Build Tags and File Naming
+
+- **Build tag requirement**: Only the main entry point file (`test/e2e/e2e_test.go`) should have the `//go:build E2Etests` build tag
+- **File naming**: E2E test files should NOT use the `_test.go` suffix (except for framework unit tests in `test/util/framework/*_test.go` and the entry point `test/e2e/e2e_test.go`)
+  - ✅ Good: `cluster_create.go`, `admin_api.go`, `cluster_pullsecret.go`
+  - ❌ Bad: `cluster_create_test.go` (Ginkgo OpenShift extension excludes these during imports)
+  - Exception: Framework helper unit tests like `per_test_framework_test.go` should use `_test.go` suffix
+
+## Test Structure (Ginkgo/Gomega)
+
+- **Spec organization**: Use clear hierarchies:
+  - `Describe` → `It` (simple tests)
+  - `Describe` → `Context` → `It` (grouped scenarios)
+  - Multiple nested `Describe` blocks for complex organization
+- **Descriptive test names**: Write complete, readable sentences that form a narrative when concatenated
+  - Example: "Get HCPOpenShiftCluster" → "Fails to get a nonexistent cluster with a Not Found error"
+  - Reads as: "Get HCPOpenShiftCluster fails to get a nonexistent cluster with a Not Found error"
+- **Use `By()` for test steps**: Document critical steps within `It` blocks using `By("step description")`
+- **Context parameter**: All `It` blocks must accept `context.Context` as their first parameter
+  - ✅ Good: `It("should create cluster", func(ctx context.Context) { ... })`
+  - ❌ Bad: `It("should create cluster", func() { ctx := context.Background(); ... })`
+
+## Required Test Labels
+
+Every test MUST include appropriate labels from these categories:
+
+### Test Environment Labels (MANDATORY - exactly one):
+- `labels.RequireNothing`: Per-test cluster tests (creates own cluster) — **preferred approach**
+- `labels.RequireHappyPathInfra`: Per-run cluster tests (uses pre-created cluster)
+
+### Importance Labels (MANDATORY - exactly one):
+- `labels.Critical`: Blockers for rollout
+- `labels.High`: Significant problems affecting a feature
+- `labels.Medium`: Less frequent scenarios
+- `labels.Low`: Very specific scenarios or enhancements
+
+### Positivity Labels (MANDATORY - exactly one):
+- `labels.Positive`: Happy path test scenarios
+- `labels.Negative`: Error/failure test scenarios
+
+### Optional Usage Labels:
+- `labels.CreateCluster`: Cluster creation related tests
+- `labels.SetupValidation`: Pre-test validation
+- `labels.TeardownValidation`: Post-test validation
+- `labels.CoreInfraService`: Gates rollout of ARO-HCP components
+- `labels.AroRpApiCompatible`: Can run against both ARO HCP RP and ARM endpoint (dev environment compatible)
+
+### Optional Environment Labels:
+- `labels.DevelopmentOnly`
+- `labels.IntegrationOnly`
+- `labels.StageAndProdOnly`
+
+### Resource Demand Labels (when applicable):
+- `labels.MIDemandHigh`: Needs multiple managed identity containers
+- `labels.MIDemandMedium`: Needs more than one container
+
+### Speed Labels (when applicable):
+- `labels.Slow`: For tests that take significantly longer than average
+
+**Example**:
+```go
+It("should create cluster successfully", 
+    labels.RequireNothing, 
+    labels.Critical, 
+    labels.Positive, 
+    labels.CreateCluster,
+    func(ctx context.Context) {
+        // test code
+    })
+```
+
+## Client Usage Patterns
+
+### HCP SDK Client:
+- Use `tc.Get20240610ClientFactoryOrDie(ctx)` to get client factory
+- Chain to specific clients: `.NewHcpOpenShiftClustersClient()`, `.NewHcpOpenShiftClusterNodePoolsClient()`
+- Always use context with timeout for async operations
+
+### Kubernetes Client:
+- Use `framework.GetAdminRESTConfigForHCPCluster20240610()` to get REST config (10-minute timeout)
+- Use standard `client-go` libraries for K8s operations
+- Verifiers are in `test/util/verifiers/` and implement `HostedClusterVerifier` interface
+
+## Verifier Patterns
+
+- **Interface**: Implement `HostedClusterVerifier` interface with `Name()` and `Verify()` methods
+- **Location**: All verifiers belong in `test/util/verifiers/`
+
+## Context and Cancellation
+
+- **Always use context**: Every test should accept and use `context.Context`
+- **Propagate context**: Pass context to all SDK calls, framework helpers, and verifiers
+- **Respect cancellation**: Don't ignore context cancellation in long-running operations
+
+## Pooled Identities
+
+- **Check if enabled**: Use `tc.UsePooledIdentities()` to check if pooled identities are enabled
+- **Assign containers**: Call `tc.AssignIdentityContainers(ctx, count, timeout)` before resource creation
+  - Example: `tc.AssignIdentityContainers(ctx, 1, 60*time.Second)`
+- **Error handling**: Expect assignment to succeed: `Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")`
+
+## Error Handling in Negative Tests
+
+- **Explicit error expectations**: Negative tests must assert on specific error messages
+  - ✅ Good: `Expect(err.Error()).To(ContainSubstring("The location property is required"))`
+  - ❌ Bad: `Expect(err).ToNot(BeNil())` (too vague)
+- **Case-insensitive matching**: Use `strings.ToLower()` for error message comparisons when case might vary
+
+## Code Organization
+
+Helper functions should be placed in appropriate `test/util/` modules:
+- `test/util/framework/`: HCP client helpers, cluster operations
+- `test/util/verifiers/`: Kubernetes verifiers
+- `test/util/labels/`: Label definitions
+- `test/util/timing/`: Timing utilities
+- `test/util/cleanup/`: Cleanup helpers
+
+Shared test artifacts should use `//go:embed test-artifacts` pattern and `embed.FS` for embedded resources.
+
+## Test Fixtures
+
+After adding tests with environment-specific behavior:
+- Run `make update-go-fixtures` or `make update` in `test/` directory
+- Required to ensure test environment detection works correctly
+
+## Development Environment Compatibility
+
+- **AroRpApiCompatible label**: Only use if test produces same results in dev AND higher environments
+- **Test in both environments**: Run negative tests in both dev and integration/higher to verify behavior matches
+- **Do NOT label if dev-incompatible**: Remove label if test fails in development environment
+
+## Common Anti-Patterns to Reject
+
+The following patterns should be rejected in code review:
+
+❌ **Missing assertion messages**: Bare `Expect().NotTo(BeNil())` or `Expect(err).To(HaveOccurred())`
+❌ **Hardcoded timeouts**: Using literals instead of named constants from `constants.go` (except for test-specific timeouts used only once)
+❌ **Missing labels**: Tests without environment, importance, or positivity labels
+❌ **Hardcoded locations**: `"eastus"` instead of `tc.Location()`
+❌ **Non-unique names**: Static resource names that will collide in parallel runs
+❌ **Focused tests**: Using `FIt`, `FDescribe`, or `FEntry`
+❌ **Noisy polling**: Logging same message every iteration of `Eventually()`
+❌ **Vague error assertions**: Checking `err != nil` without validating error content in negative tests
+❌ **Missing context**: `It()` blocks without `context.Context` parameter
+❌ **Wrong file suffix**: Using `_test.go` for E2E test files (except framework unit tests)
+❌ **Missing `By()` steps**: Complex tests without documented steps
+❌ **Abandoned resources**: Creating resources outside TestContext without explicit cleanup
+
+## Code Review Checklist
+
+When reviewing E2E test PRs, verify:
+
+- [ ] All base PR standards from [`../CONTRIBUTING.md`](../CONTRIBUTING.md#pull-request-standards) are met
+- [ ] Test files use correct naming convention (no `_test.go` suffix for E2E tests)
+- [ ] All tests have required labels (environment, importance, positivity)
+- [ ] All assertions include descriptive messages
+- [ ] Timeouts use named constants from `constants.go` (for shared durations) or are local literals (for test-specific timeouts)
+- [ ] Resource names are unique (using `rand.String()` or framework helpers)
+- [ ] TestContext is used for resource group creation (auto-cleanup)
+- [ ] No hardcoded Azure locations (use `tc.Location()`)
+- [ ] API version suffixes are explicit in framework helper names
+- [ ] Context is properly propagated through all operations
+- [ ] Polling/Eventually blocks use delta-only logging
+- [ ] Negative tests assert on specific error messages
+- [ ] No Focus helpers (`FIt`, `FDescribe`, etc.) are used
+- [ ] Test fixtures updated if needed (`make update-go-fixtures`)
+- [ ] Tests are self-contained and don't depend on other test state
+- [ ] `By()` statements document critical test steps
+- [ ] Cleanup is properly handled (automatic via TestContext or explicit)
