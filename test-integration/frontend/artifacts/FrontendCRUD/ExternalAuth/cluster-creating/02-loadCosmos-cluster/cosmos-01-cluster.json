@@ -22,7 +22,8 @@
 		},
 		"serviceProviderProperties": {
 			"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
-			"provisioningState": "Provisioning"
+			"provisioningState": "Provisioning",
+			"usesNewClusterDeletionApproach": false
 		},
 		"serviceProviderState": null
 	},

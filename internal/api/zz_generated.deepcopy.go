@@ -801,6 +801,14 @@ func (in *HCPOpenShiftClusterServiceProviderProperties) DeepCopyInto(out *HCPOpe
 	out.API = in.API
 	out.Platform = in.Platform
 	out.ExperimentalFeatures = in.ExperimentalFeatures
+	if in.DeletionTimestamp != nil {
+		in, out := &in.DeletionTimestamp, &out.DeletionTimestamp
+		*out = (*in).DeepCopy()
+	}
+	if in.ClusterServiceDeletionTimestamp != nil {
+		in, out := &in.ClusterServiceDeletionTimestamp, &out.ClusterServiceDeletionTimestamp
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 

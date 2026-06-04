@@ -19,6 +19,7 @@
 		"startTime": "2026-01-08T20:04:05.054190978Z",
 		"status": "Accepted",
 		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"usesNewClusterDeletionApproach": false,
 		"usesNewExternalAuthDeletionApproach": false,
 		"usesNewNodePoolDeletionApproach": false
 	},

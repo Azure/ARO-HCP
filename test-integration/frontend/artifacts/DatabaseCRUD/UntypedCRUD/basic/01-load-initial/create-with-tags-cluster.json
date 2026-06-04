@@ -124,7 +124,8 @@
 					"api": {},
 					"console": {},
 					"dns": {},
-					"platform": {}
+					"platform": {},
+					"usesNewClusterDeletionApproach": false
 				},
 				"systemData": {
 					"createdBy": "Unknown-ARO-HCP-frontend",
@@ -146,7 +147,8 @@
 			"api": {},
 			"console": {},
 			"dns": {},
-			"platform": {}
+			"platform": {},
+			"usesNewClusterDeletionApproach": false
 		},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",

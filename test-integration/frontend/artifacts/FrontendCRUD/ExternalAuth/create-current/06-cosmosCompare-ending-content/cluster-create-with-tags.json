@@ -146,7 +146,8 @@
 					"dns": {},
 					"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 					"platform": {},
-					"provisioningState": "Succeeded"
+					"provisioningState": "Succeeded",
+					"usesNewClusterDeletionApproach": false
 				},
 				"systemData": {
 					"createdBy": "Unknown-ARO-HCP-frontend",
@@ -169,7 +170,8 @@
 			"dns": {},
 			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 			"platform": {},
-			"provisioningState": "Succeeded"
+			"provisioningState": "Succeeded",
+			"usesNewClusterDeletionApproach": false
 		},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",

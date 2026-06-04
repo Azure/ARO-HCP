@@ -15,6 +15,7 @@
 		"startTime": "2025-12-05T20:30:10.966609337Z",
 		"status": "Succeeded",
 		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"usesNewClusterDeletionApproach": false,
 		"usesNewExternalAuthDeletionApproach": false,
 		"usesNewNodePoolDeletionApproach": false
 	},
