@@ -45,7 +45,7 @@ func newTestManagementClusterContent(t *testing.T, name string) *api.ManagementC
 			"/nodePools/" + testNodePoolName +
 			"/managementClusterContents/" + name))
 	return &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 	}
 }
 
@@ -58,7 +58,7 @@ func newTestNodePoolController(t *testing.T, name string) *api.Controller {
 			"/nodePools/" + testNodePoolName +
 			"/hcpOpenShiftControllers/" + name))
 	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		ExternalID: api.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
