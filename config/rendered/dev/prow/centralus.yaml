@@ -596,7 +596,7 @@ mgmt:
       vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
-    kubernetesVersion: 1.35.1
+    kubernetesVersion: "1.35"
     name: prow-j7654321-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
@@ -921,7 +921,7 @@ svc:
       vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
-    kubernetesVersion: 1.35.1
+    kubernetesVersion: "1.35"
     name: prow-j7654321-svc
     networkDataplane: cilium
     networkPolicy: cilium

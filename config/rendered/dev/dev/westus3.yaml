@@ -596,7 +596,7 @@ mgmt:
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
-    kubernetesVersion: 1.35.1
+    kubernetesVersion: "1.35"
     name: dev-westus3-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
@@ -919,7 +919,7 @@ svc:
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
-    kubernetesVersion: 1.35.1
+    kubernetesVersion: "1.35"
     name: dev-westus3-svc-1
     networkDataplane: cilium
     networkPolicy: cilium
