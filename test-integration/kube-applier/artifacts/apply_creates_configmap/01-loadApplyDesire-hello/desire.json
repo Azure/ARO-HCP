@@ -1,7 +1,7 @@
 {
 	"cosmosMetadata": {
-		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/hcp-cluster/applydesires/hello",
-		"partitionKey": "00000000-0000-0000-0000-000000000001"
+		"partitionKey": "00000000-0000-0000-0000-000000000001",
+		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/hcp-cluster/applydesires/hello"
 	},
 	"spec": {
 		"kubeContent": {

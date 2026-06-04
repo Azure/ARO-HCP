@@ -1,7 +1,7 @@
 {
 	"cosmosMetadata": {
-		"resourceId": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/second-node-pool/hcpOpenShiftControllers/second-controller",
-		"partitionKey": "subscriptionid"
+		"partitionKey": "subscriptionid",
+		"resourceId": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/second-node-pool/hcpOpenShiftControllers/second-controller"
 	},
 	"externalId": "/subscriptions/subscriptionID/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/second-node-pool",
 	"status": {

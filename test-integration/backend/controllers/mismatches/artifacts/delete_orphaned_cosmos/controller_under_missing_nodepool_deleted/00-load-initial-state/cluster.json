@@ -1,12 +1,12 @@
 {
-	"_etag": "\"00000000-0000-0000-0000-000000000001\"",
+	"_etag": "\"9b6c9847-bead-453c-80f6-29883eb18427\"",
 	"id": "f7583c84-ae03-56f3-b91d-55bbb849164d",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
 		"cosmosMetadata": {
-			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
+			"instanceVersion": 1,
 			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
-			"instanceVersion": 1
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct"
 		},
 		"customerProperties": {
 			"api": {
@@ -54,6 +54,5 @@
 		"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 	},
 	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct",
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-	"_etag": "\"9b6c9847-bead-453c-80f6-29883eb18427\""
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

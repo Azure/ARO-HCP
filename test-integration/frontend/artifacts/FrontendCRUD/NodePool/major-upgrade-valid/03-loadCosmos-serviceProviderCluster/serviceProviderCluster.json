@@ -1,4 +1,5 @@
 {
+	"_etag": "\"60ffac5e-6bbb-463a-aa0e-12fd036aaa20\"",
 	"id": "a1f08b1e-cafd-5f6b-b822-0ba6c7bfd19d",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
@@ -19,6 +20,5 @@
 		}
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/major-upgrade-valid/serviceProviderClusters/default",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
-	"_etag": "\"60ffac5e-6bbb-463a-aa0e-12fd036aaa20\""
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
 }

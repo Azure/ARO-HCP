@@ -1,4 +1,5 @@
 {
+	"_etag": "\"7af6ff6e-a20d-46c5-9b59-a0aa5345e13e\"",
 	"id": "66a7a30c-77b3-5ef1-93e5-c13e9127acb6",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
@@ -19,6 +20,5 @@
 		}
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/replace-tags-empty/nodePools/empty-tags-np/serviceProviderNodePools/default",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools",
-	"_etag": "\"7af6ff6e-a20d-46c5-9b59-a0aa5345e13e\""
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools"
 }
