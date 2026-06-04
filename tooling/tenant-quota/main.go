@@ -28,6 +28,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
@@ -103,6 +105,7 @@ func run(logger *slog.Logger) error {
 
 	errChan := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		logger.Info("Starting HTTP server", "port", port)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			errChan <- err

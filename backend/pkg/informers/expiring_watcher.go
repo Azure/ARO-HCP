@@ -20,6 +20,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
@@ -41,6 +42,7 @@ func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interfa
 		done:   make(chan struct{}),
 	}
 	go func() {
+		defer utilruntime.HandleCrash()
 		select {
 		case <-time.After(expiry):
 			w.result <- watch.Event{

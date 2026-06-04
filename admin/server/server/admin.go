@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
@@ -198,10 +199,12 @@ func (a *AdminAPI) Run(ctx context.Context) error {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- a.server.Serve(a.listener)
 	}()
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- a.metricsServer.Serve(a.metricsListener)
 	}()

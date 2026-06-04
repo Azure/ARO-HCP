@@ -24,6 +24,8 @@ import (
 	"sync"
 
 	"github.com/google/shlex"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 // Config represents the configuration for spawning a shell with kubeconfig access.
@@ -123,6 +125,7 @@ func spawnShell(ctx context.Context, config *Config, stopCh chan struct{}, stopO
 	// Wait for shell to exit
 	done := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		done <- cmd.Wait()
 	}()
 
@@ -167,6 +170,7 @@ func ExecCommand(ctx context.Context, config *Config, command []string, stopCh c
 	// Wait for command to exit
 	done := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		done <- cmd.Wait()
 	}()
 

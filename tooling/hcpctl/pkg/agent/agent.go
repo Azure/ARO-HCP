@@ -29,6 +29,8 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/go-logr/logr"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
@@ -232,6 +234,7 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 	}
 	ch := make(chan result, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		ev, err := s.inner.SendAndWait(ctx, copilot.MessageOptions{
 			Prompt: prompt,
 		})

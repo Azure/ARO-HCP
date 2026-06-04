@@ -85,6 +85,7 @@ func (o *Options) Run(ctx context.Context) error {
 		healthzServer = &http.Server{Addr: o.HealthzServerListenAddress, Handler: mux}
 		wg.Add(1)
 		go func() {
+			defer kuberuntime.HandleCrash()
 			defer wg.Done()
 			logger.Info(fmt.Sprintf("healthz server listening on %s", o.HealthzServerListenAddress))
 			errCh <- healthzServer.ListenAndServe()
@@ -100,6 +101,7 @@ func (o *Options) Run(ctx context.Context) error {
 		metricsServer = &http.Server{Addr: o.MetricsServerListenAddress, Handler: mux}
 		wg.Add(1)
 		go func() {
+			defer kuberuntime.HandleCrash()
 			defer wg.Done()
 			logger.Info(fmt.Sprintf("metrics server listening on %s", o.MetricsServerListenAddress))
 			errCh <- metricsServer.ListenAndServe()
@@ -108,6 +110,7 @@ func (o *Options) Run(ctx context.Context) error {
 
 	wg.Add(1)
 	go func() {
+		defer kuberuntime.HandleCrash()
 		defer wg.Done()
 		err := o.runControllersUnderLeaderElection(ctx, electionChecker)
 		cancel(fmt.Errorf("leader election exited"))

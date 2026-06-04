@@ -178,14 +178,17 @@ func (f *Frontend) Run(ctx context.Context) error {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- f.server.Serve(f.listener)
 	}()
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- f.metricsServer.Serve(f.metricsListener)
 	}()
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
 		f.collector.Run(ctx)
 	}()

@@ -302,6 +302,7 @@ func (c *UnionKubeApplierInformersController) ensureAdded(ctx context.Context, r
 	logger.Info("added per-MC sub-informer to union", "resourceID", rid)
 
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer close(entry.done)
 		sub.RunWithContext(subCtx)
 	}()

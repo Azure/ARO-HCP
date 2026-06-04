@@ -19,6 +19,8 @@ import (
 	"sync"
 
 	"github.com/go-logr/logr"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 // workItem represents a single query to be executed in the pool.
@@ -107,6 +109,7 @@ func (p *queryPool) runPool(ctx context.Context, items []workItem) {
 	for i := 0; i < concurrency; i++ {
 		consumerWg.Add(1)
 		go func() {
+			defer utilruntime.HandleCrash()
 			defer consumerWg.Done()
 			for {
 				select {

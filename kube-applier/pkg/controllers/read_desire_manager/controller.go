@@ -340,6 +340,7 @@ func (c *ReadDesireInformerManagingController) SyncOnce(ctx context.Context, key
 	c.mu.Unlock()
 
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer close(done)
 		per.Run(childCtx)
 	}()
