@@ -745,6 +745,15 @@ defaults:
           memory: unlimited
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+    holmes:
+      enabled: false
+      holmesImage: "quay.io/haoran/holmesgpt:latest"
+      aoaiName: "arohcp-{{ .ctx.environment }}-aoai-{{ .ctx.regionShort }}"
+      azureOpenAIAPIBase: "https://arohcp-{{ .ctx.environment }}-aoai-{{ .ctx.regionShort }}.openai.azure.com"
+      model: "azure/gpt-5.2"
+      azureOpenAIAPIVersion: "2025-04-01-preview"
+      defaultTimeout: 600
+      maxConcurrent: 20
   # Session Gate
   sessiongate:
     image:
@@ -865,6 +874,7 @@ defaults:
   msiCredentialsRefresher:
     managedIdentityName: msi-credential-refresher
     firstPartyAppClientId: ""
+    firstPartyAppObjectId: ""
     k8s:
       namespace: msi-credential-refresher
       serviceAccountName: msi-credential-refresher
@@ -1147,6 +1157,7 @@ clouds:
           digest: ""
       # 1P app
       firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
+      firstPartyAppObjectId: 47f69502-0065-4d9a-b19b-d403e183d2f4
       firstPartyAppCertificate:
         name: firstPartyCert2
         issuer: Self
@@ -1189,6 +1200,8 @@ clouds:
       adminApi:
         cert:
           issuer: Self
+        holmes:
+          enabled: true
       # Sessiongate
       sessiongate:
         cert:

@@ -38,6 +38,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
           pipelinePath: fleet/pipeline.yaml
           purpose: Deploy the Fleet controller.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.HolmesGPT.Svc
+          pipelinePath: holmesgpt/svc-pipeline.yaml
+          purpose: Deploy the HolmesGPT persistent server on the service cluster.
         pipelinePath: dev-infrastructure/svc-pipeline.yaml
         purpose: Deploy the service cluster and supporting infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
@@ -69,6 +72,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet.Registration
           pipelinePath: fleet/registration/pipeline.yaml
           purpose: Register the stamp and management cluster in CosmosDB.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.HolmesGPT
+          pipelinePath: holmesgpt/pipeline.yaml
+          purpose: Deploy the HolmesGPT namespace and ServiceAccount for cluster investigation.
         pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
         purpose: Deploy a management cluster and backing infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring

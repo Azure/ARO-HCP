@@ -1,0 +1,947 @@
+---
+# Source: holmesgpt-mgmt/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-config
+  namespace: 'aro-holmesgpt'
+data:
+  toolsets.yaml: |
+    toolsets:
+      # ========== ENABLED ==========
+      kubectl-run:
+        enabled: true
+      kubernetes/kube-prometheus-stack:
+        enabled: true
+      kubernetes/logs:
+        enabled: true
+      kubernetes/core:
+        enabled: true
+      kubernetes/live-metrics:
+        enabled: true
+      bash:
+        enabled: true
+        config:
+          builtin_allowlist: extended
+          allow:
+          - "kubectl get"
+          - "kubectl describe"
+          - "kubectl logs"
+          - "kubectl top"
+          - "kubectl cluster-info"
+          - "kubectl explain"
+          - "kubectl api-resources"
+          - "kubectl version"
+          - "egrep"
+          deny:
+          - "kubectl delete"
+          - "kubectl apply"
+          - "kubectl create"
+          - "kubectl edit"
+          - "kubectl exec"
+          - "kubectl patch"
+          - "kubectl scale"
+          - "kubectl drain"
+          - "kubectl cordon"
+          - "kubectl taint"
+          - "kubectl debug"
+          - "rm"
+          - "oc"
+      # ========== DISABLED ==========
+      core_investigation:
+        enabled: false
+      openshift/core:
+        enabled: false
+      openshift/logs:
+        enabled: false
+      openshift/security:
+        enabled: false
+      openshift/live-metrics:
+        enabled: false
+      skills:
+        enabled: true
+      internet:
+        enabled: false
+      connectivity_check:
+        enabled: false
+      robusta:
+        enabled: false
+      kubernetes/krew-extras:
+        enabled: false
+      kubernetes/kube-lineage-extras:
+        enabled: false
+      aks/core:
+        enabled: false
+      aks/node-health:
+        enabled: false
+      argocd/core:
+        enabled: false
+      cilium/core:
+        enabled: false
+      hubble/observability:
+        enabled: false
+      docker/core:
+        enabled: false
+      helm/core:
+        enabled: false
+      grafana/dashboards:
+        enabled: false
+      grafana/loki:
+        enabled: false
+      grafana/tempo:
+        enabled: false
+      prometheus/metrics:
+        enabled: false
+      datadog/logs:
+        enabled: false
+      datadog/general:
+        enabled: false
+      datadog/metrics:
+        enabled: false
+      datadog/traces:
+        enabled: false
+      elasticsearch/data:
+        enabled: false
+      elasticsearch/cluster:
+        enabled: false
+      opensearch/query_assist:
+        enabled: false
+      coralogix:
+        enabled: false
+      newrelic:
+        enabled: false
+      kafka/admin:
+        enabled: false
+      rabbitmq/core:
+        enabled: false
+      notion:
+        enabled: false
+      confluence:
+        enabled: false
+      slab:
+        enabled: false
+      servicenow/tables:
+        enabled: false
+      azure/sql:
+        enabled: false
+      MongoDBAtlas:
+        enabled: false
+      database/sql:
+        enabled: false
+      inspektor-gadget/node:
+        enabled: false
+      inspektor-gadget/tcpdump:
+        enabled: false
+      kubevela/core:
+        enabled: false
+      crossplane/core:
+        enabled: false
+    
+  config.yaml: |
+    model: "azure/gpt-5.2"
+    api_base: "https://arohcp-dev-aoai-usw3.openai.azure.com"
+    api_version: "2025-04-01-preview"
+    custom_toolsets:
+      - "/etc/holmes/toolsets.yaml"
+    custom_skill_paths:
+      - "/etc/holmes/skills/"
+---
+# Source: holmesgpt-mgmt/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-skills
+  namespace: 'aro-holmesgpt'
+data:
+  hcp-creation-controlplane.md: |
+    ---
+    name: hcp-creation-controlplane
+    description: Troubleshoot HCP cluster creation failures on the management cluster. Use this when HostedCluster is not becoming available, control plane pods are failing, NodePool machines are not provisioning, or HyperShift operator has issues.
+    ---
+    
+    ## Important Instructions
+    - Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+    - Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+    
+    ## Goal
+    Diagnose why an ARO-HCP cluster creation is failing on the management cluster by checking HyperShift custom resources, control plane pods, and CAPI machines.
+    
+    ## HCP Creation Flow on Management Cluster
+    
+    ```
+    1. Maestro Agent receives ManifestWork → applies HostedCluster CR to ocm-{env}-{clusterID} namespace
+    2. HyperShift Operator watches HostedCluster → creates control plane namespace ocm-{env}-{clusterID}-{name}
+    3. Control plane pods start: etcd, kube-apiserver, openshift-apiserver, control-plane-operator
+    4. NodePool CR → CAPI creates Machines → AzureMachines → worker VMs provisioned
+    5. HostedCluster conditions converge: Available=True, Degraded=False
+    ```
+    
+    ## Key Namespaces
+    * `ocm-*-{clusterID}` — HostedCluster CR, secrets, ManagedCluster
+    * `ocm-*-{clusterID}-{clusterName}` — Control plane pods (etcd, kube-apiserver, etc.)
+    * `maestro` — Maestro Agent
+    * `hypershift` — HyperShift Operator
+    
+    ## Workflow
+    
+    ### Step 1: Check Maestro Agent
+    * `kubectl get pods -n maestro`
+    * `kubectl logs -n maestro -l app=maestro-agent --tail=100 | grep -i error`
+    * If agent is not running or has errors, ManifestWork won't be applied
+    
+    ### Step 2: List HostedClusters
+    * `kubectl get hostedclusters -A -o wide`
+    * Verify the target cluster exists
+    * Check columns: PROGRESS, AVAILABLE, PROGRESSING, MESSAGE
+    
+    ### Step 3: Check HostedCluster Conditions (Critical)
+    * `kubectl get hostedcluster <name> -n <namespace> -o yaml`
+    * Check these conditions:
+      - `Available` — must be True for creation to succeed
+      - `Degraded` — must be False
+      - `ValidHostedControlPlaneConfiguration` — must be True
+      - `ValidAzureKMSConfig` — if False, etcd encryption key vault has issues (common: 403 ForbiddenByConnection)
+      - `EtcdAvailable` — must be True
+      - `InfrastructureReady` — must be True
+      - `ExternalDNSReachable` — must be True
+      - `ClusterVersionProgressing` — True during installation, False when done
+      - `ClusterVersionSucceeding` — False means operators are failing
+      - `ClusterVersionFailing` — shows which operator is blocking
+    
+    ### Step 4: Check HCP Namespace Exists
+    * `kubectl get ns | grep ocm-`
+    * There should be TWO namespaces per cluster:
+      - `ocm-{env}-{clusterID}` — HostedCluster CR namespace
+      - `ocm-{env}-{clusterID}-{clusterName}` — control plane pods namespace
+    * If only the first exists, HyperShift hasn't created the control plane yet
+    
+    ### Step 5: Check HostedControlPlane
+    * `kubectl get hostedcontrolplane -A`
+    * `kubectl get hostedcontrolplane <name> -n <hcp-namespace> -o yaml`
+    * Check conditions:
+      - `Ready` — must be True
+      - `Available` — must be True
+      - `EtcdAvailable` — must be True
+      - `KubeAPIServerAvailable` — must be True
+      - `ValidAzureKMSConfig` — check for Key Vault errors
+    
+    ### Step 6: Check Control Plane Pods
+    * `kubectl get pods -n <hcp-namespace> -o wide`
+    * `kubectl get pods -n <hcp-namespace> --field-selector=status.phase!=Running,status.phase!=Succeeded`
+    * Key pods to verify:
+      - `etcd-0`, `etcd-1`, `etcd-2` — must be Running with all containers Ready
+      - `kube-apiserver-*` — must be Running (typically 3 replicas)
+      - `openshift-apiserver-*` — must be Running
+      - `control-plane-operator-*` — must be Running
+      - `cluster-version-operator-*` — must be Running
+    
+    ### Step 7: Check etcd Health
+    * `kubectl get pods -n <hcp-namespace> -l app=etcd`
+    * `kubectl logs -n <hcp-namespace> etcd-0 -c etcd --tail=50 | grep -i "error\|fail\|unhealthy"`
+    * Common issues: disk pressure, PV not bound, slow disk
+    
+    ### Step 8: Check kube-apiserver
+    * `kubectl logs -n <hcp-namespace> -l app=kube-apiserver -c kube-apiserver --tail=50 | grep -i error`
+    * Common issues: certificate errors, etcd connection failures, KMS key vault unreachable
+    
+    ### Step 9: Check NodePool
+    * `kubectl get nodepools -A`
+    * `kubectl get nodepool <name> -n <namespace> -o yaml`
+    * Check: replicas, availableReplicas, conditions
+    * If replicas don't match availableReplicas, machines are not provisioning
+    
+    ### Step 10: Check CAPI Machines
+    * `kubectl get machines.cluster.x-k8s.io -A`
+    * `kubectl get machinedeployments.cluster.x-k8s.io -A`
+    * Check: phase should be Running, not Provisioning or Failed
+    * If machines are stuck in Provisioning: check Azure quota, subnet capacity, VM SKU availability
+    
+    ### Step 11: Check HyperShift Operator
+    * `kubectl get pods -n hypershift`
+    * `kubectl logs -n hypershift -l app=operator --tail=100 | grep -i error`
+    * If operator is not running, no HostedClusters will be created
+    
+    ### Step 12: Check Events in HCP Namespace
+    * `kubectl get events -n <hcp-namespace> --sort-by=.lastTimestamp | tail -30`
+    * Look for: Warning events, failed scheduling, image pull errors, resource quota
+    
+    ### Step 13: Check ClusterVersion Progress
+    * From HostedCluster status, check `status.version.history`:
+      - Must have at least one entry with `state: Completed`
+      - If `state: Partial`, operators are still converging
+      - Check which operators are blocking in `ClusterVersionFailing` condition
+    
+    ## Synthesize Findings
+    
+    * **No HostedCluster CR** → Maestro Agent didn't apply ManifestWork (check Maestro)
+    * **HostedCluster exists but no HCP namespace** → HyperShift Operator issue
+    * **Control plane pods crashing** → check pod logs, likely cert/auth/KMS issues
+    * **ValidAzureKMSConfig=False** → Key Vault connectivity (private endpoint, firewall rules)
+    * **etcd not available** → disk issues, PV problems, or etcd member health
+    * **NodePool replicas mismatch** → CAPI/Azure provisioning failure (quota, networking)
+    * **ClusterVersion stuck** → specific operator not available (check which one in conditions)
+    
+    ## Recommended Remediation Steps
+    * KMS 403: enable private endpoint or trusted service access on Key Vault
+    * etcd disk pressure: increase PV size or storage class IOPS
+    * Machine provisioning stuck: check Azure VM quota and subnet IP availability
+    * Operator not available: investigate specific operator pods in the customer cluster (dataplane scope)
+    
+  hcp-deletion-controlplane.md: |
+    ---
+    name: hcp-deletion-controlplane
+    description: Troubleshoot HCP cluster deletion stuck on the management cluster. Use this when HostedCluster has stuck finalizers, namespace is stuck Terminating, CAPI machines are not being cleaned up, ManagedCluster is stuck Detaching, or ManifestWork cleanup is blocked.
+    ---
+    
+    ## Goal
+    Diagnose why an ARO-HCP cluster deletion is stuck on the management cluster by checking finalizers, namespace status, and resource cleanup across the deletion chain.
+    
+    ## Important Instructions
+    - Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+    - Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+    - When checking logs, always use `--tail=100`. Do NOT ask the user for a time window.
+    - Use per-pod log fetching from ONE pod per deployment.
+    - Check finalizers on EVERY resource type listed — stuck finalizers are the #1 cause of stuck deletions.
+    - Keep output concise — summarize findings.
+    
+    ## Key Namespaces
+    * `local-cluster` — ManifestWork, ManagedCluster
+    * `ocm-*-{clusterID}` — HostedCluster, NodePools, secrets
+    * `ocm-*-{clusterID}-{clusterName}` — Control plane pods, HostedControlPlane, CAPI resources
+    
+    ## Deletion Chain (blocking at any level prevents cleanup above it)
+    
+    ```
+    ManifestWork cleanup → ManagedCluster destructor → ManagedClusterAddon hooks
+    → HostedCluster finalizer → NodePool finalizer → CP namespace cleanup:
+      Deployments (component-finalizer) → Cluster CAPI (cluster.cluster.x-k8s.io)
+      → HostedControlPlane → MachineDeployment/MachineSet/Machine → AzureMachine
+    ```
+    
+    ## Workflow
+    
+    ### Step 1: Check Maestro Agent
+    * Run: `kubectl get pods -n maestro -l app=maestro-agent`
+    * Run: `kubectl logs -n maestro -l app=maestro-agent --tail=50 | grep -i "error\|fail\|delete"`
+    * If agent is down, ManifestWork will never be deleted
+    
+    ### Step 2: Check ManifestWork in local-cluster
+    * Run: `kubectl get manifestwork -n local-cluster | grep <cluster-name-or-id>`
+    * If ManifestWork still exists: `kubectl get manifestwork <name> -n local-cluster -o jsonpath='{.metadata.finalizers}'`
+    * Check: `cluster.open-cluster-management.io/manifest-work-cleanup` finalizer
+    * If ManifestWork has this finalizer, the work agent hasn't finished cleaning up applied resources
+    
+    ### Step 3: Check ManagedCluster Status
+    * Run: `kubectl get managedcluster | grep <cluster-name-or-id>`
+    * Check status: is it `Detaching`?
+    * Run: `kubectl get managedcluster <name> -o jsonpath='{.metadata.finalizers}'`
+    * Look for: `cluster.open-cluster-management.io/api-resource-cleanup`
+    
+    ### Step 4: Check ManagedClusterAddon Finalizers (Common Blocker)
+    * Run: `kubectl get managedclusteraddon -n <managedcluster-name>`
+    * For each addon: `kubectl get managedclusteraddon <addon> -n <mc-name> -o jsonpath='{.metadata.finalizers}'`
+    * Look for stuck finalizers:
+      - `hosting-addon-pre-delete` — pre-delete hook failed (klusterlet lost auth)
+      - `hosting-manifests-cleanup` — manifests not cleaned up
+    * This is a common stuck point — the fix is to remove these finalizers manually
+    
+    ### Step 5: Check HostedCluster Namespace
+    * Run: `kubectl get ns | grep ocm-.*<cluster-name-or-id>`
+    * If namespace is `Terminating`: `kubectl get ns <ns> -o json | jq '.status.conditions'`
+    * Check what's blocking: `FinalizersRemaining` or `ContentDeletingResources`
+    
+    ### Step 6: Check HostedCluster CR and Finalizers
+    * Run: `kubectl get hostedcluster -A | grep <cluster-name>`
+    * Run: `kubectl get hostedcluster <name> -n <ns> -o jsonpath='{.metadata.finalizers}'`
+    * Look for: `hypershift.openshift.io/finalizer`
+    * If present and cluster is deleting: HyperShift operator can't remove it (check operator logs)
+    
+    ### Step 7: Check NodePool CRs and Finalizers
+    * Run: `kubectl get nodepools -A | grep <cluster-name>`
+    * For each: `kubectl get nodepool <name> -n <ns> -o jsonpath='{.metadata.finalizers}'`
+    * Look for: `hypershift.openshift.io/finalizer`
+    
+    ### Step 8: Check Control Plane Namespace
+    * Run: `kubectl get ns | grep ocm-.*<cluster-name>` (the `-{cluster-name}` suffixed namespace)
+    * If `Terminating`: `kubectl get ns <cp-ns> -o json | jq '.status.conditions'`
+    * Check what resources are blocking deletion
+    
+    ### Step 9: Check Resources Blocking CP Namespace Deletion
+    Check each resource type for stuck finalizers:
+    * Run: `kubectl get deployments -n <cp-ns> -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'`
+      - Look for: `hypershift.openshift.io/component-finalizer`
+    * Run: `kubectl get cluster.cluster.x-k8s.io -n <cp-ns> -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'`
+      - Look for: `cluster.cluster.x-k8s.io`
+    * Run: `kubectl get hostedcontrolplane -n <cp-ns> -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'`
+      - Look for: `hypershift.openshift.io/finalizer`
+    * Run: `kubectl get machinedeployment.cluster.x-k8s.io -n <cp-ns> -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'`
+    * Run: `kubectl get machineset.cluster.x-k8s.io -n <cp-ns> -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'`
+    * Run: `kubectl get machine.cluster.x-k8s.io -n <cp-ns> -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'`
+    * Run: `kubectl get azuremachine -n <cp-ns> -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.finalizers}{"\n"}{end}'` 2>/dev/null
+    
+    ### Step 10: Check HyperShift Operator Logs
+    * Run: `kubectl logs -n hypershift -l app=operator --tail=100 | grep -i "<cluster-name>\|still deleting\|error"`
+    * Look for: "hostedcluster is still deleting" every ~5s (means Azure RG gone but finalizer stuck)
+    
+    ### Step 11: Check Events
+    * Run: `kubectl get events -n <hc-ns> --sort-by=.lastTimestamp | tail -20`
+    * Run: `kubectl get events -n <cp-ns> --sort-by=.lastTimestamp | tail -20`
+    
+    ## Synthesize Findings
+    
+    * **ManifestWork still exists with cleanup finalizer** → resources not fully deleted yet, check HostedCluster
+    * **ManagedClusterAddon has stuck finalizers** → klusterlet auth issue, remove addon finalizers manually
+    * **HostedCluster has finalizer, HyperShift says "still deleting"** → Azure RG already gone, remove finalizer
+    * **CP namespace Terminating, CAPI resources have finalizers** → remove finalizers on Machine/AzureMachine/MachineSet/MachineDeployment individually (removing parent Cluster finalizer doesn't cascade)
+    * **Namespace keeps recreating after deletion** → orphaned Maestro ResourceBundle (investigate serviceplane)
+    * **All finalizers gone but namespace still Terminating** → check namespace status conditions for remaining content
+    
+    ## Recommended Remediation Steps
+    * ManagedClusterAddon finalizers: `kubectl patch managedclusteraddon <addon> -n <mc> --type=merge -p '{"metadata":{"finalizers":null}}'`
+    * HostedCluster finalizer: `kubectl patch hostedcluster <name> -n <ns> --type=merge -p '{"metadata":{"finalizers":null}}'`
+    * CAPI Machine finalizers: patch each of AzureMachine, Machine, MachineSet, MachineDeployment separately
+    * CP namespace Deployments: `kubectl patch deployment <name> -n <cp-ns> --type=merge -p '{"metadata":{"finalizers":null}}'`
+    * Orphaned Maestro bundle: delete from Maestro API or CS directly
+---
+# Source: holmesgpt-mgmt/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-dataplane-config
+  namespace: 'aro-holmesgpt'
+data:
+  toolsets.yaml: |
+    toolsets:
+      # ========== ENABLED ==========
+      kubectl-run:
+        enabled: true
+      kubernetes/kube-prometheus-stack:
+        enabled: true
+      kubernetes/logs:
+        enabled: true
+      kubernetes/core:
+        enabled: true
+      kubernetes/live-metrics:
+        enabled: true
+      bash:
+        enabled: true
+        config:
+          builtin_allowlist: extended
+          allow:
+          - "kubectl get"
+          - "kubectl describe"
+          - "kubectl logs"
+          - "kubectl top"
+          - "kubectl cluster-info"
+          - "kubectl explain"
+          - "kubectl api-resources"
+          - "kubectl version"
+          - "egrep"
+          deny:
+          - "kubectl delete"
+          - "kubectl apply"
+          - "kubectl create"
+          - "kubectl edit"
+          - "kubectl exec"
+          - "kubectl patch"
+          - "kubectl scale"
+          - "kubectl drain"
+          - "kubectl cordon"
+          - "kubectl taint"
+          - "kubectl debug"
+          - "rm"
+          - "oc"
+      # ========== DISABLED ==========
+      core_investigation:
+        enabled: false
+      openshift/core:
+        enabled: false
+      openshift/logs:
+        enabled: false
+      openshift/security:
+        enabled: false
+      openshift/live-metrics:
+        enabled: false
+      skills:
+        enabled: true
+      internet:
+        enabled: false
+      connectivity_check:
+        enabled: false
+      robusta:
+        enabled: false
+      kubernetes/krew-extras:
+        enabled: false
+      kubernetes/kube-lineage-extras:
+        enabled: false
+      aks/core:
+        enabled: false
+      aks/node-health:
+        enabled: false
+      argocd/core:
+        enabled: false
+      cilium/core:
+        enabled: false
+      hubble/observability:
+        enabled: false
+      docker/core:
+        enabled: false
+      helm/core:
+        enabled: false
+      grafana/dashboards:
+        enabled: false
+      grafana/loki:
+        enabled: false
+      grafana/tempo:
+        enabled: false
+      prometheus/metrics:
+        enabled: false
+      datadog/logs:
+        enabled: false
+      datadog/general:
+        enabled: false
+      datadog/metrics:
+        enabled: false
+      datadog/traces:
+        enabled: false
+      elasticsearch/data:
+        enabled: false
+      elasticsearch/cluster:
+        enabled: false
+      opensearch/query_assist:
+        enabled: false
+      coralogix:
+        enabled: false
+      newrelic:
+        enabled: false
+      kafka/admin:
+        enabled: false
+      rabbitmq/core:
+        enabled: false
+      notion:
+        enabled: false
+      confluence:
+        enabled: false
+      slab:
+        enabled: false
+      servicenow/tables:
+        enabled: false
+      azure/sql:
+        enabled: false
+      MongoDBAtlas:
+        enabled: false
+      database/sql:
+        enabled: false
+      inspektor-gadget/node:
+        enabled: false
+      inspektor-gadget/tcpdump:
+        enabled: false
+      kubevela/core:
+        enabled: false
+      crossplane/core:
+        enabled: false
+    
+  main-config.yaml: |
+    model: "azure/gpt-5.2"
+    api_base: "https://arohcp-dev-aoai-usw3.openai.azure.com"
+    api_version: "2025-04-01-preview"
+    custom_toolsets:
+      - "/etc/holmes/config.yaml"
+    custom_skill_paths:
+      - "/etc/holmes/skills/"
+  skill-creation-dataplane.md: |
+    ---
+    name: hcp-creation-dataplane
+    description: Troubleshoot HCP cluster creation failures on the customer data plane cluster. Use this when worker nodes are not joining, OpenShift operators are degraded, cluster version is not converging, or pods are failing on the customer cluster.
+    ---
+    
+    ## Important Instructions
+    - Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+    - Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+    
+    ## Goal
+    Diagnose why an ARO-HCP customer cluster's data plane is not healthy after control plane creation succeeded. Check worker nodes, OpenShift operators, and cluster convergence.
+    
+    ## Data Plane Creation Flow
+    
+    ```
+    1. CAPI provisions Azure VMs for worker nodes
+    2. Nodes bootstrap via ignition and join the cluster
+    3. OpenShift operators deploy to worker nodes (networking, storage, registry, etc.)
+    4. ClusterVersion operator converges all operators to target version
+    5. Cluster reaches Available state with all operators healthy
+    ```
+    
+    ## Workflow
+    
+    ### Step 1: Check Node Status
+    * `kubectl get nodes -o wide`
+    * All nodes should be Ready
+    * Check VERSION column matches expected OpenShift version
+    * If no nodes: CAPI machines haven't provisioned (investigate controlplane)
+    
+    ### Step 2: Check Node Conditions
+    * `kubectl describe nodes | grep -A5 "Conditions:"`
+    * Look for pressure conditions:
+      - `MemoryPressure` — should be False
+      - `DiskPressure` — should be False
+      - `PIDPressure` — should be False
+      - `NetworkUnavailable` — should be False
+    
+    ### Step 3: Check Node Resource Usage
+    * `kubectl top nodes`
+    * High CPU (>90%) or memory (>90%) indicates resource exhaustion
+    
+    ### Step 4: Check ClusterVersion
+    * `kubectl get clusterversion`
+    * Check: AVAILABLE, PROGRESSING columns
+    * `kubectl get clusterversion version -o yaml`
+    * Check `status.conditions`:
+      - `Available` — should be True
+      - `Progressing` — True during install, False when done
+      - `Failing` — should be False (if True, check message for which operator)
+    * Check `status.history`:
+      - Latest entry should have `state: Completed`
+      - If `state: Partial`, installation is still in progress
+    
+    ### Step 5: Check All ClusterOperators
+    * `kubectl get clusteroperators`
+    * All operators should show: AVAILABLE=True, PROGRESSING=False, DEGRADED=False
+    * Identify any operators that are not Available or are Degraded
+    
+    ### Step 6: Check Degraded Operators
+    * `kubectl get co -o json | jq '.items[] | select(.status.conditions[] | select(.type=="Degraded" and .status=="True")) | {name: .metadata.name, message: (.status.conditions[] | select(.type=="Degraded") | .message)}'`
+    * Common failing operators during creation:
+      - `console` — needs ingress to be ready first
+      - `ingress` — needs DNS and load balancer
+      - `monitoring` — needs persistent storage
+      - `image-registry` — needs storage backend
+      - `dns` — needs networking to be ready
+    
+    ### Step 7: Check Unavailable Operators
+    * `kubectl get co -o json | jq '.items[] | select(.status.conditions[] | select(.type=="Available" and .status=="False")) | {name: .metadata.name, message: (.status.conditions[] | select(.type=="Available") | .message)}'`
+    
+    ### Step 8: Check API Server Readiness
+    * `kubectl get --raw='/readyz?verbose'`
+    * All readiness checks should pass
+    * If any fail, the API server has issues
+    
+    ### Step 9: Check Pods Not Running
+    * `kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded -o wide`
+    * Any pods in CrashLoopBackOff, ImagePullBackOff, or Pending indicate issues
+    * For each failing pod: `kubectl describe pod <name> -n <namespace>`
+    
+    ### Step 10: Check Pods with Restarts
+    * `kubectl get pods -A -o custom-columns='NS:.metadata.namespace,POD:.metadata.name,RESTARTS:.status.containerStatuses[*].restartCount' --no-headers | egrep -v ' 0(,0)*$' | sort -t' ' -k3 -rn | head -20`
+    * High restart counts indicate recurring failures
+    
+    ### Step 11: Check Warning Events
+    * `kubectl get events -A --sort-by=.lastTimestamp --field-selector type=Warning | tail -30`
+    * Look for: scheduling failures, image pull errors, volume mount issues, resource quota
+    
+    ### Step 12: Check Networking
+    * `kubectl get pods -n openshift-sdn -o wide` or `kubectl get pods -n openshift-ovn-kubernetes -o wide`
+    * Verify network operator pods are running on all nodes
+    * Check for `NetworkUnavailable` node condition
+    
+    ### Step 13: Check Storage
+    * `kubectl get pvc -A`
+    * Any PVCs in Pending state indicate storage provisioning issues
+    * `kubectl get storageclass`
+    * Verify default storage class exists
+    
+    ### Step 14: Check Ingress
+    * `kubectl get pods -n openshift-ingress -o wide`
+    * `kubectl get ingresscontroller -n openshift-ingress-operator -o yaml`
+    * Ingress issues block console, OAuth, and route-based services
+    
+    ## Synthesize Findings
+    
+    * **No nodes** → CAPI machines not provisioned (controlplane issue, not dataplane)
+    * **Nodes NotReady** → kubelet issues, networking not configured, bootstrap incomplete
+    * **ClusterVersion Partial** → some operators still converging (may just need time)
+    * **Specific operator Degraded** → investigate that operator's pods and logs
+    * **console not available** → usually depends on ingress; check ingress first
+    * **Pods in ImagePullBackOff** → registry or network connectivity issue
+    * **Pods in Pending** → scheduling issue (node resources, taints, affinity)
+    * **PVCs Pending** → storage class or Azure disk quota issue
+    
+    ## Recommended Remediation Steps
+    * Node not ready: check kubelet logs via `kubectl describe node` and machine console output
+    * Operator degraded: check operator-specific namespace pods and logs
+    * Image pull failures: verify container registry connectivity and pull secrets
+    * Storage issues: check Azure disk quota and storage class provisioner
+    * Networking issues: check OVN/SDN pods and network operator logs
+    * If all operators are available but ClusterVersion shows Partial: usually just needs more time for convergence (15-30 min after nodes join)
+    
+  skill-deletion-dataplane.md: |
+    ---
+    name: hcp-deletion-dataplane
+    description: Troubleshoot HCP cluster deletion issues on the customer data plane. Use this when worker nodes are not draining, pods are stuck terminating, or PVCs are blocking deletion on the customer cluster.
+    ---
+    
+    ## Goal
+    Diagnose data plane issues during HCP cluster deletion — stuck pods, nodes not draining, PVCs blocking cleanup.
+    
+    ## Important Instructions
+    - Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+    - Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+    - When checking resources, always use `-o wide` for more context.
+    - Keep output concise — summarize findings.
+    
+    ## Workflow
+    
+    ### Step 1: Check Node Status
+    * Run: `kubectl get nodes -o wide`
+    * Check if nodes are being cordoned/drained (SchedulingDisabled)
+    * If nodes show Ready + SchedulingDisabled → drain in progress
+    * If nodes show NotReady → nodes already terminated
+    
+    ### Step 2: Check Pods Stuck Terminating
+    * Run: `kubectl get pods -A --field-selector=status.phase=Running -o wide | head -30`
+    * Run: `kubectl get pods -A -o json | jq '.items[] | select(.metadata.deletionTimestamp != null) | {ns: .metadata.namespace, name: .metadata.name, deletionTimestamp: .metadata.deletionTimestamp, finalizers: .metadata.finalizers}'` 2>/dev/null
+    * Pods with `deletionTimestamp` set but still running are stuck terminating
+    * Check if they have finalizers blocking deletion
+    
+    ### Step 3: Check PVCs and PVs
+    * Run: `kubectl get pvc -A`
+    * Run: `kubectl get pv`
+    * PVCs in Bound state with `deletionTimestamp` set are stuck
+    * PVs in Released state may need manual cleanup
+    
+    ### Step 4: Check Namespaces Stuck Terminating
+    * Run: `kubectl get ns | grep Terminating`
+    * For each: `kubectl get ns <ns> -o json | jq '.status.conditions'`
+    * Check for `FinalizersRemaining` — which resources have finalizers?
+    
+    ### Step 5: Check Warning Events
+    * Run: `kubectl get events -A --sort-by=.lastTimestamp --field-selector type=Warning | tail -20`
+    
+    ## Synthesize Findings
+    
+    * **Nodes SchedulingDisabled** → drain in progress, may just need time
+    * **Pods stuck with finalizers** → specific operator holding finalizer, check operator logs
+    * **PVCs stuck** → storage driver not releasing volumes (Azure disk detach issue)
+    * **Namespaces Terminating** → resources with finalizers blocking, check which resources remain
+    * **No nodes found** → nodes already terminated, data plane cleanup likely complete
+    
+    ## Recommended Remediation Steps
+    * Stuck pods: force delete with `kubectl delete pod <name> -n <ns> --grace-period=0 --force`
+    * Stuck PVCs: remove finalizer on PVC, then delete
+    * Namespace stuck: identify and remove finalizers on blocking resources
+    * If data plane is already gone (no API server): this is expected — deletion proceeds from controlplane side
+---
+# Source: holmesgpt-mgmt/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: holmesgpt-readonly
+rules:
+- apiGroups: [""]
+  resources:
+  - configmaps
+  - endpoints
+  - events
+  - namespaces
+  - nodes
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods
+  - pods/log
+  - services
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources:
+  - cronjobs
+  - jobs
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources:
+  - ingresses
+  - networkpolicies
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources:
+  - nodes
+  - pods
+  verbs: ["get", "list"]
+- apiGroups: ["hypershift.openshift.io"]
+  resources:
+  - hostedclusters
+  - hostedcontrolplanes
+  - nodepools
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["cluster.x-k8s.io"]
+  resources:
+  - machines
+  - machinesets
+  - machinedeployments
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["certificates.k8s.io"]
+  resources:
+  - certificatesigningrequests
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["work.open-cluster-management.io"]
+  resources:
+  - manifestworks
+  - appliedmanifestworks
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["cluster.open-cluster-management.io"]
+  resources:
+  - managedclusters
+  - managedclustersets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["addon.open-cluster-management.io"]
+  resources:
+  - managedclusteraddons
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["infrastructure.cluster.x-k8s.io"]
+  resources:
+  - azuremachines
+  verbs: ["get", "list", "watch"]
+---
+# Source: holmesgpt-mgmt/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: holmesgpt-readonly
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: holmesgpt-readonly
+subjects:
+- kind: ServiceAccount
+  name: holmesgpt
+  namespace: 'aro-holmesgpt'
+---
+# Source: holmesgpt-mgmt/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: holmesgpt-svc
+  namespace: 'aro-holmesgpt'
+spec:
+  type: ClusterIP
+  selector:
+    app: holmesgpt
+  ports:
+  - name: http
+    port: 80
+    targetPort: 5050
+    protocol: TCP
+---
+# Source: holmesgpt-mgmt/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holmesgpt
+  namespace: 'aro-holmesgpt'
+  labels:
+    app: holmesgpt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: holmesgpt
+  template:
+    metadata:
+      labels:
+        app: holmesgpt
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: holmesgpt
+      automountServiceAccountToken: true
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: holmesgpt
+        image: 'quay.io/haoran/holmesgpt:latest'
+        imagePullPolicy: Always
+        command: ["python", "server.py"]
+        ports:
+        - name: http
+          containerPort: 5050
+          protocol: TCP
+        env:
+        - name: AZURE_AD_TOKEN_AUTH
+          value: "true"
+        - name: AZURE_API_BASE
+          value: 'https://arohcp-dev-aoai-usw3.openai.azure.com'
+        - name: AZURE_API_VERSION
+          value: '2025-04-01-preview'
+        - name: HOLMES_MODEL
+          value: 'azure/gpt-5.2'
+        - name: HOLMES_PORT
+          value: "5050"
+        volumeMounts:
+        - name: holmes-main-config
+          mountPath: /.holmes/config.yaml
+          subPath: config.yaml
+          readOnly: true
+        - name: holmes-toolsets
+          mountPath: /etc/holmes/toolsets.yaml
+          subPath: toolsets.yaml
+          readOnly: true
+        - name: holmes-skills
+          mountPath: /etc/holmes/skills/hcp-creation-controlplane/SKILL.md
+          subPath: hcp-creation-controlplane.md
+          readOnly: true
+        - name: holmes-skills
+          mountPath: /etc/holmes/skills/hcp-deletion-controlplane/SKILL.md
+          subPath: hcp-deletion-controlplane.md
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5050
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 5050
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: holmes-main-config
+        configMap:
+          name: holmesgpt-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: holmes-toolsets
+        configMap:
+          name: holmesgpt-config
+          items:
+          - key: toolsets.yaml
+            path: toolsets.yaml
+      - name: holmes-skills
+        configMap:
+          name: holmesgpt-skills
+      - name: tmp
+        emptyDir: {}
+

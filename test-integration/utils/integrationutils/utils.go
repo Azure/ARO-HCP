@@ -161,6 +161,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		24*time.Hour,
 		set.New("aro-sre-pso", "aro-sre-csa"),
 		metricsRegistry,
+		nil,
 	)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())

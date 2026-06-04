@@ -37,6 +37,7 @@ import (
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
+	"github.com/Azure/ARO-HCP/admin/server/holmes"
 	"github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
@@ -149,6 +150,7 @@ type completedOptions struct {
 	MaxSessionTTL           time.Duration
 	AllowedBreakglassGroups set.Set[string]
 	Registry                *prometheus.Registry
+	HolmesConfig            *holmes.HolmesConfig
 }
 
 type Options struct {
@@ -288,6 +290,12 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 	sessionClient := sessiongateClientset.SessiongateV1alpha1().Sessions(o.SessiongateNamespace)
 
+	holmesConfig, holmesErr := holmes.NewHolmesConfigFromEnv("")
+	if holmesErr != nil {
+		logger.V(1).Info("Holmes not configured, investigate endpoint will not be registered", "error", holmesErr)
+		holmesConfig = nil
+	}
+
 	return &Options{
 		completedOptions: &completedOptions{
 			Port:                    o.Port,
@@ -306,6 +314,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			MaxSessionTTL:           o.MaxSessionTTL,
 			AllowedBreakglassGroups: set.New[string](o.AllowedBreakglassGroups...),
 			Registry:                registry,
+			HolmesConfig:            holmesConfig,
 		},
 	}, nil
 }
@@ -362,6 +371,7 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.MaxSessionTTL,
 		opts.AllowedBreakglassGroups,
 		opts.Registry,
+		opts.HolmesConfig,
 	)
 
 	runErrCh := make(chan error, 1)

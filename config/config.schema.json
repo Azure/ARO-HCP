@@ -1204,6 +1204,10 @@
     "firstPartyAppClientId": {
       "type": "string"
     },
+    "firstPartyAppObjectId": {
+      "type": "string",
+      "description": "Object ID of the FPA service principal in Entra ID"
+    },
     "firstPartyAppCertificate": {
       "type": "object",
       "properties": {
@@ -1488,6 +1492,49 @@
             "name",
             "issuer"
           ]
+        },
+        "holmes": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether Holmes GPT investigation is enabled"
+            },
+            "holmesImage": {
+              "type": "string",
+              "description": "HolmesGPT container image for ephemeral investigation pods"
+            },
+            "aoaiName": {
+              "type": "string",
+              "description": "Name of the Azure OpenAI account for Holmes investigation"
+            },
+            "azureOpenAIAPIBase": {
+              "type": "string",
+              "description": "Azure OpenAI endpoint URL (must use custom subdomain for Entra ID auth)"
+            },
+            "model": {
+              "type": "string",
+              "description": "Azure OpenAI model to use for investigations"
+            },
+            "azureOpenAIAPIVersion": {
+              "type": "string",
+              "description": "Azure OpenAI API version"
+            },
+            "defaultTimeout": {
+              "type": "integer",
+              "description": "Default investigation timeout in seconds",
+              "minimum": 1
+            },
+            "maxConcurrent": {
+              "type": "integer",
+              "description": "Maximum concurrent investigations per admin API instance",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1496,7 +1543,8 @@
         "image",
         "k8s",
         "managedIdentityName",
-        "cert"
+        "cert",
+        "holmes"
       ]
     },
     "frontend": {
@@ -2206,6 +2254,10 @@
         "firstPartyAppClientId": {
           "type": "string",
           "description": "The client ID of the first party application that will be used by the refresher"
+        },
+        "firstPartyAppObjectId": {
+          "type": "string",
+          "description": "The object ID of the FPA service principal in Entra ID"
         },
         "earlyRefreshFrequency": {
           "type": "string",

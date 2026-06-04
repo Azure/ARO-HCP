@@ -51,6 +51,12 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
+@description('Enable Holmes GPT investigation (provisions Azure OpenAI)')
+param holmesEnabled bool = false
+
+@description('The name of the Azure OpenAI account for Holmes')
+param holmesAoaiName string = ''
+
 @description('Maximum active time series limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
 param amwMaxActiveTimeSeries int = 2000000
 
@@ -195,3 +201,18 @@ module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   }
   dependsOn: [hcpMonitor]
 }
+
+//
+//   A Z U R E   O P E N A I   ( H O L M E S )
+//
+
+module holmesOpenAI '../modules/openai/openai.bicep' = if (holmesEnabled && holmesAoaiName != '') {
+  name: 'holmes-openai'
+  params: {
+    location: location
+    aoaiName: holmesAoaiName
+  }
+}
+
+output holmesAoaiEndpoint string = holmesEnabled && holmesAoaiName != '' ? holmesOpenAI.outputs.aoaiEndpoint : ''
+output holmesAoaiResourceId string = holmesEnabled && holmesAoaiName != '' ? holmesOpenAI.outputs.aoaiResourceId : ''

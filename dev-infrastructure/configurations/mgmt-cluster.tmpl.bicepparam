@@ -106,3 +106,7 @@ param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'
 param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'
+
+// Holmes (Azure OpenAI)
+param holmesAoaiResourceId = '__holmesAoaiResourceId__'
+param regionalResourceGroup = '{{ .regionRG }}'

@@ -1,0 +1,8 @@
+serviceAccount:
+  workloadIdentityClientId: "__holmesgptMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
+image: "quay.io/haoran/holmesgpt:latest"
+azureOpenAI:
+  apiBase: "{{ .adminApi.holmes.azureOpenAIAPIBase }}"
+  apiVersion: "{{ .adminApi.holmes.azureOpenAIAPIVersion }}"
+model: "{{ .adminApi.holmes.model }}"

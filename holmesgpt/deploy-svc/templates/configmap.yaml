@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-config
+  namespace: '{{ .Release.Namespace }}'
+data:
+  toolsets.yaml: |
+{{ .Files.Get "holmes-config.yaml" | indent 4 }}
+  config.yaml: |
+    model: "{{ .Values.model }}"
+    api_base: "{{ .Values.azureOpenAI.apiBase }}"
+    api_version: "{{ .Values.azureOpenAI.apiVersion }}"
+    custom_toolsets:
+      - "/etc/holmes/toolsets.yaml"
+    custom_skill_paths:
+      - "/etc/holmes/skills/"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-skills
+  namespace: '{{ .Release.Namespace }}'
+data:
+  hcp-creation-serviceplane.md: |
+{{ .Files.Get "skills/hcp-creation-serviceplane/SKILL.md" | indent 4 }}
+  hcp-deletion-serviceplane.md: |
+{{ .Files.Get "skills/hcp-deletion-serviceplane/SKILL.md" | indent 4 }}

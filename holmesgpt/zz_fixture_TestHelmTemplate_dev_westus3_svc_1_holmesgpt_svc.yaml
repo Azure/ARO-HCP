@@ -1,0 +1,512 @@
+---
+# Source: holmesgpt-svc/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: holmesgpt
+  namespace: 'aro-holmesgpt'
+  annotations:
+    azure.workload.identity/client-id: '__holmesgptSvcMsiClientId__'
+    azure.workload.identity/tenant-id: '__tenantId__'
+---
+# Source: holmesgpt-svc/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-config
+  namespace: 'aro-holmesgpt'
+data:
+  toolsets.yaml: |
+    toolsets:
+      # ========== ENABLED ==========
+      kubectl-run:
+        enabled: true
+      kubernetes/kube-prometheus-stack:
+        enabled: true
+      kubernetes/logs:
+        enabled: true
+      kubernetes/core:
+        enabled: true
+      kubernetes/live-metrics:
+        enabled: true
+      bash:
+        enabled: true
+        config:
+          builtin_allowlist: extended
+          allow:
+          - "kubectl get"
+          - "kubectl describe"
+          - "kubectl logs"
+          - "kubectl top"
+          - "kubectl cluster-info"
+          - "kubectl explain"
+          - "kubectl api-resources"
+          - "kubectl version"
+          - "egrep"
+          deny:
+          - "kubectl delete"
+          - "kubectl apply"
+          - "kubectl create"
+          - "kubectl edit"
+          - "kubectl exec"
+          - "kubectl patch"
+          - "kubectl scale"
+          - "kubectl drain"
+          - "kubectl cordon"
+          - "kubectl taint"
+          - "kubectl debug"
+          - "rm"
+          - "oc"
+      # ========== DISABLED ==========
+      core_investigation:
+        enabled: false
+      openshift/core:
+        enabled: false
+      openshift/logs:
+        enabled: false
+      openshift/security:
+        enabled: false
+      openshift/live-metrics:
+        enabled: false
+      skills:
+        enabled: true
+      internet:
+        enabled: false
+      connectivity_check:
+        enabled: false
+      robusta:
+        enabled: false
+      kubernetes/krew-extras:
+        enabled: false
+      kubernetes/kube-lineage-extras:
+        enabled: false
+      aks/core:
+        enabled: false
+      aks/node-health:
+        enabled: false
+      argocd/core:
+        enabled: false
+      cilium/core:
+        enabled: false
+      hubble/observability:
+        enabled: false
+      docker/core:
+        enabled: false
+      helm/core:
+        enabled: false
+      grafana/dashboards:
+        enabled: false
+      grafana/loki:
+        enabled: false
+      grafana/tempo:
+        enabled: false
+      prometheus/metrics:
+        enabled: false
+      datadog/logs:
+        enabled: false
+      datadog/general:
+        enabled: false
+      datadog/metrics:
+        enabled: false
+      datadog/traces:
+        enabled: false
+      elasticsearch/data:
+        enabled: false
+      elasticsearch/cluster:
+        enabled: false
+      opensearch/query_assist:
+        enabled: false
+      coralogix:
+        enabled: false
+      newrelic:
+        enabled: false
+      kafka/admin:
+        enabled: false
+      rabbitmq/core:
+        enabled: false
+      notion:
+        enabled: false
+      confluence:
+        enabled: false
+      slab:
+        enabled: false
+      servicenow/tables:
+        enabled: false
+      azure/sql:
+        enabled: false
+      MongoDBAtlas:
+        enabled: false
+      database/sql:
+        enabled: false
+      inspektor-gadget/node:
+        enabled: false
+      inspektor-gadget/tcpdump:
+        enabled: false
+      kubevela/core:
+        enabled: false
+      crossplane/core:
+        enabled: false
+    
+  config.yaml: |
+    model: "azure/gpt-5.2"
+    api_base: "https://arohcp-dev-aoai-usw3.openai.azure.com"
+    api_version: "2025-04-01-preview"
+    custom_toolsets:
+      - "/etc/holmes/toolsets.yaml"
+    custom_skill_paths:
+      - "/etc/holmes/skills/"
+---
+# Source: holmesgpt-svc/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: holmesgpt-skills
+  namespace: 'aro-holmesgpt'
+data:
+  hcp-creation-serviceplane.md: |
+    ---
+    name: hcp-creation-serviceplane
+    description: Troubleshoot HCP cluster creation failures on the service cluster. Use this when a cluster is stuck in Accepted or Provisioning state, or when the RP frontend/backend, Cluster Service, or Maestro Server have issues during cluster creation.
+    ---
+    
+    ## Goal
+    Diagnose why an ARO-HCP cluster creation is failing or stuck by investigating the service cluster components involved in the creation workflow.
+    
+    ## Important Instructions
+    - Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+    - Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+    - Do NOT try to access ManifestWork, ManagedCluster, HostedCluster, or HyperShift CRDs — these live on the management cluster, not here. Only check pods, logs, events in `aro-hcp`, `clusters-service`, `maestro` namespaces.
+    - When checking logs, always use `--tail=100` to limit output size. Do NOT ask the user for a time window.
+    - When grepping for a cluster name, use the cluster name from the user's question.
+    - Execute all steps — do not skip log checks. If a grep returns no results, report that and move on.
+    - Use per-pod log fetching: first list pods, then fetch logs from ONE pod per deployment (not all replicas).
+    - Keep output concise — summarize log findings, do not include full log dumps in your response.
+    
+    ## HCP Creation Flow on Service Cluster
+    
+    ```
+    1. Frontend receives PUT → validates → creates in CosmosDB → calls Cluster Service
+    2. Cluster Service creates cluster record → provisions managed resource group → creates ManifestWork
+    3. Backend polls operation status → checks CS state → checks ManifestWork/HostedCluster via Maestro
+    4. Maestro Server routes ManifestWork to Maestro Agent on management cluster
+    ```
+    
+    ## Workflow
+    
+    ### Step 1: Check Frontend Pods
+    * Run: `kubectl get pods -n aro-hcp -l app=aro-hcp-frontend -o wide`
+    * Verify all pods are Running and Ready (2/2)
+    * If not running: `kubectl describe pods -n aro-hcp -l app=aro-hcp-frontend`
+    
+    ### Step 2: Check Frontend Logs
+    * List frontend pods: `kubectl get pods -n aro-hcp -l app=aro-hcp-frontend -o name`
+    * For each pod, run: `kubectl logs <pod-name> -n aro-hcp -c aro-hcp-frontend --tail=100 | grep -i "<cluster-name>"`
+    * Look for: HTTP status codes on the PUT request, validation errors, Cluster Service call failures
+    * Common issues: 400 (validation), 409 (conflict), 500 (CS unreachable)
+    
+    ### Step 3: Check Backend Pods
+    * Run: `kubectl get pods -n aro-hcp -l app=aro-hcp-backend -o wide`
+    * Verify all pods are Running and Ready (2/2)
+    
+    ### Step 4: Check Backend Logs
+    * List backend pods: `kubectl get pods -n aro-hcp -l app=aro-hcp-backend -o name`
+    * For each pod, run: `kubectl logs <pod-name> -n aro-hcp -c aro-hcp-backend --tail=100 | grep -i "<cluster-name>"`
+    * Look for operation state transitions (Accepted → Provisioning → Succeeded/Failed)
+    * Key error messages to search for:
+      - `"maestro bundle is degraded"` — ManifestWork has issues on management cluster
+      - `"hosted cluster is not available"` — HostedCluster control plane not ready
+      - `"hosted cluster has no installed version"` — ClusterVersion not completed
+      - `"hosted cluster has no control plane endpoint"` — kube-apiserver not ready
+    
+    ### Step 5: Check Cluster Service Pods
+    * Run: `kubectl get pods -n clusters-service`
+    * Verify `clusters-service` pods are Running and Ready
+    
+    ### Step 6: Check Cluster Service Logs
+    * List CS pods: `kubectl get pods -n clusters-service -l app=clusters-service -o name`
+    * For one pod, run: `kubectl logs <pod-name> -n clusters-service -c clusters-service --tail=100 | grep -i "<cluster-name>"`
+    * Look for: cluster creation events, ManifestWork creation status, Azure resource provisioning errors
+    
+    ### Step 7: Check Cluster Service Database
+    * Run: `kubectl get pods -n clusters-service -l app=ocm-cs-db`
+    * Verify the CS database pod is Running and Ready
+    
+    ### Step 8: Check Maestro Server
+    * Run: `kubectl get pods -n maestro`
+    * Run: `kubectl logs -n maestro deployment/maestro --tail=200 | grep -i "error\|fail\|timeout"`
+    * Look for: ManifestWork routing failures, MQTT/Event Grid connectivity issues
+    
+    ### Step 9: Check Recent Events
+    * Run: `kubectl get events -n aro-hcp --sort-by=.lastTimestamp | tail -20`
+    * Run: `kubectl get events -n clusters-service --sort-by=.lastTimestamp | tail -20`
+    * Run: `kubectl get events -n maestro --sort-by=.lastTimestamp | tail -20`
+    
+    ## Synthesize Findings
+    
+    * If frontend returned an error → the request never reached Cluster Service (validation or auth issue)
+    * If CS logs show errors → the cluster record or Azure resources failed to create
+    * If backend shows "maestro bundle is degraded" → ManifestWork wasn't applied on the management cluster (escalate to controlplane investigation)
+    * If backend shows "hosted cluster is not available" → HostedCluster exists but control plane isn't ready (escalate to controlplane investigation)
+    * If Maestro Server has errors → MQTT/Event Grid connectivity issue
+    * If all service cluster components are healthy and cluster shows Succeeded → the issue is on the controlplane or dataplane
+    
+    ## Recommended Remediation Steps
+    * Frontend validation errors: fix the request payload
+    * CS provisioning failures: check Azure quotas, network policies, managed identity permissions
+    * Maestro connectivity: check Event Grid Namespace health, verify MQTT credentials
+    * If service cluster is healthy but cluster is stuck: escalate to controlplane investigation using scope=controlplane
+    
+  hcp-deletion-serviceplane.md: |
+    ---
+    name: hcp-deletion-serviceplane
+    description: Troubleshoot HCP cluster deletion stuck on the service cluster. Use this when a cluster deletion is stuck in Deleting state, or when the backend operation is not progressing, or Maestro ResourceBundles are not being cleaned up.
+    ---
+    
+    ## Goal
+    Diagnose why an ARO-HCP cluster deletion is stuck by investigating the service cluster components involved in the deletion workflow.
+    
+    ## Important Instructions
+    - Do NOT check `kubectl config current-context` or kubeconfig availability. You are running in-cluster with a ServiceAccount — kubectl works automatically.
+    - Do NOT ask the user for kubeconfig, context, or cluster access. Just run the kubectl commands directly.
+    - Do NOT try to access ManifestWork, ManagedCluster, or HostedCluster CRDs — these live on the management cluster, not the service cluster. Use the controlplane scope for those.
+    - On the service cluster, only check: pods, logs, events in namespaces `aro-hcp`, `clusters-service`, `maestro`.
+    - When checking logs, always use `--tail=100` to limit output size. Do NOT ask the user for a time window.
+    - Use per-pod log fetching: list pods, then fetch logs from ONE pod per deployment.
+    - Keep output concise — summarize findings, do not include full log dumps.
+    
+    ## HCP Deletion Flow on Service Cluster
+    
+    ```
+    1. Frontend receives DELETE → calls CS DeleteCluster() → CS state "uninstalling"
+    2. Backend polls CS GetClusterStatus() until 404 (cluster fully deleted)
+    3. CS sends deletion via Maestro → Maestro Agent deletes ManifestWork on mgmt cluster
+    4. Once CS returns 404 → backend marks operation Succeeded, deletes Cosmos docs
+    ```
+    
+    ## Workflow
+    
+    ### Step 1: Check Backend Pods
+    * Run: `kubectl get pods -n aro-hcp -l app=aro-hcp-backend -o wide`
+    * Verify pods are Running and Ready
+    
+    ### Step 2: Check Backend Logs for Deletion Operation
+    * List pods: `kubectl get pods -n aro-hcp -l app=aro-hcp-backend -o name`
+    * For one pod: `kubectl logs <pod> -n aro-hcp -c aro-hcp-backend --tail=100 | grep -i "<cluster-name>"`
+    * Look for: operation status, CS state ("uninstalling", "ready", "error"), "still deleting" messages
+    * If CS returns "ready" during a DELETE → cluster never entered uninstalling state (CS issue)
+    
+    ### Step 3: Check Cluster Service Status
+    * List pods: `kubectl get pods -n clusters-service -l app=clusters-service -o name`
+    * For one pod: `kubectl logs <pod> -n clusters-service -c clusters-service --tail=100 | grep -i "<cluster-name>"`
+    * Look for: "uninstalling", "deleting", errors during deletion, ManifestWork deletion status
+    
+    ### Step 4: Check Maestro Server
+    * Run: `kubectl get pods -n maestro`
+    * Run: `kubectl logs -n maestro deployment/maestro --tail=100 | grep -i "error\|fail\|<cluster-name>"`
+    * Look for: ResourceBundle deletion failures, MQTT errors, "soft-deleted" vs fully deleted bundles
+    
+    ### Step 5: Check for Orphaned Namespace Bundles (from logs only)
+    * Check Maestro and CS logs for signs of orphaned bundles:
+      - Maestro logs showing repeated "resource not found" or "soft-deleted" for the cluster's bundle ID
+      - CS logs showing "namespace bundle" references or repeated reconciliation for a deleted cluster
+      - If the cluster's HCP namespaces keep reappearing on the mgmt cluster after deletion, the `*-00-hcp-namespaces` Maestro ResourceBundle is likely orphaned
+    * NOTE: ManifestWork is a management cluster resource — do NOT try to query it from the service cluster. Diagnose from Maestro/CS logs only.
+    
+    ### Step 6: Check Recent Events
+    * Run: `kubectl get events -n aro-hcp --sort-by=.lastTimestamp | tail -20`
+    * Run: `kubectl get events -n clusters-service --sort-by=.lastTimestamp | tail -20`
+    
+    ## Synthesize Findings
+    
+    * If backend shows CS state "uninstalling" for a long time → stuck on mgmt cluster (escalate to controlplane)
+    * If backend shows CS state "ready" during DELETE → CS never started deletion (CS bug or race condition)
+    * If CS returns 404 but backend hasn't marked Succeeded → backend controller issue
+    * If Maestro has errors → ResourceBundle deletion failed (check Maestro Agent on mgmt cluster)
+    * If namespaces keep recreating → orphaned Maestro namespace bundle
+    
+    ## Recommended Remediation Steps
+    * CS not uninstalling: retry deletion via CS API directly
+    * Maestro bundle orphaned: delete orphaned ResourceBundle from Maestro
+    * CS stuck: check CS controller logs for specific error
+    * All service cluster components healthy but stuck: escalate to controlplane investigation
+---
+# Source: holmesgpt-svc/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: holmesgpt-readonly
+rules:
+- apiGroups: [""]
+  resources:
+  - configmaps
+  - endpoints
+  - events
+  - namespaces
+  - nodes
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods
+  - pods/log
+  - services
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources:
+  - cronjobs
+  - jobs
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources:
+  - ingresses
+  - networkpolicies
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources:
+  - nodes
+  - pods
+  verbs: ["get", "list"]
+---
+# Source: holmesgpt-svc/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: holmesgpt-readonly
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: holmesgpt-readonly
+subjects:
+- kind: ServiceAccount
+  name: holmesgpt
+  namespace: 'aro-holmesgpt'
+---
+# Source: holmesgpt-svc/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: holmesgpt-svc
+  namespace: 'aro-holmesgpt'
+spec:
+  type: ClusterIP
+  selector:
+    app: holmesgpt
+  ports:
+  - name: http
+    port: 80
+    targetPort: 5050
+    protocol: TCP
+---
+# Source: holmesgpt-svc/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holmesgpt
+  namespace: 'aro-holmesgpt'
+  labels:
+    app: holmesgpt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: holmesgpt
+  template:
+    metadata:
+      labels:
+        app: holmesgpt
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: holmesgpt
+      automountServiceAccountToken: true
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: holmesgpt
+        image: 'quay.io/haoran/holmesgpt:latest'
+        imagePullPolicy: Always
+        command: ["python", "server.py"]
+        ports:
+        - name: http
+          containerPort: 5050
+          protocol: TCP
+        env:
+        - name: AZURE_AD_TOKEN_AUTH
+          value: "true"
+        - name: AZURE_API_BASE
+          value: 'https://arohcp-dev-aoai-usw3.openai.azure.com'
+        - name: AZURE_API_VERSION
+          value: '2025-04-01-preview'
+        - name: HOLMES_MODEL
+          value: 'azure/gpt-5.2'
+        - name: HOLMES_PORT
+          value: "5050"
+        volumeMounts:
+        - name: holmes-main-config
+          mountPath: /.holmes/config.yaml
+          subPath: config.yaml
+          readOnly: true
+        - name: holmes-toolsets
+          mountPath: /etc/holmes/toolsets.yaml
+          subPath: toolsets.yaml
+          readOnly: true
+        - name: holmes-skills
+          mountPath: /etc/holmes/skills/hcp-creation-serviceplane/SKILL.md
+          subPath: hcp-creation-serviceplane.md
+          readOnly: true
+        - name: holmes-skills
+          mountPath: /etc/holmes/skills/hcp-deletion-serviceplane/SKILL.md
+          subPath: hcp-deletion-serviceplane.md
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5050
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 5050
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: holmes-main-config
+        configMap:
+          name: holmesgpt-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: holmes-toolsets
+        configMap:
+          name: holmesgpt-config
+          items:
+          - key: toolsets.yaml
+            path: toolsets.yaml
+      - name: holmes-skills
+        configMap:
+          name: holmesgpt-skills
+      - name: tmp
+        emptyDir: {}
+

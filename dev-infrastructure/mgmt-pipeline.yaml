@@ -340,6 +340,11 @@ resourceGroups:
         resourceGroup: auditLogs
         step: output
         name: auditLogsEventHubAuthRuleId
+    - name: holmesAoaiResourceId
+      input:
+        resourceGroup: regional
+        step: output
+        name: holmesAoaiResourceId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer

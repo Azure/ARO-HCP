@@ -34,6 +34,15 @@ adminApi:
   cert:
     issuer: Self
     name: admin-api-cert-pers-usw3test
+  holmes:
+    aoaiName: arohcp-pers-aoai-usw3test
+    azureOpenAIAPIBase: https://arohcp-pers-aoai-usw3test.openai.azure.com
+    azureOpenAIAPIVersion: 2025-04-01-preview
+    defaultTimeout: 600
+    enabled: true
+    holmesImage: quay.io/haoran/holmesgpt:latest
+    maxConcurrent: 20
+    model: azure/gpt-5.2
   image:
     digest: sha256:6f7cd7e77ae5ca7cf9231b9479211a0430a071c763d9540d769a2f40d9d78c57
     registry: arohcpsvcdev.azurecr.io
@@ -252,6 +261,7 @@ firstPartyAppCertificate:
   manage: false
   name: firstPartyCert2
 firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
+firstPartyAppObjectId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 fleet:
   image:
     digest: ""
@@ -801,6 +811,7 @@ msiCredentialsRefresher:
     sanDnsNames: []
   earlyRefreshFrequency: "0"
   firstPartyAppClientId: ""
+  firstPartyAppObjectId: ""
   image:
     digest: ""
     registry: empty-sentinel

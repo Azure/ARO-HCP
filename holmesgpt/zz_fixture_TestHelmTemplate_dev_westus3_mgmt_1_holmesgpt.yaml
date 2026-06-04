@@ -1,0 +1,11 @@
+---
+# Source: holmesgpt/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: holmesgpt
+  namespace: 'aro-holmesgpt'
+  annotations:
+    azure.workload.identity/client-id: '__holmesgptMsiClientId__'
+    azure.workload.identity/tenant-id: '__tenantId__'
+

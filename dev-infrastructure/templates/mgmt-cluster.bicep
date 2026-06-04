@@ -246,6 +246,12 @@ param auditLogsEventHubName string
 @description('Resource ID of the event hub authorization rule for AKS audit logs')
 param auditLogsEventHubAuthRuleId string
 
+@description('Resource ID of the Holmes Azure OpenAI account (from regional output)')
+param holmesAoaiResourceId string = ''
+
+@description('Name of the regional resource group (for cross-RG role assignments)')
+param regionalResourceGroup string = ''
+
 //
 //   M A N A G E D   I D E N T I T I E S
 //
@@ -281,6 +287,11 @@ var workloadIdentities = items({
     namespace: kubeApplierNamespace
     serviceAccountName: kubeApplierServiceAccountName
   }
+  holmesgpt_wi: {
+    uamiName: 'holmesgpt'
+    namespace: 'aro-holmesgpt'
+    serviceAccountName: 'holmesgpt'
+  }
 })
 
 module managedIdentities '../modules/managed-identities.bicep' = {
@@ -288,6 +299,19 @@ module managedIdentities '../modules/managed-identities.bicep' = {
   params: {
     location: location
     manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
+  }
+}
+
+//
+//   H O L M E S   A O A I   R O L E   A S S I G N M E N T
+//
+
+module holmesAoaiRoleAssignment '../modules/openai/openai-role-assignment.bicep' = if (holmesAoaiResourceId != '' && regionalResourceGroup != '') {
+  name: 'holmes-aoai-role-assignment'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    aoaiName: last(split(holmesAoaiResourceId, '/'))
+    principalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'holmesgpt').uamiPrincipalID
   }
 }
 

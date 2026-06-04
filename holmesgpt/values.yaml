@@ -1,0 +1,3 @@
+serviceAccount:
+  workloadIdentityClientId: "__holmesgptMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"

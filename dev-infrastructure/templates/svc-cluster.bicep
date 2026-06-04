@@ -156,6 +156,9 @@ param rpCosmosDbAccountId string
 @description('The resourcegroup for regional infrastructure')
 param regionalResourceGroup string
 
+@description('Resource ID of the Holmes Azure OpenAI account (from regional output)')
+param holmesAoaiResourceId string = ''
+
 @description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
 param maestroCertDomain string
 
@@ -532,6 +535,11 @@ var workloadIdentities = items({
     namespace: fleetNamespace
     serviceAccountName: fleetServiceAccountName
   }
+  holmesgpt_wi: {
+    uamiName: 'holmesgpt'
+    namespace: 'aro-holmesgpt'
+    serviceAccountName: 'holmesgpt'
+  }
 })
 
 module managedIdentities '../modules/managed-identities.bicep' = {
@@ -539,6 +547,19 @@ module managedIdentities '../modules/managed-identities.bicep' = {
   params: {
     location: location
     manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
+  }
+}
+
+//
+//   H O L M E S   A O A I   R O L E   A S S I G N M E N T
+//
+
+module holmesAoaiRoleAssignment '../modules/openai/openai-role-assignment.bicep' = if (holmesAoaiResourceId != '' && regionalResourceGroup != '') {
+  name: 'holmes-svc-aoai-role-assignment'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    aoaiName: last(split(holmesAoaiResourceId, '/'))
+    principalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'holmesgpt').uamiPrincipalID
   }
 }
 

@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holmesgpt
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app: holmesgpt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: holmesgpt
+  template:
+    metadata:
+      labels:
+        app: holmesgpt
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: holmesgpt
+      automountServiceAccountToken: true
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: holmesgpt
+        image: '{{ .Values.image }}'
+        imagePullPolicy: Always
+        command: ["python", "server.py"]
+        ports:
+        - name: http
+          containerPort: 5050
+          protocol: TCP
+        env:
+        - name: AZURE_AD_TOKEN_AUTH
+          value: "true"
+        - name: AZURE_API_BASE
+          value: '{{ .Values.azureOpenAI.apiBase }}'
+        - name: AZURE_API_VERSION
+          value: '{{ .Values.azureOpenAI.apiVersion }}'
+        - name: HOLMES_MODEL
+          value: '{{ .Values.model }}'
+        - name: HOLMES_PORT
+          value: "5050"
+        volumeMounts:
+        - name: holmes-main-config
+          mountPath: /.holmes/config.yaml
+          subPath: config.yaml
+          readOnly: true
+        - name: holmes-toolsets
+          mountPath: /etc/holmes/toolsets.yaml
+          subPath: toolsets.yaml
+          readOnly: true
+        - name: holmes-skills
+          mountPath: /etc/holmes/skills/hcp-creation-serviceplane/SKILL.md
+          subPath: hcp-creation-serviceplane.md
+          readOnly: true
+        - name: holmes-skills
+          mountPath: /etc/holmes/skills/hcp-deletion-serviceplane/SKILL.md
+          subPath: hcp-deletion-serviceplane.md
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5050
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 5050
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: holmes-main-config
+        configMap:
+          name: holmesgpt-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: holmes-toolsets
+        configMap:
+          name: holmesgpt-config
+          items:
+          - key: toolsets.yaml
+            path: toolsets.yaml
+      - name: holmes-skills
+        configMap:
+          name: holmesgpt-skills
+      - name: tmp
+        emptyDir: {}
