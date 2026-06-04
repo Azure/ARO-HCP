@@ -90,6 +90,14 @@ var envVarCategories = map[string]flagEffect{
 	"IMAGE_SHARED_INGRESS_HAPROXY": flagNodeAffecting,
 }
 
+// nodeAffectingDigestPaths lists dotted config paths whose digest values affect
+// worker node configuration. These paths are excluded from placeholder
+// replacement during helm rendering so the golden fixture contains the real
+// digest and any change surfaces as a diff requiring explicit review.
+var nodeAffectingDigestPaths = []string{
+	"hypershift.sharedIngressImage.digest",
+}
+
 type NodeRolloutConfig struct {
 	RegistryOverrides         []string `json:"registryOverrides" yaml:"registryOverrides"`
 	SharedIngressHAProxyImage string   `json:"sharedIngressHAProxyImage,omitempty" yaml:"sharedIngressHAProxyImage,omitempty"`
@@ -137,7 +145,7 @@ func RunTestNodeRolloutConfig(t *testing.T, settingsPath string) {
 		}
 
 		t.Run(testName, func(t *testing.T) {
-			manifest, err := runTest(t.Context(), settings, testCase)
+			manifest, err := runTest(t.Context(), settings, testCase, withDigestSkipPaths(nodeAffectingDigestPaths))
 			assert.NoError(t, err)
 
 			config, err := extractNodeRolloutConfig(manifest)
