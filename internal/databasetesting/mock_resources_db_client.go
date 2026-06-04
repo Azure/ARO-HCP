@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -94,7 +95,7 @@ func (m *MockResourcesDBClient) Operations(subscriptionID string) database.Opera
 }
 
 // Subscriptions returns a CRUD interface for subscription resources.
-func (m *MockResourcesDBClient) Subscriptions() database.SubscriptionCRUD {
+func (m *MockResourcesDBClient) Subscriptions() database.ResourceCRUD[arm.Subscription, *arm.Subscription] {
 	return newMockSubscriptionCRUD(m)
 }
 

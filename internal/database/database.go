@@ -124,7 +124,7 @@ type ResourcesDBClient interface {
 	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
 	Operations(subscriptionID string) OperationCRUD
 
-	Subscriptions() SubscriptionCRUD
+	Subscriptions() ResourceCRUD[arm.Subscription, *arm.Subscription]
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
 
@@ -169,7 +169,7 @@ func (d *resourcesCosmosDBClient) Operations(subscriptionID string) OperationCRU
 	return NewOperationCRUD(d.resources, subscriptionID)
 }
 
-func (d *resourcesCosmosDBClient) Subscriptions() SubscriptionCRUD {
+func (d *resourcesCosmosDBClient) Subscriptions() ResourceCRUD[arm.Subscription, *arm.Subscription] {
 	return NewCosmosResourceCRUD[arm.Subscription, *arm.Subscription, GenericDocument[arm.Subscription]](
 		d.resources, nil, azcorearm.SubscriptionResourceType)
 }
