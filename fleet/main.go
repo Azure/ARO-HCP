@@ -28,7 +28,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/ARO-HCP/fleet/cmd/controller"
-	"github.com/Azure/ARO-HCP/fleet/cmd/register"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
@@ -61,7 +60,6 @@ func main() {
 	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
 
 	subcommands := []func() (*cobra.Command, error){
-		register.NewRegisterCommand,
 		controller.NewControllerCommand,
 	}
 

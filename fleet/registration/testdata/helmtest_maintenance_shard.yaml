@@ -1,6 +1,0 @@
-values: ../values.yaml
-name: fleet-reg-maintenance-shard
-namespace: aro-hcp
-testData:
-  clustersService:
-    provisionShardStatus: maintenance

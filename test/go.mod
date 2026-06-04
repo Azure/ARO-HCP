@@ -3,7 +3,6 @@ module github.com/Azure/ARO-HCP/test
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
@@ -349,8 +348,6 @@ require (
 )
 
 replace github.com/Azure/ARO-HCP/tooling/cleanup-sweeper => ../tooling/cleanup-sweeper
-
-replace github.com/Azure/ARO-HCP/admin/server => ../admin/server
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
 

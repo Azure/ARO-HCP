@@ -112,10 +112,6 @@ func newTestManagementCluster() *fleet.ManagementCluster {
 	}
 }
 
-func testProvisionShardHREF(shardID string) string {
-	return "/api/aro_hcp/v1alpha1/provision_shards/" + shardID
-}
-
 // alwaysSyncCooldownChecker always allows syncing
 type alwaysSyncCooldownChecker struct{}
 

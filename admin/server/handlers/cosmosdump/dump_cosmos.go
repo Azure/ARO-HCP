@@ -45,7 +45,7 @@ func (h *CosmosDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Reque
 	}
 
 	_, err = arm.WriteJSONResponse(w, http.StatusOK, map[string]any{})
-	return utils.TrackError(err)
+	return err
 }
 
 type BillingDumpHandler struct {
@@ -71,5 +71,5 @@ func (h *BillingDumpHandler) ServeHTTP(w http.ResponseWriter, request *http.Requ
 	}
 
 	_, err = arm.WriteJSONResponse(w, http.StatusOK, map[string]any{})
-	return utils.TrackError(err)
+	return err
 }
