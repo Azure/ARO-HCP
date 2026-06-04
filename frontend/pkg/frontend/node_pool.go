@@ -708,6 +708,8 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
+	logger.Info(fmt.Sprintf("deleting resource %s", nodePool.ID))
+
 	// We retrieve all node pools for the cluster, including the one we are attempting to
 	// delete, and we pass them to the delete admission validation.
 	// TODO once OCPBUGS-86702 is resolved, we should remove this retrieval and the check of last nodepool being

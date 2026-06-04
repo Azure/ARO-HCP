@@ -579,6 +579,8 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
+	logger.Info(fmt.Sprintf("deleting resource %s", externalAuth.ID))
+
 	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the external
 	// auth has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
 	if externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
