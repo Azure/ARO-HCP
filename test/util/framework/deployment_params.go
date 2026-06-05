@@ -24,8 +24,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
