@@ -121,7 +121,7 @@ var _ = Describe("ARO-HCP", func() {
 					*resourceGroup.Name,
 					clusterName,
 					clusterResource,
-					framework.ClusterCreationTimeout,
+					framework.MultiversionClusterCreationTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "Swift cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 			} else {
@@ -132,7 +132,7 @@ var _ = Describe("ARO-HCP", func() {
 					*resourceGroup.Name,
 					clusterParams,
 					nil,
-					framework.ClusterCreationTimeout,
+					framework.MultiversionClusterCreationTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 			}
@@ -187,7 +187,7 @@ var _ = Describe("ARO-HCP", func() {
 				managedResourceGroupName,
 				clusterName,
 				nodePoolParams,
-				framework.NodePoolCreationTimeout,
+				framework.MultiversionNodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
 

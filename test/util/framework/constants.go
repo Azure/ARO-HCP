@@ -24,6 +24,13 @@ const (
 	NodePoolCreationTimeout     = 20 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 	GetAdminRESTConfigTimeout   = 10 * time.Minute
+
+	// Multiversion timeouts cover the cross-version install matrix
+	// (test/e2e/complete_cluster_create_multiversion.go), which exercises
+	// pre-release channels (e.g. "nightly" for 4.23 / 5.0). Pre-release
+	// images take longer to settle than stable ones.
+	MultiversionClusterCreationTimeout  = 45 * time.Minute
+	MultiversionNodePoolCreationTimeout = 45 * time.Minute
 )
 
 // Deletion timeouts

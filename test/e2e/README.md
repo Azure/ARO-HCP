@@ -213,6 +213,8 @@ Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENT
 |----------|----------|-------------|
 | Provisioning | `ClusterCreationTimeout` | `CreateHCPClusterFromParam20240610`, `CreateHCPClusterAndWait20240610`; preview: `CreateHCPClusterFromParam20251223`, `CreateHCPClusterAndWait20251223` |
 | Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20240610`, `CreateNodePoolAndWait20240610`; preview: `CreateNodePoolFromParam20251223`, `CreateNodePoolAndWait20251223` |
+| Provisioning | `MultiversionClusterCreationTimeout` | `CreateHCPClusterAndWait20251223`, `CreateHCPClusterFromParam20251223` in multiversion cross-version install matrix |
+| Provisioning | `MultiversionNodePoolCreationTimeout` | `CreateNodePoolFromParam20240610` in multiversion cross-version install matrix |
 | Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
 | Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
 | Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
