@@ -1680,7 +1680,7 @@ clouds:
             audit:
               connectSocket: false
             cosmosDB:
-              private: false
+              private: true
               zoneRedundantMode: 'Disabled'
             tracing:
               address: "http://ingest.observability:4318"

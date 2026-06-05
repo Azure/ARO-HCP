@@ -280,7 +280,7 @@ frontend:
     fleetContainerMaxScale: 4000
     locksContainerMaxScale: 4000
     name: arohcpci01-rp-j7654321
-    private: false
+    private: true
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
   exitOnPanic: true
