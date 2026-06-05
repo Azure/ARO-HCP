@@ -798,6 +798,7 @@ defaults:
       cloudSuffix: ""
     pav2:
       cloudName: ""
+      endpoint: ""
     kusto:
       sku: ""
       clusterName: ""
