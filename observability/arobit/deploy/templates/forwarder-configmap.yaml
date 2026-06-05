@@ -454,16 +454,6 @@ data:
         {{- template "buffer_settings" . }}
 {{- end }}
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
     [OUTPUT]
         Match systemd.*
         Name azure_kusto
@@ -481,3 +471,13 @@ data:
 {{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
 {{- end }}
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem

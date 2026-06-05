@@ -324,16 +324,6 @@ data:
         delete_on_max_upload_error  true
         io_timeout                  60s
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
     [OUTPUT]
         Match systemd.*
         Name azure_kusto
@@ -358,6 +348,16 @@ data:
         scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -453,7 +453,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: ff7fda314b102dd057ff3cd576386e1e111ebf8e9152abf9dbd2d0f6ff60edb3
+        checksum/configmap: c52d2b1d949e076a51fe0381dc3677c6a07e48733fc99c9e090929f27523d94a
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
