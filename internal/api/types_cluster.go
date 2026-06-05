@@ -47,6 +47,16 @@ type HCPOpenShiftClusterStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
+type CustomerPropertiesStatus struct {
+	Version VersionProfileStatus `json:"version,omitempty"`
+}
+
+// VersionProfileStatus (and all status values) are separate structs because not every item is preserved.
+type VersionProfileStatus struct {
+	ID           string `json:"id,omitempty"`
+	ChannelGroup string `json:"channelGroup,omitempty"`
+}
+
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.

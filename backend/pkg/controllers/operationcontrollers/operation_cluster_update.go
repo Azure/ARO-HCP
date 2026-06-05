@@ -150,6 +150,11 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, operationState)
 	}
+	if operationState, err := c.customerPropertiesStatusMatchOperationState(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, operationState)
+	}
 	if operationState, csErr := c.clusterServiceUpdateOperationState(ctx, operation); csErr != nil {
 		errs = append(errs, utils.TrackError(csErr))
 	} else {
@@ -239,6 +244,34 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	}
 	c.desiredVersionMismatchFirstSeen.Remove(operation.ResourceID.String())
 	return newOperationState(arm.ProvisioningStateFailed, intentFailedCondition.Message), nil
+}
+
+// customerPropertiesStatusMatchOperationState returns Succeeded when every
+// HCPOpenShiftClusterCustomerProperties field with an observed counterpart in
+// ServiceProviderCluster.Status matches that observed value, and Accepted
+// otherwise. The Accepted message is the stringified, "; "-joined list of
+// field.Errors produced by DiffCustomerPropertiesAgainstStatus so the caller
+// can see exactly which desired-vs-observed fields are still diverging.
+func (c *operationClusterUpdate) customerPropertiesStatusMatchOperationState(ctx context.Context, operation *api.Operation) (*operationState, error) {
+	existingCluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	existingServiceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	diffs := DiffCustomerPropertiesAgainstStatus(&existingCluster.CustomerProperties, &existingServiceProviderCluster.Status)
+	if len(diffs) == 0 {
+		return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	}
+
+	msgs := make([]string, 0, len(diffs))
+	for _, e := range diffs {
+		msgs = append(msgs, e.Error())
+	}
+	return newOperationState(arm.ProvisioningStateAccepted, strings.Join(msgs, "; ")), nil
 }
 
 func (c *operationClusterUpdate) clusterServiceUpdateOperationState(ctx context.Context, operation *api.Operation) (*operationState, error) {

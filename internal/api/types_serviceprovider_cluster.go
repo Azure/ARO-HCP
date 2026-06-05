@@ -129,6 +129,8 @@ type ServiceProviderClusterStatus struct {
 	// this HCP is placed on. Nil means placement has not been resolved yet.
 	// Once set, this field is immutable.
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
+
+	CustomerPropertiesStatus CustomerPropertiesStatus `json:"customerPropertiesStatus,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
