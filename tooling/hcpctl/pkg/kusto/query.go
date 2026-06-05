@@ -24,6 +24,22 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 )
 
+type OrderBy int
+
+const (
+	OrderByAsc OrderBy = iota
+	OrderByDesc
+)
+
+func (o OrderBy) String() string {
+	switch o {
+	case OrderByDesc:
+		return "desc"
+	default:
+		return "asc"
+	}
+}
+
 // QueryOptions contains the parameters needed to construct queries.
 type QueryOptions struct {
 	SubscriptionId    string
@@ -35,6 +51,13 @@ type QueryOptions struct {
 	TimestampMax      time.Time
 	Limit             int
 	SplitByPod        bool
+	OrderBy           OrderBy
+}
+
+func NewQueryOptions() QueryOptions {
+	return QueryOptions{
+		OrderBy: OrderByAsc,
+	}
 }
 
 // Query represents a ready-to-execute KQL query with all its metadata.
@@ -116,6 +139,7 @@ type TemplateData struct {
 	FilterClusterName  string
 	HCPNamespacePrefix string
 	SplitByPod         bool
+	OrderBy            string
 }
 
 type TemplateDataOptions func(*TemplateData)
@@ -181,6 +205,7 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", kqlEscStr(queryOptions.SubscriptionId), kqlEscStr(queryOptions.ResourceGroupName)),
 		ResourceGroupName:  kqlEscStr(queryOptions.ResourceGroupName),
 		SplitByPod:         queryOptions.SplitByPod,
+		OrderBy:            queryOptions.OrderBy.String(),
 	}
 	defaults := []TemplateDataOptions{
 		WithClusterName(queryOptions.InfraClusterName),

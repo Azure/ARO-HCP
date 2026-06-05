@@ -90,13 +90,18 @@ func makeTestRow(t *testing.T, colDefs []struct {
 	return kusto.TaggedRow{Row: azkquery.NewRow(bt, 0, vals), QueryName: "test"}
 }
 
+func testQueryOptions(subID, rg, infraCluster string) *kusto.QueryOptions {
+	q := kusto.NewQueryOptions()
+	q.SubscriptionId = subID
+	q.ResourceGroupName = rg
+	q.InfraClusterName = infraCluster
+	return &q
+}
+
 func TestNewGatherer(t *testing.T) {
 	mockQueryClient := &MockQueryClient{}
 	opts := GathererOptions{
-		QueryOptions: &kusto.QueryOptions{
-			SubscriptionId:    "test-sub",
-			ResourceGroupName: "test-rg",
-		},
+		QueryOptions: testQueryOptions("test-sub", "test-rg", ""),
 	}
 
 	// Test CLI gatherer
@@ -122,10 +127,7 @@ func TestGatherer_GatherLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: true,
-			QueryOptions: &kusto.QueryOptions{
-				SubscriptionId:    "test-sub",
-				ResourceGroupName: "test-rg",
-			},
+			QueryOptions:             testQueryOptions("test-sub", "test-rg", ""),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -176,10 +178,7 @@ func TestGatherer_GatherLogs_WithKubernetesEventsAndSystemdLogs(t *testing.T) {
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: false,
 			CollectSystemdLogs:       true,
-			QueryOptions: &kusto.QueryOptions{
-				SubscriptionId:    "test-sub",
-				ResourceGroupName: "test-rg",
-			},
+			QueryOptions:             testQueryOptions("test-sub", "test-rg", ""),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -202,10 +201,7 @@ func TestGatherer_GatherLogs_SkipOnlySystemdLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: false,
-			QueryOptions: &kusto.QueryOptions{
-				SubscriptionId:    "test-sub",
-				ResourceGroupName: "test-rg",
-			},
+			QueryOptions:             testQueryOptions("test-sub", "test-rg", ""),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -230,9 +226,7 @@ func TestGatherer_GatherInfraLogs(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			GatherInfraLogs: true,
-			QueryOptions: &kusto.QueryOptions{
-				InfraClusterName: "test-infra-cluster",
-			},
+			QueryOptions:    testQueryOptions("", "", "test-infra-cluster"),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -254,9 +248,7 @@ func TestGatherer_GatherInfraLogs_Error(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			GatherInfraLogs: true,
-			QueryOptions: &kusto.QueryOptions{
-				InfraClusterName: "test-infra-cluster",
-			},
+			QueryOptions:    testQueryOptions("", "", "test-infra-cluster"),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},
@@ -281,10 +273,7 @@ func TestGatherer_GatherLogs_ContextCancellation(t *testing.T) {
 		QueryClient: mockQueryClient,
 		opts: GathererOptions{
 			SkipKubernetesEventsLogs: true,
-			QueryOptions: &kusto.QueryOptions{
-				SubscriptionId:    "test-sub",
-				ResourceGroupName: "test-rg",
-			},
+			QueryOptions:             testQueryOptions("test-sub", "test-rg", ""),
 		},
 		outputFunc:    mockOutputFunc,
 		outputOptions: RowOutputOptions{"outputPath": "/test"},

@@ -307,12 +307,11 @@ func (o Options) Run(ctx context.Context) error {
 			if err != nil {
 				return utils.TrackError(fmt.Errorf("failed to create query factory: %w", err))
 			}
-			queryOpts := kusto.QueryOptions{
-				ResourceGroupName: rg,
-				TimestampMin:      ti.StartTime,
-				TimestampMax:      ti.EndTime,
-				Limit:             -1,
-			}
+			queryOpts := kusto.NewQueryOptions()
+			queryOpts.ResourceGroupName = rg
+			queryOpts.TimestampMin = ti.StartTime
+			queryOpts.TimestampMax = ti.EndTime
+			queryOpts.Limit = -1
 			templateData := kusto.NewTemplateDataFromOptions(queryOpts)
 
 			var links []LinkDetails
@@ -488,12 +487,11 @@ func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName st
 	if err != nil {
 		return nil, fmt.Errorf("failed to create query factory: %w", err)
 	}
-	svcOpts := kusto.QueryOptions{
-		InfraClusterName: svcClusterName,
-		TimestampMin:     tw.Start,
-		TimestampMax:     tw.End,
-		Limit:            -1,
-	}
+	svcOpts := kusto.NewQueryOptions()
+	svcOpts.InfraClusterName = svcClusterName
+	svcOpts.TimestampMin = tw.Start
+	svcOpts.TimestampMax = tw.End
+	svcOpts.Limit = -1
 
 	// Service cluster queries: one per service log table + one merged link per custom query definition
 	infraServiceLogsDef, err := factory.GetBuiltinQueryDefinition("infraServiceLogs")
@@ -540,12 +538,11 @@ func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName st
 	}
 
 	// Management cluster queries
-	mgmtOpts := kusto.QueryOptions{
-		InfraClusterName: mgmtClusterName,
-		TimestampMin:     tw.Start,
-		TimestampMax:     tw.End,
-		Limit:            -1,
-	}
+	mgmtOpts := kusto.NewQueryOptions()
+	mgmtOpts.InfraClusterName = mgmtClusterName
+	mgmtOpts.TimestampMin = tw.Start
+	mgmtOpts.TimestampMax = tw.End
+	mgmtOpts.Limit = -1
 	mgmtTables := []struct {
 		table       string
 		displayName string

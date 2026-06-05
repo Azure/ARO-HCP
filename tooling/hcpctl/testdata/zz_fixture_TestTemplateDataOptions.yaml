@@ -6,6 +6,7 @@ FilterClusterName: ""
 HCPNamespacePrefix: ocm-arohcp
 Limit: 100
 NoTruncation: false
+OrderBy: asc
 ResourceGroupName: rg
 SplitByPod: false
 SubResourceGroupId: /subscriptions/sub/resourceGroups/rg

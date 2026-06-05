@@ -5,7 +5,7 @@ kql: |
   | where column_ifexists("cid", "") in ('cid1')
       or (log has '/subscriptions/sub/resourceGroups/rg' and log has_any ('cid1'))
   | project timestamp, log, cluster, namespace_name, container_name
-  | limit 10
   | order by timestamp asc
+  | limit 10
 name: serviceLogs
 unlimited: false
