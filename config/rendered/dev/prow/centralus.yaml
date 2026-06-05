@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:3dc93f13438bc57bfd0f5c2d2d565bfd6ec8724737837887c8736cd8bb58df34
+      digest: sha256:262244ea12148b99e5af214ec354d13b3e5cae4e1ae3c27b7321cc8445994df2
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:87e0a443114e4847a664566fb1afb2c3986bd00094dea05c82e8094e7008c346
+      digest: sha256:2b2c00a9fbfb550afa577a37cc03683878d6ce8904f22be24e688e540570b127
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -81,7 +81,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:38057998fe47a5f9f51e41af2f399a8a978df4ffe7083fac598c97eca9a89380
+      digest: sha256:78ffccc52f816e9c2a6a6f6d611191e8698a468dc23839eda26f36d89261df78
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -164,7 +164,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpprow
   image:
-    digest: sha256:c05ad87ad4e5094682c0b93632a8fa17fcd60522c8ea1fd2fa8f4907db945173
+    digest: sha256:31fe1839cc3bd62fad4d9f5848f1269f3083c33686c328904a182a5011b4e4ff
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -207,7 +207,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:f994de6f69820ab77ddd20b9c4e3241d48a93a03d289ae77bef43ffb5f760e55
+    digest: sha256:2e05b7fadb5dcba5d1a52f6250cca1da02cd84d58b4c4278b38dc549b75bfc12
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -423,7 +423,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:9d913c83e874cb1310cee51dad3b44b7ed964ece3a5d4cc86e43e4952dff21e9
+    digest: sha256:b3329aceb5c567fc33d0e7ec03d5f832a8277e4e69fa0802ecef7859d4e578fd
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -441,7 +441,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:3360a36f1d05efcce698c608872f7ddb88ff2cf8d0d51efc874afeedb8e2a9e3
+      digest: sha256:7bddf33a1e2d122c18d871d66e18e43f836b8aa4e3fe6f5abda377c1ab74896f
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -473,7 +473,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:f9b5eb3ebf7c1b391c2147e8e41dd29414b861f317f24c3680d73a47d2a72be4
+    digest: sha256:66cfe8d720eeaa8407eb1c161a30c05b5dd69b13471473cf6ac3c47ff2767f98
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -536,7 +536,7 @@ maestro:
     name: arohcp-prow-maestro-j7654321
     private: false
   image:
-    digest: sha256:f60dde9bb1653a0fd1428d644e32439915f80daba93d8aec5c76ba8feaf86bee
+    digest: sha256:f6c0ac7154b13cbbd46c3f759c12a3e480bc9f7394bfa55f4bc6d4e30161a9e0
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -938,7 +938,7 @@ svc:
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
-    istioctlVersion: 1.30.0
+    istioctlVersion: 1.30.1
     tag: prod-stable
     targetVersion: asm-1-28
     versions: asm-1-28
@@ -1034,14 +1034,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:2984271cb214b7f3a1ada23921dc5e2c0e5ec7ed7bda0896314f57096a120d66
+    digest: sha256:04708691d739da1843702d0370f971620f59fe8b78890b3abe7e40c000c297e8
     registry: registry.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:381926cbc8ac3a769b17174452453ddc98c731981332374de7a0927617513a96
+    digest: sha256:2969b02311a20792fb89193e3e4e8f0eef930cc0b38731681dfeaf84155eb4be
     registry: registry.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:6f55dd26ea1d64b9469cdc88b392a285d6c2101e05a289e41e48096657e84e05
+    digest: sha256:a4b0a8e424b9217df7e9a721b1df748294a36b163130b4d1d25f27ee71045b61
     registry: registry.redhat.io
     repository: oadp/oadp-velero-rhel9
