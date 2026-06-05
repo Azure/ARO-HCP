@@ -13,6 +13,7 @@ prometheusRules:
   - ../observability/alerts/kubeContainerOOM-prometheusRule.yaml
   - ../observability/alerts/kubeNode-prometheusRule.yaml
   - alerts/kusto-logs-age-prometheusRule.yaml
+  - ../observability/alerts/ingress-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
   prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b
