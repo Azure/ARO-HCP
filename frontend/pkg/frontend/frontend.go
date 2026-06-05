@@ -695,14 +695,21 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
-			// Apply the same mutations that real cluster creation applies
-			admission.MutateClusterCreate(newInternalCluster)
 			op := operation.Operation{
 				Type:    operation.Create,
 				Options: []string{validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
 			}
+			admissionContext, ctxErr := f.newClusterAdmissionContext(ctx, op, subscription, newInternalCluster, nil)
+			if ctxErr != nil {
+				return utils.TrackError(ctxErr)
+			}
+			// Apply the same mutations that real cluster creation applies
+			if mutationErrs := admission.MutateCluster(ctx, admissionContext, op, newInternalCluster, nil); len(mutationErrs) > 0 {
+				preflightErr = arm.CloudErrorFromFieldErrors(mutationErrs)
+				break
+			}
 			validationErrs := validation.ValidateCluster(ctx, op, newInternalCluster, nil, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
+			validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, op, newInternalCluster, nil)...)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
