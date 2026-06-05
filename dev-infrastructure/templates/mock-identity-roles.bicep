@@ -34,10 +34,13 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
         notActions: []
       }
     ]
-    assignableScopes: concat([
-      subscription().id
-      subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
-    ], e2eTestSubscriptionScopes)
+    assignableScopes: concat(
+      [
+        subscription().id
+        subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
+      ],
+      e2eTestSubscriptionScopes
+    )
   }
 }
 
@@ -77,9 +80,12 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
         notActions: []
       }
     ]
-    assignableScopes: concat([
-      subscription().id
-      subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
-    ], e2eTestSubscriptionScopes)
+    assignableScopes: concat(
+      [
+        subscription().id
+        subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
+      ],
+      e2eTestSubscriptionScopes
+    )
   }
 }

@@ -25,9 +25,12 @@ resource roleDef 'Microsoft.Authorization/roleDefinitions@2022-04-01' = [
           notDataActions: role.notDataActions
         }
       ]
-      assignableScopes: concat([
-        subscription().id
-      ], e2eTestSubscriptionScopes)
+      assignableScopes: concat(
+        [
+          subscription().id
+        ],
+        e2eTestSubscriptionScopes
+      )
     }
   }
 ]

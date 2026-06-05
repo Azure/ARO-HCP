@@ -227,24 +227,33 @@ Personal development environments continue using the existing single `miMockClie
 
 ### Infrastructure Setup
 
-The number of identities is controlled by `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` (default 20).
+The pool currently uses a mixed-management setup. `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` still controls the local helper defaults, but customer-subscription RBAC is now reconciled from `config/config-dev-ci.yaml` through the standalone `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC` rollout.
 
-Typical setup flow:
+Typical maintainer flow:
 
-```bash
-cd dev-infrastructure/
+1. From `dev-infrastructure/`, run `make create-msi-mock-pool`.
+2. If any pooled principal object IDs changed, update `config/config-dev-ci.yaml` under `devCi.e2eSubscriptionRbac.msiMockPool.principals`.
+3. From the repository root, run `make dev-ci-e2e-subscription-rbac-local-run`.
+4. From `dev-infrastructure/`, run `make populate-msi-mock-pool`.
+5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and lease wiring as well.
 
-# Create certificates in Key Vault, app registrations and role assignments
-make create-msi-mock-pool
+In the current model:
 
-# Grant the pool SPs access to the E2E test subscription
-make grant-msi-mock-pool-e2e-access
+- `make create-msi-mock-pool` is itself hybrid:
+  - `dev-infrastructure/templates/mock-identity-pool.bicep` ensures the Key Vault certificate set.
+  - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and the surrounding `dev-infrastructure/Makefile` loop still create or update the `aro-dev-msi-mock-pool-<i>` Entra app and service principal objects and apply the home-subscription grants.
+- `make dev-ci-e2e-subscription-rbac-local-run` reconciles pooled-principal access on the DEV E2E customer subscriptions from the principal IDs recorded in `config/config-dev-ci.yaml`.
+- `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` still preserves legacy assignment IDs for the first DEV E2E subscription so the rollout can adopt existing grants without recreating them.
+- `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
 
-# Populate the pool manifest with the real IDs
-make populate-msi-mock-pool
-```
+### Naming Bridge
 
-This populates `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` with the live client IDs and principal IDs.
+The Azure objects and the Boskos leases intentionally use different names:
+
+- Azure app and service principal display name: `aro-dev-msi-mock-pool-<i>`
+- Boskos resource key and static catalog key: `aro-hcp-msi-mock-cs-sp-dev-<i>`
+
+`dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh` bridges those two namespaces by looking up the Azure object by display name and writing the resulting client ID and principal ID under the Boskos key in `msi-mock-pool.yaml`.
 
 ### Boskos Configuration
 
@@ -254,6 +263,8 @@ To change the naming or number of MSI mock SPs, update `openshift/release: core-
 for i in range(20):
     CONFIG['aro-hcp-msi-mock-cs-sp-dev']['aro-hcp-msi-mock-cs-sp-dev-{}'.format(i)] = 1
 ```
+
+This Boskos inventory is still a consumer artifact. It is not generated automatically from `config/config-dev-ci.yaml` or from the `dev-ci` rollout today.
 
 ### Lease Configuration
 
@@ -274,22 +285,31 @@ MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" d
 MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
 ```
 
+Jobs only consume the Boskos key and the static `msi-mock-pool.yaml` catalog at runtime. They do not query Entra or the `dev-ci` rollout directly during provisioning.
+
 ## Where To Look
 
 When you need to change or debug identity leasing, start here:
 
+- `docs/ci/dev-ci-topology.md`
 - ARO HCP test framework: `test/util/framework/identities_helper.go`
 - identity-pool CLI: `test/cmd/aro-hcp-tests/identity-pool/`
 - release-side local workflow: `openshift/release: ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml`
 - release-side persistent workflow: `openshift/release: ci-operator/step-registry/aro-hcp/e2e/aro-hcp-e2e-workflow.yaml`
 - release-side provision step: `openshift/release: ci-operator/step-registry/aro-hcp/provision/environment/`
 - Boskos inventory: `openshift/release: core-services/prow/02_config/generate-boskos.py`
-- mock-SP pool setup: `dev-infrastructure/Makefile` and `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`
+- mock-SP pool setup and mixed management:
+  - `config/config-dev-ci.yaml`
+  - `dev-infrastructure/Makefile`
+  - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
+  - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam`
+  - `dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`
 
 ## See Also
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
+- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
 - [CI Quota Monitoring](quota-monitoring.md)
 - [CI Operations](operations.md)
 - [CI EV2 Integration](ev2-integration.md)

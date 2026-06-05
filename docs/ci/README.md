@@ -36,6 +36,26 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [MSI Mock Service Principal Pool](execution.md#msi-mock-service-principal-pool)
 - [EV2 Commit Pinning](execution.md#ev2-commit-pinning)
 
+### [Dev-CI Topology](dev-ci-topology.md)
+
+- [Why Dev-CI Is Separate](dev-ci-topology.md#why-dev-ci-is-separate)
+- [What The Topology Manages Today](dev-ci-topology.md#what-the-topology-manages-today)
+- [What It Does Not Manage](dev-ci-topology.md#what-it-does-not-manage)
+- [The Current Mixed-Management Boundary](dev-ci-topology.md#the-current-mixed-management-boundary)
+- [Long-Term Direction](dev-ci-topology.md#long-term-direction)
+- [Operator Entry Points](dev-ci-topology.md#operator-entry-points)
+- [Where To Look](dev-ci-topology.md#where-to-look)
+
+### [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+
+- [What This Onboarding Touches](dev-e2e-subscription-onboarding.md#what-this-onboarding-touches)
+- [Current Model](dev-e2e-subscription-onboarding.md#current-model)
+- [Existing-Assignment Caveat](dev-e2e-subscription-onboarding.md#existing-assignment-caveat)
+- [Shared Bootstrap Identities](dev-e2e-subscription-onboarding.md#shared-bootstrap-identities)
+- [Procedure](dev-e2e-subscription-onboarding.md#procedure)
+- [What Usually Does Not Change](dev-e2e-subscription-onboarding.md#what-usually-does-not-change)
+- [Where To Look](dev-e2e-subscription-onboarding.md#where-to-look)
+
 ### [CI Image Lifecycle](image-lifecycle.md)
 
 - [Lifecycle Overview](image-lifecycle.md#lifecycle-overview)
@@ -134,6 +154,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 
 - how PR validation, EV2 gating, and periodic hygiene differ
 - how E2E jobs flow through test identities, Azure subscriptions, and RP scopes
+- how the standalone `dev-ci` topology owns persistent CI-supporting infrastructure and where it hands off to runtime CI jobs and mixed operator flows
 - how CI images are built, reused inside OpenShift CI, and mirrored onward to ACRs
 - where cleanup fits into the lifecycle of a CI run
 - where the source of truth lives when you need to change CI behavior
@@ -148,6 +169,8 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 ## Read This Next
 
 - [CI Execution](execution.md) explains how CI works, what each execution mode validates, and how requests flow across tenants and subscriptions.
+- [Dev-CI Topology](dev-ci-topology.md) explains what the standalone `dev-ci` rollout owns today, how it relates to on-demand DEV CI, and where the remaining mixed-management boundary still sits.
+- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) documents the end-to-end procedure for adding another DEV customer subscription, including slot catalog, Boskos, cluster-profile inventory, and bootstrap RBAC updates.
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
 - [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current Boskos and ci-operator lease model.
 - [CI Quota Monitoring](quota-monitoring.md) explains how Azure quotas that constrain CI are monitored and where to check current usage.

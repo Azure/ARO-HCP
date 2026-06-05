@@ -1,9 +1,6 @@
 using '../templates/e2e-subscription-rbac-assignments.bicep'
 
-param customerSubscriptionIds = [
-  '{{ (index .devCi.e2eSubscriptionRbac.customerSubscriptions 0).id }}'
-  '{{ (index .devCi.e2eSubscriptionRbac.customerSubscriptions 1).id }}'
-]
+param customerSubscriptionIds = empty('{{ range $index, $subscription := .devCi.e2eSubscriptionRbac.customerSubscriptions }}{{ if $index }},{{ end }}{{ $subscription.id }}{{ end }}') ? [] : split('{{ range $index, $subscription := .devCi.e2eSubscriptionRbac.customerSubscriptions }}{{ if $index }},{{ end }}{{ $subscription.id }}{{ end }}', ',')
 
 param homeSubscriptionId = '{{ .devCi.e2eSubscriptionRbac.homeSubscription.id }}'
 
