@@ -18,6 +18,8 @@ use (
 	./test
 	./test-integration
 	./tooling/aro-hcp-exporter
+	./tooling/azutils
+	./tooling/metricscache
 	./tooling/cleanup-sweeper
 	./tooling/grafanactl
 	./tooling/hcpctl

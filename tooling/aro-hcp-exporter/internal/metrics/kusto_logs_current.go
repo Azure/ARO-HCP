@@ -23,9 +23,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/cache"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/mustgather"
+	"github.com/Azure/ARO-HCP/tooling/metricscache"
 )
 
 const (
@@ -48,7 +48,7 @@ type KustoLogsCurrentCollector struct {
 	kustoClient  *kusto.Client
 	clusterNames []string
 	kustoCluster string
-	cache        *cache.MetricsCache
+	cache        *metricscache.Cache
 	lastRun      time.Time
 	errorCounter prometheus.Counter
 }
@@ -72,7 +72,7 @@ func NewKustoLogsCurrentCollector(kustoCluster, kustoRegion string, clusterNames
 		kustoCluster: kustoCluster,
 		kustoClient:  kustoClient,
 		clusterNames: clusterNames,
-		cache:        cache.NewMetricsCache(cacheTTL),
+		cache:        metricscache.NewCache(cacheTTL),
 		errorCounter: errorCounter,
 	}, nil
 }
@@ -86,7 +86,7 @@ func (c *KustoLogsCurrentCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *KustoLogsCurrentCollector) Collect(ch chan<- prometheus.Metric) {
-	for _, metric := range c.cache.GetAllMetrics() {
+	for _, metric := range c.cache.GetAll() {
 		ch <- metric
 	}
 }
@@ -146,20 +146,15 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 
 		for logSource := range foundLogSources {
 			logger.V(1).Info("Found log source", "logSource", logSource)
-			err := c.cache.AddMetric(
-				prometheus.MustNewConstMetric(
-					KustoLogsAgeInSecondsDesc,
-					prometheus.GaugeValue,
-					float64(time.Since(foundLogSources[logSource]).Seconds()),
-					c.kustoCluster,
-					clusterName,
-					logSource,
-				))
-			if err != nil {
-				c.errorCounter.Inc()
-				logger.Error(err, "Failed to add metric", "cluster", clusterName, "logSource", logSource)
-				continue
-			}
+			key := fmt.Sprintf("%s/%s/%s", c.kustoCluster, clusterName, logSource)
+			c.cache.Set(key, prometheus.MustNewConstMetric(
+				KustoLogsAgeInSecondsDesc,
+				prometheus.GaugeValue,
+				float64(time.Since(foundLogSources[logSource]).Seconds()),
+				c.kustoCluster,
+				clusterName,
+				logSource,
+			))
 		}
 	}
 	c.lastRun = time.Now()

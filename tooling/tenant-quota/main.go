@@ -31,6 +31,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/Azure/ARO-HCP/internal/version"
+	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/subscriptionquota"
@@ -74,7 +75,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	if cfg.HasSubscriptions() {
-		if err := subscriptionquota.ResolveSubscriptionIDs(ctx, cfg, credProvider, logger); err != nil {
+		if err := resolveSubscriptionIDs(ctx, cfg, credProvider, logger); err != nil {
 			return fmt.Errorf("subscription ID resolution failed: %w", err)
 		}
 	}
@@ -145,6 +146,42 @@ func versionHandler(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"commitSHA": version.CommitSHA,
 	})
+}
+
+func resolveSubscriptionIDs(ctx context.Context, cfg *config.Config,
+	credProvider *credentials.Provider, logger *slog.Logger) error {
+
+	for i := range cfg.Tenants {
+		tenant := &cfg.Tenants[i]
+		if len(tenant.Subscriptions) == 0 {
+			continue
+		}
+
+		cred, err := credProvider.GetCredential(*tenant)
+		if err != nil {
+			return fmt.Errorf("tenant %s: get credential: %w", tenant.GetDisplayName(), err)
+		}
+
+		names := make([]string, len(tenant.Subscriptions))
+		for j, sub := range tenant.Subscriptions {
+			names[j] = sub.Name
+		}
+
+		nameToID, err := subscriptions.ResolveByName(ctx, cred, names)
+		if err != nil {
+			return fmt.Errorf("tenant %s: %w", tenant.GetDisplayName(), err)
+		}
+
+		for j := range tenant.Subscriptions {
+			sub := &tenant.Subscriptions[j]
+			sub.SubscriptionID = nameToID[sub.Name]
+			logger.Info("Resolved subscription ID",
+				"tenant", tenant.GetDisplayName(),
+				"subscription", sub.Name,
+				"subscriptionId", sub.SubscriptionID)
+		}
+	}
+	return nil
 }
 
 func envOrDefault(key, defaultValue string) string {

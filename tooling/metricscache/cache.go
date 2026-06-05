@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package subscriptionquota
+package metricscache
 
 import (
 	"sync"
@@ -26,59 +26,47 @@ type cacheEntry struct {
 	created time.Time
 }
 
-// MetricsCache is a thread-safe cache for Prometheus metrics with TTL-based
-// expiry. It is designed for auto-discovered quota metrics where the set of
-// active label combinations changes over time (e.g. VM families that appear
-// and disappear depending on which CI tests are running).
-type MetricsCache struct {
-	mu      sync.RWMutex
+// Cache is a thread-safe cache for Prometheus metrics with TTL-based
+// expiry. It decouples background metric collection from the Prometheus
+// scrape path: collectors write metrics into the cache on their own schedule,
+// and Prometheus reads from the cache without triggering API calls.
+//
+// Expired entries are automatically pruned during GetAll, so callers do not
+// need to manage cleanup.
+type Cache struct {
+	mu      sync.Mutex
 	entries map[string]cacheEntry
 	ttl     time.Duration
 }
 
-func NewMetricsCache(ttl time.Duration) *MetricsCache {
-	return &MetricsCache{
+// NewCache creates a Cache with the given TTL. Metrics older than the TTL
+// are pruned on the next call to GetAll.
+func NewCache(ttl time.Duration) *Cache {
+	return &Cache{
 		entries: make(map[string]cacheEntry),
 		ttl:     ttl,
 	}
 }
 
 // Set adds or updates a metric in the cache, resetting its TTL.
-func (c *MetricsCache) Set(key string, metric prometheus.Metric) {
+func (c *Cache) Set(key string, metric prometheus.Metric) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries[key] = cacheEntry{metric: metric, created: time.Now()}
 }
 
-// GetAll returns all non-expired metrics from the cache.
-func (c *MetricsCache) GetAll() []prometheus.Metric {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+// GetAll returns all non-expired metrics and prunes expired entries.
+func (c *Cache) GetAll() []prometheus.Metric {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	now := time.Now()
 	result := make([]prometheus.Metric, 0, len(c.entries))
-	for _, e := range c.entries {
-		if now.Sub(e.created) < c.ttl {
+	for k, e := range c.entries {
+		if now.Sub(e.created) >= c.ttl {
+			delete(c.entries, k)
+		} else {
 			result = append(result, e.metric)
 		}
 	}
 	return result
-}
-
-// Prune removes all expired entries from the cache.
-func (c *MetricsCache) Prune() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	now := time.Now()
-	for k, e := range c.entries {
-		if now.Sub(e.created) >= c.ttl {
-			delete(c.entries, k)
-		}
-	}
-}
-
-// Len returns the number of entries currently in the cache (including expired).
-func (c *MetricsCache) Len() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return len(c.entries)
 }
