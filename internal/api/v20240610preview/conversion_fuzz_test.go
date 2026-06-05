@@ -54,6 +54,18 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// Cross-version preservation is handled by preserveUnknownClusterFields.
 			j.ImageDigestMirrors = nil
 		},
+		func(j *api.HCPOpenShiftClusterStatus, c randfill.Continue) {
+			// Status does not roundtrip through the external type because it is purely an internal detail
+			*j = api.HCPOpenShiftClusterStatus{}
+		},
+		func(j *api.HCPOpenShiftClusterNodePoolStatus, c randfill.Continue) {
+			// Status does not roundtrip through the external type because it is purely an internal detail
+			*j = api.HCPOpenShiftClusterNodePoolStatus{}
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuthStatus, c randfill.Continue) {
+			// Status does not roundtrip through the external type because it is purely an internal detail
+			*j = api.HCPOpenShiftClusterExternalAuthStatus{}
+		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail

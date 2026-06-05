@@ -39,6 +39,7 @@
 					"provisioningState": "Provisioning",
 					"usesNewClusterDeletionApproach": false
 				},
+				"status": {},
 				"systemData": {
 					"createdBy": "Unknown-ARO-HCP-frontend",
 					"createdByType": "Application",
@@ -58,6 +59,7 @@
 			"provisioningState": "Provisioning",
 			"usesNewClusterDeletionApproach": false
 		},
+		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",

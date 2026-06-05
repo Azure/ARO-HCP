@@ -15,7 +15,8 @@
 			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/fixed-value",
 			"provisioningState": "Succeeded",
 			"usesNewClusterDeletionApproach": false
-		}
+		},
+		"status": {}
 	},
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

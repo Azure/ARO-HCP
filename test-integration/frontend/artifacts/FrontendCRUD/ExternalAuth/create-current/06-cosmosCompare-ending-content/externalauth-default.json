@@ -76,6 +76,7 @@
 					"clusterServiceID": "",
 					"usesNewExternalAuthDeletionApproach": false
 				},
+				"status": {},
 				"systemData": {
 					"createdBy": "Unknown-ARO-HCP-frontend",
 					"createdByType": "Application",
@@ -135,6 +136,7 @@
 			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/tqqtpctbpj/external_auth_config/external_auths/88m6lb2bbv",
 			"usesNewExternalAuthDeletionApproach": false
 		},
+		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",

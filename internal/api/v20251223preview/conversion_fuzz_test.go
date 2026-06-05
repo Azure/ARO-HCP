@@ -52,6 +52,18 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// MirrorSourcePolicy does not roundtrip through the external type because it is purely an internal detail
 			j.MirrorSourcePolicy = api.MirrorSourcePolicyAllowContactingSource
 		},
+		func(j *api.HCPOpenShiftClusterStatus, c randfill.Continue) {
+			// Status does not roundtrip through the external type because it is purely an internal detail
+			*j = api.HCPOpenShiftClusterStatus{}
+		},
+		func(j *api.HCPOpenShiftClusterNodePoolStatus, c randfill.Continue) {
+			// Status does not roundtrip through the external type because it is purely an internal detail
+			*j = api.HCPOpenShiftClusterNodePoolStatus{}
+		},
+		func(j *api.HCPOpenShiftClusterExternalAuthStatus, c randfill.Continue) {
+			// Status does not roundtrip through the external type because it is purely an internal detail
+			*j = api.HCPOpenShiftClusterExternalAuthStatus{}
+		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail

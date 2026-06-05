@@ -60,6 +60,7 @@
 					"clusterServiceID": "",
 					"usesNewNodePoolDeletionApproach": false
 				},
+				"status": {},
 				"systemData": {
 					"createdBy": "Unknown-ARO-HCP-frontend",
 					"createdByType": "Application",
@@ -106,6 +107,7 @@
 			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/59mkgdzg9s",
 			"usesNewNodePoolDeletionApproach": false
 		},
+		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",
