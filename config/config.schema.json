@@ -1611,6 +1611,9 @@
           "properties": {
             "cloudName": {
               "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
             }
           },
           "required": [
