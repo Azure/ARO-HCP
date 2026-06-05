@@ -23,14 +23,14 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolErrors5m1h'
+        alert: 'UJNodePoolErrors1h5m'
         enabled: true
         labels: {
           severity: 'critical'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors5m1h/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           info: 'More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html'
@@ -51,14 +51,14 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolErrors30m6h'
+        alert: 'UJNodePoolErrors6h30m'
         enabled: true
         labels: {
           severity: 'critical'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors30m6h/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           info: 'More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html'
@@ -79,14 +79,14 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             }
           }
         ]
-        alert: 'UJNodePoolErrors6h3d'
+        alert: 'UJNodePoolErrors3d'
         enabled: true
         labels: {
           severity: 'warning'
           slo: 'nodepool-errors'
         }
         annotations: {
-          correlationId: 'UJNodePoolErrors6h3d/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           info: 'More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html'

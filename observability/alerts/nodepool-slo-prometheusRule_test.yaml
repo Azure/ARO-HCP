@@ -48,19 +48,19 @@ tests:
       value: 0
   alert_rule_test:
   - eval_time: 10m
-    alertname: UJNodePoolErrors5m1h
+    alertname: UJNodePoolErrors1h5m
   - eval_time: 10m
-    alertname: UJNodePoolErrors30m6h
+    alertname: UJNodePoolErrors6h30m
   - eval_time: 10m
-    alertname: UJNodePoolErrors6h3d
+    alertname: UJNodePoolErrors3d
   - eval_time: 10m
     alertname: UJNodePoolErrorsDegradation
 
 # ========================================
-# Test 2: Fast burn — 80% failure rate, UJNodePoolErrors5m1h fires
+# Test 2: Fast burn — 80% failure rate, UJNodePoolErrors1h5m fires
 # ========================================
 # 2 succeeded, 8 failed → error rate = 80% > 72% threshold (14.4x burn)
-# Both UJNodePoolErrors5m1h and UJNodePoolErrorsDegradation should fire.
+# Both UJNodePoolErrors1h5m and UJNodePoolErrorsDegradation should fire.
 - interval: 1m
   input_series:
   # 2 succeeded
@@ -94,7 +94,7 @@ tests:
   alert_rule_test:
   # Fast burn fires after 5m 'for' duration
   - eval_time: 7m
-    alertname: UJNodePoolErrors5m1h
+    alertname: UJNodePoolErrors1h5m
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -153,7 +153,7 @@ tests:
   alert_rule_test:
   # Fast burn should NOT fire (20% < 72%)
   - eval_time: 10m
-    alertname: UJNodePoolErrors5m1h
+    alertname: UJNodePoolErrors1h5m
   # Degradation fires after 30m (20% > 15%)
   - eval_time: 35m
     alertname: UJNodePoolErrorsDegradation
@@ -227,9 +227,9 @@ tests:
     values: "1+0x15"
   alert_rule_test:
   - eval_time: 10m
-    alertname: UJNodePoolErrors5m1h
+    alertname: UJNodePoolErrors1h5m
   - eval_time: 10m
-    alertname: UJNodePoolErrors30m6h
+    alertname: UJNodePoolErrors6h30m
   - eval_time: 10m
     alertname: UJNodePoolErrorsDegradation
 
@@ -350,7 +350,7 @@ tests:
   alert_rule_test:
   # 50% > 30% → medium burn fires after 30m
   - eval_time: 35m
-    alertname: UJNodePoolErrors30m6h
+    alertname: UJNodePoolErrors6h30m
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -361,7 +361,7 @@ tests:
         runbook_url: "https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/node-pool-management-tsg.html"
   # 50% < 72% → fast burn should NOT fire
   - eval_time: 35m
-    alertname: UJNodePoolErrors5m1h
+    alertname: UJNodePoolErrors1h5m
 
 # ========================================
 # Test 12: Stuck delete operation
