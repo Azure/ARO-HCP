@@ -54,7 +54,6 @@ type GroupAlerts struct {
 }
 
 type Options struct {
-	forceInfoSeverity       bool
 	promtoolPath            string
 	outputBicep             string
 	includedAlerts          map[string][]string
@@ -101,9 +100,7 @@ func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
 	return &rules, nil
 }
 
-func (o *Options) Complete(configFilePath string, forceInfoSeverity bool, promtoolPath string) error {
-
-	o.forceInfoSeverity = forceInfoSeverity
+func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 	if promtoolPath == "" {
 		return fmt.Errorf("promtoolPath cannot be an empty string")
 	}
@@ -412,7 +409,7 @@ param location string = resourceGroup().location
 								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
 							),
 						),
-						Severity: severityFor(labels, o.forceInfoSeverity),
+						Severity: severityFor(labels),
 					})
 				} else if rule.Record != "" && isRecordingRulesFile {
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
@@ -605,12 +602,7 @@ func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 	return ptr.To("PT" + strings.ToUpper(parsedDuration.String()))
 }
 
-func severityFor(labels map[string]*string, forceInfoSeverity bool) *int32 {
-	if forceInfoSeverity {
-		logrus.Warnf("Ignoring severity label due to --force-info-severity flag; severity set to 'info'")
-		return ptr.To(int32(3))
-	}
-
+func severityFor(labels map[string]*string) *int32 {
 	severity, ok := labels["severity"]
 	if !ok || severity == nil {
 		return nil
@@ -621,11 +613,7 @@ func severityFor(labels map[string]*string, forceInfoSeverity bool) *int32 {
 
 	switch *severity {
 	case "critical":
-		// return ptr.To(int32(2)) // SEV 2: Single service SLA impact.
-		// @jboll
-		// Does it really make sense to have generated SEV2 Alerts?
-		// Consider adding such an alert manually, ensuring it has right quality.
-		return ptr.To(int32(3))
+		return ptr.To(int32(2)) // SEV 2: Single service SLA impact.
 	case "warning":
 		return ptr.To(int32(3)) // SEV 3: Urgent/high business impact, no SLA impact.
 	case "info":
