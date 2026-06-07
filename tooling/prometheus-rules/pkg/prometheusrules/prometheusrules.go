@@ -36,7 +36,8 @@ func Validate(args []string, configFilePath, promtoolPath string) error {
 }
 
 // GenerateFromConfig validates and renders rule files into Bicep output.
-func GenerateFromConfig(configFilePath string, promtoolPath string) error {
+// forceInfoSeverity is kept for compatibility with external callers and is ignored.
+func GenerateFromConfig(configFilePath string, _ bool, promtoolPath string) error {
 	o := internal.NewOptions()
 
 	if err := o.Complete(configFilePath, promtoolPath); err != nil {

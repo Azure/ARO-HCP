@@ -38,7 +38,7 @@ func main() {
 		logrus.WithError(err).Fatal("invalid options")
 	}
 
-	if err := prometheusrules.GenerateFromConfig(configFilePath, promtoolPath); err != nil {
+	if err := prometheusrules.GenerateFromConfig(configFilePath, false, promtoolPath); err != nil {
 		logrus.WithError(err).Fatal("error running generator")
 	}
 
