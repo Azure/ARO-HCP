@@ -54,7 +54,7 @@ const (
 func ClusterCreateStaggerInterval() time.Duration {
 	s := os.Getenv("E2E_CLUSTER_CREATE_STAGGER_SECONDS")
 	if s == "" {
-		return 0
+		return 15 * time.Second
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil || n <= 0 {
