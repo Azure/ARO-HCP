@@ -14,7 +14,11 @@
 
 package framework
 
-import "time"
+import (
+	"os"
+	"strconv"
+	"time"
+)
 
 // When updating timeouts, see test/e2e/README.md#updating-e2e-timeouts.
 
@@ -43,3 +47,18 @@ const (
 const (
 	IdentityContainerAssignmentRetryInterval = 60 * time.Second
 )
+
+// ClusterCreateStaggerInterval returns the stagger delay between successive
+// cluster creation starts, read from E2E_CLUSTER_CREATE_STAGGER_SECONDS.
+// Returns 0 (disabled) when the env var is unset or empty.
+func ClusterCreateStaggerInterval() time.Duration {
+	s := os.Getenv("E2E_CLUSTER_CREATE_STAGGER_SECONDS")
+	if s == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return time.Duration(n) * time.Second
+}

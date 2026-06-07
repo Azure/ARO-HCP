@@ -273,10 +273,24 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 	attempt := 0
 	for {
 		attempt++
-		err := state.assignNTo(specID(), count)
+		ordinal, err := state.assignNTo(specID(), count)
 		if err == nil {
 			ginkgo.GinkgoLogr.Info("Successfully assigned identity containers",
 				"count", count, "attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
+
+			if stagger := ClusterCreateStaggerInterval(); stagger > 0 {
+				delay := time.Duration(ordinal) * stagger
+				if delay > 0 {
+					ginkgo.GinkgoLogr.Info("Staggering cluster creation start",
+						"ordinal", ordinal, "staggerInterval", stagger, "delay", delay)
+					select {
+					case <-ctx.Done():
+						return fmt.Errorf("context cancelled during stagger delay: %w", ctx.Err())
+					case <-time.After(delay):
+					}
+				}
+			}
+
 			return nil
 		}
 		if !errors.Is(err, ErrNotEnoughFreeIdentityContainers) {
@@ -909,10 +923,11 @@ func (state *leasedIdentityPoolState) useNextAssigned(me string) (string, error)
 // assignNTo attempts to assign n free identity containers to the caller by marking
 // them as "assigned". It does not perform any waiting or retries: if there are
 // fewer than n free entries, it returns an error and leaves the state
-// unchanged.
-func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
+// unchanged. On success it returns the number of non-free entries that existed
+// before this assignment (i.e. the caller's ordinal position in the pool).
+func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) (int, error) {
 	if err := state.lock(); err != nil {
-		return fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
+		return 0, fmt.Errorf("failed to acquire managed identities pool state file lock: %w", err)
 	}
 	defer func() {
 		if err := state.unlock(); err != nil {
@@ -921,7 +936,14 @@ func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
 	}()
 
 	if err := state.readUnlocked(); err != nil {
-		return fmt.Errorf("failed to read managed identities pool state file: %w", err)
+		return 0, fmt.Errorf("failed to read managed identities pool state file: %w", err)
+	}
+
+	alreadyAssigned := 0
+	for i := range state.entries {
+		if !state.entries[i].isFree() {
+			alreadyAssigned++
+		}
 	}
 
 	count := 0
@@ -937,14 +959,14 @@ func (state *leasedIdentityPoolState) assignNTo(me string, n uint8) error {
 
 	if count < int(n) {
 		// return and don't persist the partial in-memory state to file
-		return fmt.Errorf("%w: requested %d identity containers but only %d are assigned", ErrNotEnoughFreeIdentityContainers, n, count)
+		return 0, fmt.Errorf("%w: requested %d identity containers but only %d are assigned", ErrNotEnoughFreeIdentityContainers, n, count)
 	}
 
 	if err := state.writeUnlocked(); err != nil {
-		return fmt.Errorf("failed to write managed identities pool state file: %w", err)
+		return 0, fmt.Errorf("failed to write managed identities pool state file: %w", err)
 	}
 
-	return nil
+	return alreadyAssigned, nil
 }
 
 // releaseByContainerName releases the identity container by the given name.
