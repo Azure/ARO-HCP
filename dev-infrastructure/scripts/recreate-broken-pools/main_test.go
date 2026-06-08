@@ -2019,17 +2019,14 @@ func TestRunWith(t *testing.T) {
 			},
 		},
 		{
-			name: "guard1_fail_forced_evidence_confirms_nrp",
+			name: "guard1_fail_forced_evidence_inconclusive_restore_failure_fails_closed",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
-					if n == 1 {
-						return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-					}
-					return true, "", nil
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
 				}
 				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
-					return 12, nil
+					return 2, nil
 				}
 				m.restorePoolSpecFn = func(ctx context.Context, _ nodePoolTarget, _ *armcs.AgentPool) error {
 					deadline, ok := ctx.Deadline()
@@ -2043,12 +2040,32 @@ func TestRunWith(t *testing.T) {
 					if remaining < (forcedEvidenceRestoreTimeoutMin*time.Minute)-10*time.Second {
 						t.Fatalf("restorePoolSpec deadline remaining=%s, want near %dm", remaining, forcedEvidenceRestoreTimeoutMin)
 					}
-					return nil
+					return dummyErr
+				}
+			},
+			wantErr: "restore forced-evidence pool spec for system:",
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
+			},
+		},
+		{
+			name: "guard1_fail_forced_evidence_confirms_nrp",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
+					if n == 1 {
+						return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+					}
+					return false, "NRP-KVS storm FAIL: only 5 NRP failures < 10", nil
+				}
+				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
+					return 12, nil
 				}
 			},
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
+				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile",
 				"bootstrapKube", "dumpPreflight",
 				"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
 				"addTempPool:system",
