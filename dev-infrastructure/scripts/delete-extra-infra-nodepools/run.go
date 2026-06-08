@@ -94,6 +94,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("get cluster: %w", err)
 	}
+	if mc.Properties == nil {
+		return fmt.Errorf("cluster %s has nil Properties — aborting to avoid unsafe pool deletion", cfg.clusterName)
+	}
 	clusterState := akslog.Deref(mc.Properties.ProvisioningState)
 	akslog.Logf("cluster %s: provisioningState=%s", cfg.clusterName, clusterState)
 	if clusterState != "Succeeded" {
