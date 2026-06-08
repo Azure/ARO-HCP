@@ -697,14 +697,13 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: install-hypershift
+  name: install-hypershift-crds
   namespace: 'hypershift'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
-  # set deadline to 30min
   activeDeadlineSeconds: 1800
   backoffLimit: 1
   template:
@@ -717,6 +716,45 @@ spec:
         - -c
         - |
           hypershift install \
+            --outputs=crds \
+            --enable-conversion-webhook=false \
+            --managed-service ARO-HCP \
+            --aro-hcp-key-vault-users-client-id __csiSecretStoreClientId__ \
+            --registry-overrides "quay.io/openshift-release-dev/ocp-v4.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev,quay.io/openshift-release-dev/ocp-v5.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v5.0-art-dev,quay.io/openshift-release-dev/ocp-release=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release,quay.io/openshift-release-dev/ocp-release-nightly=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release-nightly,registry.redhat.io/redhat=arohcpocpdev.azurecr.io/redhat" \
+            --hypershift-image arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890 \
+            --platform-monitoring=None \
+            --metrics-set=SRE \
+            --enable-size-tagging=true \
+            --limit-crd-install=Azure \
+            --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY=arohcpocpdev.azurecr.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main@sha256:1234567890 \
+            --enable-cpo-overrides
+      restartPolicy: Never
+      serviceAccountName: hypershift-installer
+---
+# Source: aro-hcp-hypershift-operator/templates/installer.job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: install-hypershift-resources
+  namespace: 'hypershift'
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 1800
+  backoffLimit: 1
+  template:
+    spec:
+      containers:
+      - name: install
+        image: "arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          hypershift install \
+            --outputs=resources \
             --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id __csiSecretStoreClientId__ \

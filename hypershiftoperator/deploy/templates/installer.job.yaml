@@ -1,14 +1,13 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: install-hypershift
+  name: install-hypershift-crds
   namespace: '{{ .Release.Namespace }}'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
-  # set deadline to 30min
   activeDeadlineSeconds: 1800
   backoffLimit: 1
   template:
@@ -21,6 +20,49 @@ spec:
         - -c
         - |
           hypershift install \
+            --outputs=crds \
+            --enable-conversion-webhook=false \
+            --managed-service ARO-HCP \
+            --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
+            --registry-overrides "{{ .Values.registryOverrides }}" \
+            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} \
+            --platform-monitoring=None \
+            --metrics-set=SRE \
+            --enable-size-tagging=true \
+            --limit-crd-install=Azure \
+            {{- if .Values.operatorEnvVars.sharedIngressIPTag }}
+            --additional-operator-env-vars SHARED_INGRESS_AZURE_PIP_IP_TAGS={{ .Values.operatorEnvVars.sharedIngressIPTag }} \
+            {{- end }}
+            {{- if .Values.operatorEnvVars.sharedIngressImage }}
+            --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY={{ .Values.operatorEnvVars.sharedIngressImage }} \
+            {{- end }}
+            {{ .Values.additionalArgs }}
+      restartPolicy: Never
+      serviceAccountName: hypershift-installer
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: install-hypershift-resources
+  namespace: '{{ .Release.Namespace }}'
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 1800
+  backoffLimit: 1
+  template:
+    spec:
+      containers:
+      - name: install
+        image: "{{ .Values.image }}@{{ .Values.imageDigest }}"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          hypershift install \
+            --outputs=resources \
             --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
