@@ -182,6 +182,7 @@ func newPlatformProfile(from *api.CustomerPlatformProfile, from2 *api.ServicePro
 		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  api.ResourceIDToStringPtr(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
+		ContainerRegistry:       newContainerRegistryProfile(from.ContainerRegistry),
 		IssuerURL:               api.PtrOrNil(from2.IssuerURL),
 	}
 }
@@ -287,6 +288,23 @@ func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) g
 		DataPlaneOperators:     api.ResourceIDMapToStringPtrMap(from.DataPlaneOperators),
 		ServiceManagedIdentity: api.ResourceIDToStringPtr(from.ServiceManagedIdentity),
 	}
+}
+
+func newContainerRegistryProfile(from *api.ContainerRegistryProfile) *generated.ContainerRegistryProfile {
+	if from == nil {
+		return nil
+	}
+	result := &generated.ContainerRegistryProfile{
+		Credentials: &generated.ContainerRegistryCredentialProfile{
+			Type: api.PtrOrNil(generated.ContainerRegistryCredentialType(from.Credentials.Type)),
+		},
+	}
+	if from.Credentials.ManagedIdentity != nil {
+		result.Credentials.ManagedIdentity = &generated.UserAssignedManagedIdentity{
+			ResourceID: api.ResourceIDToStringPtr(from.Credentials.ManagedIdentity.ResourceID),
+		}
+	}
+	return result
 }
 
 func newSystemData(from *arm.SystemData) generated.SystemData {
@@ -578,6 +596,7 @@ func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *a
 	} else {
 		out.OperatorsAuthentication = api.OperatorsAuthenticationProfile{}
 	}
+	errs = append(errs, normalizeContainerRegistry(fldPath.Child("containerRegistry"), p.ContainerRegistry, &out.ContainerRegistry)...)
 	out2.IssuerURL = api.Deref(p.IssuerURL)
 
 	return errs
@@ -689,6 +708,39 @@ func normalizeUserAssignedIdentities(fldPath *field.Path, p *generated.UserAssig
 			out.ServiceManagedIdentity = resourceID
 		}
 	}
+	return errs
+}
+
+func normalizeContainerRegistry(fldPath *field.Path, p *generated.ContainerRegistryProfile, out **api.ContainerRegistryProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	if p == nil {
+		*out = nil
+		return errs
+	}
+	if *out == nil {
+		*out = &api.ContainerRegistryProfile{}
+	}
+
+	if p.Credentials != nil {
+		if p.Credentials.Type == nil {
+			errs = append(errs, field.Required(fldPath.Child("credentials", "type"), ""))
+		}
+		(*out).Credentials.Type = api.ContainerRegistryCredentialType(api.Deref(p.Credentials.Type))
+		if p.Credentials.ManagedIdentity != nil && p.Credentials.ManagedIdentity.ResourceID != nil && len(*p.Credentials.ManagedIdentity.ResourceID) > 0 {
+			if resourceID, err := azcorearm.ParseResourceID(*p.Credentials.ManagedIdentity.ResourceID); err != nil {
+				errs = append(errs, field.Invalid(fldPath.Child("credentials", "managedIdentity", "resourceId"), *p.Credentials.ManagedIdentity.ResourceID, err.Error()))
+			} else {
+				if (*out).Credentials.ManagedIdentity == nil {
+					(*out).Credentials.ManagedIdentity = &api.UserAssignedManagedIdentity{}
+				}
+				(*out).Credentials.ManagedIdentity.ResourceID = resourceID
+			}
+		} else {
+			(*out).Credentials.ManagedIdentity = nil
+		}
+	}
+
 	return errs
 }
 

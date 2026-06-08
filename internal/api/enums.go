@@ -127,6 +127,18 @@ var (
 	)
 )
 
+type ContainerRegistryCredentialType string
+
+const (
+	ContainerRegistryCredentialTypeManagedIdentity ContainerRegistryCredentialType = "ManagedIdentity"
+)
+
+var (
+	ValidContainerRegistryCredentialType = sets.New[ContainerRegistryCredentialType](
+		ContainerRegistryCredentialTypeManagedIdentity,
+	)
+)
+
 type CustomerManagedEncryptionType string
 
 const (
