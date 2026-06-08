@@ -1611,17 +1611,17 @@ resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
         }
         annotations: {
           correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}'
-          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+          description: '''Cluster {{ $labels.cluster_external_id }} has been in a deleting state for more than 2 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
-          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+          info: '''Cluster {{ $labels.cluster_external_id }} has been in a deleting state for more than 2 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
           runbook_url: 'TBD'
           summary: 'Cluster stuck deleting'
           title: 'Cluster stuck deleting'
         }
-        expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
+        expression: 'max by (cluster_id, cluster_external_id, region, management_cluster) (cluster_deprovision_duration_seconds) > 7200'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
