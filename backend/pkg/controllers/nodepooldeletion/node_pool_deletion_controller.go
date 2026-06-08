@@ -31,19 +31,24 @@ import (
 
 // nodePoolDeletionController issues a Cosmos nodepool delete
 // for the Node Pools that have their DeletionTimestamp and ClusterServiceDeletionTimestamp set,
-// their ClusterServiceID has been cleared, and all nodepool-scoped Maestro readonly bundles
-// have been deleted from the ServiceProviderNodePool.
+// their ClusterServiceID has been cleared, all nodepool-scoped Maestro readonly bundles
+// have been deleted from the ServiceProviderNodePool, and all nodepool-scoped kube-applier
+// *Desire documents have been deleted.
 type nodePoolDeletionController struct {
 	cooldownChecker               controllerutil.CooldownChecker
 	nodePoolLister                listers.NodePoolLister
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
+	kubeApplierDBClients          database.KubeApplierDBClients
+	fleetDBClient                 database.FleetDBClient
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
 
 func NewNodePoolDeletionController(
 	resourcesDBClient database.ResourcesDBClient,
+	kubeApplierDBClients database.KubeApplierDBClients,
+	fleetDBClient database.FleetDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
@@ -54,6 +59,8 @@ func NewNodePoolDeletionController(
 		nodePoolLister:                nodePoolLister,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		resourcesDBClient:             resourcesDBClient,
+		kubeApplierDBClients:          kubeApplierDBClients,
+		fleetDBClient:                 fleetDBClient,
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
@@ -88,7 +95,10 @@ func (c *nodePoolDeletionController) NeedsWork(nodePool *api.HCPOpenShiftCluster
 }
 
 // SyncOnce calls Cosmos to delete the NodePool when the NeedsWork condition is met and
-// all the delete preconditions are met.
+// all the delete preconditions are met:
+//  1. All nodepool-scoped Maestro readonly bundles are cleared.
+//  2. All other Cosmos child resources are deleted.
+//  3. All nodepool-scoped kube-applier *Desire documents are deleted.
 func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -142,6 +152,15 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
+	// Precondition: all nodepool-scoped kube-applier *Desire documents must be deleted
+	preconditionMet, err = c.deletePreconditionNodePoolScopedKubeApplierResourcesDeleted(ctx, key)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+	}
+	if !preconditionMet {
+		return nil
+	}
+
 	logger.Info("deleting node pool from Cosmos")
 	err = nodePoolCRUD.Delete(ctx, key.HCPNodePoolName)
 	if err != nil {
@@ -167,6 +186,58 @@ func (c *nodePoolDeletionController) deletePreconditionAllMaestroNodePoolScopedR
 			"remainingBundles", len(spnp.Status.MaestroReadonlyBundles))
 		return false, nil
 	}
+	return true, nil
+}
+
+// deletePreconditionNodePoolScopedKubeApplierResourcesDeleted checks whether any
+// nodepool-scoped kube-applier *Desire documents remain. ServiceProviderNodePool may
+// already be gone, so placement is resolved by searching all management clusters.
+func (c *nodePoolDeletionController) deletePreconditionNodePoolScopedKubeApplierResourcesDeleted(
+	ctx context.Context,
+	key controllerutils.HCPNodePoolKey,
+) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	nodePoolResourceID := key.GetResourceID()
+	managementClusters, err := database.NewDBBackedManagementClusterLister(c.fleetDBClient).List(ctx)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("listing management clusters for kube-applier check: %w", err))
+	}
+
+	for _, mc := range managementClusters {
+		mcResourceID := mc.ResourceID
+		if mcResourceID == nil {
+			mcResourceID = mc.CosmosMetadata.ResourceID
+		}
+		if mcResourceID == nil {
+			continue
+		}
+
+		// If no management cluster matches we cannot determine it so we consider the precondition met.
+		kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+		if kaClient == nil {
+			continue
+		}
+
+		desireCRUD, err := kaClient.UntypedCRUD(*nodePoolResourceID)
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to create kube-applier untyped CRUD: %w", err))
+		}
+
+		// If the management cluster doesn't have the cluster resource id this list will be empty too.
+		desireIterator, err := desireCRUD.List(ctx, nil)
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to list nodepool-scoped kube-applier resources: %w", err))
+		}
+		for range desireIterator.Items(ctx) {
+			logger.Info("waiting for nodepool-scoped kube-applier content to be deleted before removing node pool")
+			return false, nil
+		}
+		if err := desireIterator.GetError(); err != nil {
+			return false, utils.TrackError(fmt.Errorf("error iterating nodepool-scoped kube-applier resources: %w", err))
+		}
+	}
+
 	return true, nil
 }
 

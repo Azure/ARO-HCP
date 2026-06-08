@@ -328,6 +328,37 @@ func newTestSPC(t *testing.T, bundles api.MaestroBundleReferenceList) *api.Servi
 	}
 }
 
+func newTestClusterScopedManagementClusterContent(t *testing.T, name string) *api.ManagementClusterContent {
+	t.Helper()
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/managementClusterContents/" + name))
+	return &api.ManagementClusterContent{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+	}
+}
+
+func newTestClusterController(t *testing.T, name string) *api.Controller {
+	t.Helper()
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/hcpOpenShiftControllers/" + name))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		ExternalID: api.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + testSubscriptionID +
+				"/resourceGroups/" + testResourceGroupName +
+				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName)),
+		Status: api.ControllerStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+}
+
 func newTestNodePoolController(t *testing.T, name string) *api.Controller {
 	t.Helper()
 	resourceID := api.Must(azcorearm.ParseResourceID(

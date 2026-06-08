@@ -39,23 +39,26 @@ import (
 // deletion pipelines. The orphan scraper handles controller status after the
 // Cluster document itself is removed.
 type clusterChildResourcesCleanupController struct {
-	cooldownChecker   controllerutil.CooldownChecker
-	clusterLister     listers.ClusterLister
-	resourcesDBClient database.ResourcesDBClient
+	cooldownChecker      controllerutil.CooldownChecker
+	clusterLister        listers.ClusterLister
+	resourcesDBClient    database.ResourcesDBClient
+	kubeApplierDBClients database.KubeApplierDBClients
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterChildResourcesCleanupController)(nil)
 
 func NewClusterChildResourcesCleanupController(
 	resourcesDBClient database.ResourcesDBClient,
+	kubeApplierDBClients database.KubeApplierDBClients,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		clusterLister:     clusterLister,
-		resourcesDBClient: resourcesDBClient,
+		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		clusterLister:        clusterLister,
+		resourcesDBClient:    resourcesDBClient,
+		kubeApplierDBClients: kubeApplierDBClients,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -114,7 +117,11 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	// We must not delete cluster-scoped resources (like ServiceProviderCluster,
 	// ManagementClusterContent) until all nodepools and externalauths are fully
 	// deleted, because their deletion controllers may depend on cluster-scoped
-	// resources.
+	// resources. ServiceProviderCluster also carries ManagementClusterResourceID,
+	// which we need to reach the per-MC kube-applier container, so cluster-scoped
+	// kube-applier *Desires must be removed before the ServiceProviderCluster
+	// document. Nodepool-scoped *Desires are cleaned up by the nodepool deletion
+	// pipeline.
 	allNodePoolsGone, err := deletePreconditionAllNodePoolsDeleted(ctx, c.resourcesDBClient, key)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to check nodepool precondition: %w", err))
@@ -134,10 +141,6 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	}
 
 	clusterResourceID := cluster.ID
-	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*clusterResourceID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for cluster children: %w", err))
-	}
 
 	// skipSubtreeTypes lists resource types whose entire subtrees are skipped.
 	// A child resource is left alone if its type path starts with any of these
@@ -155,6 +158,15 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 		// We never delete cluster controllers here, as there might be controllers still running
 		// for the Cluster until the very end of the deletion process
 		strings.ToLower(api.ClusterControllerResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
+	}
+
+	if err := c.ensureClusterScopedKubeApplierResourcesDeleted(ctx, clusterResourceID); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to delete cluster-scoped kube-applier content: %w", err))
+	}
+
+	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*clusterResourceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for cluster children: %w", err))
 	}
 
 	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
@@ -208,9 +220,9 @@ func hasSkippedResourceTypePrefix(resourceID *azcorearm.ResourceID, skipSubtreeT
 	return false
 }
 
-// extraDeleteGateShouldDeleteServiceProviderCluster checks if the
-// ServiceProviderCluster has any Maestro readonly bundles. If there are
-// bundles it returns false, otherwise it returns true.
+// extraDeleteGateShouldDeleteServiceProviderCluster returns false while the
+// ServiceProviderCluster still has Maestro readonly bundles or cluster-scoped
+// kube-applier *Desire documents.
 func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServiceProviderCluster(ctx context.Context, serviceProviderClusterResourceID *azcorearm.ResourceID) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -234,12 +246,126 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
+	// Check if there are any Maestro readonly bundles remaining.
 	if len(spc.Status.MaestroReadonlyBundles) > 0 {
 		logger.Info("waiting for cluster-scoped Maestro readonly bundles to be deleted before removing Cosmos entry",
 			"serviceProviderClusterResourceID", spc.ResourceID.String(), "remainingBundles", len(spc.Status.MaestroReadonlyBundles))
 		return false, nil
 	}
+
+	// Check if there are any cluster-scoped kube-applier *Desire documents remaining.
+	if spc.Status.ManagementClusterResourceID != nil {
+		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)
+		if kaClient == nil {
+			logger.Info("no kube-applier client for management cluster. Continuing with deletion of ServiceProviderCluster document",
+				"serviceProviderClusterResourceID", spc.ResourceID.String(),
+				"managementClusterResourceID", spc.Status.ManagementClusterResourceID.String())
+			return true, nil
+		}
+
+		desireCRUD, err := kaClient.UntypedCRUD(*serviceProviderClusterResourceID.Parent)
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to create kube-applier untyped CRUD: %w", err))
+		}
+
+		desireIterator, err := desireCRUD.List(ctx, nil)
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to list cluster-scoped kube-applier resources: %w", err))
+		}
+		for range desireIterator.Items(ctx) {
+			logger.Info("waiting for cluster-scoped kube-applier content to be deleted before removing ServiceProviderCluster",
+				"serviceProviderClusterResourceID", spc.ResourceID.String(),
+				"managementClusterResourceID", spc.Status.ManagementClusterResourceID.String())
+			return false, nil
+		}
+		if err := desireIterator.GetError(); err != nil {
+			return false, utils.TrackError(fmt.Errorf("error iterating cluster-scoped kube-applier resources: %w", err))
+		}
+	} else {
+		logger.Info("no management cluster resource ID found for ServiceProviderCluster. Continuing with deletion of ServiceProviderCluster document")
+		return true, nil
+	}
+
 	return true, nil
+}
+
+// ensureClusterScopedKubeApplierResourcesDeleted ensures that the cluster-scoped *Desire documents are deleted
+// from the database. *Desire documents on non-cluster scoped resources are deleted by their corresponding deletion controllers.
+func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierResourcesDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	if database.IsNotFoundError(err) {
+		// If there is no ServiceProviderCluster, we cannot determine the management cluster resource ID, so we skip the deletion of the
+		// *Desire documents without erroring.
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	// If the ServiceProviderCluster has no management cluster resource ID, we cannot determine the management
+	// cluster resource ID, so we skip the deletion of the *Desire documents without erroring.
+	mcResourceID := spc.Status.ManagementClusterResourceID
+	if mcResourceID == nil {
+		logger.Info("no management cluster resource ID found for ServiceProviderCluster; skipping deletion of cluster-scoped kube-applier content",
+			"serviceProviderClusterResourceID", spc.ResourceID.String())
+		return nil
+	}
+
+	// Best-effort: if the kube-applier client is unavailable, skip desire deletion here.
+	// Remaining *Desires are cleaned up by later deletion stages and the orphan scraper.
+	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if kaClient == nil {
+		logger.Info("no kube-applier client configured for management cluster; skipping cluster-scoped desire deletion",
+			"managementClusterResourceID", mcResourceID.String())
+		return nil
+	}
+
+	// extraDeleteGates uses lowercased kubeapplier.*DesireResourceTypeName keys. Types not
+	// in the map are deleted unconditionally.
+	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
+		// strings.ToLower(kubeapplier.ClusterScopedReadDesireResourceType.String()): c.extraDeleteGateShouldDeleteReadDesire,
+		// strings.ToLower(kubeapplier.ClusterScopedApplyDesireResourceType.String()): c.extraDeleteGateShouldDeleteApplyDesire,
+		// strings.ToLower(kubeapplier.ClusterScopedDeleteDesireResourceType.String()): c.extraDeleteGateShouldDeleteDeleteDesire,
+	}
+
+	desireCRUD, err := kaClient.UntypedCRUD(*clusterResourceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create kube-applier untyped CRUD: %w", err))
+	}
+
+	// We do non-recursive list so we only deal with cluster-scoped *Desires. Other scoped resources are handled by their corresponding
+	// deletion controllers.
+	desireIterator, err := desireCRUD.List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list cluster-scoped kube-applier resources: %w", err))
+	}
+	for _, resource := range desireIterator.Items(ctx) {
+		if resource.ResourceID == nil {
+			return utils.TrackError(fmt.Errorf("kube-applier document at cosmosID %q has no resourceID. Refusing to delete", resource.ID))
+		}
+
+		if extraDeleteGate, ok := extraDeleteGates[strings.ToLower(resource.ResourceType)]; ok {
+			shouldDelete, err := extraDeleteGate(ctx, resource.ResourceID)
+			if err != nil {
+				return utils.TrackError(err)
+			}
+			if !shouldDelete {
+				continue
+			}
+		}
+
+		logger.Info("deleting cluster-scoped kube-applier resource", "resourceID", resource.ResourceID)
+		if err := desireCRUD.DeleteByCosmosID(ctx, resource.PartitionKey, resource.ID); err != nil {
+			return utils.TrackError(fmt.Errorf("failed to delete cluster-scoped kube-applier resource %q: %w", resource.CosmosResourceID, err))
+		}
+	}
+	if err := desireIterator.GetError(); err != nil {
+		return utils.TrackError(fmt.Errorf("error iterating cluster-scoped kube-applier resources: %w", err))
+	}
+
+	return nil
 }
 
 func deletePreconditionAllNodePoolsDeleted(ctx context.Context, dbClient database.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {
