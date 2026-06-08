@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the main repository for Red Hat OpenShift on Azure (ARO) using the Hosted Control Planes (HCP) architecture. It contains code some of the code for the required microservices along with most of the configuration and pipeline definiton necessary to deploy it.
+This is the main repository for Red Hat OpenShift on Azure (ARO) using the Hosted Control Planes (HCP) architecture. It contains some of the code for the required microservices along with most of the configuration and pipeline definition necessary to deploy it.
 
 ## Common Commands
 
@@ -57,6 +57,13 @@ Rendered config changes under `config/rendered/` must be committed with your PR.
 ```bash
 make personal-dev-env   # Build images, deploy infrastructure (DEPLOY_ENV=pers required)
 ```
+
+### Other useful commands
+```bash
+make rebase            # Rebase on upstream and re-materialize config (hack/rebase-n-materialize.sh)
+make envtest-setup     # Download kubebuilder binaries (etcd, kube-apiserver) for controller tests
+```
+Note: `make test` runs `envtest-setup` automatically, but if you run `go test` directly in a module with controller tests (e.g. `kube-applier`), you need `KUBEBUILDER_ASSETS` set. Use: `export KUBEBUILDER_ASSETS=$(make -s envtest-setup)`
 
 ## Target Environments
 
@@ -137,6 +144,16 @@ Uses a custom templatize system (`tooling/templatize/`) that processes:
 - Bicep templates for Azure resource deployment
 - Helm charts for Kubernetes service deployment
 
+### Deployment Topology
+`topology.yaml` defines the entire deployment graph as a tree of service groups, each referencing a `pipeline.yaml`. Entrypoints (Global, Region, Monitoring) are the top-level deployment targets. Run `make entrypoint/Region` or `make pipeline/Frontend` to execute specific parts of the tree locally.
+
+### Configuration System
+- `config/config.yaml` is the main config with Go template variables (`{{ .ctx.region }}`, etc.)
+- `config/config.schema.json` validates the config — update the schema when adding new parameters
+- `config/config.msft.clouds-overlay.yaml` provides overrides for Microsoft cloud environments
+- After any config change: `cd config && make materialize` to re-render, then commit `config/rendered/` changes
+- See `docs/configuration.md` for full details
+
 ## Code Organization
 
 ### Service Structure
@@ -157,9 +174,14 @@ Each service follows consistent patterns:
   - `arohcpv1alpha1` for `github.com/openshift-online/ocm-sdk-go/aro_hcp/v1alpha1`
   - `cmv1` for `github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1`
   - `azcorearm` for `github.com/Azure/azure-sdk-for-go/sdk/azcore/arm`
+  - `hcpsdk20240610preview` for `github.com/Azure/ARO-HCP/test/sdk/v20240610preview/...`
+  - `azureclient` for `github.com/Azure/ARO-HCP/backend/pkg/azure/client`
   - OpenShift API packages use `{group}{version}` pattern (e.g. `configv1`)
 
 - **Import ordering** is enforced by `gci`: standard, blank, dot, default, `k8s.io`, `sigs.k8s.io`, `github.com/Azure`, `github.com/openshift`, `github.com/Azure/ARO-HCP`. Run `make fmt` to fix.
+
+### API Versioning
+ARM API versions live under `internal/api/v<YYYYMMDD>preview/` (e.g. `v20240610preview`, `v20251223preview`). Each version directory has a `generated/` subdirectory with auto-generated types and a `register.go` that wires the version into the API registry. Conversion between API versions and internal types happens in the `*_methods.go` files. The internal (versionless) types live in `internal/api/`.
 
 ### Integration Tests
 The `test-integration/` directory uses a **declarative artifact-driven** test framework. Tests are defined as numbered step directories (`00-load-initial-state/`, `01-httpCreate-resource/`, etc.) under `artifacts/` trees — no Go code changes needed to add a new test case. See `test-integration/claude.md` for the full step type reference.
