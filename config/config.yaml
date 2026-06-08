@@ -141,7 +141,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:66cfe8d720eeaa8407eb1c161a30c05b5dd69b13471473cf6ac3c47ff2767f98 # 20260531.1 (2026-05-31 03:26)
+      digest: sha256:6da9028c30b5a4b40df0d0ec4d9042e44b54423786175f6a15f0e52962d8fba9 # 20260607.1 (2026-06-07 03:24)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -167,7 +167,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:2e05b7fadb5dcba5d1a52f6250cca1da02cd84d58b4c4278b38dc549b75bfc12 # 37024fe (2026-06-05 21:05)
+      digest: sha256:6e4c7b94671e391c2dc3bb36a55df666ebad0aba83d30f6fde4c89ff7e352787 # 0b212aa (2026-06-08 04:24)
   # Mgmt Agent Controller
   mgmtAgent:
     managedIdentityName: mgmt-agent
@@ -317,7 +317,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:b3329aceb5c567fc33d0e7ec03d5f832a8277e4e69fa0802ecef7859d4e578fd # f13c62d7e4bd61b2207a6eb233d236d0b9c90933 (2026-06-04 22:51)
+      digest: sha256:caea1a9e4d7cd7b270dc1b28895b571a44fbcb6b97c810683764a0f247ab13cf # a101e6697af02eba43e6cfd04fc4c00277b72a64 (2026-06-05 23:06)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -902,7 +902,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:c56239548c77476a1f39591ad569d545a82ff037c23cd13754ac5a28ad1725c0 # 1.28.3-1-azl3.0.20260517 (2026-05-17 10:33)
+          digest: sha256:90e8b621e7b75bd0e8738dc41aca5fe7de6e0449bf39bea3210370ab8626b354 # 1.28.3-5-azl3.0.20260602 (2026-06-06 02:11)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -936,12 +936,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:2b2c00a9fbfb550afa577a37cc03683878d6ce8904f22be24e688e540570b127 # v2.16.2-450 (2026-06-05 22:29)
+        digest: sha256:ea8fd7e65469a0e2ee810450c30751c48904cd21232fe5b1630c8e54aed7314a # v2.16.2-450 (2026-06-08 05:42)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:262244ea12148b99e5af214ec354d13b3e5cae4e1ae3c27b7321cc8445994df2 # v2.11.2-503 (2026-06-05 22:26)
+        digest: sha256:7e27b82fc253908493fa395037c89d05217005ad3106d737b20a145d8ca333bf # v2.11.2-505 (2026-06-08 05:37)
   # Cluster Service
   clustersService:
     image:
@@ -1007,7 +1007,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:7bddf33a1e2d122c18d871d66e18e43f836b8aa4e3fe6f5abda377c1ab74896f # 37024fe (2026-06-05 21:05)
+        digest: sha256:b240dff23ca7b34b8c47a28d072bdf6201a1de39229bb701bd350a12f31d7eb3 # 0b212aa (2026-06-08 04:24)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account

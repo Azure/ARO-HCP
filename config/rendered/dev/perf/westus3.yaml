@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:262244ea12148b99e5af214ec354d13b3e5cae4e1ae3c27b7321cc8445994df2
+      digest: sha256:7e27b82fc253908493fa395037c89d05217005ad3106d737b20a145d8ca333bf
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:2b2c00a9fbfb550afa577a37cc03683878d6ce8904f22be24e688e540570b127
+      digest: sha256:ea8fd7e65469a0e2ee810450c30751c48904cd21232fe5b1630c8e54aed7314a
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -207,7 +207,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:2e05b7fadb5dcba5d1a52f6250cca1da02cd84d58b4c4278b38dc549b75bfc12
+    digest: sha256:6e4c7b94671e391c2dc3bb36a55df666ebad0aba83d30f6fde4c89ff7e352787
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -423,7 +423,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:b3329aceb5c567fc33d0e7ec03d5f832a8277e4e69fa0802ecef7859d4e578fd
+    digest: sha256:caea1a9e4d7cd7b270dc1b28895b571a44fbcb6b97c810683764a0f247ab13cf
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -441,7 +441,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:7bddf33a1e2d122c18d871d66e18e43f836b8aa4e3fe6f5abda377c1ab74896f
+      digest: sha256:b240dff23ca7b34b8c47a28d072bdf6201a1de39229bb701bd350a12f31d7eb3
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -473,7 +473,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:66cfe8d720eeaa8407eb1c161a30c05b5dd69b13471473cf6ac3c47ff2767f98
+    digest: sha256:6da9028c30b5a4b40df0d0ec4d9042e44b54423786175f6a15f0e52962d8fba9
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -526,7 +526,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:c56239548c77476a1f39591ad569d545a82ff037c23cd13754ac5a28ad1725c0
+        digest: sha256:90e8b621e7b75bd0e8738dc41aca5fe7de6e0449bf39bea3210370ab8626b354
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
