@@ -60,7 +60,7 @@ create_replication() {
         --resource-group "$RESOURCE_GROUP" \
         --location "$REPLICATION_REGION" \
         --name "$REPLICATION_REGION" \
-        --region-endpoint-enabled true
+        --global-endpoint-routing true
 
     echo "Successfully created replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION"
 }
