@@ -4,6 +4,8 @@ use (
 	./admin/client
 	./admin/server
 	./backend
+	./dev-infrastructure/scripts/delete-extra-infra-nodepools
+	./dev-infrastructure/scripts/internal
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend

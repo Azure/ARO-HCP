@@ -23,12 +23,20 @@ buildStep:
   args:
   - -c
   - |
-    set -euo pipefail
+    set -o errexit
+    set -o nounset
+    set -o pipefail
     tmp="$(mktemp ./scripts/postgres-access/postgres-access.XXXXXX)"
     trap 'rm -f "${tmp}"' EXIT
     CGO_ENABLED=0 go build -o "${tmp}" ./scripts/postgres-access
     chmod 0755 "${tmp}"
     mv "${tmp}" ./scripts/postgres-access/postgres-access
+    trap - EXIT
+    tmp="$(mktemp ./scripts/delete-extra-infra-nodepools/delete-extra-infra-nodepools.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/delete-extra-infra-nodepools
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/delete-extra-infra-nodepools/delete-extra-infra-nodepools
     trap - EXIT
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
@@ -469,6 +477,38 @@ resourceGroups:
       - "was not found in the AAD tenant"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
+  - name: delete-extra-infra-nodepools
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: ./scripts/delete-extra-infra-nodepools/delete-extra-infra-nodepools
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: CLUSTER_NAME
+      configRef: svc.aks.name
+    - name: RESOURCE_GROUP
+      configRef: svc.rg
+    - name: SUBSCRIPTION_ID
+      configRef: svc.subscriptionId
+    - name: POOL_TAG
+      value: infra
+    - name: POOL_BASE_NAME
+      configRef: svc.aks.infraAgentPool.name
+    - name: POOL_COUNT
+      configRef: svc.aks.infraAgentPool.poolCount
+    - name: ZONE_REDUNDANT_MODE
+      configRef: svc.aks.infraAgentPool.zoneRedundantMode
+    - name: POOL_ZONES
+      configRef: svc.aks.infraAgentPool.zones
+    - name: DRY_RUN
+      value: "true"
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
