@@ -493,7 +493,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: svc.rg
     - name: SUBSCRIPTION_ID
-      configRef: svc.subscriptionId
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
     - name: POOL_TAG
       value: infra
     - name: POOL_BASE_NAME
@@ -509,6 +512,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+    - resourceGroup: service
+      step: subscription-output
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh

@@ -44,7 +44,7 @@ func newClients(cfg *config) (*scriptClients, error) {
 }
 
 func (c *scriptClients) bootstrapKube(ctx context.Context, clusterID string) error {
-	return c.Clients.BootstrapKube(ctx, clusterID)
+	return c.BootstrapKube(ctx, clusterID)
 }
 
 func (c *scriptClients) getCluster(ctx context.Context) (*armcs.ManagedCluster, error) {
@@ -56,7 +56,7 @@ func (c *scriptClients) getCluster(ctx context.Context) (*armcs.ManagedCluster, 
 }
 
 func (c *scriptClients) listPoolsByTag(ctx context.Context) (map[string]*armcs.AgentPool, error) {
-	return c.Clients.ListPoolsByNodeLabel(ctx, c.cfg.resourceGroup, c.cfg.clusterName, roleLabel, c.cfg.poolTag)
+	return c.ListPoolsByNodeLabel(ctx, c.cfg.resourceGroup, c.cfg.clusterName, roleLabel, c.cfg.poolTag)
 }
 
 func (c *scriptClients) allExpectedPoolsReady(ctx context.Context, expectedNames []string, livePools map[string]*armcs.AgentPool) error {
@@ -78,7 +78,7 @@ func (c *scriptClients) drainPool(ctx context.Context, pool string) error {
 
 func (c *scriptClients) deletePool(ctx context.Context, pool string) error {
 	akslog.Logf(">>> deleting pool %s", pool)
-	if err := c.Clients.DeletePool(ctx, c.cfg.resourceGroup, c.cfg.clusterName, pool); err != nil {
+	if err := c.DeletePool(ctx, c.cfg.resourceGroup, c.cfg.clusterName, pool); err != nil {
 		return err
 	}
 	akslog.Logf("pool %s deleted", pool)
