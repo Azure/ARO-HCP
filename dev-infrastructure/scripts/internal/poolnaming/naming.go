@@ -28,41 +28,41 @@ const maxPoolNameLen = 12
 // configuration expects. The algorithm mirrors pool.bicep exactly, including
 // the take(pool.name, 12) truncation applied before the ARM resource is created:
 //
-//useZonalPools = mode == "Enabled" || (mode == "Auto" && len(zones) > 0)
-//zonal pools:     {baseName}{zone}     for the first min(len(zones), count) zones
-//non-zonal pools: {baseName}nz{1..N}   for the remainder
-//all names are truncated to 12 characters (pool.bicep: take(pool.name, 12))
+// useZonalPools = mode == "Enabled" || (mode == "Auto" && len(zones) > 0)
+// zonal pools:     {baseName}{zone}     for the first min(len(zones), count) zones
+// non-zonal pools: {baseName}nz{1..N}   for the remainder
+// all names are truncated to 12 characters (pool.bicep: take(pool.name, 12))
 func Expected(baseName string, count int, mode string, zones []string) []string {
-useZonal := mode == "Enabled" || (mode == "Auto" && len(zones) > 0)
+	useZonal := mode == "Enabled" || (mode == "Auto" && len(zones) > 0)
 
-var names []string
-if useZonal {
-zonal := minInt(len(zones), count)
-for i := 0; i < zonal; i++ {
-names = append(names, truncate(baseName+zones[i]))
-}
-for i := 1; i <= count-zonal; i++ {
-names = append(names, truncate(fmt.Sprintf("%snz%d", baseName, i)))
-}
-} else {
-for i := 1; i <= count; i++ {
-names = append(names, truncate(fmt.Sprintf("%snz%d", baseName, i)))
-}
-}
-return names
+	var names []string
+	if useZonal {
+		zonal := minInt(len(zones), count)
+		for i := 0; i < zonal; i++ {
+			names = append(names, truncate(baseName+zones[i]))
+		}
+		for i := 1; i <= count-zonal; i++ {
+			names = append(names, truncate(fmt.Sprintf("%snz%d", baseName, i)))
+		}
+	} else {
+		for i := 1; i <= count; i++ {
+			names = append(names, truncate(fmt.Sprintf("%snz%d", baseName, i)))
+		}
+	}
+	return names
 }
 
 // truncate applies the same take(name, 12) truncation as pool.bicep.
 func truncate(name string) string {
-if len(name) > maxPoolNameLen {
-return name[:maxPoolNameLen]
-}
-return name
+	if len(name) > maxPoolNameLen {
+		return name[:maxPoolNameLen]
+	}
+	return name
 }
 
 func minInt(a, b int) int {
-if a < b {
-return a
-}
-return b
+	if a < b {
+		return a
+	}
+	return b
 }
