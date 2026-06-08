@@ -46,7 +46,7 @@ make e2e-local/run-test TEST_NAME="TestName"    # Single E2E test
 ```bash
 make -C frontend build   # Build frontend binary
 make -C backend build    # Build backend binary
-make build-services      # Build all in-repo service images in parallel
+make build-services      # Build and push all in-repo service images in parallel (requires ACR login)
 ```
 
 ### Config changes
@@ -58,7 +58,7 @@ Rendered config changes under `config/rendered/` must be committed with your PR.
 
 ### Personal dev environment
 ```bash
-make personal-dev-env   # Build images, deploy infrastructure (DEPLOY_ENV=pers required)
+make personal-dev-env   # Build, push images, deploy infrastructure (DEPLOY_ENV=pers or swft required)
 ```
 
 ### Other useful commands
@@ -159,11 +159,11 @@ Uses a custom templatize system (`tooling/templatize/`) that processes:
 - Helm charts for Kubernetes service deployment
 
 ### Deployment Topology
-`topology.yaml` defines the entire deployment graph as a tree of service groups, each referencing a `pipeline.yaml`. Entrypoints (Global, Region, Monitoring) are the top-level deployment targets. Run `make entrypoint/Region` or `make pipeline/Frontend` to execute specific parts of the tree locally.
+`topology.yaml` defines the entire deployment graph as a tree of service groups, each referencing a `pipeline.yaml`. Entrypoints (Global, Region, Monitoring) are the top-level deployment targets. Run `make entrypoint/Region` or `make pipeline/RP.Frontend` to execute specific parts of the tree locally.
 
 ### Configuration System
 - `config/config.yaml` is the main config with Go template variables (`{{ .ctx.region }}`, etc.)
-- `config/config.schema.json` validates the config — update the schema when adding new parameters. The schema enforces `additionalProperties: false` on all objects (checked by `make verify-schema`), so new fields must be explicitly added to the schema or validation will fail
+- `config/config.schema.json` validates the config — update the schema when adding new parameters. `make verify-schema` checks that objects use `additionalProperties: false` (with explicit exceptions like `extraVars` and `features.items`), so new fields must be added to the schema or validation will fail
 - `config/config.msft.clouds-overlay.yaml` provides overrides for Microsoft cloud environments
 - After any config change: `cd config && make materialize` to re-render, then commit `config/rendered/` changes
 - See `docs/configuration.md` for full details
@@ -192,7 +192,7 @@ Each service follows consistent patterns:
   - `azureclient` for `github.com/Azure/ARO-HCP/backend/pkg/azure/client`
   - OpenShift API packages use `{group}{version}` pattern (e.g. `configv1`)
 
-- **Import ordering** is enforced by `gci`: standard, blank, dot, default, `k8s.io`, `sigs.k8s.io`, `github.com/Azure`, `github.com/openshift`, `github.com/Azure/ARO-HCP`. Run `make fmt` to fix.
+- **Import ordering** is enforced by `gci` (configured in `.golangci.yml`): standard, blank, dot, default, `k8s.io`, `sigs.k8s.io`, `github.com/Azure`, `github.com/openshift`, `github.com/Azure/ARO-HCP`. Run `make lint-fix` to fix.
 
 - **Gomega assertions must have descriptive annotations.** CI runs `verify-gomega-assertions` on `test/e2e/` and `test/util/`, which rejects bare `Expect().To()`/`NotTo()` calls. Always add a context string:
   - `Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")` — not `Expect(err).NotTo(HaveOccurred())`
