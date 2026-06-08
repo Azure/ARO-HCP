@@ -135,7 +135,7 @@ The github.com/Azure/ARO-Tools repo is also a dependency and changes can be sugg
 ## Additional Build, Configuration and Deployment Info
 
 ### Go Workspace
-The project uses Go workspaces with ~35 modules defined in `go.work`:
+The project uses Go 1.25 workspaces with ~35 modules defined in `go.work`:
 - Services: `admin/client`, `admin/server`, `backend`, `frontend`, `fleet`, `kube-applier`, `mgmt-agent`, `sessiongate`
 - Libraries: `internal`, `test`, `test-integration`
 - Tooling: `tooling/hcpctl`, `tooling/templatize`, `tooling/secret-sync`, etc.
@@ -190,8 +190,20 @@ Each service follows consistent patterns:
 
 - **Import ordering** is enforced by `gci`: standard, blank, dot, default, `k8s.io`, `sigs.k8s.io`, `github.com/Azure`, `github.com/openshift`, `github.com/Azure/ARO-HCP`. Run `make fmt` to fix.
 
+- **Gomega assertions must have descriptive annotations.** CI runs `verify-gomega-assertions` on `test/e2e/` and `test/util/`, which rejects bare `Expect().To()`/`NotTo()` calls. Always add a context string:
+  - `Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")` — not `Expect(err).NotTo(HaveOccurred())`
+  - `Expect(resp.Properties).NotTo(BeNil(), "cluster response Properties was nil")` — not `Expect(resp.Properties).NotTo(BeNil())`
+
 ### API Versioning
 ARM API versions live under `internal/api/v<YYYYMMDD>preview/` (e.g. `v20240610preview`, `v20251223preview`). Each version directory has a `generated/` subdirectory with auto-generated types and a `register.go` that wires the version into the API registry. Conversion between API versions and internal types happens in the `*_methods.go` files. The internal (versionless) types live in `internal/api/`.
+
+### E2E Tests
+E2E tests live in `test/e2e/` and use Ginkgo/Gomega. Key conventions:
+- E2E test files must **not** use the `_test.go` suffix (except `e2e_test.go` entry point) — the Ginkgo OpenShift extension excludes `_test.go` files during imports.
+- Every `It()` block must accept `context.Context` as its first parameter.
+- Every test must have labels: environment (`labels.RequireNothing` or `labels.RequireHappyPathInfra`), importance (`labels.Critical`/`High`/`Medium`/`Low`), and positivity (`labels.Positive`/`labels.Negative`).
+- Framework helpers use explicit API version suffixes: `CreateHCPClusterFromParam20240610`, `GetHCPCluster20251223`, etc.
+- See `test/AGENTS.md` for the full E2E design guide and code review standards.
 
 ### Integration Tests
 The `test-integration/` directory uses a **declarative artifact-driven** test framework. Tests are defined as numbered step directories (`00-load-initial-state/`, `01-httpCreate-resource/`, etc.) under `artifacts/` trees — no Go code changes needed to add a new test case. See `test-integration/claude.md` for the full step type reference.
@@ -229,10 +241,18 @@ Custom tools in `tooling/`:
 - `secret-sync` - Secret management utilities
 - `prometheus-rules` - Monitoring rule generation
 
+## Subdirectory Guidance
+
+Several subdirectories have their own AI guidance files with domain-specific detail:
+- `test/AGENTS.md` — E2E test design principles, review standards, label reference, and anti-patterns
+- `test-integration/claude.md` — Step type reference for the declarative integration test framework
+- `config/CLAUDE.md` — Config rendering workflow and example commits
+
 ## Documentation
 
 Key documentation files:
 - [Architecture Overview](docs/high-level-architecture.md)
+- [Configuration Management](docs/configuration.md)
 - [Personal Dev Setup](docs/personal-dev.md)
 - [Service Components](docs/service-components.md)
 - [Environment Details](docs/environments.md)
