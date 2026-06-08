@@ -162,6 +162,12 @@ func (c *managementClusterMigrationController) syncProvisionShard(ctx context.Co
 	for _, cond := range convertedManagementCluster.Status.Conditions {
 		apimeta.SetStatusCondition(&managementClusterToWrite.Status.Conditions, cond)
 	}
+
+	// Backfill KubeApplierCosmosContainerName for management clusters created
+	// before this field was introduced.
+	if len(managementClusterToWrite.Status.KubeApplierCosmosContainerName) == 0 {
+		managementClusterToWrite.Status.KubeApplierCosmosContainerName = convertedManagementCluster.Status.KubeApplierCosmosContainerName
+	}
 	if equality.Semantic.DeepEqual(existing, managementClusterToWrite) {
 		logger.V(1).Info("management cluster unchanged, skipping update")
 		return nil
