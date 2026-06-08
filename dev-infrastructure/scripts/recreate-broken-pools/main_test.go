@@ -2075,14 +2075,16 @@ func TestRunWith(t *testing.T) {
 			},
 		},
 		{
+			// Deletion-initiated: detect:1 sees 0 NRP events (suspected),
+			// forced evidence trigger is rejected with OperationNotAllowed
+			// "deletion has been initiated", pool is confirmed. detect:2
+			// also sees 0 NRP events (suspected again), but the
+			// deletion-initiated flag carries forward through Step 2b.
 			name: "guard1_fail_trigger_deletion_initiated_confirms",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
-					if n == 1 {
-						return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-					}
-					return true, "", nil
+				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
+					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
 				}
 				m.triggerSystemReconcileFn = func(context.Context, *armcs.AgentPool) error {
 					return fmt.Errorf("begin trigger pool scale-up system: %w",

@@ -230,10 +230,11 @@ const (
 const nodePoolRoleLabel = "aro-hcp.azure.com/role"
 
 type nodePoolTarget struct {
-	name        string
-	vmssPrefix  string
-	nrpFailures int
-	suspected   bool
+	name              string
+	vmssPrefix        string
+	nrpFailures       int
+	suspected         bool
+	deletionInitiated bool
 }
 
 func poolVMSSPrefix(poolName string) string {
@@ -451,6 +452,19 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 		return nil
 	}
 
+	// Remember which pools were confirmed via deletion-initiated before
+	// re-running detection. The post-LRO detect queries the activity log
+	// from scratch and will see 0 NRP-KVS events for these pools (the
+	// trigger was rejected, so no events were generated). Without this
+	// carry-forward, those pools would be reclassified as suspected and
+	// filtered out, deadlocking the remediation.
+	deletionInitiatedPools := map[string]bool{}
+	for _, t := range targets {
+		if t.deletionInitiated {
+			deletionInitiatedPools[t.name] = true
+		}
+	}
+
 	logBanner("STEP 2b :: re-check detection guards after LRO handling")
 	targets, reason, err = orch.detect(ctx)
 	if err != nil {
@@ -459,6 +473,11 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	var postConfirmed []nodePoolTarget
 	for _, target := range targets {
 		if !target.suspected {
+			postConfirmed = append(postConfirmed, target)
+		} else if deletionInitiatedPools[target.name] {
+			target.suspected = false
+			target.deletionInitiated = true
+			logf("pool %s: carrying forward deletion-initiated confirmation from pre-LRO detection", target.name)
 			postConfirmed = append(postConfirmed, target)
 		}
 	}
@@ -545,6 +564,7 @@ func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, tar
 		if isDeletionInitiatedErr(err) {
 			logf("pool %s rejected scale-up: deletion has been initiated; confirming as broken (remediation will delete+recreate)", target.name)
 			target.suspected = false
+			target.deletionInitiated = true
 			return &target, nil
 		}
 		logf("WARN: triggerPoolReconcile for %s failed: %v; treating as no-op", target.name, err)
