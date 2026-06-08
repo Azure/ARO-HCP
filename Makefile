@@ -461,11 +461,15 @@ endif
 .PHONY: personal-dev-env
 
 #
-# Opstool topology local run
+# Dev CI topology local run
 #
-opstool-local-run:
-	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra" STEP_CACHE_DIR=""
-.PHONY: opstool-local-run
+dev-ci-local-run:
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Infra" STEP_CACHE_DIR=""
+.PHONY: dev-ci-local-run
+
+dev-ci-e2e-subscription-rbac-local-run:
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--service-group Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC" STEP_CACHE_DIR=""
+.PHONY: dev-ci-e2e-subscription-rbac-local-run
 
 #
 # Local Cluster Service Development Environment

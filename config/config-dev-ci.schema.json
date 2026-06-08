@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Opstool Configuration Schema",
-  "description": "Schema for opstool AKS cluster configuration",
+  "title": "Dev CI Configuration Schema",
+  "description": "Schema for the shared dev/CI topology configuration",
   "type": "object",
   "properties": {
     "$schema": {
@@ -336,9 +336,74 @@
               }
             }
           }
+        },
+        "devCi": {
+          "$ref": "#/$defs/DevCI"
         }
       },
       "additionalProperties": true
+    },
+    "DevCI": {
+      "type": "object",
+      "properties": {
+        "e2eSubscriptionRbac": {
+          "$ref": "#/$defs/E2ESubscriptionRBACConfig"
+        }
+      }
+    },
+    "E2ESubscriptionRBACConfig": {
+      "type": "object",
+      "properties": {
+        "homeSubscription": {
+          "$ref": "#/$defs/SubscriptionReference"
+        },
+        "customerSubscriptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SubscriptionReference"
+          }
+        },
+        "sharedPrincipals": {
+          "type": "object",
+          "properties": {
+            "firstParty": {
+              "$ref": "#/$defs/PrincipalReference"
+            },
+            "armHelper": {
+              "$ref": "#/$defs/PrincipalReference"
+            },
+            "miMock": {
+              "$ref": "#/$defs/PrincipalReference"
+            }
+          }
+        },
+        "msiMockPool": {
+          "type": "object",
+          "properties": {
+            "principals": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/PrincipalReference"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SubscriptionReference": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "id": { "type": "string" }
+      },
+      "required": ["name", "id"]
+    },
+    "PrincipalReference": {
+      "type": "object",
+      "properties": {
+        "principalId": { "type": "string" }
+      },
+      "required": ["principalId"]
     },
     "Image": {
       "type": "object",

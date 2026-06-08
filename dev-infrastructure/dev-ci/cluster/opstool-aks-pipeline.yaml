@@ -1,5 +1,5 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.Infra
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Infra
 rolloutName: Opstool Network and Cluster Rollout
 resourceGroups:
 - name: opstool
@@ -8,13 +8,13 @@ resourceGroups:
   steps:
   - name: network
     action: ARM
-    template: templates/opstool-network.bicep
-    parameters: configurations/opstool-network.tmpl.bicepparam
+    template: ../../templates/opstool-network.bicep
+    parameters: ../../configurations/opstool-network.tmpl.bicepparam
     deploymentLevel: ResourceGroup
   - name: cluster
     action: ARM
-    template: templates/opstool-cluster.bicep
-    parameters: configurations/opstool-cluster.tmpl.bicepparam
+    template: ../../templates/opstool-cluster.bicep
+    parameters: ../../configurations/opstool-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     automatedRetry:
       errorContainsAny:
@@ -27,8 +27,8 @@ resourceGroups:
       step: network
   - name: cluster-output
     action: ARM
-    template: templates/output-opstool-cluster.bicep
-    parameters: configurations/output-opstool-cluster.tmpl.bicepparam
+    template: ../../templates/output-opstool-cluster.bicep
+    parameters: ../../configurations/output-opstool-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
     dependsOn:
@@ -37,8 +37,8 @@ resourceGroups:
   # Placeholder kusto output for schema compatibility (opstool doesn't use kusto - a breaking fix)
   - name: kusto-placeholder
     action: ARM
-    template: templates/output-opstool-cluster.bicep
-    parameters: configurations/output-opstool-cluster.tmpl.bicepparam
+    template: ../../templates/output-opstool-cluster.bicep
+    parameters: ../../configurations/output-opstool-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
     dependsOn:
@@ -46,8 +46,8 @@ resourceGroups:
       step: cluster-output
   - name: alerting
     action: ARM
-    template: templates/opstool-alerting.bicep
-    parameters: configurations/opstool-alerting.tmpl.bicepparam
+    template: ../../templates/opstool-alerting.bicep
+    parameters: ../../configurations/opstool-alerting.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
     - resourceGroup: opstool
@@ -58,9 +58,9 @@ resourceGroups:
     releaseName: 'arohcp-monitor'
     releaseNamespace: 'prometheus'
     namespaceFiles:
-    - ../observability/prometheus/namespace.opstool.yaml
-    chartDir: ../observability/prometheus/deploy
-    valuesFile: ../observability/prometheus/values-opstool.yaml
+    - ../../../observability/prometheus/namespace.opstool.yaml
+    chartDir: ../../../observability/prometheus/deploy
+    valuesFile: ../../../observability/prometheus/values-opstool.yaml
     kustoEndpoint:
       resourceGroup: opstool
       step: kusto-placeholder

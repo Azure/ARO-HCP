@@ -1,5 +1,5 @@
 $schema: "pipeline.schema.v1"
-serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.CIHealth
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CIHealth
 rolloutName: CIHealth Rollout
 resourceGroups:
 - name: opstool
@@ -44,7 +44,7 @@ resourceGroups:
     - resourceGroup: opstool
       step: output
     externalDependsOn:
-    - serviceGroup: Microsoft.Azure.ARO.HCP.Opstool.Gateway
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
       resourceGroup: opstool
       step: deploy
     identityFrom:
