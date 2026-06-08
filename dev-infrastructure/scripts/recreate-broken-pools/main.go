@@ -218,12 +218,11 @@ const (
 	forcedEvidenceAbortTimeoutMin = 8
 
 	// forcedEvidenceRestoreTimeoutMin caps the wait for the restorePoolSpec
-	// PUT + PollUntilDone that reverses the forced-evidence scale-up. ARM
-	// pool PUTs in the NRP-KVS wedge path are expected to fail or hang, so
-	// the restore is best-effort and intentionally short. This runs on its
-	// own context (also derived from context.Background) rather than sharing
-	// the abort budget. Without a dedicated context, an abort that consumed
-	// most of forcedEvidenceAbortTimeoutMin would silently skip the restore.
+	// PUT + PollUntilDone that reverses an inconclusive forced-evidence
+	// scale-up before a no-op exit. This runs on its own context (also
+	// derived from context.Background) rather than sharing the abort budget.
+	// Without a dedicated context, an abort that consumed most of
+	// forcedEvidenceAbortTimeoutMin would silently skip the restore.
 	forcedEvidenceRestoreTimeoutMin = 5
 )
 
@@ -235,6 +234,7 @@ type nodePoolTarget struct {
 	nrpFailures       int
 	suspected         bool
 	deletionInitiated bool
+	forcedEvidence    bool
 }
 
 func poolVMSSPrefix(poolName string) string {
@@ -416,6 +416,12 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	for _, target := range targets {
 		logf("  pool=%s role=%s nrpFailures=%d", target.name, cfg.nodePoolTag, target.nrpFailures)
 	}
+	var forcedEvidenceTargets []nodePoolTarget
+	for _, target := range targets {
+		if target.forcedEvidence {
+			forcedEvidenceTargets = append(forcedEvidenceTargets, target)
+		}
+	}
 
 	if cfg.dryRun {
 		logf("DRY_RUN=true — would remediate %d pool(s). Exiting no-op.", len(targets))
@@ -481,6 +487,17 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 			postConfirmed = append(postConfirmed, target)
 		}
 	}
+	seen := map[string]struct{}{}
+	for _, target := range postConfirmed {
+		seen[target.name] = struct{}{}
+	}
+	for _, target := range forcedEvidenceTargets {
+		if _, ok := seen[target.name]; ok {
+			continue
+		}
+		logf("preserving forced-evidence-confirmed target %s through post-LRO guard recheck", target.name)
+		postConfirmed = append(postConfirmed, target)
+	}
 	targets = postConfirmed
 	// Same rationale as the pre-LRO recheck: if nothing is confirmed
 	// broken after the LRO handling, there is no pool to recreate and we
@@ -532,14 +549,19 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 
 // forcedEvidencePath triggers a temporary scale-up on the live target
 // pool so the AKS RP attempts a fresh VMSS write. It then polls the
-// activity log for NRP-KVS Failed events, aborts the LRO it started,
-// and restores the original pool spec before deciding whether to act.
+// activity log for NRP-KVS Failed events and aborts the LRO it started.
+// If evidence is inconclusive, it restores the original pool spec before
+// returning no-op. Restore failure is fatal in that path because a
+// successful no-op exit would let downstream infra steps race the
+// in-flight nodepool operation. If evidence confirms the pool is broken,
+// skip restore and proceed to remediation: the restore PUT can hit the
+// same wedge, and the confirmed pool will be recreated instead.
 //
 // Returns (*nodePoolTarget, error). A non-nil target means evidence
 // reached the threshold and the caller should proceed with the
 // recreate flow on the returned (now-confirmed) target. A nil target
-// with no error means the trigger was inconclusive (the cluster is
-// wedged for a different reason or the trigger itself failed) and
+// with no error means the scale-up trigger did not start a mutation, or
+// the trigger was inconclusive and any temporary mutation was restored;
 // the caller should treat this pool as a no-op.
 func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, target nodePoolTarget) (*nodePoolTarget, error) {
 	logf("initial NRP-KVS storm check saw no evidence for pool %s in last %dm", target.name, cfg.windowMin)
@@ -586,27 +608,36 @@ func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, tar
 	if abortErr := orch.abortPoolReconcile(abortCtx, target.name); abortErr != nil {
 		logf("WARN: abortPoolReconcile for %s failed: %v", target.name, abortErr)
 	}
-	// Restore runs on its own longer context: an AKS pool PUT + LRO can
-	// legitimately take 5-10m, so sharing the abort budget would risk
-	// skipping the restore when the abort consumed most of those 8m and
-	// leaving the pool one node larger than the original snapshot.
-	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), forcedEvidenceRestoreTimeoutMin*time.Minute)
-	defer restoreCancel()
-	if restoreErr := orch.restorePoolSpec(restoreCtx, target, live); restoreErr != nil {
-		logf("WARN: restorePoolSpec for %s failed: %v", target.name, restoreErr)
-	}
-
 	if pollErr != nil {
+		if restoreErr := restoreForcedEvidencePoolSpec(target, live, orch); restoreErr != nil {
+			return nil, fmt.Errorf("poll for NRP evidence on %s: %w; restore forced-evidence pool spec also failed: %w", target.name, pollErr, restoreErr)
+		}
 		return nil, fmt.Errorf("poll for NRP evidence on %s: %w", target.name, pollErr)
 	}
 	if hits < cfg.forcedEvidenceThreshold {
+		if restoreErr := restoreForcedEvidencePoolSpec(target, live, orch); restoreErr != nil {
+			return nil, restoreErr
+		}
 		logf("forced evidence inconclusive for %s: only %d NRP failures < %d after %dm", target.name, hits, cfg.forcedEvidenceThreshold, cfg.forcedEvidenceTimeoutMin)
 		return nil, nil
 	}
 	logf("forced evidence confirmed NRP-KVS for %s (%d hits >= threshold %d)", target.name, hits, cfg.forcedEvidenceThreshold)
 	target.nrpFailures = hits
 	target.suspected = false
+	target.forcedEvidence = true
 	return &target, nil
+}
+
+func restoreForcedEvidencePoolSpec(target nodePoolTarget, live *armcs.AgentPool, orch orchestrator) error {
+	// Restore runs on its own bounded context so sharing the abort budget
+	// cannot skip the restore when the abort consumed most of those 8m and
+	// leave the pool one node larger than the original snapshot.
+	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), forcedEvidenceRestoreTimeoutMin*time.Minute)
+	defer restoreCancel()
+	if err := orch.restorePoolSpec(restoreCtx, target, live); err != nil {
+		return fmt.Errorf("restore forced-evidence pool spec for %s: %w", target.name, err)
+	}
+	return nil
 }
 
 // remediatePool is the single remediation flow applied to every confirmed
