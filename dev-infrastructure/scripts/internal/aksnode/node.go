@@ -96,6 +96,8 @@ func AllExpectedReady(
 // given pool, or the timeout expires.
 func WaitForReady(ctx context.Context, kube kubernetes.Interface, pool string, want int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(pollIntervalSec * time.Second)
+	defer ticker.Stop()
 	for {
 		nodes, err := kube.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 			LabelSelector: "agentpool=" + pool,
@@ -120,7 +122,7 @@ func WaitForReady(ctx context.Context, kube kubernetes.Interface, pool string, w
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(pollIntervalSec * time.Second):
+		case <-ticker.C:
 		}
 	}
 }
