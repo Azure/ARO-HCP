@@ -33,7 +33,7 @@ adminApi:
     connectSocket: false
   cert:
     issuer: Self
-    name: admin-api-cert-prow-j7654321
+    name: admin-api-cert-ci00-j7654321
   image:
     digest: sha256:6f7cd7e77ae5ca7cf9231b9479211a0430a071c763d9540d769a2f40d9d78c57
     registry: arohcpsvcdev.azurecr.io
@@ -88,9 +88,9 @@ auditLogsEventHub:
   authRuleName: SendRule
   enabled: false
   kustoConsumerGroupName: AuditLogsToKusto
-  kustoDataConnectionName: prow-centralus-auditlogs
+  kustoDataConnectionName: ci00-centralus-auditlogs
   name: aks-auditlogs
-  namespace: hcp-prow-centralus-auditlogs-eh
+  namespace: hcp-ci00-centralus-auditlogs-eh
   rg: centralus-shared-resources
 automationDryRun: false
 azureGeoShortId: us
@@ -117,7 +117,7 @@ backend:
     serviceAccountName: backend
   logVerbosity: 4
   maestro:
-    sourceEnvironmentIdentifier: arohcpprow
+    sourceEnvironmentIdentifier: arohcpci00
   managedIdentityName: backend
   tracing:
     address: http://ingest.observability:4318
@@ -162,7 +162,7 @@ clustersService:
   batchProcessesDryRun: true
   denyAssignments: disabled
   deployDebugJobs: false
-  environment: arohcpprow
+  environment: arohcpci00
   image:
     digest: sha256:31fe1839cc3bd62fad4d9f5848f1269f3083c33686c328904a182a5011b4e4ff
     registry: quay.io
@@ -192,7 +192,7 @@ clustersService:
     enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-prow-dbcs-j7654321
+    name: arohcp-ci00-dbcs-j7654321
     password: TheBlurstOfTimes
     private: false
     serverSku: Standard_D8s_v3
@@ -221,7 +221,7 @@ customExporter:
     serviceAccountName: aro-hcp-exporter
   managedIdentityName: aro-hcp-exporter
 cxKeyVault:
-  name: ah-prow-cx-j7654321-1
+  name: ah-ci00-cx-j7654321-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -240,7 +240,7 @@ e2e:
     gatePromotion: true
     prowJobName: ""
 entraAppOwnerIds: d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4
-environmentName: prow
+environmentName: ci00
 ev2:
   assistedId:
     applicationId: ""
@@ -274,13 +274,13 @@ frontend:
     connectSocket: false
   cert:
     issuer: Self
-    name: frontend-cert-prow-j7654321
+    name: frontend-cert-ci00-j7654321
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true
     fleetContainerMaxScale: 4000
     locksContainerMaxScale: 4000
-    name: arohcpprow-rp-j7654321
+    name: arohcpci00-rp-j7654321
     private: false
     resourceContainerMaxScale: 4000
     zoneRedundantMode: Disabled
@@ -368,7 +368,7 @@ global:
   billing:
     digest: placeholder
     rg: placeholder
-    subscriptionKey: hcp-billng-prow
+    subscriptionKey: hcp-billng-ci00
   globalMSIName: global-rollout-identity
   groupQuota:
     displayName: empty-sentinel
@@ -389,7 +389,7 @@ global:
   rg: global
   safeDnsIntAppObjectId: ""
   subscription:
-    displayName: Azure Red Hat OpenShift HCP - prow - Global
+    displayName: Azure Red Hat OpenShift HCP - ci00 - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -533,7 +533,7 @@ maestro:
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
-    name: arohcp-prow-maestro-j7654321
+    name: arohcp-ci00-maestro-j7654321
     private: false
   image:
     digest: sha256:f6c0ac7154b13cbbd46c3f759c12a3e480bc9f7394bfa55f4bc6d4e30161a9e0
@@ -549,7 +549,7 @@ maestro:
     enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-prow-dbmaestro-j7654321
+    name: arohcp-ci00-dbmaestro-j7654321
     password: TheBlurstOfTimes
     private: false
     serverSku: Standard_D2s_v3
@@ -580,7 +580,7 @@ mgmt:
     enableSwiftV2Nodepools: true
     enableSwiftV2Vnet: true
     etcd:
-      name: ah-prow-me-j7654321-1
+      name: ah-ci00-me-j7654321-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -595,7 +595,7 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: "1.35"
-    name: prow-j7654321-mgmt-1
+    name: ci00-j7654321-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
     podSubnetPrefix: 10.128.64.0/18
@@ -624,7 +624,7 @@ mgmt:
   defaultStorageClassSkuName: PremiumV2_LRS
   hcpBackups:
     storageAccount:
-      name: oadpprowj76543211
+      name: oadpci00j76543211
       public: false
       zoneRedundantMode: Auto
     storageAccountContainerName: backups
@@ -677,7 +677,7 @@ mgmt:
         repository: thanos/thanos
         sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
         tag: v0.41.0
-  rg: hcp-underlay-prow-j7654321-mgmt-1
+  rg: hcp-underlay-ci00-j7654321-mgmt-1
   subscription:
     certificateDomains:
     - '*.hcp.osadev.cloud'
@@ -718,7 +718,7 @@ mgmtAgent:
     serviceAccountName: mgmt-agent
   managedIdentityName: mgmt-agent
 mgmtKeyVault:
-  name: ah-prow-mg-j7654321-1
+  name: ah-ci00-mg-j7654321-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -728,7 +728,7 @@ miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
 miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
 miMockTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 mise:
-  applicationName: arohcp-mise-prow
+  applicationName: arohcp-mise-ci00
   arm:
     applicationId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
     audienceFQDN: management.azure.com
@@ -812,7 +812,7 @@ msiCredentialsRefresher:
     serviceAccountName: msi-credential-refresher
   managedIdentityName: msi-credential-refresher
 msiKeyVault:
-  name: ah-prow-mi-j7654321-1
+  name: ah-ci00-mi-j7654321-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -822,7 +822,7 @@ msiRp:
 oidc:
   frontdoor:
     keyVault:
-      name: ah-prow-afd
+      name: ah-ci00-afd
       private: false
       softDelete: true
       tagKey: aroHCPPurpose
@@ -834,7 +834,7 @@ oidc:
     subdomain: oic
     useManagedCertificates: true
   storageAccount:
-    name: arohcpprowoidcj7654321
+    name: arohcpci00oidcj7654321
     privateLinkLocation: centralus
     public: true
     zoneRedundantMode: Auto
@@ -845,10 +845,10 @@ quotaizer:
     repository: empty-sentinel
   managedIdentityName: aro-quotaizer
   quotaGroup:
-    displayName: HCP - prow centralus
-    id: aro-prow-centralus
+    displayName: HCP - ci00 centralus
+    id: aro-ci00-centralus
 region: centralus
-regionRG: hcp-underlay-prow-j7654321
+regionRG: hcp-underlay-ci00-j7654321
 secretSyncController:
   image:
     digest: sha256:0b4799815b77c2c5c8e6375b86072e514cdc447ef1c59a5754939c32ba4147a9
@@ -882,7 +882,7 @@ serviceKeyVault:
 sessiongate:
   cert:
     issuer: Self
-    name: sessiongate-cert-prow-j7654321
+    name: sessiongate-cert-ci00-j7654321
   image:
     digest: sha256:df780df7ce54fbf58824258c44fdb1d135687c24f232440355f4e317c3af3cde
     registry: arohcpsvcdev.azurecr.io
@@ -896,7 +896,7 @@ svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      name: ah-prow-se-j7654321-1
+      name: ah-ci00-se-j7654321-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -911,7 +911,7 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: "1.35"
-    name: prow-j7654321-svc
+    name: ci00-j7654321-svc
     networkDataplane: cilium
     networkPolicy: cilium
     podSubnetPrefix: 10.128.64.0/18
@@ -996,7 +996,7 @@ svc:
         repository: thanos/thanos
         sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
         tag: v0.41.0
-  rg: hcp-underlay-prow-j7654321-svc
+  rg: hcp-underlay-ci00-j7654321-svc
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'

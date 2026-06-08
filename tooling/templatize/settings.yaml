@@ -28,7 +28,7 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "${USER:0:4}"
-- name: prow
+- name: ci00
   description: |
     CI infra shard0 - PR end-to-end tests (fallback).
   defaults:

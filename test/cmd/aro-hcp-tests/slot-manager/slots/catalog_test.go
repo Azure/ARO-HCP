@@ -25,7 +25,7 @@ import (
 const syntheticCatalogYAML = `version: 1
 environments:
   dev:
-    deploy_envs: [prow, ci01]
+    deploy_envs: [ci00, ci01]
     pools:
       - subscription_name: dev-shard-0
         region: westus3

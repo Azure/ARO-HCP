@@ -84,7 +84,7 @@ func splitSelectorValues(raw string) []string {
 
 func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ClusterProfileDir, "cluster-profile-dir", opts.ClusterProfileDir, "Path to CLUSTER_PROFILE_DIR")
-	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Deploy environment name (prow, ci01, int, stg, prod)")
+	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Deploy environment name (ci00, ci01, int, stg, prod)")
 	cmd.Flags().StringSliceVar(&opts.AllowedSubscriptions, "allowed-subscriptions", opts.AllowedSubscriptions, "Optional catalog subscription_name values allowed for candidate pool selection.")
 	cmd.Flags().StringSliceVar(&opts.AllowedLocations, "allowed-locations", opts.AllowedLocations, "Optional Azure regions allowed for fixed-mode candidate pool selection.")
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")

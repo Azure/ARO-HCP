@@ -2,7 +2,7 @@ version: 1
 environments:
   dev:
     deploy_envs:
-    - prow
+    - ci00
     - ci01
     pools:
     # shard1: additional dev capacity for multi-subscription testing.

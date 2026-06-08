@@ -297,7 +297,7 @@ func TestAcquireRunFixedModeFallsBackWithinRequestedRegion(t *testing.T) {
 	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
 environments:
   dev:
-    deploy_envs: [prow, ci01]
+    deploy_envs: [ci00, ci01]
     pools:
       - subscription_name: dev-sub-a
         region: centralus
@@ -940,7 +940,7 @@ func writeAcquireTestCatalog(t *testing.T, regionMode, region string) string {
 	return writeAcquireTestCatalogFromYAML(t, fmt.Sprintf(`version: 1
 environments:
   dev:
-    deploy_envs: [prow, ci01]
+    deploy_envs: [ci00, ci01]
     pools:
       - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
         region: %s
