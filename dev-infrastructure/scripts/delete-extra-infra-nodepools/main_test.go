@@ -62,6 +62,18 @@ func TestExpectedPoolNames(t *testing.T) {
 			want:     []string{"infranz1", "infranz2"},
 		},
 		{
+			// Mirrors the e2e svc cluster: POOL_ZONES is empty in config so
+			// run.go resolves the region's availability zones ([1,2,3]) before
+			// calling Expected; with count 1 this yields the single zonal pool
+			// "infra1" (matching ARM), not "infranz1".
+			name:     "auto with region zones resolved yields zonal infra1",
+			baseName: "infra",
+			count:    1,
+			mode:     "Auto",
+			zones:    []string{"1", "2", "3"},
+			want:     []string{"infra1"},
+		},
+		{
 			name:     "more pools than zones spills to non-zonal",
 			baseName: "infra",
 			count:    3,
