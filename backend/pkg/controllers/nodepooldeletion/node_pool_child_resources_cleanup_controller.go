@@ -226,13 +226,11 @@ func (c *nodePoolChildResourcesCleanupController) extraDeleteGateShouldDeleteSer
 		if err != nil {
 			return false, utils.TrackError(fmt.Errorf("failed to list nodepool-scoped kube-applier resources: %w", err))
 		}
-		for _, resource := range desireIterator.Items(ctx) {
-			if resource.ResourceID != nil {
-				logger.Info("waiting for nodepool-scoped kube-applier content to be deleted before removing ServiceProviderNodePool",
-					"serviceProviderNodePoolResourceID", spnp.ResourceID.String(),
-					"managementClusterResourceID", mcResourceID.String())
-				return false, nil
-			}
+		for range desireIterator.Items(ctx) {
+			logger.Info("waiting for nodepool-scoped kube-applier content to be deleted before removing ServiceProviderNodePool",
+				"serviceProviderNodePoolResourceID", spnp.ResourceID.String(),
+				"managementClusterResourceID", mcResourceID.String())
+			return false, nil
 		}
 		if err := desireIterator.GetError(); err != nil {
 			return false, utils.TrackError(fmt.Errorf("error iterating nodepool-scoped kube-applier resources: %w", err))

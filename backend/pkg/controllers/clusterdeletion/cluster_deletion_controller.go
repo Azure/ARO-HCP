@@ -103,7 +103,6 @@ func (c *clusterDeletionController) NeedsWork(cluster *api.HCPOpenShiftCluster) 
 //  2. All node pool documents are deleted.
 //  3. All external auth documents are deleted.
 //  4. All other Cosmos child resources are deleted.
-//  5. All cluster-scoped kube-applier *Desire documents are deleted.
 //
 // Before removing the cluster document, the corresponding billing document is
 // marked as deleted (idempotent). Returns nil without acting when NeedsWork is
@@ -150,7 +149,7 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	// Preconditio: all node pool Cosmos docs must be deleted
+	// Precondition: all node pool Cosmos docs must be deleted
 	preconditionMet, err = deletePreconditionAllNodePoolsDeleted(ctx, c.resourcesDBClient, key)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))

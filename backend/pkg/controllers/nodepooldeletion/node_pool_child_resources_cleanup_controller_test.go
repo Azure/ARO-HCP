@@ -209,12 +209,12 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name             string
-		existingNodePool *api.HCPOpenShiftClusterNodePool
-		childResources   []any
+		name               string
+		existingNodePool   *api.HCPOpenShiftClusterNodePool
+		childResources     []any
 		kubeApplierDesires []any
 		wantErr            bool
-		verifyDB                  func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, kubeApplierDBClients *databasetesting.MockKubeApplierDBClients)
+		verifyDB           func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, kubeApplierDBClients *databasetesting.MockKubeApplierDBClients)
 	}{
 		{
 			name:             "when no DeletionTimestamp, no ClusterServiceDeletionTimestamp are set and ClusterServiceID is set performs a no-op",

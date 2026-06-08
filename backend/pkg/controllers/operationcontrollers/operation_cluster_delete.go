@@ -176,7 +176,7 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 		return nil
 	}
 
-	// If the external auth is in the Ready state from CS side, we wait until the Cosmos Cluster document is deleted, which
+	// If the cluster is in the Ready state from CS side, we wait until the Cosmos Cluster document is deleted, which
 	// will be picked up by a next reconciliation of this controller and we will update the operation to Succeeded.
 	if csClusterStatus.State() == arohcpv1alpha1.ClusterStateReady {
 		logger.Info("cluster-service Cluster in Ready state. Waiting until Cosmos Cluster document is deleted.")

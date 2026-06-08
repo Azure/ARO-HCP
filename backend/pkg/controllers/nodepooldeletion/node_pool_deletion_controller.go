@@ -92,7 +92,6 @@ func (c *nodePoolDeletionController) NeedsWork(nodePool *api.HCPOpenShiftCluster
 // all the delete preconditions are met:
 //  1. All nodepool-scoped Maestro readonly bundles are cleared.
 //  2. All other Cosmos child resources are deleted.
-//  3. All nodepool-scoped kube-applier *Desire documents are deleted.
 func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
