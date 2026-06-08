@@ -98,6 +98,13 @@ resourceGroups:
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  # Look up the service resource group subscription id for Shell steps
+  - name: subscription-output
+    action: ARM
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   # Create SVC KV
   - name: infra
     action: ARM
@@ -240,7 +247,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: svc.rg
     - name: SUBSCRIPTION_ID
-      configRef: svc.subscriptionId
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
     - name: POOL_TAG
       value: infra
     - name: POOL_BASE_NAME
@@ -256,6 +266,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+    - resourceGroup: service
+      step: subscription-output
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
