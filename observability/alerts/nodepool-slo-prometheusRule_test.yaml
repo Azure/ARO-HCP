@@ -98,10 +98,10 @@ tests:
         exp_alerts:
           - exp_labels:
               cluster: "mgmt-1"
-              severity: critical
+              severity: info
               slo: nodepool-errors
             exp_annotations:
-              summary: "Node Pool operation error rate critically high (>72%)"
+              summary: "mgmt-1: Node Pool operation error rate critically high (>72%)"
               description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
               runbook_url: "aka.ms/arohcp-runbook-nodepool"
       # Degradation also fires (15% threshold met at 80%)
@@ -113,7 +113,7 @@ tests:
               severity: info
               slo: nodepool-errors
             exp_annotations:
-              summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
+              summary: "mgmt-1: Node Pool operation failure rate exceeds 15% for 30 minutes"
               description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
               runbook_url: "aka.ms/arohcp-runbook-nodepool"
 
@@ -165,7 +165,7 @@ tests:
               severity: info
               slo: nodepool-errors
             exp_annotations:
-              summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
+              summary: "mgmt-1: Node Pool operation failure rate exceeds 15% for 30 minutes"
               description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
               runbook_url: "aka.ms/arohcp-runbook-nodepool"
 
@@ -175,9 +175,9 @@ tests:
   # start_time is 0 (epoch). At eval_time=70m (4200s), delta = 4200 > 3600 threshold.
   - interval: 1m
     input_series:
-      - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/np/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
+      - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/np/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
         values: "0+0x70"
-      - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/np/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
+      - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/np/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
         values: "1+0x70"
     alert_rule_test:
       # At 70m (4200s), time() - 0 = 4200 > 3600, alert fires
@@ -190,9 +190,10 @@ tests:
               resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
               operation_type: "update"
               phase: "updating"
-              severity: critical
+              cluster: "mgmt-1"
+              severity: info
             exp_annotations:
-              summary: "Node Pool operation stuck in updating for over 1 hour"
+              summary: "mgmt-1: Node Pool operation stuck in updating for over 1 hour"
               description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
               runbook_url: "aka.ms/arohcp-runbook-nodepool"
 
@@ -203,9 +204,9 @@ tests:
   - interval: 1m
     input_series:
       # start_time=600 (recent). At eval_time=30m, time()=1800. delta=1200 < 3600.
-      - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/np/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
+      - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/np/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
         values: "600+0x35"
-      - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/np/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating"}'
+      - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/np/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
         values: "1+0x35"
     alert_rule_test:
       - eval_time: 30m
@@ -252,7 +253,7 @@ tests:
               cluster: "mgmt-1"
               severity: info
             exp_annotations:
-              summary: "Node Pool controller workqueue OperationNodePoolUpdate depth is high"
+              summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate depth is high"
               description: "Node pool controller workqueue OperationNodePoolUpdate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
               runbook_url: "aka.ms/arohcp-runbook-nodepool"
 
@@ -285,7 +286,7 @@ tests:
               cluster: "mgmt-1"
               severity: info
             exp_annotations:
-              summary: "Node Pool controller workqueue OperationNodePoolUpdate retry hot loop"
+              summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate retry hot loop"
               description: "Node pool controller workqueue OperationNodePoolUpdate has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
               runbook_url: "aka.ms/arohcp-runbook-nodepool"
 
@@ -357,10 +358,10 @@ tests:
         exp_alerts:
           - exp_labels:
               cluster: "mgmt-1"
-              severity: critical
+              severity: info
               slo: nodepool-errors
             exp_annotations:
-              summary: "Node Pool operation error rate elevated (>30%) for 30+ minutes"
+              summary: "mgmt-1: Node Pool operation error rate elevated (>30%) for 30+ minutes"
               description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
               runbook_url: "aka.ms/arohcp-runbook-nodepool"
       # 50% < 72% → fast burn should NOT fire
@@ -373,9 +374,9 @@ tests:
   # Verifies that delete operations stuck for >1h also trigger the alert.
   - interval: 1m
     input_series:
-      - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/np/stuck-del", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting"}'
+      - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/np/stuck-del", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
         values: "0+0x70"
-      - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/np/stuck-del", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting"}'
+      - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/np/stuck-del", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
         values: "1+0x70"
     alert_rule_test:
       - eval_time: 70m
@@ -387,8 +388,9 @@ tests:
               resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
               operation_type: "delete"
               phase: "deleting"
-              severity: critical
+              cluster: "mgmt-1"
+              severity: info
             exp_annotations:
-              summary: "Node Pool operation stuck in deleting for over 1 hour"
+              summary: "mgmt-1: Node Pool operation stuck in deleting for over 1 hour"
               description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
               runbook_url: "aka.ms/arohcp-runbook-nodepool"
