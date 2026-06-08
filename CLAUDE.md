@@ -1,6 +1,62 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Project Overview
 
 This is the main repository for Red Hat OpenShift on Azure (ARO) using the Hosted Control Planes (HCP) architecture. It contains code some of the code for the required microservices along with most of the configuration and pipeline definiton necessary to deploy it.
+
+## Common Commands
+
+### Build, Test, Lint (whole repo)
+```bash
+make test              # Run all unit tests across the Go workspace (requires envtest setup, done automatically)
+make lint              # Run golangci-lint across all modules
+make lint-fix          # Run lint with --fix
+make fmt               # Run goimports across all modules
+make verify            # Run all verification checks (deepcopy, json-format, yamlfmt, materialize, gomega, schema)
+make generate          # Regenerate deepcopy, mocks, format, tidy
+make install-tools     # Install all dev tools via bingo
+```
+
+### Running a single test
+There is no workspace-wide single-test shortcut. `cd` into the module directory and run:
+```bash
+cd frontend && go test -run TestMyFunction -v ./...
+cd internal && go test -run TestSomething -v ./path/to/package/...
+```
+
+For integration tests (require Cosmos emulator):
+```bash
+cd test-integration && make test    # Runs all integration tests with Cosmos emulator
+go test ./test-integration/frontend/...  # Frontend integration tests only
+go test ./test-integration/backend/...   # Backend integration tests only
+```
+
+### E2E tests (local)
+```bash
+make e2e/local                                  # Full local E2E suite
+make e2e-local/run-test TEST_NAME="TestName"    # Single E2E test
+```
+
+### Building individual services
+```bash
+make -C frontend build   # Build frontend binary
+make -C backend build    # Build backend binary
+make build-services      # Build all in-repo service images in parallel
+```
+
+### Config changes
+After modifying `config/config*.yaml` or schema files:
+```bash
+cd config && make materialize   # Re-render configs and update helm fixtures
+```
+Rendered config changes under `config/rendered/` must be committed with your PR. Run `make verify-materialize` to check.
+
+### Personal dev environment
+```bash
+make personal-dev-env   # Build images, deploy infrastructure (DEPLOY_ENV=pers required)
+```
 
 ## Target Environments
 
@@ -97,10 +153,28 @@ Each service follows consistent patterns:
 
 - Every `go func(...)` spawned in non-test code must `defer utilruntime.HandleCrash()` (alias `k8s.io/apimachinery/pkg/util/runtime`) as its first deferred call, so an unhandled panic in the goroutine respects `utilruntime.ReallyCrash` and the binary's crash-on-panic policy instead of silently taking down the process. Goroutines whose body is passed to a kube wait helper that already wraps the call (e.g. `wait.Until`, `wait.UntilWithContext`, `wait.JitterUntil`) do not need it — those helpers call `HandleCrash` internally. When the goroutine invokes a named function via `go fn(...)`, put the `defer utilruntime.HandleCrash()` at the top of `fn` rather than wrapping the call site in a closure. Test code (`*_test.go`, `test/`, `test-integration/`, generated SDK fakes) is exempt.
 
+- **Import aliases are enforced by linter.** The `.golangci.yml` `importas` config requires specific aliases. Key ones:
+  - `arohcpv1alpha1` for `github.com/openshift-online/ocm-sdk-go/aro_hcp/v1alpha1`
+  - `cmv1` for `github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1`
+  - `azcorearm` for `github.com/Azure/azure-sdk-for-go/sdk/azcore/arm`
+  - OpenShift API packages use `{group}{version}` pattern (e.g. `configv1`)
+
+- **Import ordering** is enforced by `gci`: standard, blank, dot, default, `k8s.io`, `sigs.k8s.io`, `github.com/Azure`, `github.com/openshift`, `github.com/Azure/ARO-HCP`. Run `make fmt` to fix.
+
+### Integration Tests
+The `test-integration/` directory uses a **declarative artifact-driven** test framework. Tests are defined as numbered step directories (`00-load-initial-state/`, `01-httpCreate-resource/`, etc.) under `artifacts/` trees — no Go code changes needed to add a new test case. See `test-integration/claude.md` for the full step type reference.
+
 ### Infrastructure as Code
 - Bicep templates in `dev-infrastructure/templates/`
 - Reusable modules in `dev-infrastructure/modules/`
 - Parameter files: `*.bicepparam` (with `.tmpl.bicepparam` templates)
+
+## PR Standards
+
+- PR titles must use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, etc.
+- PR descriptions must explain the **"Why"**, not just the "What", and link to a Jira/GitHub issue.
+- Tide is a merge-automation bot — its status is **not** a CI check; ignore it when evaluating CI.
+- See `CONTRIBUTING.md` for the full PR standards.
 
 ## Tooling
 
