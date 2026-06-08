@@ -179,6 +179,11 @@ func (c *KSMHCPController) syncHandler(ctx context.Context, key string) error {
 		return fmt.Errorf("failed to get HostedControlPlane %q: %w", key, err)
 	}
 
+	if !hcp.DeletionTimestamp.IsZero() {
+		logger.V(4).Info("HostedControlPlane is being deleted, letting GC clean up KSM resources", "key", key)
+		return nil
+	}
+
 	if !isKubeAPIServerAvailable(hcp) {
 		logger.V(4).Info("KubeAPIServer not yet available, skipping until next informer event", "key", key)
 		return nil
