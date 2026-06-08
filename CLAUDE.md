@@ -15,7 +15,9 @@ make lint              # Run golangci-lint across all modules
 make lint-fix          # Run lint with --fix
 make fmt               # Run goimports across all modules
 make verify            # Run all verification checks (deepcopy, json-format, yamlfmt, materialize, gomega, schema) — this is what CI runs
+make verify-kql        # Validate KQL (Kusto Query Language) files
 make generate          # Regenerate deepcopy, mocks, format, tidy
+make generate-kiota    # Regenerate the ARM SDK (under test/sdk/), then run licenses + fmt
 make tidy              # Run go mod tidy across all modules + go work sync
 make install-tools     # Install all dev tools via bingo
 ```
@@ -61,8 +63,10 @@ make personal-dev-env   # Build images, deploy infrastructure (DEPLOY_ENV=pers r
 
 ### Other useful commands
 ```bash
-make rebase            # Rebase on upstream and re-materialize config (hack/rebase-n-materialize.sh)
-make envtest-setup     # Download kubebuilder binaries (etcd, kube-apiserver) for controller tests
+make rebase                      # Rebase on upstream and re-materialize config (hack/rebase-n-materialize.sh)
+make envtest-setup               # Download kubebuilder binaries (etcd, kube-apiserver) for controller tests
+make record-nonlocal-e2e         # Regenerate nonlocal-e2e-specs.txt after adding/removing/renaming E2E tests
+make validate-config-pipelines   # Validate all pipeline.yaml files against topology and config
 ```
 Note: `make test` runs `envtest-setup` automatically, but if you run `go test` directly in a module with controller tests (e.g. `kube-applier`), you need `KUBEBUILDER_ASSETS` set. Use: `export KUBEBUILDER_ASSETS=$(make -s envtest-setup)`
 
@@ -119,7 +123,7 @@ Loose categorization:
 Incomplete list:
 - **Frontend**: ARM REST API endpoint (`frontend/`) - Go service handling Azure ARM API calls
 - **Backend**: Internal processing service (`backend/`) - Go service for async operations
-- **Cluster Service**: Core cluster management (`cluster-service/`) - Manages HCP cluster lifecycle
+- **Cluster Service**: Core cluster management (`cluster-service/`) - Wraps OCM's Clusters Service with ARO-HCP-specific configuration; manages HCP cluster lifecycle
 - **Maestro**: Multi-cluster orchestration (`maestro/`) - Handles communication between service and management clusters
 - **Kube-Applier**: Kubernetes resource applier (`kube-applier/`) - Reconciles desired-state manifests on management clusters
 - **Fleet**: Fleet controller (`fleet/`) - Service cluster controller for fleet-level operations
@@ -128,7 +132,7 @@ Incomplete list:
 - **Admin**: Admin API (`admin/`) - Internal admin interface (split into `admin/client` and `admin/server` modules)
 - **Infrastructure**: Azure infrastructure as code (`dev-infrastructure/`) - Bicep templates for all Azure resources
 - **Internal**: Shared libraries (`internal/`) - Common APIs, database, OCM client, tracing utilities
-- **demo**: helper scripts to quickly spin up and tear down an HCP cluster
+- **demo**: helper scripts to quickly spin up and tear down an HCP cluster (see `demo/README.md` for usage)
 
 The github.com/Azure/ARO-Tools repo is also a dependency and changes can be suggested for it.
 
@@ -159,7 +163,7 @@ Uses a custom templatize system (`tooling/templatize/`) that processes:
 
 ### Configuration System
 - `config/config.yaml` is the main config with Go template variables (`{{ .ctx.region }}`, etc.)
-- `config/config.schema.json` validates the config — update the schema when adding new parameters
+- `config/config.schema.json` validates the config — update the schema when adding new parameters. The schema enforces `additionalProperties: false` on all objects (checked by `make verify-schema`), so new fields must be explicitly added to the schema or validation will fail
 - `config/config.msft.clouds-overlay.yaml` provides overrides for Microsoft cloud environments
 - After any config change: `cd config && make materialize` to re-render, then commit `config/rendered/` changes
 - See `docs/configuration.md` for full details
