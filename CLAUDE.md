@@ -139,7 +139,7 @@ The github.com/Azure/ARO-Tools repo is also a dependency and changes can be sugg
 ## Additional Build, Configuration and Deployment Info
 
 ### Go Workspace
-The project uses Go 1.25 workspaces with ~35 modules defined in `go.work`:
+The project uses Go workspaces (see `go.work` for the Go version and full module list):
 - Services: `admin/client`, `admin/server`, `backend`, `frontend`, `fleet`, `kube-applier`, `mgmt-agent`, `sessiongate`
 - Libraries: `internal`, `test`, `test-integration`
 - Tooling: `tooling/hcpctl`, `tooling/templatize`, `tooling/secret-sync`, etc.
