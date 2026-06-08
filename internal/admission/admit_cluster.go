@@ -161,7 +161,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	}
 
 	fipsEnabled := lookupTag(tags, api.TagClusterFipsEnabled)
-	switch fipsEnabled {
+	switch strings.ToLower(fipsEnabled) {
 	case api.FipsModeEnabled:
 		experimentalFeatures.FipsEnabled = true
 	case api.FipsModeDisabled, "":
