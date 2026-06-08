@@ -495,6 +495,12 @@ model UserAssignedIdentitiesProfile {
    * purpose is to perform service level actions. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   serviceManagedIdentity: UserAssignedIdentityResourceId;
+
+  /** Represents the information associated to an Azure User-Assigned Managed Identity whose
+   * purpose is to perform image pulls from Azure Container Registries. */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  acrPullIdentity?: UserAssignedIdentityResourceId;
 }
 
 scalar UserAssignedIdentityResourceId

@@ -2569,6 +2569,7 @@ func (t *TokenRequiredClaim) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type UserAssignedIdentitiesProfile.
 func (u UserAssignedIdentitiesProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "acrPullIdentity", u.AcrPullIdentity)
 	populate(objectMap, "controlPlaneOperators", u.ControlPlaneOperators)
 	populate(objectMap, "dataPlaneOperators", u.DataPlaneOperators)
 	populate(objectMap, "serviceManagedIdentity", u.ServiceManagedIdentity)
@@ -2584,6 +2585,9 @@ func (u *UserAssignedIdentitiesProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "acrPullIdentity":
+			err = unpopulate(val, "AcrPullIdentity", &u.AcrPullIdentity)
+			delete(rawMsg, key)
 		case "controlPlaneOperators":
 			err = unpopulate(val, "ControlPlaneOperators", &u.ControlPlaneOperators)
 			delete(rawMsg, key)
@@ -2606,6 +2610,7 @@ func (u *UserAssignedIdentitiesProfile) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type UserAssignedIdentitiesProfileUpdate.
 func (u UserAssignedIdentitiesProfileUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "acrPullIdentity", u.AcrPullIdentity)
 	populate(objectMap, "controlPlaneOperators", u.ControlPlaneOperators)
 	populate(objectMap, "dataPlaneOperators", u.DataPlaneOperators)
 	populate(objectMap, "serviceManagedIdentity", u.ServiceManagedIdentity)
@@ -2621,6 +2626,9 @@ func (u *UserAssignedIdentitiesProfileUpdate) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "acrPullIdentity":
+			err = unpopulate(val, "AcrPullIdentity", &u.AcrPullIdentity)
+			delete(rawMsg, key)
 		case "controlPlaneOperators":
 			err = unpopulate(val, "ControlPlaneOperators", &u.ControlPlaneOperators)
 			delete(rawMsg, key)

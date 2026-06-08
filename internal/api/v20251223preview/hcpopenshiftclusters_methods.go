@@ -286,6 +286,7 @@ func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) g
 		ControlPlaneOperators:  api.ResourceIDMapToStringPtrMap(from.ControlPlaneOperators),
 		DataPlaneOperators:     api.ResourceIDMapToStringPtrMap(from.DataPlaneOperators),
 		ServiceManagedIdentity: api.ResourceIDToStringPtr(from.ServiceManagedIdentity),
+		AcrPullIdentity:        api.ResourceIDToStringPtr(from.AcrPullIdentity),
 	}
 }
 
@@ -687,6 +688,13 @@ func normalizeUserAssignedIdentities(fldPath *field.Path, p *generated.UserAssig
 			errs = append(errs, field.Invalid(fldPath.Child("serviceManagedIdentity"), *p.ServiceManagedIdentity, err.Error()))
 		} else {
 			out.ServiceManagedIdentity = resourceID
+		}
+	}
+	if p.AcrPullIdentity != nil && len(*p.AcrPullIdentity) > 0 {
+		if resourceID, err := azcorearm.ParseResourceID(*p.AcrPullIdentity); err != nil {
+			errs = append(errs, field.Invalid(fldPath.Child("acrPullIdentity"), *p.AcrPullIdentity, err.Error()))
+		} else {
+			out.AcrPullIdentity = resourceID
 		}
 	}
 	return errs

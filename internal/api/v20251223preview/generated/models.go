@@ -1055,11 +1055,19 @@ type UserAssignedIdentitiesProfile struct {
 	// REQUIRED; Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform
 	// service level actions.
 	ServiceManagedIdentity *string
+
+	// Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform image pulls
+	// from Azure Container Registries.
+	AcrPullIdentity *string
 }
 
 // UserAssignedIdentitiesProfileUpdate - Represents the information related to Azure User-Assigned managed identities needed
 // to perform Operators authentication based on Azure User-Assigned Managed Identities
 type UserAssignedIdentitiesProfileUpdate struct {
+	// Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform image pulls
+	// from Azure Container Registries.
+	AcrPullIdentity *string
+
 	// The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The set of
 	// required managed identities is dependent on the Cluster's OpenShift version.
 	ControlPlaneOperators map[string]*string

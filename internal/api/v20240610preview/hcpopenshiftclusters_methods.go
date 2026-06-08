@@ -438,6 +438,9 @@ func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 	}
 	// VnetIntegrationSubnetID was added in v2025_12_23_preview.
 	to.CustomerProperties.Platform.VnetIntegrationSubnetID = from.CustomerProperties.Platform.VnetIntegrationSubnetID
+	// AcrPullIdentity was added in v2025_12_23_preview.
+	to.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.AcrPullIdentity =
+		from.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.AcrPullIdentity
 	// Visibility was added in v2025_12_23_preview.
 	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
 		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {

@@ -190,7 +190,6 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 		field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
 		newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
 		newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
-
 	return errs
 }
 
@@ -609,7 +608,7 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID), "Microsoft.Network/networkSecurityGroups")...)
 
 	//OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
+	errs = append(errs, immutableAuthExcludingAcr(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 	errs = append(errs, validateOperatorsAuthenticationProfile(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 
 	return errs
@@ -639,7 +638,7 @@ func validateOperatorsAuthenticationProfile(ctx context.Context, op operation.Op
 	errs := field.ErrorList{}
 
 	//UserAssignedIdentities UserAssignedIdentitiesProfile `json:"userAssignedIdentities,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toAuthenticationUserAssignedIdentities))...)
+	errs = append(errs, immutableUAIExcludingAcr(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toAuthenticationUserAssignedIdentities))...)
 	errs = append(errs, validateUserAssignedIdentitiesProfile(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toAuthenticationUserAssignedIdentities))...)
 
 	return errs
@@ -654,6 +653,9 @@ var (
 	}
 	toUserAssignedIdentitiesServiceManagedIdentity = func(oldObj *api.UserAssignedIdentitiesProfile) *azcorearm.ResourceID {
 		return oldObj.ServiceManagedIdentity
+	}
+	toUserAssignedIdentitiesAcrPullIdentity = func(oldObj *api.UserAssignedIdentitiesProfile) *azcorearm.ResourceID {
+		return oldObj.AcrPullIdentity
 	}
 )
 
@@ -700,7 +702,34 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
 
+	//AcrPullIdentity — Day-2 mutable, no immutableByReflect.
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("acrPullIdentity"), newObj.AcrPullIdentity, safe.Field(oldObj, toUserAssignedIdentitiesAcrPullIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+
 	return errs
+}
+
+func immutableAuthExcludingAcr(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj *api.OperatorsAuthenticationProfile, oldObj *api.OperatorsAuthenticationProfile) field.ErrorList {
+	newCopy := *newObj
+	newCopy.UserAssignedIdentities.AcrPullIdentity = nil
+	var oldCopy *api.OperatorsAuthenticationProfile
+	if oldObj != nil {
+		tmp := *oldObj
+		tmp.UserAssignedIdentities.AcrPullIdentity = nil
+		oldCopy = &tmp
+	}
+	return immutableByReflect(ctx, op, fldPath, &newCopy, oldCopy)
+}
+
+func immutableUAIExcludingAcr(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj *api.UserAssignedIdentitiesProfile, oldObj *api.UserAssignedIdentitiesProfile) field.ErrorList {
+	newCopy := *newObj
+	newCopy.AcrPullIdentity = nil
+	var oldCopy *api.UserAssignedIdentitiesProfile
+	if oldObj != nil {
+		tmp := *oldObj
+		tmp.AcrPullIdentity = nil
+		oldCopy = &tmp
+	}
+	return immutableByReflect(ctx, op, fldPath, &newCopy, oldCopy)
 }
 
 var (
