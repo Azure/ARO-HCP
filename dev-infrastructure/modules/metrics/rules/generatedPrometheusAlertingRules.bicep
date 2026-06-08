@@ -41,7 +41,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
+          runbook_url: 'TBD'
           summary: 'Prometheus is unreachable for 10 minutes.'
           title: 'Prometheus is unreachable for 10 minutes.'
         }
@@ -74,79 +74,11 @@ Please check the status of the Prometheus pods, service endpoints, and network c
 This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
+          runbook_url: 'TBD'
           summary: 'Prometheus is unreachable for 1 day.'
           title: 'Prometheus is unreachable for 1 day.'
         }
         expression: 'avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'PrometheusUptimeSampleCount'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'PrometheusUptimeSampleCount/{{ $labels.cluster }}'
-          description: '''Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
-Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
-Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
-Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
-'''
-          info: '''Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
-Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
-Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
-Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
-'''
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
-          summary: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
-          title: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
-        }
-        expression: '(sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'PrometheusMetricsAbsentPerCluster'
-        enabled: true
-        labels: {
-          severity: 'critical'
-        }
-        annotations: {
-          correlationId: 'PrometheusMetricsAbsentPerCluster/{{ $labels.cluster }}'
-          description: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
-This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
-Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
-'''
-          info: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
-This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
-Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
-'''
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
-          summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
-          title: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
-        }
-        expression: 'count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -179,7 +111,7 @@ a bottleneck or issue with the remote write endpoint, network connectivity, or P
 If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
 Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
 '''
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
+          runbook_url: 'TBD'
           summary: 'Prometheus pending sample rate is above 40%.'
           title: 'Prometheus pending sample rate is above 40%.'
         }
@@ -216,7 +148,7 @@ issues with the remote write endpoint, network instability, or Prometheus resour
 Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
 Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
 '''
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
+          runbook_url: 'TBD'
           summary: 'Prometheus failed sample rate to remote storage is above 10%.'
           title: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
@@ -253,12 +185,12 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusRemoteStorageFailures/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.remote_name }}/{{ $labels.url }}'
+          correlationId: 'PrometheusRemoteStorageFailures/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures'
           summary: 'Prometheus fails to send samples to remote storage.'
-          title: 'Prometheus fails to send samples to remote storage. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }} remote_name:{{ $labels.remote_name }} url:{{ $labels.url }}'
+          title: 'Prometheus fails to send samples to remote storage.'
         }
         expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
         for: 'PT15M'
@@ -280,12 +212,12 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusNotIngestingSamples/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusNotIngestingSamples/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples'
           summary: 'Prometheus is not ingesting samples.'
-          title: 'Prometheus is not ingesting samples. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
+          title: 'Prometheus is not ingesting samples.'
         }
         expression: '(sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) <= 0 and sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus/prometheus",namespace="prometheus"}) > 0)'
         for: 'PT10M'
@@ -307,12 +239,12 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusBadConfig/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusBadConfig/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig'
           summary: 'Failed Prometheus configuration reload.'
-          title: 'Failed Prometheus configuration reload. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
+          title: 'Failed Prometheus configuration reload.'
         }
         expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0'
         for: 'PT10M'
@@ -334,12 +266,12 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusScrapeSampleLimitHit/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusScrapeSampleLimitHit/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
-          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit'
           summary: 'Prometheus has failed scrapes that have exceeded the configured sample limit.'
-          title: 'Prometheus has failed scrapes that have exceeded the configured sample limit. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
+          title: 'Prometheus has failed scrapes that have exceeded the configured sample limit.'
         }
         expression: 'increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) > 0'
         for: 'PT15M'
@@ -374,12 +306,12 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.controller }}'
+          correlationId: 'PrometheusOperatorNotReady/{{ $labels.cluster }}'
           description: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
           info: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready'
           summary: 'Prometheus operator not ready'
-          title: 'Prometheus operator not ready namespace:{{ $labels.namespace }} controller:{{ $labels.controller }}'
+          title: 'Prometheus operator not ready'
         }
         expression: 'min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
         for: 'PT5M'
@@ -401,12 +333,12 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusOperatorRejectedResources/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.controller }}/{{ $labels.resource }}'
+          correlationId: 'PrometheusOperatorRejectedResources/{{ $labels.cluster }}'
           description: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
           info: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources'
           summary: 'Resources rejected by Prometheus operator'
-          title: 'Resources rejected by Prometheus operator namespace:{{ $labels.namespace }} controller:{{ $labels.controller }} resource:{{ $labels.resource }}'
+          title: 'Resources rejected by Prometheus operator'
         }
         expression: 'min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0'
         for: 'PT20M'
@@ -661,6 +593,64 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long: '6h'
+          severity: 'warning'
+          short: '30m'
+          slo: 'api-latency-p90'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
+          info: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'Cluster Service API P90 latency error budget burn rate is too high'
+          title: 'Cluster Service API P90 latency error budget burn rate is too high'
+        }
+        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.9))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.9)))'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          slo: 'api-latency-p90'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
+          title: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
+        }
+        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.9))'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
@@ -690,12 +680,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}'
           description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Backend controller workqueue depth is high'
-          title: 'Backend controller workqueue depth is high name:{{ $labels.name }}'
+          title: 'Backend controller workqueue depth is high'
         }
         expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10'
         for: 'PT15M'
@@ -717,12 +707,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'BackendControllerPanic/{{ $labels.cluster }}/{{ $labels.controller }}'
+          correlationId: 'BackendControllerPanic/{{ $labels.cluster }}'
           description: 'Backend controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
           info: 'Backend controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Backend controller is panicking'
-          title: 'Backend controller is panicking controller:{{ $labels.controller }}'
+          title: 'Backend controller is panicking'
         }
         expression: 'sum by (controller, cluster) (increase(panic_total{namespace="aro-hcp"}[5m])) > 0'
         for: 'PT1M'
@@ -744,12 +734,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.location }}'
+          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}'
           description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           info: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Orphaned cluster managed resource groups detected'
-          title: 'Orphaned cluster managed resource groups detected location:{{ $labels.location }}'
+          title: 'Orphaned cluster managed resource groups detected'
         }
         expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
         for: 'PT5M'
@@ -771,12 +761,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.location }}'
+          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}'
           description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
           info: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Orphaned cluster managed resource group deletion is failing'
-          title: 'Orphaned cluster managed resource group deletion is failing location:{{ $labels.location }}'
+          title: 'Orphaned cluster managed resource group deletion is failing'
         }
         expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
         for: 'PT10M'
@@ -811,12 +801,12 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FleetControllerRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'FleetControllerRetryHotLoop/{{ $labels.cluster }}'
           description: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           runbook_url: 'TBD'
           summary: 'Fleet controller workqueue retry hot loop'
-          title: 'Fleet controller workqueue retry hot loop name:{{ $labels.name }}'
+          title: 'Fleet controller workqueue retry hot loop'
         }
         expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace="fleet"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="fleet"}[10m])))) > 0.5'
         for: 'PT10M'
@@ -838,12 +828,12 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FleetControllerQueueDepthHigh/{{ $labels.cluster }}/{{ $labels.name }}'
+          correlationId: 'FleetControllerQueueDepthHigh/{{ $labels.cluster }}'
           description: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'TBD'
           summary: 'Fleet controller workqueue depth is high'
-          title: 'Fleet controller workqueue depth is high name:{{ $labels.name }}'
+          title: 'Fleet controller workqueue depth is high'
         }
         expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="fleet"})) > 10'
         for: 'PT5M'
@@ -865,12 +855,12 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FleetControllerPanic/{{ $labels.cluster }}/{{ $labels.controller }}'
+          correlationId: 'FleetControllerPanic/{{ $labels.cluster }}'
           description: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
           info: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
           runbook_url: 'TBD'
           summary: 'Fleet controller is panicking'
-          title: 'Fleet controller is panicking controller:{{ $labels.controller }}'
+          title: 'Fleet controller is panicking'
         }
         expression: 'sum by (controller, cluster) (increase(panic_total{namespace="fleet"}[5m])) > 0'
         for: 'PT1M'
@@ -1176,7 +1166,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FluentBitIngestionPaused/{{ $labels.cluster }}/{{ $labels.pod }}'
+          correlationId: 'FluentBitIngestionPaused/{{ $labels.cluster }}'
           description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has paused collecting new log data for at least 5 minutes.
 Ingestion pauses when Fluent Bit\'s internal memory or storage buffers are full, typically caused by backpressure from a slow or failing output.
 Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
@@ -1187,7 +1177,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
           summary: 'Fluent Bit input ingestion paused due to backpressure.'
-          title: 'Fluent Bit input ingestion paused due to backpressure. pod:{{ $labels.pod }} cluster:{{ $labels.cluster }}'
+          title: 'Fluent Bit input ingestion paused due to backpressure.'
         }
         expression: 'sum by (cluster, pod) (fluentbit_input_ingestion_paused) > 0'
         for: 'PT5M'
@@ -1209,7 +1199,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FluentBitHighOutputRetries/{{ $labels.cluster }}/{{ $labels.pod }}'
+          correlationId: 'FluentBitHighOutputRetries/{{ $labels.cluster }}'
           description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is retrying chunk delivery.
 Retries occur when the azure_kusto output encounters a recoverable error (e.g. transient network failure, HTTP 429/5xx from Kusto).
 Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
@@ -1220,7 +1210,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
           summary: 'High Kusto output retries'
-          title: 'High Kusto output retries pod:{{ $labels.pod }} cluster:{{ $labels.cluster }}'
+          title: 'High Kusto output retries'
         }
         expression: 'sum by (cluster, pod) (increase(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) > 3'
         for: 'PT5M'
@@ -1242,7 +1232,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FluentBitOutputErrors/{{ $labels.cluster }}/{{ $labels.pod }}'
+          correlationId: 'FluentBitOutputErrors/{{ $labels.cluster }}'
           description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is encountering errors sending log chunks to Kusto.
 Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
 '''
@@ -1251,7 +1241,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
           summary: 'Unrecoverable Kusto output errors - log data is being dropped.'
-          title: 'Unrecoverable Kusto output errors - log data is being dropped. pod:{{ $labels.pod }} cluster:{{ $labels.cluster }}'
+          title: 'Unrecoverable Kusto output errors - log data is being dropped.'
         }
         expression: 'sum by (cluster, pod) (increase(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) > 0'
         for: 'PT5M'
@@ -1273,7 +1263,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FluentBitOutputRetriesExhausted/{{ $labels.cluster }}/{{ $labels.pod }}'
+          correlationId: 'FluentBitOutputRetriesExhausted/{{ $labels.cluster }}'
           description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has chunks that exceeded the configured Retry_Limit for the Kusto output.
 Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
 '''
@@ -1282,7 +1272,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
 '''
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html'
           summary: 'Kusto output retries exhausted - chunks discarded after max retries.'
-          title: 'Kusto output retries exhausted - chunks discarded after max retries. pod:{{ $labels.pod }} cluster:{{ $labels.cluster }}'
+          title: 'Kusto output retries exhausted - chunks discarded after max retries.'
         }
         expression: 'sum by (cluster, pod) (increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) > 0'
         for: 'PT5M'
@@ -1324,7 +1314,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-customerapi"} / 32 > 0.8'
         for: 'PT15M'
@@ -1353,7 +1343,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-svc"} / 18 > 0.8'
         for: 'PT15M'
@@ -1382,7 +1372,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-cx"} / 8 > 0.8'
         for: 'PT15M'
@@ -1411,7 +1401,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-svc"} / 18 > 0.8'
         for: 'PT15M'
@@ -1440,7 +1430,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{region!="uswest2",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi"} / 64 > 0.8'
         for: 'PT15M'
@@ -1469,7 +1459,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{region="uswest2",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi"} / 128 > 0.8'
         for: 'PT15M'
@@ -1498,7 +1488,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-cx"} / 32 > 0.8'
         for: 'PT15M'
@@ -1527,7 +1517,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-svc"} / 32 > 0.8'
         for: 'PT15M'
@@ -1556,7 +1546,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-cx"} / 32 > 0.8'
         for: 'PT15M'
@@ -1585,7 +1575,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           owning_team: 'hcp-sl'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage'
           summary: 'Service Tag IP Usage is reaching 80%'
-          title: 'Service Tag IP Usage is reaching 80% cluster:{{ $labels.cluster }}'
+          title: 'Service Tag IP Usage is reaching 80%'
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-svc"} / 32 > 0.8'
         for: 'PT15M'
@@ -1620,18 +1610,18 @@ resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}/{{ $labels.exported_namespace }}'
-          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}'
+          description: '''Cluster {{ $labels.cluster_external_id }} has been in a deleting state for more than 2 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
-          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+          info: '''Cluster {{ $labels.cluster_external_id }} has been in a deleting state for more than 2 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
           runbook_url: 'TBD'
           summary: 'Cluster stuck deleting'
-          title: 'Cluster stuck deleting exported_namespace:{{ $labels.exported_namespace }}'
+          title: 'Cluster stuck deleting'
         }
-        expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
+        expression: 'max by (cluster_id, cluster_external_id, region, management_cluster) (cluster_deprovision_duration_seconds) > 7200'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1664,12 +1654,12 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeContainerOOMKilled/{{ $labels.cluster }}/{{ $labels.container }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'KubeContainerOOMKilled/{{ $labels.cluster }}'
           description: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} on cluster {{ $labels.cluster }} has been OOMKilled. This indicates the container exceeded its memory limit and was terminated by the kernel.'
           info: 'Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} on cluster {{ $labels.cluster }} has been OOMKilled. This indicates the container exceeded its memory limit and was terminated by the kernel.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/service-lifecycle.html'
           summary: 'Container {{ $labels.container }} was OOMKilled'
-          title: 'Container {{ $labels.container }} was OOMKilled namespace:{{ $labels.namespace }} pod:{{ $labels.pod }} cluster:{{ $labels.cluster }}'
+          title: 'Container {{ $labels.container }} was OOMKilled'
         }
         expression: 'kube_pod_container_status_last_terminated_reason{job="kube-state-metrics",reason="OOMKilled"} == 1'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
@@ -1703,11 +1693,11 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeMemoryPressure/{{ $labels.cluster }}/{{ $labels.node }}'
+          correlationId: 'KubeMemoryPressure/{{ $labels.cluster }}'
           description: 'Node {{ $labels.node }} is reporting MemoryPressure condition'
           info: 'Node {{ $labels.node }} is reporting MemoryPressure condition'
           summary: 'Node under memory pressure'
-          title: 'Node under memory pressure node:{{ $labels.node }}'
+          title: 'Node under memory pressure'
         }
         expression: 'kube_node_status_condition{condition="MemoryPressure",status="true"} == 1'
         for: 'PT5M'
@@ -1747,7 +1737,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
           runbook_url: 'TBD'
           summary: 'Image registry policy denied pod admission'
-          title: 'Image registry policy denied pod admission cluster:{{ $labels.cluster }}'
+          title: 'Image registry policy denied pod admission'
         }
         expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
         for: 'PT1M'
@@ -1774,7 +1764,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
           runbook_url: 'TBD'
           summary: 'Image registry policy audit violation detected'
-          title: 'Image registry policy audit violation detected cluster:{{ $labels.cluster }}'
+          title: 'Image registry policy audit violation detected'
         }
         expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
         for: 'PT5M'
@@ -1809,16 +1799,16 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KustoLogsDataStale/{{ $labels.cluster }}/{{ $labels.table }}/{{ $labels.kusto_cluster }}'
+          correlationId: 'KustoLogsDataStale/{{ $labels.cluster }}'
           description: '''Kusto log data for table {{ $labels.table }} on cluster {{ $labels.cluster }} (Kusto cluster {{ $labels.kusto_cluster }}) is stale. Check the ingestion pipeline.
 '''
           info: '''Kusto log data for table {{ $labels.table }} on cluster {{ $labels.cluster }} (Kusto cluster {{ $labels.kusto_cluster }}) is stale. Check the ingestion pipeline.
 '''
           runbook_url: 'TBD'
           summary: 'Kusto log data is stale for {{ $labels.table }} on {{ $labels.cluster }}.'
-          title: 'Kusto log data is stale for {{ $labels.table }} on {{ $labels.cluster }}. kusto_cluster:{{ $labels.kusto_cluster }}'
+          title: 'Kusto log data is stale for {{ $labels.table }} on {{ $labels.cluster }}.'
         }
-        expression: 'kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200'
+        expression: 'kusto_logs_age_in_seconds > 3600'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
