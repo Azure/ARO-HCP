@@ -74,6 +74,7 @@ var flagCategories = map[string]flagEffect{
 	"--enable-size-tagging":               flagSafe,
 	"--limit-crd-install":                 flagSafe,
 	"--hypershift-image":                  flagSafe,
+	"--outputs":                           flagSafe,
 
 	// Node-affecting: tracked in dedicated NodeRolloutConfig fields
 	"--registry-overrides": flagNodeAffecting,
@@ -209,19 +210,19 @@ func extractInstallScript(manifest string) (string, error) {
 			}
 			continue
 		}
-		if job.Kind != "Job" || job.Name != "install-hypershift" {
+		if job.Kind != "Job" || job.Name != "install-hypershift-resources" {
 			continue
 		}
 		if len(job.Spec.Template.Spec.Containers) == 0 {
-			return "", fmt.Errorf("install-hypershift Job has no containers")
+			return "", fmt.Errorf("install-hypershift-resources Job has no containers")
 		}
 		cmd := job.Spec.Template.Spec.Containers[0].Command
 		if len(cmd) < 3 {
-			return "", fmt.Errorf("install-hypershift Job command has fewer than 3 elements")
+			return "", fmt.Errorf("install-hypershift-resources Job command has fewer than 3 elements")
 		}
 		return cmd[2], nil
 	}
-	return "", fmt.Errorf("install-hypershift Job not found in rendered manifest")
+	return "", fmt.Errorf("install-hypershift-resources Job not found in rendered manifest")
 }
 
 func extractFlag(script, flagName string) (string, bool) {
