@@ -672,8 +672,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
 		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
-		b.options.FleetDBClient,
 		activeOperationLister,
 		backendInformers,
 	)
@@ -731,8 +729,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		utilsclock.RealClock{},
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient,
-		b.options.KubeApplierDBClients,
-		b.options.FleetDBClient,
 		activeOperationLister,
 		backendInformers,
 	)

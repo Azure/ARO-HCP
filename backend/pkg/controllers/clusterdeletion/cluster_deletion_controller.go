@@ -45,8 +45,6 @@ type clusterDeletionController struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	resourcesDBClient            database.ResourcesDBClient
 	billingDBClient              database.BillingDBClient
-	kubeApplierDBClients         database.KubeApplierDBClients
-	fleetDBClient                database.FleetDBClient
 	passiveClock                 utilsclock.PassiveClock
 }
 
@@ -56,8 +54,6 @@ func NewClusterDeletionController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
-	fleetDBClient database.FleetDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
@@ -69,8 +65,6 @@ func NewClusterDeletionController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient:            resourcesDBClient,
 		billingDBClient:              billingDBClient,
-		kubeApplierDBClients:         kubeApplierDBClients,
-		fleetDBClient:                fleetDBClient,
 		passiveClock:                 clock,
 	}
 
@@ -183,15 +177,6 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 		return nil
 	}
 
-	// Precondition: all cluster-scoped kube-applier *Desire documents must be deleted
-	preconditionMet, err = c.deletePreconditionClusterScopedKubeApplierResourcesDeleted(ctx, key)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
-	}
-	if !preconditionMet {
-		return nil
-	}
-
 	// Mark billing document as deleted before deleting the cluster document.
 	// This is idempotent: if the billing document was already marked or never
 	// existed, MarkBillingDocumentDeleted returns nil.
@@ -229,58 +214,6 @@ func (c *clusterDeletionController) deletePreconditionAllMaestroClusterScopedRea
 			"remainingBundles", len(spc.Status.MaestroReadonlyBundles))
 		return false, nil
 	}
-	return true, nil
-}
-
-// deletePreconditionClusterScopedKubeApplierResourcesDeleted checks whether any
-// cluster-scoped kube-applier *Desire documents remain. ServiceProviderCluster may
-// already be gone, so placement is resolved by searching all management clusters.
-func (c *clusterDeletionController) deletePreconditionClusterScopedKubeApplierResourcesDeleted(
-	ctx context.Context,
-	key controllerutils.HCPClusterKey,
-) (bool, error) {
-	logger := utils.LoggerFromContext(ctx)
-
-	clusterResourceID := key.GetResourceID()
-	managementClusters, err := database.NewDBBackedManagementClusterLister(c.fleetDBClient).List(ctx)
-	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("listing management clusters for kube-applier check: %w", err))
-	}
-
-	for _, mc := range managementClusters {
-		mcResourceID := mc.ResourceID
-		if mcResourceID == nil {
-			mcResourceID = mc.CosmosMetadata.ResourceID
-		}
-		if mcResourceID == nil {
-			continue
-		}
-
-		// If no management cluster matches we cannot determine it so we consider the precondition met.
-		kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-		if kaClient == nil {
-			continue
-		}
-
-		desireCRUD, err := kaClient.UntypedCRUD(*clusterResourceID)
-		if err != nil {
-			return false, utils.TrackError(fmt.Errorf("failed to create kube-applier untyped CRUD: %w", err))
-		}
-
-		// If the management cluster doesn't have the cluster resource id this list will be empty too.
-		desireIterator, err := desireCRUD.List(ctx, nil)
-		if err != nil {
-			return false, utils.TrackError(fmt.Errorf("failed to list cluster-scoped kube-applier resources: %w", err))
-		}
-		for range desireIterator.Items(ctx) {
-			logger.Info("waiting for cluster-scoped kube-applier content to be deleted before removing cluster")
-			return false, nil
-		}
-		if err := desireIterator.GetError(); err != nil {
-			return false, utils.TrackError(fmt.Errorf("error iterating cluster-scoped kube-applier resources: %w", err))
-		}
-	}
-
 	return true, nil
 }
 
