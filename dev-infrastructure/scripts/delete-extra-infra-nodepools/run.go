@@ -67,6 +67,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/dev-infrastructure/scripts/internal/akslog"
+	"github.com/Azure/ARO-HCP/dev-infrastructure/scripts/internal/azregions"
 	"github.com/Azure/ARO-HCP/dev-infrastructure/scripts/internal/poolnaming"
 )
 
@@ -100,11 +101,29 @@ func run() error {
 	clusterState := akslog.Deref(mc.Properties.ProvisioningState)
 	akslog.Logf("cluster %s: provisioningState=%s", cfg.clusterName, clusterState)
 	if clusterState != "Succeeded" {
+		if cfg.dryRun {
+			akslog.Logf("DRY_RUN: cluster %s is not in Succeeded state (got %q) — skipping orphan detection (no pools touched)", cfg.clusterName, clusterState)
+			return nil
+		}
 		return fmt.Errorf("cluster %s is not in Succeeded state (got %q) — aborting to avoid unsafe pool deletion during an active LRO", cfg.clusterName, clusterState)
 	}
 
 	akslog.Banner("STEP 2 — compute expected vs live pools")
-	expectedNames := poolnaming.Expected(cfg.poolBaseName, cfg.poolCount, cfg.zoneRedundantMode, cfg.poolZones)
+	// Mirror pool.bicep's zone resolution: when a pool's configured zones are
+	// empty, svc-/mgmt-cluster.bicep fall back to the region's availability
+	// zones (locationAvailabilityZoneList) before pool.bicep computes names.
+	// Reproduce that fallback here so expected names match what ARM deployed.
+	effectiveZones := cfg.poolZones
+	if len(effectiveZones) == 0 && cfg.zoneRedundantMode != "Disabled" {
+		regionZones, ok := azregions.AvailabilityZones(akslog.Deref(mc.Location))
+		if !ok {
+			akslog.Logf("region %q is not in the availability-zone table — cannot reproduce bicep's effective pool zones; skipping orphan detection to avoid unsafe deletion (no pools touched)", akslog.Deref(mc.Location))
+			return nil
+		}
+		effectiveZones = regionZones
+		akslog.Logf("POOL_ZONES empty; resolved effective zones for region %q from the availability-zone table: %v", akslog.Deref(mc.Location), effectiveZones)
+	}
+	expectedNames := poolnaming.Expected(cfg.poolBaseName, cfg.poolCount, cfg.zoneRedundantMode, effectiveZones)
 	expectedSet := make(map[string]struct{}, len(expectedNames))
 	for _, n := range expectedNames {
 		expectedSet[n] = struct{}{}
@@ -138,16 +157,24 @@ func run() error {
 
 	akslog.Banner("STEP 3 — bootstrap kube client")
 	if err := az.bootstrapKube(ctx, akslog.Deref(mc.ID)); err != nil {
+		if cfg.dryRun {
+			akslog.Logf("DRY_RUN: could not bootstrap kube client (%v) — skipping readiness safety check; would delete %d extra pool(s): %v (no pools touched)", err, len(extras), extras)
+			return nil
+		}
 		return fmt.Errorf("bootstrap kube: %w", err)
 	}
 
 	akslog.Banner("STEP 4 — safety gate: verify expected pools are healthy")
 	if err := az.allExpectedPoolsReady(ctx, expectedNames, livePools); err != nil {
+		if cfg.dryRun {
+			akslog.Logf("DRY_RUN: safety gate would BLOCK deletion: %v — would delete %d extra pool(s): %v (no pools touched)", err, len(extras), extras)
+			return nil
+		}
 		return err
 	}
 
 	if cfg.dryRun {
-		akslog.Logf("DRY_RUN=true — would delete %d extra pool(s): %v — set DRY_RUN=false to proceed", len(extras), extras)
+		akslog.Logf("DRY_RUN=true — safety gate passed; would delete %d extra pool(s): %v — set DRY_RUN=false to proceed", len(extras), extras)
 		return nil
 	}
 
