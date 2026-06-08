@@ -553,33 +553,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
 
-	nodePoolBuilder.Labels(nodePool.Properties.Labels)
-
-	if nodePool.Properties.AutoScaling != nil {
-		nodePoolBuilder.Autoscaling(arohcpv1alpha1.NewNodePoolAutoscaling().
-			MinReplica(int(nodePool.Properties.AutoScaling.Min)).
-			MaxReplica(int(nodePool.Properties.AutoScaling.Max)))
-	} else {
-		nodePoolBuilder.Replicas(int(nodePool.Properties.Replicas))
-	}
-
-	if nodePool.Properties.Taints != nil {
-		taintBuilders := []*arohcpv1alpha1.TaintBuilder{}
-		for _, t := range nodePool.Properties.Taints {
-			newTaintBuilder := arohcpv1alpha1.NewTaint().
-				Effect(string(t.Effect)).
-				Key(t.Key).
-				Value(t.Value)
-			taintBuilders = append(taintBuilders, newTaintBuilder)
-		}
-		nodePoolBuilder.Taints(taintBuilders...)
-	}
-
-	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
-		nodePoolBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-			Unit(csNodeDrainGracePeriodUnit).
-			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
-	}
+	applyNodePoolUpdatableConfig(nodePoolBuilder, NodePoolUpdatableConfigFromProperties(nodePool.Properties))
 
 	return nodePoolBuilder, nil
 }
