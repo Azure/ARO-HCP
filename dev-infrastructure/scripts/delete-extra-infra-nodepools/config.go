@@ -103,7 +103,7 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 		}
 	}
 
-	if v := env("POOL_MIN_COUNT"); v != "" {
+	if v := strings.TrimSpace(env("POOL_MIN_COUNT")); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			return nil, fmt.Errorf("POOL_MIN_COUNT: %w", err)
@@ -114,7 +114,7 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 		c.poolMinCount = n
 	}
 
-	if v := env("DRAIN_TIMEOUT_MIN"); v != "" {
+	if v := strings.TrimSpace(env("DRAIN_TIMEOUT_MIN")); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			return nil, fmt.Errorf("DRAIN_TIMEOUT_MIN: %w", err)
@@ -125,7 +125,7 @@ func parseEnvConfig(env func(string) string) (*config, error) {
 		c.drainTimeoutMin = n
 	}
 
-	if v := env("READY_TIMEOUT_MIN"); v != "" {
+	if v := strings.TrimSpace(env("READY_TIMEOUT_MIN")); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			return nil, fmt.Errorf("READY_TIMEOUT_MIN: %w", err)
