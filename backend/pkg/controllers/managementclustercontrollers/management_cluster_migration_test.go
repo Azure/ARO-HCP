@@ -16,6 +16,7 @@ package managementclustercontrollers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -336,6 +337,55 @@ func TestSyncOnce(t *testing.T) {
 				require.NotNil(t, readyCond, "Ready condition must exist")
 				assert.Equal(t, metav1.ConditionTrue, readyCond.Status, "Ready condition should be True")
 				assert.Equal(t, string(fleet.ManagementClusterConditionReasonProvisionShardActive), readyCond.Reason)
+			},
+		},
+		{
+			name: "existing management cluster with empty KubeApplierCosmosContainerName is backfilled",
+			setup: func(t *testing.T, ctrl *gomock.Controller) (ocm.ClusterServiceClientSpec, *databasetesting.MockFleetDBClient, dblisters.StampLister, dblisters.ManagementClusterLister) {
+				t.Helper()
+				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+				fleetClient := databasetesting.NewMockFleetDBClient()
+
+				shard := buildTestProvisionShard(t, testShardID, "test-consumer", "test-westus3-mgmt-1", "active")
+				existing, err := ocm.ConvertCSManagementClusterToInternal(shard)
+				require.NoError(t, err)
+				existing.Spec.SchedulingPolicy = fleet.ManagementClusterSchedulingPolicyUnschedulable
+				_, err = fleetClient.Stamps().ManagementClusters("1").Create(t.Context(), existing, nil)
+				require.NoError(t, err)
+
+				// Simulate a pre-migration record that was created before
+				// KubeApplierCosmosContainerName was introduced: blank the
+				// field both in the DB and on the lister copy.
+				for cosmosID, raw := range fleetClient.GetAllDocuments() {
+					var doc map[string]any
+					require.NoError(t, json.Unmarshal(raw, &doc))
+					props, ok := doc["properties"].(map[string]any)
+					if !ok {
+						continue
+					}
+					status, ok := props["status"].(map[string]any)
+					if !ok {
+						continue
+					}
+					if _, has := status["kubeApplierCosmosContainerName"]; !has {
+						continue
+					}
+					delete(status, "kubeApplierCosmosContainerName")
+					patched, err := json.Marshal(doc)
+					require.NoError(t, err)
+					fleetClient.StoreDocument(cosmosID, patched)
+				}
+				existing.Status.KubeApplierCosmosContainerName = ""
+
+				mockCS.EXPECT().ListProvisionShards().Return(
+					ocm.NewSimpleProvisionShardListIterator([]*arohcpv1alpha1.ProvisionShard{shard}, nil),
+				)
+				return mockCS, fleetClient, &listertesting.SliceStampLister{}, &listertesting.SliceManagementClusterLister{ManagementClusters: []*fleet.ManagementCluster{existing}}
+			},
+			validate: func(t *testing.T, ctx context.Context, client *databasetesting.MockFleetDBClient) {
+				t.Helper()
+				doc := getManagementCluster(t, ctx, client, "1")
+				assert.Equal(t, "Manifests-MC-1", doc.Status.KubeApplierCosmosContainerName)
 			},
 		},
 		{
