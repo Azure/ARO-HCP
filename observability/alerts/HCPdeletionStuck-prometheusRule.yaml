@@ -8,12 +8,11 @@ spec:
   - name: hcp-deletion-rules
     rules:
     - alert: HCPClusterStuckDeleting
-      # Trigger if deletion duration > 2 hours (7200 seconds)
-      expr: sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200
+      expr: max by (cluster_id, cluster_external_id, region, management_cluster) (cluster_deprovision_duration_seconds) > 7200
       for: 5m
       labels:
         severity: warning
       annotations:
         summary: "Cluster stuck deleting"
-        description: "Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
+        description: "Cluster {{ $labels.cluster_external_id }} has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
         runbook_url: TBD
