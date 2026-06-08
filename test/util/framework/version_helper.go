@@ -182,8 +182,15 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 			}
 			continue
 		}
-		uniqueVersionsInMinor[root.String()] = root
+		// Nightly graph roots can be synthetic anchors (for example "4.21.0-nightly")
+		// which are not installable release images. Keep only real nightly tags.
+		if channelGroup != "nightly" || isRealNightlyVersion(root.String()) {
+			uniqueVersionsInMinor[root.String()] = root
+		}
 		for _, release := range releases {
+			if channelGroup == "nightly" && !isRealNightlyVersion(release.Version) {
+				continue
+			}
 			candidateVersion := api.Must(semver.ParseTolerant(release.Version))
 			if candidateVersion.Major != maj || candidateVersion.Minor != min {
 				continue
@@ -206,6 +213,13 @@ func GetAllVersionsInMinorStartingWith(ctx context.Context, channelGroup string,
 		return candidates[j].LT(candidates[i])
 	})
 	return candidates, nil
+}
+
+func isRealNightlyVersion(version string) bool {
+	// Real accepted nightly tags look like:
+	// X.Y.0-0.nightly-multi-YYYY-MM-DD-HHMMSS
+	// Synthetic graph anchors (for example X.Y.0-nightly) should be excluded.
+	return strings.Contains(version, "-0.nightly-")
 }
 
 // GetLatestVersionInMinor returns the latest OpenShift version for the given major.minor (e.g. "4.20")
