@@ -78,7 +78,7 @@ spec:
         - name: OPERAND_IMAGE_MCE_CAPI_WEBHOOK_CONFIG_RHEL9
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/mce-capi-webhook-config-rhel9@sha256:1ef1a826a496ae9d1e4a6c7cfaa8c5b6b6dbf97191def40584ff806a3d5da293'
         - name: OPERAND_IMAGE_CLUSTERCLAIMS_CONTROLLER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/clusterclaims-controller-rhel9@sha256:d064039e9f7fba95ddd969aacf209e2a1d56df7556cb357970be0c79138ecb17'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/clusterclaims-controller-rhel9@sha256:f96d97e62cb9dfc25a08713d7529053fc6a6e35ae12d99eb807a43f0aef371ac'
         - name: OPERAND_IMAGE_CLUSTER_CURATOR_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-curator-controller-rhel9@sha256:9bd422e301605de926f9ae80ba6bd8f52e9619c552ae133145316bc8cf201c43'
         - name: OPERAND_IMAGE_CLUSTER_IMAGE_SET_CONTROLLER
@@ -88,7 +88,7 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_PROXY
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-rhel9@sha256:4a6d76e8861885227d856da44c252c4d64dd29670b4a9898558f2232469f8bc6'
         - name: OPERAND_IMAGE_CONSOLE_MCE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:851d48ae598c521bddb5a87a29ce7f85941e2d4a1cefd7637656127db5b74f1d'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:af987eb2ca3f49f27ef3e6da35b7a38b2261df2cc00888c6a2ca5227fa636253'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:f305c303374f7632c1faed0629dfc78d24f019e51c29557e564c1c526a82df6e'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
@@ -100,15 +100,15 @@ spec:
         - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hypershift-rhel9-operator@sha256:b3d18f82a62b10c1d54ee4ee3bb3542f813f93c01d7248fea6e203b372a41e48'
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:152c0186a423c515f8f16a27068e5c85ed8a50e80bf980bffd46a566351b49a3'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/image-based-install-rhel9@sha256:441232dd1a12afe481e48193395da939493583adcdfb02d8afbb083ffe5bf198'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/kube-rbac-proxy-mce-rhel9@sha256:d5b02ed85f231088a2cb2506c66f54bd78cdeb7d6b7da631ef4fd4861c9c3e21'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managedcluster-import-controller-rhel9@sha256:288fb0e119c6b3e87451aea53e7ba6092d7db97e071910cf515c5d25bbe54b63'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managedcluster-import-controller-rhel9@sha256:dcedceb94625b9f9f28e7dba87545f06402aa423e6ca9afda64c546ce1b74df0'
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managed-serviceaccount-rhel9@sha256:f685264275f486457487922a6486d4b161c976f70dc4c8195e3c27e7024eb3ff'
         - name: OPERAND_IMAGE_MULTICLOUD_MANAGER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/multicloud-manager-rhel9@sha256:6215355427a6e15c39fe39ba9c4a478dfe37bf7c7aee883e28724e278b1ef45b'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/multicloud-manager-rhel9@sha256:07358aaff53a188e1a9ef0d7b6ba9897a749d24945982e2bb61efb831dc5cadf'
         - name: OPERAND_IMAGE_PROVIDER_CREDENTIAL_CONTROLLER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/provider-credential-controller-rhel9@sha256:d9aa59350d186578853e5ca68bf06cc089fe35a8d75eaaa783bb476fa04fadd5'
         - name: OPERAND_IMAGE_PLACEMENT
