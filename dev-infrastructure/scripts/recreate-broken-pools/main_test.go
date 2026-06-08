@@ -1660,6 +1660,32 @@ func TestIsActivityLogAuthorizationError(t *testing.T) {
 	}
 }
 
+func TestIsDeletionInitiatedErr(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"plain_error", errors.New("boom"), false},
+		{"operation_not_allowed_deletion", fmt.Errorf("begin trigger: %w",
+			fmt.Errorf("deletion has been initiated: %w",
+				&azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "OperationNotAllowed"})), true},
+		{"operation_not_allowed_other_reason", fmt.Errorf("quota exceeded: %w",
+			&azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "OperationNotAllowed"}), false},
+		{"different_error_code_with_deletion_text", fmt.Errorf("deletion has been initiated: %w",
+			&azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "BadRequest"}), false},
+		{"not_response_error", fmt.Errorf("deletion has been initiated: %w", errors.New("not azcore")), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isDeletionInitiatedErr(tc.err); got != tc.want {
+				t.Errorf("got %t want %t", got, tc.want)
+			}
+		})
+	}
+}
+
 // =============================================================================
 // evalPoolWedge  (per-pool provisioningState == "Failed")
 // =============================================================================
@@ -2046,6 +2072,34 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{
 				"ensureCluster", "dumpPreflight", "detect:1",
 				"snapshotSystem", "triggerSystemReconcile",
+			},
+		},
+		{
+			name: "guard1_fail_trigger_deletion_initiated_confirms",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
+			setup: func(m *mockOrchestrator) {
+				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
+					if n == 1 {
+						return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+					}
+					return true, "", nil
+				}
+				m.triggerSystemReconcileFn = func(context.Context, *armcs.AgentPool) error {
+					return fmt.Errorf("begin trigger pool scale-up system: %w",
+						fmt.Errorf("Cannot run operation on node pool system because deletion has been initiated: %w",
+							&azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "OperationNotAllowed"}))
+				}
+			},
+			wantCalls: []string{
+				"ensureCluster", "dumpPreflight", "detect:1",
+				"snapshotSystem", "triggerSystemReconcile",
+				"bootstrapKube", "dumpPreflight",
+				"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
+				"addTempPool:system",
+				"drainPool:system", "deletePool:system",
+				"recreateSystem",
+				"drainPool:" + tmpSystem, "deletePool:" + tmpSystem,
+				"reconcileTagPut", "dumpPostflight",
 			},
 		},
 		{

@@ -542,6 +542,11 @@ func forcedEvidencePath(ctx context.Context, cfg *config, orch orchestrator, tar
 	}
 
 	if err := orch.triggerPoolReconcile(ctx, target, live); err != nil {
+		if isDeletionInitiatedErr(err) {
+			logf("pool %s rejected scale-up: deletion has been initiated; confirming as broken (remediation will delete+recreate)", target.name)
+			target.suspected = false
+			return &target, nil
+		}
 		logf("WARN: triggerPoolReconcile for %s failed: %v; treating as no-op", target.name, err)
 		return nil, nil
 	}
@@ -818,6 +823,21 @@ func (c *clients) bootstrapKube(ctx context.Context, mc armcs.ManagedCluster) er
 	}
 	c.kube = kc
 	return nil
+}
+
+// isDeletionInitiatedErr reports whether err is an ARM OperationNotAllowed
+// response indicating that AKS has marked the pool for deletion and refuses
+// all operations except retrying the delete. This state is reached when a
+// previous delete was initiated but did not complete.
+func isDeletionInitiatedErr(err error) bool {
+	var re *azcore.ResponseError
+	if !errors.As(err, &re) {
+		return false
+	}
+	if re.ErrorCode != "OperationNotAllowed" {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "deletion has been initiated")
 }
 
 // isNotFoundErr reports whether err is an azcore HTTP 404 ResponseError
