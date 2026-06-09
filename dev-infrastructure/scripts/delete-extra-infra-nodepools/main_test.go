@@ -125,6 +125,47 @@ func TestExpectedPoolNames(t *testing.T) {
 	}
 }
 
+func TestRetainedPools(t *testing.T) {
+	tests := []struct {
+		name   string
+		live   []string
+		extras []string
+		want   []string
+	}{
+		{
+			name:   "deletes some, retains rest",
+			live:   []string{"infra1", "infra2", "infra3"},
+			extras: []string{"infra2"},
+			want:   []string{"infra1", "infra3"},
+		},
+		{
+			name:   "deletes all leaves none (must be refused by caller)",
+			live:   []string{"infra1", "infra2"},
+			extras: []string{"infra1", "infra2"},
+			want:   nil,
+		},
+		{
+			name:   "no extras retains all",
+			live:   []string{"infra1"},
+			extras: nil,
+			want:   []string{"infra1"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := retainedPools(tt.live, tt.extras)
+			if len(got) != len(tt.want) {
+				t.Fatalf("retainedPools() = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("retainedPools()[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestParseEnvConfig_RequiredFields(t *testing.T) {
 	base := map[string]string{
 		"CLUSTER_NAME":        "test-cluster",
