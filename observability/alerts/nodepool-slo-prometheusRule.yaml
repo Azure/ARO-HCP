@@ -30,6 +30,7 @@ spec:
       expr: |
         count by (cluster) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
+          operation_type=~"update|delete",
           phase="succeeded"
         })
     # Instantaneous count of all terminal node pool operations per cluster
@@ -37,6 +38,7 @@ spec:
       expr: |
         count by (cluster) (backend_resource_operation_phase_info{
           resource_type=~".*nodepools",
+          operation_type=~"update|delete",
           phase=~"succeeded|failed|canceled"
         })
     # Instantaneous error rate per cluster: fraction of terminal operations that failed
@@ -45,11 +47,13 @@ spec:
         (
           count by (cluster) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
+            operation_type=~"update|delete",
             phase="failed"
           })
           or
           0 * count by (cluster) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
+            operation_type=~"update|delete",
             phase=~"succeeded|failed|canceled"
           })
         )
@@ -57,6 +61,7 @@ spec:
         clamp_min(
           count by (cluster) (backend_resource_operation_phase_info{
             resource_type=~".*nodepools",
+            operation_type=~"update|delete",
             phase=~"succeeded|failed|canceled"
           }),
           1
