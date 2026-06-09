@@ -172,7 +172,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Dev-CI Topology](dev-ci-topology.md) explains what the standalone `dev-ci` rollout owns today, how it relates to on-demand DEV CI, and where the remaining mixed-management boundary still sits.
 - [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) documents the end-to-end procedure for adding another DEV customer subscription, including slot catalog, Boskos, cluster-profile inventory, and bootstrap RBAC updates.
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
-- [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current Boskos and ci-operator lease model.
+- [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current staged model: slot-manager for DEV `e2e-parallel`, legacy ci-operator identity-container leases elsewhere.
 - [CI Quota Monitoring](quota-monitoring.md) explains how Azure quotas that constrain CI are monitored and where to check current usage.
 - [CI EV2 Integration](ev2-integration.md) explains how EV2 selects Prow jobs, authenticates to Gangway, and pins runs to the exact rollout commit.
 - [CI Cleanup](cleanup.md) explains why cleanup is intentionally split across strict per-test teardown, targeted environment teardown, and background hygiene.

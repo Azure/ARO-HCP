@@ -267,17 +267,8 @@ The `aro-hcp-local-e2e` workflow explains why `e2e-parallel` has such a wide ima
 workflow:
   as: aro-hcp-local-e2e
   steps:
-    env:
-      LEASED_MSI_CONTAINERS: aro-hcp-test-msi-containers-dev
-      LEASED_MSI_MOCK_SP: aro-hcp-msi-mock-cs-sp-dev
-    leases:
-      - env: LEASED_MSI_CONTAINERS
-        resource_type: aro-hcp-test-msi-containers-dev
-        count: 20
-      - env: LEASED_MSI_MOCK_SP
-        resource_type: aro-hcp-msi-mock-cs-sp-dev
-        count: 1
     pre:
+      - ref: aro-hcp-lease-acquire
       - ref: aro-hcp-write-config
       - ref: aro-hcp-provision-environment
     test:
@@ -290,7 +281,10 @@ workflow:
       - ref: aro-hcp-gather-observability
       - ref: aro-hcp-gather-snapshot
       - ref: aro-hcp-deprovision-environment
+      - ref: aro-hcp-lease-release
 ```
+
+The identity-container lease for DEV local E2E is now acquired at runtime through `aro-hcp-lease-acquire`, which calls `slot-manager`. The provisioning step still carries its own separate Boskos lease for the MSI mock service-principal pool.
 
 This workflow needs:
 

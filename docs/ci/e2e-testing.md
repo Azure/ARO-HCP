@@ -22,21 +22,23 @@ All E2E tests run through Prow. For manual triggers or reruns, use PR comments o
 
 | Command | Environment | Runs Automatically | Notes |
 |---------|-------------|-------------------|-------|
-| `/test e2e-parallel` | DEV (centralus) | Yes, on every PR | Required presubmit. Can validate unmerged RP and shared deployment-artifact changes because the job provisions DEV service footprint on demand. |
-| `/test integration-e2e-parallel` | INT (uksouth) | No | Must be triggered manually. Useful for validating test behavior against the shared INT environment. |
-| `/test integration-e2e-parallel-ocp-fast` | INT (uksouth) | No | Must be triggered manually |
-| `/test integration-e2e-parallel-ocp-stable` | INT (uksouth) | No | Must be triggered manually |
-| `/test integration-e2e-parallel-ocp-nightly` | INT (uksouth) | No | Must be triggered manually |
-| `/test stage-e2e-parallel` | STG (uksouth) | No | Must be triggered manually. Useful for validating test behavior against the shared STG environment. |
-| `/test stage-e2e-parallel-ocp-fast` | STG (uksouth) | No | Must be triggered manually |
-| `/test stage-e2e-parallel-ocp-stable` | STG (uksouth) | No | Must be triggered manually |
-| `/test stage-e2e-parallel-ocp-nightly` | STG (uksouth) | No | Must be triggered manually |
-| `/test prod-e2e-parallel` | PROD (uksouth) | No | Use with caution. Useful for validating test behavior against the shared PROD environment. |
-| `/test prod-e2e-parallel-ocp-fast` | PROD (uksouth) | No | Use with caution |
-| `/test prod-e2e-parallel-ocp-stable` | PROD (uksouth) | No | Use with caution |
-| `/test prod-e2e-parallel-ocp-nightly` | PROD (uksouth) | No | Use with caution |
+| `/test e2e-parallel` | DEV | Yes, on every PR | Required presubmit. Can validate unmerged RP and shared deployment-artifact changes because the job provisions DEV service footprint on demand. This is the only E2E job currently using slot-manager. |
+| `/test integration-e2e-parallel` | INT | No | Must be triggered manually. Useful for validating test behavior against the shared INT environment. |
+| `/test integration-e2e-parallel-ocp-fast` | INT | No | Must be triggered manually |
+| `/test integration-e2e-parallel-ocp-stable` | INT | No | Must be triggered manually |
+| `/test integration-e2e-parallel-ocp-nightly` | INT | No | Must be triggered manually |
+| `/test stage-e2e-parallel` | STG | No | Must be triggered manually. Useful for validating test behavior against the shared STG environment. |
+| `/test stage-e2e-parallel-ocp-fast` | STG | No | Must be triggered manually |
+| `/test stage-e2e-parallel-ocp-stable` | STG | No | Must be triggered manually |
+| `/test stage-e2e-parallel-ocp-nightly` | STG | No | Must be triggered manually |
+| `/test prod-e2e-parallel` | PROD | No | Use with caution. Useful for validating test behavior against the shared PROD environment. |
+| `/test prod-e2e-parallel-ocp-fast` | PROD | No | Use with caution |
+| `/test prod-e2e-parallel-ocp-stable` | PROD | No | Use with caution |
+| `/test prod-e2e-parallel-ocp-nightly` | PROD | No | Use with caution |
 
 The `ocp-fast`, `ocp-stable`, and `ocp-nightly` variants run the same E2E suite but against different OCP update channels to catch compatibility issues with newer OCP versions early. For more information on OCP update channels, see [What are the differences between each of the update channels?](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/updating_clusters/understanding-openshift-updates-1#update-availability_understanding-openshift-updates)
+
+This guide intentionally does not hard-code the current runtime region for these jobs. Inspect the live `openshift/release` ci-operator config if you need the current `LOCATION` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION` for a specific job.
 
 To rerun all failed jobs:
 
