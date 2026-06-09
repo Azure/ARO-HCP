@@ -34,7 +34,7 @@ This is the only PR mode that provisions the RP footprint on demand as part of t
 
 In image terms, this is also the only PR path that normally builds both the runner images and the service images that get injected into the freshly provisioned DEV environment. The on-demand footprint is therefore running the exact service image revision produced by that job.
 
-The on-demand DEV environments depend on pre-existing **global shared infrastructure** that is not provisioned by the E2E job itself. Shared resources such as ACRs, parent DNS zones, Key Vault, Grafana, and Kusto are maintained by the `global-pipeline-postsubmit` Prow job, which runs automatically after merge when changes touch `config/config.yaml`, `observability/observability.yaml`, or anything under `dev-infrastructure/`. If the global postsubmit fails or drifts, on-demand DEV environments will fail at provision time. The global scope lives in a shared subscription, while regional, SVC, and MGMT infrastructure is deployed into CI infrastructure subscriptions.
+The on-demand DEV environments depend on pre-existing **global shared infrastructure** that is not provisioned by the E2E job itself. Shared resources such as ACRs, parent DNS zones, Key Vault, Grafana, and Kusto are maintained by the `global-pipeline-postsubmit` Prow job, which runs automatically after merge when changes touch `config/config.yaml`, `observability/dashboards.yaml`, or anything under `dev-infrastructure/`. If the global postsubmit fails or drifts, on-demand DEV environments will fail at provision time. The global scope lives in a shared subscription, while regional, SVC, and MGMT infrastructure is deployed into CI infrastructure subscriptions.
 
 ### PR Validation In INT, STG, And PROD
 

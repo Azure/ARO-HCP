@@ -6,7 +6,7 @@ Grafana is deployed using a Managed Grafana instance. Data is available via prec
 
 There is a pipeline step to import dashboards. You need to create a `grafana-dashboards` folder in the ARO-HCP repo. This dashboard *MUST* be within the `observability/grafana-dashboards` folder, cause only observability is packaged into the EV2 artifact.
 
-This directory must be added to the `observability/observability.yaml` file.
+This directory must be added to the `observability/dashboards.yaml` file.
 
 ```yaml
 grafana-dashboards:

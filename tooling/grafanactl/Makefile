@@ -28,7 +28,7 @@ build: $(BINARY)
 # Bundle grafanactl with observability files for EV2 deployment
 # Copies dashboards and config into the working directory so EV2 can access them
 bundle: $(BINARY)
-	cp ../../observability/observability.yaml .
+	cp ../../observability/dashboards.yaml .
 	cp -r ../../observability/grafana-dashboards .
 .PHONY: bundle
 
@@ -56,7 +56,7 @@ clean:
 	rm -f $(BINARY)
 	rm -f $(BINARY)-*.exe
 	rm -f coverage.out coverage.html
-	rm -f observability.yaml
+	rm -f dashboards.yaml
 	rm -rf grafana-dashboards
 .PHONY: clean
 

@@ -112,7 +112,8 @@ resourceGroups:
   - name: grafana-dashboards
     action: GrafanaDashboards
     grafanaName: "{{ .monitoring.grafanaName }}"
-    observabilityConfig: ./../observability/observability.yaml
+    observabilityConfig: ./../observability/dashboards.yaml
+    dashboardsConfig: ./../observability/dashboards.yaml
     identityFrom:
       resourceGroup: singleton
       step: output

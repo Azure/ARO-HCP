@@ -17,5 +17,5 @@ recording-rules:
 .PHONY: recording-rules
 
 verify:
-	go run ../tooling/grafanactl/main.go verify dashboards --config-file observability.yaml
+	go run ../tooling/grafanactl/main.go verify dashboards --config-file dashboards.yaml
 .PHONY: verify

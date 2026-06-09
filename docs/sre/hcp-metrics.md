@@ -66,7 +66,7 @@ AMA's `controlplane-*` settings (`controlplane-apiserver`, `controlplane-etcd`, 
 | KSM custom resource state | `observability/prometheus/values-mgmt.yaml` |
 | AMA config | `observability/prometheus/deploy/templates/ama-metrics-settings-configmap.yaml` |
 | Grafana dashboards | `observability/grafana-dashboards/<folder>/` |
-| Dashboard registration | `observability/observability.yaml` → `grafana-dashboards.dashboardFolders` |
+| Dashboard registration | `observability/dashboards.yaml` → `grafana-dashboards.dashboardFolders` |
 | Alert rules | `observability/alerts/` |
 | Alert registration | `observability/alerts-sl-services.yaml` → `prometheusRules.rulesFolders` |
 | Recording rules (HCP workspace) | `observability/recording-rules-hcps.yaml` |
@@ -104,7 +104,7 @@ The new metric will appear in the `hcps-REGION` Azure Monitor Workspace after th
 
 1. Create a JSON dashboard file in the appropriate folder under `observability/grafana-dashboards/`. For HCP metrics, use `kas-monitor/`.
 
-2. If you created a new folder, register it in `observability/observability.yaml`:
+2. If you created a new folder, register it in `observability/dashboards.yaml`:
    ```yaml
    grafana-dashboards:
      dashboardFolders:

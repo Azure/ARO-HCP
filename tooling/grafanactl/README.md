@@ -128,7 +128,7 @@ grafanactl sync dashboards \
   --subscription "your-subscription-id" \
   --resource-group "your-resource-group" \
   --grafana-name "your-grafana-instance" \
-  --config-file "../../observability/observability.yaml" \
+  --config-file "../../observability/dashboards.yaml" \
   --dry-run
 
 # Apply changes
@@ -136,10 +136,10 @@ grafanactl sync dashboards \
   --subscription "your-subscription-id" \
   --resource-group "your-resource-group" \
   --grafana-name "your-grafana-instance" \
-  --config-file "../../observability/observability.yaml"
+  --config-file "../../observability/dashboards.yaml"
 ```
 
-The config file (e.g., `observability.yaml`) defines:
+The config file (e.g., `dashboards.yaml`) defines:
 - `grafana-dashboards.dashboardFolders`: List of folders with `name` and `path` to dashboard JSON files
 - `grafana-dashboards.azureManagedFolders`: List of folder names managed by Azure (will not be modified)
 
