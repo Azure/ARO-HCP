@@ -1564,7 +1564,7 @@ This may indicate that finalizers are stuck or resources are failing to cleanup.
           summary: 'Cluster stuck deleting'
           title: 'Cluster stuck deleting'
         }
-        expression: 'max by (cluster_id, cluster_external_id, region, management_cluster) (cluster_deprovision_duration_seconds) > 7200'
+        expression: 'label_replace(max by (cluster_id, cluster_external_id, region, management_cluster) (cluster_deprovision_duration_seconds), "cluster", "$1", "management_cluster", "(.*)") > 7200'
         for: 'PT5M'
         severity: 3
       }
