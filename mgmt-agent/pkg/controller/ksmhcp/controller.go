@@ -213,8 +213,7 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 		return fmt.Errorf("failed to ensure service in %s: %w", ns, err)
 	}
 
-	region := hcp.Spec.Platform.Azure.Location
-	serviceMonitor, err := buildServiceMonitor(ns, region, ownerRef)
+	serviceMonitor, err := buildServiceMonitor(ns, ownerRef)
 	if err != nil {
 		return fmt.Errorf("failed to build servicemonitor in %s: %w", ns, err)
 	}
