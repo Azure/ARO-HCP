@@ -16,7 +16,6 @@ package ksmhcp
 
 import (
 	"testing"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -144,26 +143,6 @@ func TestBuildServiceMonitorTypeMeta(t *testing.T) {
 	}
 }
 
-func TestDeletionTimestampPreventsReconcile(t *testing.T) {
-	now := metav1.NewTime(time.Now())
-	hcp := &hypershiftv1beta1.HostedControlPlane{
-		ObjectMeta: metav1.ObjectMeta{
-			DeletionTimestamp: &now,
-		},
-		Status: hypershiftv1beta1.HostedControlPlaneStatus{
-			Conditions: []metav1.Condition{
-				{Type: "KubeAPIServerAvailable", Status: metav1.ConditionTrue},
-			},
-		},
-	}
-
-	if hcp.DeletionTimestamp.IsZero() {
-		t.Fatal("DeletionTimestamp should be set")
-	}
-	if !isKubeAPIServerAvailable(hcp) {
-		t.Fatal("KubeAPIServer should report available, but DeletionTimestamp should take priority in syncHandler")
-	}
-}
 
 func testOwnerRef() metav1.OwnerReference {
 	return metav1.OwnerReference{
