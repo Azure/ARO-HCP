@@ -99,6 +99,8 @@ spec:
       labels:
         severity: info
         slo: nodepool-errors
+        long_window: 1h
+        short_window: 5m
       annotations:
         summary: "{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)"
         description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
@@ -115,6 +117,8 @@ spec:
       labels:
         severity: info
         slo: nodepool-errors
+        long_window: 6h
+        short_window: 30m
       annotations:
         summary: "{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
@@ -132,6 +136,7 @@ spec:
       labels:
         severity: info
         slo: nodepool-errors
+        long_window: 3d
       annotations:
         summary: "{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."

@@ -26,7 +26,9 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors1h5m'
         enabled: true
         labels: {
+          long_window: '1h'
           severity: 'info'
+          short_window: '5m'
           slo: 'nodepool-errors'
         }
         annotations: {
@@ -54,7 +56,9 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors6h30m'
         enabled: true
         labels: {
+          long_window: '6h'
           severity: 'info'
+          short_window: '30m'
           slo: 'nodepool-errors'
         }
         annotations: {
@@ -82,6 +86,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors3d'
         enabled: true
         labels: {
+          long_window: '3d'
           severity: 'info'
           slo: 'nodepool-errors'
         }

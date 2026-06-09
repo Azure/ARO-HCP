@@ -99,6 +99,8 @@ tests:
         cluster: "mgmt-1"
         severity: info
         slo: nodepool-errors
+        long_window: 1h
+        short_window: 5m
       exp_annotations:
         summary: "mgmt-1: Node Pool operation error rate critically high (>72%)"
         description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
@@ -350,6 +352,8 @@ tests:
         cluster: "mgmt-1"
         severity: info
         slo: nodepool-errors
+        long_window: 6h
+        short_window: 30m
       exp_annotations:
         summary: "mgmt-1: Node Pool operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
