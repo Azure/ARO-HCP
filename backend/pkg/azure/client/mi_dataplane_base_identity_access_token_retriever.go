@@ -36,7 +36,7 @@ import (
 // MI Dataplane service and exchanges them for an access token.
 //
 // Note: when the service is configured with a hardcoded or mock MI Dataplane client
-// (e.g. in local development), GetToken always returns a token for the MI Mock
+// (e.g. in local development), GetToken always returns a token for the Azure Managed Identity Mock
 // Identity regardless of which real identity it was built for.
 type MIDataplaneBasedIdentityAccessTokenRetriever interface {
 	GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error)
@@ -53,7 +53,7 @@ type MIDataplaneBasedIdentityAccessTokenRetriever interface {
 // ignoring the clusterIdentityURL and identityResourceID arguments passed to Build.
 type MIDataplaneBasedIdentityAccessTokenRetrieverBuilder interface {
 	// Build constructs an MIDataplaneBasedIdentityAccessTokenRetriever for the given
-	// identity. The identity is specified by the cluster-local MI Dataplane endpoint
+	// identity. The identity is specified by the cluster's Managed Identity Data Plane endpoint
 	// URL (clusterIdentityURL) and the identity's Azure resource ID (identityResourceID).
 	//
 	// Build resolves the cluster-scoped MI Dataplane client for clusterIdentityURL.
@@ -62,17 +62,14 @@ type MIDataplaneBasedIdentityAccessTokenRetrieverBuilder interface {
 	Build(clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (MIDataplaneBasedIdentityAccessTokenRetriever, error)
 }
 
-// miDataplaneBasedIdentityAccessTokenRetriever is the production implementation of
-// MIDataplaneBasedIdentityAccessTokenRetriever. It performs a full MI Dataplane
-// round-trip on every GetToken call to acquire the freshest possible credentials.
+// miDataplaneBasedIdentityAccessTokenRetriever performs a full MI Dataplane round-trip on every GetToken call to acquire the freshest possible credentials.
 type miDataplaneBasedIdentityAccessTokenRetriever struct {
 	miDataplaneClient  ManagedIdentitiesDataplaneClient
-	clientOptions      azcore.ClientOptions
+	clientOptions      *azcore.ClientOptions
 	identityResourceID *azcorearm.ResourceID
 }
 
-// Compile-time guards: the concrete retriever satisfies our interface and also
-// azcore.TokenCredential via its GetToken method.
+// Compile-time guards: the concrete retriever satisfies our interface and also azcore.TokenCredential via its GetToken method.
 var _ MIDataplaneBasedIdentityAccessTokenRetriever = (*miDataplaneBasedIdentityAccessTokenRetriever)(nil)
 var _ azcore.TokenCredential = (*miDataplaneBasedIdentityAccessTokenRetriever)(nil)
 
@@ -92,7 +89,7 @@ func (r *miDataplaneBasedIdentityAccessTokenRetriever) GetToken(ctx context.Cont
 			utils.TrackError(fmt.Errorf("managed identities data plane returned no credentials for managed identity '%s'", r.identityResourceID.String()))
 	}
 
-	creds, err := dataplane.GetCredential(r.clientOptions, resp.ExplicitIdentities[0])
+	creds, err := dataplane.GetCredential(*r.clientOptions, resp.ExplicitIdentities[0])
 	if err != nil {
 		return azcore.AccessToken{}, utils.TrackError(fmt.Errorf("failed to build token credential for managed identity '%s': %w", r.identityResourceID.String(), err))
 	}
@@ -100,17 +97,15 @@ func (r *miDataplaneBasedIdentityAccessTokenRetriever) GetToken(ctx context.Cont
 	return creds.GetToken(ctx, options)
 }
 
-// miDataplaneBasedIdentityAccessTokenRetrieverBuilder is the production implementation
-// of MIDataplaneBasedIdentityAccessTokenRetrieverBuilder.
+// miDataplaneBasedIdentityAccessTokenRetrieverBuilder is the production implementation of MIDataplaneBasedIdentityAccessTokenRetrieverBuilder.
 type miDataplaneBasedIdentityAccessTokenRetrieverBuilder struct {
 	fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder
-	clientOptions               azcore.ClientOptions
+	clientOptions               *azcore.ClientOptions
 }
 
 var _ MIDataplaneBasedIdentityAccessTokenRetrieverBuilder = (*miDataplaneBasedIdentityAccessTokenRetrieverBuilder)(nil)
 
-// Build creates a new MIDataplaneBasedIdentityAccessTokenRetriever bound to the given
-// identity. It resolves the cluster-scoped MI Dataplane client for clusterIdentityURL;
+// Build creates a new MIDataplaneBasedIdentityAccessTokenRetriever bound to the given identity. It resolves the cluster-scoped MI Dataplane client for clusterIdentityURL;
 // credential fetch and token exchange are deferred to each GetToken call.
 func (b *miDataplaneBasedIdentityAccessTokenRetrieverBuilder) Build(clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (MIDataplaneBasedIdentityAccessTokenRetriever, error) {
 	miDataplaneClient, err := b.fpaMIdataplaneClientBuilder.ManagedIdentitiesDataplane(clusterIdentityURL)
@@ -124,15 +119,10 @@ func (b *miDataplaneBasedIdentityAccessTokenRetrieverBuilder) Build(clusterIdent
 	}, nil
 }
 
-// NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder creates a builder that
-// produces MIDataplaneBasedIdentityAccessTokenRetriever instances using the
-// supplied MI Dataplane client builder and Azure core client options.
-func NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(
-	fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder,
-	clientOptions azcore.ClientOptions,
-) MIDataplaneBasedIdentityAccessTokenRetrieverBuilder {
+// NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder creates a builder that produces MIDataplaneBasedIdentityAccessTokenRetriever instances using the supplied MI Dataplane client builder and Azure core client options.
+func NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder, clientOptions azcore.ClientOptions) MIDataplaneBasedIdentityAccessTokenRetrieverBuilder {
 	return &miDataplaneBasedIdentityAccessTokenRetrieverBuilder{
 		fpaMIdataplaneClientBuilder: fpaMIdataplaneClientBuilder,
-		clientOptions:               clientOptions,
+		clientOptions:               &clientOptions,
 	}
 }
