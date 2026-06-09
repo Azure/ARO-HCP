@@ -68,8 +68,8 @@ AMA's `controlplane-*` settings (`controlplane-apiserver`, `controlplane-etcd`, 
 | Grafana dashboards | `observability/grafana-dashboards/<folder>/` |
 | Dashboard registration | `observability/observability.yaml` → `grafana-dashboards.dashboardFolders` |
 | Alert rules | `observability/alerts/` |
-| Alert registration | `observability/observability.yaml` → `prometheusRules.rulesFolders` |
-| Recording rules (HCP workspace) | `observability/observability-hcp-recording-rules.yaml` |
+| Alert registration | `observability/alerts-sl-services.yaml` → `prometheusRules.rulesFolders` |
+| Recording rules (HCP workspace) | `observability/recording-rules-hcps.yaml` |
 | Generated Bicep alerting rules | `dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep` |
 | DCR/DCE routing (Azure) | `dev-infrastructure/modules/metrics/datacollection.bicep` |
 
@@ -132,7 +132,7 @@ The new metric will appear in the `hcps-REGION` Azure Monitor Workspace after th
 
 2. Create a matching test file: `<Name>-prometheusRule_test.yaml`. See existing test files for the format (`rule_files`, `evaluation_interval`, `tests` with `input_series` and `alert_rule_test`).
 
-3. Register the rule file in `observability/observability.yaml` under `prometheusRules.rulesFolders`.
+3. Register the rule file in `observability/alerts-sl-services.yaml` under `prometheusRules.rulesFolders`.
 
 4. Generate the Bicep rules and run tests:
    ```bash
@@ -140,7 +140,7 @@ The new metric will appear in the `hcps-REGION` Azure Monitor Workspace after th
    ```
    This runs `promtool` tests, processes all PrometheusRules, and regenerates `dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep`.
 
-5. For HCP-workspace rules (metrics from `ocm-*` namespaces), register in `observability/observability-hcp.yaml` instead.
+5. For HCP-workspace rules (metrics from `ocm-*` namespaces), register in `observability/alerts-sre-hcps.yaml` instead.
 
 ### Verifying which metrics are available
 

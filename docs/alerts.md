@@ -162,10 +162,10 @@ Add your rule file to the appropriate configuration in `observability/`:
 
 | Config file | Purpose | When to use |
 |---|---|---|
-| `observability/observability.yaml` | Service and platform alerts | Most alerts go here |
-| `observability/observability-hcp.yaml` | HCP namespace alerts | Alerts specific to hosted control planes |
-| `observability/observability-rp.yaml` | Resource provider alerts | RP-specific alerts |
-| `observability/observability-msft.yaml` | MSFT-filtered alerts | Subset of alerts for MSFT environments (uses `includedAlertsByGroup`) |
+| `observability/alerts-sl-services.yaml` | Service and platform alerts (SL queue) | Most alerts go here |
+| `observability/alerts-sre-hcps.yaml` | HCP namespace alerts (SRE queue) | Alerts specific to hosted control planes |
+| `observability/alerts-rp-services.yaml` | Resource provider alerts (RP queue) | RP-specific alerts |
+| `observability/alerts-msft-services.yaml` | MSFT-filtered alerts (MSFT queue) | Subset of alerts for MSFT environments (uses `includedAlertsByGroup`) |
 
 Edit the relevant YAML file and add your rule file path to `rulesFolders`:
 
@@ -176,7 +176,7 @@ prometheusRules:
   - ../myservice/alerts/myservice-prometheusRule.yaml  # <-- add here
 ```
 
-If your alert should also appear in the MSFT environment, add it to `observability/observability-msft.yaml` under `includedAlertsByGroup`.
+If your alert should also appear in the MSFT environment, add it to `observability/alerts-msft-services.yaml` under `includedAlertsByGroup`.
 
 ## 4. Generate Bicep
 
