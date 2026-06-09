@@ -398,15 +398,15 @@ defaults:
     server:
       registry: registry.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:a4b0a8e424b9217df7e9a721b1df748294a36b163130b4d1d25f27ee71045b61 # 1.6.0 (2026-06-02 01:11)
+      digest: sha256:f1c43812ac0ed374b631a3899047f00226a3d11658485b95da19a7baa9fd6b85 # OADP 1.6 (2026-06-04 concurrent backup)
     azurePlugin:
       registry: registry.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:04708691d739da1843702d0370f971620f59fe8b78890b3abe7e40c000c297e8 # 1.6.0 (2026-06-02 01:20)
+      digest: sha256:6b771bc5c043ee940fe7d4cf4645a92a8a14f409c272014c72182c7cc9c546f0 # OADP 1.6 (2026-06-04 concurrent backup)
     hypershiftPlugin:
       registry: registry.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:2969b02311a20792fb89193e3e4e8f0eef930cc0b38731681dfeaf84155eb4be # 1.6.0 (2026-06-02 01:09)
+      digest: sha256:7c2f788d8caf134230f15ab95a044a7f2da8335f8e238bd395837bdbf6ff9d35 # OADP 1.6 (2026-06-04 concurrent backup)
   # SVC cluster specifics
   svc:
     subscription:
@@ -1707,6 +1707,13 @@ clouds:
                 exporter: "otlp"
           # Backend
           backend:
+            backupSchedules:
+              # A frequent backup schedule for PROW CI testing to guarantee backups are executed during all tests to
+              # help confirm backups do not impact normal cluster operations.
+              hourly:
+                schedule: "*/5 * * * *"
+                ttl: "1h"
+                paused: false
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"

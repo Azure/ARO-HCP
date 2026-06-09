@@ -37,6 +37,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+
+	stamp "github.com/Azure/ARO-HCP/internal/api/fleet"
 )
 
 const (
