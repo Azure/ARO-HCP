@@ -74,6 +74,7 @@
 			"provisioningState": "Succeeded",
 			"usesNewClusterDeletionApproach": false
 		},
+		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",

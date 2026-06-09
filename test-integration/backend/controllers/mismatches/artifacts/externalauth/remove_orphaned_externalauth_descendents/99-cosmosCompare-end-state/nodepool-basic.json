@@ -45,6 +45,7 @@
 			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/1243e9e9-d150-4ef1-9735-2bbc3cabc7d0/node_pools/k9xp9ghzh2",
 			"usesNewNodePoolDeletionApproach": false
 		},
+		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",
