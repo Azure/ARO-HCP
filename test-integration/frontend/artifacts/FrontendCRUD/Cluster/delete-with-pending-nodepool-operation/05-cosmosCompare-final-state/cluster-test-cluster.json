@@ -68,7 +68,7 @@
 			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 			"platform": {},
 			"provisioningState": "Deleting",
-			"usesNewClusterDeletionApproach": false
+			"usesNewClusterDeletionApproach": true
 		},
 		"status": {},
 		"systemData": {

@@ -17,7 +17,6 @@ package frontend
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -31,8 +30,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -787,27 +784,9 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 }
 
 func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction database.DBTransaction, cluster *api.HCPOpenShiftCluster) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
-	}
-
-	if cluster.ServiceProviderProperties.ClusterServiceID != nil {
-		err = f.clusterServiceClient.DeleteCluster(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
-		var ocmError *ocmerrors.Error
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-			// StatusNotFound means we have stale data in Cosmos DB.
-			// This can happen in test environments if a user bypasses
-			// the RP to delete a resource (e.g. "ocm delete"). It can
-			// also happen if an asynchronous deletion operation fails.
-			// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
-			// leaking data related to the resource, like controller status.
-			logger.Info("clusterService cluster missing, trying to clean up", "err", err)
-		} else if err != nil {
-			return utils.TrackError(err)
-		}
 	}
 
 	// Cluster Service will take care of canceling any ongoing operations
@@ -825,19 +804,18 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	clusterServiceID := api.InternalID{}
-	if cluster.ServiceProviderProperties.ClusterServiceID != nil {
-		clusterServiceID = *cluster.ServiceProviderProperties.ClusterServiceID
-	}
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		cluster.ID,
-		clusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		"",
 		"",
 		"",
 		correlationData)
+	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
+	// permanent environments, for all regions.
+	operationDoc.UsesNewClusterDeletionApproach = true
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -856,6 +834,9 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 	}
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
+	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
+	// permanent environments, for all regions.
+	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)
 	if err != nil {
