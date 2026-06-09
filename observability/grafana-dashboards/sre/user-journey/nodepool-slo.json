@@ -68,13 +68,17 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"}) > 0 or vector(1))\n) * 100",
+          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"}) > 0 or vector(1))\n) * 100",
           "instant": true,
           "legendFormat": "Success Rate",
           "refId": "A"
         }
       ],
       "title": "Operation Success Rate",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} }
+      ],
       "type": "stat"
     },
     {
@@ -117,6 +121,10 @@
         }
       ],
       "title": "Failed Operations",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} }
+      ],
       "type": "stat"
     },
     {
@@ -158,6 +166,10 @@
         }
       ],
       "title": "Stuck Operations (>1h)",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} }
+      ],
       "type": "stat"
     },
     {
@@ -191,13 +203,17 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count(backend_nodepool_provision_state) or vector(0)",
+          "expr": "count(backend_nodepool_provision_state == 1) or vector(0)",
           "instant": true,
           "legendFormat": "Total Node Pools",
           "refId": "A"
         }
       ],
       "title": "Total Node Pools",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} }
+      ],
       "type": "stat"
     },
     {
@@ -246,7 +262,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"}) > 0 or vector(1))\n) * 100",
+          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"}) > 0 or vector(1))\n) * 100",
           "legendFormat": "Success Rate %",
           "refId": "A"
         }
@@ -306,7 +322,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count by (phase) (backend_nodepool_provision_state)",
+          "expr": "count by (phase) (backend_nodepool_provision_state == 1)",
           "legendFormat": "{{ phase }}",
           "refId": "A"
         }
@@ -695,6 +711,8 @@
       ],
       "title": "Failed Operations Detail",
       "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} },
         {
           "id": "organize",
           "options": {
