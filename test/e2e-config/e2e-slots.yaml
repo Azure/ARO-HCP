@@ -49,14 +49,26 @@ environments:
 #       identity_container_prefix: aro-hcp-msi-container-stg
 #       identity_container_count: 30
 
-# prod:
-#   deploy_envs:
-#     - prod
-#   pools:
-#     - subscription_name: "ARO HCP E2E"
-#       region: uksouth
-#       region_mode: runtime-selected
-#       resource_type: aro-hcp-prod-shard0-slot
-#       slot_count: 1
-#       identity_container_prefix: aro-hcp-msi-container-prod
-#       identity_container_count: 15
+  prod:
+    deploy_envs:
+    - prod
+    pools:
+    # shard0: Prod-00 customer subscription. Jobs choose the runtime region;
+    # `region` is only the default when no runtime override is provided.
+    # identity_container_count set to 40 (matching Stage-00) so a single-slot
+    # pool can run the full E2E suite in parallel.
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 00"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard0-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-prod-shard0
+      identity_container_count: 40
+    # shard1: Prod-01 customer subscription for additional prod capacity.
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 01"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard1-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-prod-shard1
+      identity_container_count: 40
