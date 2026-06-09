@@ -48,6 +48,28 @@ The DEV bootstrap layer currently grants access for these shared identities:
 
 For the current mixed-management model of the pooled MSI mock identities, see [CI Identity Leasing](identity-leasing.md).
 
+## Prerequisites
+
+A brand-new subscription typically has no Azure resource providers registered beyond `Microsoft.Authorization`. The Azure portal quota blade reports *"The selected provider is not registered for some of the selected subscriptions"*, and later provisioning and RBAC steps fail until the providers used by ARO-HCP are registered.
+
+Register the required providers on each new subscription before requesting quota or running any provisioning step:
+
+```sh
+for ns in Microsoft.Compute Microsoft.Network Microsoft.ManagedIdentity \
+          Microsoft.Storage Microsoft.KeyVault Microsoft.RedHatOpenShift; do
+  az provider register --namespace "$ns" --subscription <subscription-id>
+done
+```
+
+Registration is asynchronous; wait until every namespace reports `Registered`:
+
+```sh
+az provider show --namespace Microsoft.Compute \
+  --subscription <subscription-id> --query registrationState -o tsv
+```
+
+`Microsoft.Compute` and `Microsoft.Network` in particular must be registered before the Standard DSv3 vCPU and public-IP quota requests can be filed.
+
 ## Procedure
 
 1. Add the new pool to `test/e2e-config/e2e-slots.yaml`.
