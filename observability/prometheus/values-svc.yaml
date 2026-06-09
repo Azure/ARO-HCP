@@ -87,6 +87,7 @@ prometheusSpec:
   version: "" # derived from the sha
   externalLabels:
     cluster: "{{ .svc.aks.name }}"
+    region: "{{ .region }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}

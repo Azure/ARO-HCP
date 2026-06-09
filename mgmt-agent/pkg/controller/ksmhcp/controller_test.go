@@ -114,7 +114,7 @@ func TestBuildDeployment(t *testing.T) {
 }
 
 func TestBuildServiceMonitorInjectsLabels(t *testing.T) {
-	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", "westus3", testOwnerRef())
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", testOwnerRef())
 	if err != nil {
 		t.Fatalf("buildServiceMonitor() error: %v", err)
 	}
@@ -124,23 +124,18 @@ func TestBuildServiceMonitorInjectsLabels(t *testing.T) {
 	ep := endpoints[0].(map[string]interface{})
 	relabelings := ep["metricRelabelings"].([]interface{})
 
-	if len(relabelings) != 2 {
-		t.Fatalf("expected 2 relabelings (namespace + azure_region), got %d", len(relabelings))
+	if len(relabelings) != 1 {
+		t.Fatalf("expected 1 relabeling (namespace), got %d", len(relabelings))
 	}
 
 	nsRelabel := relabelings[0].(map[string]interface{})
-	if nsRelabel["replacement"] != "ocm-arohcppers-abc123-xyz" {
-		t.Errorf("namespace relabel = %v, want ocm-arohcppers-abc123-xyz", nsRelabel["replacement"])
-	}
-
-	regionRelabel := relabelings[1].(map[string]interface{})
-	if regionRelabel["replacement"] != "westus3" {
-		t.Errorf("azure_region relabel = %v, want westus3", regionRelabel["replacement"])
+	if nsRelabel["targetLabel"] != "namespace" || nsRelabel["replacement"] != "ocm-arohcppers-abc123-xyz" {
+		t.Errorf("namespace relabel incorrect: %v", nsRelabel)
 	}
 }
 
 func TestBuildServiceMonitorTypeMeta(t *testing.T) {
-	sm, err := buildServiceMonitor("ocm-test", "eastus", testOwnerRef())
+	sm, err := buildServiceMonitor("ocm-test", testOwnerRef())
 	if err != nil {
 		t.Fatalf("buildServiceMonitor() error: %v", err)
 	}
