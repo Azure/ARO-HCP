@@ -138,11 +138,36 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) roleActionsForOperator(ctx
 			roleActions = append(roleActions, action)
 		}
 	}
-	if len(roleActions) == 0 {
-		return nil, utils.TrackError(fmt.Errorf("no role actions resolved for operator identity %q", operatorName))
+	return roleActions, nil
+}
+
+func (v *ControlPlaneIdentitiesPermissionsValidation) roleDataActionsForOperator(ctx context.Context, operatorName string) ([]string, error) {
+	roleDefinitionsResourceIDs := v.clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[azure.ClusterOperatorIdentifier(operatorName)].RoleDefinitionsResourceIDs()
+	if len(roleDefinitionsResourceIDs) == 0 {
+		return nil, nil
+	}
+	var roleDataActions []string
+	seenDataActions := map[string]struct{}{}
+	for _, roleDefinitionResourceID := range roleDefinitionsResourceIDs {
+		roleDefinitionResponse, err := v.backendIdentityAzureCachedReaders.RoleDefinitionsCachedReader.GetCachedByID(ctx, roleDefinitionResourceID.String(), nil)
+		if err != nil {
+			return nil, utils.TrackError(fmt.Errorf("failed to get role definition %q: %w", roleDefinitionResourceID.String(), err))
+		}
+
+		dataActions, err := azurehelpers.DataActionsFromRoleDefinition(roleDefinitionResponse.RoleDefinition)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		for _, dataAction := range dataActions {
+			if _, ok := seenDataActions[dataAction]; ok {
+				continue
+			}
+			seenDataActions[dataAction] = struct{}{}
+			roleDataActions = append(roleDataActions, dataAction)
+		}
 	}
 
-	return roleActions, nil
+	return roleDataActions, nil
 }
 
 func (v *ControlPlaneIdentitiesPermissionsValidation) accessTokenForIdentity(ctx context.Context, clusterIdentityURL string, identity *azcorearm.ResourceID) (azcore.AccessToken, error) {
@@ -163,6 +188,11 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdent
 		return nil, err
 	}
 
+	roleDataActions, err := v.roleDataActionsForOperator(ctx, operatorName)
+	if err != nil {
+		return nil, err
+	}
+
 	token, err := v.accessTokenForIdentity(ctx, cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL, identity)
 	if err != nil {
 		return nil, err
@@ -171,7 +201,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdent
 	var results []IdentityResourceAuthorizationResult
 
 	// Validate security group permissions
-	nsgDecisions, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, cluster.CustomerProperties.Platform.NetworkSecurityGroupID, roleActions, token)
+	nsgDecisions, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, cluster.CustomerProperties.Platform.NetworkSecurityGroupID, roleActions, roleDataActions, token)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -183,7 +213,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdent
 		})
 	}
 
-	vnetResult, err := v.validateVnetPermissions(ctx, checkAccessV2Client, cluster.CustomerProperties.Platform.SubnetID, identity, roleActions, token)
+	vnetResult, err := v.validateVnetPermissions(ctx, checkAccessV2Client, cluster.CustomerProperties.Platform.SubnetID, identity, roleActions, roleDataActions, token)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +221,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdent
 		results = append(results, *vnetResult)
 	}
 
-	rtResult, err := v.validateRouteTablePermissions(ctx, checkAccessV2Client, clusterSubnet, identity, roleActions, token)
+	rtResult, err := v.validateRouteTablePermissions(ctx, checkAccessV2Client, clusterSubnet, identity, roleActions, roleDataActions, token)
 	if err != nil {
 		return nil, err
 	}
@@ -202,9 +232,9 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdent
 	return results, nil
 }
 
-func (v *ControlPlaneIdentitiesPermissionsValidation) validateVnetPermissions(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, subnetID *azcorearm.ResourceID, identity *azcorearm.ResourceID, roleActions []string, token azcore.AccessToken) (*IdentityResourceAuthorizationResult, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) validateVnetPermissions(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, subnetID *azcorearm.ResourceID, identity *azcorearm.ResourceID, roleActions []string, roleDataActions []string, token azcore.AccessToken) (*IdentityResourceAuthorizationResult, error) {
 	vnetResourceID := subnetID.Parent
-	decisions, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, roleActions, token)
+	decisions, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, roleActions, roleDataActions, token)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -218,7 +248,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) validateVnetPermissions(ct
 	}, nil
 }
 
-func (v *ControlPlaneIdentitiesPermissionsValidation) validateRouteTablePermissions(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, roleActions []string, token azcore.AccessToken) (*IdentityResourceAuthorizationResult, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) validateRouteTablePermissions(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, roleActions []string, roleDataActions []string, token azcore.AccessToken) (*IdentityResourceAuthorizationResult, error) {
 	if clusterSubnet.Properties.RouteTable == nil {
 		return nil, nil
 	}
@@ -226,7 +256,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) validateRouteTablePermissi
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to parse route table resource ID: %w", err))
 	}
-	decisions, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, clusterSubnet.Properties.RouteTable, roleActions, token)
+	decisions, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, clusterSubnet.Properties.RouteTable, roleActions, roleDataActions, token)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -240,23 +270,27 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) validateRouteTablePermissi
 	}, nil
 }
 
-func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, roleDefinitionActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
-	// Minimal set of required actions for the network security group.
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, roleDefinitionActions []string, roleDefinitionDataActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
 	networkSecurityGroupActions := []string{
 		"Microsoft.Network/networkSecurityGroups/read",
 		"Microsoft.Network/networkSecurityGroups/write",
 		"Microsoft.Network/networkSecurityGroups/join/action",
 	}
+	var networkSecurityGroupDataActions []string
+
 	requiredActions := azurehelpers.IntersectActions(networkSecurityGroupActions, roleDefinitionActions)
-	if len(requiredActions) == 0 {
+	requiredDataActions := azurehelpers.IntersectActions(networkSecurityGroupDataActions, roleDefinitionDataActions)
+	if len(requiredActions) == 0 && len(requiredDataActions) == 0 {
 		return nil, nil
 	}
 
-	return v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceID, requiredActions, token)
+	return v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceID, requiredActions, requiredDataActions, token)
 }
 
 // checkNotAllowedAndDeniedActionsForResourceID checks whether the identity represented by the access token
-// has permission to perform the specified `actions` on the given `resourceID` using the CheckAccessV2 API.
+// has permission to perform the specified `actions` and `dataActions` on the given `resourceID` using the
+// CheckAccessV2 API. Regular actions and data actions are combined into a single API call; data actions
+// are sent with IsDataAction=true so the PDP evaluates them against dataAction grants.
 //
 // CheckAccessV2 returns a per-action AccessDecision. Only Allowed means the identity has the
 // required permission. The function name reflects the two failure outcomes it collects:
@@ -268,13 +302,26 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedAc
 // - a slice of AuthorizationDecision entries with AccessDecision of NotAllowed or Denied
 // - a nil slice if all actions are explicitly allowed
 // - an error if the CheckAccessV2 API call fails or returns an unexpected result
-func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForResourceID(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, actions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForResourceID(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, actions []string, dataActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
 	logger := utils.LoggerFromContext(ctx)
+
+	totalExpected := len(actions) + len(dataActions)
+	if totalExpected == 0 {
+		return nil, nil
+	}
 
 	authRequest, err := checkAccessV2Client.CreateAuthorizationRequest(resourceID.String(), actions, token.Token)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
+
+	for _, da := range dataActions {
+		authRequest.Actions = append(authRequest.Actions, azurecheckaccessv2client.ActionInfo{
+			Id:           da,
+			IsDataAction: true,
+		})
+	}
+
 	authDecisionResponse, err := checkAccessV2Client.CheckAccess(ctx, *authRequest)
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -284,18 +331,17 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedAc
 			"indicating a possible internal failure", resourceID.String()))
 	}
 
-	if len(actions) != len(authDecisionResponse.Value) {
+	if totalExpected != len(authDecisionResponse.Value) {
 		logger.Error(fmt.Errorf("mismatch in authorization decision response for '%s': "+
 			"expected '%d' actions, got '%d' actions",
-			resourceID.String(), len(actions), len(authDecisionResponse.Value)), "mismatch in authorization decision response")
+			resourceID.String(), totalExpected, len(authDecisionResponse.Value)), "mismatch in authorization decision response")
 	}
 
 	notAllowedAndDeniedActions := v.collectNotAllowedAndDeniedActions(authDecisionResponse.Value)
 	return notAllowedAndDeniedActions, nil
 }
 
-func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForVNet(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, resourceId *azcorearm.ResourceID, roleDefinitionActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
-	// Minimal set of required actions for the virtual network.
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForVNet(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, resourceId *azcorearm.ResourceID, roleDefinitionActions []string, roleDefinitionDataActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
 	subnetActions := []string{
 		"Microsoft.Network/virtualNetworks/join/action",
 		"Microsoft.Network/virtualNetworks/read",
@@ -303,23 +349,27 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedAc
 		"Microsoft.Network/virtualNetworks/subnets/join/action",
 		"Microsoft.Network/virtualNetworks/subnets/read",
 		"Microsoft.Network/virtualNetworks/subnets/write",
-		"microsoft.aadiam/diagnosticsettings/write",
 	}
+	var subnetDataActions []string
+
 	requiredActions := azurehelpers.IntersectActions(subnetActions, roleDefinitionActions)
-	if len(requiredActions) == 0 {
+	requiredDataActions := azurehelpers.IntersectActions(subnetDataActions, roleDefinitionDataActions)
+	if len(requiredActions) == 0 && len(requiredDataActions) == 0 {
 		return nil, nil
 	}
 
-	return v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceId, requiredActions, token)
+	return v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceId, requiredActions, requiredDataActions, token)
 }
 
-func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForRouteTable(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, routeTable *armnetwork.RouteTable, roleDefinitionActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
-	// Minimal set of required actions for the route table.
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForRouteTable(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, routeTable *armnetwork.RouteTable, roleDefinitionActions []string, roleDefinitionDataActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
 	routeTableActions := []string{
 		"Microsoft.Network/routeTables/join/action",
 	}
+	var routeTableDataActions []string
+
 	requiredActions := azurehelpers.IntersectActions(routeTableActions, roleDefinitionActions)
-	if len(requiredActions) == 0 {
+	requiredDataActions := azurehelpers.IntersectActions(routeTableDataActions, roleDefinitionDataActions)
+	if len(requiredActions) == 0 && len(requiredDataActions) == 0 {
 		return nil, nil
 	}
 
@@ -328,7 +378,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedAc
 		return nil, utils.TrackError(fmt.Errorf("failed to parse route table resource ID: %w", err))
 	}
 
-	return v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, routeTableResourceID, requiredActions, token)
+	return v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, routeTableResourceID, requiredActions, requiredDataActions, token)
 }
 
 // collectNotAllowedAndDeniedActions returns CheckAccessV2 decisions where access was not granted.

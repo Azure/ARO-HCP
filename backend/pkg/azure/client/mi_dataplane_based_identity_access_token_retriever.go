@@ -35,7 +35,7 @@ import (
 // Each call to GetToken fetches fresh credentials for the bound identity from the
 // MI Dataplane service and exchanges them for an access token.
 //
-// Note: when the service is configured with a hardcoded or mock MI Dataplane client
+// Note: when the service is configured with a hardcoded Managed Identities Data Plane client
 // (e.g. in local development), GetToken always returns a token for the Azure Managed Identity Mock
 // Identity regardless of which real identity it was built for.
 type MIDataplaneBasedIdentityAccessTokenRetriever interface {
@@ -48,7 +48,7 @@ type MIDataplaneBasedIdentityAccessTokenRetriever interface {
 // be fully resolved when a cluster is being processed; this builder defers that
 // resolution to the point of use, keeping callers decoupled from identity lifecycle.
 //
-// Note: when the service is configured with a hardcoded or mock MI Dataplane client,
+// Note: when the service is configured with a hardcoded Managed Identities Data Plane client,
 // Build returns a retriever that always issues tokens for the MI Mock Identity,
 // ignoring the clusterIdentityURL and identityResourceID arguments passed to Build.
 type MIDataplaneBasedIdentityAccessTokenRetrieverBuilder interface {

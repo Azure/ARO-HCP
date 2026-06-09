@@ -146,12 +146,21 @@ func newTestSubscription() *arm.Subscription {
 }
 
 func newRoleDefinitionResponse(actions ...string) armauthorization.RoleDefinitionsClientGetByIDResponse {
-	permissions := make([]*armauthorization.Permission, 1)
+	return newRoleDefinitionResponseWithDataActions(actions, nil)
+}
+
+func newRoleDefinitionResponseWithDataActions(actions []string, dataActions []string) armauthorization.RoleDefinitionsClientGetByIDResponse {
 	actionsSlice := make([]*string, len(actions))
 	for i := range actions {
 		actionsSlice[i] = ptr.To(actions[i])
 	}
-	permissions[0] = &armauthorization.Permission{Actions: actionsSlice}
+	dataActionsSlice := make([]*string, len(dataActions))
+	for i := range dataActions {
+		dataActionsSlice[i] = ptr.To(dataActions[i])
+	}
+	permissions := []*armauthorization.Permission{
+		{Actions: actionsSlice, DataActions: dataActionsSlice},
+	}
 	return armauthorization.RoleDefinitionsClientGetByIDResponse{
 		RoleDefinition: armauthorization.RoleDefinition{
 			ID: ptr.To("/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/test-role-def"),
@@ -514,7 +523,7 @@ func TestCheckNotAllowedAndDeniedActionsForNSG_AllAllowed(t *testing.T) {
 	}
 
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), fakeToken())
+	result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), nil, fakeToken())
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
@@ -542,7 +551,7 @@ func TestCheckNotAllowedAndDeniedActionsForNSG_SomeDenied(t *testing.T) {
 	}
 
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), fakeToken())
+	result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), nil, fakeToken())
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 	assert.Equal(t, checkaccessv2.NotAllowed, result[0].AccessDecision)
@@ -571,7 +580,7 @@ func TestCheckNotAllowedAndDeniedActionsForNSG_NoMatchingRoleActions(t *testing.
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
 	// Pass only route table actions — none overlap with NSG actions.
 	result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID,
-		[]string{"Microsoft.Network/routeTables/join/action"}, fakeToken())
+		[]string{"Microsoft.Network/routeTables/join/action"}, nil, fakeToken())
 	require.NoError(t, err)
 	assert.Empty(t, result)
 	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no matching NSG actions")
@@ -594,7 +603,7 @@ func TestCheckNotAllowedAndDeniedActionsForNSG_CheckAccessError(t *testing.T) {
 	}
 
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	_, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), fakeToken())
+	_, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), nil, fakeToken())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "check access API unavailable")
 }
@@ -624,7 +633,7 @@ func TestCheckNotAllowedAndDeniedActionsForVnet_AllAllowed(t *testing.T) {
 	}
 
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), fakeToken())
+	result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), nil, fakeToken())
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
@@ -651,7 +660,7 @@ func TestCheckNotAllowedAndDeniedActionsForVnet_SomeDenied(t *testing.T) {
 	}
 
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), fakeToken())
+	result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), nil, fakeToken())
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 	assert.Equal(t, checkaccessv2.Denied, result[0].AccessDecision)
@@ -679,7 +688,7 @@ func TestCheckNotAllowedAndDeniedActionsForVnet_NoMatchingRoleActions(t *testing
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
 	// Pass only NSG actions — none overlap with VNet actions.
 	result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID,
-		[]string{"Microsoft.Network/networkSecurityGroups/read"}, fakeToken())
+		[]string{"Microsoft.Network/networkSecurityGroups/read"}, nil, fakeToken())
 	require.NoError(t, err)
 	assert.Empty(t, result)
 	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no matching VNet actions")
@@ -702,7 +711,7 @@ func TestCheckNotAllowedAndDeniedActionsForVnet_CheckAccessError(t *testing.T) {
 	}
 
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	_, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), fakeToken())
+	_, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), nil, fakeToken())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "check access API unavailable")
 }
@@ -731,7 +740,7 @@ func TestCheckNotAllowedAndDeniedActionsForRouteTable_AllAllowed(t *testing.T) {
 
 	roleActions := []string{"Microsoft.Network/routeTables/join/action"}
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, &armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, fakeToken())
+	result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, &armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, nil, fakeToken())
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
@@ -758,7 +767,7 @@ func TestCheckNotAllowedAndDeniedActionsForRouteTable_Denied(t *testing.T) {
 
 	roleActions := []string{"Microsoft.Network/routeTables/join/action"}
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, &armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, fakeToken())
+	result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, &armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, nil, fakeToken())
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	assert.Equal(t, checkaccessv2.Denied, result[0].AccessDecision)
@@ -786,7 +795,7 @@ func TestCheckNotAllowedAndDeniedActionsForRouteTable_NoMatchingRoleActions(t *t
 	// Pass only NSG actions — none overlap with route table actions.
 	result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client,
 		&armnetwork.RouteTable{ID: ptr.To(routeTableID)},
-		[]string{"Microsoft.Network/networkSecurityGroups/read"}, fakeToken())
+		[]string{"Microsoft.Network/networkSecurityGroups/read"}, nil, fakeToken())
 	require.NoError(t, err)
 	assert.Empty(t, result)
 	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no matching route table actions")
@@ -800,7 +809,7 @@ func TestCheckNotAllowedAndDeniedActionsForRouteTable_InvalidResourceID(t *testi
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
 	_, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, &mockCheckAccessV2Client{},
 		&armnetwork.RouteTable{ID: ptr.To("not-a-valid-resource-id")},
-		[]string{"Microsoft.Network/routeTables/join/action"}, fakeToken())
+		[]string{"Microsoft.Network/routeTables/join/action"}, nil, fakeToken())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse route table resource ID")
 }
@@ -824,7 +833,170 @@ func TestCheckNotAllowedAndDeniedActionsForRouteTable_CheckAccessError(t *testin
 	roleActions := []string{"Microsoft.Network/routeTables/join/action"}
 	v := &ControlPlaneIdentitiesPermissionsValidation{}
 	_, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client,
-		&armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, fakeToken())
+		&armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, nil, fakeToken())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "check access API unavailable")
+}
+
+// --- Tests for data action support ---
+
+// TestValidate_DataActionsExtractedFromRoleDefinitions verifies that Validate extracts
+// data actions from role definitions alongside regular actions. Since the per-resource
+// required data action lists are currently empty, data actions alone don't trigger
+// CheckAccess calls — but the extraction pipeline must not error.
+func TestValidate_DataActionsExtractedFromRoleDefinitions(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+
+	roleDefResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/test-role-def")
+
+	mockCheckAccessClient := &mockCheckAccessV2Client{
+		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
+			return &checkaccessv2.AuthorizationRequest{}, nil
+		},
+		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
+			return &checkaccessv2.AuthorizationDecisionResponse{
+				Value: []checkaccessv2.AuthorizationDecision{
+					{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
+					{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.Allowed},
+					{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Allowed},
+				},
+			}, nil
+		},
+	}
+
+	validation := NewControlPlaneIdentitiesPermissionsValidation(
+		&mockSMIClientBuilder{
+			subnetsClientFn: func(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.SubnetsClient, error) {
+				return mockSimpleSubnetsClient(nil), nil
+			},
+		},
+		testIdentitiesConfig(roleDefResourceID),
+		&cachedreader.BackendIdentityAzureCachedReaders{
+			RoleDefinitionsCachedReader: &mockRoleDefinitionsCachedReader{
+				getCachedByIDFn: func(_ context.Context, _ string, _ *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
+					return newRoleDefinitionResponseWithDataActions(
+						allNetworkActions(),
+						[]string{
+							"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+							"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
+						},
+					), nil
+				},
+			},
+		},
+		&mockCheckAccessV2ClientBuilder{
+			buildFn: func(_ string) (azureclient.CheckAccessV2Client, error) { return mockCheckAccessClient, nil },
+		},
+		mockSuccessfulTokenRetrieverBuilder(),
+		testCheckAccessV2Scope,
+	)
+
+	err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
+	assert.NoError(t, err)
+}
+
+// TestCheckNotAllowedAndDeniedActionsForResourceID_DataActionsIncluded verifies that
+// data actions are appended to the authorization request with IsDataAction=true and
+// that denied data actions are correctly collected in the response.
+func TestCheckNotAllowedAndDeniedActionsForResourceID_DataActionsIncluded(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+
+	nsgResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
+
+	var capturedRequest checkaccessv2.AuthorizationRequest
+	checkAccessV2Client := &mockCheckAccessV2Client{
+		createAuthorizationRequest: func(_ string, actions []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
+			req := &checkaccessv2.AuthorizationRequest{}
+			for _, a := range actions {
+				req.Actions = append(req.Actions, checkaccessv2.ActionInfo{Id: a})
+			}
+			return req, nil
+		},
+		checkAccessFn: func(_ context.Context, req checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
+			capturedRequest = req
+			return &checkaccessv2.AuthorizationDecisionResponse{
+				Value: []checkaccessv2.AuthorizationDecision{
+					{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
+					{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: true},
+				},
+			}, nil
+		},
+	}
+
+	v := &ControlPlaneIdentitiesPermissionsValidation{}
+	actions := []string{"Microsoft.Network/networkSecurityGroups/read"}
+	dataActions := []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"}
+	result, err := v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, nsgResourceID, actions, dataActions, fakeToken())
+	require.NoError(t, err)
+
+	require.Len(t, capturedRequest.Actions, 2)
+	assert.False(t, capturedRequest.Actions[0].IsDataAction)
+	assert.True(t, capturedRequest.Actions[1].IsDataAction)
+	assert.Equal(t, "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", capturedRequest.Actions[1].Id)
+
+	require.Len(t, result, 1)
+	assert.Equal(t, checkaccessv2.NotAllowed, result[0].AccessDecision)
+	assert.Equal(t, "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", result[0].ActionId)
+}
+
+// TestCheckNotAllowedAndDeniedActionsForResourceID_OnlyDataActions verifies that
+// the function works correctly when there are only data actions and no regular actions.
+func TestCheckNotAllowedAndDeniedActionsForResourceID_OnlyDataActions(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+
+	resourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
+
+	var capturedRequest checkaccessv2.AuthorizationRequest
+	checkAccessV2Client := &mockCheckAccessV2Client{
+		createAuthorizationRequest: func(_ string, actions []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
+			req := &checkaccessv2.AuthorizationRequest{}
+			for _, a := range actions {
+				req.Actions = append(req.Actions, checkaccessv2.ActionInfo{Id: a})
+			}
+			return req, nil
+		},
+		checkAccessFn: func(_ context.Context, req checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
+			capturedRequest = req
+			return &checkaccessv2.AuthorizationDecisionResponse{
+				Value: []checkaccessv2.AuthorizationDecision{
+					{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.Allowed, IsDataAction: true},
+				},
+			}, nil
+		},
+	}
+
+	v := &ControlPlaneIdentitiesPermissionsValidation{}
+	result, err := v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceID, nil, []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"}, fakeToken())
+	require.NoError(t, err)
+
+	require.Len(t, capturedRequest.Actions, 1)
+	assert.True(t, capturedRequest.Actions[0].IsDataAction)
+	assert.Empty(t, result)
+}
+
+// TestCheckNotAllowedAndDeniedActionsForResourceID_NoActionsNoDataActions verifies that
+// when both actions and dataActions are empty, the function returns nil early without
+// making any CheckAccess API calls.
+func TestCheckNotAllowedAndDeniedActionsForResourceID_NoActionsNoDataActions(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+
+	resourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
+
+	checkAccessCalled := false
+	checkAccessV2Client := &mockCheckAccessV2Client{
+		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
+			checkAccessCalled = true
+			return &checkaccessv2.AuthorizationRequest{}, nil
+		},
+		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
+			checkAccessCalled = true
+			return &checkaccessv2.AuthorizationDecisionResponse{}, nil
+		},
+	}
+
+	v := &ControlPlaneIdentitiesPermissionsValidation{}
+	result, err := v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceID, nil, nil, fakeToken())
+	require.NoError(t, err)
+	assert.Empty(t, result)
+	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no actions and no data actions")
 }
