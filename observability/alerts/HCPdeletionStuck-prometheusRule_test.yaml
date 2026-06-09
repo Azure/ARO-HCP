@@ -18,6 +18,7 @@ tests:
     - exp_labels:
         alertname: HCPClusterStuckDeleting
         severity: warning
+        cluster: mgmt-1
         cluster_id: cluster-1
         cluster_external_id: ext-1
         region: eastus
