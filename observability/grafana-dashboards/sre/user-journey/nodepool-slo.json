@@ -422,7 +422,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"} - backend_resource_operation_start_time_seconds{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"}",
+          "expr": "backend_resource_operation_last_transition_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"} - backend_resource_operation_start_time_seconds{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"}",
           "legendFormat": "{{ operation_type }} - {{ phase }}",
           "refId": "A"
         }
@@ -524,7 +524,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "count by (operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", phase=~\"succeeded|failed|canceled\"})",
+          "expr": "count by (operation_type, phase) (backend_resource_operation_phase_info{resource_type=~\".*nodepools\", operation_type=~\"update|delete\", phase=~\"succeeded|failed\"})",
           "legendFormat": "{{ operation_type }} - {{ phase }}",
           "refId": "A"
         }
