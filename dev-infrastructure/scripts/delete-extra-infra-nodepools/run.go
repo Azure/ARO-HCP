@@ -39,6 +39,12 @@
 // pool is touched. This ensures we never remove infra capacity when the
 // desired state is not yet healthy.
 //
+// Additionally, as an independent production-safety invariant, the binary
+// refuses to delete every live pool for the role: if the computed extras
+// would cover all live pools (leaving zero pools, and therefore zero nodes),
+// it aborts and touches nothing — regardless of what the expected-set
+// computation produced.
+//
 // Inputs (env vars, set by pipeline step)
 // -----------------------------------------
 //   CLUSTER_NAME        AKS cluster name (e.g. stg-uksouth-mgmt-1)
@@ -155,6 +161,24 @@ func run() error {
 	}
 	akslog.Logf("extra pools to delete (%d): %v", len(extras), extras)
 
+	// Production-safety invariant (independent of the expected-set computation
+	// and the readiness gate below): never delete every live pool for this
+	// role. If the computed extras cover all live pools, deletion would leave
+	// the role with zero pools — and therefore zero nodes — so refuse and touch
+	// nothing. Retained pools are additionally verified to have at least
+	// POOL_MIN_COUNT schedulable-ready nodes by the safety gate (STEP 4), so a
+	// non-empty retained set guarantees surviving nodes.
+	retained := retainedPools(liveNames, extras)
+	if len(retained) == 0 {
+		msg := fmt.Sprintf("refusing to delete all %d live %q pool(s) %v: cleanup would leave zero nodes for role %q", len(liveNames), cfg.poolTag, extras, cfg.poolTag)
+		if cfg.dryRun {
+			akslog.Logf("DRY_RUN: %s (no pools touched)", msg)
+			return nil
+		}
+		return fmt.Errorf("%s — aborting (no pools touched)", msg)
+	}
+	akslog.Logf("cleanup will retain %d %q pool(s): %v", len(retained), cfg.poolTag, retained)
+
 	akslog.Banner("STEP 3 — bootstrap kube client")
 	if err := az.bootstrapKube(ctx, akslog.Deref(mc.ID)); err != nil {
 		if cfg.dryRun {
@@ -199,4 +223,21 @@ func run() error {
 	}
 	akslog.Logf("all %d extra pool(s) deleted successfully", len(extras))
 	return nil
+}
+
+// retainedPools returns the live pools that would remain after deleting the
+// given extras. It is used by the production-safety invariant in run() to
+// refuse a cleanup that would delete every live pool for the role.
+func retainedPools(live, extras []string) []string {
+	del := make(map[string]struct{}, len(extras))
+	for _, e := range extras {
+		del[e] = struct{}{}
+	}
+	var keep []string
+	for _, p := range live {
+		if _, ok := del[p]; !ok {
+			keep = append(keep, p)
+		}
+	}
+	return keep
 }
