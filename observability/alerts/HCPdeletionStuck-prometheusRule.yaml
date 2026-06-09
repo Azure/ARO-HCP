@@ -8,7 +8,7 @@ spec:
   - name: hcp-deletion-rules
     rules:
     - alert: HCPClusterStuckDeleting
-      expr: max by (cluster_id, cluster_external_id, region, management_cluster) (cluster_deprovision_duration_seconds) > 7200
+      expr: label_replace(max by (cluster_id, cluster_external_id, region, management_cluster) (cluster_deprovision_duration_seconds), "cluster", "$1", "management_cluster", "(.*)") > 7200
       for: 5m
       labels:
         severity: warning
