@@ -20,32 +20,37 @@ fmt-devinfra:
 	$(MAKE) -C ../../dev-infrastructure fmt
 .PHONY: fmt-devinfra
 
-run:
-	go run ./...  --config-file ../../observability/observability.yaml $(EXTRA_FLAGS)
-	$(MAKE) fmt-devinfra
+run: alerts recording-rules
 .PHONY: run
 
-run-hcp:
-	go run ./...  --config-file ../../observability/observability-hcp.yaml $(EXTRA_FLAGS)
+alerts: run-sl-services run-sre-hcps run-rp-services run-msft-services
 	$(MAKE) fmt-devinfra
-.PHONY: run-hcp
+.PHONY: alerts
 
-run-rp:
-	go run ./...  --config-file ../../observability/observability-rp.yaml $(EXTRA_FLAGS)
+recording-rules: run-recording-rules-services run-recording-rules-hcps
 	$(MAKE) fmt-devinfra
-.PHONY: run-rp
+.PHONY: recording-rules
 
-run-msft:
-	go run ./...  --config-file ../../observability/observability-msft.yaml $(EXTRA_FLAGS)
-	$(MAKE) fmt-devinfra
-.PHONY: run-msft
+run-sl-services:
+	go run ./...  --config-file ../../observability/alerts-sl-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-sl-services
 
-run-recording-rules:
-	go run ./...  --config-file ../../observability/observability-recording-rules.yaml
-	$(MAKE) fmt-devinfra
-.PHONY: run-recording-rules
+run-sre-hcps:
+	go run ./...  --config-file ../../observability/alerts-sre-hcps.yaml $(EXTRA_FLAGS)
+.PHONY: run-sre-hcps
 
-run-hcp-recording-rules:
-	go run ./...  --config-file ../../observability/observability-hcp-recording-rules.yaml
-	$(MAKE) fmt-devinfra
-.PHONY: run-hcp-recording-rules
+run-rp-services:
+	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-rp-services
+
+run-msft-services:
+	go run ./...  --config-file ../../observability/alerts-msft-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-msft-services
+
+run-recording-rules-services:
+	go run ./...  --config-file ../../observability/recording-rules-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-recording-rules-services
+
+run-recording-rules-hcps:
+	go run ./...  --config-file ../../observability/recording-rules-hcps.yaml $(EXTRA_FLAGS)
+.PHONY: run-recording-rules-hcps

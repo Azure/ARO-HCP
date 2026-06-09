@@ -26,18 +26,26 @@ make
 ### Run
 
 ```bash
-# Generate alerting rules
+# Generate everything (alerts + recording rules)
 make run
 
-# Generate HCP-specific alerting rules
-make run-hcp
+# Generate all alerts or all recording rules
+make alerts          # All 4 alert configs
+make recording-rules # Both recording-rules configs
 
-# Generate recording rules
-make run-recording-rules
+# Generate individually
+make run-sl-services              # Alerting rules: SL queue, services datasource
+make run-sre-hcps                 # Alerting rules: SRE queue, HCPs datasource
+make run-rp-services              # Alerting rules: RP queue, services datasource
+make run-msft-services            # Alerting rules: MSFT queue, services datasource
+make run-recording-rules-services # Recording rules: services datasource
+make run-recording-rules-hcps    # Recording rules: HCPs datasource
 
 # Custom configuration
 go run . --config-file path/to/config.yaml
 ```
+
+Note: `run`, `alerts`, and `recording-rules` automatically run `fmt-devinfra` after generation. Individual `run-*` targets do not.
 
 ### Command-line Options
 
