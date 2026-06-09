@@ -6,40 +6,94 @@
 			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating"
 		},
 		"customerProperties": {
+			"api": {
+				"visibility": "Public"
+			},
+			"autoscaling": {},
+			"clusterImageRegistry": {
+				"state": "Enabled"
+			},
+			"dns": {},
+			"etcd": {
+				"dataEncryption": {
+					"keyManagementMode": "PlatformManaged"
+				}
+			},
+			"network": {
+				"networkType": "OVNKubernetes"
+			},
+			"platform": {
+				"operatorsAuthentication": {
+					"userAssignedIdentities": {}
+				},
+				"outboundType": "LoadBalancer"
+			},
 			"version": {
 				"channelGroup": "stable"
 			}
 		},
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
 		"intermediateResourceDoc": {
-			"identity": {
-				"principalId": "the-principal",
-				"tenantId": "the-tenant",
-				"type": ""
-			},
 			"internalId": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
 			"provisioningState": "Provisioning",
-			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
-			"tags": {
-				"foo": "bar"
-			}
+			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating"
 		},
 		"internalState": {
 			"internalAPI": {
+				"cosmosMetadata": {
+					"resourceID": null
+				},
 				"customerProperties": {
+					"api": {
+						"visibility": "Public"
+					},
+					"autoscaling": {},
+					"clusterImageRegistry": {
+						"state": "Enabled"
+					},
+					"dns": {},
+					"etcd": {
+						"dataEncryption": {
+							"keyManagementMode": "PlatformManaged"
+						}
+					},
+					"network": {
+						"networkType": "OVNKubernetes"
+					},
+					"platform": {
+						"operatorsAuthentication": {
+							"userAssignedIdentities": {}
+						},
+						"outboundType": "LoadBalancer"
+					},
 					"version": {
 						"channelGroup": "stable"
 					}
 				},
-				"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating"
+				"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
+				"serviceProviderProperties": {
+					"api": {},
+					"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
+					"console": {},
+					"dns": {},
+					"platform": {},
+					"provisioningState": "Provisioning",
+					"usesNewClusterDeletionApproach": false
+				},
+				"status": {}
 			}
 		},
 		"serviceProviderProperties": {
+			"api": {},
 			"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
+			"console": {},
+			"dns": {},
+			"platform": {},
 			"provisioningState": "Provisioning",
 			"usesNewClusterDeletionApproach": false
-		}
+		},
+		"status": {}
 	},
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

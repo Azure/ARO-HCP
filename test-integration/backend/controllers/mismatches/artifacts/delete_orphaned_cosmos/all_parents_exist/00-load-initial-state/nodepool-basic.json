@@ -2,6 +2,9 @@
 	"id": "b3b837bb-154f-5f52-8562-96a8c9d2bb05",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic"
+		},
 		"id": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic",
 		"intermediateResourceDoc": {
 			"activeOperationId": "a7b69c90-242b-4a85-8187-0b3bd4979155",
@@ -17,12 +20,20 @@
 		},
 		"internalState": {
 			"internalAPI": {
+				"cosmosMetadata": {
+					"resourceID": null
+				},
 				"id": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic",
 				"location": "fake-location",
 				"name": "basic",
 				"properties": {
 					"autoRepair": true,
 					"platform": {
+						"enableEncryptionAtHost": false,
+						"osDisk": {
+							"diskStorageAccountType": "Premium_LRS",
+							"diskType": "Managed"
+						},
 						"vmSize": "large"
 					},
 					"provisioningState": "Accepted",
@@ -32,7 +43,7 @@
 				},
 				"serviceProviderProperties": {
 					"activeOperationId": "a7b69c90-242b-4a85-8187-0b3bd4979155",
-					"clusterServiceID": "",
+					"clusterServiceID": "/api/clusters_mgmt/v1/clusters/w9xhwccbjp/node_pools/k9xp9ghzh2",
 					"usesNewNodePoolDeletionApproach": false
 				},
 				"status": {},
@@ -50,6 +61,11 @@
 		"properties": {
 			"autoRepair": true,
 			"platform": {
+				"enableEncryptionAtHost": false,
+				"osDisk": {
+					"diskStorageAccountType": "Premium_LRS",
+					"diskType": "Managed"
+				},
 				"vmSize": "large"
 			},
 			"provisioningState": "Accepted",

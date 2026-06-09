@@ -1,13 +1,9 @@
 {
-	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-80da-b38be40501dc\"",
-	"_rid": "NNYoALQEciYBAAAAAAAAAA==",
-	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYBAAAAAAAAAA==/",
-	"_ts": 1767902971,
 	"id": "96b154eb-638c-5dae-ba08-9b2df5cd8f61",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"cosmosMetadata": {
+			"etag": "\"00000000-0000-0000-7121-fd067c0501dc\"",
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags"
 		},
 		"customerProperties": {
@@ -32,7 +28,8 @@
 								"name": "encryptionKeyName",
 								"vaultName": "keyVaultName",
 								"version": "2024-12-01-preview"
-							}
+							},
+							"visibility": "Public"
 						}
 					},
 					"keyManagementMode": "CustomerManaged"
@@ -82,6 +79,9 @@
 		},
 		"internalState": {
 			"internalAPI": {
+				"cosmosMetadata": {
+					"resourceID": null
+				},
 				"customerProperties": {
 					"api": {
 						"visibility": "Public"
@@ -104,7 +104,8 @@
 										"name": "encryptionKeyName",
 										"vaultName": "keyVaultName",
 										"version": "2024-12-01-preview"
-									}
+									},
+									"visibility": "Public"
 								}
 							},
 							"keyManagementMode": "CustomerManaged"

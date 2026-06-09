@@ -1,9 +1,4 @@
 {
-	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-7121-fd067c0501dc\"",
-	"_rid": "WZlNALYurecDAAAAAAAAAA==",
-	"_self": "dbs/WZlNAA==/colls/WZlNALYurec=/docs/WZlNALYurecDAAAAAAAAAA==/",
-	"_ts": 1766174370,
 	"id": "96b154eb-638c-5dae-ba08-9b2df5cd8f61",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
@@ -32,7 +27,8 @@
 								"name": "encryptionKeyName",
 								"vaultName": "keyVaultName",
 								"version": "2024-12-01-preview"
-							}
+							},
+							"visibility": "Public"
 						}
 					},
 					"keyManagementMode": "CustomerManaged"
@@ -82,6 +78,9 @@
 		},
 		"internalState": {
 			"internalAPI": {
+				"cosmosMetadata": {
+					"resourceID": null
+				},
 				"customerProperties": {
 					"api": {
 						"visibility": "Public"
@@ -104,7 +103,8 @@
 										"name": "encryptionKeyName",
 										"vaultName": "keyVaultName",
 										"version": "2024-12-01-preview"
-									}
+									},
+									"visibility": "Public"
 								}
 							},
 							"keyManagementMode": "CustomerManaged"

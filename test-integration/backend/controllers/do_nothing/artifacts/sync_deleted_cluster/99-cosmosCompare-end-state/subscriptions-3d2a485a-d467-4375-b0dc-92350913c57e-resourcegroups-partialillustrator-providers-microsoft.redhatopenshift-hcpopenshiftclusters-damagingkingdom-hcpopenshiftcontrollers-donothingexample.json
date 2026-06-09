@@ -1,0 +1,25 @@
+{
+	"_etag": "8ca3dad1-3318-4868-84a9-debe46e2fbff",
+	"id": "c5955c34-757d-5f16-8824-a4535bccaaf4",
+	"partitionKey": "3d2a485a-d467-4375-b0dc-92350913c57e",
+	"properties": {
+		"cosmosMetadata": {
+			"etag": "4748c5b6-3d73-4336-bd09-3baff60ff4be",
+			"resourceID": "/subscriptions/3d2a485a-d467-4375-b0dc-92350913c57e/resourceGroups/partialillustrator/providers/microsoft.redhatopenshift/hcpopenshiftclusters/damagingkingdom/hcpOpenShiftControllers/DoNothingExample"
+		},
+		"externalId": "/subscriptions/3d2a485a-d467-4375-b0dc-92350913c57e/resourceGroups/partialillustrator/providers/microsoft.redhatopenshift/hcpopenshiftclusters/damagingkingdom",
+		"status": {
+			"conditions": [
+				{
+					"lastTransitionTime": "2026-06-09T20:37:38Z",
+					"message": "As expected.",
+					"reason": "NoErrors",
+					"status": "False",
+					"type": "Degraded"
+				}
+			]
+		}
+	},
+	"resourceID": "/subscriptions/3d2a485a-d467-4375-b0dc-92350913c57e/resourceGroups/partialillustrator/providers/microsoft.redhatopenshift/hcpopenshiftclusters/damagingkingdom/hcpOpenShiftControllers/DoNothingExample",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/hcpOpenShiftControllers"
+}

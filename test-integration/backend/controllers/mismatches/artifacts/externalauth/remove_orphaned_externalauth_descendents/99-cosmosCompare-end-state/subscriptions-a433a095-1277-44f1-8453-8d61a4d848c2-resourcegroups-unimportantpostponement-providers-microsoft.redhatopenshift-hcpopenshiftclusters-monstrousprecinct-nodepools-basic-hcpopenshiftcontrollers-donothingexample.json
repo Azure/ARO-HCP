@@ -1,0 +1,24 @@
+{
+	"id": "3021cdf9-a4cc-5790-be53-f70d1db0adb7",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"cosmosMetadata": {
+			"etag": "\"00000000-0000-0000-80f0-3b91cc0501dc\"",
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodepools/basic/hcpOpenShiftControllers/DoNothingExample"
+		},
+		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodepools/basic",
+		"status": {
+			"conditions": [
+				{
+					"lastTransitionTime": "2026-01-08T22:43:39Z",
+					"message": "As expected.",
+					"reason": "NoErrors",
+					"status": "False",
+					"type": "Degraded"
+				}
+			]
+		}
+	},
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodepools/basic/hcpOpenShiftControllers/DoNothingExample",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodepools/hcpOpenShiftControllers"
+}
