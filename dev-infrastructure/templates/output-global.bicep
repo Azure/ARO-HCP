@@ -78,8 +78,8 @@ resource frontDoorProfile 'Microsoft.Cdn/profiles@2023-05-01' existing = if (!em
 
 output azureFrontDoorResourceId string = empty(azureFrontDoorProfileName) ? '' : frontDoorProfile.id
 
-param afdKeyVaultName string
-
+@description('The name of the Azure Front Door global Key Vault')
+param afdKeyVaultName string = ''
 resource afdKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = if (!empty(afdKeyVaultName)) {
   name: afdKeyVaultName
 }
