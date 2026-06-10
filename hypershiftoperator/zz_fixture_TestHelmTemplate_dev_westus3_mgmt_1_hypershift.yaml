@@ -717,17 +717,9 @@ spec:
         - |
           hypershift install \
             --outputs=crds \
-            --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
-            --aro-hcp-key-vault-users-client-id __csiSecretStoreClientId__ \
-            --registry-overrides "quay.io/openshift-release-dev/ocp-v4.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev,quay.io/openshift-release-dev/ocp-v5.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v5.0-art-dev,quay.io/openshift-release-dev/ocp-release=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release,quay.io/openshift-release-dev/ocp-release-nightly=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release-nightly,registry.redhat.io/redhat=arohcpocpdev.azurecr.io/redhat" \
-            --hypershift-image arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890 \
-            --platform-monitoring=None \
-            --metrics-set=SRE \
-            --enable-size-tagging=true \
             --limit-crd-install=Azure \
-            --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY=arohcpocpdev.azurecr.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main@sha256:1234567890 \
-            --enable-cpo-overrides
+            --hypershift-image arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890
       restartPolicy: Never
       serviceAccountName: hypershift-installer
 ---
@@ -735,7 +727,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: install-hypershift-resources
+  name: install-hypershift
   namespace: 'hypershift'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
