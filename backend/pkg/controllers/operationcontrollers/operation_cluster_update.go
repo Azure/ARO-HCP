@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -43,6 +44,7 @@ type operationClusterUpdate struct {
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               database.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
+	readDesireLister                dblisters.ReadDesireLister
 	notificationClient              *http.Client
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
@@ -65,6 +67,7 @@ func NewOperationClusterUpdateController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
+	readDesireLister dblisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
@@ -72,6 +75,7 @@ func NewOperationClusterUpdateController(
 		clock:                           clock,
 		resourcesDBClient:               resourcesDBClient,
 		clusterServiceClient:            clusterServiceClient,
+		readDesireLister:                readDesireLister,
 		notificationClient:              notificationClient,
 		desiredVersionMismatchFirstSeen: lru.New(100000),
 	}
@@ -154,6 +158,17 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 		errs = append(errs, utils.TrackError(csErr))
 	} else {
 		operationStates = append(operationStates, operationState)
+	}
+
+	existingCluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
+	if err != nil {
+		errs = append(errs, utils.TrackError(fmt.Errorf("failed to get cluster for hypershift state check: %w", err)))
+	} else {
+		if operationState, hsErr := c.hypershiftClusterOperationState(ctx, existingCluster); hsErr != nil {
+			errs = append(errs, utils.TrackError(hsErr))
+		} else {
+			operationStates = append(operationStates, operationState)
+		}
 	}
 
 	if err := errors.Join(errs...); err != nil {
