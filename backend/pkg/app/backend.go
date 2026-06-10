@@ -395,7 +395,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, unionReadDesireLister := unionKubeApplierInformers.ReadDesires()
 
 	clusterInformer, clusterLister := backendInformers.Clusters()
-	clusterHandler := metricscontrollers.NewClusterMetricsHandler(b.options.MetricsRegisterer)
+	clusterHandler := metricscontrollers.NewClusterMetricsHandler(b.options.MetricsRegisterer, b.options.ResourcesDBClient)
 	clusterMetricsController := metricscontrollers.NewController(
 		"ClusterMetrics", clusterInformer, clusterHandler)
 

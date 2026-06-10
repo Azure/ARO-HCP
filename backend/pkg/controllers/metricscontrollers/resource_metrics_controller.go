@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 type resourceStateMetricsObject interface {
@@ -123,23 +124,32 @@ func (o clusterMetricsObject) CreatedAt() *time.Time {
 
 type clusterMetricsHandler struct {
 	*resourceStateMetricsHandler[clusterMetricsObject]
+	clusterVersionMetrics *clusterVersionMetricsHandler
 }
 
 // NewClusterMetricsHandler creates a metrics handler for cluster metrics.
-func NewClusterMetricsHandler(r prometheus.Registerer) Handler[*api.HCPOpenShiftCluster] {
+func NewClusterMetricsHandler(r prometheus.Registerer, resourcesDBClient database.ResourcesDBClient) Handler[*api.HCPOpenShiftCluster] {
 	return &clusterMetricsHandler{
-		newResourceStateMetricsHandler[clusterMetricsObject](
+		resourceStateMetricsHandler: newResourceStateMetricsHandler[clusterMetricsObject](
 			r,
 			"backend_cluster_provision_state",
 			"Current provisioning state of the cluster (value is always 1).",
 			"backend_cluster_created_time_seconds",
 			"Unix timestamp when the cluster was created.",
 		),
+		clusterVersionMetrics: newClusterVersionMetricsHandler(r, resourcesDBClient),
 	}
 }
 
 func (h *clusterMetricsHandler) Sync(ctx context.Context, cluster *api.HCPOpenShiftCluster) {
-	h.resourceStateMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
+	obj := clusterMetricsObject{cluster}
+	h.resourceStateMetricsHandler.Sync(ctx, obj)
+	h.clusterVersionMetrics.Sync(ctx, obj)
+}
+
+func (h *clusterMetricsHandler) Delete(key string) {
+	h.resourceStateMetricsHandler.Delete(key)
+	h.clusterVersionMetrics.Delete(key)
 }
 
 type nodePoolMetricsObject struct {
