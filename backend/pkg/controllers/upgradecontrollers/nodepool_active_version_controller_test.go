@@ -52,19 +52,26 @@ func nodePoolReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 			maestrohelpers.ReadDesireNameReadonlyNodePool)))
 }
 
-// newNodePoolReadDesireWithStatusVersion builds a ReadDesire whose
-// Status.KubeContent.Raw carries a marshaled Hypershift NodePool with the
-// given status.version. Use empty string to omit (simulating "kube-applier
-// observed the resource but the controller hasn't filled status yet").
-func newNodePoolReadDesireWithStatusVersion(t *testing.T, statusVersion string) *kubeapplier.ReadDesire {
+// newNodePoolReadDesireWithNodeVersions builds a ReadDesire whose
+// Status.KubeContent.Raw carries a marshaled Hypershift NodePool whose
+// Status.NodesInfo.NodeVersions lists the given OCP versions (one entry per
+// argument). Pass no arguments to simulate "kube-applier observed the resource
+// but no node versions have been reported yet."
+func newNodePoolReadDesireWithNodeVersions(t *testing.T, ocpVersions ...string) *kubeapplier.ReadDesire {
 	t.Helper()
+	var nvs []v1beta1.NodeVersion
+	for _, v := range ocpVersions {
+		nvs = append(nvs, v1beta1.NodeVersion{OCPVersion: v})
+	}
 	np := &v1beta1.NodePool{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "NodePool",
 			APIVersion: v1beta1.GroupVersion.String(),
 		},
 		Status: v1beta1.NodePoolStatus{
-			Version: statusVersion,
+			NodesInfo: v1beta1.NodePoolNodesInfo{
+				NodeVersions: nvs,
+			},
 		},
 	}
 	raw, err := json.Marshal(np)
@@ -114,7 +121,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 			},
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithStatusVersion(t, "4.19.7")}
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7")}
 			},
 		},
 		{
@@ -145,28 +152,26 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "NodePool Status.Version empty leaves existing SPNP untouched",
+			name: "empty NodeVersions leaves existing SPNP untouched",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
 			},
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithStatusVersion(t, "")}
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t)}
 			},
 		},
 		{
-			name: "NodePool Status.Version unparseable returns error",
+			name: "NodeVersions entries all empty/unparseable leaves SPNP untouched",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
 			},
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithStatusVersion(t, "not-a-semver")}
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "", "not-a-semver")}
 			},
-			expectedError:         true,
-			expectedErrorContains: "failed to parse NodePool Status.Version",
 		},
 		{
 			name: "version unchanged: no rewrite, active versions stable",
@@ -176,7 +181,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
 			},
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithStatusVersion(t, "4.19.7")}
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7")}
 			},
 			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
@@ -188,14 +193,33 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "version changed: new tip prepended, previous kept as second entry",
+			name: "single new version replaces the previous one",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
 				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
 			},
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
-				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithStatusVersion(t, "4.19.15")}
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.15")}
+			},
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
+					Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err)
+				require.Len(t, spnp.Status.NodePoolVersion.ActiveVersions, 1)
+				assert.True(t, semver.MustParse("4.19.15").EQ(*spnp.Status.NodePoolVersion.ActiveVersions[0].Version))
+			},
+		},
+		{
+			name: "in-progress upgrade: both versions surfaced, newest first",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
+				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
+			},
+			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7", "4.19.15")}
 			},
 			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
@@ -208,6 +232,46 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
+			name: "duplicate OCPVersion entries are deduped",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
+				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
+			},
+			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				// Two NodeVersion entries with the same OCPVersion (different
+				// KubeletVersion in real life) must collapse to one entry.
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.15", "4.19.15")}
+			},
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
+					Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err)
+				require.Len(t, spnp.Status.NodePoolVersion.ActiveVersions, 1)
+				assert.True(t, semver.MustParse("4.19.15").EQ(*spnp.Status.NodePoolVersion.ActiveVersions[0].Version))
+			},
+		},
+		{
+			name: "unparseable entries are skipped, parseable ones still recorded",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestNodePoolWithVersion(t, ctx, mockDB, "4.19.15")
+				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.19.7")
+			},
+			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.15", "not-a-semver")}
+			},
+			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
+					Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err)
+				require.Len(t, spnp.Status.NodePoolVersion.ActiveVersions, 1)
+				assert.True(t, semver.MustParse("4.19.15").EQ(*spnp.Status.NodePoolVersion.ActiveVersions[0].Version))
+			},
+		},
+		{
 			name: "ParseTolerant accepts non-strict semver from hypershift",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
@@ -216,17 +280,16 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 			desires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				// hypershift sometimes reports versions like "4.19" (no patch)
-				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithStatusVersion(t, "4.19")}
+				return []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19")}
 			},
 			validateAfter: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				spnp, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
 					Get(ctx, api.ServiceProviderNodePoolResourceName)
 				require.NoError(t, err)
-				require.Len(t, spnp.Status.NodePoolVersion.ActiveVersions, 2)
+				require.Len(t, spnp.Status.NodePoolVersion.ActiveVersions, 1)
 				expected := api.Must(semver.ParseTolerant("4.19"))
 				assert.True(t, expected.EQ(*spnp.Status.NodePoolVersion.ActiveVersions[0].Version))
-				assert.True(t, semver.MustParse("4.19.7").EQ(*spnp.Status.NodePoolVersion.ActiveVersions[1].Version))
 			},
 		},
 	}
@@ -279,7 +342,7 @@ func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &internallistertesting.SliceReadDesireLister{
-			Desires: []*kubeapplier.ReadDesire{newNodePoolReadDesireWithStatusVersion(t, "4.19.7")},
+			Desires: []*kubeapplier.ReadDesire{newNodePoolReadDesireWithNodeVersions(t, "4.19.7")},
 		},
 	}
 
