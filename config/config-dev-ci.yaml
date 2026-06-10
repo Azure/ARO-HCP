@@ -182,6 +182,14 @@ clouds:
               roleAssignmentLimit: 4000
               regions:
               - uksouth
+            - name: "ARO HCP E2E Hosted Clusters - Prod - 00"
+              roleAssignmentLimit: 8000
+              regions:
+              - westus3
+            - name: "ARO HCP E2E Hosted Clusters - Prod - 01"
+              roleAssignmentLimit: 8000
+              regions:
+              - westus3
           # Test Test Azure Red Hat OpenShift (Microsoft E2E tenant); directory quota off — subscription ARM only.
           - tenantId: "93b21e64-4824-439a-b893-46c9b2a51082"
             tenantName: "TestTestARO"
