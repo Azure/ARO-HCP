@@ -42,6 +42,7 @@ type ResourcesGlobalListers interface {
 	ExternalAuths() GlobalLister[api.HCPOpenShiftClusterExternalAuth]
 	ServiceProviderClusters() GlobalLister[api.ServiceProviderCluster]
 	ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool]
+	ServiceProviderExternalAuths() GlobalLister[api.ServiceProviderExternalAuth]
 	Controllers() GlobalLister[api.Controller]
 	// ManagementClusterContents lists ManagementClusterContent documents across
 	// partitions for every Cosmos resource type where managementClusterContents
@@ -103,6 +104,13 @@ func (g *cosmosResourcesGlobalListers) ServiceProviderNodePools() GlobalLister[a
 	return &cosmosGlobalLister[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]]{
 		containerClient: g.resources,
 		resourceType:    api.ServiceProviderNodePoolResourceType,
+	}
+}
+
+func (g *cosmosResourcesGlobalListers) ServiceProviderExternalAuths() GlobalLister[api.ServiceProviderExternalAuth] {
+	return &cosmosGlobalLister[api.ServiceProviderExternalAuth, GenericDocument[api.ServiceProviderExternalAuth]]{
+		containerClient: g.resources,
+		resourceType:    api.ServiceProviderExternalAuthResourceType,
 	}
 }
 

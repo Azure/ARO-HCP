@@ -72,6 +72,13 @@ func (g *mockResourcesGlobalListers) ServiceProviderNodePools() database.GlobalL
 	}
 }
 
+func (g *mockResourcesGlobalListers) ServiceProviderExternalAuths() database.GlobalLister[api.ServiceProviderExternalAuth] {
+	return &mockTypedGlobalLister[api.ServiceProviderExternalAuth, database.GenericDocument[api.ServiceProviderExternalAuth]]{
+		client:       g.client,
+		resourceType: api.ServiceProviderExternalAuthResourceType,
+	}
+}
+
 func (g *mockResourcesGlobalListers) Controllers() database.GlobalLister[api.Controller] {
 	return &mockControllerGlobalLister{
 		client: g.client,

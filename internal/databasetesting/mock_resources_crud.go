@@ -706,6 +706,20 @@ func newMockServiceProviderNodePoolCRUD(client *MockResourcesDBClient, parentRes
 
 var _ database.ServiceProviderNodePoolCRUD = &mockServiceProviderNodePoolCRUD{}
 
+// mockServiceProviderExternalAuthCRUD implements database.ServiceProviderExternalAuthCRUD.
+type mockServiceProviderExternalAuthCRUD struct {
+	*mockResourceCRUD[api.ServiceProviderExternalAuth, database.GenericDocument[api.ServiceProviderExternalAuth]]
+}
+
+func newMockServiceProviderExternalAuthCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockServiceProviderExternalAuthCRUD {
+	return &mockServiceProviderExternalAuthCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.ServiceProviderExternalAuth, database.GenericDocument[api.ServiceProviderExternalAuth]](
+			client, parentResourceID, api.ServiceProviderExternalAuthResourceType),
+	}
+}
+
+var _ database.ServiceProviderExternalAuthCRUD = &mockServiceProviderExternalAuthCRUD{}
+
 // mockManagementClusterContentCRUD implements database.ManagementClusterContentCRUD.
 type mockManagementClusterContentCRUD struct {
 	*mockResourceCRUD[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]

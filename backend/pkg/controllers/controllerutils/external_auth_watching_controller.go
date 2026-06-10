@@ -65,7 +65,8 @@ func NewExternalAuthWatchingController(
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if informers != nil {
 		externalAuthInformer, _ := informers.ExternalAuths()
-		err := externalAuthGenericWatchingController.QueueForInformers(resyncDuration, externalAuthInformer)
+		serviceProviderExternalAuthInformer, _ := informers.ServiceProviderExternalAuths()
+		err := externalAuthGenericWatchingController.QueueForInformers(resyncDuration, externalAuthInformer, serviceProviderExternalAuthInformer)
 		if err != nil {
 			panic(err) // coding error
 		}
