@@ -2,13 +2,13 @@ rule_files:
 - backend-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: BackendControllerQueueDepthHigh fires when depth > 10 for 5m
+# Test: BackendControllerQueueDepthHigh fires when depth > 10 for 15m
 - interval: 1m
   input_series:
   - series: 'workqueue_depth{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "15x10" # depth stays at 15 for 10 minutes
+    values: "15x20" # depth stays at 15 for 20 minutes
   alert_rule_test:
-  - eval_time: 6m
+  - eval_time: 16m
     alertname: BackendControllerQueueDepthHigh
     exp_alerts:
     - exp_labels:

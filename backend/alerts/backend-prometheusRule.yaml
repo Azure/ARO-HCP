@@ -19,7 +19,7 @@ spec:
             workqueue_depth{namespace="aro-hcp"}
           )
         ) > 10
-      for: 5m
+      for: 15m
       labels:
         severity: warning
       annotations:
