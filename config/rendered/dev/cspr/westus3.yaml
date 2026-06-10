@@ -676,6 +676,8 @@ mgmt:
         sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
         tag: v0.41.0
   rg: hcp-underlay-cspr-westus3-mgmt-1
+  stamps:
+    count: 1
   subscription:
     certificateDomains:
     - '*.hcp.osadev.cloud'

@@ -542,6 +542,8 @@ defaults:
           sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
   # MGMT cluster specifics
   mgmt:
+    stamps:
+      count: 1
     defaultStorageClassSkuName: "PremiumV2_LRS"
     hcpBackups:
       storageAccount:
