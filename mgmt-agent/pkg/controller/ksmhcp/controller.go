@@ -23,6 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,7 +55,7 @@ const (
 	serviceNetworkKubeconfigKey    = "kubeconfig"
 )
 
-var serviceMonitorGVR = schema.GroupVersionResource{
+var ServiceMonitorGVR = schema.GroupVersionResource{
 	Group:    "monitoring.coreos.com",
 	Version:  "v1",
 	Resource: "servicemonitors",
@@ -67,7 +68,7 @@ type KSMHCPController struct {
 	kubeClientset kubernetes.Interface
 	dynamicClient dynamic.Interface
 	hcpLister     hcplisters.HostedControlPlaneLister
-	hcpSynced     cache.InformerSynced
+	hasSynced     []cache.InformerSynced
 	workqueue     workqueue.TypedRateLimitingInterface[string]
 	ksmImage      string
 }
@@ -77,18 +78,26 @@ func NewKSMHCPController(
 	kubeClientset kubernetes.Interface,
 	dynamicClient dynamic.Interface,
 	hcpInformer hcpinformers.HostedControlPlaneInformer,
+	deploymentInformer cache.SharedIndexInformer,
+	serviceInformer cache.SharedIndexInformer,
+	serviceMonitorInformer cache.SharedIndexInformer,
 	ksmImage string,
 ) (*KSMHCPController, error) {
 	c := &KSMHCPController{
 		kubeClientset: kubeClientset,
 		dynamicClient: dynamicClient,
 		hcpLister:     hcpInformer.Lister(),
-		hcpSynced:     hcpInformer.Informer().HasSynced,
-		workqueue:     workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{Name: "KSMHCP"}),
-		ksmImage:      ksmImage,
+		hasSynced: []cache.InformerSynced{
+			hcpInformer.Informer().HasSynced,
+			deploymentInformer.HasSynced,
+			serviceInformer.HasSynced,
+			serviceMonitorInformer.HasSynced,
+		},
+		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{Name: "KSMHCP"}),
+		ksmImage:  ksmImage,
 	}
 
-	if _, err := hcpInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	enqueueHCP := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
 			if err == nil {
@@ -107,11 +116,52 @@ func NewKSMHCPController(
 				c.workqueue.Add(key)
 			}
 		},
-	}); err != nil {
-		return nil, fmt.Errorf("failed to add event handler: %w", err)
+	}
+
+	if _, err := hcpInformer.Informer().AddEventHandler(enqueueHCP); err != nil {
+		return nil, fmt.Errorf("failed to add HCP event handler: %w", err)
+	}
+
+	enqueueOwner := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			c.enqueueForOwner(obj)
+		},
+		UpdateFunc: func(old, new interface{}) {
+			c.enqueueForOwner(new)
+		},
+		DeleteFunc: func(obj interface{}) {
+			tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+			if ok {
+				obj = tombstone.Obj
+			}
+			c.enqueueForOwner(obj)
+		},
+	}
+
+	if _, err := deploymentInformer.AddEventHandler(enqueueOwner); err != nil {
+		return nil, fmt.Errorf("failed to add Deployment event handler: %w", err)
+	}
+	if _, err := serviceInformer.AddEventHandler(enqueueOwner); err != nil {
+		return nil, fmt.Errorf("failed to add Service event handler: %w", err)
+	}
+	if _, err := serviceMonitorInformer.AddEventHandler(enqueueOwner); err != nil {
+		return nil, fmt.Errorf("failed to add ServiceMonitor event handler: %w", err)
 	}
 
 	return c, nil
+}
+
+func (c *KSMHCPController) enqueueForOwner(obj interface{}) {
+	accessor, err := meta.Accessor(obj)
+	if err != nil {
+		return
+	}
+	for _, ref := range accessor.GetOwnerReferences() {
+		if ref.Kind == "HostedControlPlane" && ref.APIVersion == "hypershift.openshift.io/v1beta1" {
+			c.workqueue.Add(accessor.GetNamespace() + "/" + ref.Name)
+			return
+		}
+	}
 }
 
 // Run starts the controller workers and blocks until the context is cancelled.
@@ -123,7 +173,7 @@ func (c *KSMHCPController) Run(ctx context.Context, workers int) error {
 	logger.Info("Starting KSM HCP controller")
 
 	logger.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(ctx.Done(), c.hcpSynced); !ok {
+	if ok := cache.WaitForCacheSync(ctx.Done(), c.hasSynced...); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
@@ -254,7 +304,7 @@ func (c *KSMHCPController) ensureServiceMonitor(ctx context.Context, desired *un
 	if err != nil {
 		return fmt.Errorf("failed to marshal servicemonitor: %w", err)
 	}
-	_, err = c.dynamicClient.Resource(serviceMonitorGVR).Namespace(desired.GetNamespace()).Patch(
+	_, err = c.dynamicClient.Resource(ServiceMonitorGVR).Namespace(desired.GetNamespace()).Patch(
 		ctx, desired.GetName(), types.ApplyPatchType, data,
 		metav1.PatchOptions{FieldManager: fieldManager, Force: ptr.To(true)},
 	)
