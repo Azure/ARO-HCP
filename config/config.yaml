@@ -118,7 +118,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:8544418cd26754f68d1ef13e98d77357e3b5bf9d88f1b93a7b400152fb58ae05 # v5.0.4 (2026-05-21 21:36)
+        digest: sha256:f1bd17579ed4044d7d06a404aeb6d7662510de6e57e695dba36cc5cc679f1a40 # v5.0.4 (2026-06-09 10:56)
       resources:
         requests:
           cpu: 100m
@@ -167,7 +167,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:2476efd096b031e1fd98bec5f028cd358022523342f00316d05d36247c4189ae # 7d5b858 (2026-06-08 14:11)
+      digest: sha256:81912673248ea41c42502d9ff50c0a57e8f542d5a0a4fed28489a47e40276c15 # fecedb7 (2026-06-10 02:54)
   # Mgmt Agent Controller
   mgmtAgent:
     managedIdentityName: mgmt-agent
@@ -317,7 +317,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:caea1a9e4d7cd7b270dc1b28895b571a44fbcb6b97c810683764a0f247ab13cf # a101e6697af02eba43e6cfd04fc4c00277b72a64 (2026-06-05 23:06)
+      digest: sha256:c8b031e426ae224d5bebca597d0deaab1fb62060d20d1dc150cd581cc6381f4c # 832b8480e72020b3d6d6477e7aba90c7c2f2ddfb (2026-06-09 16:41)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -947,7 +947,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:31fe1839cc3bd62fad4d9f5848f1269f3083c33686c328904a182a5011b4e4ff # f285788692fa9198f37cd298760832ed5b7b8b0e (2026-06-05 15:56)
+      digest: sha256:0e369c753925e8d18e47ed45c9f70bf68cf35e0b833794fda8c7212cc298d006 # dcb97edc3a5de24cbaf1c8593a923b7fa94dac23 (2026-06-09 15:40)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1007,7 +1007,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:883eae8e2c6d90a1c754ae7c75183812bf47437cfbb37a7c1d9fa84213280aa4 # 7d5b858 (2026-06-08 14:12)
+        digest: sha256:bd75091889a904335a6b6ff81bc425a514620351773674ec2b72e21de965d99e # fecedb7 (2026-06-10 02:55)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
