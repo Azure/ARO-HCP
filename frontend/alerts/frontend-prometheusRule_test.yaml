@@ -6,11 +6,11 @@ tests:
 - interval: 1m
   input_series:
   - series: 'frontend_clusters_service_client_request_count{code="500"}'
-    values: "0 6x10" # 6 per minute → 6 / 106 ≈ 5.66%
+    values: "0 6x20" # 6 per minute → 6 / 106 ≈ 5.66%
   - series: 'frontend_clusters_service_client_request_count{code="200"}'
-    values: "0 100x10" # 100 per minute from minute 1 to 10
+    values: "0 100x20" # 100 per minute from minute 1 to 20
   alert_rule_test:
-  - eval_time: 10m # At this point, the condition has held for 10 minutes
+  - eval_time: 20m
     alertname: FrontendClusterServiceErrorRate
     exp_alerts:
     - exp_labels:
@@ -23,11 +23,11 @@ tests:
 - interval: 1m
   input_series:
   - series: 'frontend_clusters_service_client_request_count{code="500"}'
-    values: "0 2x10" # 2 / 102 ≈ 1.96%
+    values: "0 2x20" # 2 / 102 ≈ 1.96%
   - series: 'frontend_clusters_service_client_request_count{code="200"}'
-    values: "0 100x10" # 100 per minute from minute 1 to 10
+    values: "0 100x20" # 100 per minute from minute 1 to 20
   alert_rule_test:
-  - eval_time: 10m # At this point, the condition has held for 10 minutes
+  - eval_time: 20m
     alertname: FrontendClusterServiceErrorRate
     exp_alerts: []
 # Test: FrontendHighAuditLogErrorRate above 5%
@@ -62,9 +62,9 @@ tests:
 - interval: 1m
   input_series:
   - series: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"}'
-    values: "1x10" # degraded for 10 minutes
+    values: "1x20" # degraded for 20 minutes
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 20m
     alertname: FrontendAuditLogConnectionDegraded
     exp_alerts:
     - exp_labels:
@@ -78,9 +78,9 @@ tests:
 - interval: 1m
   input_series:
   - series: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"}'
-    values: "0x10" # healthy for 10 minutes
+    values: "0x20" # healthy for 20 minutes
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 20m
     alertname: FrontendAuditLogConnectionDegraded
     exp_alerts: []
 # Test: FrontendHttpRequestPanics fires when panics occur

@@ -19,11 +19,11 @@ spec:
             workqueue_depth{namespace="aro-hcp"}
           )
         ) > 10
-      for: 5m
+      for: 15m
       labels:
         severity: warning
       annotations:
-        description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+        description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
         summary: 'Backend controller workqueue depth is high'
     - alert: BackendControllerPanic
