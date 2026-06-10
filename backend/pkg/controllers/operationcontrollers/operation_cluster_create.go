@@ -210,6 +210,9 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
 	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		return newOperationState(arm.ProvisioningStateProvisioning, "cluster not yet observed in cache"), nil
+	}
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
