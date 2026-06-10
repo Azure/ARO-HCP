@@ -280,6 +280,7 @@ func TestArmResourceGroupValidationPolicy(t *testing.T) {
 
 		resp, err := pipeline.Do(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		assert.False(t, called, "transport should not have been called")
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
