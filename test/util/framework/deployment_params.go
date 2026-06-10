@@ -167,12 +167,13 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	if len(version) == 0 {
 		channelGroup := DefaultOpenshiftNodePoolChannelGroup()
 		cpChannelGroup := DefaultOpenshiftChannelGroup()
+		cpVersion := DefaultOpenshiftControlPlaneVersionId()
 
 		// CRITICAL: When channel groups match, ALWAYS use the control plane version
 		// to prevent version mismatches due to Cincinnati timing differences.
 		// This ensures node pool version never exceeds control plane version.
 		if channelGroup == cpChannelGroup {
-			return DefaultOpenshiftControlPlaneVersionId()
+			return cpVersion
 		}
 
 		// Different channel groups: resolve node pool version from its own channel,
@@ -188,7 +189,6 @@ func DefaultOpenshiftNodePoolVersionId() string {
 		}
 
 		// Validate: node pool version must not exceed control plane version
-		cpVersion := DefaultOpenshiftControlPlaneVersionId()
 		npSemver, npErr := semver.Parse(version)
 		cpSemver, cpErr := semver.Parse(cpVersion)
 
