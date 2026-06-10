@@ -16,8 +16,10 @@ package operationcontrollers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -105,5 +108,68 @@ func (c *operationExternalAuthUpdate) SynchronizeOperation(ctx context.Context, 
 		return nil // no work to do
 	}
 
-	return pollExternalAuthStatus(ctx, c.clock, c.resourcesDBClient, c.clusterServiceClient, operation, c.notificationClient)
+	cosmosNewOperationState, err := c.determineOperationStatus(ctx, operation)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	logger.Info("new status via cosmos", "newStatus", cosmosNewOperationState.provisioningState, "newOperationMessage", cosmosNewOperationState.message)
+
+	// Check CS state: if the external auth exists in CS, we consider CS ready.
+	_, err = c.clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	newOperationStatus := arm.ProvisioningStateSucceeded
+	logger.Info("new status via cluster-service", "newStatus", newOperationStatus)
+
+	if newOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.provisioningState != arm.ProvisioningStateSucceeded {
+		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q", cosmosNewOperationState.provisioningState, newOperationStatus)
+	}
+
+	logger.Info("updating status")
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, nil, postAsyncNotificationFn(c.notificationClient))
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
+func (c *operationExternalAuthUpdate) determineOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	errs := []error{}
+	operationStates := []*operationState{}
+
+	clusterName := operation.ExternalID.Parent.Name
+	externalAuthName := operation.ExternalID.Name
+	externalAuth, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).ExternalAuth(clusterName).Get(ctx, externalAuthName)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get external auth from cosmos: %w", err))
+	}
+	if currState, err := c.cosmosHashOperationState(ctx, externalAuth); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState)
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
+	}
+	if len(operationStates) == 0 {
+		return nil, errors.New("no operation states")
+	}
+	slices.SortStableFunc(operationStates, compareOperationState)
+	if operationStates[0] == nil {
+		return nil, errors.New("nil operation state")
+	}
+
+	logger.Info("determined external auth update operation status", "operationStates", operationStates)
+
+	picked, err := pickWorstOperationState(operationStates)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	logger.Info("picked external auth update operation status", "provisioningState", picked.provisioningState, "message", picked.message)
+	return picked, nil
 }

@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthdeletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthupdate"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/managementclustercontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metricscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
@@ -674,6 +675,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	externalAuthClusterServiceUpdateDispatchController := externalauthupdate.NewExternalAuthClusterServiceUpdateDispatchController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
 	externalAuthDeletionClusterServiceDeleteDispatchController := externalauthdeletion.NewExternalAuthClusterServiceDeleteDispatchController(
 		utilsclock.RealClock{},
 		b.options.ResourcesDBClient,
@@ -762,6 +769,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
 				go nodePoolChildResourcesCleanupController.Run(ctx, 20)
 				go nodePoolDeletionController.Run(ctx, 20)
+				go externalAuthClusterServiceUpdateDispatchController.Run(ctx, 20)
 				go externalAuthDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go externalAuthClusterServiceIDClearerController.Run(ctx, 20)
 				go externalAuthChildResourcesCleanupController.Run(ctx, 20)
