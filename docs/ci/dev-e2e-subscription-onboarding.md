@@ -6,12 +6,15 @@ Today the canonical DEV slot inventory lives in `test/e2e-config/e2e-slots.yaml`
 
 ## What This Onboarding Touches
 
-Adding a new DEV customer subscription spans four different inventories:
+Adding a new DEV customer subscription spans seven different inventories:
 
 - the canonical slot catalog in this repository
 - the ARO-HCP-managed Boskos inventory in `openshift/release`
 - the cluster profile secret inventory outside this repository
+- the OpenShift Release Bot subscription grants
 - the standalone `dev-ci` bootstrap RBAC rollout
+- the tenant-quota collector subscription inventory
+- the periodic cleanup jobs in `openshift/release`
 
 It is not just a slot-catalog change.
 
@@ -61,41 +64,67 @@ For the current mixed-management model of the pooled MSI mock identities, see [C
      - `./test/aro-hcp-tests slot-manager validate-boskos-config --release-repo <release-checkout>`
    - Open and merge the `openshift/release` PR, then wait for the Boskos config rollout.
 
-3. Update the cluster profile secret inventory outside this repository.
+3. Update the cluster profile secret in [Vault](http://vault.ci.openshift.org/ui/vault/secrets/kv/kv/selfservice%2Fhcm-aro%2Faro-hcp-dev).
    - Add:
      - `customer-shardN-subscription-id`
      - `customer-shardN-subscription-name`
    - `N` must match the intended shard number and should remain stable once jobs depend on that mapping.
 
-4. Provision the slot-backed identity containers in the new subscription.
+4. Grant the OpenShift Release Bot access to the new subscription.
+   - Add the subscription name to the `SUBSCRIPTIONS` array in `dev-infrastructure/openshift-ci/grant-openshift-release-bot-dev.sh`.
+   - Run the script:
+     - `./dev-infrastructure/openshift-ci/grant-openshift-release-bot-dev.sh`
+   - This grants the CI service principal (`OpenShift Release Bot`) the necessary role assignments on the new subscription so that CI jobs can authenticate and create resources there.
+
+5. Provision the slot-backed identity containers in the new subscription.
    - Run:
      - `go run ./test/cmd/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
    - The built `aro-hcp-tests` binary can be used instead of `go run` if preferred.
    - Verify that the deployment stacks and identity-container resource groups are created in the new subscription.
 
-5. Extend the DEV bootstrap RBAC inventory.
+6. Extend the DEV bootstrap RBAC inventory.
    - Add the subscription name and ID to `config/config-dev-ci.yaml` under `devCi.e2eSubscriptionRbac.customerSubscriptions`.
    - That list now feeds the `dev-ci` RBAC parameter templates directly, so a brand-new subscription does not require extra per-index template edits.
    - In a normal onboarding flow, `homeSubscription`, `sharedPrincipals`, and `msiMockPool.principals` should not need to change.
    - If you are adopting pre-existing role assignments instead of creating new ones, also extend `legacyAssignmentIdsBySubscription` in `e2e-subscription-rbac-assignments.tmpl.bicepparam`. A brand-new subscription normally does not need that shim.
-   - Run the rollout from the repo root:
-     - `make dev-ci-e2e-subscription-rbac-local-run`
 
-6. Validate the end-to-end path.
-   - Confirm `slot-manager acquire` can resolve the new pool using the updated cluster profile inventory.
-   - Run a DEV rehearsal expected to target the new shard.
-   - Verify customer-resource creation in the new subscription succeeds without Azure `AuthorizationFailed` errors.
-   - Verify release and cleanup still return the leased slot correctly.
+7. Register the new subscription in the tenant-quota collector.
+   - Add the subscription name to the `SUBSCRIPTIONS` array in `tooling/tenant-quota/scripts/manage-service-principals.sh` under the `setup_redhat()` function.
+   - Add the subscription to `config/config-dev-ci.yaml` under `devCi.tenantQuota.subscriptions` with the appropriate `roleAssignmentLimit` and `regions`.
+   - Run the script to grant the collector SP Reader access:
+     - `./tooling/tenant-quota/scripts/manage-service-principals.sh --tenant redhat`
+   - This ensures Azure quota (role assignments, compute, network) is monitored for the new subscription. See [CI Quota Monitoring](quota-monitoring.md).
+
+8. Deploy the full `dev-ci` topology.
+   - Run from the repo root:
+     - `make dev-ci-local-run`
+   - This deploys all `dev-ci` service groups, including the E2E subscription RBAC rollout (step 6) and the updated tenant-quota collector configuration (step 7).
+
+9. Add periodic cleanup jobs for the new subscription in `openshift/release`.
+   - In `ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`, add a `delete-expired-dev-ci-shardN-resource-groups` periodic job targeting the new subscription.
+   - Set `CUSTOMER_SUBSCRIPTION` to the subscription display name and use the same `CLEANUP_MODE: no-rp`, cron schedule, and step reference (`aro-hcp-deprovision-expired-resource-groups`) as existing shard jobs. Since each job targets a different subscription, they can safely run at the same time.
+   - Run `make update` in the release checkout to regenerate Prow job manifests.
+   - See [openshift/release#80292](https://github.com/openshift/release/pull/80292) for a reference implementation.
+
+10. Validate the end-to-end path.
+    - Confirm `slot-manager acquire` can resolve the new pool using the updated cluster profile inventory.
+    - Run a DEV rehearsal expected to target the new shard.
+    - Verify customer-resource creation in the new subscription succeeds without Azure `AuthorizationFailed` errors.
+    - Verify release and cleanup still return the leased slot correctly.
+
+11. Evaluate whether the MSI mock service-principal pool needs expanding.
+    - The pooled MSI mock SPs spread ARM read traffic across concurrent DEV jobs. If the new subscription increases the total number of concurrent `e2e-parallel` runs, the existing pool size may become a bottleneck.
+    - Check whether the current pool size (see `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`) is sufficient for the new total concurrency.
+    - If the pool needs to grow, follow the MSI mock pool expansion procedure in [CI Identity Leasing](identity-leasing.md#msi-mock-service-principal-pool).
 
 ## What Usually Does Not Change
 
 Adding a new DEV customer subscription normally does not require:
 
-- rotating the shared dev bootstrap principals
-- changing the pooled MSI mock principal IDs
+- rotating the shared dev service principals (`aro-dev-first-party2`, `aro-dev-arm-helper2`, `aro-dev-msi-mock2`)
 - regenerating `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`
 
-Those steps only become necessary if the shared identities or the Boskos-backed MSI mock pool itself changes.
+Those steps only become necessary if the shared identities or the Boskos-backed MSI mock pool itself changes size.
 
 ## Where To Look
 
@@ -108,8 +137,13 @@ Those steps only become necessary if the shared identities or the Boskos-backed 
 - `dev-infrastructure/configurations/dev-operator-roles.tmpl.bicepparam`
 - `dev-infrastructure/configurations/mock-identity-roles.tmpl.bicepparam`
 - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam`
+- `dev-infrastructure/openshift-ci/grant-openshift-release-bot-dev.sh`
+- `tooling/tenant-quota/scripts/manage-service-principals.sh`
+- `openshift/release: ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic-cleanup.yaml`
 - [Dev-CI Topology](dev-ci-topology.md)
 - [CI Identity Leasing](identity-leasing.md)
+- [CI Quota Monitoring](quota-monitoring.md)
+- [CI Cleanup](cleanup.md)
 
 ## See Also
 
