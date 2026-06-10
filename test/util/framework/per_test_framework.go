@@ -55,6 +55,7 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 type perItOrDescribeTestContext struct {
@@ -1269,11 +1270,25 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 	if err != nil {
 		ginkgo.Fail(fmt.Sprintf("Failed to get ARM resource client factory: %v", err))
 	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		ginkgo.Fail(fmt.Sprintf("Failed to get subscription ID: %v", err))
+	}
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		ginkgo.Fail(fmt.Sprintf("Failed to get Azure credentials: %v", err))
+	}
 	operationsClient := factory.NewDeploymentOperationsClient()
+	getOperationsClient := pipeline.NewCachedOperationsClientGetter(
+		subscriptionID,
+		operationsClient,
+		creds,
+		tc.perBinaryInvocationTestContext.getClientFactoryOptions(),
+	)
 	for _, info := range tc.knownDeployments {
 		resourceGroupName, deploymentName := info.resourceGroupName, info.deploymentName
 		ginkgo.GinkgoLogr.Info("Dumping deployment operations.", "deployment", deploymentName, "resourceGroup", resourceGroupName)
-		operations, err := fetchOperationsFor(ctx, operationsClient, resourceGroupName, deploymentName)
+		operations, err := fetchOperationsFor(ctx, getOperationsClient, subscriptionID, resourceGroupName, deploymentName)
 		if err != nil {
 			ginkgo.GinkgoLogr.Error(err, "failed to fetch operations for deployment", "deployment", deploymentName, "resourceGroup", resourceGroupName)
 			continue
