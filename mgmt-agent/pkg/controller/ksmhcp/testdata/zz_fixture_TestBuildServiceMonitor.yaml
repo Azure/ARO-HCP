@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-hcp
+  name: kube-state-metrics-hcp
+  namespace: ocm-arohcppers-abc123-xyz
+  ownerReferences:
+  - apiVersion: hypershift.openshift.io/v1beta1
+    kind: HostedControlPlane
+    name: test-hcp
+    uid: uid-123
+spec:
+  endpoints:
+  - interval: 30s
+    metricRelabelings:
+    - action: replace
+      replacement: ocm-arohcppers-abc123-xyz
+      targetLabel: namespace
+    port: http-metrics
+  namespaceSelector:
+    matchNames:
+    - ocm-arohcppers-abc123-xyz
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics-hcp
