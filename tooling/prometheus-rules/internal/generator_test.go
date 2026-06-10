@@ -258,6 +258,38 @@ spec:
 			errorMsg:    "error unmarshaling configFile",
 		},
 		{
+			name: "config with labelsToExtract",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+  labelsToExtract:
+  - namespace
+  - pod
+  - container
+`,
+			setupFiles: func(tmpDir string) error {
+				ruleContent := `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-rules
+spec:
+  groups:
+  - name: test.rules
+    rules:
+    - alert: IncludedAlert
+      expr: up == 0
+`
+				return os.WriteFile(filepath.Join(tmpDir, "untested.yaml"), []byte(ruleContent), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				require.Equal(t, []string{"namespace", "pod", "container"}, opts.labelsToExtract)
+			},
+		},
+		{
 			name: "config with includedAlertsByGroup",
 			configFile: `
 prometheusRules:
@@ -561,6 +593,99 @@ func TestOptionsGenerate(t *testing.T) {
 		generated := string(content)
 		assert.Contains(t, generated, "correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'")
 		assert.NotContains(t, generated, "correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}'")
+	})
+
+	t.Run("enriches default correlationId and summary title using labelsToExtract", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep:     outputFile,
+			labelsToExtract: []string{"cluster", "namespace", "pod", "container"},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "EnrichedAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary":     "Pod in namespace {{ $labels.namespace }} is unhealthy",
+												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} has issues",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "correlationId: 'EnrichedAlert/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'")
+		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
+		assert.Contains(t, generated, "title: 'Pod in namespace {{ $labels.namespace }} is unhealthy pod:{{ $labels.pod }}'")
+		assert.NotContains(t, generated, "namespace: {{ $labels.namespace }}")
+	})
+
+	t.Run("does not enrich title when summary is absent", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep:     outputFile,
+			labelsToExtract: []string{"namespace", "pod"},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "NoSummaryAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} has issues",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "title: 'NoSummaryAlert'")
+		assert.NotContains(t, generated, "title: 'NoSummaryAlert namespace:")
 	})
 }
 

@@ -31,6 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/utils/ptr"
+	"k8s.io/utils/set"
 
 	"sigs.k8s.io/yaml"
 
@@ -38,6 +39,10 @@ import (
 )
 
 var defaultEvaluationInterval = "1m"
+
+func labelTemplateToken(label string) string {
+	return "{{ $labels." + label + " }}"
+}
 
 type alertingRuleFile struct {
 	DefaultEvaluationInterval string
@@ -57,6 +62,7 @@ type Options struct {
 	promtoolPath            string
 	outputBicep             string
 	includedAlerts          map[string][]string
+	labelsToExtract         []string
 	ruleFiles               []alertingRuleFile
 	outputReplacements      []Replacements
 	regexOutputReplacements []RegexReplacements
@@ -68,6 +74,7 @@ type PrometheusRulesConfig struct {
 	UntestedRules             []string       `json:"untestedRules,omitempty"`
 	OutputBicep               string         `json:"outputBicep"`
 	IncludedAlertsByGroup     []GroupAlerts  `json:"includedAlertsByGroup,omitempty"` // Optional: Only alerts listed here are included; if empty, all alerts are included
+	LabelsToExtract           []string       `json:"labelsToExtract,omitempty"`
 	OutputReplacements        []Replacements `json:"outputReplacements,omitempty"`
 	RegexOutputReplacements   []Replacements `json:"regexOutputReplacements,omitempty"`
 	DefaultEvaluationInterval string         `json:"defaultEvaluationInterval,omitempty"`
@@ -145,6 +152,7 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 
 	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
 	o.groupNamePrefix = config.PrometheusRules.GroupNamePrefix
+	o.labelsToExtract = append([]string{}, config.PrometheusRules.LabelsToExtract...)
 
 	// Convert includedAlertsByGroup to a map
 	o.includedAlerts = make(map[string][]string)
@@ -268,6 +276,34 @@ func (o *Options) RunTests() error {
 
 var whitespaceMatcher = regexp.MustCompile(`\s*\n\s*`)
 
+func (o *Options) labelsFromTextInConfiguredOrder(text string) []string {
+	if len(o.labelsToExtract) == 0 || text == "" {
+		return nil
+	}
+
+	labelsInDescription := set.New[string]()
+	for _, label := range o.labelsToExtract {
+		if strings.Contains(text, labelTemplateToken(label)) {
+			labelsInDescription.Insert(label)
+		}
+	}
+	orderedLabels := make([]string, 0, len(o.labelsToExtract))
+	seen := set.New[string]()
+
+	for _, labelToExtract := range o.labelsToExtract {
+		if !labelsInDescription.Has(labelToExtract) {
+			continue
+		}
+		if seen.Has(labelToExtract) {
+			continue
+		}
+		seen.Insert(labelToExtract)
+		orderedLabels = append(orderedLabels, labelToExtract)
+	}
+
+	return orderedLabels
+}
+
 func (o *Options) Generate() error {
 	output, err := os.Create(o.outputBicep)
 	if err != nil {
@@ -373,17 +409,31 @@ param location string = resourceGroup().location
 				for k, v := range rule.Annotations {
 					annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
 				}
+
+				descriptionText := ""
 				// Some part of the Azure Monitor stack consumes the `description` annotation, removing it from the
 				// alert context. We want to use this value in our IcM connector, so we need to have it in the alert
 				// context - simply duplicating it in the annotations and referring to our new copy is enough to side-
 				// step the post-processing.
 				if description, exists := annotations["description"]; exists {
+					descriptionText = ptr.Deref(description, "")
 					annotations["info"] = description
 				}
 
-				// If the summary annotation is present, use it as the title. Otherwise, use the alert name as the title.
+				extractedLabels := o.labelsFromTextInConfiguredOrder(descriptionText)
+
+				// If the summary annotation is present, use it as the title.
+				// Append scoped labels based on `labelsToExtract`
+				// Otherwise, use the alert name as the title.
 				if summary, exists := annotations["summary"]; exists {
-					annotations["title"] = summary
+					title := ptr.Deref(summary, "")
+					for _, label := range extractedLabels {
+						if strings.Contains(title, labelTemplateToken(label)) {
+							continue
+						}
+						title = title + " " + label + ":" + labelTemplateToken(label)
+					}
+					annotations["title"] = ptr.To(title)
 				} else {
 					annotations["title"] = ptr.To(rule.Alert)
 				}
@@ -393,7 +443,14 @@ param location string = resourceGroup().location
 				// annotation in their source rule — useful when finer-grained grouping is wanted
 				// (e.g. one incident per hosted cluster, not per management cluster).
 				if _, hasOverride := annotations["correlationId"]; !hasOverride {
-					annotations["correlationId"] = ptr.To(rule.Alert + "/{{ $labels.cluster }}")
+					correlationID := rule.Alert + "/{{ $labels.cluster }}"
+					for _, label := range extractedLabels {
+						if strings.Contains(correlationID, labelTemplateToken(label)) {
+							continue
+						}
+						correlationID += "/" + labelTemplateToken(label)
+					}
+					annotations["correlationId"] = ptr.To(correlationID)
 				}
 
 				// Filter rules based on the output file type
