@@ -382,6 +382,13 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
+			// Workaround: skip on nightly until CS fixes the nightly→ACR image substitution
+			// on the nodepool upgrade path (PatchNodePoolCR writes quay.io instead of ACR).
+			// See ARO-27687.
+			if channelGroup == "nightly" {
+				Skip("nightly nodepool upgrade blocked by CS image substitution bug; see ARO-27687")
+			}
+
 			// On nightly, Cincinnati returns bare GA versions that don't exist in CS as nightly builds.
 			// Use GetLatestInstallVersion (release stream API) for nightly; GetLatestVersionInMinor
 			// (Cincinnati) for non-nightly to preserve existing behavior.
@@ -658,6 +665,13 @@ var _ = Describe("Customer", func() {
 	DescribeTable("should downgrade a nodepool to a lower minor version",
 		func(ctx context.Context, cpMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
+
+			// Workaround: skip on nightly until CS fixes the nightly→ACR image substitution
+			// on the nodepool upgrade path (PatchNodePoolCR writes quay.io instead of ACR).
+			// See ARO-27687.
+			if channelGroup == "nightly" {
+				Skip("nightly nodepool downgrade blocked by CS image substitution bug; see ARO-27687")
+			}
 
 			// On nightly, Cincinnati returns bare GA versions that don't exist in CS as nightly builds.
 			// Use GetLatestInstallVersion (release stream API) for nightly; GetLatestVersionInMinor
