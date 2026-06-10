@@ -6,7 +6,7 @@ acm:
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:ea8fd7e65469a0e2ee810450c30751c48904cd21232fe5b1630c8e54aed7314a
+      digest: sha256:f277cbf67c91f3b0c5578dc4f4c78f9c71f2d61597a7bd43331092cec278c89f
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -164,7 +164,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci01
   image:
-    digest: sha256:0e369c753925e8d18e47ed45c9f70bf68cf35e0b833794fda8c7212cc298d006
+    digest: sha256:a56a45338014369f4c9cf5fc7dd8ec074a69e8d92710ee7a4345c33d466b09f9
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -207,7 +207,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:81912673248ea41c42502d9ff50c0a57e8f542d5a0a4fed28489a47e40276c15
+    digest: sha256:96915fe19b57e0379ddda967b4ed6cbdc1edfc6b18037ee357109212851b9ad6
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -423,7 +423,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:c8b031e426ae224d5bebca597d0deaab1fb62060d20d1dc150cd581cc6381f4c
+    digest: sha256:292d4e51890e85c36a88e91bac944685c91a8441ac3dde5cd1887dc9e19ab827
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -441,7 +441,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:bd75091889a904335a6b6ff81bc425a514620351773674ec2b72e21de965d99e
+      digest: sha256:b5a821121d051d8283d1dd09807375b6de0f6a9f003cb025a86004ca72a04431
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -536,7 +536,7 @@ maestro:
     name: arohcp-ci01-maestro-j7654321
     private: false
   image:
-    digest: sha256:f6c0ac7154b13cbbd46c3f759c12a3e480bc9f7394bfa55f4bc6d4e30161a9e0
+    digest: sha256:6e3033bb699838df98ca5ba8c5396e17091d97866807cf101c69d5275feac427
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
