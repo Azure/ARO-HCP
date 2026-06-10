@@ -119,7 +119,7 @@ images:
     group: obs-agents
     source:
       image: mcr.microsoft.com/oss/v2/fluent/fluent-bit
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
+      tag: "v5.0.4" # PINNED: Jun 9 rebuild breaks health probes, causes node disk pressure
       multiArch: true # This image only publishes multi-arch manifests
     targets:
     - jsonPath: defaults.arobit.forwarder.image.digest
