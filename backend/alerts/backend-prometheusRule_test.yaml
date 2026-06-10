@@ -15,6 +15,7 @@ tests:
         name: OperationClusterCreate
         severity: warning
       exp_annotations:
+        correlationId: 'BackendControllerQueueDepthHigh//OperationClusterCreate'
         description: 'Backend controller workqueue OperationClusterCreate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
         summary: 'Backend controller workqueue depth is high'
@@ -40,6 +41,7 @@ tests:
         controller: DoNothingExample
         severity: warning
       exp_annotations:
+        correlationId: 'BackendControllerPanic//DoNothingExample'
         description: 'Backend controller DoNothingExample has panicked 5 time(s) in the last 5 minutes.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
         summary: 'Backend controller is panicking'
