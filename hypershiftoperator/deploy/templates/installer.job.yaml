@@ -21,29 +21,16 @@ spec:
         - |
           hypershift install \
             --outputs=crds \
-            --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
-            --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
-            --registry-overrides "{{ .Values.registryOverrides }}" \
-            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} \
-            --platform-monitoring=None \
-            --metrics-set=SRE \
-            --enable-size-tagging=true \
             --limit-crd-install=Azure \
-            {{- if .Values.operatorEnvVars.sharedIngressIPTag }}
-            --additional-operator-env-vars SHARED_INGRESS_AZURE_PIP_IP_TAGS={{ .Values.operatorEnvVars.sharedIngressIPTag }} \
-            {{- end }}
-            {{- if .Values.operatorEnvVars.sharedIngressImage }}
-            --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY={{ .Values.operatorEnvVars.sharedIngressImage }} \
-            {{- end }}
-            {{ .Values.additionalArgs }}
+            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }}
       restartPolicy: Never
       serviceAccountName: hypershift-installer
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: install-hypershift-resources
+  name: install-hypershift
   namespace: '{{ .Release.Namespace }}'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
