@@ -603,6 +603,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		controllerLister,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 		b.clock,
 	)
 	externalAuthDegradedAggregatorController := statuscontrollers.NewExternalAuthDegradedAggregatorController(

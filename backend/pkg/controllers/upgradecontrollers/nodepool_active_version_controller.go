@@ -22,16 +22,20 @@ import (
 
 	"github.com/blang/semver/v4"
 
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+const NodePoolActiveVersionsControllerName = "NodePoolActiveVersions"
 
 // nodePoolActiveVersionSyncer is a NodePool syncer that updates
 // ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions from the
@@ -39,7 +43,7 @@ import (
 // management cluster's Hypershift NodePool object). Reading from the cached
 // NodePool CR replaces the previous round-trip through Cluster Service.
 type nodePoolActiveVersionSyncer struct {
-	cooldownChecker               controllerutil.CooldownChecker
+	cooldownChecker               internalcontrollerutils.CooldownChecker
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
 	readDesireLister              dblisters.ReadDesireLister
@@ -65,7 +69,7 @@ func NewNodePoolActiveVersionController(
 	}
 
 	return controllerutils.NewNodePoolWatchingController(
-		"NodePoolActiveVersions",
+		NodePoolActiveVersionsControllerName,
 		resourcesDBClient,
 		informers,
 		5*time.Minute,
@@ -73,7 +77,7 @@ func NewNodePoolActiveVersionController(
 	)
 }
 
-func (c *nodePoolActiveVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
+func (c *nodePoolActiveVersionSyncer) CooldownChecker() internalcontrollerutils.CooldownChecker {
 	return c.cooldownChecker
 }
 
@@ -87,10 +91,11 @@ func (c *nodePoolActiveVersionSyncer) NeedsWork(spnp *api.ServiceProviderNodePoo
 }
 
 // SyncOnce updates ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-// from the per-node-pool ReadDesire's observed Hypershift NodePool's
-// Status.Version. The new version is prepended to the existing list when it
-// differs from the current tip, and the slice is capped at two entries (newest
-// first, previous one second) so we don't grow without bound.
+// to the distinct set of OCPVersions reported by the Hypershift NodePool's
+// Status.NodesInfo.NodeVersions. During an in-progress upgrade NodeVersions
+// will hold one entry per (OCPVersion, KubeletVersion) tuple that any node is
+// running; we dedupe on OCPVersion and order newest-semver first so the SPNP
+// reflects exactly what is live on the management cluster.
 func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -117,24 +122,29 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 		// once the kube-applier writes status.
 		return nil
 	}
-	if len(hsNodePool.Status.Version) == 0 {
-		// Mirror exists but the Hypershift NodePool hasn't reported a
-		// version yet; nothing to record.
+	if len(hsNodePool.Status.NodesInfo.NodeVersions) == 0 {
+		// Mirror exists but the Hypershift NodePool hasn't reported any
+		// node versions yet; nothing to record.
 		return nil
 	}
 
-	actualVersion, err := semver.ParseTolerant(hsNodePool.Status.Version)
+	newActiveVersions, err := activeVersionsFromNodeVersions(ctx, hsNodePool.Status.NodesInfo.NodeVersions)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to parse NodePool Status.Version %q: %w", hsNodePool.Status.Version, err))
+		return utils.TrackError(err)
 	}
-
-	oldActiveVersions := cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-	newActiveVersions := prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
-	if slices.Equal(oldActiveVersions, newActiveVersions) {
+	if len(newActiveVersions) == 0 {
+		// Every NodeVersions entry had an empty/unparseable OCPVersion;
+		// nothing usable to record, wait for the next reconcile.
 		return nil
 	}
 
-	logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions)
+	if !internalcontrollerutils.NeedsUpdate(cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions, newActiveVersions) {
+		return nil
+	}
+
+	logger.Info("Active versions changed",
+		"oldActiveVersions", cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions,
+		"newActiveVersions", newActiveVersions)
 	replacement := cachedServiceProviderNodePool.DeepCopy()
 	replacement.Status.NodePoolVersion.ActiveVersions = newActiveVersions
 	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
@@ -146,4 +156,40 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
 	return nil
+}
+
+// activeVersionsFromNodeVersions reduces a list of Hypershift NodeVersion entries
+// to the distinct, semver-sorted (newest first) set of OCPVersions. Multiple
+// NodeVersion entries may share the same OCPVersion (they differ on
+// KubeletVersion / readiness counts), so we dedupe; entries whose OCPVersion is
+// empty or unparseable are skipped with an Info log so a single malformed row
+// doesn't poison the rest of the list.
+func activeVersionsFromNodeVersions(ctx context.Context, nodeVersions []hsv1beta1.NodeVersion) ([]api.HCPNodePoolActiveVersion, error) {
+	logger := utils.LoggerFromContext(ctx)
+	seen := map[string]struct{}{}
+	parsed := []semver.Version{}
+	for _, nv := range nodeVersions {
+		if len(nv.OCPVersion) == 0 {
+			continue
+		}
+		if _, ok := seen[nv.OCPVersion]; ok {
+			continue
+		}
+		v, err := semver.ParseTolerant(nv.OCPVersion)
+		if err != nil {
+			logger.Info("skipping NodeVersions entry with unparseable OCPVersion", "ocpVersion", nv.OCPVersion, "err", err.Error())
+			continue
+		}
+		seen[nv.OCPVersion] = struct{}{}
+		parsed = append(parsed, v)
+	}
+	// Newest first.
+	semver.Sort(parsed)
+	slices.Reverse(parsed)
+
+	out := make([]api.HCPNodePoolActiveVersion, 0, len(parsed))
+	for i := range parsed {
+		out = append(out, api.HCPNodePoolActiveVersion{Version: &parsed[i]})
+	}
+	return out, nil
 }

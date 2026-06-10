@@ -164,7 +164,10 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	customerDesiredVersion := semver.MustParse(cachedNodePool.Properties.Version.ID)
+	customerDesiredVersion, err := semver.Parse(cachedNodePool.Properties.Version.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 
 	// Pull the ServiceProviderCluster and Subscription from cache rather than
 	// re-fetching live: validation only reads them, and if either isn't yet
@@ -260,24 +263,6 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 
 func (c *nodePoolVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
-}
-
-// prependActiveVersionIfChanged takes a slice of active versions and returns an updated slice
-// with the new version prepended if it differs from the most recent version.
-// If the most recent version matches the new version, returns the original slice unchanged.
-// The returned slice is capped to the 2 most recent versions.
-func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersion, newVersion semver.Version) []api.HCPNodePoolActiveVersion {
-	// Check if the tip (most recent version) is already the new version
-	if len(currentVersions) > 0 && currentVersions[0].Version != nil && currentVersions[0].Version.EQ(newVersion) {
-		return currentVersions
-	}
-
-	// Create new list with at most 2 versions: new version + most recent old version
-	newVersions := []api.HCPNodePoolActiveVersion{{Version: &newVersion}}
-	if len(currentVersions) > 0 {
-		newVersions = append(newVersions, currentVersions[0])
-	}
-	return newVersions
 }
 
 // validateDesiredNodePoolVersion checks that the desired node pool version is a valid change.

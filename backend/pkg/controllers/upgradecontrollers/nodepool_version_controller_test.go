@@ -1009,8 +1009,13 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
 	err := syncer.SyncOnce(ctx, testKey)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot exceed control plane version")
+	// Validation failure persists IntentFailed and SyncOnce returns nil.
+	require.NoError(t, err)
+	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
+		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
+	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err)
+	assert.Nil(t, spnp.Spec.NodePoolVersion.DesiredVersion, "desired version must not be persisted when validation fails")
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing.T) {
@@ -1125,8 +1130,13 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
 	err := syncer.SyncOnce(ctx, testKey)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found in Cincinnati")
+	// Cincinnati VersionNotFound persists IntentFailed; SyncOnce returns nil.
+	require.NoError(t, err)
+	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
+		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
+	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err)
+	assert.Nil(t, spnp.Spec.NodePoolVersion.DesiredVersion, "desired version must not be persisted when validation fails")
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *testing.T) {
@@ -1179,8 +1189,13 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
 	err := syncer.SyncOnce(ctx, testKey)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found in Cincinnati")
+	// Cincinnati VersionNotFound persists IntentFailed; SyncOnce returns nil.
+	require.NoError(t, err)
+	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
+		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
+	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+	require.NoError(t, err)
+	assert.Nil(t, spnp.Spec.NodePoolVersion.DesiredVersion, "desired version must not be persisted when validation fails")
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T) {
