@@ -53,6 +53,7 @@ spec:
                 "--source.sippy.release.stg={{ .Values.controllers.source.sippyReleases.stg }}" \
                 "--source.sippy.release.prod={{ .Values.controllers.source.sippyReleases.prod }}" \
                 "--source.prow-artifacts.base-url={{ .Values.controllers.source.prowArtifactsBaseUrl }}" \
+                "--controllers.source.prow.runs.threads={{ .Values.controllers.threads.sourceProwRuns }}" \
                 "--controllers.source.sippy.runs.threads={{ .Values.controllers.threads.sourceSippyRuns }}" \
                 "--controllers.source.sippy.tests-daily.threads={{ .Values.controllers.threads.sourceSippyTestsDaily }}" \
                 "--controllers.source.github.pull-requests.threads={{ .Values.controllers.threads.sourceGitHubPullRequests }}" \
