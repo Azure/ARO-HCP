@@ -205,10 +205,6 @@ clouds:
             keyVaultSecretName: "custom-metrics-collector-test-test-azure-arohcp-client-secret"
             directoryQuota: false
             subscriptions:
-            - name: "ARO HCP E2E - Staging"
-              roleAssignmentLimit: 4000
-              regions:
-              - uksouth
             - name: "ARO HCP E2E"
               roleAssignmentLimit: 4000
               regions:
