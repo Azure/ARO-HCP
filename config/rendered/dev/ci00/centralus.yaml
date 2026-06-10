@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:beb1ebcf6243a1bf78eb8760cf1fbda2336b8f218a3a7e3884ed3c6864d7ef69
+      digest: sha256:3e8b672f21ff6ec3e24ab9c0071c3e33253fdf80e0f54a58b552b4981c94b089
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:ea8fd7e65469a0e2ee810450c30751c48904cd21232fe5b1630c8e54aed7314a
+      digest: sha256:c97691bafe164056f74851efbae720a3e15a8c42e87c43f42defbde7cd8dc916
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -164,7 +164,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci00
   image:
-    digest: sha256:31fe1839cc3bd62fad4d9f5848f1269f3083c33686c328904a182a5011b4e4ff
+    digest: sha256:0e369c753925e8d18e47ed45c9f70bf68cf35e0b833794fda8c7212cc298d006
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -207,7 +207,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:2476efd096b031e1fd98bec5f028cd358022523342f00316d05d36247c4189ae
+    digest: sha256:81912673248ea41c42502d9ff50c0a57e8f542d5a0a4fed28489a47e40276c15
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -423,7 +423,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:caea1a9e4d7cd7b270dc1b28895b571a44fbcb6b97c810683764a0f247ab13cf
+    digest: sha256:c8b031e426ae224d5bebca597d0deaab1fb62060d20d1dc150cd581cc6381f4c
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -441,7 +441,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:883eae8e2c6d90a1c754ae7c75183812bf47437cfbb37a7c1d9fa84213280aa4
+      digest: sha256:bd75091889a904335a6b6ff81bc425a514620351773674ec2b72e21de965d99e
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
