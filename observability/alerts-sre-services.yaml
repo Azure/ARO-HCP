@@ -1,4 +1,6 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - ../frontend/alerts/frontend-latency-prometheusRule.yaml
+  - ../backend/alerts/backend-retryhotloop-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedSREServicePrometheusAlertingRules.bicep

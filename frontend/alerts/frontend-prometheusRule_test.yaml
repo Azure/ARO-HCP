@@ -2,24 +2,6 @@ rule_files:
 - frontend-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: FrontendLatency 95th percentile does not exceed 5 seconds
-# Test: FrontendLatency Less than 5% of requests exceed 5 seconds
-- interval: 1m
-  input_series:
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1"}'
-    values: '0+60x10'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5"}'
-    values: '0+60x20'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1"}'
-    values: '0+60x30'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5"}'
-    values: '0+60x190'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf"}'
-    values: '0+60x200'
-  alert_rule_test:
-  - eval_time: 60m
-    alertname: FrontendLatency
-    exp_alerts: []
 # Test: FrontendClusterServiceErrorRate above 5%
 - interval: 1m
   input_series:

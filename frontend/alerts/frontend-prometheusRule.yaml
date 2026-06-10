@@ -12,16 +12,6 @@ spec:
   groups:
   - name: frontend
     rules:
-    - alert: FrontendLatency
-      expr: |
-        histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5
-      for: 15m
-      labels:
-        severity: info
-      annotations:
-        description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
-        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
     - alert: FrontendClusterServiceErrorRate
       expr: |
         (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h]))))
