@@ -249,6 +249,44 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: delete-old-user-nodepools
+  - name: mirror-probe-image
+    action: ImageMirror
+    targetACR:
+      configRef: acr.svc.name
+    sourceRegistry:
+      value: mcr.microsoft.com
+    repository:
+      value: oss/kubernetes/pause
+    digest:
+      value: sha256:a67d781a5a51290a56f6fb603b8ac9509abce8948d5a52ff3e02e8669a83180d
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: service
+      step: upgrade-aks-cluster
+  - name: wait-for-nodes
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: ./wait-for-aks-nodes.sh
+    workingDir: ./scripts
+    variables:
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    dependsOn:
+    - resourceGroup: service
+      step: mirror-probe-image
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep
@@ -328,7 +366,7 @@ resourceGroups:
         name: prometheusUAMIClientId
     dependsOn:
     - resourceGroup: service
-      step: upgrade-aks-cluster
+      step: wait-for-nodes
     - resourceGroup: service
       step: image-registry-policy
     identityFrom:
@@ -490,7 +528,7 @@ resourceGroups:
     - resourceGroup: service
       step: cluster
     - resourceGroup: service
-      step: upgrade-aks-cluster
+      step: wait-for-nodes
     identityFrom:
       resourceGroup: global
       step: output
@@ -566,7 +604,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: upgrade-aks-cluster
+      step: wait-for-nodes
     - resourceGroup: service
       step: image-registry-policy
     identityFrom:
@@ -643,7 +681,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: upgrade-aks-cluster
+      step: wait-for-nodes
     - resourceGroup: service
       step: prometheus
     - resourceGroup: service
