@@ -36,12 +36,23 @@ export KUBECONFIG=<path-from-output>
 
 ### Step 2: Identify the HostedCluster
 
-The HostedCluster name and namespace use internal IDs, not the ARM resource name. Search by the ARM resource ID or subscription ID:
+The HostedCluster namespace encodes the cluster's internal CID (e.g. `ocm-arohcpprod-<CID>`). The HostedCluster name may match the ARM resource name, but this is not guaranteed — always search to confirm.
+
+Search by subscription ID, ARM resource name, or CID:
 
 ```bash
-# Search by ARM resource name or subscription ID
+# Search by subscription ID or ARM resource name
 kubectl get hostedclusters -A -o json | \
   jq -r '.items[] | select(tostring | test("<subscription-id-or-resource-name>")) |
+    "\(.metadata.namespace)/\(.metadata.name)  \(.metadata.labels["api.openshift.com/name"] // "unknown")"'
+```
+
+You can also search by CID if you have it:
+
+```bash
+# Search by CID (appears in the namespace)
+kubectl get hostedclusters -A -o json | \
+  jq -r '.items[] | select(tostring | test("<CID>")) |
     "\(.metadata.namespace)/\(.metadata.name)  \(.metadata.labels["api.openshift.com/name"] // "unknown")"'
 ```
 
@@ -49,9 +60,9 @@ Example:
 
 ```bash
 kubectl get hostedclusters -A -o json | \
-  jq -r '.items[] | select(tostring | test("3ceade1e")) |
+  jq -r '.items[] | select(tostring | test("2o4cijvkv7ct1g68g2t2j44l5j7gtena")) |
     "\(.metadata.namespace)/\(.metadata.name)  \(.metadata.labels["api.openshift.com/name"] // "unknown")"'
-# ocm-arohcpprod-2qah3ue0eia4udhrrh06holch0u3baim/y6g4d7i9d5s9s1u  jude-hcp-eastus2
+# ocm-arohcpprod-2o4cijvkv7ct1g68g2t2j44l5j7gtena/arohcp4  arohcp4
 ```
 
 ### Step 3: Check Current Size
@@ -68,6 +79,8 @@ kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
     kasMemory: .metadata.annotations["resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver"]
   }'
 ```
+
+> **Note**: For clusters on the `small` tier, `size`, `maxRequests`, and `maxMutating` will be `null` — the small tier does not explicitly set the size label or inflight annotations. Only `kasMemory` (`memory=8Gi`) will be present. This is expected.
 
 ### Step 4: Apply the Size Override
 
@@ -88,7 +101,22 @@ kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
 
 # Confirm annotations updated
 kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
-  -o json | jq '.metadata.annotations | with_entries(select(.key | test("max-requests|max-mutating|resource-request-override|gomemlimit")))'
+  -o json | jq '.metadata.annotations | with_entries(select(
+    (.key | contains("max-requests")) or
+    (.key | contains("max-mutating")) or
+    (.key | contains("resource-request-override")) or
+    (.key | contains("gomemlimit"))
+  ))'
+```
+
+Expected output after override to `large`:
+
+```json
+{
+  "hypershift.openshift.io/kube-apiserver-gomemlimit": "24GiB",
+  "hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight": "400",
+  "hypershift.openshift.io/kube-apiserver-max-requests-inflight": "1200"
+}
 ```
 
 ### Step 6: Verify KAS Rollout
@@ -96,16 +124,16 @@ kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
 The control plane namespace follows the pattern `<hc-namespace>-<hc-name>`:
 
 ```bash
-# Find the CP namespace
-kubectl get namespaces | grep "${HC_NS##*-}"
+CP_NS="${HC_NS}-${HC_NAME}"
 
 # Check KAS rollout status
-CP_NS="${HC_NS}-${HC_NAME}"
 kubectl rollout status deployment/kube-apiserver -n "$CP_NS"
 
 # Confirm all KAS pods are running
 kubectl get pods -l app=kube-apiserver -n "$CP_NS" -o wide
 ```
+
+All 3 KAS replicas should be `Running` with all containers ready (typically `6/6`).
 
 ## Durability Caveat
 
@@ -151,6 +179,7 @@ kubectl annotate hostedcluster "$HC_NAME" -n "$HC_NS" \
 - **HyperShift sizing controller**: upstream `hostedclustersizing_controller.go` — consumes the annotation
 - **Grafana APF dashboard**: `observability/grafana-dashboards/perfscale-dashboards/api-performance.json` — monitor `apiserver_flowcontrol_*` metrics after override
 
-## Reference: ARO-27679
+## Production References
 
-First validated on production cluster `jude-hcp-eastus2` (Adobe load testing incident, IcM 814707269). Override from `small` → `large` applied successfully, KAS rolled out with new inflight limits (150→1200, 50→400).
+- **ARO-27679**: First validated on test cluster `jude-hcp-eastus2` (eastus2). Override from `small` → `large` applied successfully, KAS rolled out with new inflight limits (150→1200, 50→400). Adobe load testing incident, IcM 814707269.
+- **ARO-27688**: Applied on production cluster `arohcp4` (Canada Central, `prod-canadacentral-mgmt-1`). Override from implicit `small` (null annotations) → `large` confirmed: size label `large`, inflight 1200/400, goMemLimit 24GiB, 3/3 KAS pods rolled out successfully.
