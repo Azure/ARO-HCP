@@ -1,0 +1,6 @@
+values: ../values.yaml
+name: hypershift-image-override
+namespace: hypershift
+testData:
+  hypershift:
+    hoImageOverride: "quay.io/test/hypershift-operator:pr-1234"
