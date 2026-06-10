@@ -143,7 +143,7 @@ module svcIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     azureMonitorWorkspaceId: azureMonitoringWorkspaceId
     workspaceLabel: 'svc'
-    actionGroups: sreActionGroups
+    actionGroups: slActionGroups
     enabled: alertsEnabled
     lowEventIngestionThreshold: 1
   }
@@ -154,7 +154,7 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     azureMonitorWorkspaceId: hcpAzureMonitoringWorkspaceId
     workspaceLabel: 'hcp'
-    actionGroups: sreActionGroups
+    actionGroups: slActionGroups
     enabled: alertsEnabled
     lowEventIngestionThreshold: 5
   }
