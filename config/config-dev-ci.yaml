@@ -172,6 +172,18 @@ clouds:
               - westus3
               - centralus
               - canadacentral
+            - name: "ARO HCP E2E Hosted Clusters - Dev - 03"
+              roleAssignmentLimit: 8000
+              regions:
+              - westus3
+              - centralus
+              - canadacentral
+            - name: "ARO HCP E2E Hosted Clusters - Dev - 00"
+              roleAssignmentLimit: 8000
+              regions:
+              - westus3
+              - centralus
+              - canadacentral
             - name: "ARO HCP E2E Infrastructure (EA Subscription)"
               roleAssignmentLimit: 4000
               regions:
