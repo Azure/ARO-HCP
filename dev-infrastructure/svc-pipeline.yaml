@@ -210,26 +210,6 @@ resourceGroups:
       - "was not found in the AAD tenant"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
-  - name: delete-old-user-nodepools
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./delete-user-nodepools.sh
-    workingDir: ./scripts
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: CLUSTER_NAME
-      configRef: svc.aks.name
-    - name: RESOURCE_GROUP
-      configRef: svc.rg
-    - name: POOL_NAME_PATTERN
-      value: 'user(nz)?[0-9]+'
-    dependsOn:
-    - resourceGroup: service
-      step: cluster
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
@@ -248,7 +228,7 @@ resourceGroups:
       configRef: svc.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: service
-      step: delete-old-user-nodepools
+      step: cluster
   - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep
