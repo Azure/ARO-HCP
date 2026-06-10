@@ -114,6 +114,13 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
+
+	// TODO Temporary field to track whether the cluster operation is using the new update approach.
+	// We are migrating from the cluster CS update synchronous in frontend to the backend, to be fully asynchronous.
+	// This boolean is true for Cluster update operations that are created with new update approach.
+	// This will be removed once all clusters whose update was triggered before the new approach is fully rolled out have been
+	// fully updated in all ARO-HCP permanent environments, for all regions.
+	UsesNewClusterUpdateApproach bool `json:"usesNewClusterUpdateApproach"`
 }
 
 // VersionProfile represents the cluster control plane version.

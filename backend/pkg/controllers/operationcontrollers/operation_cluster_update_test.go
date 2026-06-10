@@ -35,10 +35,13 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -251,10 +254,17 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
 				Return(clusterStatus, nil)
 
+			readDesireLister := &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{}),
+				},
+			}
+
 			fakeClock := clocktesting.NewFakeClock(testClockNow)
 			controller := &operationClusterUpdate{
 				resourcesDBClient:               mockResourcesDBClient,
 				clusterServiceClient:            mockCSClient,
+				readDesireLister:                readDesireLister,
 				notificationClient:              nil,
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),
