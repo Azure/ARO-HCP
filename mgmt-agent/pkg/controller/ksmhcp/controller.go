@@ -20,17 +20,16 @@ import (
 	"fmt"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	appsac "k8s.io/client-go/applyconfigurations/apps/v1"
+	coreac "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -213,16 +212,17 @@ func (c *KSMHCPController) processNextWorkItem(ctx context.Context) bool {
 }
 
 func (c *KSMHCPController) syncHandler(ctx context.Context, key string) error {
-	logger := klog.FromContext(ctx)
-
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return fmt.Errorf("invalid key %q: %w", key, err)
 	}
 
+	logger := klog.FromContext(ctx).WithValues("namespace", namespace, "name", name)
+	ctx = klog.NewContext(ctx, logger)
+
 	hcp, err := c.hcpLister.HostedControlPlanes(namespace).Get(name)
 	if apierrors.IsNotFound(err) {
-		logger.V(4).Info("HostedControlPlane deleted, resources will be garbage collected via OwnerReference", "key", key)
+		logger.V(4).Info("HostedControlPlane deleted, resources will be garbage collected via OwnerReference")
 		return nil
 	}
 	if err != nil {
@@ -230,12 +230,12 @@ func (c *KSMHCPController) syncHandler(ctx context.Context, key string) error {
 	}
 
 	if !hcp.DeletionTimestamp.IsZero() {
-		logger.V(4).Info("HostedControlPlane is being deleted, letting GC clean up KSM resources", "key", key)
+		logger.V(4).Info("HostedControlPlane is being deleted, letting GC clean up KSM resources")
 		return nil
 	}
 
 	if !isKubeAPIServerAvailable(hcp) {
-		logger.V(4).Info("KubeAPIServer not yet available, skipping until next informer event", "key", key)
+		logger.V(4).Info("KubeAPIServer not yet available, skipping until next informer event")
 		return nil
 	}
 
@@ -254,52 +254,42 @@ func (c *KSMHCPController) reconcile(ctx context.Context, hcp *hypershiftv1beta1
 	}
 
 	deployment := buildDeployment(ns, c.ksmImage, serviceNetworkKubeconfigSecret, serviceNetworkKubeconfigKey, ownerRef)
-	if err := c.ensureDeployment(ctx, deployment); err != nil {
-		return fmt.Errorf("failed to ensure deployment in %s: %w", ns, err)
+	if err := c.applyDeployment(ctx, deployment); err != nil {
+		return fmt.Errorf("failed to apply deployment in %s: %w", ns, err)
 	}
 
 	service := buildService(ns, ownerRef)
-	if err := c.ensureService(ctx, service); err != nil {
-		return fmt.Errorf("failed to ensure service in %s: %w", ns, err)
+	if err := c.applyService(ctx, service); err != nil {
+		return fmt.Errorf("failed to apply service in %s: %w", ns, err)
 	}
 
 	serviceMonitor, err := buildServiceMonitor(ns, ownerRef)
 	if err != nil {
 		return fmt.Errorf("failed to build servicemonitor in %s: %w", ns, err)
 	}
-	if err := c.ensureServiceMonitor(ctx, serviceMonitor); err != nil {
-		return fmt.Errorf("failed to ensure servicemonitor in %s: %w", ns, err)
+	if err := c.applyServiceMonitor(ctx, serviceMonitor); err != nil {
+		return fmt.Errorf("failed to apply servicemonitor in %s: %w", ns, err)
 	}
 
-	logger.Info("Reconciled KSM resources for HostedControlPlane", "namespace", ns, "name", hcp.Name)
+	logger.Info("Reconciled KSM resources for HostedControlPlane")
 	return nil
 }
 
-func (c *KSMHCPController) ensureDeployment(ctx context.Context, desired *appsv1.Deployment) error {
-	data, err := json.Marshal(desired)
-	if err != nil {
-		return fmt.Errorf("failed to marshal deployment: %w", err)
-	}
-	_, err = c.kubeClientset.AppsV1().Deployments(desired.Namespace).Patch(
-		ctx, desired.Name, types.ApplyPatchType, data,
-		metav1.PatchOptions{FieldManager: fieldManager, Force: ptr.To(true)},
+func (c *KSMHCPController) applyDeployment(ctx context.Context, desired *appsac.DeploymentApplyConfiguration) error {
+	_, err := c.kubeClientset.AppsV1().Deployments(*desired.Namespace).Apply(
+		ctx, desired, metav1.ApplyOptions{FieldManager: fieldManager, Force: true},
 	)
 	return err
 }
 
-func (c *KSMHCPController) ensureService(ctx context.Context, desired *corev1.Service) error {
-	data, err := json.Marshal(desired)
-	if err != nil {
-		return fmt.Errorf("failed to marshal service: %w", err)
-	}
-	_, err = c.kubeClientset.CoreV1().Services(desired.Namespace).Patch(
-		ctx, desired.Name, types.ApplyPatchType, data,
-		metav1.PatchOptions{FieldManager: fieldManager, Force: ptr.To(true)},
+func (c *KSMHCPController) applyService(ctx context.Context, desired *coreac.ServiceApplyConfiguration) error {
+	_, err := c.kubeClientset.CoreV1().Services(*desired.Namespace).Apply(
+		ctx, desired, metav1.ApplyOptions{FieldManager: fieldManager, Force: true},
 	)
 	return err
 }
 
-func (c *KSMHCPController) ensureServiceMonitor(ctx context.Context, desired *unstructured.Unstructured) error {
+func (c *KSMHCPController) applyServiceMonitor(ctx context.Context, desired *unstructured.Unstructured) error {
 	data, err := json.Marshal(desired)
 	if err != nil {
 		return fmt.Errorf("failed to marshal servicemonitor: %w", err)
@@ -309,15 +299,6 @@ func (c *KSMHCPController) ensureServiceMonitor(ctx context.Context, desired *un
 		metav1.PatchOptions{FieldManager: fieldManager, Force: ptr.To(true)},
 	)
 	return err
-}
-
-// toUnstructured converts a runtime.Object to an Unstructured representation.
-func toUnstructured(obj runtime.Object) (*unstructured.Unstructured, error) {
-	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
-	if err != nil {
-		return nil, err
-	}
-	return &unstructured.Unstructured{Object: data}, nil
 }
 
 func isKubeAPIServerAvailable(hcp *hypershiftv1beta1.HostedControlPlane) bool {

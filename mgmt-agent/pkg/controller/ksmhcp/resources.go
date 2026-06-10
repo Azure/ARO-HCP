@@ -17,182 +17,126 @@ package ksmhcp
 import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	appsac "k8s.io/client-go/applyconfigurations/apps/v1"
+	coreac "k8s.io/client-go/applyconfigurations/core/v1"
+	metaac "k8s.io/client-go/applyconfigurations/meta/v1"
 	"k8s.io/utils/ptr"
 )
 
-func labels() map[string]string {
-	return map[string]string{
-		labelApp: resourceName,
-	}
+func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey string, ownerRef metav1.OwnerReference) *appsac.DeploymentApplyConfiguration {
+	return appsac.Deployment(resourceName, namespace).
+		WithLabels(map[string]string{labelApp: resourceName}).
+		WithOwnerReferences(metaac.OwnerReference().
+			WithAPIVersion(ownerRef.APIVersion).
+			WithKind(ownerRef.Kind).
+			WithName(ownerRef.Name).
+			WithUID(ownerRef.UID)).
+		WithSpec(appsac.DeploymentSpec().
+			WithReplicas(1).
+			WithSelector(metaac.LabelSelector().
+				WithMatchLabels(map[string]string{labelApp: resourceName})).
+			WithTemplate(coreac.PodTemplateSpec().
+				WithLabels(map[string]string{labelApp: resourceName}).
+				WithSpec(coreac.PodSpec().
+					WithContainers(coreac.Container().
+						WithName("kube-state-metrics").
+						WithImage(ksmImage).
+						WithArgs(
+							"--resources=nodes",
+							"--kubeconfig=/opt/k8s/.kube/config",
+							"--metric-allowlist=kube_node_status_condition,kube_node_info",
+						).
+						WithPorts(
+							coreac.ContainerPort().
+								WithName("http-metrics").
+								WithContainerPort(8080).
+								WithProtocol(corev1.ProtocolTCP),
+							coreac.ContainerPort().
+								WithName("telemetry").
+								WithContainerPort(8081).
+								WithProtocol(corev1.ProtocolTCP),
+						).
+						WithLivenessProbe(coreac.Probe().
+							WithHTTPGet(coreac.HTTPGetAction().
+								WithPath("/livez").
+								WithPort(intstr.FromString("http-metrics"))).
+							WithInitialDelaySeconds(5).
+							WithTimeoutSeconds(5)).
+						WithReadinessProbe(coreac.Probe().
+							WithHTTPGet(coreac.HTTPGetAction().
+								WithPath("/readyz").
+								WithPort(intstr.FromString("telemetry"))).
+							WithInitialDelaySeconds(5).
+							WithTimeoutSeconds(5)).
+						WithResources(coreac.ResourceRequirements().
+							WithRequests(corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("10m"),
+								corev1.ResourceMemory: resource.MustParse("32Mi"),
+							}).
+							WithLimits(corev1.ResourceList{
+								corev1.ResourceMemory: resource.MustParse("64Mi"),
+							})).
+						WithVolumeMounts(coreac.VolumeMount().
+							WithName("kubeconfig").
+							WithMountPath("/opt/k8s/.kube").
+							WithReadOnly(true)).
+						WithSecurityContext(coreac.SecurityContext().
+							WithRunAsNonRoot(true).
+							WithAllowPrivilegeEscalation(false).
+							WithReadOnlyRootFilesystem(true).
+							WithSeccompProfile(coreac.SeccompProfile().
+								WithType(corev1.SeccompProfileTypeRuntimeDefault)).
+							WithCapabilities(coreac.Capabilities().
+								WithDrop(corev1.Capability("ALL"))))).
+					WithAutomountServiceAccountToken(false).
+					WithVolumes(coreac.Volume().
+						WithName("kubeconfig").
+						WithSecret(coreac.SecretVolumeSource().
+							WithSecretName(kubeconfigSecretName).
+							WithItems(coreac.KeyToPath().
+								WithKey(kubeconfigKey).
+								WithPath("config")))).
+					WithSecurityContext(coreac.PodSecurityContext().
+						WithRunAsNonRoot(true).
+						WithRunAsUser(65534).
+						WithRunAsGroup(65534).
+						WithFSGroup(65534).
+						WithSeccompProfile(coreac.SeccompProfile().
+							WithType(corev1.SeccompProfileTypeRuntimeDefault))))))
 }
 
-func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey string, ownerRef metav1.OwnerReference) *appsv1.Deployment {
-	return &appsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            resourceName,
-			Namespace:       namespace,
-			Labels:          labels(),
-			OwnerReferences: []metav1.OwnerReference{ownerRef},
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: ptr.To(int32(1)),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels(),
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels(),
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "kube-state-metrics",
-							Image: ksmImage,
-							Args: []string{
-								"--resources=nodes",
-								"--kubeconfig=/opt/k8s/.kube/config",
-								"--metric-allowlist=kube_node_status_condition,kube_node_info",
-							},
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "http-metrics",
-									ContainerPort: 8080,
-									Protocol:      corev1.ProtocolTCP,
-								},
-								{
-									Name:          "telemetry",
-									ContainerPort: 8081,
-									Protocol:      corev1.ProtocolTCP,
-								},
-							},
-							LivenessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/livez",
-										Port: intstr.FromString("http-metrics"),
-									},
-								},
-								InitialDelaySeconds: 5,
-								TimeoutSeconds:      5,
-							},
-							ReadinessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/readyz",
-										Port: intstr.FromString("telemetry"),
-									},
-								},
-								InitialDelaySeconds: 5,
-								TimeoutSeconds:      5,
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("10m"),
-									corev1.ResourceMemory: resource.MustParse("32Mi"),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("64Mi"),
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "kubeconfig",
-									MountPath: "/opt/k8s/.kube",
-									ReadOnly:  true,
-								},
-							},
-							SecurityContext: &corev1.SecurityContext{
-								RunAsNonRoot:             ptr.To(true),
-								AllowPrivilegeEscalation: ptr.To(false),
-								ReadOnlyRootFilesystem:   ptr.To(true),
-								SeccompProfile: &corev1.SeccompProfile{
-									Type: corev1.SeccompProfileTypeRuntimeDefault,
-								},
-								Capabilities: &corev1.Capabilities{
-									Drop: []corev1.Capability{"ALL"},
-								},
-							},
-						},
-					},
-					AutomountServiceAccountToken: ptr.To(false),
-					Volumes: []corev1.Volume{
-						{
-							Name: "kubeconfig",
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: kubeconfigSecretName,
-									Items: []corev1.KeyToPath{
-										{
-											Key:  kubeconfigKey,
-											Path: "config",
-										},
-									},
-								},
-							},
-						},
-					},
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: ptr.To(true),
-						RunAsUser:    ptr.To(int64(65534)),
-						RunAsGroup:   ptr.To(int64(65534)),
-						FSGroup:      ptr.To(int64(65534)),
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-				},
-			},
-		},
-	}
+func buildService(namespace string, ownerRef metav1.OwnerReference) *coreac.ServiceApplyConfiguration {
+	return coreac.Service(resourceName, namespace).
+		WithLabels(map[string]string{labelApp: resourceName}).
+		WithOwnerReferences(metaac.OwnerReference().
+			WithAPIVersion(ownerRef.APIVersion).
+			WithKind(ownerRef.Kind).
+			WithName(ownerRef.Name).
+			WithUID(ownerRef.UID)).
+		WithSpec(coreac.ServiceSpec().
+			WithPorts(
+				coreac.ServicePort().
+					WithName("http-metrics").
+					WithPort(8080).
+					WithTargetPort(intstr.FromString("http-metrics")).
+					WithProtocol(corev1.ProtocolTCP),
+				coreac.ServicePort().
+					WithName("telemetry").
+					WithPort(8081).
+					WithTargetPort(intstr.FromString("telemetry")).
+					WithProtocol(corev1.ProtocolTCP),
+			).
+			WithSelector(map[string]string{labelApp: resourceName}))
 }
 
-func buildService(namespace string, ownerRef metav1.OwnerReference) *corev1.Service {
-	return &corev1.Service{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Service",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            resourceName,
-			Namespace:       namespace,
-			Labels:          labels(),
-			OwnerReferences: []metav1.OwnerReference{ownerRef},
-		},
-		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "http-metrics",
-					Port:       8080,
-					TargetPort: intstr.FromString("http-metrics"),
-					Protocol:   corev1.ProtocolTCP,
-				},
-				{
-					Name:       "telemetry",
-					Port:       8081,
-					TargetPort: intstr.FromString("telemetry"),
-					Protocol:   corev1.ProtocolTCP,
-				},
-			},
-			Selector: labels(),
-		},
-	}
-}
-
-// buildServiceMonitor returns an unstructured ServiceMonitor because the
-// monitoring.coreos.com types are CRDs without a typed client in this module.
-// The metricRelabelings inject the HCP namespace so node metrics (which are
-// cluster-scoped with namespace="") get routed to the correct HCP Azure
-// Monitor Workspace via the existing remote write namespace filter.
+// buildServiceMonitor returns an unstructured ServiceMonitor because
+// monitoring.coreos.com is a CRD without typed apply configurations.
 func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*unstructured.Unstructured, error) {
 	sm := &monitoringv1.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
@@ -202,7 +146,7 @@ func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*uns
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            resourceName,
 			Namespace:       namespace,
-			Labels:          labels(),
+			Labels:          map[string]string{labelApp: resourceName},
 			OwnerReferences: []metav1.OwnerReference{ownerRef},
 		},
 		Spec: monitoringv1.ServiceMonitorSpec{
@@ -220,7 +164,7 @@ func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*uns
 				},
 			},
 			Selector: metav1.LabelSelector{
-				MatchLabels: labels(),
+				MatchLabels: map[string]string{labelApp: resourceName},
 			},
 			NamespaceSelector: monitoringv1.NamespaceSelector{
 				MatchNames: []string{namespace},
@@ -228,5 +172,9 @@ func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*uns
 		},
 	}
 
-	return toUnstructured(sm)
+	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(sm)
+	if err != nil {
+		return nil, err
+	}
+	return &unstructured.Unstructured{Object: data}, nil
 }
