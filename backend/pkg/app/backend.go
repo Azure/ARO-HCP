@@ -624,7 +624,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
+		activeOperationLister,
+		subscriptionLister,
+		backendInformers,
+		unionReadDesireLister,
+	)
+	nodePoolActiveVersionController := upgradecontrollers.NewNodePoolActiveVersionController(
+		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
 		unionReadDesireLister,
@@ -753,6 +759,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
+				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
