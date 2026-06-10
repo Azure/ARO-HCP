@@ -114,6 +114,12 @@ type ServiceProviderClusterStatus struct {
 	// }
 	ControlPlaneVersion ServiceProviderClusterStatusVersion `json:"control_plane_version,omitempty"`
 
+	// ClusterServiceUpdatableConfigHashForUpdateDispatch is a SHA-256 hex digest of the internal/ocm.clusterUpdatableConfig struct,
+	// when serialized as a json map. This hash is used by the cluster update dispatch controller to determine if a CS PATCH call is needed.
+	// Note: this hash does not necessarily include all the fields that can be updated via the CS API, just the ones
+	// that are to be considered by the cluster update dispatch controller to determine if a CS PATCH call is needed.
+	ClusterServiceUpdatableConfigHashForUpdateDispatch string `json:"clusterServiceUpdatableConfigHashForUpdateDispatch"`
+
 	// Validations is a list of conditions that tracks the status of each cluster validation.
 	// Each Condition Type represents a validation and it should be unique among all validations.
 	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
