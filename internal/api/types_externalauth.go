@@ -101,6 +101,13 @@ type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	// This will be removed once all external auths whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
+
+	// TODO Temporary field to track whether the external auth update is using the new approach.
+	// We are migrating from the external auth CS update synchronous in frontend to the backend dispatch controller.
+	// This boolean is true for ExternalAuth update operations that are created with the new update approach.
+	// This will be removed once all external auths whose update was triggered before the new approach is fully rolled out have been
+	// fully updated in all ARO-HCP permanent environments, for all regions.
+	UsesNewExternalAuthUpdateApproach bool `json:"usesNewExternalAuthUpdateApproach"`
 }
 
 // Condition defines an observation of the external auth state.

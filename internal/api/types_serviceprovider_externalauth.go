@@ -46,4 +46,8 @@ type ServiceProviderExternalAuthStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ClusterServiceUpdatableConfigHashForUpdateDispatch is a SHA-256 hex digest of the internal/ocm.externalAuthUpdatableConfig struct,
+	// when serialized as a json map. This hash is used by the external auth update dispatch controller to determine if a CS PATCH call is needed.
+	ClusterServiceUpdatableConfigHashForUpdateDispatch string `json:"clusterServiceUpdatableConfigHashForUpdateDispatch"`
 }
