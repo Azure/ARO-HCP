@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
 func newTestCluster(t *testing.T, name string, state arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
@@ -60,7 +61,7 @@ func newTestCluster(t *testing.T, name string, state arm.ProvisioningState, crea
 func TestClusterMetricsHandler_SetsProvisionStateAndCreatedTime(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	reg := prometheus.NewRegistry()
-	handler := NewClusterMetricsHandler(reg)
+	handler := NewClusterMetricsHandler(reg, databasetesting.NewMockResourcesDBClient())
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateProvisioning, &now)
 	handler.Sync(context.Background(), cluster)
@@ -84,7 +85,7 @@ backend_cluster_created_time_seconds{resource_id="%s",subscription_id="%s"} %d
 func TestClusterMetricsHandler_PhaseTransitionDeletesOldSeries(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	reg := prometheus.NewRegistry()
-	handler := NewClusterMetricsHandler(reg)
+	handler := NewClusterMetricsHandler(reg, databasetesting.NewMockResourcesDBClient())
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, &now)
 	handler.Sync(context.Background(), cluster)
@@ -103,7 +104,7 @@ backend_cluster_provision_state{phase="provisioning",resource_id="%s",subscripti
 
 func TestClusterMetricsHandler_NilCreatedAt(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	handler := NewClusterMetricsHandler(reg)
+	handler := NewClusterMetricsHandler(reg, databasetesting.NewMockResourcesDBClient())
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateAccepted, nil)
 	handler.Sync(context.Background(), cluster)
@@ -121,7 +122,7 @@ backend_cluster_provision_state{phase="accepted",resource_id="%s",subscription_i
 func TestClusterMetricsHandler_DeleteCleansUpAllGauges(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	reg := prometheus.NewRegistry()
-	handler := NewClusterMetricsHandler(reg)
+	handler := NewClusterMetricsHandler(reg, databasetesting.NewMockResourcesDBClient())
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, &now)
 	handler.Sync(context.Background(), cluster)
@@ -203,7 +204,7 @@ backend_externalauth_created_time_seconds{resource_id="%s",subscription_id="%s"}
 func TestResourceControllerSyncResource_SetsMetricsFromIndexer(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	reg := prometheus.NewRegistry()
-	handler := NewClusterMetricsHandler(reg)
+	handler := NewClusterMetricsHandler(reg, databasetesting.NewMockResourcesDBClient())
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, &now)
 
 	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
@@ -231,7 +232,7 @@ backend_cluster_provision_state{phase="succeeded",resource_id="%s",subscription_
 func TestResourceControllerSyncResource_DeletesMetricsWhenResourceRemoved(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	reg := prometheus.NewRegistry()
-	handler := NewClusterMetricsHandler(reg)
+	handler := NewClusterMetricsHandler(reg, databasetesting.NewMockResourcesDBClient())
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, &now)
 
 	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
