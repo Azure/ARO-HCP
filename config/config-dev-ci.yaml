@@ -215,6 +215,10 @@ clouds:
             id: "974ebd46-8ad3-41e3-afef-7ef25fd5c371"
           - name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
             id: "e8c5a115-842d-4d7e-98ad-cfb2c50b209e"
+          - name: "ARO HCP E2E Hosted Clusters - Dev - 03"
+            id: "e627aa70-36a3-40b0-8e68-975269e39d7b"
+          - name: "ARO HCP E2E Hosted Clusters - Dev - 00"
+            id: "6ed122d1-7e03-4a01-baae-9020abf350d4"
           sharedPrincipals:
             firstParty:
               principalId: "47f69502-0065-4d9a-b19b-d403e183d2f4"
