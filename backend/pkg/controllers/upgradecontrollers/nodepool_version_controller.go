@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -39,48 +38,53 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
-// nodepoolVersionControllerName is the Cosmos controller document ID for this syncer.
+// NodepoolVersionControllerName is the Cosmos controller document ID for this syncer.
 const NodepoolVersionControllerName = "NodePoolVersion"
 
-// nodePoolVersionSyncer is a nodePool syncer that synchronizes cluster information
-// from CS and internal and helps selecting a valid desiredVersion within the user's
-// desired
+// nodePoolVersionSyncer validates the customer's desired NodePool version and
+// stores it on the ServiceProviderNodePool. Active-version tracking moved to
+// nodePoolActiveVersionSyncer (sourced from the ReadDesire NodePool mirror) and
+// is no longer this controller's responsibility.
 type nodePoolVersionSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
-	readDesireLister     dblisters.ReadDesireLister
-	resourcesDBClient    database.ResourcesDBClient
-	clusterServiceClient ocm.ClusterServiceClientSpec
-	subscriptionLister   listers.SubscriptionLister
+	cooldownChecker               controllerutil.CooldownChecker
+	nodePoolLister                listers.NodePoolLister
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	serviceProviderClusterLister  listers.ServiceProviderClusterLister
+	subscriptionLister            listers.SubscriptionLister
+	readDesireLister              dblisters.ReadDesireLister
+	resourcesDBClient             database.ResourcesDBClient
 
 	cincinnatiClientCache cincinnati.ClientCache
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 
-// NewNodePoolVersionController creates a new syncer that reads node pool versions
-// from Cluster Service.
-// TODO: improve this description
+// NewNodePoolVersionController creates a new syncer that validates and persists
+// the customer's desired NodePool version on the ServiceProviderNodePool.
 func NewNodePoolVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
+	subscriptionLister listers.SubscriptionLister,
 	informers informers.BackendInformers,
 	readDesireLister dblisters.ReadDesireLister,
-	subscriptionLister listers.SubscriptionLister,
 ) controllerutils.Controller {
+	_, nodePoolLister := informers.NodePools()
+	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		readDesireLister:      readDesireLister,
-		resourcesDBClient:     resourcesDBClient,
-		clusterServiceClient:  clusterServiceClient,
-		cincinnatiClientCache: cincinnati.NewClientCache(),
-		subscriptionLister:    subscriptionLister,
+		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		nodePoolLister:                nodePoolLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		serviceProviderClusterLister:  serviceProviderClusterLister,
+		subscriptionLister:            subscriptionLister,
+		readDesireLister:              readDesireLister,
+		resourcesDBClient:             resourcesDBClient,
+		cincinnatiClientCache:         cincinnati.NewClientCache(),
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -94,74 +98,91 @@ func NewNodePoolVersionController(
 	return controller
 }
 
-// SyncOnce synchronizes node pool version information between Cluster Service
-// and the ServiceProviderNodePool in Cosmos DB.
+// NeedsWork reports whether this controller has anything to do for the given
+// NodePool. The work this controller does is persist the customer's desired
+// version onto the ServiceProviderNodePool, which is needed when:
+//   - the NodePool's customer-visible Properties.Version.ID is set, and
+//   - the ServiceProviderNodePool's Spec.NodePoolVersion.DesiredVersion does
+//     not already equal that value (otherwise nothing would change).
 //
-// The method performs two main operations:
+// Both arguments must be non-nil; SyncOnce gates the cache miss before calling
+// NeedsWork.
+func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool, serviceProviderNodePool *api.ServiceProviderNodePool) bool {
+	if len(nodePool.Properties.Version.ID) == 0 {
+		return false
+	}
+	if serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion == nil {
+		return true
+	}
+	customerDesiredVersion, err := semver.ParseTolerant(nodePool.Properties.Version.ID)
+	if err != nil {
+		// Unparseable version; let SyncOnce surface the parse error path —
+		// we don't suppress work just because we can't parse it here.
+		return true
+	}
+	return !customerDesiredVersion.EQ(*serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion)
+}
+
+// SyncOnce validates and persists the customer's desired node pool version on
+// the ServiceProviderNodePool in Cosmos DB.
 //
-// 1. Active Version Tracking:
-//   - Reads the current running version from Cluster Service (csNodePool.Version)
-//   - Stores it in ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-//   - Maintains up to 2 versions during version changes (newest first, then previous)
+//   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID.
+//   - Validates it against version change constraints (see validateDesiredNodePoolVersion):
+//   - Exists as a known version in Cincinnati.
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version.
+//   - Downgrade: at most -2 minor versions from the highest control plane version.
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures.
+//   - NP version must be in the allowed skew map when CP and NP are on different majors.
+//   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion.
 //
-// 2. Desired Version Validation and Storage:
-//   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID
-//   - Validates it against version change constraints (see validateDesiredNodePoolVersion)
-//   - The desired version must satisfy:
-//   - Exist as a known version in Cincinnati
-//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
-//   - Downgrade: at most -2 minor versions from the highest control plane version
-//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
-//   - NP version must be in the allowed skew map when CP and NP are on different majors
-//   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
-//
-// If the desired version is already among the active versions, validation is skipped
-// (the upgrade is already in progress or complete).
+// Active version tracking lives in nodePoolActiveVersionSyncer, which reads the
+// Hypershift NodePool from the per-node-pool ReadDesire kubeContent rather than
+// round-tripping through Cluster Service.
 func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Get node pool from Cosmos to get CS internal ID
-	nodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
-		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
-
+	// Do the super cheap cache check first.
+	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil // nodepool doesn't exists
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cosmos: %w", err))
-	}
-	if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+		// we'll be re-fired if it is created again
 		return nil
 	}
-	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		// if we have no clusterservice nodepool, we have nothing to sync.
-		return nil
-	}
-
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
-
-	// Get the ServiceProviderCluster for control plane version validation
-	clusterResourceID := api.Must(api.ToClusterResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName))
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterResourceID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
-	}
-
-	// Get the cluster for Cincinnati client initialization
-	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	// SPNP must be in cache. If a sibling controller hasn't created it yet,
+	// skip this sync; the informer will retrigger us when it lands.
+	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil // cluster doesn't exist, no work to do
+		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cosmos: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		// TODO this appears to only be used to look up a clusterservice cluster to get a UUID.  Once the billing changes merge,
-		// we'll have UID to key by and won't need this.
+	if !c.NeedsWork(cachedNodePool, cachedServiceProviderNodePool) {
+		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
 		return nil
+	}
+
+	customerDesiredVersion := semver.MustParse(cachedNodePool.Properties.Version.ID)
+
+	// Pull the ServiceProviderCluster and Subscription from cache rather than
+	// re-fetching live: validation only reads them, and if either isn't yet
+	// observed by the informer we'll be retriggered when it lands.
+	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
+	}
+
+	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
@@ -174,69 +195,13 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		logger.Info("missing cluster UUID, continuing with empty")
 	}
 
-	// Read node pool from Cluster Service
-	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get NodePool from CS: %w", err))
-	}
-
-	// For now we get the CS desired version
-	// In the future it should be good to use the node pool Status information from the node pool CR
-	version, ok := csNodePool.GetVersion()
-	if !ok {
-		return utils.TrackError(fmt.Errorf("node pool version not found in Cluster Service response"))
-	}
-
-	actualVersion := semver.MustParse(version.RawID())
-
-	oldActiveVersions := existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-	newActiveVersions := prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
-
-	serviceProviderCosmosNodePoolClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	// check if actualVersion from node pool in clusterService is different that the active versions in serviceProviderNodePool
-	// if it is different update the ActualVersion in the serviceProviderNodePool
-	// TODO: This is a simple gathering of the node pool versions. We should implement this to get the correct information.
-	// Possible ways to get this information
-	//   - In CS
-	// 	 	- nodepool.version: latest version applied. When an upgrade policy completes correctly, this is set to that version.
-	//   	- upgradepolicy.targetVersion: if the policy has started this version is applying to the nodepool
-	//   - In Hypershift
-	//		- .Status.Version: shows the latest applied version https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/nodepool_types.go#L246-L251
-	if !slices.Equal(oldActiveVersions, newActiveVersions) {
-		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions)
-		replacement := existingServiceProviderNodePool.DeepCopy()
-		replacement.Status.NodePoolVersion.ActiveVersions = newActiveVersions
-		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, replacement, nil)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
-		}
-	}
-
-	// If there is no nodePool version do not validate and update the desired Version
-	if nodePool.Properties.Version.ID == "" {
-		return nil
-	}
-	customerDesiredVersion := semver.MustParse(nodePool.Properties.Version.ID)
-
-	// Short-circuit: skip validation if desired version hasn't changed
-	if existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
-		customerDesiredVersion.EQ(*existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion) {
-		return nil
-	}
-
-	subscription, err := c.subscriptionLister.Get(ctx, cluster.ID.SubscriptionID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get subscription: %w", err))
-	}
 	op := operation.Operation{
-		Type:    operation.Update,
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
 
 	// Validate the customer's desired version before setting it
-	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, existingServiceProviderNodePool, existingServiceProviderCluster, nodePool.Properties.Version.ChannelGroup, clusterUUID,
+	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
 		op.HasOption(api.FeatureExperimentalReleaseFeatures))
-
 	if err != nil {
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
 		// Other Cincinnati errors are treated as transient graph or transport issues.
@@ -263,9 +228,13 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	// Update the serviceProviderNodePool DesiredVersion
-	replacement := existingServiceProviderNodePool.DeepCopy()
+	replacement := cachedServiceProviderNodePool.DeepCopy()
 	replacement.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
-	_, err = serviceProviderCosmosNodePoolClient.Replace(ctx, replacement, nil)
+	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
