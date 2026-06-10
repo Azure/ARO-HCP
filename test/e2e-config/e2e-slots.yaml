@@ -27,7 +27,7 @@ environments:
     # shard2: dedicated dev capacity on the third customer subscription.
     # identity_container_count is higher than shard0/shard1 (40 vs 20) because this
     # single-tenant subscription is sized to run the full DEV E2E suite in parallel.
-    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 02"
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard2-slot
@@ -37,7 +37,7 @@ environments:
     # shard3: dedicated dev capacity on the fourth customer subscription.
     # identity_container_count is higher than shard0/shard1 (40 vs 20) because this
     # single-tenant subscription is sized to run the full DEV E2E suite in parallel.
-    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 00"
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard3-slot
