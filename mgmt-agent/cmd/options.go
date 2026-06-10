@@ -29,6 +29,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	dynamicinformer "k8s.io/client-go/dynamic/dynamicinformer"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -92,6 +93,7 @@ type completedControllerOptions struct {
 	resourceWatcher     *controller.ResourceWatcher
 	kubeInformers       kubeinformers.SharedInformerFactory
 	hypershiftInformers hypershiftinformers.SharedInformerFactory
+	dynamicInformers    dynamicinformer.DynamicSharedInformerFactory
 	workers             int
 	healthAddress       string
 	leaderElectionCfg   *controller.LeaderElectionConfig
@@ -160,17 +162,22 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	var ksmCtrl *ksmhcp.KSMHCPController
 	var hsInformers hypershiftinformers.SharedInformerFactory
+	var dynInformers dynamicinformer.DynamicSharedInformerFactory
 	if o.KSMImage != "" {
 		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
 		}
 		hsInformers = hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
+		dynInformers = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 10*time.Minute)
 
 		ksmCtrl, err = ksmhcp.NewKSMHCPController(
 			kubeClientset,
 			dynamicClient,
 			hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+			kubeInformers.Apps().V1().Deployments().Informer(),
+			kubeInformers.Core().V1().Services().Informer(),
+			dynInformers.ForResource(ksmhcp.ServiceMonitorGVR).Informer(),
 			o.KSMImage,
 		)
 		if err != nil {
@@ -194,6 +201,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			resourceWatcher:     resourceWatcher,
 			kubeInformers:       kubeInformers,
 			hypershiftInformers: hsInformers,
+			dynamicInformers:    dynInformers,
 			workers:             o.Workers,
 			healthAddress:       o.HealthAddress,
 			leaderElectionCfg:   leaderElectionCfg,
@@ -231,6 +239,9 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	o.kubeInformers.Start(ctx.Done())
 	if o.hypershiftInformers != nil {
 		o.hypershiftInformers.Start(ctx.Done())
+	}
+	if o.dynamicInformers != nil {
+		o.dynamicInformers.Start(ctx.Done())
 	}
 	logger.V(6).Info("Informer factories started")
 
