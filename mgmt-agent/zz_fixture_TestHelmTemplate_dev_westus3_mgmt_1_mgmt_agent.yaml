@@ -47,6 +47,9 @@ rules:
   resources:
   - deployments
   verbs:
+  - get
+  - list
+  - watch
   - create
   - patch
 - apiGroups:
@@ -54,6 +57,9 @@ rules:
   resources:
   - services
   verbs:
+  - get
+  - list
+  - watch
   - create
   - patch
 - apiGroups:
@@ -61,6 +67,9 @@ rules:
   resources:
   - servicemonitors
   verbs:
+  - get
+  - list
+  - watch
   - create
   - patch
 ---
