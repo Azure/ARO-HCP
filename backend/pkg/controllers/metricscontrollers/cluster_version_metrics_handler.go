@@ -16,62 +16,38 @@ package metricscontrollers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	configv1 "github.com/openshift/api/config/v1"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterVersionMetricsHandler struct {
 	clusterVersionInfo *prometheus.GaugeVec
-	resourcesDBClient  database.ResourcesDBClient
 }
 
-func newClusterVersionMetricsHandler(
-	prometheusRegisterer prometheus.Registerer,
-	resourcesDBClient database.ResourcesDBClient,
-) *clusterVersionMetricsHandler {
+// NewClusterVersionMetricsHandler creates a metrics handler for cluster version metrics.
+func NewClusterVersionMetricsHandler(prometheusRegisterer prometheus.Registerer) Handler[*api.ServiceProviderCluster] {
 	metricsHandler := &clusterVersionMetricsHandler{
 		clusterVersionInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_version_info",
 			Help: "Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, upgrade not started), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics; desired is pre-upgrade only.",
 		}, []string{"resource_id", "subscription_id", "version", "state"}),
-		resourcesDBClient: resourcesDBClient,
 	}
 	prometheusRegisterer.MustRegister(metricsHandler.clusterVersionInfo)
 	return metricsHandler
 }
 
-func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, clusterVersionObject clusterMetricsObject) {
-	clusterResourceID := clusterVersionObject.ResourceID()
-	resourceID := resourceIDMetricLabel(clusterResourceID)
-	if len(resourceID) == 0 {
-		return
-	}
-	subscriptionID := subscriptionIDMetricLabel(clusterResourceID)
-
-	serviceProviderCluster, err := metricsHandler.resourcesDBClient.ServiceProviderClusters(
-		clusterResourceID.SubscriptionID,
-		clusterResourceID.ResourceGroupName,
-		clusterResourceID.Name,
-	).Get(ctx, api.ServiceProviderClusterResourceName)
-	if err != nil {
-		if database.IsNotFoundError(err) {
-			metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
-		} else {
-			utils.LoggerFromContext(ctx).Error(err, "failed to get ServiceProviderCluster for cluster version metrics; retaining previous metrics",
-				"resource_id", resourceID)
-		}
-		return
-	}
+func (metricsHandler *clusterVersionMetricsHandler) Sync(_ context.Context, serviceProviderCluster *api.ServiceProviderCluster) {
+	resourceID := resourceIDMetricLabel(serviceProviderCluster.ResourceID.Parent)
+	subscriptionID := subscriptionIDMetricLabel(serviceProviderCluster.ResourceID.Parent)
 
 	metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
 
-	for version, state := range versionStatesFromServiceProviderCluster(serviceProviderCluster) {
+	for version, state := range metricsHandler.versionStatesFromServiceProviderCluster(serviceProviderCluster) {
 		metricsHandler.clusterVersionInfo.With(prometheus.Labels{
 			"resource_id":     resourceID,
 			"subscription_id": subscriptionID,
@@ -81,19 +57,22 @@ func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, cl
 	}
 }
 
-func (metricsHandler *clusterVersionMetricsHandler) Delete(resourceIDKey string) {
-	if len(resourceIDKey) == 0 {
+func (metricsHandler *clusterVersionMetricsHandler) Delete(serviceProviderClusterKey string) {
+	if len(serviceProviderClusterKey) == 0 {
+		return
+	}
+	serviceProviderClusterResourceID, err := azcorearm.ParseResourceID(serviceProviderClusterKey)
+	if err != nil {
 		return
 	}
 
-	metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceIDKey})
+	metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{
+		"resource_id": resourceIDMetricLabel(serviceProviderClusterResourceID.Parent),
+	})
 }
 
-func versionStatesFromServiceProviderCluster(serviceProviderCluster *api.ServiceProviderCluster) map[string]string {
+func (metricsHandler *clusterVersionMetricsHandler) versionStatesFromServiceProviderCluster(serviceProviderCluster *api.ServiceProviderCluster) map[string]string {
 	versionStates := make(map[string]string)
-	if serviceProviderCluster == nil {
-		return versionStates
-	}
 
 	// Desired is emitted only when the target z-stream is not yet active. Active versions
 	// (partial or completed) override desired for the same version string.
@@ -105,13 +84,7 @@ func versionStatesFromServiceProviderCluster(serviceProviderCluster *api.Service
 		if activeVersion.Version == nil {
 			continue
 		}
-
-		state := "completed"
-		if activeVersion.State == configv1.PartialUpdate {
-			state = "partial"
-		}
-
-		versionStates[activeVersion.Version.String()] = state
+		versionStates[activeVersion.Version.String()] = strings.ToLower(string(activeVersion.State))
 	}
 
 	return versionStates
