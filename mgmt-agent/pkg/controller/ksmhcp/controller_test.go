@@ -15,12 +15,43 @@
 package ksmhcp
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
+
+func compareWithFixture(t *testing.T, obj interface{}) {
+	t.Helper()
+	got, err := yaml.Marshal(obj)
+	if err != nil {
+		t.Fatalf("failed to marshal object: %v", err)
+	}
+
+	golden := filepath.Join("testdata", "zz_fixture_"+t.Name()+".yaml")
+	if os.Getenv("UPDATE") != "" {
+		if err := os.MkdirAll(filepath.Dir(golden), 0755); err != nil {
+			t.Fatalf("failed to create fixture directory: %v", err)
+		}
+		if err := os.WriteFile(golden, got, 0644); err != nil {
+			t.Fatalf("failed to write fixture: %v", err)
+		}
+	}
+
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatalf("failed to read fixture %s (run with UPDATE=true to create): %v", golden, err)
+	}
+
+	if diff := cmp.Diff(string(want), string(got)); diff != "" {
+		t.Errorf("got diff between expected and actual result:\nfile: %s\ndiff:\n%s\n\nIf this is expected, re-run the test with `UPDATE=true go test ./...` to update the fixtures.", golden, diff)
+	}
+}
 
 func TestIsKubeAPIServerAvailable(t *testing.T) {
 	tests := []struct {
@@ -78,77 +109,38 @@ func TestBuildDeployment(t *testing.T) {
 		"mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:abc",
 		serviceNetworkKubeconfigSecret,
 		serviceNetworkKubeconfigKey,
-		testOwnerRef(),
+		metav1.OwnerReference{
+			APIVersion: "hypershift.openshift.io/v1beta1",
+			Kind:       "HostedControlPlane",
+			Name:       "test-hcp",
+			UID:        "uid-123",
+		},
 	)
 
-	if dep.APIVersion != "apps/v1" || dep.Kind != "Deployment" {
-		t.Errorf("TypeMeta not set for SSA: got %s/%s", dep.APIVersion, dep.Kind)
-	}
-	if dep.Namespace != "ocm-arohcppers-abc123-xyz" {
-		t.Errorf("namespace = %q, want ocm-arohcppers-abc123-xyz", dep.Namespace)
-	}
-	if dep.Name != resourceName {
-		t.Errorf("name = %q, want %q", dep.Name, resourceName)
-	}
-
-	container := dep.Spec.Template.Spec.Containers[0]
-	if container.Image != "mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:abc" {
-		t.Errorf("wrong image: %s", container.Image)
-	}
-
-	vol := dep.Spec.Template.Spec.Volumes[0]
-	if vol.Secret.SecretName != serviceNetworkKubeconfigSecret {
-		t.Errorf("kubeconfig secret = %q, want %q", vol.Secret.SecretName, serviceNetworkKubeconfigSecret)
-	}
-	if vol.Secret.Items[0].Key != serviceNetworkKubeconfigKey {
-		t.Errorf("kubeconfig key = %q, want %q", vol.Secret.Items[0].Key, serviceNetworkKubeconfigKey)
-	}
-
-	if dep.Spec.Template.Spec.AutomountServiceAccountToken == nil || *dep.Spec.Template.Spec.AutomountServiceAccountToken {
-		t.Error("automountServiceAccountToken should be false")
-	}
-	if container.LivenessProbe == nil || container.ReadinessProbe == nil {
-		t.Error("probes not set")
-	}
+	compareWithFixture(t, dep)
 }
 
-func TestBuildServiceMonitorInjectsLabels(t *testing.T) {
-	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", testOwnerRef())
-	if err != nil {
-		t.Fatalf("buildServiceMonitor() error: %v", err)
-	}
-
-	spec := sm.Object["spec"].(map[string]interface{})
-	endpoints := spec["endpoints"].([]interface{})
-	ep := endpoints[0].(map[string]interface{})
-	relabelings := ep["metricRelabelings"].([]interface{})
-
-	if len(relabelings) != 1 {
-		t.Fatalf("expected 1 relabeling (namespace), got %d", len(relabelings))
-	}
-
-	nsRelabel := relabelings[0].(map[string]interface{})
-	if nsRelabel["targetLabel"] != "namespace" || nsRelabel["replacement"] != "ocm-arohcppers-abc123-xyz" {
-		t.Errorf("namespace relabel incorrect: %v", nsRelabel)
-	}
-}
-
-func TestBuildServiceMonitorTypeMeta(t *testing.T) {
-	sm, err := buildServiceMonitor("ocm-test", testOwnerRef())
-	if err != nil {
-		t.Fatalf("buildServiceMonitor() error: %v", err)
-	}
-	if sm.GetAPIVersion() != "monitoring.coreos.com/v1" || sm.GetKind() != "ServiceMonitor" {
-		t.Errorf("TypeMeta = %s/%s, want monitoring.coreos.com/v1/ServiceMonitor", sm.GetAPIVersion(), sm.GetKind())
-	}
-}
-
-
-func testOwnerRef() metav1.OwnerReference {
-	return metav1.OwnerReference{
+func TestBuildService(t *testing.T) {
+	svc := buildService("ocm-arohcppers-abc123-xyz", metav1.OwnerReference{
 		APIVersion: "hypershift.openshift.io/v1beta1",
 		Kind:       "HostedControlPlane",
 		Name:       "test-hcp",
 		UID:        "uid-123",
+	})
+
+	compareWithFixture(t, svc)
+}
+
+func TestBuildServiceMonitor(t *testing.T) {
+	sm, err := buildServiceMonitor("ocm-arohcppers-abc123-xyz", metav1.OwnerReference{
+		APIVersion: "hypershift.openshift.io/v1beta1",
+		Kind:       "HostedControlPlane",
+		Name:       "test-hcp",
+		UID:        "uid-123",
+	})
+	if err != nil {
+		t.Fatalf("buildServiceMonitor() error: %v", err)
 	}
+
+	compareWithFixture(t, sm)
 }
