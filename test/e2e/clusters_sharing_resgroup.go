@@ -128,14 +128,14 @@ var _ = Describe("Customer", func() {
 			_, err = poller1.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 				Frequency: framework.StandardPollInterval,
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to wait for first cluster %q to complete creation", customerClusterName)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for first cluster %q to complete creation (timeout '%f' minutes)", customerClusterName, framework.ClusterCreationTimeout.Minutes())
 
 			By("waiting for second cluster to complete creation")
 
 			_, err = poller2.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 				Frequency: framework.StandardPollInterval,
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to wait for second cluster %q to complete creation", customerClusterName2)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for second cluster %q to complete creation (timeout '%f' minutes)", customerClusterName2, framework.ClusterCreationTimeout.Minutes())
 
 			// Third cluster (should fail)
 			By("creating customer infrastructure and managed identities for third cluster")

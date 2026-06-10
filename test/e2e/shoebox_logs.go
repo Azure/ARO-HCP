@@ -106,6 +106,8 @@ func pollVerifier(ctx context.Context, name string, verifier shoeboxLogVerifier,
 }
 
 func createStorageAccount(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, resourceGroupName, location string) (*storageAccountResult, error) {
+	const pollTimeout = 10 * time.Minute
+
 	storageAccountName := "shoebox" + rand.String(6)
 
 	storageClient, err := armstorage.NewAccountsClient(subscriptionID, creds, nil)
@@ -124,13 +126,13 @@ func createStorageAccount(ctx context.Context, subscriptionID string, creds azco
 		return nil, fmt.Errorf("failed to begin storage account creation: %w", err)
 	}
 
-	pollCtx, pollCancel := context.WithTimeout(ctx, 10*time.Minute)
+	pollCtx, pollCancel := context.WithTimeout(ctx, pollTimeout)
 	defer pollCancel()
 	storageAccount, err := storagePoller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 		Frequency: 10 * time.Second,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create storage account: %w", err)
+		return nil, fmt.Errorf("failed to create storage account %s in resource group %s (timeout '%f' minutes): %w", storageAccountName, resourceGroupName, pollTimeout.Minutes(), err)
 	}
 
 	return &storageAccountResult{
@@ -150,6 +152,7 @@ func createEventHub(ctx context.Context, subscriptionID string, creds azcore.Tok
 		namespaceName = "shoebox-eh-ns"
 		hubName       = "shoebox-eh"
 		authRuleName  = "shoebox-eh-auth"
+		pollTimeout   = 10 * time.Minute
 	)
 
 	nsClient, err := armeventhub.NewNamespacesClient(subscriptionID, creds, nil)
@@ -168,13 +171,13 @@ func createEventHub(ctx context.Context, subscriptionID string, creds azcore.Tok
 		return nil, fmt.Errorf("failed to begin Event Hub namespace creation: %w", err)
 	}
 
-	pollCtx, pollCancel := context.WithTimeout(ctx, 10*time.Minute)
+	pollCtx, pollCancel := context.WithTimeout(ctx, pollTimeout)
 	defer pollCancel()
 	_, err = nsPoller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 		Frequency: 10 * time.Second,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Event Hub namespace: %w", err)
+		return nil, fmt.Errorf("failed to create Event Hub namespace %s in resource group %s (timeout '%f' minutes): %w", namespaceName, resourceGroupName, pollTimeout.Minutes(), err)
 	}
 
 	hubClient, err := armeventhub.NewEventHubsClient(subscriptionID, creds, nil)
