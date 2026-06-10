@@ -129,7 +129,11 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	if _, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil); err != nil {
+	if _, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil); database.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		// there is no need to report an error since the retry will happen when the reflector sees the update and puts an Update into the informer.
+		return nil
+	} else if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
