@@ -395,9 +395,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, unionReadDesireLister := unionKubeApplierInformers.ReadDesires()
 
 	clusterInformer, clusterLister := backendInformers.Clusters()
-	clusterHandler := metricscontrollers.NewClusterMetricsHandler(b.options.MetricsRegisterer, b.options.ResourcesDBClient)
+	clusterHandler := metricscontrollers.NewClusterMetricsHandler(b.options.MetricsRegisterer)
 	clusterMetricsController := metricscontrollers.NewController(
 		"ClusterMetrics", clusterInformer, clusterHandler)
+
+	serviceProviderClusterInformer, _ := backendInformers.ServiceProviderClusters()
+	clusterVersionMetricsHandler := metricscontrollers.NewClusterVersionMetricsHandler(b.options.MetricsRegisterer)
+	clusterVersionMetricsController := metricscontrollers.NewController(
+		"ClusterVersionMetrics", serviceProviderClusterInformer, clusterVersionMetricsHandler)
 
 	_, billingLister := backendInformers.BillingDocs()
 
@@ -801,6 +806,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterDeletionController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
+				go clusterVersionMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)

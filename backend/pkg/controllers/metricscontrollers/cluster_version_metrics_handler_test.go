@@ -16,7 +16,6 @@ package metricscontrollers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -26,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -34,21 +34,16 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
-func seedTestServiceProviderCluster(
+func newTestServiceProviderCluster(
 	t *testing.T,
-	ctx context.Context,
-	mockResourcesDBClient *databasetesting.MockResourcesDBClient,
-	clusterName string,
+	cluster *api.HCPOpenShiftCluster,
 	desiredVersion string,
 	activeVersions []api.HCPClusterActiveVersion,
-) *api.HCPOpenShiftCluster {
+) *api.ServiceProviderCluster {
 	t.Helper()
 
-	cluster := newTestCluster(t, clusterName, arm.ProvisioningStateSucceeded, nil)
 	clusterResourceID := cluster.ID
 	serviceProviderClusterResourceID := api.Must(azcorearm.ParseResourceID(
 		clusterResourceID.String() + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName,
@@ -66,27 +61,20 @@ func seedTestServiceProviderCluster(
 		serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = ptr.To(semver.MustParse(desiredVersion))
 	}
 
-	_, err := mockResourcesDBClient.ServiceProviderClusters(
-		clusterResourceID.SubscriptionID,
-		clusterResourceID.ResourceGroupName,
-		clusterResourceID.Name,
-	).Create(ctx, serviceProviderCluster, nil)
-	require.NoError(t, err)
-
-	return cluster
+	return serviceProviderCluster
 }
 
 func TestClusterVersionMetricsHandler_SetsDesiredAndActiveVersions(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	prometheusRegistry := prometheus.NewRegistry()
-	versionMetricsHandler := newClusterVersionMetricsHandler(prometheusRegistry, mockResourcesDBClient)
+	handler := NewClusterVersionMetricsHandler(prometheusRegistry)
 
-	cluster := seedTestServiceProviderCluster(t, ctx, mockResourcesDBClient, "cluster-1", "4.19.20", []api.HCPClusterActiveVersion{
+	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.PartialUpdate},
 	})
-	versionMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
+	handler.Sync(ctx, serviceProviderCluster)
 
 	resourceID := resourceIDMetricLabel(cluster.ID)
 	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
@@ -101,14 +89,14 @@ backend_cluster_version_info{resource_id="%s",state="partial",subscription_id="%
 
 func TestClusterVersionMetricsHandler_ReplacesDesiredWhenVersionBecomesActive(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	prometheusRegistry := prometheus.NewRegistry()
-	versionMetricsHandler := newClusterVersionMetricsHandler(prometheusRegistry, mockResourcesDBClient)
+	handler := NewClusterVersionMetricsHandler(prometheusRegistry)
 
-	cluster := seedTestServiceProviderCluster(t, ctx, mockResourcesDBClient, "cluster-1", "4.19.20", []api.HCPClusterActiveVersion{
+	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.CompletedUpdate},
 	})
-	versionMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
+	handler.Sync(ctx, serviceProviderCluster)
 
 	resourceID := resourceIDMetricLabel(cluster.ID)
 	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
@@ -122,83 +110,42 @@ backend_cluster_version_info{resource_id="%s",state="completed",subscription_id=
 
 func TestClusterVersionMetricsHandler_DeleteCleansUpMetrics(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	prometheusRegistry := prometheus.NewRegistry()
-	versionMetricsHandler := newClusterVersionMetricsHandler(prometheusRegistry, mockResourcesDBClient)
-
-	cluster := seedTestServiceProviderCluster(t, ctx, mockResourcesDBClient, "cluster-1", "4.19.20", nil)
-	versionMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
-	versionMetricsHandler.Delete(resourceIDMetricLabel(cluster.ID))
-
-	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(""), "backend_cluster_version_info"))
-}
-
-func TestClusterVersionMetricsHandler_NoMetricsWhenServiceProviderClusterMissing(t *testing.T) {
-	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	prometheusRegistry := prometheus.NewRegistry()
-	versionMetricsHandler := newClusterVersionMetricsHandler(prometheusRegistry, mockResourcesDBClient)
+	handler := NewClusterVersionMetricsHandler(prometheusRegistry)
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
-	versionMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", nil)
+	handler.Sync(ctx, serviceProviderCluster)
 
-	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(""), "backend_cluster_version_info"))
-}
-
-func TestClusterVersionMetricsHandler_ClearsMetricsWhenServiceProviderClusterDeleted(t *testing.T) {
-	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	prometheusRegistry := prometheus.NewRegistry()
-	versionMetricsHandler := newClusterVersionMetricsHandler(prometheusRegistry, mockResourcesDBClient)
-
-	cluster := seedTestServiceProviderCluster(t, ctx, mockResourcesDBClient, "cluster-1", "4.19.20", nil)
-	versionMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
-
-	err := mockResourcesDBClient.ServiceProviderClusters(
-		cluster.ID.SubscriptionID,
-		cluster.ID.ResourceGroupName,
-		cluster.ID.Name,
-	).Delete(ctx, api.ServiceProviderClusterResourceName)
+	spcKey, err := resourceIDStoreKey(serviceProviderCluster)
 	require.NoError(t, err)
-
-	versionMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
+	handler.Delete(spcKey)
 
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(""), "backend_cluster_version_info"))
 }
 
-// Stubs below simulate a transient ServiceProviderCluster Get failure for
-// TestClusterVersionMetricsHandler_RetainsMetricsOnTransientGetError.
-type getErrorServiceProviderClusterCRUD struct {
-	database.ServiceProviderClusterCRUD
-	getErr error
-}
-
-func (c *getErrorServiceProviderClusterCRUD) Get(ctx context.Context, resourceID string) (*api.ServiceProviderCluster, error) {
-	return nil, c.getErr
-}
-
-type serviceProviderClusterGetErrorDBClient struct {
-	*databasetesting.MockResourcesDBClient
-	getErr error
-}
-
-func (c *serviceProviderClusterGetErrorDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
-	return &getErrorServiceProviderClusterCRUD{
-		ServiceProviderClusterCRUD: c.MockResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName),
-		getErr:                     c.getErr,
-	}
-}
-
-func TestClusterVersionMetricsHandler_RetainsMetricsOnTransientGetError(t *testing.T) {
+func TestClusterVersionMetricsController_SyncResource(t *testing.T) {
 	ctx := context.Background()
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 	prometheusRegistry := prometheus.NewRegistry()
-	versionMetricsHandler := newClusterVersionMetricsHandler(prometheusRegistry, mockResourcesDBClient)
+	handler := NewClusterVersionMetricsHandler(prometheusRegistry)
 
-	cluster := seedTestServiceProviderCluster(t, ctx, mockResourcesDBClient, "cluster-1", "4.19.20", []api.HCPClusterActiveVersion{
+	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{
 		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.CompletedUpdate},
 	})
-	versionMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
+
+	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
+	require.NoError(t, indexer.Add(serviceProviderCluster))
+
+	controller := &Controller[*api.ServiceProviderCluster]{
+		name:    "ClusterVersionMetrics",
+		indexer: indexer,
+		handler: handler,
+	}
+
+	key, err := resourceIDStoreKeyForObject(serviceProviderCluster)
+	require.NoError(t, err)
+	require.NoError(t, controller.syncResource(ctx, key))
 
 	resourceID := resourceIDMetricLabel(cluster.ID)
 	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
@@ -206,12 +153,33 @@ func TestClusterVersionMetricsHandler_RetainsMetricsOnTransientGetError(t *testi
 # TYPE backend_cluster_version_info gauge
 backend_cluster_version_info{resource_id="%s",state="completed",subscription_id="%s",version="4.19.20"} 1
 `, resourceID, subscriptionID)
-
-	versionMetricsHandler.resourcesDBClient = &serviceProviderClusterGetErrorDBClient{
-		MockResourcesDBClient: mockResourcesDBClient,
-		getErr:                errors.New("transient database error"),
-	}
-	versionMetricsHandler.Sync(ctx, clusterMetricsObject{cluster})
-
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
+}
+
+func TestClusterVersionMetricsController_DeletesMetricsWhenResourceRemoved(t *testing.T) {
+	ctx := context.Background()
+	prometheusRegistry := prometheus.NewRegistry()
+	handler := NewClusterVersionMetricsHandler(prometheusRegistry)
+
+	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{
+		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.CompletedUpdate},
+	})
+
+	indexer := cache.NewIndexer(resourceIDStoreKeyForObject, cache.Indexers{})
+	require.NoError(t, indexer.Add(serviceProviderCluster))
+
+	controller := &Controller[*api.ServiceProviderCluster]{
+		name:    "ClusterVersionMetrics",
+		indexer: indexer,
+		handler: handler,
+	}
+
+	key, err := resourceIDStoreKeyForObject(serviceProviderCluster)
+	require.NoError(t, err)
+	require.NoError(t, controller.syncResource(ctx, key))
+	require.NoError(t, indexer.Delete(serviceProviderCluster))
+	require.NoError(t, controller.syncResource(ctx, key))
+
+	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(""), "backend_cluster_version_info"))
 }
