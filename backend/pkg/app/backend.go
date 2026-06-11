@@ -627,12 +627,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		subscriptionLister,
 		backendInformers,
+		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	nodePoolActiveVersionController := upgradecontrollers.NewNodePoolActiveVersionController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
@@ -640,6 +642,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	managementClusterMigrationController := managementclustercontrollers.NewManagementClusterMigrationController(
 		b.options.ClustersServiceClient,
@@ -662,22 +665,26 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolClusterServiceIDClearerController := nodepooldeletion.NewNodePoolClusterServiceIDClearerController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolChildResourcesCleanupController := nodepooldeletion.NewNodePoolChildResourcesCleanupController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	externalAuthDeletionClusterServiceDeleteDispatchController := externalauthdeletion.NewExternalAuthClusterServiceDeleteDispatchController(

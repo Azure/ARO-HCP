@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -46,6 +47,7 @@ func NewNodePoolDeletionController(
 	resourcesDBClient database.ResourcesDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
@@ -60,6 +62,7 @@ func NewNodePoolDeletionController(
 		"NodePoolDeletionController",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		time.Minute,
 		syncer,
 	)

@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -53,6 +54,7 @@ func NewNodePoolClusterServiceIDClearerController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	syncer := &nodePoolClusterServiceIDClearer{
@@ -66,6 +68,7 @@ func NewNodePoolClusterServiceIDClearerController(
 		"NodePoolDeletionClusterServiceIDClearer",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		time.Minute,
 		syncer,
 	)
