@@ -1689,6 +1689,13 @@ func (in *ServiceProviderNodePoolStatus) DeepCopyInto(out *ServiceProviderNodePo
 		}
 	}
 	in.NodePoolVersion.DeepCopyInto(&out.NodePoolVersion)
+	if in.Validations != nil {
+		in, out := &in.Validations, &out.Validations
+		*out = make([]v1.Condition, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.MaestroReadonlyBundles != nil {
 		in, out := &in.MaestroReadonlyBundles, &out.MaestroReadonlyBundles
 		*out = make(MaestroBundleReferenceList, len(*in))
