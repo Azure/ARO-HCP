@@ -898,6 +898,7 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "dns", h.DNS)
 	populate(objectMap, "etcd", h.Etcd)
 	populate(objectMap, "imageDigestMirrors", h.ImageDigestMirrors)
+	populate(objectMap, "fipsEnabled", h.FipsEnabled)
 	populate(objectMap, "network", h.Network)
 	populate(objectMap, "nodeDrainTimeoutMinutes", h.NodeDrainTimeoutMinutes)
 	populate(objectMap, "platform", h.Platform)
@@ -935,6 +936,9 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "imageDigestMirrors":
 			err = unpopulate(val, "ImageDigestMirrors", &h.ImageDigestMirrors)
+			delete(rawMsg, key)
+		case "fipsEnabled":
+			err = unpopulate(val, "FipsEnabled", &h.FipsEnabled)
 			delete(rawMsg, key)
 		case "network":
 			err = unpopulate(val, "Network", &h.Network)
