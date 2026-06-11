@@ -16,12 +16,16 @@ package controller
 
 import (
 	"context"
+	"os"
 	"strings"
 	"time"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
@@ -62,7 +66,9 @@ func NewResourceWatcher(dynamicClient dynamic.Interface, discoveryClient ServerR
 
 // Run discovers GVRs for the configured group suffixes, starts dynamic informers
 // for each, and blocks until the context is cancelled. Events are logged as
-// structured JSON via klog.
+// structured JSON via klog. A CRD informer watches for new CustomResourceDefinitions;
+// if a new CRD is registered whose group matches the watched suffixes and introduces
+// GVRs not known at startup, the process exits so the pod restarts and picks them up.
 func (w *ResourceWatcher) Run(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 	logger.Info("Starting resource watcher")
@@ -73,13 +79,34 @@ func (w *ResourceWatcher) Run(ctx context.Context) error {
 	}
 	logger.Info("Discovered resources to watch", "count", len(gvrs))
 
-	if len(gvrs) == 0 {
-		logger.Info("No matching resources found, resource watcher has nothing to do")
-		<-ctx.Done()
-		return nil
-	}
+	knownGVRs := sets.New[schema.GroupVersionResource](gvrs...)
 
 	factory := dynamicinformer.NewDynamicSharedInformerFactory(w.dynamicClient, 10*time.Hour)
+
+	// Watch CRDs so we can detect when new API resources matching our group
+	// suffixes are registered in the cluster. When that happens, we exit the
+	// process so the pod restarts and picks up the new GVRs.
+	crdGVR := schema.GroupVersionResource{
+		Group:    "apiextensions.k8s.io",
+		Version:  "v1",
+		Resource: "customresourcedefinitions",
+	}
+	handleCRD := func(obj interface{}) {
+		newGVRs := newMatchingGVRsFromCRD(obj, knownGVRs)
+		if newGVRs.Len() > 0 {
+			logger.Error(nil, "New CRD introduces GVRs that should be watched, exiting to trigger pod restart",
+				"newGVRs", newGVRs.UnsortedList())
+			klog.Flush()
+			os.Exit(1)
+		}
+	}
+	crdInformer := factory.ForResource(crdGVR)
+	if _, err := crdInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    handleCRD,
+		UpdateFunc: func(_, obj interface{}) { handleCRD(obj) },
+	}); err != nil {
+		return err
+	}
 
 	for _, gvr := range gvrs {
 		informer := factory.ForResource(gvr)
@@ -175,6 +202,38 @@ func supportsListWatch(r metav1.APIResource) bool {
 		}
 	}
 	return hasList && hasWatch
+}
+
+// newMatchingGVRsFromCRD extracts GVRs from a CRD object and returns those
+// that match the watched group suffixes but are not in the known set.
+func newMatchingGVRsFromCRD(obj interface{}, knownGVRs sets.Set[schema.GroupVersionResource]) sets.Set[schema.GroupVersionResource] {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil
+	}
+
+	var crd apiextensionsv1.CustomResourceDefinition
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, &crd); err != nil {
+		return nil
+	}
+
+	if !matchesGroupSuffix(crd.Spec.Group) {
+		return nil
+	}
+
+	crdGVRs := sets.New[schema.GroupVersionResource]()
+	for _, version := range crd.Spec.Versions {
+		if !version.Served {
+			continue
+		}
+		crdGVRs.Insert(schema.GroupVersionResource{
+			Group:    crd.Spec.Group,
+			Version:  version.Name,
+			Resource: crd.Spec.Names.Plural,
+		})
+	}
+
+	return crdGVRs.Difference(knownGVRs)
 }
 
 // logResourceEvent logs a resource event with the object as a structured field.

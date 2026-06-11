@@ -18,7 +18,9 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestMatchesGroupSuffix(t *testing.T) {
@@ -141,4 +143,139 @@ type fakeDiscovery struct {
 
 func (f *fakeDiscovery) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
 	return nil, f.resources, nil
+}
+
+func TestNewMatchingGVRsFromCRD(t *testing.T) {
+	makeCRD := func(group, resource string, versions []interface{}) *unstructured.Unstructured {
+		return &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "apiextensions.k8s.io/v1",
+				"kind":       "CustomResourceDefinition",
+				"metadata": map[string]interface{}{
+					"name": resource + "." + group,
+				},
+				"spec": map[string]interface{}{
+					"group": group,
+					"names": map[string]interface{}{
+						"plural": resource,
+					},
+					"versions": versions,
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		obj       interface{}
+		knownGVRs sets.Set[schema.GroupVersionResource]
+		want      sets.Set[schema.GroupVersionResource]
+	}{
+		{
+			name: "new CRD with matching group",
+			obj: makeCRD("hypershift.openshift.io", "hostedclusters", []interface{}{
+				map[string]interface{}{"name": "v1beta1", "served": true, "storage": true},
+			}),
+			knownGVRs: sets.New[schema.GroupVersionResource](),
+			want: sets.New(
+				schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters"},
+			),
+		},
+		{
+			name: "CRD with matching group already known",
+			obj: makeCRD("hypershift.openshift.io", "hostedclusters", []interface{}{
+				map[string]interface{}{"name": "v1beta1", "served": true, "storage": true},
+			}),
+			knownGVRs: sets.New(
+				schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters"},
+			),
+			want: sets.New[schema.GroupVersionResource](),
+		},
+		{
+			name: "CRD with non-matching group",
+			obj: makeCRD("apps", "deployments", []interface{}{
+				map[string]interface{}{"name": "v1", "served": true, "storage": true},
+			}),
+			knownGVRs: sets.New[schema.GroupVersionResource](),
+			want:      nil,
+		},
+		{
+			name: "CRD with unserved versions skipped",
+			obj: makeCRD("hypershift.openshift.io", "hostedclusters", []interface{}{
+				map[string]interface{}{"name": "v1beta1", "served": true, "storage": true},
+				map[string]interface{}{"name": "v1alpha1", "served": false, "storage": false},
+			}),
+			knownGVRs: sets.New[schema.GroupVersionResource](),
+			want: sets.New(
+				schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters"},
+			),
+		},
+		{
+			name: "CRD with mixed known and new versions",
+			obj: makeCRD("hypershift.openshift.io", "hostedclusters", []interface{}{
+				map[string]interface{}{"name": "v1beta1", "served": true, "storage": true},
+				map[string]interface{}{"name": "v1", "served": true, "storage": false},
+			}),
+			knownGVRs: sets.New(
+				schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1beta1", Resource: "hostedclusters"},
+			),
+			want: sets.New(
+				schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1", Resource: "hostedclusters"},
+			),
+		},
+		{
+			name:      "non-unstructured object returns nil",
+			obj:       "not-an-unstructured",
+			knownGVRs: sets.New[schema.GroupVersionResource](),
+			want:      nil,
+		},
+		{
+			name: "subdomain matching group",
+			obj: makeCRD("infrastructure.cluster.x-k8s.io", "azureclusters", []interface{}{
+				map[string]interface{}{"name": "v1beta1", "served": true, "storage": true},
+			}),
+			knownGVRs: sets.New[schema.GroupVersionResource](),
+			want: sets.New(
+				schema.GroupVersionResource{Group: "infrastructure.cluster.x-k8s.io", Version: "v1beta1", Resource: "azureclusters"},
+			),
+		},
+		{
+			name: "CRD missing spec.group",
+			obj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"names": map[string]interface{}{
+							"plural": "things",
+						},
+						"versions": []interface{}{
+							map[string]interface{}{"name": "v1", "served": true},
+						},
+					},
+				},
+			},
+			knownGVRs: sets.New[schema.GroupVersionResource](),
+			want:      nil,
+		},
+		{
+			name: "CRD with multiple served versions all new",
+			obj: makeCRD("work.open-cluster-management.io", "manifestworks", []interface{}{
+				map[string]interface{}{"name": "v1", "served": true, "storage": true},
+				map[string]interface{}{"name": "v2", "served": true, "storage": false},
+			}),
+			knownGVRs: sets.New[schema.GroupVersionResource](),
+			want: sets.New(
+				schema.GroupVersionResource{Group: "work.open-cluster-management.io", Version: "v1", Resource: "manifestworks"},
+				schema.GroupVersionResource{Group: "work.open-cluster-management.io", Version: "v2", Resource: "manifestworks"},
+			),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := newMatchingGVRsFromCRD(tt.obj, tt.knownGVRs)
+			if !got.Equal(tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

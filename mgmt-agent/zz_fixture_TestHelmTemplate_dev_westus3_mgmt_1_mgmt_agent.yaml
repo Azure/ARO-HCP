@@ -34,6 +34,13 @@ rules:
   verbs:
   - patch
   - update
+- apiGroups:
+  - "*"
+  resources:
+  - "*"
+  verbs:
+  - list
+  - watch
 ---
 # Source: mgmt-agent/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -141,6 +148,7 @@ spec:
         - controller
         - "--health-address=:8080"
         - "-v=2"
+        - "-logging-format=json"
         image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
         name: mgmt-agent-controller
         env:
