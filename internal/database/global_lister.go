@@ -40,6 +40,7 @@ type ResourcesGlobalListers interface {
 	Clusters() GlobalLister[api.HCPOpenShiftCluster]
 	NodePools() GlobalLister[api.HCPOpenShiftClusterNodePool]
 	ExternalAuths() GlobalLister[api.HCPOpenShiftClusterExternalAuth]
+	SystemAdminCredentials() GlobalLister[api.SystemAdminCredential]
 	ServiceProviderClusters() GlobalLister[api.ServiceProviderCluster]
 	ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool]
 	Controllers() GlobalLister[api.Controller]
@@ -89,6 +90,13 @@ func (g *cosmosResourcesGlobalListers) ExternalAuths() GlobalLister[api.HCPOpenS
 	return &cosmosGlobalLister[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]]{
 		containerClient: g.resources,
 		resourceTypes:   []azcorearm.ResourceType{api.ExternalAuthResourceType},
+	}
+}
+
+func (g *cosmosResourcesGlobalListers) SystemAdminCredentials() GlobalLister[api.SystemAdminCredential] {
+	return &cosmosGlobalLister[api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]]{
+		containerClient: g.resources,
+		resourceType:    api.SystemAdminCredentialResourceType,
 	}
 }
 
