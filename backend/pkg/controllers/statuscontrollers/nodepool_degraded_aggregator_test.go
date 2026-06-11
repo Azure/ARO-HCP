@@ -82,7 +82,6 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 			"/resourceGroups/" + testResourceGroupName +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
-	_ = parentClusterID
 
 	tests := []struct {
 		name string
@@ -211,8 +210,8 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 			clock := clocktesting.NewFakePassiveClock(fixedNow)
 			syncer := &nodePoolDegradedAggregator{
 				cooldownChecker:   alwaysSyncCooldownChecker{},
-				nodePoolLister:    &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{existing}},
-				controllerLister:  &listertesting.SliceControllerLister{Controllers: tc.controllers},
+				nodePoolLister:    &listertesting.DBNodePoolLister{ResourcesDBClient: mockDB},
+				controllerLister:  &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient: mockDB,
 				inertia:           tc.inertia,
 				clock:             clock,

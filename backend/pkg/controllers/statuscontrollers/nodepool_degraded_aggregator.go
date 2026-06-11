@@ -124,7 +124,11 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 	}
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
-	if _, err := nodePoolCRUD.Replace(ctx, replacement, nil); err != nil {
+	_, err = nodePoolCRUD.Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace NodePool: %w", err))
 	}
 	return nil
