@@ -162,18 +162,21 @@ spec:
     # Stuck Operations Alert (non-paging for now per approver request)
     # ----------------------------------------
     # Operations stuck in non-terminal phases are invisible to success/failure SLIs.
+    # Threshold: 2 hours (7200s) with 15m sustained observation to filter
+    # slow-but-completing operations from genuinely stuck ones.
     - alert: UJNodePoolStuckOperation
       expr: |
         (
           (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
           and
           backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1
-        ) > 3600
+        ) > 7200
+      for: 15m
       labels:
         severity: info
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 1 hour"
-        description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        summary: "{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours"
+        description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-nodepool"
   # ========================================
   # Node Pool User Journey Alerts — Saturation

@@ -147,13 +147,14 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         annotations: {
           correlationId: 'UJNodePoolStuckOperation/{{ $labels.cluster }}'
-          description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
-          info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
+          info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'aka.ms/arohcp-runbook-nodepool'
-          summary: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 1 hour'
-          title: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 1 hour'
+          summary: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours'
+          title: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours'
         }
-        expression: '( (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1 ) > 3600'
+        expression: '( (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1 ) > 7200'
+        for: 'PT15M'
         severity: 4
       }
     ]
