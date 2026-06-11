@@ -26,6 +26,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 
+	"github.com/blang/semver/v4"
+
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -164,19 +166,43 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if len(version) == 0 {
 		channelGroup := DefaultOpenshiftNodePoolChannelGroup()
-		if channelGroup == DefaultOpenshiftChannelGroup() {
-			return DefaultOpenshiftControlPlaneVersionId()
+		cpChannelGroup := DefaultOpenshiftChannelGroup()
+		cpVersion := DefaultOpenshiftControlPlaneVersionId()
+
+		// CRITICAL: When channel groups match, ALWAYS use the control plane version
+		// to prevent version mismatches due to Cincinnati timing differences.
+		// This ensures node pool version never exceeds control plane version.
+		if channelGroup == cpChannelGroup {
+			return cpVersion
 		}
-		if channelGroup != "stable" {
-			var err error
-			version, err = GetLatestInstallVersion(context.Background(), channelGroup, DefaultOCPVersionId)
-			if err != nil {
-				if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrVersionNotFound) {
-					Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", version, channelGroup, err.Error()))
-				} else {
-					Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", channelGroup, err.Error()))
-				}
+
+		// Different channel groups: resolve node pool version from its own channel,
+		// then validate it doesn't exceed control plane version
+		var err error
+		version, err = GetLatestInstallVersion(context.Background(), channelGroup, DefaultOCPVersionId)
+		if err != nil {
+			if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) || errors.Is(err, ErrVersionNotFound) {
+				Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", DefaultOCPVersionId, channelGroup, err.Error()))
+			} else {
+				Fail(fmt.Sprintf("failed to get latest install version for %s channel: %s", channelGroup, err.Error()))
 			}
+		}
+
+		// Validate: node pool version must not exceed control plane version
+		npSemver, npErr := semver.Parse(version)
+		cpSemver, cpErr := semver.Parse(cpVersion)
+
+		if npErr == nil && cpErr == nil {
+			if npSemver.GT(cpSemver) {
+				// Node pool version exceeds control plane version - clamp it
+				fmt.Fprintf(os.Stderr, "WARNING: Node pool version %s (from %s channel) exceeds control plane version %s (from %s channel). Clamping to control plane version.\n",
+					version, channelGroup, cpVersion, cpChannelGroup)
+				version = cpVersion
+			}
+		} else {
+			// Couldn't parse versions for comparison - log warning but continue
+			fmt.Fprintf(os.Stderr, "WARNING: Could not compare versions (np=%s, cp=%s). Proceeding with node pool version from %s channel.\n",
+				version, cpVersion, channelGroup)
 		}
 	}
 	return version
