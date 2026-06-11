@@ -2757,6 +2757,21 @@
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
         },
+        "stamps": {
+          "type": "object",
+          "description": "Management cluster stamp configuration",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "description": "Number of management cluster stamps per region",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "count"
+          ]
+        },
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
@@ -2773,6 +2788,7 @@
         "aks",
         "applyKubeletFixes",
         "rg",
+        "stamps",
         "subscription",
         "prometheus"
       ]

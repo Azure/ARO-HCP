@@ -1,7 +1,7 @@
-github.com/Azure/ARO-Tools/testutil v0.0.0-20260602125010-e7c9d4923e48 h1:JgKnaIucbLA8zaA/m2VuvEyAHLHoPX1hNiTI+351Meo=
-github.com/Azure/ARO-Tools/testutil v0.0.0-20260602125010-e7c9d4923e48/go.mod h1:6V1kLTbkz3TLTspxt7fAI8Xy4EdBdsvLR5mk0gkry7k=
-github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260602125010-e7c9d4923e48 h1:NX7ynQv112m2ic5uPXTmoBH9QILCypo176dYwHvcJsY=
-github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260602125010-e7c9d4923e48/go.mod h1:YJiBh5aw2nJxA1smdlXqb7AnA6wYrMumf7k6VU6dQ/U=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260610092330-540aed112471 h1:t7S7ppUcLGqkfihM1g3pwLyfGBYJAIYEsQDBO5bdAb0=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260610092330-540aed112471/go.mod h1:6V1kLTbkz3TLTspxt7fAI8Xy4EdBdsvLR5mk0gkry7k=
+github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260610092330-540aed112471 h1:Q4I8PuDJNFmNlcRYgAbWgXloDOtEKSba9yAVZdhALn8=
+github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260610092330-540aed112471/go.mod h1:YJiBh5aw2nJxA1smdlXqb7AnA6wYrMumf7k6VU6dQ/U=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
