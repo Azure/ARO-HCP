@@ -301,6 +301,34 @@ func TestDetermineOperationStatus(t *testing.T) {
 			expectedMessage: "",
 		},
 		{
+			name: "4.23 bypass: Available=False with 4.23.0 history → Succeeded",
+			clusterLister: &listertesting.SliceClusterLister{
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+			},
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionFalse, Reason: "ComponentsNotAvailable", Message: "Waiting for components to be available: router"},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.23.0", State: configv1.PartialUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			expectedState:   arm.ProvisioningStateSucceeded,
+			expectedMessage: "",
+		},
+		{
 			name: "cluster API URL empty → Provisioning (lowest priority wins)",
 			clusterLister: &listertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("")},
@@ -406,7 +434,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
 								History: []v1beta1.ControlPlaneUpdateHistory{
-									{Version: "4.23.0", State: configv1.PartialUpdate},
+									{Version: "4.24.0", State: configv1.PartialUpdate},
 								},
 							},
 						},
@@ -481,7 +509,7 @@ func TestDetermineOperationStatus(t *testing.T) {
 							},
 							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
 								History: []v1beta1.ControlPlaneUpdateHistory{
-									{Version: "4.23.0", State: configv1.PartialUpdate},
+									{Version: "4.24.0", State: configv1.PartialUpdate},
 								},
 							},
 							ControlPlaneEndpoint: v1beta1.APIEndpoint{

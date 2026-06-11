@@ -229,6 +229,7 @@ var minVersionsWithValidSuccessCondition = map[string]semver.Version{
 	"4.20": api.Must(semver.Parse("4.20.999")),
 	"4.21": api.Must(semver.Parse("4.21.999")),
 	"4.22": api.Must(semver.Parse("4.22.999")),
+	"4.23": api.Must(semver.Parse("4.23.999")),
 	"5.0":  api.Must(semver.Parse("5.0.999")),
 }
 
