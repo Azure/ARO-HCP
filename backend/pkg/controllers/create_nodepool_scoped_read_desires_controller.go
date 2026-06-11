@@ -71,6 +71,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 		"CreateNodePoolScopedReadDesires",
 		resourcesDBClient,
 		informers,
+		nil, // do not fire on ReadDesires this controller itself creates
 		1*time.Minute,
 		syncer,
 	)

@@ -95,6 +95,34 @@ func (l *DBNodePoolLister) ListForCluster(ctx context.Context, subscriptionID, r
 	return collectFromIterator(ctx, iter)
 }
 
+// DBServiceProviderNodePoolLister implements listers.ServiceProviderNodePoolLister backed by a database.ResourcesDBClient.
+type DBServiceProviderNodePoolLister struct {
+	ResourcesDBClient database.ResourcesDBClient
+}
+
+var _ listers.ServiceProviderNodePoolLister = &DBServiceProviderNodePoolLister{}
+
+func (l *DBServiceProviderNodePoolLister) List(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
+	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ServiceProviderNodePools().List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return collectFromIterator(ctx, iter)
+}
+
+func (l *DBServiceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.ServiceProviderNodePool, error) {
+	return l.ResourcesDBClient.ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName).
+		Get(ctx, api.ServiceProviderNodePoolResourceName)
+}
+
+func (l *DBServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.ServiceProviderNodePool, error) {
+	iter, err := l.ResourcesDBClient.ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName).List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return collectFromIterator(ctx, iter)
+}
+
 // DBActiveOperationLister implements listers.ActiveOperationLister backed by a database.ResourcesDBClient.
 type DBActiveOperationLister struct {
 	ResourcesDBClient database.ResourcesDBClient

@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -52,6 +53,7 @@ func NewNodePoolChildResourcesCleanupController(
 	kubeApplierDBClients database.KubeApplierDBClients,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	syncer := &nodePoolChildResourcesCleanupController{
@@ -65,6 +67,7 @@ func NewNodePoolChildResourcesCleanupController(
 		"NodePoolChildResourcesCleanupController",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		time.Minute,
 		syncer,
 	)

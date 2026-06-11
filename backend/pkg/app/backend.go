@@ -624,9 +624,17 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
+		activeOperationLister,
+		subscriptionLister,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
+	)
+	nodePoolActiveVersionController := upgradecontrollers.NewNodePoolActiveVersionController(
+		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
 	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
@@ -634,6 +642,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	placementSyncController := managementclustercontrollers.NewManagementClusterPlacementSyncController(
 		b.options.ResourcesDBClient,
@@ -650,23 +659,27 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolClusterServiceIDClearerController := nodepooldeletion.NewNodePoolClusterServiceIDClearerController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolChildResourcesCleanupController := nodepooldeletion.NewNodePoolChildResourcesCleanupController(
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	externalAuthDeletionClusterServiceDeleteDispatchController := externalauthdeletion.NewExternalAuthClusterServiceDeleteDispatchController(
@@ -781,6 +794,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
+				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
