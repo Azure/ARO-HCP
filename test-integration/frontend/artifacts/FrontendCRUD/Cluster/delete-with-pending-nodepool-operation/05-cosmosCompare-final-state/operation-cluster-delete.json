@@ -5,7 +5,7 @@
 		"request": "Delete",
 		"status": "Deleting",
 		"tenantId": "00000000-0000-0000-0000-000000000000",
-		"usesNewClusterDeletionApproach": false,
+		"usesNewClusterDeletionApproach": true,
 		"usesNewExternalAuthDeletionApproach": false,
 		"usesNewNodePoolDeletionApproach": false
 	},
