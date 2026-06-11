@@ -231,9 +231,9 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 // control plane validation success.
 var minVersionsWithValidSuccessCondition = map[string]semver.Version{
 	"4.19": api.Must(semver.Parse("4.19.999")),
-	"4.20": api.Must(semver.Parse("4.20.999")),
-	"4.21": api.Must(semver.Parse("4.21.999")),
-	"4.22": api.Must(semver.Parse("4.22.999")),
+	"4.20": api.Must(semver.Parse("4.20.15")),
+	"4.21": api.Must(semver.Parse("4.21.1")),
+	"4.22": api.Must(semver.Parse("4.22.0")),
 }
 
 func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
