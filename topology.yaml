@@ -68,6 +68,9 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
           pipelinePath: mgmt-agent/pipeline.yaml
           purpose: Deploy the Management Agent.
+        - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet.Registration
+          pipelinePath: fleet/registration/pipeline.yaml
+          purpose: Register the stamp and management cluster in CosmosDB.
         pipelinePath: dev-infrastructure/mgmt-pipeline.yaml
         purpose: Deploy a management cluster and backing infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
