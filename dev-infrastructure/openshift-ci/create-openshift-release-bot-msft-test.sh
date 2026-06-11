@@ -4,7 +4,7 @@ set -euo pipefail
 APPLICATION_NAME="OpenShift Release Bot MSFT Test"
 SUBSCRIPTIONS=(
     "ARO HCP E2E"
-    "ARO HCP E2E - Staging"
+    "ARO HCP E2E Hosted Clusters - Stage - 00"
 )
 
 # Role assignment condition to prevent assigning privileged administrator roles

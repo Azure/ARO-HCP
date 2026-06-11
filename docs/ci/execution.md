@@ -192,7 +192,7 @@ flowchart LR
         subgraph stgTestTenant["Test Test tenant"]
             direction TB
             stgId["OpenShift Release Bot MSFT Test<br/>service principal"]
-            subgraph stgTestSub["Testing subscription<br/>ARO HCP E2E - Staging"]
+            subgraph stgTestSub["Testing subscription<br/>ARO HCP E2E Hosted Clusters - Stage - 00"]
                 direction TB
                 stgTestSubPad[".<br/>."]
                 subgraph stgRg["Test resource group"]

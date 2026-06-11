@@ -133,7 +133,7 @@ setup_test_tenant() {
     local DIRECTORY_QUOTA=false
     local SUBSCRIPTIONS=(
         "ARO HCP E2E"
-        "ARO HCP E2E - Staging"
+        "ARO HCP E2E Hosted Clusters - Stage - 00"
     )
 
     create_or_get_sp "${APPLICATION_NAME}"

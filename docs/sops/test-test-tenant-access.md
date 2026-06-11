@@ -6,7 +6,7 @@ This document provides instructions for requesting and obtaining access to the *
 
 The **Test Test Azure Red Hat OpenShift** tenant (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`) is a Microsoft-managed Azure Active Directory tenant used exclusively for E2E testing of the ARO HCP service. This tenant hosts the following subscriptions:
 
-- **ARO HCP E2E - Staging** (Subscription ID: `99399281-00a2-4b39-bb3d-b2645bbbdb93`)
+- **ARO HCP E2E Hosted Clusters - Stage - 00** (Subscription ID: `dee2f1be-a999-4e19-b027-221e7adaf7d3`)
 - **ARO HCP E2E** (Subscription ID: `403d9de9-132b-4974-94a5-5b78bdfa191e`)
 
 ## When Access is Needed
@@ -47,7 +47,7 @@ Access to the Test Test Azure Red Hat OpenShift tenant is granted through **emai
 ### 2. Access Level
 
 Once invited, you will typically receive **Contributor** access to:
-- **ARO HCP E2E - Staging** (Subscription ID: `99399281-00a2-4b39-bb3d-b2645bbbdb93`)
+- **ARO HCP E2E Hosted Clusters - Stage - 00** (Subscription ID: `dee2f1be-a999-4e19-b027-221e7adaf7d3`)
 - **ARO HCP E2E** (Subscription ID: `403d9de9-132b-4974-94a5-5b78bdfa191e`)
 
 ### 3. Accepting the Invitation
@@ -83,15 +83,15 @@ Once approved, verify your access:
    
    You should see:
    ```
-   Name                       CloudName    SubscriptionId                        State    IsDefault
-   -------------------------  -----------  ------------------------------------  -------  -----------
-   ARO HCP E2E - Staging      AzureCloud   99399281-00a2-4b39-bb3d-b2645bbbdb93  Enabled  False
-   ARO HCP E2E                AzureCloud   403d9de9-132b-4974-94a5-5b78bdfa191e  Enabled  False
+   Name                                       CloudName    SubscriptionId                        State    IsDefault
+   -----------------------------------------  -----------  ------------------------------------  -------  -----------
+   ARO HCP E2E Hosted Clusters - Stage - 00   AzureCloud   dee2f1be-a999-4e19-b027-221e7adaf7d3  Enabled  False
+   ARO HCP E2E                                AzureCloud   403d9de9-132b-4974-94a5-5b78bdfa191e  Enabled  False
    ```
 
 3. **Set the subscription**
    ```bash
-   az account set --subscription "ARO HCP E2E - Staging"
+   az account set --subscription "ARO HCP E2E Hosted Clusters - Stage - 00"
    ```
 
 4. **Verify you can list resources**
@@ -125,7 +125,7 @@ ARO HCP uses **OpenShift CI Cluster Profiles** to manage multi-tenant authentica
 | Environment | Cluster Profile | Azure Subscription | Vault Secret Path | K8s Secret Name |
 |-------------|----------------|-------------------|-------------------|-----------------|
 | **INT** | `aro-hcp-int` | MSIT INT | `selfservice/hcm-aro/aro-hcp-int` | `cluster-secrets-aro-hcp-int` |
-| **STAGE** | `aro-hcp-stg` | ARO HCP E2E - Staging<br>`99399281-00a2-4b39-bb3d-b2645bbbdb93` | `selfservice/hcm-aro/aro-hcp-stg` | `cluster-secrets-aro-hcp-stg` |
+| **STAGE** | `aro-hcp-stg` | ARO HCP E2E Hosted Clusters - Stage - 00<br>`dee2f1be-a999-4e19-b027-221e7adaf7d3` | `selfservice/hcm-aro/aro-hcp-stg` | `cluster-secrets-aro-hcp-stg` |
 | **PROD** | `aro-hcp-prod` | ARO HCP E2E<br>`403d9de9-132b-4974-94a5-5b78bdfa191e` | `selfservice/hcm-aro/aro-hcp-prod` | `cluster-secrets-aro-hcp-prod` |
 
 **STAGE and PROD** use the **Test Test Azure Red Hat OpenShift tenant** (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`).
@@ -317,7 +317,7 @@ Boskos leases control how many E2E tests can run concurrently. Each test must ac
 If you need to request quota increases for new regions or resources:
 
 1. Navigate to [Azure Portal](https://portal.azure.com)
-2. Select **Subscriptions** → **ARO HCP E2E - Staging** (or **ARO HCP E2E** for prod)
+2. Select **Subscriptions** → **ARO HCP E2E Hosted Clusters - Stage - 00** (or **ARO HCP E2E** for prod)
 3. In the left menu, select **Usage + quotas**
 4. Find the quota you need to increase (e.g., "Total Regional vCPUs")
 5. Click the pencil icon and request a new limit
