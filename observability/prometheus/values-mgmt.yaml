@@ -101,6 +101,7 @@ kube-prometheus-stack:
               namespace: [metadata, namespace]
               api_url: [spec, services, "[service=APIServer]", servicePublishingStrategy, route, hostname]
               _id: [spec, clusterID]
+              subscription_id: [spec, platform, azure, subscriptionID]
             metrics:
             - name: "kubeapiserver_available"
               help: "KubeAPIServer availability condition"

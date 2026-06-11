@@ -67656,6 +67656,11 @@ data:
           namespace:
           - metadata
           - namespace
+          subscription_id:
+          - spec
+          - platform
+          - azure
+          - subscriptionID
         metricNamePrefix: hostedClusterAPI
         metrics:
         - each:
