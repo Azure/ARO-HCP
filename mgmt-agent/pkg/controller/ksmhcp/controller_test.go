@@ -15,43 +15,13 @@
 package ksmhcp
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/Azure/ARO-Tools/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
-
-func compareWithFixture(t *testing.T, obj interface{}) {
-	t.Helper()
-	got, err := yaml.Marshal(obj)
-	if err != nil {
-		t.Fatalf("failed to marshal object: %v", err)
-	}
-
-	golden := filepath.Join("testdata", "zz_fixture_"+t.Name()+".yaml")
-	if os.Getenv("UPDATE") != "" {
-		if err := os.MkdirAll(filepath.Dir(golden), 0755); err != nil {
-			t.Fatalf("failed to create fixture directory: %v", err)
-		}
-		if err := os.WriteFile(golden, got, 0644); err != nil {
-			t.Fatalf("failed to write fixture: %v", err)
-		}
-	}
-
-	want, err := os.ReadFile(golden)
-	if err != nil {
-		t.Fatalf("failed to read fixture %s (run with UPDATE=true to create): %v", golden, err)
-	}
-
-	if diff := cmp.Diff(string(want), string(got)); diff != "" {
-		t.Errorf("got diff between expected and actual result:\nfile: %s\ndiff:\n%s\n\nIf this is expected, re-run the test with `UPDATE=true go test ./...` to update the fixtures.", golden, diff)
-	}
-}
 
 func TestIsKubeAPIServerAvailable(t *testing.T) {
 	tests := []struct {
@@ -117,7 +87,7 @@ func TestBuildDeployment(t *testing.T) {
 		},
 	)
 
-	compareWithFixture(t, dep)
+	testutil.CompareWithFixture(t, dep)
 }
 
 func TestBuildService(t *testing.T) {
@@ -128,7 +98,7 @@ func TestBuildService(t *testing.T) {
 		UID:        "uid-123",
 	})
 
-	compareWithFixture(t, svc)
+	testutil.CompareWithFixture(t, svc)
 }
 
 func TestBuildServiceMonitor(t *testing.T) {
@@ -142,5 +112,5 @@ func TestBuildServiceMonitor(t *testing.T) {
 		t.Fatalf("buildServiceMonitor() error: %v", err)
 	}
 
-	compareWithFixture(t, sm)
+	testutil.CompareWithFixture(t, sm)
 }
