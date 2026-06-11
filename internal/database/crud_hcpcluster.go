@@ -113,6 +113,7 @@ type HCPClusterCRUD interface {
 
 	ExternalAuth(hcpClusterID string) ExternalAuthsCRUD
 	NodePools(hcpClusterID string) NodePoolsCRUD
+	SystemAdminCredentials(hcpClusterID string) ResourceCRUD[api.SystemAdminCredential]
 }
 
 func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID, resourceGroupName string) HCPClusterCRUD {
@@ -165,6 +166,22 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 			api.ExternalAuthResourceType,
 		),
 	}
+}
+
+func (h *hcpClusterCRUD) SystemAdminCredentials(hcpClusterName string) ResourceCRUD[api.SystemAdminCredential] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			h.parentResourceID.String(),
+			"providers",
+			h.resourceType.Namespace,
+			h.resourceType.Type,
+			hcpClusterName)))
+
+	return NewCosmosResourceCRUD[api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]](
+		h.containerClient,
+		parentResourceID,
+		api.SystemAdminCredentialResourceType,
+	)
 }
 
 func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
