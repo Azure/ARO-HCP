@@ -400,7 +400,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		"ClusterMetrics", clusterInformer, clusterHandler)
 
 	serviceProviderClusterInformer, _ := backendInformers.ServiceProviderClusters()
-	clusterVersionMetricsHandler := metricscontrollers.NewClusterVersionMetricsHandler(b.options.MetricsRegisterer)
+	clusterVersionMetricsHandler := metricscontrollers.NewClusterVersionMetricsHandler(b.options.MetricsRegisterer, unionReadDesireLister)
 	clusterVersionMetricsController := metricscontrollers.NewController(
 		"ClusterVersionMetrics", serviceProviderClusterInformer, clusterVersionMetricsHandler)
 

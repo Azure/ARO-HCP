@@ -22,28 +22,37 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterVersionMetricsHandler struct {
 	clusterVersionInfo *prometheus.GaugeVec
+	readDesireLister   dblisters.ReadDesireLister
 }
 
 // NewClusterVersionMetricsHandler creates a metrics handler for cluster version metrics.
-func NewClusterVersionMetricsHandler(prometheusRegisterer prometheus.Registerer) Handler[*api.ServiceProviderCluster] {
+func NewClusterVersionMetricsHandler(
+	prometheusRegisterer prometheus.Registerer,
+	readDesireLister dblisters.ReadDesireLister,
+) Handler[*api.ServiceProviderCluster] {
 	metricsHandler := &clusterVersionMetricsHandler{
+		readDesireLister: readDesireLister,
 		clusterVersionInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_version_info",
 			Help: "Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, upgrade not started), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics; desired is pre-upgrade only.",
-		}, []string{"resource_id", "subscription_id", "version", "state"}),
+		}, []string{"resource_id", "subscription_id", "cluster_uuid", "version", "state"}),
 	}
 	prometheusRegisterer.MustRegister(metricsHandler.clusterVersionInfo)
 	return metricsHandler
 }
 
-func (metricsHandler *clusterVersionMetricsHandler) Sync(_ context.Context, serviceProviderCluster *api.ServiceProviderCluster) {
+func (metricsHandler *clusterVersionMetricsHandler) Sync(ctx context.Context, serviceProviderCluster *api.ServiceProviderCluster) {
 	resourceID := resourceIDMetricLabel(serviceProviderCluster.ResourceID.Parent)
 	subscriptionID := subscriptionIDMetricLabel(serviceProviderCluster.ResourceID.Parent)
+	clusterUUID := metricsHandler.clusterUUIDMetricLabel(ctx, serviceProviderCluster.ResourceID.Parent)
 
 	metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
 
@@ -51,6 +60,7 @@ func (metricsHandler *clusterVersionMetricsHandler) Sync(_ context.Context, serv
 		metricsHandler.clusterVersionInfo.With(prometheus.Labels{
 			"resource_id":     resourceID,
 			"subscription_id": subscriptionID,
+			"cluster_uuid":    clusterUUID,
 			"version":         version,
 			"state":           state,
 		}).Set(1.0)
@@ -69,6 +79,31 @@ func (metricsHandler *clusterVersionMetricsHandler) Delete(serviceProviderCluste
 	metricsHandler.clusterVersionInfo.DeletePartialMatch(prometheus.Labels{
 		"resource_id": resourceIDMetricLabel(serviceProviderClusterResourceID.Parent),
 	})
+}
+
+func (metricsHandler *clusterVersionMetricsHandler) clusterUUIDMetricLabel(
+	ctx context.Context,
+	clusterResourceID *azcorearm.ResourceID,
+) string {
+	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(
+		ctx,
+		metricsHandler.readDesireLister,
+		clusterResourceID.SubscriptionID,
+		clusterResourceID.ResourceGroupName,
+		clusterResourceID.Name,
+	)
+	if err != nil {
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
+	}
+	if !found {
+		logger := utils.LoggerFromContext(ctx)
+		logger.Info("missing cluster UUID, continuing with empty")
+	}
+	if err != nil || !found {
+		return ""
+	}
+	return strings.ToLower(clusterUUID.String())
 }
 
 func (metricsHandler *clusterVersionMetricsHandler) versionStatesFromServiceProviderCluster(serviceProviderCluster *api.ServiceProviderCluster) map[string]string {
