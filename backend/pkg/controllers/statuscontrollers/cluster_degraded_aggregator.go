@@ -143,7 +143,11 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
-	if _, err := clusterCRUD.Replace(ctx, replacement, nil); err != nil {
+	_, err = clusterCRUD.Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 	return nil

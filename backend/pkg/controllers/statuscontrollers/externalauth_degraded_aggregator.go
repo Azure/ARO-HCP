@@ -124,7 +124,11 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 	}
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
-	if _, err := externalAuthCRUD.Replace(ctx, replacement, nil); err != nil {
+	_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
 	}
 	return nil
