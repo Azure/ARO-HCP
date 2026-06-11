@@ -44,7 +44,11 @@ import (
 	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 )
 
-const testClusterUUID = "11111111-1111-1111-1111-111111111111"
+func expectedBackendClusterVersionInfoMetricHeader() string {
+	return `# HELP backend_cluster_version_info Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, but version hasn't reflected in the cluster active versions), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics.
+# TYPE backend_cluster_version_info gauge
+`
+}
 
 func newTestClusterVersionMetricsHandler(t *testing.T, prometheusRegistry *prometheus.Registry, readDesireLister dblisters.ReadDesireLister) Handler[*api.ServiceProviderCluster] {
 	t.Helper()
@@ -118,7 +122,7 @@ func newTestServiceProviderCluster(
 func TestClusterVersionMetricsHandler_SetsDesiredAndActiveVersions(t *testing.T) {
 	ctx := context.Background()
 	prometheusRegistry := prometheus.NewRegistry()
-	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, testClusterUUID))
+	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
 	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{
@@ -130,18 +134,16 @@ func TestClusterVersionMetricsHandler_SetsDesiredAndActiveVersions(t *testing.T)
 	resourceID := resourceIDMetricLabel(cluster.ID)
 	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
 
-	expected := fmt.Sprintf(`# HELP backend_cluster_version_info Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, upgrade not started), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics; desired is pre-upgrade only.
-# TYPE backend_cluster_version_info gauge
-backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.19"} 1
+	expected := expectedBackendClusterVersionInfoMetricHeader() + fmt.Sprintf(`backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.19"} 1
 backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="partial",subscription_id="%s",version="4.19.20"} 1
-`, testClusterUUID, resourceID, subscriptionID, testClusterUUID, resourceID, subscriptionID)
+`, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
 }
 
 func TestClusterVersionMetricsHandler_ReplacesDesiredWhenVersionBecomesActive(t *testing.T) {
 	ctx := context.Background()
 	prometheusRegistry := prometheus.NewRegistry()
-	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, testClusterUUID))
+	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
 	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{
@@ -152,17 +154,41 @@ func TestClusterVersionMetricsHandler_ReplacesDesiredWhenVersionBecomesActive(t 
 	resourceID := resourceIDMetricLabel(cluster.ID)
 	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
 
-	expected := fmt.Sprintf(`# HELP backend_cluster_version_info Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, upgrade not started), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics; desired is pre-upgrade only.
-# TYPE backend_cluster_version_info gauge
+	expected := expectedBackendClusterVersionInfoMetricHeader() + fmt.Sprintf(`backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.20"} 1
+`, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID)
+	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
+}
+
+func TestClusterVersionMetricsHandler_VersionStateTransitionDeletesOldSeries(t *testing.T) {
+	ctx := context.Background()
+	prometheusRegistry := prometheus.NewRegistry()
+	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
+
+	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{
+		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
+		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.PartialUpdate},
+	})
+	handler.Sync(ctx, serviceProviderCluster)
+
+	serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions = []api.HCPClusterActiveVersion{
+		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
+		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.CompletedUpdate},
+	}
+	handler.Sync(ctx, serviceProviderCluster)
+
+	resourceID := resourceIDMetricLabel(cluster.ID)
+	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
+	expected := expectedBackendClusterVersionInfoMetricHeader() + fmt.Sprintf(`backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.19"} 1
 backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.20"} 1
-`, testClusterUUID, resourceID, subscriptionID)
+`, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
 }
 
 func TestClusterVersionMetricsHandler_DeleteCleansUpMetrics(t *testing.T) {
 	ctx := context.Background()
 	prometheusRegistry := prometheus.NewRegistry()
-	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, testClusterUUID))
+	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
 	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", nil)
@@ -178,7 +204,7 @@ func TestClusterVersionMetricsHandler_DeleteCleansUpMetrics(t *testing.T) {
 func TestClusterVersionMetricsController_SyncResource(t *testing.T) {
 	ctx := context.Background()
 	prometheusRegistry := prometheus.NewRegistry()
-	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, testClusterUUID))
+	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
 	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{
@@ -200,17 +226,15 @@ func TestClusterVersionMetricsController_SyncResource(t *testing.T) {
 
 	resourceID := resourceIDMetricLabel(cluster.ID)
 	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
-	expected := fmt.Sprintf(`# HELP backend_cluster_version_info Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, upgrade not started), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics; desired is pre-upgrade only.
-# TYPE backend_cluster_version_info gauge
-backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.20"} 1
-`, testClusterUUID, resourceID, subscriptionID)
+	expected := expectedBackendClusterVersionInfoMetricHeader() + fmt.Sprintf(`backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="completed",subscription_id="%s",version="4.19.20"} 1
+`, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID)
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
 }
 
 func TestClusterVersionMetricsController_DeletesMetricsWhenResourceRemoved(t *testing.T) {
 	ctx := context.Background()
 	prometheusRegistry := prometheus.NewRegistry()
-	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, testClusterUUID))
+	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
 
 	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
 	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "4.19.20", []api.HCPClusterActiveVersion{

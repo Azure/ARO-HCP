@@ -42,7 +42,7 @@ func NewClusterVersionMetricsHandler(
 		readDesireLister: readDesireLister,
 		clusterVersionInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_version_info",
-			Help: "Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, upgrade not started), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics; desired is pre-upgrade only.",
+			Help: "Information about cluster versions. Value is 1 when version is in the specified state. States: desired (target selected, but version hasn't reflected in the cluster active versions), partial (upgrade in progress), completed (upgrade finished). Use partial and completed for fleet and upgrade-progress metrics.",
 		}, []string{"resource_id", "subscription_id", "cluster_uuid", "version", "state"}),
 	}
 	prometheusRegisterer.MustRegister(metricsHandler.clusterVersionInfo)
