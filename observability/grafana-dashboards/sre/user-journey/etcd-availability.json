@@ -123,6 +123,10 @@
       "title": "Fleet Total Stable Clusters (24h)",
       "transformations": [
         {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
           "id": "merge",
           "options": {}
         },
@@ -214,6 +218,10 @@
       "title": "Fleet Total Leader Changes (24h)",
       "transformations": [
         {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
           "id": "merge",
           "options": {}
         },
@@ -295,6 +303,10 @@
       ],
       "title": "Fleet Clusters Monitored",
       "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
         {
           "id": "merge",
           "options": {}
@@ -386,6 +398,10 @@
       "title": "Worst Cluster P99 WAL Fsync (5m)",
       "transformations": [
         {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
           "id": "merge",
           "options": {}
         },
@@ -475,6 +491,10 @@
       ],
       "title": "Worst Cluster P99 Backend Commit (5m)",
       "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
         {
           "id": "merge",
           "options": {}
@@ -566,6 +586,10 @@
       "title": "Worst Cluster P99 Peer RTT (5m)",
       "transformations": [
         {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
           "id": "merge",
           "options": {}
         },
@@ -655,6 +679,10 @@
       ],
       "title": "Fleet Worst Cluster DB Size",
       "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
         {
           "id": "merge",
           "options": {}

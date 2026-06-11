@@ -118,6 +118,10 @@
           "options": {}
         },
         {
+          "id": "merge",
+          "options": {}
+        },
+        {
           "id": "groupBy",
           "options": {
             "fields": {
@@ -217,6 +221,10 @@
       ],
       "title": "Completed Create Attempts (Window)",
       "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
         {
           "id": "merge",
           "options": {}
@@ -320,6 +328,10 @@
       "transformations": [
         {
           "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
           "options": {}
         },
         {
@@ -444,6 +456,10 @@
       "title": "Failed / Canceled Create Attempts (Window)",
       "transformations": [
         {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
           "id": "merge",
           "options": {}
         },
@@ -559,6 +575,10 @@
       "transformations": [
         {
           "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
           "options": {}
         },
         {
@@ -1010,6 +1030,10 @@
       "title": "Clusters by Provisioning State",
       "transformations": [
         {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
           "id": "merge",
           "options": {}
         }
@@ -1089,6 +1113,10 @@
       ],
       "title": "Create Ops Stuck > 20 min",
       "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
         {
           "id": "merge",
           "options": {}
@@ -1210,6 +1238,10 @@
       "transformations": [
         {
           "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
           "options": {}
         },
         {
@@ -1837,6 +1869,10 @@
       "transformations": [
         {
           "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
           "options": {}
         }
       ],
