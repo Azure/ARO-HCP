@@ -15,6 +15,7 @@
 package internal
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/fs"
@@ -51,6 +52,7 @@ type alertingRuleFile struct {
 	TestFileBaseName          string
 	Rules                     monitoringv1.PrometheusRule
 	TestFileContent           []byte
+	testDependency            bool
 }
 
 type GroupAlerts struct {
@@ -72,6 +74,7 @@ type Options struct {
 type PrometheusRulesConfig struct {
 	RulesFolders              []string       `json:"rulesFolders"`
 	UntestedRules             []string       `json:"untestedRules,omitempty"`
+	TestDependencies          []string       `json:"testDependencies,omitempty"`
 	OutputBicep               string         `json:"outputBicep"`
 	IncludedAlertsByGroup     []GroupAlerts  `json:"includedAlertsByGroup,omitempty"` // Optional: Only alerts listed here are included; if empty, all alerts are included
 	LabelsToExtract           []string       `json:"labelsToExtract,omitempty"`
@@ -172,6 +175,42 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 		})
 	}
 
+	for _, dep := range config.PrometheusRules.TestDependencies {
+		depPath := path.Join(baseDirectory, dep)
+		depRaw, err := os.ReadFile(depPath)
+		if err != nil {
+			return fmt.Errorf("error reading test dependency config %s: %w", depPath, err)
+		}
+		depConfig := &CliConfig{}
+		if err := yaml.Unmarshal(depRaw, depConfig); err != nil {
+			return fmt.Errorf("error unmarshaling test dependency config %s: %w", depPath, err)
+		}
+		depBase := path.Dir(depPath)
+		for _, rulesDir := range depConfig.PrometheusRules.RulesFolders {
+			err := filepath.WalkDir(path.Join(depBase, rulesDir), func(p string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if !d.Type().IsRegular() || strings.Contains(filepath.Base(p), "_test") {
+					return nil
+				}
+				rules, err := readRulesFile(p)
+				if err != nil {
+					return fmt.Errorf("error reading test dependency %s: %w", p, err)
+				}
+				o.ruleFiles = append(o.ruleFiles, alertingRuleFile{
+					FileBaseName:   filepath.Base(p),
+					Rules:          *rules,
+					testDependency: true,
+				})
+				return nil
+			})
+			if err != nil {
+				return fmt.Errorf("error loading test dependency rules from %s: %w", dep, err)
+			}
+		}
+	}
+
 	for _, rulesDir := range config.PrometheusRules.RulesFolders {
 		err = filepath.WalkDir(path.Join(baseDirectory, rulesDir), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -235,20 +274,35 @@ func (o *Options) RunTests() error {
 
 	logrus.Debugf("Created tempdir %s", dir)
 
+	// Write all rule files to the temp dir so that cross-file references
+	// in test rule_files lists are resolvable by promtool.
+	written := map[string][]byte{}
 	for _, irf := range o.ruleFiles {
-		if irf.TestFileBaseName == "" {
+		if irf.FileBaseName == "" {
 			continue
 		}
 		ruleGroups, err := yaml.Marshal(irf.Rules.Spec)
 		if err != nil {
 			return fmt.Errorf("error Marshalling rule groups %v", err)
 		}
-
-		tmpFile := fmt.Sprintf("%s%s%s", dir, string(os.PathSeparator), irf.FileBaseName)
-
-		err = os.WriteFile(tmpFile, ruleGroups, 0644)
-		if err != nil {
+		base := filepath.Base(irf.FileBaseName)
+		if prev, exists := written[base]; exists {
+			if !bytes.Equal(prev, ruleGroups) {
+				return fmt.Errorf("basename conflict: multiple rule files named %q have different content", base)
+			}
+			continue
+		}
+		written[base] = ruleGroups
+		tmpFile := filepath.Join(dir, base)
+		if err = os.WriteFile(tmpFile, ruleGroups, 0644); err != nil {
 			return fmt.Errorf("error writing rule groups file %v", err)
+		}
+	}
+
+	// Run tests for files that have a test file.
+	for _, irf := range o.ruleFiles {
+		if irf.TestFileBaseName == "" {
+			continue
 		}
 
 		fileNameParts := strings.Split(irf.FileBaseName, ".")
@@ -257,8 +311,7 @@ func (o *Options) RunTests() error {
 		}
 
 		testFile := filepath.Join(dir, irf.TestFileBaseName)
-		err = os.WriteFile(testFile, irf.TestFileContent, 0644)
-		if err != nil {
+		if err = os.WriteFile(testFile, irf.TestFileContent, 0644); err != nil {
 			return fmt.Errorf("error writing rule groups test file %v", err)
 		}
 		logrus.Debugf("running test %s", irf.TestFileBaseName)
@@ -268,7 +321,6 @@ func (o *Options) RunTests() error {
 			logrus.Error(string(output))
 			return fmt.Errorf("error running promtool %v", err)
 		}
-
 	}
 
 	return nil
@@ -348,6 +400,9 @@ param location string = resourceGroup().location
 	}
 
 	for _, irf := range o.ruleFiles {
+		if irf.testDependency {
+			continue
+		}
 		for _, group := range irf.Rules.Spec.Groups {
 			// Skip this group if not in includedAlerts
 			if len(o.includedAlerts) > 0 {

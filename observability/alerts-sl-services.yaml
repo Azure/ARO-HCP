@@ -15,6 +15,8 @@ prometheusRules:
   - ../observability/alerts/imageRegistryPolicy-prometheusRule.yaml
   - alerts/kusto-logs-age-prometheusRule.yaml
   untestedRules: []
+  testDependencies:
+  - recording-rules-services.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
   prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b
   outputReplacements:
