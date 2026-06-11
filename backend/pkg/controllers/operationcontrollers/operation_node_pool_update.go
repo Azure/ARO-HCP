@@ -87,6 +87,7 @@ func (c *operationNodePoolUpdate) ShouldProcess(ctx context.Context, operation *
 	if operation.ExternalID == nil || !strings.EqualFold(operation.ExternalID.ResourceType.String(), api.NodePoolResourceType.String()) {
 		return false
 	}
+
 	return true
 }
 
@@ -104,6 +105,10 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
+
+	// TODO current issue: The CS NodePool call from the dispatch controller can arrive
+	// after this is reconciled, so it could be that the polling here determines inaccurately that the operation is
+	// completed because there haven't been any changes submitted to CS yet and it's already ready.
 
 	return pollNodePoolStatus(ctx, c.clock, c.resourcesDBClient, c.clusterServiceClient, operation, c.notificationClient)
 }
