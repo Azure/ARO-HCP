@@ -227,13 +227,15 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
 }
 
-// minVersionsWithValidSuccessCondition maps from <major>.<micro> to the first z-stream version that includes the fix for
+// minVersionsWithValidSuccessCondition maps from <major>.<minor> to the first z-stream version that includes the fix for
 // control plane validation success.
 var minVersionsWithValidSuccessCondition = map[string]semver.Version{
 	"4.19": api.Must(semver.Parse("4.19.999")),
 	"4.20": api.Must(semver.Parse("4.20.999")),
 	"4.21": api.Must(semver.Parse("4.21.999")),
 	"4.22": api.Must(semver.Parse("4.22.999")),
+	"4.23": api.Must(semver.Parse("4.23.999")),
+	"5.0":  api.Must(semver.Parse("5.0.999")),
 }
 
 func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
