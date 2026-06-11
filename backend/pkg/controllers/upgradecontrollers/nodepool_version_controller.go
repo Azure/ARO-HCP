@@ -137,74 +137,99 @@ func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodeP
 func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
+	logger.Info("1a")
 	// Do the super cheap cache check first.
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
+		logger.Info("1b")
 		// we'll be re-fired if it is created again
 		return nil
 	}
 	if err != nil {
+		logger.Info("1c")
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
+	logger.Info("1d")
 	// SPNP must be in cache. If a sibling controller hasn't created it yet,
 	// skip this sync; the informer will retrigger us when it lands.
 	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	logger.Info("1e")
 	if database.IsNotFoundError(err) {
+		logger.Info("1f")
 		return nil
 	}
 	if err != nil {
+		logger.Info("1g")
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
+	logger.Info("1h")
 	if !c.NeedsWork(cachedNodePool, cachedServiceProviderNodePool) {
+		logger.Info("1i")
 		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
 		return nil
 	}
 
+	logger.Info("1j")
 	customerDesiredVersion := semver.MustParse(cachedNodePool.Properties.Version.ID)
+	logger.Info("1k")
 
 	// Pull the ServiceProviderCluster and Subscription from cache rather than
 	// re-fetching live: validation only reads them, and if either isn't yet
 	// observed by the informer we'll be retriggered when it lands.
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
+		logger.Info("1l")
 		return nil
 	}
 	if err != nil {
+		logger.Info("1m")
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
+	logger.Info("1n")
 
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if database.IsNotFoundError(err) {
+		logger.Info("1o")
 		return nil
 	}
 	if err != nil {
+		logger.Info("1p")
 		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
 	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
+	logger.Info("1q")
 	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
+		logger.Info("1r")
 		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}
 	if !found {
+		logger.Info("1s")
 		logger.Info("missing cluster UUID, continuing with empty")
 	}
 
 	// Validate the customer's desired version before setting it
+	logger.Info("1t")
 	if err := c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, subscription, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID); err != nil {
+		logger.Info("1u")
 		return utils.TrackError(fmt.Errorf("invalid desired version: %w", err))
 	}
 
 	// Update the serviceProviderNodePool DesiredVersion
+	logger.Info("1v")
 	replacement := cachedServiceProviderNodePool.DeepCopy()
 	replacement.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
+	logger.Info("1w")
 	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
+		logger.Info("1x")
 		return nil
 	}
 	if err != nil {
+		logger.Info("1y")
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
 

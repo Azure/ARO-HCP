@@ -100,49 +100,64 @@ func (c *nodePoolActiveVersionSyncer) NeedsWork(spnp *api.ServiceProviderNodePoo
 func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
+	logger.Info("2a")
 	// Cheap cache check: skip when the ServiceProviderNodePool hasn't been
 	// created yet. Once a sibling controller seeds it, the informer will
 	// retrigger us.
 	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
+		logger.Info("2b")
 		return nil
 	}
 	if err != nil {
+		logger.Info("2c")
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
+	logger.Info("2d")
 	if !c.NeedsWork(cachedServiceProviderNodePool) {
+		logger.Info("2e")
 		return nil
 	}
 
+	logger.Info("2f")
 	hsNodePool, err := maestrohelpers.GetCachedNodePoolForNodePool(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if err != nil {
+		logger.Info("2g")
 		return utils.TrackError(fmt.Errorf("failed to get NodePool from ReadDesire: %w", err))
 	}
 	if hsNodePool == nil {
+		logger.Info("2h")
 		// ReadDesire absent or kubeContent not yet observed; retrigger
 		// once the kube-applier writes status.
 		return nil
 	}
 	if len(hsNodePool.Status.NodesInfo.NodeVersions) == 0 {
+		logger.Info("2i")
 		// Mirror exists but the Hypershift NodePool hasn't reported any
 		// node versions yet; nothing to record.
 		return nil
 	}
 
+	logger.Info("2j")
 	newActiveVersions, err := activeVersionsFromNodeVersions(ctx, hsNodePool.Status.NodesInfo.NodeVersions)
 	if err != nil {
+		logger.Info("2k")
 		return utils.TrackError(err)
 	}
 	if len(newActiveVersions) == 0 {
+		logger.Info("2l")
 		// Every NodeVersions entry had an empty/unparseable OCPVersion;
 		// nothing usable to record, wait for the next reconcile.
 		return nil
 	}
 
+	logger.Info("2m")
 	if !controllerutils.NeedsUpdate(cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions, newActiveVersions) {
+		logger.Info("2n")
 		return nil
 	}
 
+	logger.Info("2o")
 	logger.Info("Active versions changed",
 		"oldActiveVersions", cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions,
 		"newActiveVersions", newActiveVersions)
@@ -150,12 +165,15 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 	replacement.Status.NodePoolVersion.ActiveVersions = newActiveVersions
 	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
+		logger.Info("2p")
 		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
 		return nil
 	}
 	if err != nil {
+		logger.Info("2q")
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
+	logger.Info("2r")
 	return nil
 }
 
