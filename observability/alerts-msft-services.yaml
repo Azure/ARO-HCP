@@ -6,6 +6,8 @@ prometheusRules:
   - alerts/msi-credential-refresher-prometheusRule.yaml
   untestedRules:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
+  testDependencies:
+  - recording-rules-services.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedMsftPrometheusAlertingRules.bicep
   # Explicitly lists all alerts wanted to prevent new Red Hat alerts from automatically being included here
   # Make sure to include the alert under the correct groupName as defined in its prometheusRule file
