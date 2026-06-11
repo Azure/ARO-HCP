@@ -68624,6 +68624,8 @@ spec:
   walCompression: true
   externalLabels:
     cluster: 'dev-westus3-mgmt-1'
+    region: 'westus3'
+    environment: 'dev'
   remoteWrite:
   - url: '__dcrRemoteWriteUrl__'
     azureAd:

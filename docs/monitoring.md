@@ -61,6 +61,12 @@ To enable this, the `prometheus` namespace in the **management cluster** include
 
 Each **Hosted Control Plane** will have multiple `ServiceMonitor` and `PodMonitor` resources for core control plane components such as **etcd**, **kube-apiserver**, and others.  These monitors define how Prometheus should scrape metrics from each component, including details like the endpoint, port, and **TLS configuration**.  TLS settings in the monitors reference Kubernetes **Secrets** stored in the **hosted cluster namespace**. These secrets contain the certificates required to establish secure connections to the metrics endpoints.  The Prometheus server, running in the **management cluster**, has access to these secrets and uses them to configure TLS connections when scraping the Hosted Control Plane component metrics.
 
+### HCP Worker Node Metrics
+
+HCP worker nodes are only visible to the HCP's own API server, not the management cluster's. To monitor their health, the mgmt-agent deploys a [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) instance per HCP that scrapes node metrics directly from the HCP API server. These metrics are routed to the HCP Monitoring Workspace via the existing namespace-based remote write filter.
+
+See [`mgmt-agent/pkg/controller/ksmhcp/README.md`](../mgmt-agent/pkg/controller/ksmhcp/README.md) for implementation details.
+
 ## Metrics Infrastructure
 
 ### Dual Workspace Architecture

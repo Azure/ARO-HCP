@@ -28,6 +28,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
+	dynamicinformer "k8s.io/client-go/dynamic/dynamicinformer"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -37,7 +39,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	hypershiftclient "github.com/openshift/hypershift/client/clientset/clientset"
+	hypershiftinformers "github.com/openshift/hypershift/client/informers/externalversions"
+
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 )
 
 const (
@@ -49,6 +55,7 @@ type RawControllerOptions struct {
 	Kubeconfig    string
 	Namespace     string
 	Workers       int
+	KSMImage      string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -65,6 +72,7 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&o.Kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Optional.")
 	cmd.Flags().StringVar(&o.Namespace, "namespace", os.Getenv("POD_NAMESPACE"), "The namespace where the mgmt-agent controller is deployed.")
 	cmd.Flags().IntVar(&o.Workers, "workers", o.Workers, "Number of reconcile workers to run")
+	cmd.Flags().StringVar(&o.KSMImage, "ksm-image", o.KSMImage, "Container image for kube-state-metrics deployed per HCP namespace")
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 
 	return nil
@@ -79,11 +87,14 @@ type ValidatedControllerOptions struct {
 }
 
 type completedControllerOptions struct {
-	ctrl              *controller.SwiftNICController
-	kubeInformers     kubeinformers.SharedInformerFactory
-	workers           int
-	healthAddress     string
-	leaderElectionCfg *controller.LeaderElectionConfig
+	ctrl                *controller.SwiftNICController
+	ksmCtrl             *ksmhcp.KSMHCPController
+	kubeInformers       kubeinformers.SharedInformerFactory
+	hypershiftInformers hypershiftinformers.SharedInformerFactory
+	dynamicInformers    dynamicinformer.DynamicSharedInformerFactory
+	workers             int
+	healthAddress       string
+	leaderElectionCfg   *controller.LeaderElectionConfig
 }
 
 type ControllerOptions struct {
@@ -132,6 +143,36 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create controller: %w", err)
 	}
 
+	var ksmCtrl *ksmhcp.KSMHCPController
+	var hsInformers hypershiftinformers.SharedInformerFactory
+	var dynInformers dynamicinformer.DynamicSharedInformerFactory
+	if o.KSMImage != "" {
+		dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dynamic client: %w", err)
+		}
+
+		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
+		}
+		hsInformers = hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
+		dynInformers = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 10*time.Minute)
+
+		ksmCtrl, err = ksmhcp.NewKSMHCPController(
+			kubeClientset,
+			dynamicClient,
+			hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+			kubeInformers.Apps().V1().Deployments().Informer(),
+			kubeInformers.Core().V1().Services().Informer(),
+			dynInformers.ForResource(ksmhcp.ServiceMonitorGVR).Informer(),
+			o.KSMImage,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
+		}
+	}
+
 	leaderElectionCfg := &controller.LeaderElectionConfig{
 		LockName:      LeaderElectionLockName,
 		LeaseDuration: 15 * time.Second,
@@ -143,11 +184,14 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
-			ctrl:              ctrl,
-			kubeInformers:     kubeInformers,
-			workers:           o.Workers,
-			healthAddress:     o.HealthAddress,
-			leaderElectionCfg: leaderElectionCfg,
+			ctrl:                ctrl,
+			ksmCtrl:             ksmCtrl,
+			kubeInformers:       kubeInformers,
+			hypershiftInformers: hsInformers,
+			dynamicInformers:    dynInformers,
+			workers:             o.Workers,
+			healthAddress:       o.HealthAddress,
+			leaderElectionCfg:   leaderElectionCfg,
 		},
 	}, nil
 }
@@ -180,6 +224,12 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
 	o.kubeInformers.Start(ctx.Done())
+	if o.hypershiftInformers != nil {
+		o.hypershiftInformers.Start(ctx.Done())
+	}
+	if o.dynamicInformers != nil {
+		o.dynamicInformers.Start(ctx.Done())
+	}
 	logger.V(6).Info("Informer factories started")
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -209,16 +259,28 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// controller with leader election
+	// controllers with leader election
 	g.Go(func() error {
-		logger.Info("Starting swift-nic controller")
-		if err := controller.RunWithLeaderElection(ctx, "swift-nic", o.leaderElectionCfg, func(leaderCtx context.Context) error {
-			return o.ctrl.Run(leaderCtx, o.workers)
+		logger.Info("Starting controllers with leader election")
+		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
+			controllerGroup, controllerCtx := errgroup.WithContext(leaderCtx)
+
+			controllerGroup.Go(func() error {
+				return o.ctrl.Run(controllerCtx, o.workers)
+			})
+
+			if o.ksmCtrl != nil {
+				controllerGroup.Go(func() error {
+					return o.ksmCtrl.Run(controllerCtx, o.workers)
+				})
+			}
+
+			return controllerGroup.Wait()
 		}); err != nil {
-			logger.Error(err, "Controller stopped with error")
+			logger.Error(err, "Controllers stopped with error")
 			return err
 		}
-		logger.Info("Controller stopped")
+		logger.Info("Controllers stopped")
 		return nil
 	})
 
