@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
@@ -38,12 +39,14 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -142,7 +145,8 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
-				ID: desiredVersion,
+				ID:           desiredVersion,
+				ChannelGroup: api.DefaultClusterVersionChannelGroup,
 			},
 		},
 		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
@@ -345,14 +349,233 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 	}
 }
 
-// assertSyncResult is a helper function that validates the result of SyncOnce
-func assertSyncResult(t *testing.T, err error, expectedError bool, expectedErrorContains string) {
-	t.Helper()
-	if expectedError {
-		assert.Error(t, err)
-		assert.ErrorContains(t, err, expectedErrorContains)
-	} else {
-		assert.NoError(t, err)
+func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
+	testKey := controllerutils.HCPNodePoolKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+		HCPNodePoolName:   testNodePoolName,
+	}
+	subscriptionLister := newTestSubscriptionLister()
+
+	stableURI := api.Must(cincinnati.GetCincinnatiURI("stable"))
+
+	verifyDesiredVersion := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, wantVersion *semver.Version) {
+		t.Helper()
+		spNodePool, err := db.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).
+			Get(ctx, api.ServiceProviderNodePoolResourceName)
+		require.NoError(t, err)
+		if wantVersion != nil {
+			require.NotNil(t, spNodePool.Spec.NodePoolVersion.DesiredVersion)
+			assert.True(t, spNodePool.Spec.NodePoolVersion.DesiredVersion.EQ(*wantVersion),
+				"wanted desired version %s, got %s", wantVersion.String(), spNodePool.Spec.NodePoolVersion.DesiredVersion.String())
+		} else {
+			assert.Nil(t, spNodePool.Spec.NodePoolVersion.DesiredVersion)
+		}
+	}
+
+	verifyIntentFailed := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, want *metav1.Condition) {
+		t.Helper()
+		nodePoolVersionControllerDoc, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).
+			NodePools(testClusterName).Controllers(testNodePoolName).Get(ctx, NodepoolVersionControllerName)
+		if want == nil {
+			assert.True(t, database.IsNotFoundError(err), "controller document should not exist for transient errors")
+			return
+		}
+		require.NoError(t, err)
+		got := apimeta.FindStatusCondition(nodePoolVersionControllerDoc.Status.Conditions, api.ControllerConditionTypeIntentFailed)
+		require.NotNil(t, got)
+		assert.Equal(t, want.Status, got.Status)
+		assert.Equal(t, want.Reason, got.Reason)
+		if want.Status == metav1.ConditionTrue {
+			require.NotEmpty(t, want.Message, "set want.Message to the exact persisted IntentFailed message")
+			assert.Equal(t, want.Message, got.Message)
+		} else {
+			assert.Empty(t, got.Message, "when want.Status is false, IntentFailed message must be empty")
+		}
+	}
+
+	tests := []struct {
+		name                string
+		customerVersion     string
+		nodePoolVersion     string
+		controlPlaneVersion string
+		setupCincinnati     func(*cincinnati.MockClient)
+		wantSyncErr         bool
+		wantErrContains     string
+		verifyDB            func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+	}{
+		{
+			name:                "successful resolution persists desired version and sets IntentFailed False",
+			customerVersion:     "4.19.20",
+			nodePoolVersion:     "4.19.15",
+			controlPlaneVersion: "4.19.22",
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.20")).Return(
+					configv1.Release{Version: "4.19.20"},
+					[]configv1.Release{},
+					nil,
+					nil,
+				).Times(1)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				verifyDesiredVersion(t, ctx, db, ptr.To(semver.MustParse("4.19.20")))
+				verifyIntentFailed(t, ctx, db, &metav1.Condition{
+					Status: metav1.ConditionFalse,
+					Reason: api.ControllerConditionReasonAsExpected,
+				})
+			},
+		},
+		{
+			name:                "downgrade within skew succeeds persists desired version and sets IntentFailed false",
+			customerVersion:     "4.19.5",
+			nodePoolVersion:     "4.19.10",
+			controlPlaneVersion: "4.20.0",
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.5")).Return(
+					configv1.Release{Version: "4.19.5"},
+					[]configv1.Release{},
+					nil,
+					nil,
+				).Times(1)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				verifyDesiredVersion(t, ctx, db, ptr.To(semver.MustParse("4.19.5")))
+				verifyIntentFailed(t, ctx, db, &metav1.Condition{
+					Status: metav1.ConditionFalse,
+					Reason: api.ControllerConditionReasonAsExpected,
+				})
+			},
+		},
+		{
+			name:                "downgrade outside skew succeed and sets IntentFailed true",
+			customerVersion:     "4.19.5",
+			nodePoolVersion:     "4.20.10",
+			controlPlaneVersion: "4.22.0",
+			setupCincinnati:     func(mc *cincinnati.MockClient) {},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				verifyDesiredVersion(t, ctx, db, nil)
+				verifyIntentFailed(t, ctx, db, &metav1.Condition{
+					Status:  metav1.ConditionTrue,
+					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Message: "invalid node pool version 4.19.5: must be within 2 minor versions of control plane version 4.22.0",
+				})
+			},
+		},
+		{
+			name:                "Cincinnati VersionNotFound persists IntentFailed and does not set desired version",
+			customerVersion:     "4.19.20",
+			nodePoolVersion:     "4.19.15",
+			controlPlaneVersion: "4.19.30",
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.20")).Return(
+					configv1.Release{}, nil, nil, &cvocincinnati.Error{Reason: "VersionNotFound"},
+				).Times(1)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				verifyDesiredVersion(t, ctx, db, nil)
+				verifyIntentFailed(t, ctx, db, &metav1.Condition{
+					Status:  metav1.ConditionTrue,
+					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Message: "version 4.19.20 not found in Cincinnati channel stable-4.19",
+				})
+			},
+		},
+		{
+			name:                "Cincinnati upstream error does not persist IntentFailed or desired version",
+			customerVersion:     "4.19.20",
+			nodePoolVersion:     "4.19.15",
+			controlPlaneVersion: "4.19.22",
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.20")).Return(
+					configv1.Release{}, nil, nil, &cvocincinnati.Error{Reason: "ServiceUnavailable", Message: "503 Service Unavailable"},
+				).Times(1)
+			},
+			wantSyncErr:     true,
+			wantErrContains: "503 Service Unavailable",
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				verifyDesiredVersion(t, ctx, db, nil)
+				verifyIntentFailed(t, ctx, db, nil)
+			},
+		},
+		{
+			name:                "desired version exceeds control plane persists IntentFailed",
+			customerVersion:     "4.19.20",
+			nodePoolVersion:     "4.19.15",
+			controlPlaneVersion: "4.19.15",
+			setupCincinnati:     func(mc *cincinnati.MockClient) {},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				verifyDesiredVersion(t, ctx, db, nil)
+				verifyIntentFailed(t, ctx, db, &metav1.Condition{
+					Status:  metav1.ConditionTrue,
+					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Message: "invalid node pool version 4.19.20: cannot exceed control plane version 4.19.15",
+				})
+			},
+		},
+		{
+			name:                "skipping minor versions persists IntentFailed",
+			customerVersion:     "4.21.1",
+			nodePoolVersion:     "4.18.15",
+			controlPlaneVersion: "4.21.1",
+			setupCincinnati:     func(mc *cincinnati.MockClient) {},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				verifyDesiredVersion(t, ctx, db, nil)
+				verifyIntentFailed(t, ctx, db, &metav1.Condition{
+					Status:  metav1.ConditionTrue,
+					Reason:  api.VersionUpgradeNotAcceptedReason,
+					Message: "invalid upgrade path from 4.18.15 to 4.21.1: skipping more than 2 minor versions is not allowed",
+				})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			ctrl := gomock.NewController(t)
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+
+			createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, tt.customerVersion)
+			createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, tt.nodePoolVersion)
+			createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, tt.controlPlaneVersion)
+
+			csNodePool := newCSNodePoolWithVersion(t, tt.nodePoolVersion)
+			mockCS.EXPECT().
+				GetNodePool(gomock.Any(), gomock.Any()).
+				Return(csNodePool, nil).
+				Times(1)
+
+			mockCincinnati := cincinnati.NewMockClient(ctrl)
+			tt.setupCincinnati(mockCincinnati)
+
+			mockClientCache := cincinnati.NewMockClientCache(ctrl)
+			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
+
+			syncer := &nodePoolVersionSyncer{
+				cooldownChecker:       &alwaysSyncCooldownChecker{},
+				readDesireLister:      newValidHostedClusterReadDesireLister(t),
+				resourcesDBClient:     mockResourcesDBClient,
+				clusterServiceClient:  mockCS,
+				subscriptionLister:    subscriptionLister,
+				cincinnatiClientCache: mockClientCache,
+			}
+
+			err := syncer.SyncOnce(ctx, testKey)
+			if tt.wantSyncErr {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErrContains)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.verifyDB != nil {
+				tt.verifyDB(t, ctx, mockResourcesDBClient)
+			}
+		})
 	}
 }
 
@@ -747,26 +970,14 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 				cincinnatiClientCache: mockClientCache,
 			}
 
-			// Create subscription based on allowMajorUpgrades flag
-			subscription := &arm.Subscription{
-				Properties: &arm.SubscriptionProperties{},
-			}
-
-			if tt.allowMajorUpgrades {
-				subscription.Properties.RegisteredFeatures = &[]arm.Feature{{
-					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
-					State: ptr.To("Registered"),
-				}}
-			}
-
 			err := syncer.validateDesiredNodePoolVersion(
 				ctx,
 				&desiredVersion,
 				spNodePool,
 				spCluster,
-				subscription,
 				"stable",
 				[16]byte{}, // dummy UUID
+				tt.allowMajorUpgrades,
 			)
 
 			if tt.expectError {
@@ -777,438 +988,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 			}
 		})
 	}
-}
-
-// createServiceProviderClusterWithVersion creates a ServiceProviderCluster with the given control plane version.
-func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, controlPlaneVersion string) {
-	t.Helper()
-
-	clusterResourceID := "/subscriptions/" + testSubscriptionID +
-		"/resourceGroups/" + testResourceGroupName +
-		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName
-	// ServiceProviderCluster resource ID format: {clusterResourceID}/{resourceTypeName}/{resourceName}
-	spClusterResourceID := clusterResourceID + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName
-
-	cpVersion := semver.MustParse(controlPlaneVersion)
-	spCluster := &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
-		},
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{
-					{Version: &cpVersion, State: configv1.CompletedUpdate},
-				},
-			},
-		},
-	}
-	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spCluster, nil)
-	require.NoError(t, err)
-}
-
-// createServiceProviderNodePoolWithVersion creates a ServiceProviderNodePool with the given active version.
-func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, activeVersion string) {
-	t.Helper()
-
-	nodePoolResourceID := "/subscriptions/" + testSubscriptionID +
-		"/resourceGroups/" + testResourceGroupName +
-		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-		"/nodePools/" + testNodePoolName
-	// ServiceProviderNodePool resource ID format: {nodePoolResourceID}/{resourceTypeName}/{resourceName}
-	spNodePoolResourceID := nodePoolResourceID + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName
-
-	version := semver.MustParse(activeVersion)
-	spNodePool := &api.ServiceProviderNodePool{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
-		},
-		Status: api.ServiceProviderNodePoolStatus{
-			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []api.HCPNodePoolActiveVersion{
-					{Version: &version},
-				},
-			},
-		},
-	}
-	_, err := mockResourcesDBClient.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).Create(ctx, spNodePool, nil)
-	require.NoError(t, err)
-}
-
-func newCSNodePoolWithVersion(t *testing.T, version string) *arohcpv1alpha1.NodePool {
-	t.Helper()
-
-	csNodePool, err := arohcpv1alpha1.NewNodePool().
-		ID(testNodePoolName).
-		Version(arohcpv1alpha1.NewVersion().RawID(version)).
-		Build()
-	require.NoError(t, err)
-	return csNodePool
-}
-
-func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
-
-	// Create node pool with desired version 4.19.15 (exceeds control plane 4.19.10)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-
-	// Create ServiceProviderCluster with control plane at 4.19.10 (lower than desired)
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
-
-	// Create ServiceProviderNodePool with active version 4.19.5 (so desired is not already active)
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.5")
-
-	// CS returns node pool with current version 4.19.5
-	csNodePool := newCSNodePoolWithVersion(t, "4.19.5")
-	mockCS.EXPECT().
-		GetNodePool(gomock.Any(), gomock.Any()).
-		Return(csNodePool, nil).
-		Times(1)
-
-	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       &alwaysSyncCooldownChecker{},
-		readDesireLister:      newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:     mockResourcesDBClient,
-		clusterServiceClient:  mockCS,
-		cincinnatiClientCache: mockClientCache,
-	}
-
-	testKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
-	}
-
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot exceed control plane version")
-}
-
-func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCincinnati := cincinnati.NewMockClient(ctrl)
-
-	// Create node pool with desired version 4.19.10
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.10")
-
-	// Create ServiceProviderCluster with control plane at 4.20.0 (allows the desired version)
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// Create ServiceProviderNodePool with active version 4.19.7
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.7")
-
-	// CS returns node pool with current version 4.19.7
-	csNodePool := newCSNodePoolWithVersion(t, "4.19.7")
-	mockCS.EXPECT().
-		GetNodePool(gomock.Any(), gomock.Any()).
-		Return(csNodePool, nil).
-		Times(1)
-
-	// Cincinnati: version exists, no candidates
-	mockCincinnati.EXPECT().
-		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.10"))).
-		Return(
-			configv1.Release{Version: "4.19.10"},
-			[]configv1.Release{},
-			nil,
-			nil,
-		).
-		Times(1)
-
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
-	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       &alwaysSyncCooldownChecker{},
-		readDesireLister:      newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:     mockResourcesDBClient,
-		clusterServiceClient:  mockCS,
-		cincinnatiClientCache: mockClientCache,
-	}
-
-	testKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
-	}
-
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
-
-	require.NoError(t, err)
-
-	// Verify the ServiceProviderNodePool DesiredVersion was updated
-	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
-		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
-	require.NoError(t, err)
-	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion)
-	expectedDesiredVersion := semver.MustParse("4.19.10")
-	require.True(t, expectedDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion))
-}
-
-func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCincinnati := cincinnati.NewMockClient(ctrl)
-
-	// Create node pool with desired version 4.19.99 (does not exist in Cincinnati)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.99")
-
-	// Create ServiceProviderCluster with control plane at 4.20.0
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// Create ServiceProviderNodePool with active version 4.19.7
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.7")
-
-	// CS returns node pool with current version 4.19.7
-	csNodePool := newCSNodePoolWithVersion(t, "4.19.7")
-	mockCS.EXPECT().
-		GetNodePool(gomock.Any(), gomock.Any()).
-		Return(csNodePool, nil).
-		Times(1)
-
-	// Cincinnati returns VersionNotFound for the desired version
-	mockCincinnati.EXPECT().
-		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.99"))).
-		Return(
-			configv1.Release{},
-			nil,
-			nil,
-			&cvocincinnati.Error{Reason: "VersionNotFound", Message: "version 4.19.99 not found"},
-		).
-		Times(1)
-
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
-	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       &alwaysSyncCooldownChecker{},
-		readDesireLister:      newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:     mockResourcesDBClient,
-		clusterServiceClient:  mockCS,
-		cincinnatiClientCache: mockClientCache,
-	}
-
-	testKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
-	}
-
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found in Cincinnati")
-}
-
-func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCincinnati := cincinnati.NewMockClient(ctrl)
-
-	// Create node pool with desired version 4.19.99 (does not exist in Cincinnati)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.99")
-
-	// Create ServiceProviderCluster with control plane at 4.20.0
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// Create ServiceProviderNodePool with active version 4.19.7
-	createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.7")
-
-	// CS returns node pool with current version 4.19.7
-	csNodePool := newCSNodePoolWithVersion(t, "4.19.7")
-	mockCS.EXPECT().
-		GetNodePool(gomock.Any(), gomock.Any()).
-		Return(csNodePool, nil).
-		Times(1)
-
-	// Cincinnati returns VersionNotFound for the desired version
-	mockCincinnati.EXPECT().
-		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.99"))).
-		Return(
-			configv1.Release{},
-			nil,
-			nil,
-			&cvocincinnati.Error{Reason: "VersionNotFound", Message: "version 4.19.99 not found"},
-		).
-		Times(1)
-
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
-	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       &alwaysSyncCooldownChecker{},
-		readDesireLister:      newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:     mockResourcesDBClient,
-		clusterServiceClient:  mockCS,
-		cincinnatiClientCache: mockClientCache,
-	}
-
-	testKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
-	}
-
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found in Cincinnati")
-}
-
-func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCincinnati := cincinnati.NewMockClient(ctrl)
-
-	// Create node pool with desired version 4.19.5 (z-stream downgrade from 4.19.10)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.5")
-
-	// Create ServiceProviderCluster with control plane at 4.20.0
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// CS returns node pool with current version 4.19.10
-	csNodePool := newCSNodePoolWithVersion(t, "4.19.10")
-	mockCS.EXPECT().
-		GetNodePool(gomock.Any(), gomock.Any()).
-		Return(csNodePool, nil).
-		Times(1)
-
-	// Cincinnati: version exists
-	mockCincinnati.EXPECT().
-		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(semver.MustParse("4.19.5"))).
-		Return(
-			configv1.Release{Version: "4.19.5"},
-			[]configv1.Release{},
-			nil,
-			nil,
-		).
-		Times(1)
-
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
-	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       &alwaysSyncCooldownChecker{},
-		readDesireLister:      newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:     mockResourcesDBClient,
-		clusterServiceClient:  mockCS,
-		cincinnatiClientCache: mockClientCache,
-	}
-
-	testKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
-	}
-
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
-
-	require.NoError(t, err)
-
-	// Verify the ServiceProviderNodePool DesiredVersion was updated to the downgrade target
-	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
-		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
-	require.NoError(t, err)
-	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion)
-	expectedDesiredVersion := semver.MustParse("4.19.5")
-	require.True(t, expectedDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion))
-}
-
-func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
-	ctx := context.Background()
-	ctrl := gomock.NewController(t)
-
-	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
-	mockCincinnati := cincinnati.NewMockClient(ctrl)
-
-	// Create node pool with desired version 4.19.15 (valid upgrade from 4.19.10)
-	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-
-	// Create ServiceProviderCluster with control plane at 4.20.0
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.20.0")
-
-	// CS returns node pool with current version 4.19.10
-	csNodePool := newCSNodePoolWithVersion(t, "4.19.10")
-	mockCS.EXPECT().
-		GetNodePool(gomock.Any(), gomock.Any()).
-		Return(csNodePool, nil).
-		Times(1)
-
-	// Cincinnati returns success for the desired version (version exists in the graph)
-	mockCincinnati.EXPECT().
-		GetUpdates(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(
-			configv1.Release{Version: "4.19.15"},
-			[]configv1.Release{},
-			nil,
-			nil,
-		).
-		Times(1)
-
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
-	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       &alwaysSyncCooldownChecker{},
-		readDesireLister:      newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:     mockResourcesDBClient,
-		clusterServiceClient:  mockCS,
-		cincinnatiClientCache: mockClientCache,
-	}
-
-	testKey := controllerutils.HCPNodePoolKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-		HCPNodePoolName:   testNodePoolName,
-	}
-
-	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
-	require.NoError(t, err)
-
-	// Verify the ServiceProviderNodePool was updated correctly
-	spnp, err := mockResourcesDBClient.ServiceProviderNodePools(
-		testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-	).Get(ctx, api.ServiceProviderNodePoolResourceName)
-	require.NoError(t, err)
-
-	// Verify DesiredVersion was persisted
-	require.NotNil(t, spnp.Spec.NodePoolVersion.DesiredVersion)
-	expectedDesiredVersion := semver.MustParse("4.19.15")
-	require.True(t, expectedDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion))
 }
 
 func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_ChangedOnSuccess(t *testing.T) {
@@ -1249,6 +1028,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 		readDesireLister:      newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:     mockResourcesDBClient,
 		clusterServiceClient:  mockCS,
+		subscriptionLister:    newTestSubscriptionLister(),
 		cincinnatiClientCache: mockClientCache,
 	}
 
@@ -1314,10 +1094,9 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 		AnyTimes()
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnatiFailing).Times(1)
 
-	// SyncOnce should fail because the version doesn't exist in Cincinnati
+	// SyncOnce should succeed but persist IntentFailed (VersionNotFound is a user error, not transient)
 	err = syncer.SyncOnce(ctx, testKey)
-	require.Error(t, err, "SyncOnce should fail when version doesn't exist in Cincinnati")
-	assert.Contains(t, err.Error(), "not found in Cincinnati")
+	require.NoError(t, err, "SyncOnce should return nil after persisting IntentFailed for VersionNotFound")
 
 	// Verify that DesiredVersion was NOT changed (still 4.19.15)
 	spnp, err = mockResourcesDBClient.ServiceProviderNodePools(
@@ -1375,4 +1154,92 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	require.True(t, expectedNewDesiredVersion.EQ(*spnp.Spec.NodePoolVersion.DesiredVersion),
 		"DesiredVersion should have changed after successful validation, expected %s, got %s",
 		"4.19.20", spnp.Spec.NodePoolVersion.DesiredVersion)
+}
+
+// assertSyncResult is a helper function that validates the result of SyncOnce
+func assertSyncResult(t *testing.T, err error, expectedError bool, expectedErrorContains string) {
+	t.Helper()
+	if expectedError {
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, expectedErrorContains)
+	} else {
+		assert.NoError(t, err)
+	}
+}
+
+// createServiceProviderClusterWithVersion creates a ServiceProviderCluster with the given control plane version.
+func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, controlPlaneVersion string) {
+	t.Helper()
+
+	clusterResourceID := "/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName
+	// ServiceProviderCluster resource ID format: {clusterResourceID}/{resourceTypeName}/{resourceName}
+	spClusterResourceID := clusterResourceID + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName
+
+	cpVersion := semver.MustParse(controlPlaneVersion)
+	spCluster := &api.ServiceProviderCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
+		},
+		Status: api.ServiceProviderClusterStatus{
+			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+				ActiveVersions: []api.HCPClusterActiveVersion{
+					{Version: &cpVersion, State: configv1.CompletedUpdate},
+				},
+			},
+		},
+	}
+	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spCluster, nil)
+	require.NoError(t, err)
+}
+
+// createServiceProviderNodePoolWithVersion creates a ServiceProviderNodePool with the given active version.
+func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, activeVersion string) {
+	t.Helper()
+
+	nodePoolResourceID := "/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+		"/nodePools/" + testNodePoolName
+	// ServiceProviderNodePool resource ID format: {nodePoolResourceID}/{resourceTypeName}/{resourceName}
+	spNodePoolResourceID := nodePoolResourceID + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName
+
+	version := semver.MustParse(activeVersion)
+	spNodePool := &api.ServiceProviderNodePool{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
+		},
+		Status: api.ServiceProviderNodePoolStatus{
+			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
+				ActiveVersions: []api.HCPNodePoolActiveVersion{
+					{Version: &version},
+				},
+			},
+		},
+	}
+	_, err := mockResourcesDBClient.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).Create(ctx, spNodePool, nil)
+	require.NoError(t, err)
+}
+
+func newTestSubscriptionLister() *listertesting.SliceSubscriptionLister {
+	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
+	return &listertesting.SliceSubscriptionLister{
+		Subscriptions: []*arm.Subscription{{
+			CosmosMetadata: arm.CosmosMetadata{ResourceID: subResourceID},
+			ResourceID:     subResourceID,
+			Properties:     &arm.SubscriptionProperties{},
+		}},
+	}
+}
+
+func newCSNodePoolWithVersion(t *testing.T, version string) *arohcpv1alpha1.NodePool {
+	t.Helper()
+
+	csNodePool, err := arohcpv1alpha1.NewNodePool().
+		ID(testNodePoolName).
+		Version(arohcpv1alpha1.NewVersion().RawID(version)).
+		Build()
+	require.NoError(t, err)
+	return csNodePool
 }

@@ -15,11 +15,12 @@
 package api
 
 const (
-	// DegradedCondition is True when the cluster is in a degraded state.
+	// DegradedCondition is True when the resource is in a degraded state.
+	// Applies to ServiceProviderCluster and ServiceProviderNodePool.
 	DegradedCondition = "Degraded"
 )
 
-// Known ServiceProviderCluster status condition Reason values (metav1.Condition.Reason).
+// Known ServiceProviderCluster and ServiceProviderNodePool status condition Reason values (metav1.Condition.Reason).
 const (
 	VersionUpgradeNotAcceptedReason string = "VersionUpgradeNotAccepted"
 	NoErrorsReason                  string = "NoErrors"
