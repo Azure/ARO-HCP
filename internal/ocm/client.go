@@ -38,7 +38,8 @@ const (
 	CSPropertySizeOverride     = "hosted_cluster_size_override"
 	CSPropertyCPOImageOverride = "control_plane_operator_image"
 
-	CSPropertyEnabled = "true"
+	CSPropertyEnabled                    = "true"
+	CSPropertyE2EMinimalControlPlaneSize = "e2e_minimal"
 )
 
 type ClusterServiceClientSpec interface {

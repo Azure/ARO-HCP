@@ -353,7 +353,7 @@ func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
@@ -415,8 +415,8 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	} else {
 		delete(properties, CSPropertySingleReplica)
 	}
-	if experimentalFeatures.ControlPlanePodSizing == api.MinimalControlPlanePodSizing {
-		properties[CSPropertySizeOverride] = CSPropertyEnabled
+	if value, ok := DesiredHostedClusterSizeOverride(serviceProviderCluster, hcpCluster); ok {
+		properties[CSPropertySizeOverride] = value
 	} else {
 		delete(properties, CSPropertySizeOverride)
 	}
@@ -428,6 +428,33 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
+}
+
+// DesiredHostedClusterSizeOverride returns the value the CSPropertySizeOverride
+// entry should have for a given (ServiceProviderCluster, HCP cluster) pair,
+// and whether the property should be present at all. This is the single
+// source of truth for computing the override and is shared between the
+// BuildCSCluster property layering (frontend update path) and the
+// desired-control-plane-size reconciler (backend ServiceProviderCluster-driven
+// path) so the two cannot disagree.
+//
+// Precedence:
+//  1. ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize, when
+//     set, wins. Returned lowercased because cluster-service's
+//     clustersizingconfiguration uses lowercase tier names.
+//  2. Otherwise, hcpCluster.ServiceProviderProperties.ExperimentalFeatures.
+//     ControlPlanePodSizing == MinimalControlPlanePodSizing returns
+//     CSPropertyE2EMinimalControlPlaneSize ("e2e_minimal"), the named
+//     internal-only tier cluster-service uses for the e2e minimal layout.
+//  3. Otherwise the property is absent.
+func DesiredHostedClusterSizeOverride(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) (string, bool) {
+	if serviceProviderCluster != nil && serviceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize != nil {
+		return strings.ToLower(*serviceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize), true
+	}
+	if hcpCluster != nil && hcpCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing == api.MinimalControlPlanePodSizing {
+		return CSPropertyE2EMinimalControlPlaneSize, true
+	}
+	return "", false
 }
 
 func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
