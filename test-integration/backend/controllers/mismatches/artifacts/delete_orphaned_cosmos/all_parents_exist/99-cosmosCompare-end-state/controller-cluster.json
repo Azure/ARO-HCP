@@ -6,11 +6,10 @@
 			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/testcontroller"
 		},
 		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct",
-		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/testcontroller",
 		"status": {
 			"conditions": [
 				{
-					"lastTransitionTime": "2026-01-08T17:43:39.420609489-05:00",
+					"lastTransitionTime": "2026-01-08T22:43:39Z",
 					"message": "As expected.",
 					"reason": "NoErrors",
 					"status": "False",

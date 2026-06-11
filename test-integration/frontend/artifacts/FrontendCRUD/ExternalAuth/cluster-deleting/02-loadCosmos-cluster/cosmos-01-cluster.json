@@ -5,28 +5,91 @@
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting"
 		},
-		"customerDesiredState": null,
+		"customerProperties": {
+			"api": {
+				"visibility": "Public"
+			},
+			"autoscaling": {},
+			"clusterImageRegistry": {
+				"state": "Enabled"
+			},
+			"dns": {},
+			"etcd": {
+				"dataEncryption": {
+					"keyManagementMode": "PlatformManaged"
+				}
+			},
+			"network": {
+				"networkType": "OVNKubernetes"
+			},
+			"platform": {
+				"operatorsAuthentication": {
+					"userAssignedIdentities": {}
+				},
+				"outboundType": "LoadBalancer"
+			},
+			"version": {}
+		},
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
 		"intermediateResourceDoc": {
-			"identity": {
-				"principalId": "the-principal",
-				"tenantId": "the-tenant",
-				"type": ""
-			},
 			"internalId": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-deleting",
 			"provisioningState": "Deleting",
-			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
-			"tags": {
-				"foo": "bar"
+			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting"
+		},
+		"internalState": {
+			"internalAPI": {
+				"cosmosMetadata": {
+					"resourceID": null
+				},
+				"customerProperties": {
+					"api": {
+						"visibility": "Public"
+					},
+					"autoscaling": {},
+					"clusterImageRegistry": {
+						"state": "Enabled"
+					},
+					"dns": {},
+					"etcd": {
+						"dataEncryption": {
+							"keyManagementMode": "PlatformManaged"
+						}
+					},
+					"network": {
+						"networkType": "OVNKubernetes"
+					},
+					"platform": {
+						"operatorsAuthentication": {
+							"userAssignedIdentities": {}
+						},
+						"outboundType": "LoadBalancer"
+					},
+					"version": {}
+				},
+				"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
+				"serviceProviderProperties": {
+					"api": {},
+					"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-deleting",
+					"console": {},
+					"dns": {},
+					"platform": {},
+					"provisioningState": "Deleting",
+					"usesNewClusterDeletionApproach": false
+				},
+				"status": {}
 			}
 		},
 		"serviceProviderProperties": {
+			"api": {},
 			"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-deleting",
+			"console": {},
+			"dns": {},
+			"platform": {},
 			"provisioningState": "Deleting",
 			"usesNewClusterDeletionApproach": false
 		},
-		"serviceProviderState": null
+		"status": {}
 	},
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

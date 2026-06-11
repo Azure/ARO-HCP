@@ -17,6 +17,8 @@ package databasemutationhelpers
 import (
 	"context"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,18 +29,22 @@ import (
 type loadCosmosStep struct {
 	stepID StepID
 
-	contents [][]byte
+	// contents and filenames are index-aligned so UPDATE mode can rewrite the
+	// original on-disk file with the roundtripped bytes.
+	contents  [][]byte
+	filenames []string
 }
 
 func NewLoadCosmosStep(stepID StepID, stepDir fs.FS) (*loadCosmosStep, error) {
-	contents, err := readRawBytesInDir(stepDir)
+	contents, filenames, err := readRawBytesAndFilenamesInDir(stepDir)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
 
 	return &loadCosmosStep{
-		stepID:   stepID,
-		contents: contents,
+		stepID:    stepID,
+		contents:  contents,
+		filenames: filenames,
 	}, nil
 }
 
@@ -49,9 +55,36 @@ func (l *loadCosmosStep) StepID() StepID {
 }
 
 func (l *loadCosmosStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	if updateMode() {
+		l.applyUpdate(t)
+	}
+
 	for _, content := range l.contents {
 		// Use the ContentLoader interface (works with both Cosmos and mock)
 		err := stepInput.ContentLoader.LoadContent(ctx, content)
 		require.NoError(t, err, "failed to load cosmos content: %v", string(content))
+	}
+}
+
+// applyUpdate roundtrips every fixture through CosmosToInternal +
+// InternalToCosmos for its resourceType and writes the result back to disk,
+// then updates the in-memory l.contents so the subsequent LoadContent calls
+// load the refreshed bytes.
+func (l *loadCosmosStep) applyUpdate(t *testing.T) {
+	updateDir := resolveStepUpdateDir(t, l.stepID)
+	if updateDir == "" {
+		t.Fatalf("UPDATE=true set but loadCosmos step %s has no resolvable on-disk fixture dir", l.stepID)
+		return
+	}
+	for i, content := range l.contents {
+		filename := l.filenames[i]
+		if filename == "" {
+			continue
+		}
+		out, err := roundtripCosmosBytes(content)
+		require.NoError(t, err, "UPDATE roundtrip failed for %s", filename)
+		fullPath := filepath.Join(updateDir, filename)
+		require.NoError(t, os.WriteFile(fullPath, append(out, '\n'), 0644), "write %s", fullPath)
+		l.contents[i] = out
 	}
 }

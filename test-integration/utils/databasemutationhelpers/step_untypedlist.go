@@ -33,6 +33,7 @@ type untypedListStep struct {
 	key    UntypedCRUDKey
 
 	expectedResources []*database.TypedDocument
+	expectedFilenames []string
 }
 
 func newUntypedListStep(stepID StepID, stepDir fs.FS) (*untypedListStep, error) {
@@ -45,7 +46,7 @@ func newUntypedListStep(stepID StepID, stepDir fs.FS) (*untypedListStep, error) 
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	expectedResources, err := readResourcesInDir[database.TypedDocument](stepDir)
+	expectedResources, expectedFilenames, err := readResourcesAndFilenamesInDir[database.TypedDocument](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -54,6 +55,7 @@ func newUntypedListStep(stepID StepID, stepDir fs.FS) (*untypedListStep, error) 
 		stepID:            stepID,
 		key:               key,
 		expectedResources: expectedResources,
+		expectedFilenames: expectedFilenames,
 	}, nil
 }
 
@@ -81,38 +83,5 @@ func (l *untypedListStep) RunTest(ctx context.Context, t *testing.T, stepInput S
 	}
 	require.NoError(t, actualResourcesIterator.GetError())
 
-	if len(l.expectedResources) != len(actualResources) {
-		t.Logf("actual:\n%v", stringifyResource(actualResources))
-	}
-
-	require.Equal(t, len(l.expectedResources), len(actualResources), "unexpected number of resource")
-	// all the expected must be present
-	for _, expected := range l.expectedResources {
-		found := false
-		for _, actual := range actualResources {
-			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Logf("actual:\n%v", stringifyResource(actualResources))
-		}
-		require.True(t, found, "expected resource not found: %v", ResourceName(expected))
-	}
-
-	// all the actual must be expected
-	for _, actual := range actualResources {
-		found := false
-		for _, expected := range l.expectedResources {
-			if _, equals := ResourceInstanceEquals(t, expected, actual); equals {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Logf("expected:\n%v", stringifyResource(l.expectedResources))
-		}
-		require.True(t, found, "actual resource not found: %v", ResourceName(actual))
-	}
+	verifyOrUpdateList(t, l.stepID, toAnySlice(l.expectedResources), l.expectedFilenames, toAnySlice(actualResources), typedDocumentKey)
 }

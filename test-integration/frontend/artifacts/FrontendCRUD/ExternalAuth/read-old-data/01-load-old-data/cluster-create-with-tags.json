@@ -1,9 +1,4 @@
 {
-	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-8196-443c080501dc\"",
-	"_rid": "MFstAI+1dLsDAAAAAAAAAA==",
-	"_self": "dbs/MFstAA==/colls/MFstAI+1dLs=/docs/MFstAI+1dLsDAAAAAAAAAA==/",
-	"_ts": 1767983530,
 	"id": "96b154eb-638c-5dae-ba08-9b2df5cd8f61",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
@@ -32,7 +27,8 @@
 								"name": "encryptionKeyName",
 								"vaultName": "keyVaultName",
 								"version": "2024-12-01-preview"
-							}
+							},
+							"visibility": "Public"
 						}
 					},
 					"keyManagementMode": "CustomerManaged"
@@ -81,6 +77,9 @@
 		},
 		"internalState": {
 			"internalAPI": {
+				"cosmosMetadata": {
+					"resourceID": null
+				},
 				"customerProperties": {
 					"api": {
 						"visibility": "Public"
@@ -103,7 +102,8 @@
 										"name": "encryptionKeyName",
 										"vaultName": "keyVaultName",
 										"version": "2024-12-01-preview"
-									}
+									},
+									"visibility": "Public"
 								}
 							},
 							"keyManagementMode": "CustomerManaged"

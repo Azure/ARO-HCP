@@ -37,6 +37,7 @@ type getStep[InternalAPIType any] struct {
 	key    CosmosItemKey
 
 	expectedResource *InternalAPIType
+	expectedFilename string
 	expectedError    string
 }
 
@@ -57,7 +58,8 @@ func newGetStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*getStep[Int
 	expectedError := strings.TrimSpace(string(expectedErrorBytes))
 
 	var expectedResource *InternalAPIType
-	expectedResources, err := readResourcesInDir[InternalAPIType](stepDir)
+	var expectedFilename string
+	expectedResources, expectedFilenames, err := readResourcesAndFilenamesInDir[InternalAPIType](stepDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
@@ -65,6 +67,7 @@ func newGetStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*getStep[Int
 	case 0:
 	case 1:
 		expectedResource = expectedResources[0]
+		expectedFilename = expectedFilenames[0]
 	default:
 		return nil, fmt.Errorf("cannot expect more than one resource")
 	}
@@ -77,6 +80,7 @@ func newGetStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*getStep[Int
 		stepID:           stepID,
 		key:              key,
 		expectedResource: expectedResource,
+		expectedFilename: expectedFilename,
 		expectedError:    expectedError,
 	}, nil
 }
@@ -98,10 +102,5 @@ func (l *getStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, st
 		require.NoError(t, err)
 	}
 
-	if reason, equals := ResourceInstanceEquals(t, l.expectedResource, actualResource); !equals {
-		t.Logf("actual:\n%v", stringifyResource(actualResource))
-		t.Log(reason)
-		// cmpdiff doesn't handle private fields gracefully
-		require.Equal(t, l.expectedResource, actualResource)
-	}
+	verifyOrUpdateGet(t, l.stepID, l.expectedResource, actualResource, l.expectedFilename)
 }

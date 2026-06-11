@@ -2,7 +2,9 @@
 	"id": "283ae96a-d6f4-5520-856f-2a241ab18e3e",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/downgrade/nodePools/downgrade-np/serviceProviderNodePools/default",
+		"cosmosMetadata": {
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/downgrade/nodePools/downgrade-np/serviceProviderNodePools/default"
+		},
 		"spec": {
 			"nodePoolVersion": {
 				"desiredVersion": "4.23.0"
@@ -19,5 +21,5 @@
 		}
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/downgrade/nodePools/downgrade-np/serviceProviderNodePools/default",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools/serviceProviderNodePools"
 }

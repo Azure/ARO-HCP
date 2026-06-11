@@ -5,14 +5,86 @@
 		"cosmosMetadata": {
 			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster"
 		},
+		"customerProperties": {
+			"api": {
+				"visibility": "Public"
+			},
+			"autoscaling": {},
+			"clusterImageRegistry": {
+				"state": "Enabled"
+			},
+			"dns": {},
+			"etcd": {
+				"dataEncryption": {
+					"keyManagementMode": "PlatformManaged"
+				}
+			},
+			"network": {
+				"networkType": "OVNKubernetes"
+			},
+			"platform": {
+				"operatorsAuthentication": {
+					"userAssignedIdentities": {}
+				},
+				"outboundType": "LoadBalancer"
+			},
+			"version": {}
+		},
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
 		"intermediateResourceDoc": {
 			"internalId": "/api/clusters_mgmt/v1/clusters/fixed-value",
 			"provisioningState": "Provisioning",
 			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster"
 		},
+		"internalState": {
+			"internalAPI": {
+				"cosmosMetadata": {
+					"resourceID": null
+				},
+				"customerProperties": {
+					"api": {
+						"visibility": "Public"
+					},
+					"autoscaling": {},
+					"clusterImageRegistry": {
+						"state": "Enabled"
+					},
+					"dns": {},
+					"etcd": {
+						"dataEncryption": {
+							"keyManagementMode": "PlatformManaged"
+						}
+					},
+					"network": {
+						"networkType": "OVNKubernetes"
+					},
+					"platform": {
+						"operatorsAuthentication": {
+							"userAssignedIdentities": {}
+						},
+						"outboundType": "LoadBalancer"
+					},
+					"version": {}
+				},
+				"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
+				"serviceProviderProperties": {
+					"api": {},
+					"clusterServiceID": "/api/clusters_mgmt/v1/clusters/fixed-value",
+					"console": {},
+					"dns": {},
+					"platform": {},
+					"provisioningState": "Provisioning",
+					"usesNewClusterDeletionApproach": false
+				},
+				"status": {}
+			}
+		},
 		"serviceProviderProperties": {
+			"api": {},
 			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/fixed-value",
+			"console": {},
+			"dns": {},
+			"platform": {},
 			"provisioningState": "Provisioning",
 			"usesNewClusterDeletionApproach": false
 		},

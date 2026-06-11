@@ -1,0 +1,29 @@
+{
+	"_etag": "78290664-14ab-42b2-9ce7-d29a517ac61d",
+	"id": "36d3384c-23ae-5b99-bbf3-5c57895785f1",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"cosmosMetadata": {
+			"etag": "4d1b5bec-fe11-44ce-abdb-f97a4d2c30d8",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/57389946-0714-4440-af9c-4f4082ec5c28"
+		},
+		"error": {
+			"code": "Canceled",
+			"message": "This operation was superseded by another"
+		},
+		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/nodePools/test-nodepool",
+		"internalId": "/api/clusters_mgmt/v1/clusters/k9l4htlxjx/node_pools/m9zqfnqj6h",
+		"lastTransitionTime": "2026-06-09T16:37:42.22574526-04:00",
+		"operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/57389946-0714-4440-af9c-4f4082ec5c28",
+		"request": "Create",
+		"startTime": "2026-06-09T20:37:42.223032183Z",
+		"status": "Canceled",
+		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"usesNewClusterDeletionApproach": false,
+		"usesNewExternalAuthDeletionApproach": false,
+		"usesNewNodePoolDeletionApproach": false
+	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/57389946-0714-4440-af9c-4f4082ec5c28",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+	"ttl": 604800
+}

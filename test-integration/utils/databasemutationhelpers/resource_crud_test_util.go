@@ -348,7 +348,17 @@ func readResourcesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, err
 }
 
 func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
+	contents, _, err := readRawBytesAndFilenamesInDir(dir)
+	return contents, err
+}
+
+// readRawBytesAndFilenamesInDir returns the raw JSON bodies and the parallel
+// list of filenames each came from. The filename slice stays index-aligned
+// with the content slice so UPDATE mode can write each result back to the
+// same file it was read from.
+func readRawBytesAndFilenamesInDir(dir fs.FS) ([][]byte, []string, error) {
 	contents := [][]byte{}
+	filenames := []string{}
 	testContent := api.Must(fs.ReadDir(dir, "."))
 	for _, dirEntry := range testContent {
 		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
@@ -363,12 +373,46 @@ func readRawBytesInDir(dir fs.FS) ([][]byte, error) {
 
 		currContent, err := fs.ReadFile(dir, dirEntry.Name())
 		if err != nil {
-			return nil, fmt.Errorf("failed to read expected.json: %w", err)
+			return nil, nil, fmt.Errorf("failed to read expected.json: %w", err)
 		}
 		contents = append(contents, currContent)
+		filenames = append(filenames, dirEntry.Name())
 	}
 
-	return contents, nil
+	return contents, filenames, nil
+}
+
+// readResourcesAndFilenamesInDir mirrors readResourcesInDir but also returns
+// the on-disk filename each resource came from (index-aligned with resources).
+// Used by UPDATE-aware steps so they can rewrite the original file.
+func readResourcesAndFilenamesInDir[InternalAPIType any](dir fs.FS) ([]*InternalAPIType, []string, error) {
+	resources := []*InternalAPIType{}
+	filenames := []string{}
+	testContent, err := fs.ReadDir(dir, ".")
+	if err != nil {
+		return nil, nil, utils.TrackError(err)
+	}
+	for _, dirEntry := range testContent {
+		if dirEntry.Name() == "00-key.json" { // standard filenames to skip
+			continue
+		}
+		if !strings.HasSuffix(dirEntry.Name(), ".json") {
+			continue
+		}
+
+		content, err := fs.ReadFile(dir, dirEntry.Name())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read expected.json: %w", err)
+		}
+		var resource InternalAPIType
+		if err := json.Unmarshal(content, &resource); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal instance.json: %w", err)
+		}
+		resources = append(resources, &resource)
+		filenames = append(filenames, dirEntry.Name())
+	}
+
+	return resources, filenames, nil
 }
 
 // DefaultTestAPIVersion is the API version used by existing integration tests.
