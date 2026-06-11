@@ -13,7 +13,7 @@ param openshiftVersionId string
 param osDiskSizeGiB int = 64
 
 @description('VM size for the nodepool VMs')
-param vmSize string = 'Standard_D8s_v3'
+param vmSize string = 'Standard_D8as_v7'
 
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' existing = {
   name: clusterName
