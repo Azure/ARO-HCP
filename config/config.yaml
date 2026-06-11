@@ -167,7 +167,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:81912673248ea41c42502d9ff50c0a57e8f542d5a0a4fed28489a47e40276c15 # fecedb7 (2026-06-10 02:54)
+      digest: sha256:96915fe19b57e0379ddda967b4ed6cbdc1edfc6b18037ee357109212851b9ad6 # 38b1200 (2026-06-10 20:32)
   # Mgmt Agent Controller
   mgmtAgent:
     managedIdentityName: mgmt-agent
@@ -317,7 +317,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:c8b031e426ae224d5bebca597d0deaab1fb62060d20d1dc150cd581cc6381f4c # 832b8480e72020b3d6d6477e7aba90c7c2f2ddfb (2026-06-09 16:41)
+      digest: sha256:292d4e51890e85c36a88e91bac944685c91a8441ac3dde5cd1887dc9e19ab827 # 4755e9c941b52bb4719efe16b9102dc46e7c3bea (2026-06-10 10:31)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -931,14 +931,14 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:f6c0ac7154b13cbbd46c3f759c12a3e480bc9f7394bfa55f4bc6d4e30161a9e0 # abd8177acd9fb36dcc1a2bbe8aa89a56fa7ff9bd (2026-06-02 13:56)
+      digest: sha256:6e3033bb699838df98ca5ba8c5396e17091d97866807cf101c69d5275feac427 # 85df8220e990d1bd8dbbe551766a7e462590ed93 (2026-06-10 21:21)
   # ACM
   acm:
     operator:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:ea8fd7e65469a0e2ee810450c30751c48904cd21232fe5b1630c8e54aed7314a # v2.16.2-450 (2026-06-08 05:42)
+        digest: sha256:f277cbf67c91f3b0c5578dc4f4c78f9c71f2d61597a7bd43331092cec278c89f # 116abe2f16a198818cc73e251e21c6690d1cffb9 (2026-06-09 18:35)
     mce:
       bundle:
         registry: quay.io
@@ -949,7 +949,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:0e369c753925e8d18e47ed45c9f70bf68cf35e0b833794fda8c7212cc298d006 # dcb97edc3a5de24cbaf1c8593a923b7fa94dac23 (2026-06-09 15:40)
+      digest: sha256:a56a45338014369f4c9cf5fc7dd8ec074a69e8d92710ee7a4345c33d466b09f9 # 7a40adad750f93e87b6c48f44e835381f8b296bf (2026-06-10 14:17)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1009,7 +1009,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:bd75091889a904335a6b6ff81bc425a514620351773674ec2b72e21de965d99e # fecedb7 (2026-06-10 02:55)
+        digest: sha256:b5a821121d051d8283d1dd09807375b6de0f6a9f003cb025a86004ca72a04431 # 38b1200 (2026-06-10 20:33)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
