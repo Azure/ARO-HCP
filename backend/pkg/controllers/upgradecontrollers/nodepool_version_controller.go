@@ -38,6 +38,7 @@ import (
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -71,6 +72,7 @@ func NewNodePoolVersionController(
 	activeOperationLister listers.ActiveOperationLister,
 	subscriptionLister listers.SubscriptionLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
@@ -91,6 +93,7 @@ func NewNodePoolVersionController(
 		NodepoolVersionControllerName,
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute, // Check for upgrades every 5 minutes
 		syncer,
 	)

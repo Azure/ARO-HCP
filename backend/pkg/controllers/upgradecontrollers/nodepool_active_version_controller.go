@@ -32,6 +32,7 @@ import (
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -58,6 +59,7 @@ func NewNodePoolActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
@@ -72,6 +74,7 @@ func NewNodePoolActiveVersionController(
 		NodePoolActiveVersionsControllerName,
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute,
 		syncer,
 	)

@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
 type NodePoolSyncer interface {
@@ -46,10 +47,18 @@ type nodePoolWatchingController struct {
 // Since our detection of change is coarse, we are being triggered every few second without new information.
 // Until we get a changefeed, the cooldownDuration value is effectively the min resync time.
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
+//
+// kubeApplierInformers is optional: when non-nil, the controller also enqueues
+// on ReadDesire events from the union kube-applier informer surface. The
+// status that the kube-applier writes back lives on the ReadDesire, so a
+// ReadDesire update is how this controller learns "the kube-applier
+// reported something new about a node pool". Apply/Delete desires are not
+// wired in because their status doesn't carry node-pool-state signal.
 func NewNodePoolWatchingController(
 	name string,
 	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer NodePoolSyncer,
 ) Controller {
@@ -73,6 +82,18 @@ func NewNodePoolWatchingController(
 		// Limit the max depth of ManagementClusterContent to 1 to only consider the nodepool-scoped ManagementClusterContents
 		err = nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, managementClusterContentInformer)
 		if err != nil {
+			panic(err) // coding error
+		}
+	}
+
+	if kubeApplierInformers != nil {
+		// Node-pool-scoped ReadDesires sit one level below the node pool
+		// (.../nodePools/<np>/readDesires/<name>), so a maxDepth of 1
+		// reaches the node pool and stops there. Cluster-scoped ReadDesires
+		// live above the node pool and are ignored on purpose — this
+		// controller is "nodepool-scoped only".
+		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
+		if err := nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}
