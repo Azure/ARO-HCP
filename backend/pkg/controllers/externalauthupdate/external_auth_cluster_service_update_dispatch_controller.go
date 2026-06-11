@@ -109,11 +109,6 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 		return nil
 	}
 
-	desiredHash, err := ocm.ExternalAuthUpdatableConfigHash(externalAuth)
-	if err != nil {
-		return err
-	}
-
 	serviceProviderExternalAuth, err := database.GetOrCreateServiceProviderExternalAuth(ctx, c.resourcesDBClient, externalAuth.ID)
 	if err != nil {
 		return err
@@ -122,9 +117,24 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 	// For the old update approach, we introduce this mechanism to set the config hash in the ServiceProviderExternalAuth status when the controller runs
 	// so we can compute the hash for pre-existing external auths.
 	if !externalAuth.ServiceProviderProperties.UsesNewExternalAuthUpdateApproach {
-		if serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch != desiredHash {
-			logger.Info("using old update approach, skipping Cluster Service update but setting config hash", "desiredHash", desiredHash)
+		desiredHash, err := ocm.ExternalAuthUpdatableConfigHash(externalAuth)
+		if err != nil {
+			return err
+		}
+
+		// TODO once we create the initial hash during extauth creation this shouldn't be needed
+		storedHash := serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch
+		storedVersionPtr := serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashVersionForUpdateDispatch
+		currentVersion := ocm.ExternalAuthUpdatableConfigHashVersion
+		storedVersion := currentVersion
+		if storedVersionPtr != nil {
+			storedVersion = *storedVersionPtr
+		}
+
+		if storedHash != desiredHash || storedVersion != currentVersion {
+			logger.Info("using old update approach, skipping Cluster Service update but setting config hash", "desiredHash", desiredHash, "version", currentVersion)
 			serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch = desiredHash
+			serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashVersionForUpdateDispatch = &currentVersion
 			_, err = c.resourcesDBClient.ServiceProviderExternalAuths(
 				externalAuth.ID.SubscriptionID,
 				externalAuth.ID.ResourceGroupName,
@@ -136,10 +146,26 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 			}
 			return nil
 		}
+		return nil
 	}
 
-	// If the desired hash matches the stored hash, we don't need to send an ExternalAuth CS update
-	if serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch == desiredHash {
+	// If the hash or the hash version has not been calculated it means that the corresponding create controller hasn't
+	// acted yet. Don't do until that occurs.
+	if serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch == "" || serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashVersionForUpdateDispatch == nil {
+		return nil
+	}
+
+	storedHash := serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch
+	storedVersion := *serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashVersionForUpdateDispatch
+
+	// Compare using the stored version so that a code deploy that changes the
+	// field list (version bump) does not trigger unnecessary CS PATCHes. Only
+	// the frontend advances the stored version on user-initiated updates.
+	desiredHash, err := ocm.ExternalAuthUpdatableConfigHashForVersion(externalAuth, storedVersion)
+	if err != nil {
+		return err
+	}
+	if desiredHash == storedHash {
 		return nil
 	}
 
@@ -151,8 +177,9 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 	externalAuthCSID := externalAuth.ServiceProviderProperties.ClusterServiceID
 	logger.Info("dispatching external auth update to Cluster Service",
 		"clusterServiceID", externalAuthCSID.String(),
-		"previousHash", serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch,
+		"previousHash", storedHash,
 		"desiredHash", desiredHash,
+		"version", storedVersion,
 	)
 
 	_, err = c.clusterServiceClient.UpdateExternalAuth(ctx, *externalAuthCSID, csExternalAuthBuilder)
@@ -173,6 +200,6 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderExternalAuth config hash: %w", err))
 	}
 
-	logger.Info("stored Cluster Service external auth updatable config hash", "hash", desiredHash)
+	logger.Info("stored Cluster Service external auth updatable config hash", "hash", desiredHash, "version", storedVersion)
 	return nil
 }

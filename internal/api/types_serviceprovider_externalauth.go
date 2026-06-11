@@ -50,4 +50,11 @@ type ServiceProviderExternalAuthStatus struct {
 	// ClusterServiceUpdatableConfigHashForUpdateDispatch is a SHA-256 hex digest of the internal/ocm.externalAuthUpdatableConfig struct,
 	// when serialized as a json map. This hash is used by the external auth update dispatch controller to determine if a CS PATCH call is needed.
 	ClusterServiceUpdatableConfigHashForUpdateDispatch string `json:"clusterServiceUpdatableConfigHashForUpdateDispatch"`
+
+	// ClusterServiceUpdatableConfigHashVersionForUpdateDispatch is the version of
+	// the field list used to compute ClusterServiceUpdatableConfigHashForUpdateDispatch.
+	// The dispatch controller uses it to distinguish schema-only changes (field
+	// additions/removals between code versions) from actual data changes, avoiding
+	// unnecessary CS PATCH calls on deploy.
+	ClusterServiceUpdatableConfigHashVersionForUpdateDispatch *int `json:"clusterServiceUpdatableConfigHashVersionForUpdateDispatch,omitempty"`
 }

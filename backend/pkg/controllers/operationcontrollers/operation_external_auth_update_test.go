@@ -25,6 +25,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -260,7 +261,8 @@ func newServiceProviderExternalAuth(externalAuthResourceID *azcorearm.ResourceID
 			ResourceID: spResourceID,
 		},
 		Status: api.ServiceProviderExternalAuthStatus{
-			ClusterServiceUpdatableConfigHashForUpdateDispatch: hash,
+			ClusterServiceUpdatableConfigHashForUpdateDispatch:        hash,
+			ClusterServiceUpdatableConfigHashVersionForUpdateDispatch: ptr.To(ocm.ExternalAuthUpdatableConfigHashVersion),
 		},
 	}
 }

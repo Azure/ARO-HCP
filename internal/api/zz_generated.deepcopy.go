@@ -1649,6 +1649,11 @@ func (in *ServiceProviderExternalAuthStatus) DeepCopyInto(out *ServiceProviderEx
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.ClusterServiceUpdatableConfigHashVersionForUpdateDispatch != nil {
+		in, out := &in.ClusterServiceUpdatableConfigHashVersionForUpdateDispatch, &out.ClusterServiceUpdatableConfigHashVersionForUpdateDispatch
+		*out = new(int)
+		**out = **in
+	}
 	return
 }
 

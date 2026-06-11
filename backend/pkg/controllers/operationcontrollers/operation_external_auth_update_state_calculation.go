@@ -26,26 +26,33 @@ import (
 )
 
 // cosmosHashOperationState checks whether the ServiceProviderExternalAuth hash
-// matches the desired hash computed from the ExternalAuth in Cosmos. If the
+// matches the desired hash computed from the ExternalAuth in Cosmos. The
+// comparison uses the stored version's field list so that a code deploy that
+// changes the hash version does not produce a false "updating" state. If the
 // hashes differ, the dispatch controller has not yet sent the CS PATCH, so the
 // operation is still updating.
 func (c *operationExternalAuthUpdate) cosmosHashOperationState(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
-
-	desiredHash, err := ocm.ExternalAuthUpdatableConfigHash(externalAuth)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to compute desired external auth hash: %w", err))
-	}
 
 	serviceProviderExternalAuth, err := database.GetOrCreateServiceProviderExternalAuth(ctx, c.resourcesDBClient, externalAuth.ID)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to get service provider external auth: %w", err))
 	}
 
-	currentHash := serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch
+	storedHash := serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch
+	storedVersionPtr := serviceProviderExternalAuth.Status.ClusterServiceUpdatableConfigHashVersionForUpdateDispatch
+	storedVersion := ocm.ExternalAuthUpdatableConfigHashVersion
+	if storedVersionPtr != nil {
+		storedVersion = *storedVersionPtr
+	}
 
-	if currentHash != desiredHash {
-		message := fmt.Sprintf("ServiceProviderExternalAuth hash %q does not match desired hash %q, waiting for dispatch", currentHash, desiredHash)
+	desiredHash, err := ocm.ExternalAuthUpdatableConfigHashForVersion(externalAuth, storedVersion)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to compute desired external auth hash: %w", err))
+	}
+
+	if storedHash != desiredHash {
+		message := fmt.Sprintf("ServiceProviderExternalAuth hash %q does not match desired hash %q (version %d), waiting for dispatch", storedHash, desiredHash, storedVersion)
 		logger.Info(message)
 		return newOperationState(arm.ProvisioningStateUpdating, message), nil
 	}
