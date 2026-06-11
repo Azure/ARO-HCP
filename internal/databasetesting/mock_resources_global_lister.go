@@ -58,6 +58,13 @@ func (g *mockResourcesGlobalListers) ExternalAuths() database.GlobalLister[api.H
 	}
 }
 
+func (g *mockResourcesGlobalListers) SystemAdminCredentials() database.GlobalLister[api.SystemAdminCredential] {
+	return &mockTypedGlobalLister[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]]{
+		client:       g.client,
+		resourceType: api.SystemAdminCredentialResourceType,
+	}
+}
+
 func (g *mockResourcesGlobalListers) ServiceProviderClusters() database.GlobalLister[api.ServiceProviderCluster] {
 	return &mockTypedGlobalLister[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]]{
 		client:       g.client,

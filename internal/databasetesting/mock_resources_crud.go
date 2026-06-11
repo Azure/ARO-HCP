@@ -516,6 +516,19 @@ func (m *mockHCPClusterCRUD) ManagementClusterContents(hcpClusterName string) da
 	return newMockManagementClusterContentCRUD(m.client, parentResourceID, api.ClusterScopedManagementClusterContentResourceType)
 }
 
+func (m *mockHCPClusterCRUD) SystemAdminCredentials(hcpClusterName string) database.ResourceCRUD[api.SystemAdminCredential] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			"providers",
+			m.resourceType.Namespace,
+			m.resourceType.Type,
+			hcpClusterName)))
+
+	return newMockResourceCRUD[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]](
+		m.client, parentResourceID, api.SystemAdminCredentialResourceType)
+}
+
 var _ database.HCPClusterCRUD = &mockHCPClusterCRUD{}
 
 // mockNodePoolsCRUD implements database.NodePoolsCRUD.
