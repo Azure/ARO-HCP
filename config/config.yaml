@@ -167,7 +167,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:96915fe19b57e0379ddda967b4ed6cbdc1edfc6b18037ee357109212851b9ad6 # 38b1200 (2026-06-10 20:32)
+      digest: sha256:1839292d84c688c158ffcd85415147b3e929f9debaf951e29189d2e361b88fa8 # 3e512f9 (2026-06-11 05:46)
   # Mgmt Agent Controller
   mgmtAgent:
     managedIdentityName: mgmt-agent
@@ -1012,7 +1012,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:b5a821121d051d8283d1dd09807375b6de0f6a9f003cb025a86004ca72a04431 # 38b1200 (2026-06-10 20:33)
+        digest: sha256:1d11084b3a58234607c6e5219f0fe6bff5dda54ce20b74aca87b733504a01f8e # 3e512f9 (2026-06-11 05:46)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account

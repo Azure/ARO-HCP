@@ -207,7 +207,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:96915fe19b57e0379ddda967b4ed6cbdc1edfc6b18037ee357109212851b9ad6
+    digest: sha256:1839292d84c688c158ffcd85415147b3e929f9debaf951e29189d2e361b88fa8
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -444,7 +444,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:b5a821121d051d8283d1dd09807375b6de0f6a9f003cb025a86004ca72a04431
+      digest: sha256:1d11084b3a58234607c6e5219f0fe6bff5dda54ce20b74aca87b733504a01f8e
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
