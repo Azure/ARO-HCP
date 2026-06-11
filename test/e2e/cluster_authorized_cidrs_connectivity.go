@@ -416,12 +416,13 @@ var _ = Describe("Authorized CIDRs", func() {
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to begin updating cluster %q authorized CIDRs", clusterName)
 
-				pollCtx, pollCancel := context.WithTimeout(ctx, 10*time.Minute)
+				const pollTimeout = 10 * time.Minute
+				pollCtx, pollCancel := context.WithTimeout(ctx, pollTimeout)
 				defer pollCancel()
 				_, err = poller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
 					Frequency: framework.StandardPollInterval,
 				})
-				Expect(err).NotTo(HaveOccurred(), "failed to poll cluster %q authorized CIDRs update to completion", clusterName)
+				Expect(err).NotTo(HaveOccurred(), "failed to poll cluster %q authorized CIDRs update to completion (timeout '%f' minutes)", clusterName, pollTimeout.Minutes())
 
 				By("verifying VM is now blocked from API access")
 				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest, 2*time.Minute)

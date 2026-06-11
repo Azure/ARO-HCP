@@ -139,7 +139,7 @@ var _ = Describe("MISE Routing", func() {
 			_, err = delPoller.PollUntilDone(delCtx, &runtime.PollUntilDoneOptions{
 				Frequency: framework.StandardPollInterval,
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to poll HCP cluster deletion to completion")
+			Expect(err).NotTo(HaveOccurred(), "failed to poll HCP cluster %q deletion (timeout '%f' minutes)", clusterParams.ClusterName, framework.HCPClusterDeletionTimeout.Minutes())
 
 			Expect(validator.mismatches).To(BeEmpty(), "x-ms-served-by header mismatches detected")
 			Expect(validator.requestCount).To(BeNumerically(">", 0), "expected at least one HCP API request")
