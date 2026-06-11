@@ -1683,6 +1683,35 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
             }
           }
         ]
+        alert: 'MgmtClusterNodeSwiftNICCapacityZero'
+        enabled: true
+        labels: {
+          severity: 'critical'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'MgmtClusterNodeSwiftNICCapacityZero/{{ $labels.cluster }}'
+          description: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
+          info: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://portal.microsofticm.com/imp/v5/incidents/details/802529667'
+          summary: 'Management cluster node has zero SWIFT NIC capacity.'
+          title: 'Management cluster node has zero SWIFT NIC capacity.'
+        }
+        expression: 'kube_node_status_capacity{node=~"user.*", resource="aro_openshift_io_swift_nic"} == 0'
+        for: 'PT10M'
+        severity: 2
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
         alert: 'MgmtClusterHCPCapacityCritical'
         enabled: true
         labels: {
