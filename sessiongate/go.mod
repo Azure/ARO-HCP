@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/sessiongate
 
-go 1.25.7
+go 1.25.5
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
@@ -71,4 +71,9 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
+)
+
+replace (
+	github.com/aws/karpenter-provider-aws => github.com/aws/karpenter-provider-aws v1.0.0
+	sigs.k8s.io/karpenter => sigs.k8s.io/karpenter v1.0.0
 )

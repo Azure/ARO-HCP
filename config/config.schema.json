@@ -1287,6 +1287,30 @@
         "maestro": {
           "$ref": "#/definitions/backendMaestroConfig"
         },
+        "backupSchedules": {
+          "type": "object",
+          "description": "Named backup schedules (e.g. hourly, daily, weekly), each with a cron schedule and TTL",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "schedule": {
+                "type": "string",
+                "description": "Cron schedule expression"
+              },
+              "ttl": {
+                "type": "string",
+                "description": "TTL for backups as a Go duration string (e.g. 48h, 336h)",
+                "pattern": "^([0-9]+(h|m|s|ms|us|ns))+$"
+              },
+              "paused": {
+                "type": "boolean",
+                "description": "Whether this backup schedule is paused"
+              }
+            },
+            "required": ["schedule", "ttl", "paused"],
+            "additionalProperties": false
+          }
+        },
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
@@ -1308,6 +1332,7 @@
         "managedIdentityName",
         "azureRuntimeConfig",
         "maestro",
+        "backupSchedules",
         "exitOnPanic",
         "logVerbosity",
         "clusterScopedIdentitiesConfig"

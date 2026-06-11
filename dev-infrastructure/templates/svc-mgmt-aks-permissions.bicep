@@ -4,6 +4,9 @@ param aksClusterName string
 @description('Session Gate MI resource ID, used to grant AKS access')
 param sessiongateMIResourceId string
 
+@description('Admin API MI resource ID, used to grant AKS access for management cluster operations')
+param adminApiMIResourceId string
+
 import * as res from '../modules/resource.bicep'
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' existing = {
@@ -33,6 +36,26 @@ resource sessiongateAksAccess 'Microsoft.Authorization/roleAssignments@2022-04-0
   properties: {
     roleDefinitionId: aksClusterRBACAdminRoleId
     principalId: sessiongateMSI.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+//
+//   A D M I N   A P I   A K S   A C C E S S
+//
+
+var adminApiMIRef = res.msiRefFromId(adminApiMIResourceId)
+resource adminApiMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(adminApiMIRef.resourceGroup.subscriptionId, adminApiMIRef.resourceGroup.name)
+  name: adminApiMIRef.name
+}
+
+resource adminApiAksAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: aksCluster
+  name: guid(resourceGroup().id, aksClusterName, adminApiMIResourceId, aksClusterRBACAdminRoleId)
+  properties: {
+    roleDefinitionId: aksClusterRBACAdminRoleId
+    principalId: adminApiMSI.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }

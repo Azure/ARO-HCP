@@ -32,6 +32,28 @@ data:
       issuer: "Self"
       certificatesGenerationSource: AzureKeyVault
 ---
+# Source: backend/templates/backend.backup-config.configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-backup-config
+  namespace: 'aro-hcp'
+data:
+  config.yaml: |
+    schedules:
+    - name: "daily"
+      schedule: "0 2 * * *"
+      ttl: "336h"
+      paused: false
+    - name: "hourly"
+      schedule: "0 */1 * * *"
+      ttl: "48h"
+      paused: false
+    - name: "weekly"
+      schedule: "0 3 * * 0"
+      ttl: "2160h"
+      paused: false
+---
 # Source: backend/templates/backend.configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -126,6 +148,7 @@ spec:
       annotations:
         checksum/backendservicekeyvault: '67b31416c594e3f1f3e7754fc18a9da8bf47bfa45d09f9ed568db2d0d14a2544'
         checksum/azureruntimeconfig: '40e0cf247edb3f1d1eb59cd97663f8ab2cf029da7a96716ee8916d38ac9fb0e5'
+        checksum/backupconfig: 'b814e34ed59f44f7b5d28a6e2edcb9cb9ff904ab6ec86fb2f49ca6517395355d'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -151,6 +174,9 @@ spec:
       - name: azure-runtime-config
         configMap:
           name: backend-azure-runtime-config
+      - name: backup-config
+        configMap:
+          name: backend-backup-config
       containers:
       - name: aro-hcp-backend
         image: 'arohcpsvcdev.azurecr.io/arohcpbackend@sha256:1234567890'
@@ -160,6 +186,8 @@ spec:
         - "http://clusters-service.clusters-service.svc.cluster.local:8000"
         - "--azure-runtime-config-path"
         - "/configs/azure-runtime-config/config.yaml"
+        - "--backup-config-path"
+        - "/configs/backup-config/config.yaml"
         - "--azure-first-party-application-certificate-bundle-path"
         - "/secrets/backend-service-key-vault/fpa-cert-bundle"
         - "--azure-first-party-application-client-id"
@@ -231,6 +259,9 @@ spec:
           mountPath: "/secrets/backend-service-key-vault"
         - name: azure-runtime-config
           mountPath: /configs/azure-runtime-config
+          readOnly: true
+        - name: backup-config
+          mountPath: /configs/backup-config
           readOnly: true
       restartPolicy: Always
       terminationGracePeriodSeconds: 30

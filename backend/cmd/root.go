@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/backupcontroller"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/signal"
@@ -64,6 +65,7 @@ type BackendRootCmdFlags struct {
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 	ExitOnPanic                                                                                   bool
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
+	BackupConfigPath                                                                              string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -194,6 +196,9 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		f.AzureClusterScopedIdentitiesRoleSetName,
 		"The name of the cluster scoped identities role set to use. It is used to select the appropriate set of operator role definitions associated to the cluster scoped identities. Accepted values: [dev, public].",
 	)
+
+	cmd.Flags().StringVar(&f.BackupConfigPath, "backup-config-path", f.BackupConfigPath,
+		"Path to a YAML file containing backup schedule configuration")
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
@@ -422,6 +427,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 
 	clusterScopedIdentitiesConfig := internalazure.NewClusterScopedIdentitiesConfig(internalazure.RoleDefinitionConfigSetName(f.AzureClusterScopedIdentitiesRoleSetName))
 
+	backupConfig, err := backupcontroller.LoadBackupConfig(f.BackupConfigPath)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to load backup config: %w", err))
+	}
+
 	backendOptions := &app.BackendOptions{
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
@@ -440,6 +450,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackendIdentityAzureClients:        backendIdentityAzureClients,
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
+		BackupConfig:                       backupConfig,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,
 		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
@@ -467,6 +478,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		LogVerbosity:                                    0,
 		MaestroSourceEnvironmentIdentifier:              "",
 		ExitOnPanic:                                     true,
+		BackupConfigPath:                                backupConfigPathDefault(),
 	}
 
 	return flags
@@ -541,4 +553,11 @@ func RunRootCmd(cmd *cobra.Command, flags *BackendRootCmdFlags) error {
 	}
 
 	return nil
+}
+
+func backupConfigPathDefault() string {
+	if v := os.Getenv("BACKUP_CONFIG_PATH"); v != "" {
+		return v
+	}
+	return "/configs/backup-config/config.yaml"
 }

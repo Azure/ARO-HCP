@@ -1508,6 +1508,10 @@ func (in *ServiceProviderClusterStatus) DeepCopyInto(out *ServiceProviderCluster
 			}
 		}
 	}
+	if in.LastBackupTime != nil {
+		in, out := &in.LastBackupTime, &out.LastBackupTime
+		*out = (*in).DeepCopy()
+	}
 	if in.ManagementClusterResourceID != nil {
 		in, out := &in.ManagementClusterResourceID, &out.ManagementClusterResourceID
 		*out = arm.DeepCopyResourceID(*in)

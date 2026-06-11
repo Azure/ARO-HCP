@@ -37,6 +37,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+
+	stamp "github.com/Azure/ARO-HCP/internal/api/fleet"
 )
 
 const (
@@ -267,7 +269,9 @@ func (tc *perItOrDescribeTestContext) GetCurrentAzureIdentityDetails(ctx context
 	return tc.perBinaryInvocationTestContext.GetCurrentAzureIdentityDetails(ctx)
 }
 
-func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Client {
+// newAdminAPIHTTPClient builds an HTTP client configured with the given identity
+// headers and TLS settings for calling the admin API.
+func (tc *perItOrDescribeTestContext) newAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) (*http.Client, string) {
 	tlsConfig := &tls.Config{}
 	if IsDevelopmentEnvironment() {
 		tlsConfig.InsecureSkipVerify = true
@@ -280,13 +284,23 @@ func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Clien
 			identityDetails: identityDetails,
 		},
 		Timeout: adminAPIRequestTimeout,
+	}, tc.perBinaryInvocationTestContext.adminAPIAddress
+}
+
+// NewAdminAPIHTTPClient returns an HTTP client configured with the current
+// Azure identity's authentication headers and TLS settings for calling the
+// admin API, along with the admin API base URL.
+func (tc *perItOrDescribeTestContext) NewAdminAPIHTTPClient(ctx context.Context) (*http.Client, string, error) {
+	identityDetails, err := tc.GetCurrentAzureIdentityDetails(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get Azure identity details: %w", err)
 	}
+	httpClient, adminAPIAddress := tc.newAdminAPIHTTPClient(identityDetails)
+	return httpClient, adminAPIAddress, nil
 }
 
 func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context.Context, resourceID string, ttl time.Duration, accessLevel string, identityDetails *AzureIdentityDetails) (*rest.Config, time.Time, error) {
-	httpClient := createAdminAPIHTTPClient(identityDetails)
-
-	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
+	httpClient, adminAPIEndpoint := tc.newAdminAPIHTTPClient(identityDetails)
 
 	breakglassEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/breakglass",
 		adminAPIEndpoint,
@@ -397,9 +411,7 @@ func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Conte
 }
 
 func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, resourceID string, vmName string, identityDetails *AzureIdentityDetails) (string, error) {
-	httpClient := createAdminAPIHTTPClient(identityDetails)
-
-	adminAPIEndpoint := tc.perBinaryInvocationTestContext.adminAPIAddress
+	httpClient, adminAPIEndpoint := tc.newAdminAPIHTTPClient(identityDetails)
 
 	serialConsoleEndpoint := fmt.Sprintf("%s/admin/v1/hcp%s/serialconsole",
 		adminAPIEndpoint,
@@ -440,4 +452,79 @@ func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, 
 	}
 
 	return string(body), nil
+}
+
+func (tc *perItOrDescribeTestContext) ListStamps(ctx context.Context, identityDetails *AzureIdentityDetails) ([]stamp.Stamp, error) {
+	endpoint := fmt.Sprintf("%s/admin/v1/stamps", tc.perBinaryInvocationTestContext.adminAPIAddress)
+
+	By(fmt.Sprintf("listing stamps via admin API: %s", endpoint))
+	httpClient, _ := tc.newAdminAPIHTTPClient(identityDetails)
+	body, err := adminAPIGet(ctx, httpClient, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var stamps []stamp.Stamp
+	if err := json.Unmarshal(body, &stamps); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal stamps: %w", err)
+	}
+	return stamps, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetStamp(ctx context.Context, stampIdentifier string, identityDetails *AzureIdentityDetails) (*stamp.Stamp, error) {
+	endpoint := fmt.Sprintf("%s/admin/v1/stamps/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, stampIdentifier)
+
+	By(fmt.Sprintf("getting stamp %s via admin API: %s", stampIdentifier, endpoint))
+	httpClient, _ := tc.newAdminAPIHTTPClient(identityDetails)
+	body, err := adminAPIGet(ctx, httpClient, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var result stamp.Stamp
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal stamp: %w", err)
+	}
+	return &result, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetManagementCluster(ctx context.Context, stampIdentifier string, managementClusterName string, identityDetails *AzureIdentityDetails) (*stamp.ManagementCluster, error) {
+	endpoint := fmt.Sprintf("%s/admin/v1/stamps/%s/managementClusters/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, stampIdentifier, managementClusterName)
+
+	By(fmt.Sprintf("getting management cluster %s for stamp %s via admin API: %s", managementClusterName, stampIdentifier, endpoint))
+	httpClient, _ := tc.newAdminAPIHTTPClient(identityDetails)
+	body, err := adminAPIGet(ctx, httpClient, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var result stamp.ManagementCluster
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal management cluster: %w", err)
+	}
+	return &result, nil
+}
+
+func adminAPIGet(ctx context.Context, httpClient *http.Client, endpoint string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1*1024*1024))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	return body, nil
 }

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-backup-config
+  namespace: '{{ .Release.Namespace }}'
+data:
+  config.yaml: |
+    schedules:
+    {{- range $name, $cfg := .Values.backupSchedules }}
+    - name: "{{ $name }}"
+      schedule: "{{ $cfg.schedule }}"
+      ttl: "{{ $cfg.ttl }}"
+      paused: {{ $cfg.paused }}
+    {{- end }}
