@@ -6,7 +6,7 @@
 		"status": "Deleting",
 		"usesNewClusterDeletionApproach": false,
 		"usesNewExternalAuthDeletionApproach": false,
-		"usesNewNodePoolDeletionApproach": false
+		"usesNewNodePoolDeletionApproach": true
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
 	"ttl": 604800
