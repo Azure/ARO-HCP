@@ -592,6 +592,8 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 			Indexers: cache.Indexers{
 				listers.ByResourceGroup: activeOperationResourceGroupIndexFunc,
 				listers.ByCluster:       activeOperationClusterIndexFunc,
+				listers.ByNodePool:      activeOperationNodePoolIndexFunc,
+				listers.ByExternalAuth:  activeOperationExternalAuthIndexFunc,
 			},
 		},
 	)
@@ -685,6 +687,30 @@ func activeOperationClusterIndexFunc(obj interface{}) ([]string, error) {
 	}
 
 	return clusterResourceIDFromResourceID(op.ExternalID)
+}
+
+// activeOperationNodePoolIndexFunc indexes operations by their associated node
+// pool resource ID when ExternalID is a nodepool resource. Operations on other
+// resource types return no index entries.
+func activeOperationNodePoolIndexFunc(obj interface{}) ([]string, error) {
+	op, ok := obj.(*api.Operation)
+	if !ok {
+		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
+	}
+
+	return nodePoolResourceIDFromResourceID(op.ExternalID)
+}
+
+// activeOperationExternalAuthIndexFunc indexes operations by their associated
+// external auth resource ID when ExternalID is an external auth resource.
+// Operations on other resource types return no index entries.
+func activeOperationExternalAuthIndexFunc(obj interface{}) ([]string, error) {
+	op, ok := obj.(*api.Operation)
+	if !ok {
+		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
+	}
+
+	return externalAuthResourceIDFromResourceID(op.ExternalID)
 }
 
 // nodePoolResourceIDIndexFunc indexes objects by the node pool resource ID of their nearest

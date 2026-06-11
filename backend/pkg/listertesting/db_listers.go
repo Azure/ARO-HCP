@@ -116,13 +116,27 @@ func (l *DBActiveOperationLister) Get(ctx context.Context, subscriptionID, name 
 
 func (l *DBActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Operation, error) {
 	clusterKey := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	return l.listByPrefix(ctx, clusterKey)
+}
+
+func (l *DBActiveOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Operation, error) {
+	nodePoolKey := api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return l.listByPrefix(ctx, nodePoolKey)
+}
+
+func (l *DBActiveOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Operation, error) {
+	externalAuthKey := api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	return l.listByPrefix(ctx, externalAuthKey)
+}
+
+func (l *DBActiveOperationLister) listByPrefix(ctx context.Context, prefix string) ([]*api.Operation, error) {
 	all, err := l.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var result []*api.Operation
 	for _, op := range all {
-		if op.ExternalID != nil && strings.HasPrefix(strings.ToLower(op.ExternalID.String()), strings.ToLower(clusterKey)) {
+		if op.ExternalID != nil && strings.HasPrefix(strings.ToLower(op.ExternalID.String()), strings.ToLower(prefix)) {
 			result = append(result, op)
 		}
 	}
