@@ -111,12 +111,13 @@ spec: {}
 
 func TestOptionsComplete(t *testing.T) {
 	tests := []struct {
-		name         string
-		configFile   string
-		setupFiles   func(tmpDir string) error
-		expectError  bool
-		errorMsg     string
-		validateFunc func(t *testing.T, opts *Options)
+		name           string
+		configFile     string
+		configFileName string // defaults to "config.yaml"
+		setupFiles     func(tmpDir string) error
+		expectError    bool
+		errorMsg       string
+		validateFunc   func(t *testing.T, opts *Options)
 	}{
 		{
 			name: "valid config with rules folders",
@@ -327,6 +328,51 @@ spec:
 			},
 		},
 		{
+			name: "auto loads recording rule deps from naming convention",
+			configFile:     "prometheusRules:\n  rulesFolders:\n  - alerts\n  outputBicep: generated.bicep\n",
+			configFileName: "alerts-sre-hcps.yaml",
+			setupFiles: func(tmpDir string) error {
+				alertsDir := filepath.Join(tmpDir, "alerts")
+				if err := os.Mkdir(alertsDir, 0755); err != nil {
+					return err
+				}
+				recDir := filepath.Join(tmpDir, "recording")
+				if err := os.Mkdir(recDir, 0755); err != nil {
+					return err
+				}
+
+				ruleContent := "apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: test-rules\nspec:\n  groups:\n  - name: test.rules\n    rules:\n    - alert: TestAlert\n      expr: up == 0\n"
+				testContent := "rule_files:\n- test.yaml\ntests: []\n"
+				recordContent := "apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: recording-rules\nspec:\n  groups:\n  - name: recording.rules\n    rules:\n    - record: my_recording_rule\n      expr: sum(up)\n"
+				recConfig := "prometheusRules:\n  rulesFolders:\n  - recording/record.yaml\n  untestedRules: []\n  outputBicep: generated.bicep\n"
+
+				if err := os.WriteFile(filepath.Join(alertsDir, "test.yaml"), []byte(ruleContent), 0644); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(alertsDir, "test_test.yaml"), []byte(testContent), 0644); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(recDir, "record.yaml"), []byte(recordContent), 0644); err != nil {
+					return err
+				}
+				// The companion recording rules config
+				return os.WriteFile(filepath.Join(tmpDir, "recording-rules-hcps.yaml"), []byte(recConfig), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				assert.Len(t, opts.ruleFiles, 2)
+				var hasDep bool
+				for _, rf := range opts.ruleFiles {
+					if rf.testDependency {
+						hasDep = true
+						assert.Equal(t, "record.yaml", rf.FileBaseName)
+						assert.Empty(t, rf.TestFileBaseName)
+					}
+				}
+				assert.True(t, hasDep, "expected a test dependency rule file")
+			},
+		},
+		{
 			name: "config with includedAlertsByGroup (multiple groups)",
 			configFile: `
 prometheusRules:
@@ -374,7 +420,11 @@ spec:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			configPath := filepath.Join(tmpDir, "config.yaml")
+			cfgName := tt.configFileName
+			if cfgName == "" {
+				cfgName = "config.yaml"
+			}
+			configPath := filepath.Join(tmpDir, cfgName)
 
 			if tt.configFile != "" {
 				require.NoError(t, os.WriteFile(configPath, []byte(tt.configFile), 0644))
@@ -686,6 +736,69 @@ func TestOptionsGenerate(t *testing.T) {
 
 		assert.Contains(t, generated, "title: 'NoSummaryAlert'")
 		assert.NotContains(t, generated, "title: 'NoSummaryAlert namespace:")
+	})
+
+	t.Run("test dependencies excluded from output", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "AlertingRules_output.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "alert-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "RealAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "critical",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					FileBaseName:   "recording.yaml",
+					testDependency: true,
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "recording-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "DependencyAlert",
+											Expr:  intstr.FromString("sum(up)"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "alert: 'RealAlert'")
+		assert.NotContains(t, generated, "DependencyAlert")
 	})
 }
 

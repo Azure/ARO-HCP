@@ -51,6 +51,7 @@ type alertingRuleFile struct {
 	TestFileBaseName          string
 	Rules                     monitoringv1.PrometheusRule
 	TestFileContent           []byte
+	testDependency            bool
 }
 
 type GroupAlerts struct {
@@ -88,6 +89,66 @@ type CliConfig struct {
 func NewOptions() *Options {
 	o := &Options{}
 	return o
+}
+
+// loadRecordingRuleDeps automatically discovers and loads recording rule files
+// as test-only dependencies based on config file naming convention.
+// alerts-*-hcps.yaml loads rule files from recording-rules-hcps.yaml,
+// alerts-*-services.yaml loads from recording-rules-services.yaml, etc.
+func (o *Options) loadRecordingRuleDeps(configFilePath string, baseDirectory string) error {
+	configBase := filepath.Base(configFilePath)
+
+	// Extract the suffix: alerts-sre-hcps.yaml -> hcps
+	if !strings.HasPrefix(configBase, "alerts-") {
+		return nil
+	}
+	suffix := strings.TrimPrefix(configBase, "alerts-")
+	suffix = strings.TrimSuffix(suffix, filepath.Ext(suffix))
+	parts := strings.SplitN(suffix, "-", 2)
+	if len(parts) < 2 {
+		return nil
+	}
+	lane := parts[len(parts)-1]
+
+	recordingConfigPath := filepath.Join(filepath.Dir(configFilePath), fmt.Sprintf("recording-rules-%s%s", lane, filepath.Ext(configFilePath)))
+	if _, err := os.Stat(recordingConfigPath); err != nil {
+		return nil
+	}
+
+	cfgRaw, err := os.ReadFile(recordingConfigPath)
+	if err != nil {
+		return fmt.Errorf("error reading recording rules config %s: %v", recordingConfigPath, err)
+	}
+	recConfig := &CliConfig{}
+	if err := yaml.Unmarshal(cfgRaw, recConfig); err != nil {
+		return fmt.Errorf("error unmarshaling recording rules config %s: %v", recordingConfigPath, err)
+	}
+
+	recBaseDirectory := filepath.Dir(recordingConfigPath)
+	for _, rulesDir := range recConfig.PrometheusRules.RulesFolders {
+		err := filepath.WalkDir(path.Join(recBaseDirectory, rulesDir), func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.Type().IsRegular() || strings.Contains(filepath.Base(p), "_test") {
+				return nil
+			}
+			rules, err := readRulesFile(p)
+			if err != nil {
+				return fmt.Errorf("error reading recording rule dependency %s: %v", p, err)
+			}
+			o.ruleFiles = append(o.ruleFiles, alertingRuleFile{
+				FileBaseName:   filepath.Base(p),
+				Rules:          *rules,
+				testDependency: true,
+			})
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("error loading recording rule dependencies from %s: %w", recordingConfigPath, err)
+		}
+	}
+	return nil
 }
 
 func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
@@ -172,6 +233,14 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 		})
 	}
 
+	// Automatically load recording rules as test dependencies based on
+	// config file naming convention: alerts-*-hcps.yaml pairs with
+	// recording-rules-hcps.yaml, alerts-*-services.yaml pairs with
+	// recording-rules-services.yaml, etc.
+	if err := o.loadRecordingRuleDeps(configFilePath, baseDirectory); err != nil {
+		return err
+	}
+
 	for _, rulesDir := range config.PrometheusRules.RulesFolders {
 		err = filepath.WalkDir(path.Join(baseDirectory, rulesDir), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -235,20 +304,26 @@ func (o *Options) RunTests() error {
 
 	logrus.Debugf("Created tempdir %s", dir)
 
+	// Write all rule files to the temp dir so that cross-file references
+	// in test rule_files lists are resolvable by promtool.
 	for _, irf := range o.ruleFiles {
-		if irf.TestFileBaseName == "" {
+		if irf.FileBaseName == "" {
 			continue
 		}
 		ruleGroups, err := yaml.Marshal(irf.Rules.Spec)
 		if err != nil {
 			return fmt.Errorf("error Marshalling rule groups %v", err)
 		}
-
-		tmpFile := fmt.Sprintf("%s%s%s", dir, string(os.PathSeparator), irf.FileBaseName)
-
-		err = os.WriteFile(tmpFile, ruleGroups, 0644)
-		if err != nil {
+		tmpFile := filepath.Join(dir, filepath.Base(irf.FileBaseName))
+		if err = os.WriteFile(tmpFile, ruleGroups, 0644); err != nil {
 			return fmt.Errorf("error writing rule groups file %v", err)
+		}
+	}
+
+	// Run tests for files that have a test file.
+	for _, irf := range o.ruleFiles {
+		if irf.TestFileBaseName == "" {
+			continue
 		}
 
 		fileNameParts := strings.Split(irf.FileBaseName, ".")
@@ -257,8 +332,7 @@ func (o *Options) RunTests() error {
 		}
 
 		testFile := filepath.Join(dir, irf.TestFileBaseName)
-		err = os.WriteFile(testFile, irf.TestFileContent, 0644)
-		if err != nil {
+		if err = os.WriteFile(testFile, irf.TestFileContent, 0644); err != nil {
 			return fmt.Errorf("error writing rule groups test file %v", err)
 		}
 		logrus.Debugf("running test %s", irf.TestFileBaseName)
@@ -268,7 +342,6 @@ func (o *Options) RunTests() error {
 			logrus.Error(string(output))
 			return fmt.Errorf("error running promtool %v", err)
 		}
-
 	}
 
 	return nil
@@ -348,6 +421,9 @@ param location string = resourceGroup().location
 	}
 
 	for _, irf := range o.ruleFiles {
+		if irf.testDependency {
+			continue
+		}
 		for _, group := range irf.Rules.Spec.Groups {
 			// Skip this group if not in includedAlerts
 			if len(o.includedAlerts) > 0 {
