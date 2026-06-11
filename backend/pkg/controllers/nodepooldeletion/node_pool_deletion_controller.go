@@ -31,8 +31,9 @@ import (
 
 // nodePoolDeletionController issues a Cosmos nodepool delete
 // for the Node Pools that have their DeletionTimestamp and ClusterServiceDeletionTimestamp set,
-// their ClusterServiceID has been cleared, and all nodepool-scoped Maestro readonly bundles
-// have been deleted from the ServiceProviderNodePool.
+// their ClusterServiceID has been cleared, all nodepool-scoped Maestro readonly bundles
+// have been deleted from the ServiceProviderNodePool, and all nodepool-scoped kube-applier
+// *Desire documents have been deleted.
 type nodePoolDeletionController struct {
 	cooldownChecker               controllerutil.CooldownChecker
 	nodePoolLister                listers.NodePoolLister
@@ -88,7 +89,9 @@ func (c *nodePoolDeletionController) NeedsWork(nodePool *api.HCPOpenShiftCluster
 }
 
 // SyncOnce calls Cosmos to delete the NodePool when the NeedsWork condition is met and
-// all the delete preconditions are met.
+// all the delete preconditions are met:
+//  1. All nodepool-scoped Maestro readonly bundles are cleared.
+//  2. All other Cosmos child resources are deleted.
 func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
