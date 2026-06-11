@@ -93,6 +93,8 @@ model HcpOpenShiftClusterProperties {
 
   /** imageDigestMirrors is a set of rules to allow pulling images from a
    * mirrored registry by using digest specifications.
+   *
+   * WARNING: Updating this array will redeploy all node pools in the cluster.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @added(Versions.v2025_12_23_preview)

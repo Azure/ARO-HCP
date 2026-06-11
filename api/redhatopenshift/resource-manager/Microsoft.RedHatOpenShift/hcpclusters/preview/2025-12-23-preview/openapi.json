@@ -2284,7 +2284,7 @@
         },
         "imageDigestMirrors": {
           "type": "array",
-          "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.\n\nWARNING: Updating this array will redeploy all node pools in the cluster.",
           "maxItems": 240,
           "items": {
             "$ref": "#/definitions/ImageDigestMirror"
@@ -2357,7 +2357,7 @@
         },
         "imageDigestMirrors": {
           "type": "array",
-          "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.",
+          "description": "imageDigestMirrors is a set of rules to allow pulling images from a\nmirrored registry by using digest specifications.\n\nWARNING: Updating this array will redeploy all node pools in the cluster.",
           "maxItems": 240,
           "items": {
             "$ref": "#/definitions/ImageDigestMirror"
