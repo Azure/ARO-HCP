@@ -1,0 +1,19 @@
+rule_files:
+- fake-record-prometheusRule.yaml
+- fake-alert-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: 'http_errors_total{namespace="test", cluster="c1"}'
+    values: "100+100x20"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FakeHighErrorRate
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        namespace: test
+        cluster: c1
+      exp_annotations:
+        summary: "High error rate detected"

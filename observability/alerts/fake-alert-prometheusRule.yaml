@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fake-alert-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: fake-alert-rules
+    rules:
+    - alert: FakeHighErrorRate
+      expr: fake:error_rate:5m > 0.05
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate detected"

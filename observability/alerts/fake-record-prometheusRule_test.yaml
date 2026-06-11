@@ -1,0 +1,4 @@
+rule_files:
+- fake-record-prometheusRule.yaml
+evaluation_interval: 1m
+tests: []

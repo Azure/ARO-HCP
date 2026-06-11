@@ -3,5 +3,6 @@ prometheusRules:
   - ../observability/alerts/HCPkasRecord-prometheusRule-KSM.yaml
   - ../observability/alerts/HCPkasRecord-prometheusRule-apiserver-requests.yaml
   - ../observability/alerts/HCPkasRecord-prometheusRule-latency.yaml
+  - ../observability/alerts/fake-record-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPRecordingRules.bicep

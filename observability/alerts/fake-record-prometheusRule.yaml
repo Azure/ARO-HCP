@@ -1,0 +1,11 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fake-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: fake-recording-rules
+    rules:
+    - record: fake:error_rate:5m
+      expr: sum(rate(http_errors_total[5m])) by (namespace, cluster)
