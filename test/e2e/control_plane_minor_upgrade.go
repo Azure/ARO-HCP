@@ -111,6 +111,18 @@ var _ = Describe("Customer", func() {
 					previousMinor.String(), targetVer.String()))
 			}
 
+			// Resolve the upgrade target version early so a missing nightly tag skips
+			// before burning resources on cluster creation.
+			upgradeVersionId := targetMinor
+			if channelGroup == "nightly" {
+				resolved, err := framework.GetLatestInstallVersion(ctx, channelGroup, targetMinor)
+				if framework.IsVersionNotFoundError(err) {
+					Skip(fmt.Sprintf("no nightly version for %s: %v", targetMinor, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly upgrade version")
+				upgradeVersionId = resolved
+			}
+
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -128,7 +140,18 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at install (previous minor) version")
 			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
+			// Nightly needs the full version tag; the RP cannot resolve Major.Minor to a nightly build.
+			// GetLatestInstallVersion dispatches to the release stream API for nightly.
+			clusterVersionId := fmt.Sprintf("%d.%d", installVersion.Major, installVersion.Minor)
+			if channelGroup == "nightly" {
+				resolved, err := framework.GetLatestInstallVersion(ctx, channelGroup, clusterVersionId)
+				if framework.IsVersionNotFoundError(err) {
+					Skip(fmt.Sprintf("no nightly version for %s: %v", clusterVersionId, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve nightly install version")
+				clusterVersionId = resolved
+			}
+			clusterParams.OpenshiftVersionId = clusterVersionId
 			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-cp-ystream-"+suffix, "-managed", 64)
 
@@ -178,18 +201,18 @@ var _ = Describe("Customer", func() {
 			preUpgradeKubeAPIServerVersion, err := kubeClient.Discovery().ServerVersion()
 			Expect(err).NotTo(HaveOccurred(), "failed to get pre-upgrade kube-apiserver version for cluster %q", clusterName)
 
-			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", targetMinor,
+			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", upgradeVersionId,
 				targetVer.String()))
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
 				Properties: &hcpsdk20240610preview.HcpOpenShiftClusterPropertiesUpdate{
 					Version: &hcpsdk20240610preview.VersionProfile{
-						ID:           to.Ptr(targetMinor),
+						ID:           to.Ptr(upgradeVersionId),
 						ChannelGroup: to.Ptr(channelGroup),
 					},
 				},
 			}
 			_, err = framework.UpdateHCPCluster20240610(ctx, hcpClient, *resourceGroup.Name, clusterName, update, framework.HCPClusterVersionUpgradeTimeout)
-			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, targetMinor)
+			Expect(err).NotTo(HaveOccurred(), "failed to trigger y-stream upgrade of cluster %q to %s", clusterName, upgradeVersionId)
 
 			By("verifying control plane reached desired version and cluster remains viable")
 			Eventually(func() error {

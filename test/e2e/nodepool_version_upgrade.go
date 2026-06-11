@@ -382,15 +382,38 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
-			nodePoolInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, nodePoolMinor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", nodePoolMinor, channelGroup))
+			// Workaround: skip on nightly until CS fixes the nightly→ACR image substitution
+			// on the nodepool upgrade path (PatchNodePoolCR writes quay.io instead of ACR).
+			// See ARO-27687.
+			if channelGroup == "nightly" {
+				Skip("nightly nodepool upgrade blocked by CS image substitution bug; see ARO-27687")
+			}
+
+			// On nightly, Cincinnati returns bare GA versions that don't exist in CS as nightly builds.
+			// Use GetLatestInstallVersion (release stream API) for nightly; GetLatestVersionInMinor
+			// (Cincinnati) for non-nightly to preserve existing behavior.
+			var (
+				nodePoolInstallVersion string
+				err                    error
+			)
+			if channelGroup == "nightly" {
+				nodePoolInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, nodePoolMinor)
+			} else {
+				nodePoolInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, nodePoolMinor)
+			}
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("version not found for minor %s on channel %s", nodePoolMinor, channelGroup))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for nodepool minor %s", nodePoolMinor)
 
-			clusterInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", targetMinor, channelGroup))
+			var clusterInstallVersion string
+			if channelGroup == "nightly" {
+				clusterInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, targetMinor)
+			} else {
+				clusterInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
+			}
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("version not found for minor %s on channel %s", targetMinor, channelGroup))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for target minor %s", targetMinor)
 
@@ -643,17 +666,40 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context, cpMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
-			clusterInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, cpMinor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", cpMinor, channelGroup))
+			// Workaround: skip on nightly until CS fixes the nightly→ACR image substitution
+			// on the nodepool upgrade path (PatchNodePoolCR writes quay.io instead of ACR).
+			// See ARO-27687.
+			if channelGroup == "nightly" {
+				Skip("nightly nodepool downgrade blocked by CS image substitution bug; see ARO-27687")
+			}
+
+			// On nightly, Cincinnati returns bare GA versions that don't exist in CS as nightly builds.
+			// Use GetLatestInstallVersion (release stream API) for nightly; GetLatestVersionInMinor
+			// (Cincinnati) for non-nightly to preserve existing behavior.
+			var (
+				clusterInstallVersion string
+				err                   error
+			)
+			if channelGroup == "nightly" {
+				clusterInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, cpMinor)
+			} else {
+				clusterInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, cpMinor)
+			}
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("version not found for minor %s on channel %s", cpMinor, channelGroup))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for minor %s", cpMinor)
 
 			nodePoolInstallVersion := clusterInstallVersion
 
-			nodePoolDowngradeTarget, err := framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", targetMinor, channelGroup))
+			var nodePoolDowngradeTarget string
+			if channelGroup == "nightly" {
+				nodePoolDowngradeTarget, err = framework.GetLatestInstallVersion(ctx, channelGroup, targetMinor)
+			} else {
+				nodePoolDowngradeTarget, err = framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
+			}
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("version not found for minor %s on channel %s", targetMinor, channelGroup))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for minor %s", targetMinor)
 

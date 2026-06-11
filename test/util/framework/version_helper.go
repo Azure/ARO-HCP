@@ -74,6 +74,16 @@ func retryOnTransientError[T any](ctx context.Context, f func() (T, error)) (T, 
 	return zero, fmt.Errorf("after %d attempts: %w", versionFetchMaxRetries+1, lastErr)
 }
 
+// IsVersionNotFoundError returns true if the error indicates a version was not found,
+// whether from Cincinnati, the graph API, or the nightly release stream API.
+func IsVersionNotFoundError(err error) bool {
+	return cincinnati.IsCincinnatiVersionNotFoundError(err) ||
+		errors.Is(err, ErrVersionNotFound) ||
+		errors.Is(err, ErrNightlyReleaseStreamNotFound) ||
+		errors.Is(err, ErrNoAcceptedNightlyTags) ||
+		errors.Is(err, ErrNoParseableNightlyTags)
+}
+
 func isRetryableVersionError(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
