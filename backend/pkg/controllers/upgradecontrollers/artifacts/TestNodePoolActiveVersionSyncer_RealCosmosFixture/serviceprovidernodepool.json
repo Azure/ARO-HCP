@@ -1,0 +1,22 @@
+{
+  "_attachments": "attachments/",
+  "_etag": "\"0000cb1d-0000-4d00-0000-6a29ec660000\"",
+  "_rid": "deIlAKL5A1gfBgAAAAAAAA==",
+  "_self": "dbs/deIlAA==/colls/deIlAKL5A1g=/docs/deIlAKL5A1gfBgAAAAAAAA==/",
+  "_ts": 1781132390,
+  "id": "b4708efa-616d-5bec-8b92-aa01bb72f15e",
+  "partitionKey": "e8c5a115-842d-4d7e-98ad-cfb2c50b209e",
+  "properties": {
+    "cosmosMetadata": {
+      "resourceID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/microsoft.redhatopenshift/hcpopenshiftclusters/np-version-upgrade-cluster-pckjw8/nodepools/npupgrade-4-20/serviceProviderNodePools/default"
+    },
+    "spec": {
+      "nodePoolVersion": {}
+    },
+    "status": {
+      "nodePoolVersion": {}
+    }
+  },
+  "resourceID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/microsoft.redhatopenshift/hcpopenshiftclusters/np-version-upgrade-cluster-pckjw8/nodepools/npupgrade-4-20/serviceProviderNodePools/default",
+  "resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceProviderNodePools"
+}
