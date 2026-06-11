@@ -33,7 +33,7 @@ The bootstrap layer is about the shared dev identities used by the DEV services 
 
 ## Existing-Assignment Caveat
 
-The `customerSubscriptions` list in `config/config-dev-ci.yaml` now fans out into the three `dev-ci` RBAC parameter templates, so adding a brand-new third DEV customer subscription no longer requires per-index template edits first.
+The `ci.dev.e2eSubscriptions` list in `config/config-dev-ci.yaml` now fans out into the three `dev-ci` RBAC parameter templates, so adding a brand-new third DEV customer subscription no longer requires per-index template edits first.
 
 A separate caveat still applies when you are adopting pre-existing role assignments instead of creating fresh ones: `legacyAssignmentIdsBySubscription` in `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` must contain the Azure-generated assignment IDs for any subscription whose existing grants need to be adopted in place. A brand-new subscription normally does not need that map.
 
@@ -83,16 +83,16 @@ For the current mixed-management model of the pooled MSI mock identities, see [C
    - Verify that the deployment stacks and identity-container resource groups are created in the new subscription.
 
 6. Extend the DEV bootstrap RBAC inventory.
-   - Add the subscription name and ID to `config/config-dev-ci.yaml` under `devCi.e2eSubscriptionRbac.customerSubscriptions`.
+   - Add the subscription name and ID to `config/config-dev-ci.yaml` under `ci.dev.e2eSubscriptions`.
    - That list now feeds the `dev-ci` RBAC parameter templates directly, so a brand-new subscription does not require extra per-index template edits.
-   - In a normal onboarding flow, `homeSubscription`, `sharedPrincipals`, and `msiMockPool.principals` should not need to change.
+   - In a normal onboarding flow, `devMockIdentities.homeSubscriptionId`, `devMockIdentities.sharedPrincipals`, and `devMockIdentities.msiMockPool.principals` should not need to change.
    - If you are adopting pre-existing role assignments instead of creating new ones, also extend `legacyAssignmentIdsBySubscription` in `e2e-subscription-rbac-assignments.tmpl.bicepparam`. A brand-new subscription normally does not need that shim.
    - Run the rollout from the repo root:
      - `make dev-ci-e2e-subscription-rbac-local-run`
 
 7. Register the new subscription in the tenant-quota collector.
    - Add the subscription name to the `SUBSCRIPTIONS` array in `tooling/tenant-quota/scripts/manage-service-principals.sh` under the `setup_redhat()` function.
-   - Add the subscription to `config/config-dev-ci.yaml` under `devCi.tenantQuota.subscriptions` with the appropriate `roleAssignmentLimit` and `regions`.
+   - Add the subscription to `config/config-dev-ci.yaml` under `opstool.tenantQuota.tenants[].subscriptions` with the appropriate `roleAssignmentLimit` and `regions`.
    - Run the script to grant the collector SP Reader access:
      - `./tooling/tenant-quota/scripts/manage-service-principals.sh setup redhat`
    - This ensures Azure quota (role assignments, compute, network) is monitored for the new subscription. See [CI Quota Monitoring](quota-monitoring.md).
