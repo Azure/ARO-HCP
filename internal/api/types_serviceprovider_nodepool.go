@@ -102,6 +102,12 @@ type ServiceProviderNodePoolStatus struct {
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
 	// and the Maestro Bundle Name and ID at the Maestro API level.
 	MaestroReadonlyBundles MaestroBundleReferenceList `json:"maestroReadonlyBundles,omitempty"`
+
+	// ClusterServiceUpdatableConfigHashForUpdateDispatch is a SHA-256 hex digest of the internal/ocm.nodePoolUpdatableConfig struct,
+	// when serialized as a json map. This hash is used by the nodepool update dispatch controller to determine if a CS PATCH call is needed.
+	// Note: this hash does not necessarily include all the fields that can be updated via the CS API, just the ones
+	// that are to be considered by the nodepool update dispatch controller to determine if a CS PATCH call is needed.
+	ClusterServiceUpdatableConfigHashForUpdateDispatch string `json:"clusterServiceUpdatableConfigHashForUpdateDispatch"`
 }
 
 // ServiceProviderNodePoolStatusVersion contains the actual version information.

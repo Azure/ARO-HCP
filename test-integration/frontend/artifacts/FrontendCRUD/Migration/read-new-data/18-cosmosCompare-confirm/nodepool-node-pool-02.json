@@ -56,7 +56,8 @@
 				},
 				"serviceProviderProperties": {
 					"clusterServiceID": "",
-					"usesNewNodePoolDeletionApproach": false
+					"usesNewNodePoolDeletionApproach": false,
+					"usesNewNodePoolUpdateApproach": false
 				},
 				"status": {},
 				"systemData": {
@@ -103,7 +104,8 @@
 		},
 		"serviceProviderProperties": {
 			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/v4lx7rv2r4",
-			"usesNewNodePoolDeletionApproach": false
+			"usesNewNodePoolDeletionApproach": false,
+			"usesNewNodePoolUpdateApproach": false
 		},
 		"status": {},
 		"systemData": {

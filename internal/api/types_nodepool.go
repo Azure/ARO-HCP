@@ -93,6 +93,13 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
+
+	// TODO Temporary field to track whether the node pool is using the new update approach.
+	// We are migrating from the node pool cs update synchronous in frontend to the backend, to be fully asynchronous
+	// This boolean is true for NodePool update operations that are created with new update approach.
+	// This will be removed once all nodepools whose update was triggered before the new approach is fully rolled out have been
+	// fully updated in all ARO-HCP permanent environments, for all regions.
+	UsesNewNodePoolUpdateApproach bool `json:"usesNewNodePoolUpdateApproach"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

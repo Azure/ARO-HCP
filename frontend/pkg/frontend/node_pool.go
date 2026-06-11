@@ -593,33 +593,21 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and update interaction with CS is moved to the backend: If an update arrives after the node pool
-	// has been created in Cosmos but before it exists in CS, or before its ClusterServiceID has been persisted in Cosmos, return an error.
+	// Temporary check until update interaction with CS is fully handled by the backend:
+	// If an update arrives after the node pool has been created in Cosmos but before it exists in CS,
+	// or before its ClusterServiceID has been persisted in Cosmos, return an error.
 	if oldInternalNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(oldInternalNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to update a node pool"))
 	}
 
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, true)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalNodePool.ID))
-	_, err = f.clusterServiceClient.UpdateNodePool(ctx, *oldInternalNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	// The cosmos representation the new desired version
 	// The controllers will take care of handle the upgrade
 
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
 
 	// Always create an operation, even for version-only changes. This provides consistent
 	// ARM API behavior and avoids the complexity of detecting what changed.
-	// For version-only updates, CS receives a no-op PATCH
-	// (version is excluded in BuildCSNodePool for updates) and stays ready, so the
-	// operation resolves on the next poll cycle (~10s). The actual version upgrade is
-	// handled transparently by backend controllers using the desired version stored above.
+	// Cluster Service update dispatch and version upgrade are handled by backend controllers.
 	nodePoolUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		newInternalNodePool.ID,
@@ -639,7 +627,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = nodePoolUpdateOperation.ResourceID.Name
 	newInternalNodePool.Properties.ProvisioningState = nodePoolUpdateOperation.Status
-
+	newInternalNodePool.ServiceProviderProperties.UsesNewNodePoolUpdateApproach = true
 	_, err = f.resourcesDBClient.HCPClusters(newInternalNodePool.ID.SubscriptionID, newInternalNodePool.ID.ResourceGroupName).
 		NodePools(newInternalNodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, newInternalNodePool, nil)
