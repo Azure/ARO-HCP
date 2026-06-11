@@ -210,6 +210,11 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
 	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		// if the cache doesn't have the cosmos cluster yet, we'll eventually recheck when we resync. Currently 10s for
+		// active operations.  No need to fail and trigger an extra check.
+		return newOperationState(arm.ProvisioningStateProvisioning, "cluster state not cached yet"), nil
+	}
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -239,7 +244,7 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// don't need to know which management cluster the HostedCluster is on.
 	readDesire, err := c.readDesireLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, maestrohelpers.ReadDesireNameReadonlyHostedCluster)
 	if database.IsNotFoundError(err) {
-		return newOperationState(arm.ProvisioningStateProvisioning, ""), nil
+		return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster state not cached yet"), nil
 	}
 	if err != nil {
 		return nil, utils.TrackError(err)
