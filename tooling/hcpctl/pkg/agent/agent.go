@@ -158,7 +158,7 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		// Disable config discovery — we don't want to pick up .mcp.json or
 		// AGENTS.md from the analysis workspace.
-		EnableConfigDiscovery: false,
+		EnableConfigDiscovery: copilot.Bool(false),
 	}
 
 	// Apply the configured model if the caller didn't override.
@@ -285,7 +285,7 @@ func (s *Session) Delete(ctx context.Context) error {
 // caches it locally. If the RPC fails (e.g. process is dying), the last
 // successful snapshot is preserved.
 func (s *Session) snapshotMessages() {
-	events, err := s.inner.GetMessages(context.Background())
+	events, err := s.inner.GetEvents(context.Background())
 	if err != nil {
 		s.logger.Error(err, "Failed to snapshot session messages.")
 		return
