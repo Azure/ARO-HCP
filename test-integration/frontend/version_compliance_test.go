@@ -132,6 +132,8 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 				// Complete the cluster creation operation
 				clusterResourceID := api.Must(azcorearm.ParseResourceID(scenario.ClusterResourceID))
 				require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, clusterResourceID.Name))
+
+				createServiceProviderClusterForVersionCompliance(t, ctx, testInfo, subscriptionID, clusterResourceID.Name)
 			}
 
 			// Create the resource under test using the scenario's createVersion
@@ -245,4 +247,51 @@ func prettyJSON(t *testing.T, v any) string {
 		return fmt.Sprintf("%v", v)
 	}
 	return strings.TrimSpace(string(b))
+}
+
+func createServiceProviderClusterForVersionCompliance(
+	t *testing.T,
+	ctx context.Context,
+	testInfo *integrationutils.IntegrationTestInfo,
+	subscriptionID, clusterName string,
+) {
+	t.Helper()
+
+	cosmosTestInfo, ok := testInfo.StorageIntegrationTestInfo.(*integrationutils.CosmosIntegrationTestInfo)
+	if !ok {
+		return
+	}
+
+	resourceGroupName := "resourceGroupName"
+	spcResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/serviceProviderClusters/default",
+		subscriptionID, resourceGroupName, clusterName)
+
+	spcDoc := map[string]interface{}{
+		"id":           strings.ReplaceAll(strings.ToLower(spcResourceID), "/", "|"),
+		"partitionKey": subscriptionID,
+		"resourceID":   spcResourceID,
+		"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
+		"properties": map[string]interface{}{
+			"resourceId": spcResourceID,
+			"spec": map[string]interface{}{
+				"control_plane_version": map[string]interface{}{
+					"desired_version": "4.20.0",
+				},
+			},
+			"status": map[string]interface{}{
+				"control_plane_version": map[string]interface{}{
+					"active_versions": []interface{}{
+						map[string]interface{}{
+							"version": "4.20.0",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spcBytes, err := json.Marshal(spcDoc)
+	require.NoError(t, err)
+
+	require.NoError(t, cosmosTestInfo.LoadContent(ctx, spcBytes))
 }
