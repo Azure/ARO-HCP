@@ -139,11 +139,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to get monitoring.hcpWorkspaceName from config: %w", err)
 	}
 
-	steps, err := timing.LoadSteps(ctx, o.TimingInputDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load steps: %w", err)
-	}
-
 	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load test timing info: %w", err)
@@ -158,7 +153,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		startFallback = &t
 	}
 
-	tw, err := timing.ComputeTimeWindow(ctx, clock.RealClock{}, steps, testTimingInfo, startFallback)
+	tw, err := timing.ComputeTimeWindow(ctx, clock.RealClock{}, nil, testTimingInfo, startFallback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute time window: %w", err)
 	}
