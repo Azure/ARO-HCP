@@ -709,21 +709,12 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 	}
 }
 
-func TestAdmitNodePool_IncludesChannelGroupCheck(t *testing.T) {
-	// Test that AdmitNodePool performs channel group validation from service provider state
+func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.T) {
 	newNodePool := &api.HCPOpenShiftClusterNodePool{
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
 				ID:           "4.17.0",
-				ChannelGroup: "fast", // Different from cluster
-			},
-		},
-	}
-	oldNodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
-				ID:           "4.16.0",
-				ChannelGroup: "stable", // Different from cluster
+				ChannelGroup: "fast",
 			},
 		},
 	}
@@ -731,12 +722,11 @@ func TestAdmitNodePool_IncludesChannelGroupCheck(t *testing.T) {
 		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 			Version: api.VersionProfile{
 				ID:           "4.18",
-				ChannelGroup: "stable", // Different from node pool
+				ChannelGroup: "stable",
 			},
 		},
 	}
 
-	// Create ServiceProviderNodePool with same version as new (so version validation is skipped)
 	ver := semver.MustParse("4.17.0")
 	spNodePool := &api.ServiceProviderNodePool{
 		Spec: api.ServiceProviderNodePoolSpec{
@@ -760,20 +750,15 @@ func TestAdmitNodePool_IncludesChannelGroupCheck(t *testing.T) {
 		},
 	}
 
-	// Empty update operation (no experimental features)
-	op := operation.Operation{Type: operation.Update}
+	op := operation.Operation{Type: operation.Create}
 
 	errs := AdmitNodePool(context.Background(), &NodePoolAdmissionContext{
 		Cluster:                 cluster,
 		ServiceProviderNodePool: spNodePool,
 		ServiceProviderCluster:  spCluster,
-	}, op, newNodePool, oldNodePool)
+	}, op, newNodePool, nil)
 
-	expectedErrors := []utils.ExpectedError{
-		{FieldPath: "properties.version.channelGroup", Message: "must be the same as control plane channel group"},
-	}
-
-	utils.VerifyErrorsMatch(t, expectedErrors, errs)
+	require.Empty(t, errs)
 }
 
 func TestAdmitNodePoolOnDelete(t *testing.T) {

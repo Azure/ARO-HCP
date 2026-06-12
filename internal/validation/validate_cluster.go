@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -389,10 +388,10 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 
 	if !op.HasOption(api.FeatureExperimentalReleaseFeatures) {
 		// Without feature flag: "candidate" and "nightly" aren't allowed.
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable", "fast"), nil)...)
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, api.AllowedChannelGroups, nil)...)
 	} else {
 		// TODO I think everyone should be able to do this, but we'll need to notify first
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable", "fast", "candidate", "nightly"), nil)...)
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, api.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
 
 	return errs
