@@ -316,8 +316,8 @@ defaults:
   hypershift:
     image:
       registry: quay.io
-      repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:8da292ba080e4012fc23e4fd12ac612c9f0ee412f4d0461ea09cbeb6d0b6bae3 # 75072919678d8241c259f68ca10377475a08de48 (2026-06-17 02:10)
+      repository: rh_ee_cschombu/hypershift
+      digest: sha256:f2c5dde8efc541e228be18024d7c543e34deba658758b1c54714e4eb8d6b1342 # etcd-endpointslice-self-register-2026-06-17
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
