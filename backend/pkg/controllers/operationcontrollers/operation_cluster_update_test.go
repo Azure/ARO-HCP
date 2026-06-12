@@ -57,6 +57,8 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		serviceProviderClusterStatusConditions         []metav1.Condition
 		controlPlaneDesiredVersionControllerConditions []metav1.Condition
 		seedMismatchFirstSeenAt                        time.Time
+		mutateCluster                                  func(*api.HCPOpenShiftCluster)
+		skipClusterServiceCall                         bool
 		verify                                         func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
 	}{
 		{
@@ -198,6 +200,32 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
+		{
+			name:              "shouldReconcile gate not passed when ClusterServiceID is nil",
+			customerVersionID: "4.19",
+			mutateCluster: func(cluster *api.HCPOpenShiftCluster) {
+				cluster.ServiceProviderProperties.ClusterServiceID = nil
+			},
+			skipClusterServiceCall: true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+		},
+		{
+			name:              "shouldReconcile gate not passed when cluster is deleting",
+			customerVersionID: "4.19",
+			mutateCluster: func(cluster *api.HCPOpenShiftCluster) {
+				cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: testClockNow}
+			},
+			skipClusterServiceCall: true,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -210,6 +238,9 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			fixture := newClusterTestFixture()
 			cluster := fixture.newCluster(nil)
 			cluster.CustomerProperties.Version.ID = tt.customerVersionID
+			if tt.mutateCluster != nil {
+				tt.mutateCluster(cluster)
+			}
 			operation := fixture.newOperation(database.OperationRequestUpdate)
 
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
@@ -246,17 +277,25 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-			clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
-				State(tt.clusterState).
+			allowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess().Mode(ocm.CSCIDRBlockAllowAccessModeAllowAll)
+			csCluster, err := arohcpv1alpha1.NewCluster().
+				API(arohcpv1alpha1.NewClusterAPI().
+					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+						Allow(allowAccess))).
+				Status(arohcpv1alpha1.NewClusterStatus().State(tt.clusterState)).
 				Build()
 			require.NoError(t, err)
-			mockCSClient.EXPECT().
-				GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
-				Return(clusterStatus, nil)
+			if !tt.skipClusterServiceCall {
+				mockCSClient.EXPECT().
+					GetCluster(gomock.Any(), fixture.clusterInternalID).
+					Return(csCluster, nil)
+			}
 
 			readDesireLister := &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
-					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{}),
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Spec: testClusterUpdateMatchingHostedClusterSpec(),
+					}),
 				},
 			}
 
@@ -280,5 +319,20 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
+	}
+}
+
+// testClusterUpdateMatchingHostedClusterSpec returns a HostedCluster spec that matches the
+// default cluster fixture for cluster update state calculation tests.
+func testClusterUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
+	return v1beta1.HostedClusterSpec{
+		Autoscaling: v1beta1.ClusterAutoscaling{
+			MaxNodesTotal:        ptr.To[int32](0),
+			MaxPodGracePeriod:    ptr.To[int32](0),
+			MaxNodeProvisionTime: "0m",
+			PodPriorityThreshold: ptr.To[int32](0),
+		},
+		ControllerAvailabilityPolicy:     v1beta1.HighlyAvailable,
+		InfrastructureAvailabilityPolicy: v1beta1.HighlyAvailable,
 	}
 }

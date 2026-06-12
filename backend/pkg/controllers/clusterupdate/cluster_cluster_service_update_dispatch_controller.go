@@ -15,6 +15,7 @@
 package clusterupdate
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -50,12 +52,12 @@ func NewClusterClusterServiceUpdateDispatchController(
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
-	syncer := &clusterClusterServiceUpdateDispatchSyncer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		clusterLister:        clusterLister,
-		resourcesDBClient:    resourcesDBClient,
-		clusterServiceClient: clusterServiceClient,
-	}
+	syncer := NewClusterClusterServiceUpdateDispatchSyncer(
+		resourcesDBClient,
+		clusterServiceClient,
+		activeOperationLister,
+		clusterLister,
+	)
 
 	return controllerutils.NewClusterWatchingController(
 		"ClusterClusterServiceUpdateDispatch",
@@ -67,19 +69,28 @@ func NewClusterClusterServiceUpdateDispatchController(
 	)
 }
 
+func NewClusterClusterServiceUpdateDispatchSyncer(
+	resourcesDBClient database.ResourcesDBClient,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
+	activeOperationLister listers.ActiveOperationLister,
+	clusterLister listers.ClusterLister,
+) controllerutils.ClusterSyncer {
+	return &clusterClusterServiceUpdateDispatchSyncer{
+		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		clusterLister:        clusterLister,
+		resourcesDBClient:    resourcesDBClient,
+		clusterServiceClient: clusterServiceClient,
+	}
+}
+
 func clusterShouldProceed(cluster *api.HCPOpenShiftCluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
 
-	// TODO remove this check but keep the inner one when all clusters have been moved to the new update approach
-	// We guard it with this check because when the boolean is false we want to set the config hash in the ServiceProviderCluster independently on
-	// whether CSID is set or not.
-	if cluster.ServiceProviderProperties.UsesNewClusterUpdateApproach {
-		csID := cluster.ServiceProviderProperties.ClusterServiceID
-		if csID == nil || len(csID.String()) == 0 {
-			return false
-		}
+	csID := cluster.ServiceProviderProperties.ClusterServiceID
+	if csID == nil || len(csID.String()) == 0 {
+		return false
 	}
 
 	return true
@@ -115,63 +126,65 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		return nil
 	}
 
-	desiredHash, err := ocm.ClusterUpdatableConfigHash(cluster)
-	if err != nil {
-		return err
-	}
-
-	serviceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, cluster.ID)
-	if err != nil {
-		return err
-	}
-
-	// For the old update approach, we introduce this mechanism to set the config hash in the ServiceProviderCluster status when the controller runs
-	// so we can compute the hash for pre-existing clusters.
-	// TODO should we run this independently on CSID being set? if not, it means that once we enable the new approach it could be that we trigger
-	// an update because it didn't have the hash set yet because it was still creating.
-	if !cluster.ServiceProviderProperties.UsesNewClusterUpdateApproach {
-		if serviceProviderCluster.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch != desiredHash {
-			logger.Info("using old update approach, skipping Cluster Service update but setting config hash", "desiredHash", desiredHash)
-			serviceProviderCluster.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch = desiredHash
-			_, err = c.resourcesDBClient.ServiceProviderClusters(
-				cluster.ID.SubscriptionID,
-				cluster.ID.ResourceGroupName,
-				cluster.ID.Name,
-			).Replace(ctx, serviceProviderCluster, nil)
-			if err != nil {
-				return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster config hash: %w", err))
-			}
-			return nil
-		}
-	}
-
-	// If the desired hash matches the stored hash, we don't need to send a Cluster CS update
-	if serviceProviderCluster.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch == desiredHash {
-		return nil
-	}
-
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
-	oldClusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
+	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
-	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(cluster.ID, "", cluster, nil, oldClusterServiceCluster)
+	needsUpdate, err := ocm.ClusterUpdateDispatchConfigDiffers(cluster, clusterServiceCluster)
+	if err != nil {
+		return err
+	}
+	if !needsUpdate {
+		return nil
+	}
+
+	desiredConfigJSON, err := ocm.ClusterUpdateDispatchConfigJSONFromRP(cluster)
+	if err != nil {
+		return err
+	}
+	actualConfigJSON, err := ocm.ClusterUpdateDispatchConfigJSONFromCS(clusterServiceCluster)
+	if err != nil {
+		return err
+	}
+
+	logger.Info("update dispatch config differs between RP and CS",
+		"clusterServiceID", clusterCSID.String(),
+		"desiredConfig", desiredConfigJSON,
+		"actualConfig", actualConfigJSON,
+	)
+
+	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(cluster.ID, "", cluster, nil, clusterServiceCluster)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
 
-	logger.Info("dispatching cluster update to Cluster Service",
+	clusterAutoscalerPayload, err := c.marshalClusterServiceClusterAutoscalerUpdatePayload(csAutoscalerBuilder)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to marshal Cluster Service autoscaler update payload: %w", err))
+	}
+
+	logger.Info("dispatching cluster autoscaler update to Cluster Service",
 		"clusterServiceID", clusterCSID.String(),
-		"previousHash", serviceProviderCluster.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch,
-		"desiredHash", desiredHash,
+		"clusterServiceClusterAutoscalerPayload", clusterAutoscalerPayload,
 	)
 
 	_, err = c.clusterServiceClient.UpdateClusterAutoscaler(ctx, *clusterCSID, csAutoscalerBuilder)
 	if err != nil {
 		var ocmError *ocmerrors.Error
+		// XXX Matching an error message is brittle, but Clusters Service
+		//     returns 400 Bad Request for a wide range of errors and there
+		//     is no other information in the response to distinguish them.
+		//
+		//     If the error is indicating that a the cluster autoscaler is not in
+		//     an updatable state, we return without error and retry again on the
+		//     next sync. This can happen for example when the CS cluster is still in
+		//     the initial creation process.
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusBadRequest &&
-			strings.Contains(ocmError.Reason(), "not in an updatable state") {
+			strings.Contains(ocmError.Reason(), "Cluster") &&
+			strings.Contains(ocmError.Reason(), "is in state") &&
+			strings.Contains(ocmError.Reason(), "can't update") {
 			logger.Info("Cluster Service rejected cluster autoscaler update because the cluster is not updatable. Retrying on next sync.",
 				"clusterServiceID", clusterCSID.String(),
 				"error", err.Error(),
@@ -181,11 +194,31 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		return utils.TrackError(fmt.Errorf("failed to update cluster-service ClusterAutoscaler: %w", err))
 	}
 
+	clusterPayload, err := c.marshalClusterServiceClusterUpdatePayload(csClusterBuilder)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to marshal Cluster Service cluster update payload: %w", err))
+	}
+
+	logger.Info("dispatching cluster update to Cluster Service",
+		"clusterServiceID", clusterCSID.String(),
+		"clusterServiceClusterPayload", clusterPayload,
+	)
+
 	_, err = c.clusterServiceClient.UpdateCluster(ctx, *clusterCSID, csClusterBuilder)
 	if err != nil {
 		var ocmError *ocmerrors.Error
+		// XXX Matching an error message is brittle, but Clusters Service
+		//     returns 400 Bad Request for a wide range of errors and there
+		//     is no other information in the response to distinguish them.
+		//
+		//     If the error is indicating that a the cluster autoscaler is not in
+		//     an updatable state, we return without error and retry again on the
+		//     next sync. This can happen for example when the CS cluster is still in
+		//     the initial creation process.
 		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusBadRequest &&
-			strings.Contains(ocmError.Reason(), "not in an updatable state") {
+			strings.Contains(ocmError.Reason(), "Cluster") &&
+			strings.Contains(ocmError.Reason(), "is in state") &&
+			strings.Contains(ocmError.Reason(), "can't update") {
 			logger.Info("Cluster Service rejected cluster update because the cluster is not updatable. Retrying on next sync.",
 				"clusterServiceID", clusterCSID.String(),
 				"error", err.Error(),
@@ -196,17 +229,37 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	}
 
 	logger.Info("requested cluster-service Cluster update", "clusterServiceID", clusterCSID.String())
+	return nil
+}
 
-	serviceProviderCluster.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch = desiredHash
-	_, err = c.resourcesDBClient.ServiceProviderClusters(
-		cluster.ID.SubscriptionID,
-		cluster.ID.ResourceGroupName,
-		cluster.ID.Name,
-	).Replace(ctx, serviceProviderCluster, nil)
+func (c *clusterClusterServiceUpdateDispatchSyncer) marshalClusterServiceClusterUpdatePayload(
+	clusterBuilder *arohcpv1alpha1.ClusterBuilder,
+) (string, error) {
+	cluster, err := clusterBuilder.Build()
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster config hash: %w", err))
+		return "", err
 	}
 
-	logger.Info("stored Cluster Service cluster updatable config hash", "hash", desiredHash)
-	return nil
+	var clusterBuffer bytes.Buffer
+	if err := arohcpv1alpha1.MarshalCluster(cluster, &clusterBuffer); err != nil {
+		return "", err
+	}
+
+	return clusterBuffer.String(), nil
+}
+
+func (c *clusterClusterServiceUpdateDispatchSyncer) marshalClusterServiceClusterAutoscalerUpdatePayload(
+	autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder,
+) (string, error) {
+	autoscaler, err := autoscalerBuilder.Build()
+	if err != nil {
+		return "", err
+	}
+
+	var autoscalerBuffer bytes.Buffer
+	if err := arohcpv1alpha1.MarshalClusterAutoscaler(autoscaler, &autoscalerBuffer); err != nil {
+		return "", err
+	}
+
+	return autoscalerBuffer.String(), nil
 }

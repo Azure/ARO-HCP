@@ -16,6 +16,9 @@ package clusterupdate
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +30,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -52,7 +56,7 @@ func TestClusterShouldProceed(t *testing.T) {
 		want    bool
 	}{
 		{
-			name: "proceed when no deletion and old approach",
+			name: "proceed when CSID set",
 			cluster: &api.HCPOpenShiftCluster{
 				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 					ClusterServiceID: &csID,
@@ -65,38 +69,17 @@ func TestClusterShouldProceed(t *testing.T) {
 			cluster: &api.HCPOpenShiftCluster{
 				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 					DeletionTimestamp: &now,
-					ClusterServiceID: &csID,
+					ClusterServiceID:  &csID,
 				},
 			},
 			want: false,
 		},
 		{
-			name: "skip when new approach and no CSID",
+			name: "skip when no CSID",
 			cluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					UsesNewClusterUpdateApproach: true,
-				},
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{},
 			},
 			want: false,
-		},
-		{
-			name: "proceed when new approach and CSID set",
-			cluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					UsesNewClusterUpdateApproach: true,
-					ClusterServiceID:             &csID,
-				},
-			},
-			want: true,
-		},
-		{
-			name: "proceed when old approach and no CSID",
-			cluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					UsesNewClusterUpdateApproach: false,
-				},
-			},
-			want: true,
 		},
 	}
 
@@ -107,70 +90,157 @@ func TestClusterShouldProceed(t *testing.T) {
 	}
 }
 
+func newFakeOCMClusterNotUpdatableError() error {
+	e, _ := ocmerrors.NewError().
+		Status(http.StatusBadRequest).
+		Reason("Cluster 'abc123' is in state 'installing', can't update").
+		Build()
+	return e
+}
+
+func newFakeOCMUnrelatedBadRequestError() error {
+	e, _ := ocmerrors.NewError().
+		Status(http.StatusBadRequest).
+		Reason("some other validation error").
+		Build()
+	return e
+}
+
 func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 	csID := api.Must(api.NewInternalID(testClusterServiceIDStr))
 
+	defaultExistingCSCluster := api.Must(arohcpv1alpha1.NewCluster().Build())
+
+	newClusterWithConfigDiff := func() *api.HCPOpenShiftCluster {
+		return newTestCluster(func(c *api.HCPOpenShiftCluster) {
+			c.CustomerProperties.NodeDrainTimeoutMinutes = 60
+			c.CustomerProperties.Autoscaling.MaxNodesTotal = 10
+		})
+	}
+
 	testCases := []struct {
-		name                     string
-		cluster                  *api.HCPOpenShiftCluster
-		serviceProviderCluster   *api.ServiceProviderCluster
-		existingCSCluster        *arohcpv1alpha1.Cluster
-		expectCSGet              bool
-		expectCSUpdateAutoscaler bool
-		expectCSUpdateCluster    bool
-		expectHashStamped        bool
-		expectError              bool
+		name              string
+		cluster           *api.HCPOpenShiftCluster
+		existingCSCluster *arohcpv1alpha1.Cluster
+		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
+		wantErr           bool
+		wantErrContain    string
 	}{
 		{
-			name: "old approach stamps hash without CS call",
+			name: "skip without CS call when no CSID",
 			cluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.UsesNewClusterUpdateApproach = false
+				c.ServiceProviderProperties.ClusterServiceID = nil
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
-			serviceProviderCluster: newTestServiceProviderCluster(""),
-			expectCSGet:            false,
-			expectHashStamped:      true,
 		},
 		{
-			name: "old approach no-op when hash matches",
+			name:              "dispatches CS calls when config differs",
+			cluster:           newClusterWithConfigDiff(),
+			existingCSCluster: defaultExistingCSCluster,
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), csID).
+					Return(defaultExistingCSCluster, nil)
+				mock.EXPECT().
+					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
+					Return(nil, nil)
+				mock.EXPECT().
+					UpdateCluster(gomock.Any(), csID, gomock.Any()).
+					Return(nil, nil)
+			},
+		},
+		{
+			name: "no-op when config matches",
 			cluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.UsesNewClusterUpdateApproach = false
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
-			serviceProviderCluster:   nil, // will be computed
-			expectCSGet:              false,
-			expectCSUpdateAutoscaler: false,
-			expectCSUpdateCluster:    false,
-			expectHashStamped:        false,
-		},
-		{
-			name: "new approach dispatches CS calls when hash differs",
-			cluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.UsesNewClusterUpdateApproach = true
-				c.CustomerProperties.NodeDrainTimeoutMinutes = 60
-				c.CustomerProperties.Autoscaling.MaxNodesTotal = 10
-			}),
-			serviceProviderCluster: newTestServiceProviderCluster("old-hash"),
-			existingCSCluster: func() *arohcpv1alpha1.Cluster {
-				c, _ := arohcpv1alpha1.NewCluster().Build()
-				return c
-			}(),
-			expectCSGet:              true,
-			expectCSUpdateAutoscaler: true,
-			expectCSUpdateCluster:    true,
-			expectHashStamped:        true,
-		},
-		{
-			name: "new approach no-op when hash matches",
-			cluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.UsesNewClusterUpdateApproach = true
+			existingCSCluster: mustBuildCSClusterFromRP(t, newTestCluster(func(c *api.HCPOpenShiftCluster) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
-			}),
-			serviceProviderCluster:   nil, // will be computed
-			expectCSGet:              false,
-			expectCSUpdateAutoscaler: false,
-			expectCSUpdateCluster:    false,
-			expectHashStamped:        false,
+			})),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), csID).
+					Return(mustBuildCSClusterFromRP(t, newTestCluster(func(c *api.HCPOpenShiftCluster) {
+						c.CustomerProperties.NodeDrainTimeoutMinutes = 30
+					})), nil)
+			},
+		},
+		{
+			name:              "when CS autoscaler update returns cluster not updatable no error is returned and cluster update is not called",
+			cluster:           newClusterWithConfigDiff(),
+			existingCSCluster: defaultExistingCSCluster,
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), csID).
+					Return(defaultExistingCSCluster, nil)
+				mock.EXPECT().
+					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
+					Return(nil, newFakeOCMClusterNotUpdatableError())
+			},
+		},
+		{
+			name:              "when CS cluster update returns cluster not updatable no error is returned",
+			cluster:           newClusterWithConfigDiff(),
+			existingCSCluster: defaultExistingCSCluster,
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), csID).
+					Return(defaultExistingCSCluster, nil)
+				mock.EXPECT().
+					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
+					Return(nil, nil)
+				mock.EXPECT().
+					UpdateCluster(gomock.Any(), csID, gomock.Any()).
+					Return(nil, newFakeOCMClusterNotUpdatableError())
+			},
+		},
+		{
+			name:              "when CS autoscaler update returns unhandled error error is propagated",
+			cluster:           newClusterWithConfigDiff(),
+			existingCSCluster: defaultExistingCSCluster,
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), csID).
+					Return(defaultExistingCSCluster, nil)
+				mock.EXPECT().
+					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
+					Return(nil, errors.New("boom"))
+			},
+			wantErr:        true,
+			wantErrContain: "failed to update cluster-service ClusterAutoscaler",
+		},
+		{
+			name:              "when CS cluster update returns unhandled error error is propagated",
+			cluster:           newClusterWithConfigDiff(),
+			existingCSCluster: defaultExistingCSCluster,
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), csID).
+					Return(defaultExistingCSCluster, nil)
+				mock.EXPECT().
+					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
+					Return(nil, nil)
+				mock.EXPECT().
+					UpdateCluster(gomock.Any(), csID, gomock.Any()).
+					Return(nil, errors.New("boom"))
+			},
+			wantErr:        true,
+			wantErrContain: "failed to update cluster-service Cluster",
+		},
+		{
+			name:              "when CS autoscaler update returns unrelated bad request error error is propagated",
+			cluster:           newClusterWithConfigDiff(),
+			existingCSCluster: defaultExistingCSCluster,
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), csID).
+					Return(defaultExistingCSCluster, nil)
+				mock.EXPECT().
+					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
+					Return(nil, newFakeOCMUnrelatedBadRequestError())
+			},
+			wantErr:        true,
+			wantErrContain: "failed to update cluster-service ClusterAutoscaler",
 		},
 	}
 
@@ -180,35 +250,12 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			resources := []any{tc.cluster}
-
-			// If serviceProviderCluster is nil for "hash matches" tests, pre-compute the hash
-			if tc.serviceProviderCluster == nil {
-				hash, err := ocm.ClusterUpdatableConfigHash(tc.cluster)
-				require.NoError(t, err)
-				tc.serviceProviderCluster = newTestServiceProviderCluster(hash)
-			}
-			resources = append(resources, tc.serviceProviderCluster)
-
-			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			mockResourcesDB, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.cluster})
 			require.NoError(t, err)
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-
-			if tc.expectCSGet {
-				mockCSClient.EXPECT().
-					GetCluster(gomock.Any(), csID).
-					Return(tc.existingCSCluster, nil)
-			}
-			if tc.expectCSUpdateAutoscaler {
-				mockCSClient.EXPECT().
-					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
-					Return(nil, nil)
-			}
-			if tc.expectCSUpdateCluster {
-				mockCSClient.EXPECT().
-					UpdateCluster(gomock.Any(), csID, gomock.Any()).
-					Return(nil, nil)
+			if tc.setupMockCSClient != nil {
+				tc.setupMockCSClient(mockCSClient)
 			}
 
 			syncer := &clusterClusterServiceUpdateDispatchSyncer{
@@ -225,26 +272,30 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			}
 
 			err = syncer.SyncOnce(ctx, key)
-			if tc.expectError {
+			if tc.wantErr {
 				require.Error(t, err)
+				if tc.wantErrContain != "" {
+					assert.Contains(t, err.Error(), tc.wantErrContain)
+				}
 				return
 			}
 			require.NoError(t, err)
-
-			if tc.expectHashStamped {
-				spc, err := mockResourcesDB.ServiceProviderClusters(
-					testSubscriptionID,
-					testResourceGroupName,
-					testClusterName,
-				).Get(ctx, api.ServiceProviderClusterResourceName)
-				require.NoError(t, err)
-
-				expectedHash, err := ocm.ClusterUpdatableConfigHash(tc.cluster)
-				require.NoError(t, err)
-				assert.Equal(t, expectedHash, spc.Status.ClusterServiceUpdatableConfigHashForUpdateDispatch)
-			}
 		})
 	}
+}
+
+func mustBuildCSClusterFromRP(t *testing.T, hcpCluster *api.HCPOpenShiftCluster) *arohcpv1alpha1.Cluster {
+	t.Helper()
+
+	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
+	require.NoError(t, err)
+
+	clusterBuilder, autoscalerBuilder, err := ocm.BuildCSCluster(hcpCluster.ID, "", hcpCluster, nil, oldClusterServiceCluster)
+	require.NoError(t, err)
+
+	csCluster, err := clusterBuilder.Autoscaler(autoscalerBuilder).Build()
+	require.NoError(t, err)
+	return csCluster
 }
 
 func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
@@ -257,7 +308,8 @@ func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftClu
 	csID := api.Must(api.NewInternalID(testClusterServiceIDStr))
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -276,24 +328,6 @@ func newTestCluster(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftClu
 	}
 
 	return cluster
-}
-
-func newTestServiceProviderCluster(hash string) *api.ServiceProviderCluster {
-	resourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + testSubscriptionID +
-			"/resourceGroups/" + testResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-			"/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName,
-	))
-
-	return &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
-		},
-		Status: api.ServiceProviderClusterStatus{
-			ClusterServiceUpdatableConfigHashForUpdateDispatch: hash,
-		},
-	}
 }
 
 type alwaysSyncCooldownChecker struct{}

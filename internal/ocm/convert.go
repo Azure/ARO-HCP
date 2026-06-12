@@ -77,8 +77,8 @@ const (
 	csOutboundType                      string = "load_balancer"
 	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+	CSCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
+	CSCIDRBlockAllowAccessModeAllowList string = "allow_list"
 	csOsDiskPersistencePersistent       string = "persistent"
 	csOsDiskPersistenceEphemeral        string = "ephemeral"
 	CSProvisionShardStatusActive        string = "active"
@@ -276,9 +276,9 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 
 	if in.AuthorizedCIDRs == nil {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowAll)
 	} else if len(in.AuthorizedCIDRs) > 0 {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowList)
 		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
 	} else {
 		// Unreachable: empty AuthorizedCIDRs list is disallowed by validation
@@ -397,11 +397,9 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		))
 	}
 
-	updatableConfig := ClusterUpdatableConfigFromCluster(hcpCluster)
-
 	// Property layering for CS Properties(): preserve existing values (on update),
-	// overlay caller-specified properties, then applyClusterUpdatableConfig overlays
-	// updatable experimental features.
+	// overlay caller-specified properties, then clusterUpdateDispatchConfig.applyToCSBuilders overlays
+	// dispatch-managed experimental features.
 	properties := map[string]string{}
 	if oldClusterServiceCluster != nil {
 		for k, v := range oldClusterServiceCluster.Properties() {
@@ -412,12 +410,13 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		properties[k] = v
 	}
 
-	err = applyClusterUpdatableConfig(clusterBuilder, clusterAPIBuilder, properties, updatableConfig)
+	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster)
+	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, properties)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	clusterAutoscalerBuilder, err := applyClusterUpdatableAutoscalerConfig(updatableConfig)
+	clusterAutoscalerBuilder, err := clusterUpdateDispatchConfig.autoscalerBuilder()
 	if err != nil {
 		return nil, nil, err
 	}
