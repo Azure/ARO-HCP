@@ -25,6 +25,18 @@ spec:
       labels:
         severity: info
         team: hcp-sl
+    - alert: MgmtClusterNodeSwiftNICCapacityZero
+      annotations:
+        description: Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.
+        runbook_url: https://portal.microsofticm.com/imp/v5/incidents/details/802529667
+        summary: Management cluster node has zero SWIFT NIC capacity.
+        owning_team: hcp-sl
+      expr: |
+        kube_node_status_capacity{node=~"user.*", resource="aro_openshift_io_swift_nic"} == 0
+      for: 10m
+      labels:
+        severity: critical
+        team: hcp-sl
     - alert: MgmtClusterHCPCapacityCritical
       annotations:
         description: Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.
