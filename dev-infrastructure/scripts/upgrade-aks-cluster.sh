@@ -119,13 +119,16 @@ fi
 
 # Node OS image upgrade.
 #
-# This replaces the AKS-managed nodeOSUpgradeChannel/auto-upgrade that used to
-# pull the latest node image (security patches) on a maintenance schedule. We
-# now drive it from the pipeline: for each node pool, compare the running node
-# image against the latest available one and run a node-image-only upgrade when
-# a newer image exists. A Kubernetes version upgrade above already reimages
-# nodes to the latest image for the target version, so this is typically a
-# no-op right after one and only does work when the image alone is stale.
+# This is the pipeline-driven replacement for the AKS-managed
+# nodeOSUpgradeChannel/auto-upgrade, which is disabled in the AKS base module
+# (autoUpgradeProfile.nodeOSUpgradeChannel: 'None', see the companion change in
+# dev-infrastructure/modules/aks-cluster-base.bicep). It used to pull the latest
+# node image (security patches) on a maintenance schedule; we now drive it from
+# the pipeline: for each node pool, compare the running node image against the
+# latest available one and run a node-image-only upgrade when a newer image
+# exists. A Kubernetes version upgrade above already reimages nodes to the
+# latest image for the target version, so this is typically a no-op right after
+# one and only does work when the image alone is stale.
 echo "Checking node image versions..."
 NODE_IMAGE_UPGRADE_NEEDED=false
 
