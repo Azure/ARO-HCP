@@ -5,6 +5,8 @@ use (
 	./admin/server
 	./backend
 	./dev-infrastructure/scripts/cleanup-pko-resources
+	./dev-infrastructure/scripts/delete-extra-infra-nodepools
+	./dev-infrastructure/scripts/internal
 	./dev-infrastructure/scripts/recreate-broken-pools
 	./dev-infrastructure/scripts/recreate-system-pool
 	./fleet
