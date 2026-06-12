@@ -64,7 +64,8 @@ func checkForProvisioningStateConflict(
 	case database.OperationRequestCreate:
 		// Resource must already exist for there to be a conflict.
 	case database.OperationRequestDelete:
-		if provisioningState == arm.ProvisioningStateDeleting {
+		if provisioningState == arm.ProvisioningStateDeleting ||
+			provisioningState == arm.ProvisioningStateFailed {
 			return arm.NewConflictError(
 				resourceID,
 				"Resource is already deleting")
@@ -141,9 +142,11 @@ func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscri
 		return utils.TrackError(err)
 	}
 	for _, cluster := range clusterIterator.Items(ctx) {
-		if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting {
-			// don't try to delete already deleting clusters.  If we call the delete on them, the call will fail
-			// on various problems from cluster-service. We trust the existing delete is doing good things.
+		if cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateDeleting ||
+			cluster.ServiceProviderProperties.ProvisioningState == arm.ProvisioningStateFailed {
+			// Skip clusters already being deleted or stuck in a failed state.
+			// Deleting: trust the existing delete operation.
+			// Failed: avoid retry storms from re-issuing deletes that will fail again.
 			continue
 		}
 		if err := f.addDeleteClusterToTransaction(ctx, nil, nil, transaction, cluster); err != nil {

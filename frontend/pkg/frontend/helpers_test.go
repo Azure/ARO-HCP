@@ -56,7 +56,9 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			name:             "Delete cluster",
 			resourceID:       api.TestClusterResourceID,
 			operationRequest: database.OperationRequestDelete,
-			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
+			directConflict: func(s arm.ProvisioningState) bool {
+				return s == arm.ProvisioningStateDeleting || s == arm.ProvisioningStateFailed
+			},
 		},
 		{
 			name:             "Update cluster",
@@ -87,8 +89,10 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			name:             "Delete node pool",
 			resourceID:       api.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestDelete,
-			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
-			parentConflict:   parentConflictFunc,
+			directConflict: func(s arm.ProvisioningState) bool {
+				return s == arm.ProvisioningStateDeleting || s == arm.ProvisioningStateFailed
+			},
+			parentConflict: parentConflictFunc,
 		},
 		{
 			name:             "Update node pool",
