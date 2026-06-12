@@ -121,6 +121,9 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
 		// Currently, this is correct.  We will likely refactor and change this to separate the read of active versions from the determination
 		// of the next desired version: we'll need to choose a desired version even if there are no active versions.

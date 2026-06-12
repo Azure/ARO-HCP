@@ -84,6 +84,9 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
+	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil ||
 		len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return nil
