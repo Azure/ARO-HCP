@@ -46,7 +46,7 @@ import (
 func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 	tests := []struct {
 		name                  string
-		activeVersions        []api.HCPClusterActiveVersion
+		fromVersions          []semver.Version
 		customerDesiredMinor  string
 		channelGroup          string
 		mockSetup             func(*cincinnati.MockClient)
@@ -56,7 +56,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 	}{
 		{
 			name:                 "Z-stream upgrade - finds latest gateway",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.15")},
 			customerDesiredMinor: "4.19",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -81,7 +81,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Z-stream upgrade - already at latest",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.22")},
 			customerDesiredMinor: "4.19",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -97,7 +97,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Z-stream upgrade - actual has edge to next minor, no gateway in candidates",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.15")},
 			customerDesiredMinor: "4.19",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -124,9 +124,9 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			name:                 "Z-stream upgrade - multiple active versions, only common candidates considered",
 			customerDesiredMinor: "4.19",
 			channelGroup:         "stable",
-			activeVersions: []api.HCPClusterActiveVersion{
-				{Version: ptr.To(semver.MustParse("4.19.12")), State: configv1.CompletedUpdate}, // Most recent
-				{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}, // Older active version
+			fromVersions: []semver.Version{
+				semver.MustParse("4.19.12"), // Most recent
+				semver.MustParse("4.19.10"), // Older active version
 			},
 			mockSetup: func(mc *cincinnati.MockClient) {
 				// Query for 4.19 versions from 4.19.12 (most recent active version)
@@ -158,7 +158,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Z-stream upgrade - actual has NO edge to next minor, no gateway in candidates",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.10")},
 			customerDesiredMinor: "4.19",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -185,7 +185,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Z-stream upgrade - Cincinnati query error",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.15")},
 			customerDesiredMinor: "4.19",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -203,7 +203,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Z-stream upgrade - no desired minor version specified",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.15")},
 			customerDesiredMinor: "",
 			channelGroup:         "stable",
 			mockSetup:            func(mc *cincinnati.MockClient) {},
@@ -212,7 +212,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Z-stream upgrade - no channel group specified",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.15")},
 			customerDesiredMinor: "4.19",
 			channelGroup:         "",
 			mockSetup:            func(mc *cincinnati.MockClient) {},
@@ -221,7 +221,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Z-stream upgrade - candidate channel, customer desired full version (4.20.15) normalized to same minor",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.10")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.20.10")},
 			customerDesiredMinor: "4.20.15",
 			channelGroup:         "candidate",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -251,7 +251,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Z-stream upgrade - nightly channel, customer desired full version (4.19.0-0.nightly-multi-...) normalized to same minor",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{api.Must(semver.ParseTolerant("4.19.0-0.nightly-multi-2026-01-10-204154"))},
 			customerDesiredMinor: "4.19.0-0.nightly-multi-2026-01-12-061259",
 			channelGroup:         "nightly",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -286,7 +286,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: databasetesting.NewMockResourcesDBClient()}
 
 			ctx := context.Background()
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
+			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.fromVersions, false)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -296,7 +296,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 	tests := []struct {
 		name                  string
-		activeVersions        []api.HCPClusterActiveVersion
+		fromVersions          []semver.Version
 		customerDesiredMinor  string
 		channelGroup          string
 		mockSetup             func(*cincinnati.MockClient)
@@ -307,7 +307,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 	}{
 		{
 			name:                 "Y-stream upgrade - direct path available returns latest version with gateway to next minor",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.22")},
 			customerDesiredMinor: "4.20",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -342,7 +342,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Y-stream upgrade - succeeds with node pool within skew versus desired minor",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.22")},
 			customerDesiredMinor: "4.20",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -378,7 +378,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Y-stream upgrade - no direct path, falls back to Z-stream",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.15")},
 			customerDesiredMinor: "4.20",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -413,9 +413,9 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			name:                 "Y-stream upgrade - multiple active versions, only common candidates considered",
 			customerDesiredMinor: "4.20",
 			channelGroup:         "stable",
-			activeVersions: []api.HCPClusterActiveVersion{
-				{Version: ptr.To(semver.MustParse("4.19.18")), State: configv1.CompletedUpdate}, // Most recent
-				{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}, // Older active version
+			fromVersions: []semver.Version{
+				semver.MustParse("4.19.18"), // Most recent
+				semver.MustParse("4.19.15"), // Older active version
 			},
 			mockSetup: func(mc *cincinnati.MockClient) {
 				// Query for 4.20 versions from 4.19.18 (most recent active version)
@@ -448,7 +448,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Y-stream upgrade - no gateway found but returns latest anyway",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.15")},
 			customerDesiredMinor: "4.20",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -474,7 +474,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Y-stream upgrade - next minor exists but no gateway, returns latest for security",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.60")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.60")},
 			customerDesiredMinor: "4.20",
 			channelGroup:         "candidate",
 			cosmosResources:      testCosmosClusterWithWorkersNodePoolAtVersion("4.19.60"),
@@ -500,7 +500,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Y-stream upgrade - Cincinnati query error",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.19.22")},
 			customerDesiredMinor: "4.20",
 			channelGroup:         "stable",
 			mockSetup: func(mc *cincinnati.MockClient) {
@@ -518,7 +518,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Y-stream upgrade - no path in target minor and already at latest in current minor",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.22")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.20.22")},
 			customerDesiredMinor: "4.21",
 			channelGroup:         "candidate",
 			cosmosResources:      testCosmosClusterWithWorkersNodePoolAtVersion("4.20.22"),
@@ -545,7 +545,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 		},
 		{
 			name:                 "Y-stream upgrade - candidates exist but no gateway to next minor, returns latest for security",
-			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.22")), State: configv1.CompletedUpdate}},
+			fromVersions:         []semver.Version{semver.MustParse("4.20.22")},
 			customerDesiredMinor: "4.21",
 			channelGroup:         "candidate",
 			cosmosResources:      testCosmosClusterWithWorkersNodePoolAtVersion("4.20.22"),
@@ -583,7 +583,7 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: mockResourcesDBClient}
 
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
+			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.fromVersions, false)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -630,7 +630,7 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 	tests := []struct {
 		name                        string
-		activeVersions              []api.HCPClusterActiveVersion
+		fromVersions                []semver.Version
 		customerDesiredMinor        string
 		channelGroup                string
 		mockSetup                   func(*cincinnati.MockClient)
@@ -642,7 +642,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 	}{
 		{
 			name:                  "Validation - downgrade not allowed (4.20 -> 4.19)",
-			activeVersions:        []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.15")), State: configv1.CompletedUpdate}},
+			fromVersions:          []semver.Version{semver.MustParse("4.20.15")},
 			customerDesiredMinor:  "4.19",
 			channelGroup:          "stable",
 			mockSetup:             func(mc *cincinnati.MockClient) {},
@@ -652,7 +652,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 		},
 		{
 			name:                  "Validation - OpenShift 5.x requires AFEC (4.20 -> 5.0)",
-			activeVersions:        []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.15")), State: configv1.CompletedUpdate}},
+			fromVersions:          []semver.Version{semver.MustParse("4.20.15")},
 			customerDesiredMinor:  "5.0",
 			channelGroup:          "stable",
 			mockSetup:             func(mc *cincinnati.MockClient) {},
@@ -662,7 +662,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 		},
 		{
 			name:                        "Validation - unsupported cross-major (4.20 -> 5.0, not a supported 4→5 landing) when AFEC registered",
-			activeVersions:              []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.15")), State: configv1.CompletedUpdate}},
+			fromVersions:                []semver.Version{semver.MustParse("4.20.15")},
 			customerDesiredMinor:        "5.0",
 			channelGroup:                "stable",
 			mockSetup:                   func(mc *cincinnati.MockClient) {},
@@ -673,7 +673,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 		},
 		{
 			name:                  "Validation - skip minor version not allowed (4.19 -> 4.21)",
-			activeVersions:        []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
+			fromVersions:          []semver.Version{semver.MustParse("4.19.22")},
 			customerDesiredMinor:  "4.21",
 			channelGroup:          "stable",
 			mockSetup:             func(mc *cincinnati.MockClient) {},
@@ -683,7 +683,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 		},
 		{
 			name:                  "Validation - major version downgrade not allowed (5.1 -> 4.20)",
-			activeVersions:        []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("5.1.5")), State: configv1.CompletedUpdate}},
+			fromVersions:          []semver.Version{semver.MustParse("5.1.5")},
 			customerDesiredMinor:  "4.20",
 			channelGroup:          "stable",
 			mockSetup:             func(mc *cincinnati.MockClient) {},
@@ -693,7 +693,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 		},
 		{
 			name:                        "Validation - node pool minor skew blocks supported cross-major desired minor",
-			activeVersions:              []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
+			fromVersions:                []semver.Version{semver.MustParse("4.22.0")},
 			customerDesiredMinor:        "5.0",
 			channelGroup:                "stable",
 			mockSetup:                   func(mc *cincinnati.MockClient) {},
@@ -717,7 +717,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: mockResourcesDBClient}
 
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
+			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.fromVersions, tt.experimentalReleaseFeatures)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -727,7 +727,7 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 	tests := []struct {
 		name                        string
-		activeVersions              []api.HCPClusterActiveVersion
+		fromVersions                []semver.Version
 		customerDesiredMinor        string
 		channelGroup                string
 		mockSetup                   func(*cincinnati.MockClient)
@@ -739,7 +739,7 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 	}{
 		{
 			name:                        "Cross-major allowed — 4.22 to 5.0 with experimental release features and compatible node pools",
-			activeVersions:              []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
+			fromVersions:                []semver.Version{semver.MustParse("4.22.0")},
 			customerDesiredMinor:        "5.0",
 			channelGroup:                "stable",
 			cosmosResources:             testCosmosClusterWithWorkersNodePoolAtVersion("4.22.0"),
@@ -770,7 +770,7 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 		},
 		{
 			name:                        "Cross-major not allowed — 4.22 to 5.0 without experimental release features",
-			activeVersions:              []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
+			fromVersions:                []semver.Version{semver.MustParse("4.22.0")},
 			customerDesiredMinor:        "5.0",
 			channelGroup:                "stable",
 			mockSetup:                   func(mc *cincinnati.MockClient) {},
@@ -781,7 +781,7 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 		},
 		{
 			name:                        "Cross-major not allowed — 4.21 to 5.0 is not a supported landing even with experimental release features",
-			activeVersions:              []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.21.10")), State: configv1.CompletedUpdate}},
+			fromVersions:                []semver.Version{semver.MustParse("4.21.10")},
 			customerDesiredMinor:        "5.0",
 			channelGroup:                "stable",
 			cosmosResources:             testCosmosClusterWithWorkersNodePoolAtVersion("4.21.0"),
@@ -793,7 +793,7 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 		},
 		{
 			name:                        "Cross-major not allowed — 4.22 to 5.1 skips the supported 4.22 to 5.0 path",
-			activeVersions:              []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
+			fromVersions:                []semver.Version{semver.MustParse("4.22.0")},
 			customerDesiredMinor:        "5.1",
 			channelGroup:                "stable",
 			cosmosResources:             testCosmosClusterWithWorkersNodePoolAtVersion("4.22.0"),
@@ -817,7 +817,7 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 			require.NoError(t, err)
 			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: mockResourcesDBClient}
 
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
+			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.fromVersions, tt.experimentalReleaseFeatures)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -957,11 +957,8 @@ func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
 
 			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: databasetesting.NewMockResourcesDBClient()}
 
-			// Empty active versions - simulating a new cluster
-			activeVersions := []api.HCPClusterActiveVersion{}
-
 			ctx := context.Background()
-			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, activeVersions, false)
+			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, nil, false)
 
 			assertVersionResult(t, result, err, tt.expectedVersion, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -1039,19 +1036,21 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 	const testChannelGroup = "stable"
 
 	tests := []struct {
-		name                string
-		customerVersion     string
-		controlPlaneVersion string
-		setupCincinnati     func(mc *cincinnati.MockClient)
-		wantSyncErr         bool
-		wantErrContains     string
-		wantDesiredVersion  *semver.Version
-		wantIntentFailed    *metav1.Condition
+		name               string
+		customerVersion    string
+		activeVersion      string
+		desiredVersion     *semver.Version
+		setupCincinnati    func(mc *cincinnati.MockClient)
+		wantSyncErr        bool
+		wantErrContains    string
+		wantDesiredVersion *semver.Version
+		wantIntentFailed   *metav1.Condition
 	}{
 		{
-			name:                "successful resolution persists desired version and sets IntentFailed False",
-			customerVersion:     "4.19",
-			controlPlaneVersion: "4.19.15",
+			name:            "successful resolution initialises desired version when unset and sets IntentFailed False",
+			customerVersion: "4.19",
+			activeVersion:   "4.19.15",
+			desiredVersion:  nil,
 			setupCincinnati: func(mc *cincinnati.MockClient) {
 				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.15")).Return(
 					configv1.Release{},
@@ -1071,11 +1070,38 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:                "validation error persists IntentFailed and does not set desired version",
-			customerVersion:     "4.19",
-			controlPlaneVersion: "4.20.15",
-			setupCincinnati:     func(mc *cincinnati.MockClient) {},
-			wantDesiredVersion:  nil,
+			name:            "previous desired anchors resolution when Cincinnati graph offers lower patch",
+			customerVersion: "4.19",
+			activeVersion:   "4.19.15",
+			desiredVersion:  ptr.To(semver.MustParse("4.19.22")),
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.22")).Return(
+					configv1.Release{Version: "4.19.22"},
+					[]configv1.Release{},
+					nil,
+					nil,
+				).Times(1)
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.15")).Return(
+					configv1.Release{Version: "4.19.15"},
+					[]configv1.Release{{Version: "4.19.18"}},
+					nil,
+					nil,
+				).Times(1)
+			},
+			wantDesiredVersion: ptr.To(semver.MustParse("4.19.22")),
+			wantIntentFailed: &metav1.Condition{
+				Type:   api.ControllerConditionTypeIntentFailed,
+				Status: metav1.ConditionFalse,
+				Reason: api.ControllerConditionReasonAsExpected,
+			},
+		},
+		{
+			name:               "validation error persists IntentFailed and preserves existing desired version",
+			customerVersion:    "4.19",
+			activeVersion:      "4.20.15",
+			desiredVersion:     ptr.To(semver.MustParse("4.20.15")),
+			setupCincinnati:    func(mc *cincinnati.MockClient) {},
+			wantDesiredVersion: ptr.To(semver.MustParse("4.20.15")),
 			wantIntentFailed: &metav1.Condition{
 				Type:    api.ControllerConditionTypeIntentFailed,
 				Status:  metav1.ConditionTrue,
@@ -1084,9 +1110,10 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name:                "Cincinnati upstream error does not persist IntentFailed or desired version",
-			customerVersion:     "4.19",
-			controlPlaneVersion: "4.19.15",
+			name:            "Cincinnati upstream error does not persist IntentFailed or desired version",
+			customerVersion: "4.19",
+			activeVersion:   "4.19.15",
+			desiredVersion:  ptr.To(semver.MustParse("4.19.15")),
 			setupCincinnati: func(mc *cincinnati.MockClient) {
 				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.15")).Return(
 					configv1.Release{}, nil, nil, &cvocincinnati.Error{Reason: "ServiceUnavailable", Message: "503 Service Unavailable"},
@@ -1094,19 +1121,20 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			},
 			wantSyncErr:        true,
 			wantErrContains:    "503 Service Unavailable",
-			wantDesiredVersion: nil,
+			wantDesiredVersion: ptr.To(semver.MustParse("4.19.15")),
 			wantIntentFailed:   nil,
 		},
 		{
-			name:                "Cincinnati VersionNotFound persists IntentFailed and does not set desired version",
-			customerVersion:     "4.19",
-			controlPlaneVersion: "4.19.15",
+			name:            "Cincinnati VersionNotFound persists IntentFailed and preserves existing desired version",
+			customerVersion: "4.19",
+			activeVersion:   "4.19.15",
+			desiredVersion:  ptr.To(semver.MustParse("4.19.15")),
 			setupCincinnati: func(mc *cincinnati.MockClient) {
 				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.15")).Return(
 					configv1.Release{}, nil, nil, &cvocincinnati.Error{Reason: "VersionNotFound"},
 				).Times(1)
 			},
-			wantDesiredVersion: nil,
+			wantDesiredVersion: ptr.To(semver.MustParse("4.19.15")),
 			wantIntentFailed: &metav1.Condition{
 				Type:    api.ControllerConditionTypeIntentFailed,
 				Status:  metav1.ConditionTrue,
@@ -1126,7 +1154,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			createTestHCPClusterWithCustomerVersion(t, ctx, mockResourcesDBClient, tt.customerVersion, testChannelGroup)
-			createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, tt.controlPlaneVersion)
+			createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, tt.activeVersion, tt.desiredVersion)
 
 			mockCincinnati := cincinnati.NewMockClient(ctrl)
 			tt.setupCincinnati(mockCincinnati)

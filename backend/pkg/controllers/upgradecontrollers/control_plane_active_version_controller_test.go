@@ -77,7 +77,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
+				createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.15", nil)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
@@ -321,7 +321,7 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
 
 	createTestHCPCluster(t, runCtx, mockResourcesDBClient)
-	createServiceProviderClusterWithVersion(t, runCtx, mockResourcesDBClient, "4.19.15")
+	createServiceProviderClusterWithVersion(t, runCtx, mockResourcesDBClient, "4.19.15", nil)
 	desires := []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
 		hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
 			{Version: "4.19.15", State: configv1.CompletedUpdate},
