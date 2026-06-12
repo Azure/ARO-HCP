@@ -15,8 +15,7 @@ The goal is to create the HCP RP API definition in a Microsoft compliant way.
 When used from within this project with [VSCode remote extensions](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.vscode-remote-extensionpack),
 there is no need to setup anything. The whole environment is already bootstrapped in a container.
 
-The container includes Go 1.22 to allow development of the RP as well as
-nodejs, which is required for typespec. The container also has typespec with all required libraries installed. The definition can be found in `.devcontainer/postCreate.sh`, where the libraries are pinned to the latest working versions. Please note, when upgrading version of one, the other might need to be upgraded as well because they tend to break.
+The container includes Go and Node.js, which is required for typespec. Node is provisioned via the devcontainer feature, and TypeSpec library versions are pinned in `api/package.json` and `api/package-lock.json`. Please note, when upgrading one library, the others might need to be upgraded as well because they tend to break.
 
 If you have a fresh container, you need to run `tsp code install` to enable the VSCode typespec extension. This will give you autocomplete and linting.
 
@@ -47,19 +46,22 @@ For the reference, the API definition of ARO-RP is here https://github.com/Azure
 The tsp generation is setup to generate the right project structure for the azure-rest-api-specs. The
 repository structure for typespecs projects is explained here https://github.com/Azure/azure-rest-api-specs/blob/main/documentation/typespec-structure-guidelines.md.
 
-Going with the guide, the typespec service is stored in the `redhatopenshift/HcpCluster` folder. The `redhatopenshift` is the folder
-that holds the current Openshift cluster API and both definitions will need to coexist in the same folder. According to the guide,
-the generation is placed in created `resource-manager` folder. Finally to allow the proper swagger inspection, the `common-types` are copied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
+The folder structure matches the upstream `azure-rest-api-specs` repository layout. The typespec service definition is stored in `redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/`. TypeSpec source examples are in `examples/<version>/` (configured via `examples-dir` in `tspconfig.yaml`). The generated OpenAPI specs are placed in `preview/<version>/` subdirectories, and they reference emitted examples in `preview/<version>/examples/`. To allow proper swagger inspection, the `common-types` are copied from the `azure-rest-api-specs/specification` repository, without these the swagger preview would not work properly.
 
 
 ## How to use typespec
 
 The typespec configuration is stored in the `tspconfig.yaml` file. The swagger API definition needs to be generated.
-To do so, open terminal, switch to api directory and call the following command in a API directory with the `main.tsp`:
+To do so, open terminal, switch to the `api` directory and run:
 
 ```bash
-cd
-tsp compile ./api/redhatopenshift/HcpCluster/
+tsp compile redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters --warn-as-error
+```
+
+Or use the npm script:
+
+```bash
+npm run compile
 ```
 
 Or you can use the submitted build task, that does exactly the same. The default shortcut is `Ctrl+Shift+B` or `Cmd+Shift+B`.
@@ -73,8 +75,8 @@ To generate the example requests and responses, you can use the following comman
 
 ```bash
 export API_VERSION=2024-06-10-preview
-cd api/redhatopenshift/HcpCluster/examples/$API_VERSION
-oav generate-examples ../../../resource-manager/Microsoft.RedHatOpenShift/preview/$API_VERSION/openapi.json
+cd api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/$API_VERSION
+oav generate-examples openapi.json
 ```
 
 ## Generating the api client
@@ -83,10 +85,10 @@ The API client can be generated using the [autorest](https://github.com/Azure/au
 the devcontainer comes with the autorest installed. The usage is straightforward:
 
 ```bash
-autorest api/autorest-config.yaml
+autorest api/readme.md --tag=v20251223preview
 ```
 
-The generated clients are stored in `api/generated`.
+The autorest configuration is in the top-level `readme.md` file, which defines tags for each API version.
 
 **IMPORTANT**: When the new examples are generated, all files are changed. Please make sure to review the changes before committing them
 and commit only the changed parts. Otherwise it will result is a lot of unnecessary changes in the PR.

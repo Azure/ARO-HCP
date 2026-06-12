@@ -7,7 +7,7 @@ VERSION ?= v20251223preview
 
 AUTOREST_OUTPUT_DIR = ../internal/api/${VERSION}/generated
 
-SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters
+SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters
 API_SPEC_PATHS = $(shell find $(SPEC_BASE_DIR) -type f -name "openapi.json" 2>/dev/null | sort)
 API_VERSIONS = $(shell echo '$(API_SPEC_PATHS)' | tr ' ' '\n' | sed 's|/openapi.json||' | xargs -n1 basename | sort -u)
 
@@ -60,11 +60,9 @@ validate-examples:
 .PHONY: lint-openapi
 lint-openapi:
 	@echo "Linting OpenAPI specs with Azure ARM rules for all API versions..."
-	@for spec_path in $(API_SPEC_PATHS); do \
-		version=$$(basename $$(dirname $$spec_path)); \
-		readme_path=$$(dirname $$(dirname $$spec_path))/readme.md; \
+	@for version in $(API_VERSIONS); do \
 		echo ""; \
-		echo "==> Linting $$version (using $$readme_path)"; \
+		echo "==> Linting package-$$version"; \
 		npx autorest \
 			--v3 \
 			--azure-validator \
@@ -72,5 +70,6 @@ lint-openapi:
 			--semantic-validator=false \
 			--model-validator=false \
 			--openapi-type=arm \
-			$$readme_path || exit 1; \
+			--tag=package-$$version \
+			$(SPEC_BASE_DIR)/readme.md || exit 1; \
 	done
