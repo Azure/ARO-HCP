@@ -657,8 +657,6 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 	completeClusterIdentity(newInternalCluster, existingUserAssignedIdentities)
 
-	newInternalCluster.ServiceProviderProperties.UsesNewClusterUpdateApproach = true
-
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
 	clusterUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,

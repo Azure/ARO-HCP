@@ -255,7 +255,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 
 			readDesireLister := &internallistertesting.SliceReadDesireLister{
 				Desires: []*kubeapplier.ReadDesire{
-					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{}),
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Spec: v1beta1.HostedClusterSpec{
+							Autoscaling: observedAutoscalingForZeroDesired(),
+						},
+					}),
 				},
 			}
 

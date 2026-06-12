@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -27,26 +28,13 @@ import (
 )
 
 // clusterUpdatableConfig is the canonical representation of cluster properties
-// hashed by ClusterUpdatableConfigHash and applied to Cluster Service by
+// extracted from RP or Cluster Service and applied to Cluster Service by
 // applyClusterUpdatableConfig and applyClusterUpdatableAutoscalerConfig (via
-// BuildCSCluster). Add or remove fields here and update ClusterUpdatableConfigFromCluster
-// plus the apply helpers in the same change.
+// BuildCSCluster). Add or remove fields here and update ClusterUpdatableConfigFromCluster,
+// ClusterUpdatableConfigFromClusterServiceCluster, plus the apply helpers in the same change.
 //
-// The digest is stored on the ServiceProviderCluster as ClusterServiceUpdatableConfigHashForUpdateDispatch and
-// compared by the cluster update dispatch controller: a mismatch triggers a CS PATCH and
-// hash replacement. It is also stamped during cluster creation.
-//
-// Changing this struct has deploy-time effects:
-//   - Removing a field (in the top-level or nested) changes the digest for every cluster that had that field marshalled. The marshalling of the
-//     field depends on whether omitempty was set for the field and the actual value of the field for the corresponding Cluster.
-//   - Adding a field (in the top-level or nested) changes the digest for every cluster that would start marshalling the field. The marshalling of
-//     the field depends on whether omitempty is set for it and the actual value of the field for the corresponding Cluster.
-//   - Renaming a json tag (in the top-level or nested) changes the digest for every cluster that had the field marshalled. The marshalling of the
-//     field depends on whether omitempty was set for the field and the actual value of the field for the corresponding Cluster.
-//
-// In all of those cases, a change of digest implies a CS PATCH and hash replacement.
-// Note: If in the future we consider that the previous behavior is too risky, we can consider having some sort of versioning of the config hash
-// where we can control the digest changes and only allow changes that we want to allow.
+// The cluster update dispatch controller compares desired and actual configs and
+// sends a CS PATCH only when they differ.
 //
 // Note: This does not necessarily include all the fields that can be updated via the CS API, just the ones
 // that are considered during an ARM Cluster update call and processed by the CS Cluster update dispatch controller.
@@ -81,11 +69,97 @@ func ClusterUpdatableConfigFromCluster(cluster *api.HCPOpenShiftCluster) *cluste
 	}
 }
 
+// ClusterUpdatableConfigFromClusterServiceCluster extracts the canonical updatable
+// cluster configuration from a Cluster Service cluster object.
+func ClusterUpdatableConfigFromClusterServiceCluster(csCluster *arohcpv1alpha1.Cluster) (*clusterUpdatableConfig, error) {
+	config := &clusterUpdatableConfig{}
+
+	if nodeDrainGracePeriod := csCluster.NodeDrainGracePeriod(); nodeDrainGracePeriod != nil {
+		value, ok := nodeDrainGracePeriod.GetValue()
+		if !ok {
+			return nil, utils.TrackError(fmt.Errorf("node drain grace period value is missing"))
+		}
+		config.NodeDrainTimeoutMinutes = int32(value)
+	}
+
+	if clusterAPI := csCluster.API(); clusterAPI != nil {
+		authorizedCIDRs, err := authorizedCIDRsFromClusterServiceAPI(clusterAPI)
+		if err != nil {
+			return nil, err
+		}
+		config.AuthorizedCIDRs = authorizedCIDRs
+	}
+
+	if registryConfig := csCluster.RegistryConfig(); registryConfig != nil {
+		imageDigestMirrors, ok := registryConfig.GetImageDigestMirrors()
+		if ok && len(imageDigestMirrors) > 0 {
+			config.ImageDigestMirrors = make([]api.ImageDigestMirror, 0, len(imageDigestMirrors))
+			for _, mirror := range imageDigestMirrors {
+				source, sourceOK := mirror.GetSource()
+				mirrors, mirrorsOK := mirror.GetMirrors()
+				if !sourceOK {
+					continue
+				}
+				item := api.ImageDigestMirror{Source: source}
+				if mirrorsOK {
+					item.Mirrors = append([]string(nil), mirrors...)
+				}
+				config.ImageDigestMirrors = append(config.ImageDigestMirrors, item)
+			}
+		}
+	}
+
+	for key, value := range csCluster.Properties() {
+		switch key {
+		case CSPropertySingleReplica:
+			if value == CSPropertyEnabled {
+				config.ExperimentalFeatures.ControlPlaneAvailability = api.SingleReplicaControlPlane
+			}
+		case CSPropertySizeOverride:
+			if value == CSPropertyEnabled {
+				config.ExperimentalFeatures.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
+			}
+		}
+	}
+
+	if autoscaler := csCluster.Autoscaler(); autoscaler != nil {
+		autoscaling, err := convertCSAutoscalerToRP(autoscaler)
+		if err != nil {
+			return nil, err
+		}
+		config.Autoscaling = autoscaling
+	}
+
+	return config, nil
+}
+
+// ClusterUpdatableConfigDiffersFromClusterService reports whether the updatable
+// configuration derived from the RP cluster differs from the live Cluster Service cluster.
+func ClusterUpdatableConfigDiffersFromClusterService(cluster *api.HCPOpenShiftCluster, csCluster *arohcpv1alpha1.Cluster) (bool, error) {
+	desiredHash, err := clusterUpdatableConfigHash(ClusterUpdatableConfigFromCluster(cluster))
+	if err != nil {
+		return false, err
+	}
+
+	actualConfig, err := ClusterUpdatableConfigFromClusterServiceCluster(csCluster)
+	if err != nil {
+		return false, err
+	}
+	actualHash, err := clusterUpdatableConfigHash(actualConfig)
+	if err != nil {
+		return false, err
+	}
+
+	return desiredHash != actualHash, nil
+}
+
 // ClusterUpdatableConfigHash returns a SHA-256 hex digest of
 // clusterUpdatableConfig built from the cluster properties marshaled as a json map.
 func ClusterUpdatableConfigHash(cluster *api.HCPOpenShiftCluster) (string, error) {
-	config := ClusterUpdatableConfigFromCluster(cluster)
+	return clusterUpdatableConfigHash(ClusterUpdatableConfigFromCluster(cluster))
+}
 
+func clusterUpdatableConfigHash(config *clusterUpdatableConfig) (string, error) {
 	raw, err := clusterUpdatableConfigJSONForHash(config)
 	if err != nil {
 		return "", err
@@ -93,6 +167,64 @@ func ClusterUpdatableConfigHash(cluster *api.HCPOpenShiftCluster) (string, error
 
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+func authorizedCIDRsFromClusterServiceAPI(clusterAPI *arohcpv1alpha1.ClusterAPI) ([]string, error) {
+	cidrBlockAccess, ok := clusterAPI.GetCIDRBlockAccess()
+	if !ok || cidrBlockAccess == nil {
+		return nil, nil
+	}
+
+	allow, ok := cidrBlockAccess.GetAllow()
+	if !ok || allow == nil {
+		return nil, nil
+	}
+
+	mode, ok := allow.GetMode()
+	if !ok {
+		return nil, nil
+	}
+
+	switch mode {
+	case csCIDRBlockAllowAccessModeAllowAll:
+		return nil, nil
+	case csCIDRBlockAllowAccessModeAllowList:
+		values, ok := allow.GetValues()
+		if !ok {
+			return nil, utils.TrackError(fmt.Errorf("CIDR block allow list mode is missing values"))
+		}
+		return append([]string(nil), values...), nil
+	default:
+		return nil, utils.TrackError(fmt.Errorf("unknown CIDR block allow access mode %q", mode))
+	}
+}
+
+func convertCSAutoscalerToRP(autoscaler *arohcpv1alpha1.ClusterAutoscaler) (api.ClusterAutoscalingProfile, error) {
+	profile := api.ClusterAutoscalingProfile{}
+
+	if maxNodeProvisionTime, ok := autoscaler.GetMaxNodeProvisionTime(); ok && maxNodeProvisionTime != "" {
+		duration, err := time.ParseDuration(maxNodeProvisionTime)
+		if err != nil {
+			return profile, utils.TrackError(fmt.Errorf("failed to parse max node provision time %q: %w", maxNodeProvisionTime, err))
+		}
+		profile.MaxNodeProvisionTimeSeconds = int32(duration.Seconds())
+	}
+
+	if maxPodGracePeriod, ok := autoscaler.GetMaxPodGracePeriod(); ok {
+		profile.MaxPodGracePeriodSeconds = int32(maxPodGracePeriod)
+	}
+
+	if podPriorityThreshold, ok := autoscaler.GetPodPriorityThreshold(); ok {
+		profile.PodPriorityThreshold = int32(podPriorityThreshold)
+	}
+
+	if resourceLimits, ok := autoscaler.GetResourceLimits(); ok && resourceLimits != nil {
+		if maxNodesTotal, ok := resourceLimits.GetMaxNodesTotal(); ok {
+			profile.MaxNodesTotal = int32(maxNodesTotal)
+		}
+	}
+
+	return profile, nil
 }
 
 // clusterUpdatableConfigJSONForHash returns canonical JSON for hashing. The struct

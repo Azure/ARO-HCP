@@ -36,7 +36,7 @@ func TestClusterUpdatableConfigHash(t *testing.T) {
 				AuthorizedCIDRs: []string{"10.0.0.0/8"},
 			},
 			Autoscaling: api.ClusterAutoscalingProfile{
-				MaxNodesTotal:    10,
+				MaxNodesTotal:            10,
 				MaxPodGracePeriodSeconds: 600,
 			},
 		},
@@ -57,7 +57,7 @@ func TestClusterUpdatableConfigHash(t *testing.T) {
 				AuthorizedCIDRs: []string{"10.0.0.0/8"},
 			},
 			Autoscaling: api.ClusterAutoscalingProfile{
-				MaxNodesTotal:    10,
+				MaxNodesTotal:            10,
 				MaxPodGracePeriodSeconds: 600,
 			},
 		},
@@ -73,7 +73,7 @@ func TestClusterUpdatableConfigHash(t *testing.T) {
 				AuthorizedCIDRs: []string{"192.168.0.0/16"},
 			},
 			Autoscaling: api.ClusterAutoscalingProfile{
-				MaxNodesTotal:    10,
+				MaxNodesTotal:            10,
 				MaxPodGracePeriodSeconds: 600,
 			},
 		},
@@ -92,7 +92,7 @@ func TestClusterUpdatableConfigHash(t *testing.T) {
 				{Source: "quay.io/openshift-release-dev", Mirrors: []string{"mirror.example.com"}},
 			},
 			Autoscaling: api.ClusterAutoscalingProfile{
-				MaxNodesTotal:    10,
+				MaxNodesTotal:            10,
 				MaxPodGracePeriodSeconds: 600,
 			},
 		},
@@ -108,7 +108,7 @@ func TestClusterUpdatableConfigHash(t *testing.T) {
 				AuthorizedCIDRs: []string{"10.0.0.0/8"},
 			},
 			Autoscaling: api.ClusterAutoscalingProfile{
-				MaxNodesTotal:    20,
+				MaxNodesTotal:            20,
 				MaxPodGracePeriodSeconds: 600,
 			},
 		},
@@ -208,6 +208,75 @@ func TestClusterUpdatableConfigJSONForHashIsCanonical(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, slices.IsSorted(keys), "top-level JSON keys must be sorted: %v", keys)
 	assert.Equal(t, []string{"authorizedCidrs", "autoscaling", "experimentalFeatures", "imageDigestMirrors", "nodeDrainTimeoutMinutes"}, keys)
+}
+
+func TestClusterUpdatableConfigFromClusterServiceClusterRoundTrip(t *testing.T) {
+	hcpCluster := &api.HCPOpenShiftCluster{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			NodeDrainTimeoutMinutes: 45,
+			API: api.CustomerAPIProfile{
+				AuthorizedCIDRs: []string{"10.0.0.0/8", "192.168.0.0/16"},
+			},
+			ImageDigestMirrors: []api.ImageDigestMirror{
+				{Source: "quay.io/openshift-release-dev", Mirrors: []string{"mirror.example.com"}},
+			},
+			Autoscaling: api.ClusterAutoscalingProfile{
+				MaxNodesTotal:               12,
+				MaxPodGracePeriodSeconds:    600,
+				MaxNodeProvisionTimeSeconds: 900,
+				PodPriorityThreshold:        -10,
+			},
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ExperimentalFeatures: api.ExperimentalFeatures{
+				ControlPlaneAvailability: api.SingleReplicaControlPlane,
+				ControlPlanePodSizing:    api.MinimalControlPlanePodSizing,
+			},
+		},
+	}
+
+	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
+	require.NoError(t, err)
+
+	clusterBuilder, autoscalerBuilder, err := BuildCSCluster(nil, "", hcpCluster, nil, oldClusterServiceCluster)
+	require.NoError(t, err)
+
+	csCluster, err := clusterBuilder.Autoscaler(autoscalerBuilder).Build()
+	require.NoError(t, err)
+
+	actualConfig, err := ClusterUpdatableConfigFromClusterServiceCluster(csCluster)
+	require.NoError(t, err)
+
+	desiredHash, err := clusterUpdatableConfigHash(ClusterUpdatableConfigFromCluster(hcpCluster))
+	require.NoError(t, err)
+	actualHash, err := clusterUpdatableConfigHash(actualConfig)
+	require.NoError(t, err)
+	assert.Equal(t, desiredHash, actualHash)
+}
+
+func TestClusterUpdatableConfigDiffersFromClusterService(t *testing.T) {
+	hcpCluster := &api.HCPOpenShiftCluster{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			NodeDrainTimeoutMinutes: 30,
+		},
+	}
+
+	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
+	require.NoError(t, err)
+
+	matchingBuilder, matchingAutoscalerBuilder, err := BuildCSCluster(nil, "", hcpCluster, nil, oldClusterServiceCluster)
+	require.NoError(t, err)
+	matchingCSCluster, err := matchingBuilder.Autoscaler(matchingAutoscalerBuilder).Build()
+	require.NoError(t, err)
+
+	differs, err := ClusterUpdatableConfigDiffersFromClusterService(hcpCluster, matchingCSCluster)
+	require.NoError(t, err)
+	assert.False(t, differs)
+
+	hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes = 60
+	differs, err = ClusterUpdatableConfigDiffersFromClusterService(hcpCluster, matchingCSCluster)
+	require.NoError(t, err)
+	assert.True(t, differs)
 }
 
 func TestApplyClusterUpdatableConfigExperimentalProperties(t *testing.T) {

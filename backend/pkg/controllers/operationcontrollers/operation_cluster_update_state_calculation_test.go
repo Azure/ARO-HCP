@@ -257,9 +257,9 @@ func TestAutoscalingSpecMatchesDesired(t *testing.T) {
 		wantSubstr string
 	}{
 		{
-			name:    "maxNodesTotal zero exact match",
-			desired: api.ClusterAutoscalingProfile{},
-			observed: observedAutoscalingForZeroDesired(),
+			name:      "maxNodesTotal zero exact match",
+			desired:   api.ClusterAutoscalingProfile{},
+			observed:  observedAutoscalingForZeroDesired(),
 			wantMatch: true,
 		},
 		{
@@ -296,9 +296,9 @@ func TestAutoscalingSpecMatchesDesired(t *testing.T) {
 			wantSubstr: "maxNodesTotal",
 		},
 		{
-			name:    "maxNodesTotal desired nonzero observed nil",
-			desired: api.ClusterAutoscalingProfile{MaxNodesTotal: 10},
-			observed: observedAutoscalingForZeroDesired(),
+			name:       "maxNodesTotal desired nonzero observed nil",
+			desired:    api.ClusterAutoscalingProfile{MaxNodesTotal: 10},
+			observed:   observedAutoscalingForZeroDesired(),
 			wantMatch:  false,
 			wantSubstr: "maxNodesTotal",
 		},

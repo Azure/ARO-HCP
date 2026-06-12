@@ -250,6 +250,9 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 	case "clusterServiceCompare":
 		return newClusterServiceCompareStep(stepID, stepDir)
 
+	case "syncClusterUpdateDispatch":
+		return newSyncClusterUpdateDispatchStep(stepID, stepDir)
+
 	case "migrateCosmos":
 		return newMigrateCosmosStep(stepID, stepDir)
 
