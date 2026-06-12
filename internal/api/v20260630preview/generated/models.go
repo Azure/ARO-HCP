@@ -103,6 +103,13 @@ type CustomerManagedEncryptionProfile struct {
 	Kms *KmsEncryptionProfile
 }
 
+// CustomerManagedEncryptionProfileUpdate - Customer managed encryption key profile.
+type CustomerManagedEncryptionProfileUpdate struct {
+	// The Key Management Service (KMS) encryption key details.
+	// Required when encryptionType is "KMS".
+	Kms *KmsEncryptionProfileUpdate
+}
+
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
 	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
@@ -123,10 +130,22 @@ type EtcdDataEncryptionProfile struct {
 	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 }
 
+// EtcdDataEncryptionProfileUpdate - The ETCD data encryption settings.
+type EtcdDataEncryptionProfileUpdate struct {
+	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
+	CustomerManaged *CustomerManagedEncryptionProfileUpdate
+}
+
 // EtcdProfile - The ETCD settings and configuration options.
 type EtcdProfile struct {
 	// ETCD Data Encryption settings. If not specified platform managed keys are used.
 	DataEncryption *EtcdDataEncryptionProfile
+}
+
+// EtcdProfileUpdate - The ETCD settings and configuration options.
+type EtcdProfileUpdate struct {
+	// ETCD Data Encryption settings. If not specified platform managed keys are used.
+	DataEncryption *EtcdDataEncryptionProfileUpdate
 }
 
 // ExternalAuth resource
@@ -380,6 +399,9 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
 
+	// Configure ETCD.
+	Etcd *EtcdProfileUpdate
+
 	// imageDigestMirrors is a set of rules to allow pulling images from a mirrored registry by using digest specifications.
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
 	ImageDigestMirrors []*ImageDigestMirror
@@ -554,12 +576,26 @@ type KmsEncryptionProfile struct {
 	Visibility *KeyVaultVisibility
 }
 
+// KmsEncryptionProfileUpdate - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application
+// used to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
+type KmsEncryptionProfileUpdate struct {
+	// The details of the active key.
+	ActiveKey *KmsKeyUpdate
+}
+
 // KmsKey - A representation of a KeyVault Secret.
 type KmsKey struct {
 	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
 	Name *string
 
 	// REQUIRED; version contains the version of the key to use.
+	Version *string
+}
+
+// KmsKeyUpdate - A representation of a KeyVault Secret.
+type KmsKeyUpdate struct {
+	// version contains the version of the key to use.
 	Version *string
 }
 
